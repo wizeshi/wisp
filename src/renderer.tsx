@@ -28,7 +28,12 @@
 
 import ReactDOM from "react-dom/client"
 import { App } from "./frontend/App";
+import { AppContextProvider } from "./frontend/providers/AppContext";
 
 const root = ReactDOM.createRoot(document.getElementById("root"))
 
-root.render(<App />)
+root.render(
+    <AppContextProvider>
+        <App />
+    </AppContextProvider>
+)

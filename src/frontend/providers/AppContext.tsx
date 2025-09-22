@@ -1,12 +1,17 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
 import { Album, Artist, Playlist, Song } from "../utils/types";
 
+type CurrentViewType = "home" | "sidebarList" 
+
 export type AppContextType = {
     app: {
         sidebar: {
             open: boolean,
             setOpen: (value: boolean) => void,
         },
+        screen: {
+            currentView: CurrentViewType
+        }
     },
     music: {
         currentSong: Song | undefined,
@@ -34,6 +39,9 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 sidebar: {
                     open: sidebarOpen,
                     setOpen: setSidebarOpen,
+                },
+                screen: {
+                    currentView: "home"
                 }
             },
             music: {

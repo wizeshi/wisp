@@ -1,11 +1,7 @@
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import React from "react"
-import { theme } from "../utils/theme"
 import Divider from "@mui/material/Divider"
-import Grid from "@mui/material/Grid"
-import Card from "@mui/material/Card"
-import Button from "@mui/material/Button"
 import Stack from '@mui/material/Stack';
 import Avatar from "@mui/material/Avatar"
 import ButtonBase from "@mui/material/ButtonBase"
