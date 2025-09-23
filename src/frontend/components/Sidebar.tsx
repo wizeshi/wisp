@@ -130,7 +130,7 @@ export const Sidebar: React.FC = () => {
 
                 {sidebarThings.map((thing, index) => (
                     <ListItem key={thing.id} sx={{ padding: "0px 0px 0px 0px" }}>
-                        <ListItemButton sx={{ height: "80px", padding: "8 8 0 0" }}>
+                        <ListItemButton onClick={() => {app.screen.setCurrentView("sidebarList")}} sx={{ height: "80px", padding: "8 8 0 0" }}>
                             <ListItemAvatar>
                                 <Avatar variant="rounded" src="" sx={{ height: "60px", width: "60px" }}/>
                             </ListItemAvatar>

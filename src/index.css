@@ -2,7 +2,9 @@ html, body, #root {
   height: 100%;
   width: 100%;
   margin: 0;
-  background-color: var(--mui-palette-background-default);}
+  background-color: var(--mui-palette-background-default);
+  overflow-y: hidden;
+}
 
 .MuiDrawer-paper {
   top: 32px;

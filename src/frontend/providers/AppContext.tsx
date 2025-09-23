@@ -10,14 +10,21 @@ export type AppContextType = {
             setOpen: (value: boolean) => void,
         },
         screen: {
-            currentView: CurrentViewType
+            currentView: CurrentViewType,
+            setCurrentView: (newView: CurrentViewType) => void
         }
     },
     music: {
-        currentSong: Song | undefined,
+        current: {
+            song: Song | undefined,
+            setSong: (song: Song) => void,
+            second: number,
+            setSecond: (second: number) => void,
+        },
+        playing: boolean,
+        setPlaying: (value: boolean) => void
         songQueue: Song[] | undefined,
         avaliableLists: Array<Artist | Album | Playlist> | undefined,
-
     }
 }
 
@@ -32,6 +39,10 @@ export const useAppContext = () => {
 
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false)
+    const [currentView, setCurrentView] = useState<CurrentViewType>("home")
+    const [currentSong, setCurrentSong] = useState<Song | undefined>(undefined)
+    const [playing, setPlaying] = useState(false)
+    const [second, setSecond] = useState(0)
     
     return (
         <AppContext.Provider value={{
@@ -41,11 +52,19 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     setOpen: setSidebarOpen,
                 },
                 screen: {
-                    currentView: "home"
+                    currentView: currentView,
+                    setCurrentView: setCurrentView,
                 }
             },
             music: {
-                currentSong: undefined,
+                current: {
+                    song: currentSong,
+                    setSong: setCurrentSong,
+                    second: second,
+                    setSecond: setSecond,
+                },
+                playing: playing,
+                setPlaying: setPlaying,
                 songQueue: undefined,
                 avaliableLists: undefined
             }

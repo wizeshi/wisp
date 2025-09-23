@@ -22,6 +22,7 @@ import VolumeDownIcon from '@mui/icons-material/VolumeDown';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import Input from "@mui/material/Input"
+import { secondsToSecAndMin } from "../utils/utils"
 
 enum ShuffleEnum {
     Off = 0,
@@ -30,7 +31,6 @@ enum ShuffleEnum {
 }
 
 export const PlayerBar: React.FC = () => {
-    const [playing, setPlaying] = useState<boolean>(false)
     const [repeat, setRepeat] = useState<ShuffleEnum>(ShuffleEnum.Off)
     const [shuffle, setShuffle] = useState<boolean>(false)
     const [volume, setVolume] = useState<number>(0)
@@ -55,7 +55,7 @@ export const PlayerBar: React.FC = () => {
     }
 
     const handlePlay = () => {
-        setPlaying(!playing)
+        music.setPlaying(!music.playing)
     }
 
     const handleShuffle = () => {
@@ -107,6 +107,10 @@ export const PlayerBar: React.FC = () => {
         }
     }
 
+    const handleProgressChange = (event: Event, newValue: number) => {
+        music.current.setSecond(newValue)
+    }
+
     let volumeIcon
     if (volume == 0) {
         volumeIcon = <VolumeOffIcon />
@@ -114,6 +118,17 @@ export const PlayerBar: React.FC = () => {
         volumeIcon = <VolumeDownIcon />
     } else if (volume >= 50) {
         volumeIcon = <VolumeUpIcon />
+    }
+
+    let songName = ""
+    let artistName = ""
+    let songDurationSeconds
+    let songDurationFormatted
+    if (music.current.song != undefined) {
+        songName = music.current.song.title
+        artistName = music.current.song.artist.name
+        songDurationSeconds = music.current.song.durationSecs
+        songDurationFormatted = music.current.song.durationFormatted
     }
     
     return (
@@ -128,8 +143,8 @@ export const PlayerBar: React.FC = () => {
                     </ButtonBase>
         
                     <Box display="flex" sx={{ textAlign: "left", flexDirection: "column", paddingLeft: "16px", marginTop: "auto", marginBottom: "auto" }}>
-                        <Link href="" underline="hover" variant="body1" sx={{ color: "var(--mui-palette-text-primary)" }}>gurt</Link>
-                        <Link href="" underline="hover" variant="caption" fontWeight="200" sx={{ color: "var(--mui-palette-text-secondary)" }}>yo</Link>
+                        <Link href="" underline="hover" variant="body1" sx={{ color: "var(--mui-palette-text-primary)" }}>{songName}</Link>
+                        <Link href="" underline="hover" variant="caption" fontWeight="200" sx={{ color: "var(--mui-palette-text-secondary)" }}>{artistName}</Link>
                     </Box>
                 </Box>
     
@@ -148,7 +163,7 @@ export const PlayerBar: React.FC = () => {
                             </IconButton>
                             
                             <IconButton onClick={handlePlay}>
-                                {playing ?
+                                {music.playing ?
                                     <PauseIcon />
                                 : <PlayArrowIcon />
                                 }
@@ -163,9 +178,26 @@ export const PlayerBar: React.FC = () => {
                             </IconButton>
                         </Box>
 
-                        <Box>
-                            <Slider value={50}
-                            sx={{ width: "700px", padding: "0" }}/>
+                        <Box display="flex" flexDirection="row">
+                            <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }}
+                            variant="body2">{ secondsToSecAndMin(music.current.second) }</Typography>
+
+                            <Slider
+                            size="medium"
+                            min={0}
+                            max={songDurationSeconds}
+                            step={1}
+                            value={music.current.second}
+                            onChange={handleProgressChange}
+                            slotProps={{
+                                thumb: { style: {
+                                    width: "12px", height: "12px"
+                                }}
+                            }}
+                            sx={{ width: "30vw", padding: "0" }}/>
+
+                            <Typography sx={{ position: "relative", left: "12px", top: "-8px" }}
+                            variant="body2">{ songDurationFormatted ?? "00:00" }</Typography>
                         </Box>
 
                     </Box>
