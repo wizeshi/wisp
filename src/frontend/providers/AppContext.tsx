@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
 import { Album, Artist, Playlist, Song } from "../utils/types";
 
-type CurrentViewType = "home" | "sidebarList" 
+type CurrentViewType = "home" | "sidebarList" | "search"
 
 export type AppContextType = {
     app: {
@@ -12,6 +12,8 @@ export type AppContextType = {
         screen: {
             currentView: CurrentViewType,
             setCurrentView: (newView: CurrentViewType) => void
+            search: string,
+            setSearch: (searchQuery: string) => void,
         }
     },
     music: {
@@ -43,6 +45,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const [currentSong, setCurrentSong] = useState<Song | undefined>(undefined)
     const [playing, setPlaying] = useState(false)
     const [second, setSecond] = useState(0)
+    const [searchQuery, setSearchQuery] = useState<string>("")
     
     return (
         <AppContext.Provider value={{
@@ -54,6 +57,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 screen: {
                     currentView: currentView,
                     setCurrentView: setCurrentView,
+                    search: searchQuery,
+                    setSearch: setSearchQuery,
                 }
             },
             music: {

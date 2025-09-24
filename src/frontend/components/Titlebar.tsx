@@ -16,6 +16,15 @@ export const Titlebar: React.FC = () => {
     const [maximize, setMaximized] = useState<boolean>(false)
     const { app } = useAppContext()
 
+    const handleSearchInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        app.screen.setSearch(event.target.value)
+        app.screen.setCurrentView("search")
+
+        if (event.target.value == "") {
+            app.screen.setCurrentView("home")
+        }
+    }
+
     const handleHome = () => {
         app.screen.setCurrentView("home")
     }
@@ -51,7 +60,7 @@ export const Titlebar: React.FC = () => {
                     <HomeIcon fontSize="small"/>
                 </IconButton>
                 
-                <TextField sx={{ margin: "auto 0 auto 0" }} size="small" variant="outlined" placeholder="Search..."
+                <TextField onChange={handleSearchInputChange} sx={{ margin: "auto 0 auto 0" }} size="small" variant="outlined" placeholder="Search..."
                     slotProps={{
                         htmlInput: { sx: { padding: "0px 8px 0px 8px", fontSize: "16px" } }
                     }}

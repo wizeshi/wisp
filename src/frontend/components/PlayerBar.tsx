@@ -23,6 +23,7 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import Input from "@mui/material/Input"
 import { secondsToSecAndMin } from "../utils/utils"
+import { Artist } from "../utils/types"
 
 enum ShuffleEnum {
     Off = 0,
@@ -121,12 +122,12 @@ export const PlayerBar: React.FC = () => {
     }
 
     let songName = ""
-    let artistName = ""
+    let artists: Array<Artist> = []
     let songDurationSeconds
     let songDurationFormatted
     if (music.current.song != undefined) {
         songName = music.current.song.title
-        artistName = music.current.song.artist.name
+        artists = music.current.song.artists
         songDurationSeconds = music.current.song.durationSecs
         songDurationFormatted = music.current.song.durationFormatted
     }
@@ -144,7 +145,15 @@ export const PlayerBar: React.FC = () => {
         
                     <Box display="flex" sx={{ textAlign: "left", flexDirection: "column", paddingLeft: "16px", marginTop: "auto", marginBottom: "auto" }}>
                         <Link href="" underline="hover" variant="body1" sx={{ color: "var(--mui-palette-text-primary)" }}>{songName}</Link>
-                        <Link href="" underline="hover" variant="caption" fontWeight="200" sx={{ color: "var(--mui-palette-text-secondary)" }}>{artistName}</Link>
+                        
+                        <Box>
+                            {artists.map((artist, index) => (
+                                <React.Fragment>
+                                    <Link href="" underline="hover" variant="caption" fontWeight="200" sx={{ color: "var(--mui-palette-text-secondary)" }}>{ artist.name }</Link>
+                                    {index < artists.length - 1 && <Typography variant="caption" color="textSecondary">,&nbsp;</Typography>}
+                                </React.Fragment>
+                            ))}
+                        </Box>
                     </Box>
                 </Box>
     
@@ -178,7 +187,7 @@ export const PlayerBar: React.FC = () => {
                             </IconButton>
                         </Box>
 
-                        <Box display="flex" flexDirection="row">
+                        <Box display="flex" flexDirection="row" sx={{ marginTop: "8px" }}>
                             <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }}
                             variant="body2">{ secondsToSecAndMin(music.current.second) }</Typography>
 

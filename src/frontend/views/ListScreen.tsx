@@ -12,8 +12,9 @@ import Link from "@mui/material/Link"
 import ExplicitIcon from '@mui/icons-material/Explicit';
 import IconButton from "@mui/material/IconButton"
 import PlayArrow from "@mui/icons-material/PlayArrow"
+import { getServiceIcon } from "../utils/helpers"
 
-export const ListScreen: React.FC<{ currentList: Album | Playlist | Artist }> = ({ currentList }) => {
+export const ListScreen: React.FC<{ currentList: Album | Playlist }> = ({ currentList }) => {
     const { music } = useAppContext()
     const [ overIndex, setOverIndex ] = useState<number>(0)
 
@@ -24,31 +25,14 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist | Artist }> = 
         music.setPlaying(true)
     }
 
-    let title
-    let artist
-    let songs
-    let label
-    let explicit
-    let durationFormatted
+    let artist = ""
 
     if (currentList instanceof Album) {
-        title = currentList.title
         artist = currentList.artist.name
-        songs = currentList.songs
-        label = currentList.label
-        explicit = currentList.explicit
-        durationFormatted = currentList.durationFormatted
-    }
-
-    if (currentList instanceof Artist) {
-        title = currentList.name
     }
 
     if (currentList instanceof Playlist) {
-        title = currentList.title
         artist = currentList.author
-        songs = currentList.songs
-        durationFormatted = currentList.durationFormatted
     }
     
     return (
@@ -61,9 +45,9 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist | Artist }> = 
                 <Box display="flex" sx={{ width: "100%", flexDirection: "row", paddingLeft: "18px", marginTop: "auto" }}>
                     <Box>
                         <Box display="flex" flexDirection="row">
-                            <Typography variant="h4" fontWeight={900} sx={{ textWrap: "nowrap" }}>{ title }</Typography>
+                            <Typography variant="h4" fontWeight={900} sx={{ textWrap: "nowrap" }}>{ currentList.title }</Typography>
                             
-                            {explicit &&
+                            {((currentList instanceof Album) && currentList.explicit) &&
                                 <ExplicitIcon sx={{ marginTop: "auto", marginBottom: "auto", paddingLeft: "12px" }} color="disabled"/>
                             }
                             
@@ -76,38 +60,41 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist | Artist }> = 
                             <DotRowSeparator />
                             <Typography variant="h6" fontWeight={200}
                                 sx={{ color: "var(--mui-palette-text-secondary)" }}>
-                                { (songs.length > 1) ? `${songs.length} songs` : `${songs.length} song` }
+                                { (currentList.songs.length > 1) ? `${currentList.songs.length} songs` : `${currentList.songs.length} song` }
                             </Typography>
                             <DotRowSeparator />
                             <Typography variant="h6" fontWeight={200}
                                 sx={{ color: "var(--mui-palette-text-secondary)" }}>
-                                { durationFormatted }
+                                { currentList.durationFormatted }
                             </Typography>               
                         </Box>
                     </Box>
                     
                     <Box display="flex" sx={{  marginLeft: "auto", marginTop: "auto" }}>
                         <Box display="flex">
-                            <Typography variant="caption" color="textSecondary" sx={{ textAlign: "right" }}> { label } </Typography>
+                            {(currentList instanceof Album) && 
+                                <Typography variant="caption" color="textSecondary" sx={{ textAlign: "right" }}> { currentList.label } </Typography>
+                            }
                         </Box>
                     </Box>
                 </Box>
             </Box>
             <Box display="flex" sx={{overflowY: "scroll", flexDirection:"column", marginTop: "16px", padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)" }}>
-                <Box display="grid" sx={{ gridTemplateColumns: "0.075fr 2fr 1fr 1fr", paddingLeft: "30px", paddingRight: "30px" }}>
+                <Box display="grid" sx={{ gridTemplateColumns: "0.075fr 2fr 1fr 0.1fr", paddingLeft: "16px", paddingRight: "16px" }}>
                     <Typography color="textSecondary">#</Typography>
                     <Typography color="textSecondary">Title</Typography>
                     <Typography sx={{ textAlign: "center" }} color="textSecondary">Duration</Typography>
-                    <Typography sx={{ textAlign: "right" }} color="textSecondary">Source</Typography>
+                    <Typography sx={{ textAlign: "center" }} color="textSecondary">Source</Typography>
                 </Box>
                 
                 <List sx={{ flexGrow: 1 }}>
-                    {songs.map((song, index) => (
+                    {currentList.songs.map((song, index) => (
                         <ListItem
                             key={index}
                             sx={{
                                 paddingTop: "0",
-                                paddingRight: "16px",
+                                paddingRight: "0px",
+                                paddingLeft: "0px",
                                 paddingBottom: "0px",
                                 marginBottom: "8px",
                         }}
@@ -118,7 +105,7 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist | Artist }> = 
                                 onDoubleClick={() => handlePlay(song)}
                                 sx={[{
                                     display: "grid",
-                                    gridTemplateColumns: "0.075fr 2fr 1fr 1fr",
+                                    gridTemplateColumns: "0.075fr 2fr 1fr 0.1fr",
                                     alignItems: "center",
                                     borderRadius: "12px",
                                     zIndex: "5",
@@ -138,10 +125,19 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist | Artist }> = 
                                         <Typography variant="body1">{song.title}</Typography>
                                         {song.explicit && <ExplicitIcon color="disabled" sx={{ paddingLeft: "8px" }} />}
                                     </Box>
-                                    <Link href="" variant="body2" underline="hover" color="textSecondary" position="sticky" zIndex="10">{song.artist.name}</Link>
+                                    {song.artists.map((artist, index) => (
+                                        <React.Fragment>
+                                            <Link href="" variant="body2" underline="hover" color="textSecondary" position="sticky" zIndex="10">{artist.name}</Link>
+                                            {index < song.artists.length - 1 && <Typography variant="caption" color="textSecondary">,&nbsp;</Typography>}
+                                        </React.Fragment>
+                                    ))}
                                 </Box>
-                                <Typography variant="body2" sx={{ textAlign: "center" }}>{song.durationFormatted}</Typography>
-                                <Typography variant="body2" sx={{ textAlign: "right" }}>{song.source}</Typography>
+                                <Box>
+                                    <Typography variant="body2" sx={{ textAlign: "center" }}>{song.durationFormatted}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="body2" sx={{ textAlign: "center" }}>{ getServiceIcon(song.source) }</Typography>
+                                </Box>
                             </ListItemButton>
                         </ListItem>
                     ))}
@@ -152,9 +148,9 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist | Artist }> = 
     )
 }
 
-const DotRowSeparator: React.FC = () => {
+export const DotRowSeparator: React.FC<{ sx?: React.CSSProperties }> = ({ sx }) => {
     return (
         <Typography variant="h6" fontWeight={900} color="var(--mui-palette-text-secondary)"
-        sx={{ paddingLeft: "8px", paddingRight: "8px"}}>•</Typography>
+        sx={{ paddingLeft: "8px", paddingRight: "8px", ...sx }}>•</Typography>
     )
 }

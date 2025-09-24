@@ -12,17 +12,19 @@ import Typography from "@mui/material/Typography"
 import { PlayerBar } from "./components/PlayerBar"
 import { ListScreen } from "./views/ListScreen"
 import { Album, Artist, Song } from "./utils/types"
+import { SearchScreen } from "./views/SearchScreen"
 
 export const App: React.FC = () => {
     const { app } = useAppContext()
 
-    const testArtist = new Artist("Kanye West", "")
+    const testArtist1 = new Artist("Kanye West", "")
+    const testArtist2 = new Artist("IDK", "")
 
-    const testSong = new Song("Intro", testArtist, true, 309, "youtube", "", "")
-    const testSong2 = new Song("We Don't Care", testArtist, true, 239, "spotify", "", "")
+    const testSong = new Song("Intro", [ testArtist1 ], true, 309, "youtube", "", "")
+    const testSong2 = new Song("We Don't Care", [ testArtist1, testArtist2 ], true, 239, "spotify", "", "")
 
     const testList = new Album("The College Dropout", 
-        testArtist,
+        testArtist1,
         "Sony Music Entertainment, Ltd.",
         true,
         [
@@ -56,6 +58,8 @@ export const App: React.FC = () => {
         case "sidebarList":
             mainContent = <ListScreen currentList={testList}/>
             break
+        case "search":
+            mainContent = <SearchScreen searchQuery={app.screen.search} />
     }
 
     return (

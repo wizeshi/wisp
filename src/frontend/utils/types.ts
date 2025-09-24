@@ -14,7 +14,7 @@ export class Artist {
 
 export class Song {
     title: string;
-    artist: Artist;
+    artists: Array<Artist>;
     source: Sources;
     URL: string;
     thumbnailURL: string;
@@ -22,9 +22,9 @@ export class Song {
     durationSecs: number;
     durationFormatted: string;
 
-    constructor(title: string, artist: Artist, explicit: boolean, duration: number, source: Sources, URL: string, thumbnailURL: string) {
+    constructor(title: string, artists: Array<Artist>, explicit: boolean, duration: number, source: Sources, URL: string, thumbnailURL: string) {
         this.title = title;
-        this.artist = artist;
+        this.artists = artists;
         this.source = source;
         this.URL = URL;
         this.thumbnailURL = thumbnailURL;
@@ -35,7 +35,7 @@ export class Song {
     }
 }
 
-class BaseSongList {
+export class BaseSongList {
     title: string;
     songs: Array<Song> | undefined;
     thumbnailURL: string;
