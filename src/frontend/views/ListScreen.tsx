@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { useAppContext } from "../providers/AppContext"
-import { Album, Artist, Playlist, Song } from "../utils/types"
+import { Album, Artist, Playlist, Song } from "../types/SongTypes"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Avatar from "@mui/material/Avatar"
@@ -12,7 +12,7 @@ import Link from "@mui/material/Link"
 import ExplicitIcon from '@mui/icons-material/Explicit';
 import IconButton from "@mui/material/IconButton"
 import PlayArrow from "@mui/icons-material/PlayArrow"
-import { getServiceIcon } from "../utils/helpers"
+import { getServiceIcon } from "../utils/Helpers"
 
 export const ListScreen: React.FC<{ currentList: Album | Playlist }> = ({ currentList }) => {
     const { music } = useAppContext()
@@ -57,6 +57,14 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist }> = ({ curren
                             <Avatar variant="rounded" src="" sx={{ margin: "auto 0 auto 0", height: "24px", width: "24px"}}/>
 
                             <Typography variant="h6" fontWeight={200} sx={{ paddingLeft: "12px" }}>{ artist }</Typography>
+                            
+                            {(currentList instanceof Album) &&
+                                <React.Fragment>
+                                    <DotRowSeparator />
+                                    <Typography variant="h6" fontWeight={200} color="textSecondary"> { currentList.releaseDate.getFullYear() } </Typography>
+                                </React.Fragment>
+                            }
+
                             <DotRowSeparator />
                             <Typography variant="h6" fontWeight={200}
                                 sx={{ color: "var(--mui-palette-text-secondary)" }}>

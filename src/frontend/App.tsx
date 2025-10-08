@@ -1,7 +1,7 @@
 import { ThemeProvider } from "@mui/material/styles/"
 import React from "react"
 import { Titlebar } from "./components/Titlebar"
-import { theme } from "./utils/theme"
+import { theme } from "./utils/Theme"
 /* import "@fontsource/roboto" */
 import "@fontsource-variable/jetbrains-mono"
 import { AppContextProvider, useAppContext } from "./providers/AppContext"
@@ -11,8 +11,10 @@ import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import { PlayerBar } from "./components/PlayerBar"
 import { ListScreen } from "./views/ListScreen"
-import { Album, Artist, Song } from "./utils/types"
+import { Album, Artist, Song } from "./types/SongTypes"
 import { SearchScreen } from "./views/SearchScreen"
+import { Settings } from "./views/Settings"
+import { SongQueue } from "./views/SongQueue"
 
 export const App: React.FC = () => {
     const { app } = useAppContext()
@@ -26,6 +28,7 @@ export const App: React.FC = () => {
     const testList = new Album("The College Dropout", 
         testArtist1,
         "Sony Music Entertainment, Ltd.",
+        new Date(),
         true,
         [
             testSong,
@@ -60,6 +63,13 @@ export const App: React.FC = () => {
             break
         case "search":
             mainContent = <SearchScreen searchQuery={app.screen.search} />
+            break
+        case "settings":
+            mainContent = <Settings />
+            break
+        case "songQueue":
+            mainContent = <SongQueue />
+            break
     }
 
     return (

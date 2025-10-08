@@ -29,6 +29,7 @@
 import ReactDOM from "react-dom/client"
 import { App } from "./frontend/App";
 import { AppContextProvider } from "./frontend/providers/AppContext";
+import './frontend/types/WindowTypes'
 
 const root = ReactDOM.createRoot(document.getElementById("root"))
 

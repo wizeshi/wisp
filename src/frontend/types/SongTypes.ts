@@ -1,4 +1,4 @@
-import { secondsToSecAndMin, secondsToSecMinHour } from "./utils";
+import { secondsToSecAndMin, secondsToSecMinHour } from "../utils/Utils";
 
 export type Sources = "spotify" | "youtube" | "soundcloud"
 
@@ -16,17 +16,15 @@ export class Song {
     title: string;
     artists: Array<Artist>;
     source: Sources;
-    URL: string;
     thumbnailURL: string;
     explicit: boolean;
     durationSecs: number;
     durationFormatted: string;
 
-    constructor(title: string, artists: Array<Artist>, explicit: boolean, duration: number, source: Sources, URL: string, thumbnailURL: string) {
+    constructor(title: string, artists: Array<Artist>, explicit: boolean, duration: number, source: Sources, thumbnailURL: string) {
         this.title = title;
         this.artists = artists;
         this.source = source;
-        this.URL = URL;
         this.thumbnailURL = thumbnailURL;
         this.explicit = explicit
         this.durationSecs = duration
@@ -49,7 +47,7 @@ export class BaseSongList {
 
         this.durationSecs = 0
 
-        songs.forEach((song, index) => {
+        songs.forEach((song) => {
             this.durationSecs += song.durationSecs
         })
 
@@ -58,15 +56,17 @@ export class BaseSongList {
 }
 
 export class Album extends BaseSongList {
-    artist: Artist;
+    artists: Array<Artist>;
     explicit: boolean;
     label: string;
+    releaseDate: Date;
 
-    constructor(title: string, artist: Artist, label: string, explicit: boolean, songs: Array<Song> | undefined, thumbnailURL: string) {
+    constructor(title: string, artists: Array<Artist>, label: string, releaseDate: Date, explicit: boolean, songs: Array<Song> | undefined, thumbnailURL: string) {
         super(title, songs, thumbnailURL);
-        this.artist = artist
+        this.artists = artists;
         this.label = label
         this.explicit = explicit
+        this.releaseDate = releaseDate
     }
 }
 
@@ -77,4 +77,47 @@ export class Playlist extends BaseSongList {
         super(title, songs, thumbnailURL);
         this.author = author
     }
+}
+
+export type youtubeSongType = {
+    etag: string,
+    id: {
+        kind: "youtube#video",
+        videoId: string,
+    },
+    kind: "youtube#searchResult",
+    snippet: youtubeSnippetType
+}
+
+export type youtubeSnippetType = {
+    channelId: string,
+    channelTitle: string,
+    description: string,
+    liveBroadcastContent: string,
+    publishTime: string,
+    publishedAt: string,
+    thumbnails: {
+        default: youtubeThumbnailType,
+        high: youtubeThumbnailType,
+        medium: youtubeThumbnailType,
+    },
+    title: string
+}
+
+export type youtubeThumbnailType = {
+    height: number,
+    url: string,
+    width: number
+}
+
+export type youtubeSearchType = {
+    etag: string,
+    items: youtubeSongType[],
+    kind: string,
+    nextPageToken: string,
+    pageInfo: {
+        resultsPerPage: number,
+        totalResults: number
+    },
+    regionCode: string
 }
