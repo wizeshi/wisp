@@ -1,15 +1,13 @@
 import IconButton from "@mui/material/IconButton"
 import Typography from "@mui/material/Typography"
 import Box from "@mui/material/Box"
-import React, { useEffect, useState } from "react"
+import React from "react"
 import CloseIcon from '@mui/icons-material/Close';
 import MinimizeIcon from '@mui/icons-material/Minimize';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
 import SettingsIcon from '@mui/icons-material/Settings';
-import SearchIcon from '@mui/icons-material/Search';
 import HomeIcon from '@mui/icons-material/Home';
 import TextField from "@mui/material/TextField";
-import Input from "@mui/material/Input";
 import { useAppContext } from "../providers/AppContext";
 
 export const Titlebar: React.FC = () => {

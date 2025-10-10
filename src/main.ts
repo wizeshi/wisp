@@ -1,11 +1,15 @@
 import { app, BrowserWindow, ipcMain, protocol, net } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
-import { getSpotifyAccess, isSpotifyLoggedIn, saveSpotifyCredentials, spotifySearch } from './backend/sources/Spotify'
+import { getSpotifyAccess, getSpotifyListDetails, getSpotifyUserInfo, isSpotifyLoggedIn, loadSpotifyUserLists, saveSpotifyCredentials, spotifySearch } from './backend/sources/Spotify'
 import dns from 'dns';
 import { downloadYoutubeAudio, getYoutubeAccess, isYoutubeLoggedIn, saveYoutubeCredentials, searchYoutube } from './backend/sources/Youtube';
 import { loadSettings, saveSettings } from './backend/Settings';
 import { UserSettings } from './backend/utils/types';
+import { SidebarItemType, SidebarListType } from './frontend/types/SongTypes';
+import dotenv from "dotenv"
+
+dotenv.config()
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -22,7 +26,6 @@ app.whenReady().then(() => {
     protocol.handle('wisp-audio', async request => {
         const requestUrl = request.url.replace('wisp-audio://', '')
         const filePath = `file:///${requestUrl.charAt(0) + ':' + requestUrl.slice(1)}`;
-        console.log(filePath)
 
         return net.fetch(filePath)
     });
@@ -50,7 +53,7 @@ app.whenReady().then(() => {
     }
 
     ipcMain.on("login:youtube-login", () => {
-        const clientId = "228162215609-vhv4kamso9rffd80si5n0p9fulp9ufef.apps.googleusercontent.com"
+        const clientId = process.env.YOUTUBE_CLIENT_ID
         const redirectUri = "http://127.0.0.1:5173/callback"
         const scopes = [
             "https://www.googleapis.com/auth/youtube.readonly"
@@ -80,7 +83,7 @@ app.whenReady().then(() => {
     })
 
     ipcMain.on("login:spotify-login", () => {
-        const clientId = "***REMOVED***"
+        const clientId = process.env.SPOTIFY_CLIENT_ID
         const redirectUri = "http://127.0.0.1:5173/callback"
         const scopes = [
             "playlist-read-private",
@@ -161,8 +164,16 @@ ipcMain.handle("extractors:spotify-search", (_event, searchQuery: string) => {
     return spotifySearch(searchQuery)
 })
 
-ipcMain.handle("extractors:spotify-user-playlists", () => {
-    return 
+ipcMain.handle("extractors:spotify-user-lists", (_event, type: SidebarListType) => {
+    return loadSpotifyUserLists(type)
+})
+
+ipcMain.handle('extractors:spotify-user-info', (_event) => {
+    return getSpotifyUserInfo()
+})
+
+ipcMain.handle('extractors:spotify-list-info', (_event, type: SidebarItemType, id) => {
+    return getSpotifyListDetails(type, id)
 })
 
 ipcMain.handle("extractors:youtube-search", (_event, searchQuery) => {

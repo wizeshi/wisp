@@ -4,6 +4,7 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 import { UserSettings } from "./backend/utils/types";
+import { SidebarItemType, SidebarListType } from "./frontend/types/SongTypes";
 
 contextBridge.exposeInMainWorld('electronAPI', {
     settings: {
@@ -35,7 +36,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     extractors: {
         spotify: {
             search: (searchQuery: string) => ipcRenderer.invoke('extractors:spotify-search', searchQuery),
-            getUserPlaylists: () => ipcRenderer.invoke('extractors:spotify-user-playlists'),
+            getUserLists: (type: SidebarListType) => ipcRenderer.invoke('extractors:spotify-user-lists', type),
+            getUserInfo: () => ipcRenderer.invoke('extractors:spotify-user-info'),
+            getListInfo: (type: SidebarItemType, id: string) => ipcRenderer.invoke('extractors:spotify-list-info', type, id),
         },
         youtube: {
             search: (searchQuery: string) => ipcRenderer.invoke('extractors:youtube-search', searchQuery),

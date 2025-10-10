@@ -5,9 +5,9 @@ import { ShuffleType, UserSettings } from "./utils/types"
 
 const settingsPath = path.join(app.getPath('userData'), 'userSettings.json')
 
-
 const defaultSettings: UserSettings = {
-    shuffleType: "Fisher-Yates"
+    shuffleType: "Fisher-Yates",
+    listPlay: "Single"
 }
 
 export const loadSettings = async (): Promise<UserSettings> => {

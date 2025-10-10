@@ -1,6 +1,6 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Album, Artist, Playlist, Song } from "../types/SongTypes";
-import { AudioPlayer, useAudioPlayer } from "react-use-audio-player";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { Album, LoopingEnum, Playlist, Song } from "../types/SongTypes";
+import { AudioPlayer, useAudioPlayer } from "../hooks/useAudioPlayer";
 
 type CurrentViewType = "home" | "sidebarList" | "search" | "songQueue" | "settings"
 
@@ -12,7 +12,9 @@ export type AppContextType = {
         },
         screen: {
             currentView: CurrentViewType,
-            setCurrentView: (newView: CurrentViewType) => void
+            setCurrentView: (newView: CurrentViewType) => void,
+            shownList: Album | Playlist,
+            setShownList: (newList: Album | Playlist) => void,
             search: string,
             setSearch: (searchQuery: string) => void,
         }
@@ -22,20 +24,22 @@ export type AppContextType = {
             songIndex: number,
             setSongIndex: (newIndex: number) => void,
             getCurrentSong: () => Song,
-            addSongToQueue: (song: Song) => number,
             shuffle: {
                 shuffled: boolean,
                 order: number[],
                 index: number,
                 toggle: () => void
+            },
+            loop: {
+                type: LoopingEnum,
+                setType: (newType: LoopingEnum) => void
             }
-            audioPlayer: AudioPlayer,
-            timestamp: number,
             songLoading: boolean,
             queue: Song[],
             setQueue: (queue: Song[]) => void
+            addSongToQueue: (song: Song) => number,
         }
-        avaliableLists: Array<Artist | Album | Playlist> | undefined,
+        audioPlayerElement: AudioPlayer,
     }
 }
 
@@ -51,16 +55,17 @@ export const useAppContext = () => {
 export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [currentView, setCurrentView] = useState<CurrentViewType>("home")
-    const [privateSongIndex, setPrivateSongIndex] = useState<number>(0)
-    const [songIndex, setSongIndex] = useState<number>(0)
+    const [privateSongIndex, setPrivateSongIndex] = useState<number>(undefined)
+    const [songIndex, setSongIndex] = useState<number>(undefined)
     const [searchQuery, setSearchQuery] = useState<string>("")
     const [queue, setQueue] = useState<Song[]>([])
     const [shuffle, setShuffle] = useState(false)
     const [shuffleOrder, setShuffleOrder] = useState<number[]>([])
     const [shuffleIndex, setShuffleIndex] = useState(0)
-    const [timestamp, setTimestamp] = useState(0)
     const [songLoading, setSongLoading] = useState(false)
     const [currentSongDownloadStatus, setCurrentSongDownloadStatus] = useState<{ status: string; downloadPath: string; message: string } | null>(null);
+    const [shownList, setShownList] = useState<Playlist | Album | undefined>(undefined)
+    const [repeat, setRepeat] = useState<LoopingEnum>(LoopingEnum.Off)
 
     const audioPlayer = useAudioPlayer();
 
@@ -70,25 +75,12 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         })
     }, [])
 
-    // Code to handle timestamp tracking 
-    useEffect(() => {
-        if (audioPlayer.isPlaying) {
-            const interval = setInterval(() => {
-                setTimestamp(audioPlayer.getPosition())
-            }, 250)
-            return () => clearInterval(interval)
-        }
-    }, [audioPlayer.isPlaying, audioPlayer.getPosition])
-
     const addSongToQueue = (song: Song) => {
         let artists = ''
         song.artists.forEach((artist, index) => {
             artists += `${artist.name}`
             song.artists.length > index ? artists += ", " : artists += ""
         })
-        const terms = `${song.title} - ${artists}`
-
-        window.electronAPI.extractors.youtube.downloadYoutubeAudio("terms", terms)
 
         setQueue([...queue, song])
 
@@ -179,10 +171,7 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
 
         if (currentSongDownloadStatus?.status === 'done' && currentSongDownloadStatus.downloadPath) {
-            audioPlayer.load(`wisp-audio://${(currentSongDownloadStatus.downloadPath)}`, {
-                autoplay: true,
-                initialVolume: 0.01
-            })
+            audioPlayer.load(`wisp-audio://${(currentSongDownloadStatus.downloadPath)}`)
             audioPlayer.play()
             setSongLoading(false)
         }
@@ -208,20 +197,114 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (currentSong && currentSong.durationSecs) {
                 
                 // Check if song has ended (within 0.5 seconds of duration)
-                if (timestamp >= currentSong.durationSecs - 0.5) {
-                    if (shuffle) {
-                        const nextShuffleIndex = (shuffleIndex + 1) % shuffleOrder.length
-                        setShuffleIndex(nextShuffleIndex)
-                        setSongIndex(shuffleOrder[nextShuffleIndex])
+                if (audioPlayer.currentTime >= currentSong.durationSecs - 0.5) {
+                    // Handle repeat modes
+                    if (repeat === LoopingEnum.Song) {
+                        // Repeat current song - seek back to start
+                        audioPlayer.seek(0)
+                    } else if (repeat === LoopingEnum.List) {
+                        // Loop through queue
+                        if (shuffle) {
+                            const nextShuffleIndex = (shuffleIndex + 1) % shuffleOrder.length
+                            setShuffleIndex(nextShuffleIndex)
+                            setSongIndex(shuffleOrder[nextShuffleIndex])
+                        } else {
+                            const nextIndex = (songIndex + 1) % queue.length
+                            setSongIndex(nextIndex)
+                        }
                     } else {
-                        const nextIndex = (songIndex + 1) % queue.length
-                        setSongIndex(nextIndex)
+                        // No repeat - only advance if not at the end
+                        if (shuffle) {
+                            if (shuffleIndex < shuffleOrder.length - 1) {
+                                const nextShuffleIndex = shuffleIndex + 1
+                                setShuffleIndex(nextShuffleIndex)
+                                setSongIndex(shuffleOrder[nextShuffleIndex])
+                            } else {
+                                // End of queue - pause
+                                audioPlayer.pause()
+                            }
+                        } else {
+                            if (songIndex < queue.length - 1) {
+                                setSongIndex(songIndex + 1)
+                            } else {
+                                // End of queue - pause
+                                audioPlayer.pause()
+                            }
+                        }
                     }
                 }
             }
         }
-    }, [timestamp, songIndex, queue.length, audioPlayer.isPlaying])
-    
+    }, [audioPlayer.currentTime, songIndex, queue.length, audioPlayer.isPlaying, repeat, shuffle, shuffleIndex, shuffleOrder])
+
+    // Media Session API Implementation
+    useEffect(() => {
+        if ('mediaSession' in navigator && queue[songIndex]) {
+            const currentSong = queue[songIndex]
+            let artists = ""
+            currentSong.artists.forEach((artist, index) => {
+                artists += artist.name
+                index < currentSong.artists.length - 1 ? artists += ", " : ""
+            })
+
+            // Update playback state based on actual playing state
+            navigator.mediaSession.playbackState = audioPlayer.isPlaying ? "playing" : "paused"
+
+            navigator.mediaSession.setActionHandler('play', () => {
+                audioPlayer.play()
+            })
+
+            navigator.mediaSession.setActionHandler('pause', () => {
+                audioPlayer.pause()
+            })
+
+            navigator.mediaSession.setActionHandler('previoustrack', () => {
+                if (shuffle) {
+                    if (shuffleIndex > 0) {
+                        const prevShuffleIndex = shuffleIndex - 1
+                        setShuffleIndex(prevShuffleIndex)
+                        setSongIndex(shuffleOrder[prevShuffleIndex])
+                    }
+                } else {
+                    if (songIndex > 0) {
+                        setSongIndex(songIndex - 1)
+                    }
+                }
+            })
+
+            navigator.mediaSession.setActionHandler('nexttrack', () => {
+                if (shuffle) {
+                    if (shuffleIndex < shuffleOrder.length - 1) {
+                        const nextShuffleIndex = shuffleIndex + 1
+                        setShuffleIndex(nextShuffleIndex)
+                        setSongIndex(shuffleOrder[nextShuffleIndex])
+                    }
+                } else {
+                    if (songIndex < queue.length - 1) {
+                        setSongIndex(songIndex + 1)
+                    }
+                }
+            })
+
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: currentSong.title,
+                artist: artists,
+                artwork: currentSong.thumbnailURL ? [
+                    { src: currentSong.thumbnailURL, sizes: '512x512', type: 'image/jpeg' }
+                ] : []
+            })
+
+            if (currentSong.durationSecs) {
+                // Get current position directly from audio player to avoid stale timestamp when paused
+                navigator.mediaSession.setPositionState({
+                    duration: currentSong.durationSecs,
+                    playbackRate: 1,
+                    position: audioPlayer.currentTime
+                })
+            }
+        }
+    }, [audioPlayer.currentTime])
+
     return (
         <AppContext.Provider value={{
             app: {
@@ -234,6 +317,8 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     setCurrentView: setCurrentView,
                     search: searchQuery,
                     setSearch: setSearchQuery,
+                    shownList: shownList,
+                    setShownList: setShownList
                 }
             },
             music: {
@@ -248,13 +333,15 @@ export const AppContextProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                         index: shuffleIndex,
                         toggle: toggleShuffle
                     },
-                    audioPlayer: audioPlayer,
-                    timestamp: timestamp,
+                    loop: {
+                        type: repeat,
+                        setType: setRepeat
+                    },
                     songLoading: songLoading,
                     queue: queue,
                     setQueue: setQueue,
                 },
-                avaliableLists: undefined
+                audioPlayerElement: audioPlayer,
             }
         }}>
             {children}

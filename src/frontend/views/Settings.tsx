@@ -9,7 +9,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import { SvgIconTypeMap } from "@mui/material/SvgIcon";
 import { OverridableComponent } from "@mui/material/OverridableComponent";
 import YoutubeIcon from '@mui/icons-material/YouTube'
-import { SHUFFLE_TYPES } from "../../backend/utils/types";
+import { LIST_PLAY_TYPES, SHUFFLE_TYPES } from "../../backend/utils/types";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
@@ -84,7 +84,7 @@ export const Settings: React.FC = () => {
             <Box>
                 <Typography variant="h6">Lyrics Providers</Typography>
 
-                {["Genius", "MusixMatch", "Spotify", "NetEase", "LrcLib"].map((provider, index) => (
+                {["Genius", "MusixMatch", "NetEase", "LrcLib"].map((provider, index) => (
                     <SettingRowBox>
                         <Typography variant="body1">{ provider }</Typography>
 
@@ -118,6 +118,40 @@ export const Settings: React.FC = () => {
                                             break
                                         case "Algorithmic":
                                             tooltip = "Shuffles using a custom method, pseudo-randomizing the queue"
+                                            break
+                                    }
+
+                                    return (
+                                        <MenuItem key={type} value={type}>
+                                            <Tooltip title={tooltip} disableInteractive>
+                                                <span>{type}</span>
+                                            </Tooltip>
+                                        </MenuItem>
+                                    )
+                                })}
+                            </Select>
+                        </FormControl>
+                    </Box>
+                </SettingRowBox>
+
+                <SettingRowBox>
+                    <Typography variant="body1">List Play Type</Typography>
+
+                    <Box sx={{ marginLeft: "auto" }}>
+                        <FormControl>
+                            <Select
+                                size="small"
+                                value={settings.listPlay || "Single"}
+                                onChange={(e) => updateSettings({ listPlay: e.target.value as typeof settings.listPlay })}
+                            >
+                                {LIST_PLAY_TYPES.map((type) => {
+                                    let tooltip = ""
+                                    switch (type) {
+                                        case "Single":
+                                            tooltip = "When selecting a song from a list, only plays that song"
+                                            break
+                                        case "Multiple":
+                                            tooltip = "When selecting a song from a list, plays that song and adds the rest to the queue"
                                             break
                                     }
 

@@ -1,10 +1,9 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useAppContext } from "../providers/AppContext"
-import { Album, Artist, Playlist, Song } from "../types/SongTypes"
+import { Album, Playlist, Song } from "../types/SongTypes"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Avatar from "@mui/material/Avatar"
-import ButtonBase from "@mui/material/ButtonBase"
 import List from "@mui/material/List"
 import ListItem from "@mui/material/ListItem"
 import ListItemButton from "@mui/material/ListItemButton"
@@ -12,42 +11,112 @@ import Link from "@mui/material/Link"
 import ExplicitIcon from '@mui/icons-material/Explicit';
 import IconButton from "@mui/material/IconButton"
 import PlayArrow from "@mui/icons-material/PlayArrow"
-import { getServiceIcon } from "../utils/Helpers"
+import { getServiceIcon, spotifyAlbumToAlbum, spotifyPlaylistToPlaylist } from "../utils/Helpers"
+import Fab from "@mui/material/Fab"
+import { useSettings } from "../hooks/useSettings"
+import Skeleton from "@mui/material/Skeleton"
 
-export const ListScreen: React.FC<{ currentList: Album | Playlist }> = ({ currentList }) => {
-    const { music } = useAppContext()
+export const ListScreen: React.FC = () => {
+    const { app, music } = useAppContext()
     const [ overIndex, setOverIndex ] = useState<number>(0)
+    const [list, setList] = useState<Album | Playlist | undefined>(undefined)
+    const { settings, loading, updateSettings }= useSettings()
+
+    useEffect(() => {
+        const fetchLists = async () => {
+            if (app.screen.shownList instanceof Album) {
+                setList(
+                    spotifyAlbumToAlbum(
+                        await window.electronAPI.extractors.spotify.getListInfo("Album", app.screen.shownList.id)
+                    )
+                )
+            }
+
+            if (app.screen.shownList instanceof Playlist) {
+                setList(
+                    spotifyPlaylistToPlaylist(
+                        await window.electronAPI.extractors.spotify.getListInfo("Playlist", app.screen.shownList.id)
+                    )
+                )
+            }
+        }
+
+        fetchLists()
+    }, [app.screen.shownList])
 
     const handlePlay = (song: Song) => {
-        console.log("playing")
-        music.current.setSong(song)
-        music.current.setSecond(0)
-        music.setPlaying(true)
+        const songInQueueIndex = music.player.queue.findIndex(queueSong => queueSong == song)
+        if (songInQueueIndex != -1) {
+            // Song already in queue, just play it
+            music.player.setSongIndex(songInQueueIndex)
+        } else {
+            switch(settings.listPlay) {
+                case "Single": {
+                    // Add only this song to queue and play it
+                    music.player.setQueue([song])
+                    music.player.setSongIndex(0)
+                    break
+                }
+                case "Multiple": {
+                    // Add all songs from the list to queue
+                    music.player.setQueue(list.songs)
+                    // Find and play the selected song (comparing by title and artists)
+                    const songIndex = list.songs.findIndex(s => 
+                        s.title === song.title && 
+                        s.artists.length === song.artists.length &&
+                        s.artists.every((artist, i) => artist.name === song.artists[i].name)
+                    )
+                    music.player.setSongIndex(songIndex !== -1 ? songIndex : 0)
+                    break
+                }
+            }
+        }
     }
 
-    let artist = ""
-
-    if (currentList instanceof Album) {
-        artist = currentList.artist.name
-    }
-
-    if (currentList instanceof Playlist) {
-        artist = currentList.author
+    const handlePlayList = (list: Song[]) => {
+        music.player.setQueue(list)
+        music.player.setSongIndex(0)
     }
     
+    let artist = ""
+    const explicit = true
+    if (list instanceof Playlist) {
+        artist = list.author
+    }
+    if (list instanceof Album) {
+        list.artists.forEach((listArtist, index) => {
+            artist += listArtist.name
+            index < list.artists.length - 1 ? artist += ", " : ""
+        })
+    }
+
     return (
-        <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, maxHeight: "inherit", flexGrow: 1, flexDirection: "column", padding: "24px" }}>
-            <Box display="flex" sx={{ padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)" }}>
-                <ButtonBase>
-                    <Avatar variant="rounded" src="" sx={{ height: "200px", width: "200px"}}/>
-                </ButtonBase>
+        <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, height: "100%", flexGrow: 1, flexDirection: "column", padding: "24px", overflow: "hidden" }}>
+            <Box display="flex" sx={{ padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)", flexShrink: 0 }}>
+                <Box sx={{ position: "relative" }}>
+                    {!list ?
+                        <Skeleton variant="rounded" sx={{ height: "200px", width: "200px"}}/>
+                    : <Avatar variant="rounded" src={list.thumbnailURL} sx={{ height: "200px", width: "200px"}}/>}
                 
-                <Box display="flex" sx={{ width: "100%", flexDirection: "row", paddingLeft: "18px", marginTop: "auto" }}>
+                    <Box sx={{ position: "absolute", left: "4px", bottom: "4px" }}>
+                        <Fab color="success" onClick={() => handlePlayList(list.songs)}>
+                            <PlayArrow />    
+                        </Fab>
+                    </Box>
+                </Box>
+                
+                <Box display="flex" sx={{ width: "100%", flexDirection: "row", paddingLeft: "18px", marginTop: "auto", position: "relative" }}>
                     <Box>
                         <Box display="flex" flexDirection="row">
-                            <Typography variant="h4" fontWeight={900} sx={{ textWrap: "nowrap" }}>{ currentList.title }</Typography>
+                            <Typography variant="h4" fontWeight={900} sx={{ textWrap: "nowrap" }}>
+                                {!list ?
+                                <Skeleton />
+                                : list.title }
+                            </Typography>
                             
-                            {((currentList instanceof Album) && currentList.explicit) &&
+                            {!list ?
+                                <Skeleton />
+                            : ((list instanceof Album) && explicit) &&
                                 <ExplicitIcon sx={{ marginTop: "auto", marginBottom: "auto", paddingLeft: "12px" }} color="disabled"/>
                             }
                             
@@ -57,46 +126,68 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist }> = ({ curren
                             <Avatar variant="rounded" src="" sx={{ margin: "auto 0 auto 0", height: "24px", width: "24px"}}/>
 
                             <Typography variant="h6" fontWeight={200} sx={{ paddingLeft: "12px" }}>{ artist }</Typography>
-                            
-                            {(currentList instanceof Album) &&
+
+                            {!list ?
+                                <Skeleton />
+                            : (list instanceof Album) && (
                                 <React.Fragment>
                                     <DotRowSeparator />
-                                    <Typography variant="h6" fontWeight={200} color="textSecondary"> { currentList.releaseDate.getFullYear() } </Typography>
+                                    <Typography variant="h6" fontWeight={200} color="textSecondary"> { list.releaseDate.getFullYear() } </Typography>
                                 </React.Fragment>
-                            }
+                            )}
 
                             <DotRowSeparator />
                             <Typography variant="h6" fontWeight={200}
                                 sx={{ color: "var(--mui-palette-text-secondary)" }}>
-                                { (currentList.songs.length > 1) ? `${currentList.songs.length} songs` : `${currentList.songs.length} song` }
+                                { !list ?
+                                    <Skeleton />
+                                : (list.songs.length > 1) ? `${list.songs.length} songs` : `${list.songs.length} song`}
                             </Typography>
                             <DotRowSeparator />
                             <Typography variant="h6" fontWeight={200}
                                 sx={{ color: "var(--mui-palette-text-secondary)" }}>
-                                { currentList.durationFormatted }
+                                { !list ? <Skeleton /> : list.durationFormatted }
                             </Typography>               
                         </Box>
                     </Box>
                     
                     <Box display="flex" sx={{  marginLeft: "auto", marginTop: "auto" }}>
                         <Box display="flex">
-                            {(currentList instanceof Album) && 
-                                <Typography variant="caption" color="textSecondary" sx={{ textAlign: "right" }}> { currentList.label } </Typography>
-                            }
+                            {!list ?
+                                <Skeleton />
+                            : (list instanceof Album) && (
+                                <Typography variant="caption" color="textSecondary" sx={{ textAlign: "right" }}> { list.label } </Typography>
+                            )}
                         </Box>
                     </Box>
                 </Box>
             </Box>
-            <Box display="flex" sx={{overflowY: "scroll", flexDirection:"column", marginTop: "16px", padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)" }}>
-                <Box display="grid" sx={{ gridTemplateColumns: "0.075fr 2fr 1fr 0.1fr", paddingLeft: "16px", paddingRight: "16px" }}>
+            <Box display="flex" sx={{ flexDirection:"column", marginTop: "16px", padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)", flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+                <Box display="grid" sx={{ gridTemplateColumns: "0.075fr 2fr 1fr 0.1fr", paddingLeft: "16px", paddingRight: "16px", flexShrink: 0 }}>
                     <Typography color="textSecondary">#</Typography>
                     <Typography color="textSecondary">Title</Typography>
                     <Typography sx={{ textAlign: "center" }} color="textSecondary">Duration</Typography>
                     <Typography sx={{ textAlign: "center" }} color="textSecondary">Source</Typography>
                 </Box>
                 
-                <List sx={{ flexGrow: 1 }}>
-                    {currentList.songs.map((song, index) => (
+                <List sx={{ flexGrow: 1, overflowY: "auto", minHeight: 0 }}>
+                    {!list ?
+
+                        (Array.from({ length: 10 }, (_, index) => (
+                            <ListItem
+                                key={index}
+                                sx={{
+                                    paddingTop: "0",
+                                    paddingRight: "0px",
+                                    paddingLeft: "0px",
+                                    paddingBottom: "0px",
+                                    marginBottom: "8px",
+                            }}
+                            >
+
+                            </ListItem>
+                        )))
+                    : list.songs.map((song, index) => (
                         <ListItem
                             key={index}
                             sx={{
@@ -117,9 +208,11 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist }> = ({ curren
                                     alignItems: "center",
                                     borderRadius: "12px",
                                     zIndex: "5",
-                                }, (music.current.song && music.current.song.title == song.title) &&  {
+                                }, (music.player.getCurrentSong() && music.player.getCurrentSong().title == song.title) &&  {
                                     backgroundColor: "rgba(255, 255, 255, 0.075)",
                                     color: "#90ee90"
+                                }, !(list instanceof Album) && {
+                                    gridTemplateColumns: "0.075fr 3em 2fr 1fr 0.1fr",
                                 }]}
                             >
                                 {(overIndex == (index + 1)) ?
@@ -128,6 +221,11 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist }> = ({ curren
                                     </IconButton>
                                 : <Typography variant="body2" sx={{ textAlign: "left" }} color="textSecondary">{index + 1}</Typography>
                                 }
+
+                                {!(list instanceof Album) && (
+                                        <Avatar variant="rounded" src={song.thumbnailURL}/>
+                                )}
+
                                 <Box>
                                     <Box display="flex" flexDirection="row">
                                         <Typography variant="body1">{song.title}</Typography>
@@ -144,14 +242,13 @@ export const ListScreen: React.FC<{ currentList: Album | Playlist }> = ({ curren
                                     <Typography variant="body2" sx={{ textAlign: "center" }}>{song.durationFormatted}</Typography>
                                 </Box>
                                 <Box>
-                                    <Typography variant="body2" sx={{ textAlign: "center" }}>{ getServiceIcon(song.source) }</Typography>
+                                    <Typography variant="body2" sx={{ textAlign: "right" }}>{ getServiceIcon(song.source) }</Typography>
                                 </Box>
                             </ListItemButton>
                         </ListItem>
                     ))}
                 </List>
-            </Box>
-            
+            </Box>      
         </Box>
     )
 }

@@ -92,3 +92,5 @@ typings/
 out/
 
 client_secret.json
+
+secrets.txt

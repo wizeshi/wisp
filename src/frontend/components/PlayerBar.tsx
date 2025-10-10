@@ -23,32 +23,19 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import Input from "@mui/material/Input"
 import { secondsToSecAndMin } from "../utils/Utils"
-import { Artist } from "../utils/songTypes"
+import { Artist, LoopingEnum } from "../types/SongTypes"
 import Button from "@mui/material/Button"
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import Slide from "@mui/material/Slide"
 import LinearProgress from "@mui/material/LinearProgress"
 
-enum ShuffleEnum {
-    Off = 0,
-    List = 1,
-    Song = 2
-}
-
 const ProgressControl: React.FC = () => {
     const { music } = useAppContext()
-    const [isDragging, setIsDragging] = useState(false)
-    const [dragValue, setDragValue] = useState(0)
-    const player = music.player.audioPlayer
+    const player = music.audioPlayerElement
 
     const handleProgressChange = (event: Event, newValue: number) => {
-        setDragValue(newValue)
-    }
-
-    const handleProgressChangeCommitted = (event: Event, newValue: number) => {
         player.seek(newValue)
-        setIsDragging(false)
     }
 
     const currentSong = music.player.getCurrentSong()
@@ -63,7 +50,7 @@ const ProgressControl: React.FC = () => {
 
                 <LinearProgress
                     variant="indeterminate"
-                    sx={{ width: "30vw", padding: "0" }}/>
+                    sx={{ width: "30vw", padding: "0", marginBottom: "14px" }}/>
 
                 <Typography sx={{ position: "relative", left: "12px", top: "-8px" }}
                 variant="body2">{songDurationFormatted}</Typography>
@@ -74,18 +61,15 @@ const ProgressControl: React.FC = () => {
     return (
         <Box display="flex" flexDirection="row" sx={{ marginTop: "8px" }}>
             <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }}
-            variant="body2">{ secondsToSecAndMin(music.player.timestamp) }</Typography>
+            variant="body2">{ secondsToSecAndMin(music.audioPlayerElement.currentTime) }</Typography>
 
             <Slider
                 size="medium"
                 min={0}
                 max={songDurationSeconds}
                 step={1}
-                value={isDragging ? dragValue : music.player.timestamp}
+                value={music.audioPlayerElement.currentTime}
                 onChange={handleProgressChange}
-                onChangeCommitted={handleProgressChangeCommitted}
-                onMouseDown={() => setIsDragging(true)}
-                onTouchStart={() => setIsDragging(true)}
                 slotProps={{
                     thumb: { style: {
                         width: "12px", height: "12px"
@@ -101,14 +85,13 @@ const ProgressControl: React.FC = () => {
 
 export const PlayerBar: React.FC = () => {
     const [playerBarShown, setPlayerBarShown] = useState<boolean>(true)
-    const [repeat, setRepeat] = useState<ShuffleEnum>(ShuffleEnum.Off)
     const [volume, setVolume] = useState<number>(10)
     const [oldVolume, setOldVolume] = useState<number>(0)
     const { app, music } = useAppContext()
-    const player = music.player.audioPlayer
+    const player = music.audioPlayerElement
 
     useEffect(() => {
-        player.setVolume(volume / 1000)
+        player.setVolume(volume)
     }, [volume])
 
     useEffect(() => {
@@ -120,16 +103,41 @@ export const PlayerBar: React.FC = () => {
         }
     }, [volume])
 
-    const handleSkipForward = () => {
+    // Global spacebar handler for play/pause
+    useEffect(() => {
+        const handleKeyPress = (event: KeyboardEvent) => {
+            // Only trigger if spacebar is pressed and not typing in an input/textarea
+            if (event.code === 'Space' && 
+                event.target instanceof HTMLElement && 
+                !['INPUT', 'TEXTAREA'].includes(event.target.tagName)) {
+                event.preventDefault() // Prevent page scroll
+                player.isPlaying ? player.pause() : player.play()
+            }
+        }
 
+        window.addEventListener('keydown', handleKeyPress)
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyPress)
+        }
+    }, [player])
+
+    const handleSkipForward = () => {
+        const index = music.player.songIndex + 1
+        if (music.player.queue[index]) {
+            music.player.setSongIndex(index)
+        }
     }
 
     const handleSkipBack = () => {
-
+        const index = music.player.songIndex - 1
+        if (music.player.queue[index]) {
+            music.player.setSongIndex(index)
+        }
     }
 
     const handlePlay = () => {
-        player.isPaused ? player.play() : player.pause()
+        player.isPlaying ? player.pause() : player.play()
     }
 
     const handleShuffle = () => {
@@ -137,27 +145,27 @@ export const PlayerBar: React.FC = () => {
     }
 
     const handleRepeat = () => {
-        if (repeat < 2) {
-            setRepeat(repeat + 1)
+        if (music.player.loop.type < 2) {
+            music.player.loop.setType(music.player.loop.type + 1)
         } else {
-            setRepeat(0)
+            music.player.loop.setType(0)
         }
     }
 
     let repeatButton
-    switch (repeat) {
+    switch (music.player.loop.type) {
         default:
-        case 0:
+        case LoopingEnum.Off:
             repeatButton = (
                 <RepeatIcon />
             )
             break
-        case 1:
+        case LoopingEnum.List:
             repeatButton = (
                 <RepeatOnIcon />
             )
             break
-        case 2:
+        case LoopingEnum.Song:
             repeatButton = (
                 <RepeatOneIcon />
             )
@@ -306,8 +314,9 @@ export const PlayerBar: React.FC = () => {
             
             {!playerBarShown &&
                 <Button sx={{
-                    position: "absolute", right: "12px", bottom: "0px", backgroundColor: "rgba(0, 0, 0, 0.35)",
-                    border: "1px solid rgba(255, 255, 255, 0.175)", borderBottom: "0px"
+                    position: "fixed", right: "12px", bottom: "0px", backgroundColor: "rgba(0, 0, 0, 0.35)",
+                    border: "1px solid rgba(255, 255, 255, 0.175)", borderBottom: "0px",
+                    zIndex: "calc(var(--mui-zIndex-drawer) + 2)"
                 }}
                 color="inherit"
                 onClick={() => setPlayerBarShown(true)}>

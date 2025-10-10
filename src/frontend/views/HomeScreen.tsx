@@ -1,15 +1,33 @@
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
-import React from "react"
+import React, { useEffect, useState } from "react"
 import Divider from "@mui/material/Divider"
 import Stack from '@mui/material/Stack';
 import Avatar from "@mui/material/Avatar"
 import ButtonBase from "@mui/material/ButtonBase"
+import Skeleton from "@mui/material/Skeleton";
 
 export const HomeScreen: React.FC = () => {
+    const [username, setUsername] = useState("(username)")
+    const [loading, setLoading] = useState(true)
+    
+    useEffect(() => {
+        const fetchUsername = async () => {
+            setUsername((await window.electronAPI.extractors.spotify.getUserInfo()).display_name)
+            setLoading(false)
+        }
+
+        fetchUsername()
+    })
+
     return (
         <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, flexGrow: 1, flexDirection: "column", padding: "24px" }}>
-            <Typography fontWeight="700" variant="h5">welcome back, (username)</Typography>
+            <Typography fontWeight="700" variant="h5">
+                {loading ?
+                    <Skeleton />
+                :   <>welcome back, { username }</>
+                }
+            </Typography>
 
             <Divider variant="fullWidth" sx={{ marginTop: "12px", marginBottom: "12px" }}/>
 

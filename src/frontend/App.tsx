@@ -8,48 +8,14 @@ import { AppContextProvider, useAppContext } from "./providers/AppContext"
 import { Sidebar } from "./components/Sidebar"
 import { HomeScreen } from "./views/HomeScreen"
 import Box from "@mui/material/Box"
-import Typography from "@mui/material/Typography"
 import { PlayerBar } from "./components/PlayerBar"
 import { ListScreen } from "./views/ListScreen"
-import { Album, Artist, Song } from "./types/SongTypes"
 import { SearchScreen } from "./views/SearchScreen"
 import { Settings } from "./views/Settings"
 import { SongQueue } from "./views/SongQueue"
 
 export const App: React.FC = () => {
-    const { app } = useAppContext()
-
-    const testArtist1 = new Artist("Kanye West", "")
-    const testArtist2 = new Artist("IDK", "")
-
-    const testSong = new Song("Intro", [ testArtist1 ], true, 309, "youtube", "", "")
-    const testSong2 = new Song("We Don't Care", [ testArtist1, testArtist2 ], true, 239, "spotify", "", "")
-
-    const testList = new Album("The College Dropout", 
-        testArtist1,
-        "Sony Music Entertainment, Ltd.",
-        new Date(),
-        true,
-        [
-            testSong,
-            testSong2,
-            testSong,
-            testSong,
-            testSong2,
-            testSong,
-            testSong,
-            testSong,
-            testSong,
-            testSong,
-            testSong,
-            testSong,
-            testSong,
-            testSong,
-            testSong,
-            testSong,
-        ], 
-            ""
-    )
+    const { app, music } = useAppContext()
 
     let mainContent
 
@@ -59,7 +25,7 @@ export const App: React.FC = () => {
             mainContent = <HomeScreen />
             break
         case "sidebarList":
-            mainContent = <ListScreen currentList={testList}/>
+            mainContent = <ListScreen />
             break
         case "search":
             mainContent = <SearchScreen searchQuery={app.screen.search} />
@@ -72,13 +38,56 @@ export const App: React.FC = () => {
             break
     }
 
+    const currentSong = music.player.getCurrentSong()
+    const backgroundImage = currentSong?.thumbnailURL || ""
+
     return (
             <ThemeProvider theme={theme}>
                 <Titlebar />
                 <Sidebar />
 
-                <Box display="flex" sx={{ maxHeight: "calc(100vh - 32px)" }} position="relative" left={app.sidebar.open ? "240px" : `calc(${theme.spacing(11)} + 1px)`} maxWidth={app.sidebar.open ? `calc(100% - 240px)` : `calc(100% - calc(${theme.spacing(11)} + 1px))`}>
-                    { mainContent }
+                <Box 
+                    display="flex" 
+                    sx={{ 
+                        maxHeight: "calc(100vh - 32px)",
+                        position: "relative",
+                        height: "100%",
+                        overflow: "hidden",
+                        ...(backgroundImage && {
+                            "&::before": {
+                                content: '""',
+                                position: "absolute",
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                backgroundImage: `url("${backgroundImage}")`,
+                                backgroundSize: "cover",
+                                backgroundPosition: "center",
+                                backgroundRepeat: "no-repeat",
+                                filter: "blur(28px) brightness(0.4)",
+                                transform: "scale(1.1)",
+                                zIndex: 0,
+                            },
+                            "&::after": {
+                                content: '""',
+                                position: "absolute",
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                background: "linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.7))",
+                                zIndex: 1,
+                            }
+                        })
+                    }} 
+                    position="relative" 
+                    left={app.sidebar.open ? "320px" : `calc(${theme.spacing(11)} + 1px)`} 
+                    maxWidth={app.sidebar.open ? `calc(100% - 320px)` : `calc(100% - calc(${theme.spacing(11)} + 1px))`}
+                >
+                    <Box sx={{ position: "relative", zIndex: 2, width: "100%" }}>
+                        { mainContent }
+                    </Box>
                 </Box>
 
                 <PlayerBar />

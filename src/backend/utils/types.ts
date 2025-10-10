@@ -26,6 +26,10 @@ export interface youtubeSavedCredentials extends youtubeAccessType {
 export const SHUFFLE_TYPES = ["Fisher-Yates", "Algorithmic"] as const
 export type ShuffleType = typeof SHUFFLE_TYPES[number]
 
+export const LIST_PLAY_TYPES = ["Single", "Multiple"] as const
+export type ListPlayType = typeof LIST_PLAY_TYPES[number]
+
 export interface UserSettings {
     shuffleType: ShuffleType
+    listPlay: ListPlayType
 }

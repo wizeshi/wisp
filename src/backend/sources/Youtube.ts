@@ -2,7 +2,7 @@ import fetch from 'node-fetch'
 import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
-import { youtubeSearchType } from '../../frontend/utils/songTypes'
+import { youtubeSearchType } from '../../frontend/types/SongTypes'
 import { URLSearchParams } from 'node:url'
 import { youtubeAccessType, youtubeSavedCredentials } from '../utils/types'
 import { spawn } from 'node:child_process'
@@ -14,8 +14,8 @@ const songFileLocations = path.join(app.getPath('userData'), 'songCache')
 /* const ytdlpLocation = "C:\\ProgramData\\chocolatey\\lib\\yt-dlp\\tools\\x64\\yt-dlp.exe" */
 const tokenFilePath = path.join(app.getPath('userData'), 'youtube_tokens.json')
 
-const client_id = "228162215609-vhv4kamso9rffd80si5n0p9fulp9ufef.apps.googleusercontent.com"
-const client_secret = "***REMOVED***"
+const client_id = process.env.YOUTUBE_CLIENT_ID
+const client_secret = process.env.YOUTUBE_CLIENT_SECRET
 const redirect_uri = "http://127.0.0.1:5173/callback"
 
 let innertube: Innertube | undefined;

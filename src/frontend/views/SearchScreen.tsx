@@ -10,7 +10,7 @@ import { DotRowSeparator } from "./ListScreen"
 import List from "@mui/material/List"
 import ListItemButton from "@mui/material/ListItemButton"
 import { Album, Artist, BaseSongList, Playlist, Song } from "../types/SongTypes"
-import { getListType, getServiceIcon, spotifyTrackToSong } from "../utils/Helpers"
+import { getListType, getServiceIcon, spotifySimpleArtistToArtist, spotifyTrackToSong } from "../utils/Helpers"
 import Fab from "@mui/material/Fab"
 import PlayArrow from "@mui/icons-material/PlayArrow"
 import { useAppContext } from "../providers/AppContext"
@@ -68,7 +68,7 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
     const handlePlay = (song: Song) => {
         const songIndex = music.player.addSongToQueue(song)
         music.player.setSongIndex(songIndex)
-        music.player.audioPlayer.seek(0)
+        music.audioPlayerElement.seek(0)
     }
 
     const handleMouseEnterMainResult = () => {
@@ -228,17 +228,17 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                         switch (item) {
                             case "Albums":
                                 listItems = searchResults.albums.items.map((oldAlbum) => {
-                                    const tempArtists = oldAlbum.artists.map((oldArtists) => {
-                                        return new Artist(oldArtists.name, "")
+                                    const tempArtists = oldAlbum.artists.map((oldArtist) => {
+                                        return spotifySimpleArtistToArtist(oldArtist)
                                     })
 
-                                    return new Album(oldAlbum.name, tempArtists, "", new Date(oldAlbum.release_date), true, [], oldAlbum.images[0].url)
+                                    return new Album(oldAlbum.name, tempArtists, "", new Date(oldAlbum.release_date), true, [], oldAlbum.images[0].url, oldAlbum.id)
                                 })
                                 break
                             case "Playlists": {
                                 searchResults.playlists.items.forEach((playlist, index, array) => {
                                     if (!playlist || playlist == null) { return }
-                                    else listItems.push(new Playlist(playlist.name, playlist.owner.display_name, [], playlist.images[0].url))
+                                    else listItems.push(new Playlist(playlist.name, playlist.owner.display_name, [], playlist.images[0].url, playlist.id))
                                 })
 
                                 break

@@ -34,13 +34,15 @@ export class Song {
 }
 
 export class BaseSongList {
+    id: string;
     title: string;
     songs: Array<Song> | undefined;
     thumbnailURL: string;
     durationSecs: number;
     durationFormatted: string;
 
-    constructor(title: string, songs: Array<Song> | undefined, thumbnailURL: string) {
+    constructor(title: string, songs: Array<Song> | undefined, thumbnailURL: string, id: string) {
+        this.id = id
         this.title = title;
         this.songs = songs;
         this.thumbnailURL = thumbnailURL;
@@ -61,8 +63,8 @@ export class Album extends BaseSongList {
     label: string;
     releaseDate: Date;
 
-    constructor(title: string, artists: Array<Artist>, label: string, releaseDate: Date, explicit: boolean, songs: Array<Song> | undefined, thumbnailURL: string) {
-        super(title, songs, thumbnailURL);
+    constructor(title: string, artists: Array<Artist>, label: string, releaseDate: Date, explicit: boolean, songs: Array<Song> | undefined, thumbnailURL: string, id: string) {
+        super(title, songs, thumbnailURL, id);
         this.artists = artists;
         this.label = label
         this.explicit = explicit
@@ -73,10 +75,25 @@ export class Album extends BaseSongList {
 export class Playlist extends BaseSongList {
     author: string;
 
-    constructor(title: string, author: string, songs: Array<Song> | undefined, thumbnailURL: string) {
-        super(title, songs, thumbnailURL);
+    constructor(title: string, author: string, songs: Array<Song> | undefined, thumbnailURL: string, id: string) {
+        super(title, songs, thumbnailURL, id);
         this.author = author
     }
+}
+
+
+export const SidebarItemTypes = ["Playlist", "Album", "Artist"] as const
+export type SidebarItemType = typeof SidebarItemTypes[number]
+
+export type SidebarItem = {
+    id: "Playlist",
+    item: Playlist 
+} | { 
+    id: "Album",
+    item: Album
+} | {
+    id: "Artist",
+    item: Artist
 }
 
 export type youtubeSongType = {
@@ -120,4 +137,13 @@ export type youtubeSearchType = {
         totalResults: number
     },
     regionCode: string
+}
+
+export const SidebarListTypes = ["Playlists", "Albums", "Artists"] as const
+export type SidebarListType = typeof SidebarListTypes[number]
+
+export enum LoopingEnum {
+    Off = 0,
+    List = 1,
+    Song = 2
 }

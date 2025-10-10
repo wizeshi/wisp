@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ItemTypes, SearchResults } from "@spotify/web-api-ts-sdk";
+import { Album, Artist, ItemTypes, Playlist, SavedAlbum, SearchResults, SimplifiedPlaylist, UserProfile } from "@spotify/web-api-ts-sdk";
 import { youtubeSearchType } from "./SongTypes";
 import { UserSettings } from "../../backend/utils/types";
 export {}
@@ -36,6 +36,16 @@ declare global {
             extractors: {
                 spotify: {
                     search: (searchQuery: string) => Promise<SearchResults<readonly ItemTypes[]>>,
+                    getUserLists: {
+                        (type: "Playlists"): Promise<SimplifiedPlaylist[]>,
+                        (type: "Albums"): Promise<SavedAlbum[]>,
+                        (type: "Artists"): Promise<Artist[]>
+                    },
+                    getUserInfo: () => Promise<UserProfile>,
+                    getListInfo: {
+                        (type: "Playlist", id: string): Promise<Playlist>,
+                        (type: "Album", id: string): Promise<Album>,
+                    },
                 },
                 youtube: {
                     search: (searchQuery: string) => Promise<youtubeSearchType>,

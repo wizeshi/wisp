@@ -53,12 +53,12 @@ export const SongQueue: React.FC = () => {
     }
 
     return (
-        <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, maxHeight: "inherit", flexGrow: 1, flexDirection: "column", padding: "24px" }}>
-            <Typography variant="h6">Your Queue</Typography>
+        <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, maxHeight: "inherit", flexGrow: 1, flexDirection: "column", padding: "24px", height: "100%", overflow: "hidden" }}>
+            <Typography variant="h6" sx={{ flexShrink: 0 }}>Your Queue</Typography>
 
-            <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0" }} />
+            <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0", flexShrink: 0 }} />
 
-            <Box>
+            <Box sx={{ flexShrink: 0 }}>
                 <Typography variant="body1" sx={{ marginBottom: "12px" }}>Now Playing</Typography>
 
                 {currentSong != null ?
@@ -72,12 +72,12 @@ export const SongQueue: React.FC = () => {
                 : <Typography variant="body1">There is no song playing.</Typography>}
             </Box>
 
-            <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0" }} />
+            <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0", flexShrink: 0 }} />
 
-            <Box>
-                <Typography variant="body1" sx={{ marginBottom: "12px" }}>Next Up</Typography>
+            <Box sx={{ flexGrow: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                <Typography variant="body1" sx={{ marginBottom: "12px", flexShrink: 0 }}>Next Up</Typography>
                 {nextUp.length !== 0 ?
-                <List sx={{ padding: "0px" }}>
+                <List sx={{ padding: "0px 0px 12px 0px", overflowY: "auto", flexGrow: 1, minHeight: 0 }}>
                     {nextUp.map((song, nextUpIndex) => {
                         const actualIndex = nextUpIndices[nextUpIndex]
                         
@@ -115,7 +115,7 @@ const QueueItem: React.FC<{
             backgroundColor: "rgba(0,0,0,0.35)", 
             padding: "12px", 
             borderRadius: "8px" ,
-            flexGrow: 1
+            flexGrow: 1,
         }}
         onMouseEnter={() => setButtonShowing(index)}
         onMouseLeave={() => setButtonShowing(null)}>
@@ -135,12 +135,14 @@ const QueueItem: React.FC<{
             
             <Box display="flex" flexDirection="column" sx={{ marginLeft: "12px", marginTop: "auto" }}>
                 <Link underline="hover" color="textPrimary" variant="body1">{song.title}</Link>
-                {song.artists.map((artist, artistIndex) => (
-                    <React.Fragment key={artistIndex}>
-                        <Link underline="hover" variant="body2" color="textSecondary">{ artist.name }</Link>
-                        {artistIndex < song.artists.length - 1 && <Typography variant="caption" color="textSecondary" component="span">,&nbsp;</Typography>}
-                    </React.Fragment>
-                ))}
+                <Box>
+                    {song.artists.map((artist, artistIndex) => (
+                        <React.Fragment key={artistIndex}>
+                            <Link underline="hover" variant="body2" color="textSecondary">{ artist.name }</Link>
+                            {artistIndex < song.artists.length - 1 && <Typography variant="caption" color="textSecondary" component="span">,&nbsp;</Typography>}
+                        </React.Fragment>
+                    ))}
+                </Box>
             </Box>
         </Box>
     )
