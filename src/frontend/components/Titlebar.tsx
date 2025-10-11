@@ -9,6 +9,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import HomeIcon from '@mui/icons-material/Home';
 import TextField from "@mui/material/TextField";
 import { useAppContext } from "../providers/AppContext";
+import Avatar from "@mui/material/Avatar";
 
 export const Titlebar: React.FC = () => {
     const { app } = useAppContext()
@@ -44,9 +45,9 @@ export const Titlebar: React.FC = () => {
 
     return (
         <Box sx={{ display: "flex", flexDirection: "row", height: "32px", zIndex: "999", backgroundColor: "var(--mui-palette-common-background)", WebkitAppRegion: "drag" }}>
-            <Box sx={{ padding: "4px", marginLeft: "4px" }}>
-                {/* Add Icon */}
-                <Typography fontSize="medium" variant="h6">wizeshi's Interfaceable Song Provider</Typography>
+            <Box sx={{ padding: "4px", marginLeft: "4px", display: "flex" }}>
+                <Avatar variant="rounded" src="assets/wisp.png" sx={{ maxHeight: "24px",  aspectRatio: "1/1", width: "auto"}}/>
+                <Typography fontSize="medium" variant="h6" sx={{ marginLeft: "8px" }}>wizeshi's Interfaceable Song Provider</Typography>
             </Box>
 
             <Box sx={{ position: "absolute", display: "flex", width: "100%", maxHeight: "inherit", justifyContent: "center", paddingTop: "4px" }}>

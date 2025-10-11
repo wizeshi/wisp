@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import { app } from "electron"
-import { ShuffleType, UserSettings } from "./utils/types"
+import { UserSettings } from "./utils/types"
 
 const settingsPath = path.join(app.getPath('userData'), 'userSettings.json')
 

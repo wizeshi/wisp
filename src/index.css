@@ -5,12 +5,6 @@ html, body, #root {
   background-color: var(--mui-palette-background-default);
   overflow-y: hidden;
 }
-
-.MuiDrawer-paper {
-  top: 32px;
-  height: calc(100% - 32px)
-}
-
 /* Custom Scrollbar Styles */
 * {
   scrollbar-width: thin;

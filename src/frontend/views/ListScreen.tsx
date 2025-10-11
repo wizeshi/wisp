@@ -15,6 +15,7 @@ import { getServiceIcon, spotifyAlbumToAlbum, spotifyPlaylistToPlaylist } from "
 import Fab from "@mui/material/Fab"
 import { useSettings } from "../hooks/useSettings"
 import Skeleton from "@mui/material/Skeleton"
+import { DotRowSeparator } from "../components/DotRowSeparator"
 
 export const ListScreen: React.FC = () => {
     const { app, music } = useAppContext()
@@ -24,49 +25,47 @@ export const ListScreen: React.FC = () => {
 
     useEffect(() => {
         const fetchLists = async () => {
-            if (app.screen.shownList instanceof Album) {
+            if (app.screen.shownThing.type == "Album") {
                 setList(
                     spotifyAlbumToAlbum(
-                        await window.electronAPI.extractors.spotify.getListInfo("Album", app.screen.shownList.id)
+                        await window.electronAPI.extractors.spotify.getListInfo("Album", app.screen.shownThing.id)
                     )
                 )
             }
 
-            if (app.screen.shownList instanceof Playlist) {
+            if (app.screen.shownThing.type == "Playlist") {
                 setList(
                     spotifyPlaylistToPlaylist(
-                        await window.electronAPI.extractors.spotify.getListInfo("Playlist", app.screen.shownList.id)
+                        await window.electronAPI.extractors.spotify.getListInfo("Playlist", app.screen.shownThing.id)
                     )
                 )
             }
         }
 
         fetchLists()
-    }, [app.screen.shownList])
+    }, [app.screen.shownThing])
 
     const handlePlay = (song: Song) => {
         const songInQueueIndex = music.player.queue.findIndex(queueSong => queueSong == song)
         if (songInQueueIndex != -1) {
             // Song already in queue, just play it
-            music.player.setSongIndex(songInQueueIndex)
+            music.player.goToIndex(songInQueueIndex)
         } else {
             switch(settings.listPlay) {
                 case "Single": {
                     // Add only this song to queue and play it
-                    music.player.setQueue([song])
-                    music.player.setSongIndex(0)
+                    music.player.setQueue([song], 0)
                     break
                 }
                 case "Multiple": {
                     // Add all songs from the list to queue
-                    music.player.setQueue(list.songs)
                     // Find and play the selected song (comparing by title and artists)
                     const songIndex = list.songs.findIndex(s => 
                         s.title === song.title && 
                         s.artists.length === song.artists.length &&
                         s.artists.every((artist, i) => artist.name === song.artists[i].name)
                     )
-                    music.player.setSongIndex(songIndex !== -1 ? songIndex : 0)
+                    music.player.setQueue(list.songs, songIndex !== -1 ? songIndex : 0)
                     break
                 }
             }
@@ -74,8 +73,7 @@ export const ListScreen: React.FC = () => {
     }
 
     const handlePlayList = (list: Song[]) => {
-        music.player.setQueue(list)
-        music.player.setSongIndex(0)
+        music.player.setQueue(list, 0)
     }
     
     let artist = ""
@@ -91,7 +89,7 @@ export const ListScreen: React.FC = () => {
     }
 
     return (
-        <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, height: "100%", flexGrow: 1, flexDirection: "column", padding: "24px", overflow: "hidden" }}>
+        <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, height: "calc(100% - 64px)", flexGrow: 1, flexDirection: "column", padding: "24px", overflow: "hidden" }}>
             <Box display="flex" sx={{ padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)", flexShrink: 0 }}>
                 <Box sx={{ position: "relative" }}>
                     {!list ?
@@ -233,7 +231,10 @@ export const ListScreen: React.FC = () => {
                                     </Box>
                                     {song.artists.map((artist, index) => (
                                         <React.Fragment>
-                                            <Link href="" variant="body2" underline="hover" color="textSecondary" position="sticky" zIndex="10">{artist.name}</Link>
+                                            <Link onClick={() => {
+                                                app.screen.setShownThing({id: artist.id, type: "Artist"})
+                                                app.screen.setCurrentView("artistView")
+                                            }} variant="body2" underline="hover" color="textSecondary" position="sticky" zIndex="10">{artist.name}</Link>
                                             {index < song.artists.length - 1 && <Typography variant="caption" color="textSecondary">,&nbsp;</Typography>}
                                         </React.Fragment>
                                     ))}
@@ -250,12 +251,5 @@ export const ListScreen: React.FC = () => {
                 </List>
             </Box>      
         </Box>
-    )
-}
-
-export const DotRowSeparator: React.FC<{ sx?: React.CSSProperties }> = ({ sx }) => {
-    return (
-        <Typography variant="h6" fontWeight={900} color="var(--mui-palette-text-secondary)"
-        sx={{ paddingLeft: "8px", paddingRight: "8px", ...sx }}>•</Typography>
     )
 }

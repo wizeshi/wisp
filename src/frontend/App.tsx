@@ -1,5 +1,5 @@
 import { ThemeProvider } from "@mui/material/styles/"
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Titlebar } from "./components/Titlebar"
 import { theme } from "./utils/Theme"
 /* import "@fontsource/roboto" */
@@ -13,9 +13,52 @@ import { ListScreen } from "./views/ListScreen"
 import { SearchScreen } from "./views/SearchScreen"
 import { Settings } from "./views/Settings"
 import { SongQueue } from "./views/SongQueue"
+import { ArtistScreen } from "./views/ArtistScreen"
+import { FirstTimeScreen } from "./views/FirstTimeScreen"
 
 export const App: React.FC = () => {
     const { app, music } = useAppContext()
+    const [isFirstTimeSetup, setIsFirstTimeSetup] = useState<boolean>(false)
+    const [isCheckingSetup, setIsCheckingSetup] = useState<boolean>(true)
+
+    // Check if user is new on mount
+    useEffect(() => {
+        const checkFirstTimeSetup = async () => {
+            try {
+                const userData = await window.electronAPI.data.load()
+                const hasCredentials = await window.electronAPI.credentials.has()
+                
+                // Show setup if user is new OR if no credentials exist
+                setIsFirstTimeSetup(userData.isNewUser || !hasCredentials)
+            } catch (error) {
+                console.error("Error checking setup status:", error)
+                // On error, assume first time setup needed
+                setIsFirstTimeSetup(true)
+            } finally {
+                setIsCheckingSetup(false)
+            }
+        }
+
+        checkFirstTimeSetup()
+    }, [])
+
+    // Show loading state while checking
+    if (isCheckingSetup) {
+        return (
+            <ThemeProvider theme={theme}>
+                <Box sx={{ 
+                    height: "100vh", 
+                    width: "100vw", 
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "linear-gradient(135deg, rgba(25,25,25,1) 0%, rgba(15,15,15,1) 100%)"
+                }}>
+                    {/* Optional: Add a loading spinner here */}
+                </Box>
+            </ThemeProvider>
+        )
+    }
 
     let mainContent
 
@@ -24,8 +67,11 @@ export const App: React.FC = () => {
         case "home":
             mainContent = <HomeScreen />
             break
-        case "sidebarList":
+        case "listView":
             mainContent = <ListScreen />
+            break
+        case "artistView":
+            mainContent = <ArtistScreen />
             break
         case "search":
             mainContent = <SearchScreen searchQuery={app.screen.search} />
@@ -41,6 +87,24 @@ export const App: React.FC = () => {
     const currentSong = music.player.getCurrentSong()
     const backgroundImage = currentSong?.thumbnailURL || ""
 
+    // Show only FirstTimeScreen during setup (no sidebar, no player bar)
+    if (isFirstTimeSetup) {
+        return (
+            <ThemeProvider theme={theme}>
+                <Box sx={{ 
+                    height: "100vh", 
+                    width: "100vw", 
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column"
+                }}>
+                    <Titlebar />
+                    <FirstTimeScreen />
+                </Box>
+            </ThemeProvider>
+        )
+    }
+
     return (
             <ThemeProvider theme={theme}>
                 <Titlebar />
@@ -52,7 +116,7 @@ export const App: React.FC = () => {
                         maxHeight: "calc(100vh - 32px)",
                         position: "relative",
                         height: "100%",
-                        overflow: "hidden",
+                        overflow: "auto",
                         ...(backgroundImage && {
                             "&::before": {
                                 content: '""',

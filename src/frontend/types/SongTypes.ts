@@ -1,27 +1,51 @@
 import { secondsToSecAndMin, secondsToSecMinHour } from "../utils/Utils";
+import { 
+    SimplifiedAlbum as SpotifySimplifiedAlbum,
+    TopTracksResult as SpotifyTopTracksResult,
+    Artist as SpotifyArtist
+} from "@spotify/web-api-ts-sdk";
 
 export type Sources = "spotify" | "youtube" | "soundcloud"
 
-export class Artist {
+export class SimpleArtist {
+    id: string;
     name: string;
     thumbnailURL: string;
 
-    constructor(name: string, thumbnailURL: string) {
+    constructor(id: string, name: string, thumbnailURL: string) {
+        this.id = id;
         this.name = name;
         this.thumbnailURL = thumbnailURL
+    }
+}
+export class Artist {
+    id: string;
+    name: string;
+    thumbnailURL: string;
+    monthlyListeners: number;
+    topSongs: Song[];
+    albums: SimpleAlbum[];
+
+    constructor(id: string, name: string, thumbnailURL: string, monthlyListeners: number, topSongs: Song[], albums: SimpleAlbum[]) {
+        this.name = name;
+        this.id = id;
+        this.monthlyListeners = monthlyListeners;
+        this.thumbnailURL = thumbnailURL
+        this.topSongs = topSongs
+        this.albums = albums
     }
 }
 
 export class Song {
     title: string;
-    artists: Array<Artist>;
+    artists: Array<SimpleArtist>;
     source: Sources;
     thumbnailURL: string;
     explicit: boolean;
     durationSecs: number;
     durationFormatted: string;
 
-    constructor(title: string, artists: Array<Artist>, explicit: boolean, duration: number, source: Sources, thumbnailURL: string) {
+    constructor(title: string, artists: Array<SimpleArtist>, explicit: boolean, duration: number, source: Sources, thumbnailURL: string) {
         this.title = title;
         this.artists = artists;
         this.source = source;
@@ -57,13 +81,32 @@ export class BaseSongList {
     }
 }
 
+export class SimpleAlbum {
+    id: string;
+    title: string;
+    thumbnailURL: string;
+
+    artists: Array<SimpleArtist>;
+    label: string;
+    releaseDate: Date;
+    
+    constructor(id: string, title: string, thumbnailURL: string, artists: SimpleArtist[], releaseDate: Date, label: string) {
+        this.id = id
+        this.title = title;
+        this.thumbnailURL = thumbnailURL;
+        this.artists = artists;
+        this.releaseDate = releaseDate
+        this.label = label
+    }
+}
+
 export class Album extends BaseSongList {
-    artists: Array<Artist>;
+    artists: Array<SimpleArtist>;
     explicit: boolean;
     label: string;
     releaseDate: Date;
 
-    constructor(title: string, artists: Array<Artist>, label: string, releaseDate: Date, explicit: boolean, songs: Array<Song> | undefined, thumbnailURL: string, id: string) {
+    constructor(title: string, artists: Array<SimpleArtist>, label: string, releaseDate: Date, explicit: boolean, songs: Array<Song> | undefined, thumbnailURL: string, id: string) {
         super(title, songs, thumbnailURL, id);
         this.artists = artists;
         this.label = label
@@ -137,6 +180,12 @@ export type youtubeSearchType = {
         totalResults: number
     },
     regionCode: string
+}
+
+export type spotifyArtistDetails = {
+    info: SpotifyArtist,
+    topTracks: SpotifyTopTracksResult,
+    albums: SpotifySimplifiedAlbum[]
 }
 
 export const SidebarListTypes = ["Playlists", "Albums", "Artists"] as const

@@ -10,13 +10,44 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    icon: "assets/wisp",
+    appBundleId: "com.wizeshi.wisp",
+    appCategoryType: "public.app-category.music",
+    executableName: "wisp",
   },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({
+      name: 'wisp',
+      authors: 'wizeshi',
+      description: 'wizeshi\'s Interfaceable Song Provider - A unified music player',
+      setupIcon: 'assets/wisp_setup.ico',
+      iconUrl: 'https://raw.githubusercontent.com/wizeshi/wisp/master/assets/wisp.ico', // For Start Menu shortcuts
+      setupExe: 'wisp-setup.exe',
+      noMsi: true,
+    }),
     new MakerZIP({}, ['darwin']),
-    new MakerRpm({}),
-    new MakerDeb({}),
+    new MakerRpm({
+      options: {
+        name: 'wisp',
+        productName: 'WISP',
+        genericName: 'Music Player',
+        description: 'wizeshi\'s Interfaceable Song Provider',
+        categories: ['AudioVideo', 'Audio'],
+        mimeType: ['audio/mpeg', 'audio/flac', 'audio/x-wav'],
+      }
+    }),
+    new MakerDeb({
+      options: {
+        name: 'wisp',
+        productName: 'WISP',
+        genericName: 'Music Player',
+        description: 'wizeshi\'s Interfaceable Song Provider',
+        categories: ['AudioVideo', 'Audio'],
+        mimeType: ['audio/mpeg', 'audio/flac', 'audio/x-wav'],
+        icon: 'assets/wisp.png',
+      }
+    }),
   ],
   plugins: [
     new VitePlugin({

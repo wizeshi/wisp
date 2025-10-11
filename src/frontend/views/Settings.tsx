@@ -6,6 +6,7 @@ import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import IconButton from "@mui/material/IconButton";
 import LoginIcon from '@mui/icons-material/Login';
 import CheckIcon from '@mui/icons-material/Check';
+import EditIcon from '@mui/icons-material/Edit';
 import { SvgIconTypeMap } from "@mui/material/SvgIcon";
 import { OverridableComponent } from "@mui/material/OverridableComponent";
 import YoutubeIcon from '@mui/icons-material/YouTube'
@@ -15,6 +16,16 @@ import MenuItem from "@mui/material/MenuItem";
 import FormControl from "@mui/material/FormControl";
 import { useSettings } from "../hooks/useSettings";
 import Tooltip from "@mui/material/Tooltip";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import InputAdornment from "@mui/material/InputAdornment";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
+import Alert from "@mui/material/Alert";
 
 export const Settings: React.FC = () => {
     const [spotifyLoggedIn, setSpotifyLoggedIn] = useState<boolean>(false)
@@ -32,16 +43,22 @@ export const Settings: React.FC = () => {
     }
 
     useEffect(() => {
-        window.electronAPI.login.spotify.onCode((code) => {
-            console.log('Spotify code:', code)
+        window.electronAPI.login.spotify.onSuccess(() => {
+            console.log('Spotify login successful')
             setSpotifyLoggedIn(true)
-            window.electronAPI.window.send("SPOTIFY_TOKEN", code)
         })
 
-        window.electronAPI.login.youtube.onCode((code) => {
-            console.log('Youtube code', code)
+        window.electronAPI.login.spotify.onError((error) => {
+            console.error('Spotify login error:', error)
+        })
+
+        window.electronAPI.login.youtube.onSuccess(() => {
+            console.log('YouTube login successful')
             setYoutubeLoggedIn(true)
-            window.electronAPI.window.send("YOUTUBE_TOKEN", code)
+        })
+
+        window.electronAPI.login.youtube.onError((error) => {
+            console.error('YouTube login error:', error)
         })
     }, [])
 
@@ -51,6 +68,8 @@ export const Settings: React.FC = () => {
             window.electronAPI.login.spotify.loggedIn(),
             window.electronAPI.login.youtube.loggedIn()
         ]).then(([spotify, youtube]) => {
+            console.log(spotify)
+            console.log(youtube)
             if (!cancelled) {
                 setSpotifyLoggedIn(spotify.loggedIn && !spotify.expired)
                 setYoutubeLoggedIn(youtube.loggedIn && !youtube.expired)
@@ -73,9 +92,19 @@ export const Settings: React.FC = () => {
                 <Typography variant="h6">Accounts</Typography>
 
                 <Box>
-                    <AccountRow serviceName="Spotify" ServiceIcon={GraphicEqIcon} loginState={spotifyLoggedIn} loginHandler={handleSpotifyLogin}/>
+                    <AccountRow 
+                        serviceName="Spotify" 
+                        ServiceIcon={GraphicEqIcon} 
+                        loginState={spotifyLoggedIn} 
+                        loginHandler={handleSpotifyLogin}
+                    />
 
-                    <AccountRow serviceName="Youtube" ServiceIcon={YoutubeIcon} loginState={youtubeLoggedIn} loginHandler={handleYoutubeLogin}/>
+                    <AccountRow 
+                        serviceName="Youtube" 
+                        ServiceIcon={YoutubeIcon} 
+                        loginState={youtubeLoggedIn} 
+                        loginHandler={handleYoutubeLogin}
+                    />
                 </Box>
             </Box>
 
@@ -194,28 +223,227 @@ const AccountRow: React.FC<{
     loginHandler: () => void
 }> = 
 ({ serviceName, ServiceIcon, loginState, loginHandler }) => {
-    return (
-        <SettingRowBox>
-                <ServiceIcon sx={{ marginRight: "12px" }}/>
+    const [dialogOpen, setDialogOpen] = useState(false)
 
-                <Typography variant="body1">{ serviceName }</Typography>
-                
-                <Box display="flex" sx={{ marginLeft: "auto" }}>
-                    {loginState ?
-                    <Typography variant="body1" color="success" sx={{ alignSelf: "center", marginRight: "12px"}}>
-                        Logged In
-                    </Typography>
-                    :   <Typography variant="body1" color="error" sx={{ alignSelf: "center", marginRight: "12px"}}>
-                        Not Logged In
-                    </Typography>}
-                    {loginState ?
-                        <IconButton disabled>
-                            <CheckIcon />
-                        </IconButton>
-                    :   <IconButton onClick={loginHandler}>
-                            <LoginIcon />
-                        </IconButton>}
-                </Box>
-        </SettingRowBox>
+    const handleEditClick = () => {
+        setDialogOpen(true)
+    }
+
+    const handleDialogClose = () => {
+        setDialogOpen(false)
+    }
+
+    return (
+        <>
+            <SettingRowBox>
+                    <ServiceIcon sx={{ marginRight: "12px" }}/>
+
+                    <Typography variant="body1">{ serviceName }</Typography>
+                    
+                    <Box display="flex" sx={{ marginLeft: "auto", gap: "8px" }}>
+                        {loginState ?
+                        <Typography variant="body1" color="success" sx={{ alignSelf: "center", marginRight: "12px"}}>
+                            Logged In
+                        </Typography>
+                        :   <Typography variant="body1" color="error" sx={{ alignSelf: "center", marginRight: "12px"}}>
+                            Not Logged In
+                        </Typography>}
+                        
+                        <Tooltip title="Edit API Credentials">
+                            <IconButton onClick={handleEditClick}>
+                                <EditIcon />
+                            </IconButton>
+                        </Tooltip>
+
+                        {loginState ?
+                            <IconButton disabled>
+                                <CheckIcon />
+                            </IconButton>
+                        :   <IconButton onClick={loginHandler}>
+                                <LoginIcon />
+                            </IconButton>}
+                    </Box>
+            </SettingRowBox>
+
+            <CredentialDialog
+                open={dialogOpen}
+                serviceName={serviceName}
+                onClose={handleDialogClose}
+                onSave={loginHandler}
+            />
+        </>
+    )
+}
+
+interface CredentialDialogProps {
+    open: boolean
+    serviceName: string
+    onClose: () => void
+    onSave: () => void
+}
+
+const CredentialDialog: React.FC<CredentialDialogProps> = ({ open, serviceName, onClose, onSave }) => {
+    const [clientId, setClientId] = useState("")
+    const [clientSecret, setClientSecret] = useState("")
+    const [showClientSecret, setShowClientSecret] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
+    const [success, setSuccess] = useState(false)
+
+    // Load existing credentials when dialog opens
+    useEffect(() => {
+        if (open) {
+            setLoading(true)
+            setError("")
+            setSuccess(false)
+            
+            window.electronAPI.credentials.load()
+                .then((creds) => {
+                    if (creds) {
+                        if (serviceName === "Spotify") {
+                            setClientId(creds.spotifyClientId || "")
+                            setClientSecret(creds.spotifyClientSecret || "")
+                        } else if (serviceName === "Youtube") {
+                            setClientId(creds.youtubeClientId || "")
+                            setClientSecret(creds.youtubeClientSecret || "")
+                        }
+                    }
+                })
+                .catch((err) => {
+                    console.error("Failed to load credentials:", err)
+                    setError("Failed to load existing credentials")
+                })
+                .finally(() => {
+                    setLoading(false)
+                })
+        }
+    }, [open, serviceName])
+
+    const handleSave = async () => {
+        if (!clientId.trim() || !clientSecret.trim()) {
+            setError("Both Client ID and Client Secret are required")
+            return
+        }
+
+        setLoading(true)
+        setError("")
+        setSuccess(false)
+
+        try {
+            // Load existing credentials to preserve other service's credentials
+            const existingCreds = await window.electronAPI.credentials.load() || {
+                spotifyClientId: "",
+                spotifyClientSecret: "",
+                youtubeClientId: "",
+                youtubeClientSecret: ""
+            }
+
+            // Update only the current service's credentials
+            const updatedCreds = { ...existingCreds }
+            if (serviceName === "Spotify") {
+                updatedCreds.spotifyClientId = clientId.trim()
+                updatedCreds.spotifyClientSecret = clientSecret.trim()
+            } else if (serviceName === "Youtube") {
+                updatedCreds.youtubeClientId = clientId.trim()
+                updatedCreds.youtubeClientSecret = clientSecret.trim()
+            }
+
+            await window.electronAPI.credentials.save(updatedCreds)
+            setSuccess(true)
+            
+            // Close dialog after a short delay to show success message
+            setTimeout(() => {
+                onClose()
+                onSave() // Trigger re-authentication if needed
+            }, 1500)
+        } catch (err) {
+            console.error("Failed to save credentials:", err)
+            setError("Failed to save credentials. Please try again.")
+            setLoading(false)
+        }
+    }
+
+    const handleClose = () => {
+        if (!loading) {
+            setClientId("")
+            setClientSecret("")
+            setShowClientSecret(false)
+            setError("")
+            setSuccess(false)
+            onClose()
+        }
+    }
+
+    return (
+        <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+            <DialogTitle>
+                Edit {serviceName} API Credentials
+            </DialogTitle>
+            <DialogContent>
+                {loading && !success ? (
+                    <Box display="flex" justifyContent="center" padding="24px">
+                        <Typography>Loading credentials...</Typography>
+                    </Box>
+                ) : (
+                    <>
+                        {error && (
+                            <Alert severity="error" sx={{ marginBottom: "16px" }}>
+                                {error}
+                            </Alert>
+                        )}
+                        
+                        {success && (
+                            <Alert severity="success" sx={{ marginBottom: "16px" }}>
+                                Credentials updated successfully!
+                            </Alert>
+                        )}
+
+                        <TextField
+                            fullWidth
+                            label="Client ID"
+                            value={clientId}
+                            onChange={(e) => setClientId(e.target.value)}
+                            margin="normal"
+                            type="text"
+                            disabled={loading}
+                        />
+
+                        <TextField
+                            fullWidth
+                            label="Client Secret"
+                            value={clientSecret}
+                            onChange={(e) => setClientSecret(e.target.value)}
+                            margin="normal"
+                            type={showClientSecret ? "text" : "password"}
+                            disabled={loading}
+                            InputProps={{
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton
+                                            onClick={() => setShowClientSecret(!showClientSecret)}
+                                            edge="end"
+                                        >
+                                            {showClientSecret ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+                    </>
+                )}
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={handleClose} disabled={loading}>
+                    Cancel
+                </Button>
+                <Button 
+                    onClick={handleSave} 
+                    variant="contained" 
+                    disabled={loading || success}
+                >
+                    {loading ? "Saving..." : "Save"}
+                </Button>
+            </DialogActions>
+        </Dialog>
     )
 }

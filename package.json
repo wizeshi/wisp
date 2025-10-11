@@ -1,9 +1,17 @@
 {
   "name": "wisp",
-  "productName": "wisp",
+  "productName": "WISP",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "wizeshi's Interfaceable Song Provider - A unified music player for Spotify and YouTube",
   "main": ".vite/build/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wizeshi/wisp.git"
+  },
+  "homepage": "https://github.com/wizeshi/wisp",
+  "bugs": {
+    "url": "https://github.com/wizeshi/wisp/issues"
+  },
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
@@ -26,7 +34,6 @@
     "@electron/fuses": "^1.8.0",
     "@types/electron": "^1.4.38",
     "@types/electron-squirrel-startup": "^1.0.2",
-    "@types/howler": "^2.2.12",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
@@ -45,7 +52,6 @@
     "@mui/icons-material": "^7.3.2",
     "@mui/material": "^7.3.2",
     "@spotify/web-api-ts-sdk": "^1.2.0",
-    "dotenv": "^17.2.3",
     "electron-squirrel-startup": "^1.0.1",
     "node-fetch": "^3.3.2",
     "react": "^19.1.1",

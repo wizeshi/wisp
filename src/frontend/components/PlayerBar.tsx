@@ -23,16 +23,17 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import Input from "@mui/material/Input"
 import { secondsToSecAndMin } from "../utils/Utils"
-import { Artist, LoopingEnum } from "../types/SongTypes"
+import { LoopingEnum, SimpleArtist } from "../types/SongTypes"
 import Button from "@mui/material/Button"
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import Slide from "@mui/material/Slide"
 import LinearProgress from "@mui/material/LinearProgress"
+import { useData } from "../hooks/useData"
 
 const ProgressControl: React.FC = () => {
     const { music } = useAppContext()
-    const player = music.audioPlayerElement
+    const player = music.player
 
     const handleProgressChange = (event: Event, newValue: number) => {
         player.seek(newValue)
@@ -42,7 +43,7 @@ const ProgressControl: React.FC = () => {
     const songDurationSeconds = currentSong?.durationSecs || 0
     const songDurationFormatted = currentSong?.durationFormatted || "00:00"
 
-    if (music.player.songLoading) {
+    if (player.isLoading || music.isDownloading) {
         return (
             <Box display="flex" flexDirection="row" sx={{ marginTop: "8px", alignItems: "center" }}>
                 <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }}
@@ -61,14 +62,14 @@ const ProgressControl: React.FC = () => {
     return (
         <Box display="flex" flexDirection="row" sx={{ marginTop: "8px" }}>
             <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }}
-            variant="body2">{ secondsToSecAndMin(music.audioPlayerElement.currentTime) }</Typography>
+            variant="body2">{ secondsToSecAndMin(music.player.currentTime) }</Typography>
 
             <Slider
                 size="medium"
                 min={0}
                 max={songDurationSeconds}
                 step={1}
-                value={music.audioPlayerElement.currentTime}
+                value={music.player.currentTime}
                 onChange={handleProgressChange}
                 slotProps={{
                     thumb: { style: {
@@ -87,12 +88,51 @@ export const PlayerBar: React.FC = () => {
     const [playerBarShown, setPlayerBarShown] = useState<boolean>(true)
     const [volume, setVolume] = useState<number>(10)
     const [oldVolume, setOldVolume] = useState<number>(0)
+    const [initialized, setInitialized] = useState<boolean>(false)
     const { app, music } = useAppContext()
-    const player = music.audioPlayerElement
+    const player = music.player
+    const { data, loading, updateData } = useData()
 
+    // Load saved settings on mount (only once)
+    useEffect(() => {
+        if (!loading && !initialized) {
+            setVolume(data.preferredVolume)
+            
+            // Set shuffle state if different from saved
+            if (data.shuffled !== player.shuffleEnabled) {
+                player.toggleShuffle()
+            }
+            
+            // Set loop mode if different from saved - toggle the appropriate number of times
+            const currentLoop = player.loopMode
+            const targetLoop = data.looped
+            if (currentLoop !== targetLoop) {
+                // Calculate how many times to toggle (0->1->2->0)
+                const toggleCount = (targetLoop - currentLoop + 3) % 3
+                for (let i = 0; i < toggleCount; i++) {
+                    player.toggleLoop()
+                }
+            }
+            
+            setInitialized(true)
+        }
+    }, [loading, initialized])
+
+    // Update player volume immediately, but don't save yet
     useEffect(() => {
         player.setVolume(volume)
     }, [volume])
+
+    // Debounce saving volume changes
+    useEffect(() => {
+        if (loading) return
+
+        const timeoutId = setTimeout(() => {
+            updateData({ preferredVolume: volume })
+        }, 500) // Save 500ms after user stops changing volume
+
+        return () => clearTimeout(timeoutId)
+    }, [volume, loading])
 
     useEffect(() => {
         if (volume > 100) {
@@ -123,17 +163,11 @@ export const PlayerBar: React.FC = () => {
     }, [player])
 
     const handleSkipForward = () => {
-        const index = music.player.songIndex + 1
-        if (music.player.queue[index]) {
-            music.player.setSongIndex(index)
-        }
+        player.skipNext()
     }
 
     const handleSkipBack = () => {
-        const index = music.player.songIndex - 1
-        if (music.player.queue[index]) {
-            music.player.setSongIndex(index)
-        }
+        player.skipPrevious()
     }
 
     const handlePlay = () => {
@@ -141,19 +175,20 @@ export const PlayerBar: React.FC = () => {
     }
 
     const handleShuffle = () => {
-        music.player.shuffle.toggle()
+        music.player.toggleShuffle()
+        // Save the new shuffle state
+        updateData({ shuffled: !player.shuffleEnabled })
     }
 
     const handleRepeat = () => {
-        if (music.player.loop.type < 2) {
-            music.player.loop.setType(music.player.loop.type + 1)
-        } else {
-            music.player.loop.setType(0)
-        }
+        music.player.toggleLoop()
+        // Save the new loop state (after toggle, so we need to calculate next state)
+        const nextLoopState = player.loopMode < 2 ? player.loopMode + 1 : 0
+        updateData({ looped: nextLoopState as LoopingEnum })
     }
 
     let repeatButton
-    switch (music.player.loop.type) {
+    switch (music.player.loopMode) {
         default:
         case LoopingEnum.Off:
             repeatButton = (
@@ -189,6 +224,17 @@ export const PlayerBar: React.FC = () => {
         }
     }
 
+    const handleVolumeWheel = (event: React.WheelEvent) => {
+        event.preventDefault()
+        // deltaY is negative when scrolling up, positive when scrolling down
+        const delta = event.deltaY > 0 ? -5 : 5
+        setVolume(prevVolume => {
+            const newVolume = prevVolume + delta
+            // Clamp between 0 and 100
+            return Math.max(0, Math.min(100, newVolume))
+        })
+    }
+
     let volumeIcon
     if (volume == 0) {
         volumeIcon = <VolumeOffIcon />
@@ -199,13 +245,17 @@ export const PlayerBar: React.FC = () => {
     }
 
     let songName = ""
-    let artists: Array<Artist> = []
+    let artists: Array<SimpleArtist> = []
     let songThumbnailUrl = ""
     const currentSong = music.player.getCurrentSong()
-    if (music.player.getCurrentSong() != undefined) {
+    if (currentSong != undefined) {
         songName = currentSong.title
         artists = currentSong.artists
         songThumbnailUrl = currentSong.thumbnailURL
+    }
+
+    if (loading) {
+        return <></>
     }
     
     return (
@@ -239,7 +289,7 @@ export const PlayerBar: React.FC = () => {
                             <Box display="flex" sx={{ alignItems: "center", flexDirection: "column", marginLeft: "auto", marginRight: "auto" }}>
                                 <Box sx={{ paddingTop: "4px" }}>
                                     <IconButton onClick={handleShuffle}>
-                                        {music.player.shuffle.shuffled ?
+                                        {music.player.shuffleEnabled ?
                                             <ShuffleOnIcon />
                                         :   <ShuffleIcon />
                                         }
@@ -283,8 +333,15 @@ export const PlayerBar: React.FC = () => {
                                 {volumeIcon}
                             </IconButton>
         
-                            <Slider size="small" min={0} max={100} value={volume} onChange={handleVolumeChange}
-                            sx={{ width: "100px", padding: "18px 0", marginRight: "12px" }}/>
+                            <Slider 
+                                size="small" 
+                                min={0} 
+                                max={100} 
+                                value={volume} 
+                                onChange={handleVolumeChange}
+                                onWheel={handleVolumeWheel}
+                                sx={{ width: "100px", padding: "18px 0", marginRight: "12px" }}
+                            />
                             <Input
                             value={volume}
                             size="small"

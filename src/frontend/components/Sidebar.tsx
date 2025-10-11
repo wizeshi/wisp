@@ -14,10 +14,10 @@ import { useAppContext } from "../providers/AppContext"
 import ViewWeekIcon from '@mui/icons-material/ViewWeek';
 import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 import ListItemText from "@mui/material/ListItemText"
-import { Album, Artist, SidebarListType, SidebarListTypes, Playlist, BaseSongList } from "../types/SongTypes"
+import { Album, Artist, SidebarListType, SidebarListTypes, Playlist, BaseSongList, SimpleArtist } from "../types/SongTypes"
 import Stack from "@mui/material/Stack"
 import ButtonBase from "@mui/material/ButtonBase"
-import { spotifyArtistToArtist } from "../utils/Helpers"
+import { spotifyArtistToArtist, spotifyArtistToSimpleArtist } from "../utils/Helpers"
 import Skeleton from "@mui/material/Skeleton"
 import ExplicitIcon from '@mui/icons-material/Explicit'
 
@@ -89,7 +89,8 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 const iconButtonStyles = {
     height: "80px",
     width: "80px",
-    fontSize: "80px"
+    fontSize: "80px",
+    borderRadius: "0px"
 }
 
 const openIconButtonStyles = {}
@@ -169,7 +170,7 @@ export const Sidebar: React.FC = () => {
     const { app } = useAppContext()
     const [typeShown, setTypeShown] = useState<SidebarListType>("Playlists")
     const [loading, setLoading] = useState(true)
-    const [lists, setLists] = useState<Playlist[] | Album[] | Artist[] | null>(null)
+    const [lists, setLists] = useState<Playlist[] | Album[] | SimpleArtist[] | null>(null)
     const [username, setUsername] = useState<string | null>(null)
 
     const handleToggle = useCallback(() => {
@@ -198,7 +199,7 @@ export const Sidebar: React.FC = () => {
           setLoading(true)
           
           try {
-            let realList: Album[] | Playlist[] | Artist[]
+            let realList: Album[] | Playlist[] | SimpleArtist[]
             switch (typeShown) {
               case "Playlists": {
                 const resultList = await window.electronAPI.extractors.spotify.getUserLists("Playlists")
@@ -215,9 +216,9 @@ export const Sidebar: React.FC = () => {
                 const resultList = await window.electronAPI.extractors.spotify.getUserLists("Albums")
                 const albums: Album[] = []
                 resultList.forEach((item) => {
-                  const artists: Artist[] = []
+                  const artists: SimpleArtist[] = []
                   item.album.artists.forEach((artist) => {
-                    artists.push(spotifyArtistToArtist(artist))
+                    artists.push(spotifyArtistToSimpleArtist(artist))
                   })
 
                   const label = item.album.copyrights && item.album.copyrights.length > 0 
@@ -245,10 +246,10 @@ export const Sidebar: React.FC = () => {
               }
               case "Artists": {
                 const resultList = await window.electronAPI.extractors.spotify.getUserLists("Artists")
-                const artists: Artist[] = []
+                const artists: SimpleArtist[] = []
                 resultList.forEach((item) => {
                   const thumbnailUrl = item.images && item.images.length > 0 ? item.images[0].url : ""
-                  artists.push(new Artist(item.name, thumbnailUrl))
+                  artists.push(new SimpleArtist(item.id, item.name, thumbnailUrl))
                 })
                 realList = artists
                 break
@@ -277,7 +278,11 @@ export const Sidebar: React.FC = () => {
     }, [typeShown])
 
     return (
-      <Drawer variant="permanent" open={app.sidebar.open} anchor="left">
+      <Drawer variant="permanent" open={app.sidebar.open} anchor="left" slotProps={{
+        paper: {
+          sx: { marginTop: "32px"}
+        }
+      }}>
         <SidebarHeader isOpen={app.sidebar.open} onToggle={handleToggle} username={username} />
         <Divider />
         <TypeFilterButtons isOpen={app.sidebar.open} typeShown={typeShown} onTypeChange={setTypeShown} />
@@ -286,7 +291,7 @@ export const Sidebar: React.FC = () => {
     )
 }
 
-const getItemDetails = (thing: Album | Playlist | Artist) => {
+const getItemDetails = (thing: Album | Playlist | SimpleArtist) => {
   if (thing instanceof Album) {
     const desc = thing.artists.map(artist => artist.name).join(", ")
     return { name: thing.title, desc, explicit: thing.explicit, thumbnailURL: thing.thumbnailURL }
@@ -294,14 +299,14 @@ const getItemDetails = (thing: Album | Playlist | Artist) => {
   if (thing instanceof Playlist) {
     return { name: thing.title, desc: thing.author, explicit: false, thumbnailURL: thing.thumbnailURL }
   }
-  if (thing instanceof Artist) {
+  if (thing instanceof SimpleArtist) {
     return { name: thing.name, desc: "Artist", explicit: false, thumbnailURL: thing.thumbnailURL }
   }
   return { name: "", desc: "", explicit: false, thumbnailURL: "" }
 }
 
 const SidebarListItem = memo<{ 
-  thing: Album | Playlist | Artist
+  thing: Album | Playlist | SimpleArtist
   isOpen: boolean
   onItemClick: () => void
 }>(({ thing, isOpen, onItemClick }) => {
@@ -326,16 +331,21 @@ const SidebarListItem = memo<{
 
 SidebarListItem.displayName = 'SidebarListItem'
 
-export const SidebarList: React.FC<{ sidebarThings: Album[] | Playlist[] | Artist[] }> = memo(({ sidebarThings }) => {
+export const SidebarList: React.FC<{ sidebarThings: Album[] | Playlist[] | SimpleArtist[] }> = memo(({ sidebarThings }) => {
   const { app } = useAppContext()
   
-  const handleItemClick = useCallback((item: Album | Playlist | Artist) => {
-    if (item instanceof BaseSongList) {
-      app.screen.setShownList(item)
-    } else {
-      // whatever
+  const handleItemClick = useCallback((item: Album | Playlist | SimpleArtist) => {
+    app.screen.setShownThing({ id: item.id, type: "Artist" })
+    if (item instanceof Playlist) {
+      app.screen.setShownThing({ id: item.id, type: "Playlist" })
+      app.screen.setCurrentView("listView")
+    } else if (item instanceof Album) {
+      app.screen.setShownThing({ id: item.id, type: "Album" })
+      app.screen.setCurrentView("listView")
+    } else if (item instanceof SimpleArtist) {
+      app.screen.setShownThing({ id: item.id, type: "Artist" })
+      app.screen.setCurrentView("artistView")
     }
-    app.screen.setCurrentView("sidebarList")
   }, [app.screen])
 
   const listSx = useMemo(() => [

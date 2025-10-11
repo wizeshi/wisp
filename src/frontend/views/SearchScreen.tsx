@@ -6,11 +6,11 @@ import Divider from "@mui/material/Divider"
 import Avatar from "@mui/material/Avatar"
 import Link from "@mui/material/Link"
 import ExplicitIcon from "@mui/icons-material/Explicit"
-import { DotRowSeparator } from "./ListScreen"
+import { DotRowSeparator } from "../components/DotRowSeparator"
 import List from "@mui/material/List"
 import ListItemButton from "@mui/material/ListItemButton"
-import { Album, Artist, BaseSongList, Playlist, Song } from "../types/SongTypes"
-import { getListType, getServiceIcon, spotifySimpleArtistToArtist, spotifyTrackToSong } from "../utils/Helpers"
+import { Album, Artist, BaseSongList, Playlist, SimpleArtist, Song } from "../types/SongTypes"
+import { getListType, getServiceIcon, spotifySimpleArtistToSimpleArtist, spotifyTrackToSong } from "../utils/Helpers"
 import Fab from "@mui/material/Fab"
 import PlayArrow from "@mui/icons-material/PlayArrow"
 import { useAppContext } from "../providers/AppContext"
@@ -33,7 +33,7 @@ const convertThreeAreasToTypeArea = (index: number) => {
 
 export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery }) => {
     const [ playSongButtonShowing, setPlaySongButtonShowing ] = useState<Map<playAreas, Map<number, boolean>>>(new Map())
-    const { music } = useAppContext()
+    const { app, music } = useAppContext()
     const [ searchResults, setSearchResults ] = useState<SearchResults<readonly ItemTypes[]>>(undefined)
     const [ debouncedQuery, setDebouncedQuery ] = useState(searchQuery)
     const [ loading, setLoading ] = useState(true)
@@ -66,9 +66,15 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
     }
 
     const handlePlay = (song: Song) => {
-        const songIndex = music.player.addSongToQueue(song)
-        music.player.setSongIndex(songIndex)
-        music.audioPlayerElement.seek(0)
+        const songInQueueIndex = music.player.queue.findIndex(queueSong => queueSong === song)
+        if (songInQueueIndex !== -1) {
+            // Song already in queue, just play it
+            music.player.goToIndex(songInQueueIndex)
+        } else {
+            // Add song to queue and play it
+            const newIndex = music.player.addToQueue(song)
+            music.player.goToIndex(newIndex)
+        }
     }
 
     const handleMouseEnterMainResult = () => {
@@ -106,7 +112,11 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                             padding: "12px", backgroundColor: "rgba(0, 0, 0, 0.35)",
                             marginTop: "12px", border: "1px solid rgba(255, 255, 255, 0.1)", borderRadius: "12px",
                             position:"sticky", cursor: "pointer" }}
-                        onMouseEnter={handleMouseEnterMainResult} onMouseLeave={handleMouseLeaveMainResult} onClick={() => {}}
+                        onMouseEnter={handleMouseEnterMainResult} onMouseLeave={handleMouseLeaveMainResult} 
+                        onClick={() => {
+                            app.screen.setShownThing({ id: mainResult.album.id, type: "Album" })
+                            app.screen.setCurrentView("listView")
+                        }}
                         >
                             <Avatar src={mainResult.album.images[0].url} variant="rounded" sx={{ width: "95%", aspectRatio: "1 / 1", height: "auto", margin: "0 auto 0 auto" }} />
                             
@@ -229,7 +239,7 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                             case "Albums":
                                 listItems = searchResults.albums.items.map((oldAlbum) => {
                                     const tempArtists = oldAlbum.artists.map((oldArtist) => {
-                                        return spotifySimpleArtistToArtist(oldArtist)
+                                        return spotifySimpleArtistToSimpleArtist(oldArtist)
                                     })
 
                                     return new Album(oldAlbum.name, tempArtists, "", new Date(oldAlbum.release_date), true, [], oldAlbum.images[0].url, oldAlbum.id)
@@ -245,7 +255,7 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                             }
                             case "Artists":
                                 listItems = searchResults.artists.items.map((oldArtists) => {
-                                    return new Artist(oldArtists.name, oldArtists.images.length != 0 ? oldArtists.images[0].url : "")
+                                    return new SimpleArtist(oldArtists.id, oldArtists.name, oldArtists.images.length != 0 ? oldArtists.images[0].url : "")
                                 })
 
                                 break
@@ -275,12 +285,27 @@ const ListSlider:
         setButtonShowing: (index: number) => void
     }> 
 = ({ title, listItems, isButtonShowing, setButtonShowing }) => {
+    const { app } = useAppContext()
+    
     const handleMouseEnter = (index: number) => {
         setButtonShowing(index)
     }
 
     const handleMouseLeave = () => {
         setButtonShowing(0)
+    }
+
+    const handleItemClick = (item: Album | Artist | Playlist) => {
+        if (item instanceof Album) {
+            app.screen.setShownThing({ id: item.id, type: "Album" })
+            app.screen.setCurrentView("listView")
+        } else if (item instanceof Playlist) {
+            app.screen.setShownThing({ id: item.id, type: "Playlist" })
+            app.screen.setCurrentView("listView")
+        } else if (item instanceof Artist) {
+            app.screen.setShownThing({ id: item.id, type: "Artist" })
+            app.screen.setCurrentView("artistView")
+        }
     }
 
 
@@ -311,7 +336,7 @@ const ListSlider:
 
 
                         return (
-                            <ButtonWrapper>
+                            <ButtonWrapper key={index} onClick={() => handleItemClick(listItem)}>
                                 <Box display="flex" sx={{ position: "relative", maxHeight: "fit-content", overflowX: "hidden" }}
                                 onMouseEnter={() => handleMouseEnter(index + 1)}
                                 onMouseLeave={handleMouseLeave}>
@@ -347,9 +372,9 @@ const ListSlider:
     )
 }
 
-const ButtonWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const ButtonWrapper: React.FC<{ children: React.ReactNode; onClick?: () => void }> = ({ children, onClick }) => {
     return (
-        <div role="button" style={{
+        <div role="button" onClick={onClick} style={{
             padding: "12px",
             backgroundColor: "rgba(0, 0, 0, 0.35)",
             marginRight: "8px",

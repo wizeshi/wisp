@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { UserSettings } from "../../backend/utils/types"
-import { settingsManager } from "../utils/SettingsManager"
+import { settingsManager } from "../managers/SettingsManager"
 
 export const useSettings = () => {
     const [settings, setSettings] = useState<UserSettings | null>(null)

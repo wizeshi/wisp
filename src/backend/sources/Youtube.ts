@@ -9,14 +9,13 @@ import { spawn } from 'node:child_process'
 import { mainWindow } from '../../main'
 // eslint-disable-next-line import/no-unresolved
 import { Innertube, ClientType, YTNodes } from 'youtubei.js'
+import { loadCredentials } from '../Credentials'
+import { ytDlpManager } from '../utils/YtDlpManager'
 
 const songFileLocations = path.join(app.getPath('userData'), 'songCache')
-/* const ytdlpLocation = "C:\\ProgramData\\chocolatey\\lib\\yt-dlp\\tools\\x64\\yt-dlp.exe" */
 const tokenFilePath = path.join(app.getPath('userData'), 'youtube_tokens.json')
 
-const client_id = process.env.YOUTUBE_CLIENT_ID
-const client_secret = process.env.YOUTUBE_CLIENT_SECRET
-const redirect_uri = "http://127.0.0.1:5173/callback"
+const redirect_uri = "http://127.0.0.1:8080/callback"
 
 let innertube: Innertube | undefined;
 (async () => {
@@ -29,13 +28,18 @@ let innertube: Innertube | undefined;
 })()
 
 export const getYoutubeAccess = async (code: string) => {
+    const credentials = await loadCredentials()
+    if (!credentials || !credentials.youtubeClientId || !credentials.youtubeClientSecret) {
+        throw new Error('YouTube credentials not found')
+    }
+
     const response = await fetch('https://oauth2.googleapis.com/token', {
         method: "POST",
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
             code,
-            client_id,
-            client_secret,
+            client_id: credentials.youtubeClientId,
+            client_secret: credentials.youtubeClientSecret,
             redirect_uri,
             grant_type: 'authorization_code'
         }),
@@ -47,13 +51,18 @@ export const getYoutubeAccess = async (code: string) => {
 }
 
 const refreshYoutubeAccess = async () => {
+    const apiCredentials = await loadCredentials()
+    if (!apiCredentials || !apiCredentials.youtubeClientId || !apiCredentials.youtubeClientSecret) {
+        throw new Error('YouTube credentials not found')
+    }
+
     const credentials = await loadYoutubeCredentials()
     const response = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
-            client_id,
-            client_secret,
+            client_id: apiCredentials.youtubeClientId,
+            client_secret: apiCredentials.youtubeClientSecret,
             refresh_token: credentials.refresh_token,
             grant_type: 'refresh_token'
         })
@@ -150,7 +159,6 @@ const innertubeSearch = async (searchQuery: string) => {
     const type = "video"
 
     const data = await innertube.search(searchQuery, {type: type})
-    console.log(data.videos[0].as(YTNodes.Video))
 
     return data
 }
@@ -290,14 +298,41 @@ export const downloadYoutubeAudio = async (
             message: `was already downloaded`,
         });
     } else {
-        const ytdlp = spawn('yt-dlp', [
+        let ytDlpPath: string
+        let ffmpegPath: string
+        let binDir: string
+        try {
+            const paths = await ytDlpManager.ensureBoth()
+            ytDlpPath = paths.ytDlpPath
+            ffmpegPath = paths.ffmpegPath
+            binDir = ytDlpManager.getBinDir()
+            console.log(`Using yt-dlp at: ${ytDlpPath}`)
+            console.log(`Using ffmpeg at: ${ffmpegPath}`)
+        } catch (error) {
+            console.error('Failed to get yt-dlp/ffmpeg:', error)
+            mainWindow.webContents.send('youtube-download-status', {
+                status: 'error',
+                downloadPath: downloadPath,
+                message: `Failed to initialize yt-dlp/ffmpeg: ${error.message}`,
+            });
+            return { downloaded: false, downloadPath }
+        }
+
+        // Set up environment to include our bin directory in PATH
+        // This allows yt-dlp to find ffmpeg
+        const env = { ...process.env }
+        const pathSeparator = process.platform === 'win32' ? ';' : ':'
+        env.PATH = `${binDir}${pathSeparator}${env.PATH || ''}`
+
+        const ytdlp = spawn(ytDlpPath, [
             '-P', songFileLocations,
             '-o', '%(id)s.%(ext)s',
             `https://www.youtube.com/watch?v=${downloadId}`,
             '-f', 'ba',
             '-S', 'acodec:opus',
-            '--remux-video', 'ogg'
-        ]);
+            '--remux-video', 'ogg',
+            '--ffmpeg-location', ffmpegPath
+        ], { env });
 
         ytdlp.stdout.on('data', (data) => {
             mainWindow.webContents.send('youtube-download-status', {
@@ -329,19 +364,3 @@ export const downloadYoutubeAudio = async (
 
     return { downloaded: alreadyDownloaded, downloadPath };
 }
-
-/* export const downloadInnertuneAudio = async ( 
-    type: "url" | "terms", 
-    url: string 
-) => {
-    switch (type) {
-        case "url":
-            break
-
-        case "terms":
-            
-
-
-            break
-    }
-} */

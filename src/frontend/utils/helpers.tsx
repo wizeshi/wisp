@@ -1,9 +1,10 @@
 import YouTubeIcon from '@mui/icons-material/YouTube';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import CloudIcon from '@mui/icons-material/Cloud';
-import { Album, Artist, BaseSongList, Playlist, Song, Sources } from '../types/SongTypes';
+import { Album, Artist, BaseSongList, Playlist, SimpleAlbum, SimpleArtist, Song, Sources, spotifyArtistDetails } from '../types/SongTypes';
 import { SimplifiedArtist,
-    Artist as SpotifyArtist, 
+    Artist as SpotifyArtist,
+    SimplifiedAlbum as SpotifySimplifiedAlbum,
     Track as SpotifyTrack,
     TrackItem as SpotifyTrackItem,
     Playlist as SpotifyPlaylist,
@@ -44,29 +45,62 @@ export const getListType = (list: Album | Playlist | BaseSongList)  => {
     return listType
 }
 
-export function spotifySimpleArtistToArtist(spotifyArtist: SimplifiedArtist) {
+/* export function spotifySimpleArtistToArtist(spotifyArtist: SimplifiedArtist) {
     return new Artist(
+        spotifyArtist.name,
+        ""
+    )
+} */
+
+export function spotifySimpleArtistToSimpleArtist(spotifyArtist: SimplifiedArtist) {
+    return new SimpleArtist(
+        spotifyArtist.id,
         spotifyArtist.name,
         ""
     )
 }
 
-export function spotifyArtistToArtist(spotifyArtist: SpotifyArtist) {
+export function spotifyArtistToArtist(spotifyArtist: spotifyArtistDetails) {
+    let imageUrl = ""
+    if (spotifyArtist.info.images) {
+        imageUrl = spotifyArtist.info.images[0].url
+    }
+
+    const albums = spotifyArtist.albums.map((album) => {
+        return spotifySimpleAlbumToSimpleAlbum(album)
+    })
+
+    const topSongs = spotifyArtist.topTracks.tracks.map((track) => {
+        return spotifyTrackToSong(track)
+    })
+    
+    return new Artist(
+        spotifyArtist.info.id,
+        spotifyArtist.info.name,
+        imageUrl,
+        spotifyArtist.info.followers.total,
+        topSongs,
+        albums,
+    )
+}
+
+export function spotifyArtistToSimpleArtist(spotifyArtist: SpotifyArtist) {
     let imageUrl = ""
     if (spotifyArtist.images) {
         imageUrl = spotifyArtist.images[0].url
     }
     
-    return new Artist(
+    return new SimpleArtist(
+        spotifyArtist.id,
         spotifyArtist.name,
         imageUrl
     )
 }
 
 export function spotifyTrackToSong(spotifyTrack: SpotifyTrack): Song {
-    const artists: Artist[] = []
+    const artists: SimpleArtist[] = []
     spotifyTrack.artists.forEach((artist) => {
-        artists.push(spotifySimpleArtistToArtist(artist))
+        artists.push(spotifySimpleArtistToSimpleArtist(artist))
     })
     
     return new Song(
@@ -79,10 +113,10 @@ export function spotifyTrackToSong(spotifyTrack: SpotifyTrack): Song {
     )
 }
 
-export function spotifySimpleTrackToSong(simpleTrack: SimplifiedTrack): Song {
-    const artists: Artist[] = []
+export function spotifySimpleTrackToSong(simpleTrack: SimplifiedTrack, thumbnailURL: string): Song {
+    const artists: SimpleArtist[] = []
     simpleTrack.artists.forEach((artist) => {
-        artists.push(spotifySimpleArtistToArtist(artist))
+        artists.push(spotifySimpleArtistToSimpleArtist(artist))
     })
     
     return new Song(
@@ -91,7 +125,7 @@ export function spotifySimpleTrackToSong(simpleTrack: SimplifiedTrack): Song {
         simpleTrack.explicit,
         simpleTrack.duration_ms / 1000,
         "spotify",
-        simpleTrack.preview_url
+        thumbnailURL
     )
 }
 
@@ -116,11 +150,11 @@ export function spotifyPlaylistToPlaylist(spotifyPlaylist: SpotifyPlaylist<Spoti
 
 export function spotifyAlbumToAlbum(spotifyAlbum: SpotifyAlbum) {
     const Songs: Song[] = []
-    spotifyAlbum.tracks.items.forEach((track) => Songs.push(spotifySimpleTrackToSong(track)))
+    spotifyAlbum.tracks.items.forEach((track) => Songs.push(spotifySimpleTrackToSong(track, spotifyAlbum.images[0].url)))
 
-    const Artists: Artist[] = []
+    const Artists: SimpleArtist[] = []
     spotifyAlbum.artists.forEach((artist, index) => {
-        Artists.push(spotifyArtistToArtist(artist))
+        Artists.push(spotifyArtistToSimpleArtist(artist))
     })
 
 
@@ -133,5 +167,21 @@ export function spotifyAlbumToAlbum(spotifyAlbum: SpotifyAlbum) {
         Songs,
         spotifyAlbum.images[0].url,
         spotifyAlbum.id,
+    )
+}
+
+export function spotifySimpleAlbumToSimpleAlbum(spotifyAlbum: SpotifySimplifiedAlbum) {
+    const Artists: SimpleArtist[] = []
+    spotifyAlbum.artists.forEach((artist, index) => {
+        Artists.push(spotifySimpleArtistToSimpleArtist(artist))
+    })
+
+    return new SimpleAlbum(
+        spotifyAlbum.id,
+        spotifyAlbum.name,
+        spotifyAlbum.images[0].url,
+        Artists,
+        new Date(spotifyAlbum.release_date),
+        (spotifyAlbum.copyrights) ? spotifyAlbum.copyrights[0].text : ""
     )
 }

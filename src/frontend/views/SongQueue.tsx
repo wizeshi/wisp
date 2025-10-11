@@ -18,37 +18,38 @@ export const SongQueue: React.FC = () => {
     const isButtonShowing = (index: number) => buttonShowingIndex === index
 
     const handlePlay = (index: number) => {
-        music.player.setSongIndex(index)
+        music.player.goToIndex(index)
     }
 
     const currentSong = music.player.getCurrentSong()
-    const currentIndex = music.player.songIndex
+    const currentIndex = music.player.currentIndex
     
     // Calculate next up based on shuffle state
-    let nextUp: Song[] = []
+    const nextUp: Song[] = []
     const nextUpIndices: number[] = []
     
-    if (music.player.shuffle.shuffled && music.player.shuffle.order.length > 0) {
+    if (music.player.shuffleEnabled && music.player.shuffleOrder.length > 0) {
         // Use shuffle order
-        const currentShuffleIndex = music.player.shuffle.index
-        for (let i = 1; i < music.player.shuffle.order.length; i++) {
-            const shuffleIdx = (currentShuffleIndex + i) % music.player.shuffle.order.length
-            const actualIdx = music.player.shuffle.order[shuffleIdx]
+        const currentShuffleIndex = music.player.shuffleIndex
+        for (let i = 1; i < music.player.shuffleOrder.length; i++) {
+            const shuffleIdx = (currentShuffleIndex + i) % music.player.shuffleOrder.length
+            const actualIdx = music.player.shuffleOrder[shuffleIdx]
             nextUp.push(music.player.queue[actualIdx])
             nextUpIndices.push(actualIdx)
         }
     } else {
-        // Normal order: songs after current + songs before current (looping)
-        const songsAfterCurrent = music.player.queue.slice(currentIndex + 1)
-        const songsBeforeCurrent = music.player.queue.slice(0, currentIndex)
-        nextUp = [...songsAfterCurrent, ...songsBeforeCurrent]
+        // Normal order: only songs after current (don't loop back to show current song again)
+        for (let i = currentIndex + 1; i < music.player.queue.length; i++) {
+            nextUp.push(music.player.queue[i])
+            nextUpIndices.push(i)
+        }
         
-        // Calculate indices
-        for (let i = 0; i < nextUp.length; i++) {
-            const actualIndex = i < songsAfterCurrent.length 
-                ? currentIndex + 1 + i 
-                : i - songsAfterCurrent.length
-            nextUpIndices.push(actualIndex)
+        // If looping is enabled, add songs from the beginning (but skip the current song)
+        if (music.player.loopMode !== 0) { // 0 = LoopingEnum.Off
+            for (let i = 0; i < currentIndex; i++) {
+                nextUp.push(music.player.queue[i])
+                nextUpIndices.push(i)
+            }
         }
     }
 

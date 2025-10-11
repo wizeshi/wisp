@@ -5,19 +5,30 @@ import { app } from 'electron'
 import { spotifyAccessType, spotifySavedCredentials } from '../utils/types'
 import { Market, SpotifyApi, UserProfile } from '@spotify/web-api-ts-sdk'
 import { SidebarItemType, SidebarListType } from '../../frontend/types/SongTypes'
+import { loadCredentials } from '../Credentials'
 
 const tokenFilePath = path.join(app.getPath('userData'), 'spotify_tokens.json')
 
-const client_id = process.env.SPOTIFY_CLIENT_ID
-const client_secret = process.env.SPOTIFY_CLIENT_SECRET;
+const getSpotifyClientId = async (): Promise<string> => {
+    const credentials = await loadCredentials()
+    if (!credentials || !credentials.spotifyClientId) {
+        throw new Error('Spotify client ID not found')
+    }
+    return credentials.spotifyClientId
+}
 
 export const getSpotifyAccess = async (authCode: string): Promise<spotifyAccessType> => {
     isSpotifyLoggedIn().then((value) => {
-        if (value.expired && value.loggedIn) {
+        if (value.expired && !value.loggedIn) {
             refreshSpotifyAccess()
             return
         }
     })
+
+    const credentials = await loadCredentials()
+    if (!credentials || !credentials.spotifyClientId || !credentials.spotifyClientSecret) {
+        throw new Error('Spotify credentials not found')
+    }
 
     const response = await fetch('https://accounts.spotify.com/api/token', {
         method: "POST",
@@ -27,9 +38,9 @@ export const getSpotifyAccess = async (authCode: string): Promise<spotifyAccessT
         body: new URLSearchParams({
             grant_type: "authorization_code",
             code: authCode,
-            redirect_uri: "http://127.0.0.1:5173/callback",
-            client_id: client_id,
-            client_secret: client_secret
+            redirect_uri: "wisp-login://callback",
+            client_id: credentials.spotifyClientId,
+            client_secret: credentials.spotifyClientSecret
         })
     });
 
@@ -39,6 +50,11 @@ export const getSpotifyAccess = async (authCode: string): Promise<spotifyAccessT
 }
 
 export const refreshSpotifyAccess = async () => {
+    const credentials = await loadCredentials()
+    if (!credentials || !credentials.spotifyClientId || !credentials.spotifyClientSecret) {
+        throw new Error('Spotify credentials not found')
+    }
+
     const tokens = await loadSpotifyCredentials()
     const refresh_token = tokens.refresh_token
 
@@ -48,8 +64,8 @@ export const refreshSpotifyAccess = async () => {
         body: new URLSearchParams({
             grant_type: 'refresh_token',
             refresh_token,
-            client_id,
-            client_secret,
+            client_id: credentials.spotifyClientId,
+            client_secret: credentials.spotifyClientSecret,
         }),
     });
 
@@ -105,9 +121,10 @@ export const spotifySearch = async (query: string) => {
         await refreshSpotifyAccess()
     }
 
+    const clientId = await getSpotifyClientId()
     const tokens = await loadSpotifyCredentials();
 
-    const spotify = SpotifyApi.withAccessToken(client_id, tokens)
+    const spotify = SpotifyApi.withAccessToken(clientId, tokens)
     const market = (await spotify.currentUser.profile()).country
 
     const results = await spotify.search(query, [
@@ -122,13 +139,14 @@ export const loadSpotifyUserLists = async (type: SidebarListType) => {
         await refreshSpotifyAccess()
     }
 
+    const clientId = await getSpotifyClientId()
     const tokens = await loadSpotifyCredentials();
     const accessToken = {
         ...tokens,
         expires: tokens.expires_at 
     }
 
-    const spotify = SpotifyApi.withAccessToken(client_id, accessToken)
+    const spotify = SpotifyApi.withAccessToken(clientId, accessToken)
 
     switch (type) {
         case "Playlists":
@@ -145,34 +163,62 @@ export const getSpotifyUserInfo = async (): Promise<UserProfile> => {
         await refreshSpotifyAccess()
     }
 
+    const clientId = await getSpotifyClientId()
     const tokens = await loadSpotifyCredentials();
     const accessToken = {
         ...tokens,
         expires: tokens.expires_at 
     }
 
-    const spotify = SpotifyApi.withAccessToken(client_id, accessToken)
+    const spotify = SpotifyApi.withAccessToken(clientId, accessToken)
 
     return (await spotify.currentUser.profile())
 }
 
-export const getSpotifyListDetails = async (type: SidebarItemType, id: string) => {
+export const getSpotifyListDetails = async (type: "Playlist" | "Album", id: string) => {
     if ((await isSpotifyLoggedIn()).expired) {
         await refreshSpotifyAccess()
     }
 
+    const clientId = await getSpotifyClientId()
     const tokens = await loadSpotifyCredentials();
     const accessToken = {
         ...tokens,
         expires: tokens.expires_at 
     }
 
-    const spotify = SpotifyApi.withAccessToken(client_id, accessToken)
+    const spotify = SpotifyApi.withAccessToken(clientId, accessToken)
 
     switch (type) {
         case "Playlist":
             return (await spotify.playlists.getPlaylist(id))
         case "Album":
             return (await spotify.albums.get(id))
+    }
+}
+
+export const getSpotifyArtistDetails = async (id: string) => {
+    if ((await isSpotifyLoggedIn()).expired) {
+        await refreshSpotifyAccess()
+    }
+
+    const clientId = await getSpotifyClientId()
+    const tokens = await loadSpotifyCredentials();
+    const accessToken = {
+        ...tokens,
+        expires: tokens.expires_at 
+    }
+
+    const spotify = SpotifyApi.withAccessToken(clientId, accessToken)
+    const market = (await spotify.currentUser.profile()).country
+
+    const artistInfo = await spotify.artists.get(id)
+    const artistTopTracks = await spotify.artists.topTracks(id, market as Market)
+    const artistAlbums = (await spotify.artists.albums(id)).items
+
+    return {
+        info: artistInfo,
+        topTracks: artistTopTracks,
+        albums: artistAlbums,
     }
 }
