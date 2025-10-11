@@ -1,8 +1,8 @@
 
 # wisp - A unified music player
+# wisp - A unified music player
 
-wisp is an Electron-based (yeah, I know) song player, with support for extractors from services such as Spotify and Youtube.
-
+wisp is an Electron-based (yeah, I know) song player, with support for multiple extractors from services such as Spotify and Youtube.
 
 ## Features
 
