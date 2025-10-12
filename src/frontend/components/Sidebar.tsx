@@ -206,7 +206,9 @@ export const Sidebar: React.FC = () => {
                 const playlists: Playlist[] = []
                 resultList.forEach((item) => {
                   const thumbnailUrl = item.images && item.images.length > 0 ? item.images[0].url : ""
-                  const result = new Playlist(item.name, item.owner.display_name ?? "Unknown", [], thumbnailUrl, item.id)
+                  const result = new Playlist(item.name, { 
+                    name: item.owner.display_name ?? "Unknown", id: item.owner.id ?? "unknown"},
+                  [], thumbnailUrl, item.id)
                   playlists.push(result)
                 })
                 realList = playlists
@@ -297,7 +299,7 @@ const getItemDetails = (thing: Album | Playlist | SimpleArtist) => {
     return { name: thing.title, desc, explicit: thing.explicit, thumbnailURL: thing.thumbnailURL }
   }
   if (thing instanceof Playlist) {
-    return { name: thing.title, desc: thing.author, explicit: false, thumbnailURL: thing.thumbnailURL }
+    return { name: thing.title, desc: thing.author.name, explicit: false, thumbnailURL: thing.thumbnailURL }
   }
   if (thing instanceof SimpleArtist) {
     return { name: thing.name, desc: "Artist", explicit: false, thumbnailURL: thing.thumbnailURL }

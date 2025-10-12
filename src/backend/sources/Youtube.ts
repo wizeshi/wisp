@@ -170,7 +170,7 @@ export const searchYoutube = async (searchQuery: string): Promise<SearchResult> 
         const results = await youtubeSearch(searchQuery)
         return { source: 'api', data: results }
     } catch (error) {
-        console.log('Youtube Data API failed, falling back to Innertube:', error)
+        console.log('Youtube Data API failed, falling back to Innertube:', error.code)
         const results = await innertubeSearch(searchQuery)
         return { source: 'innertube', data: results }
     }
@@ -180,6 +180,7 @@ export const downloadYoutubeAudio = async (
     type: "url" | "terms", 
     url: string 
 ) => {
+    const originalSearchTerms = url // Store the original search terms
     let downloadId = ""
     
     switch (type) {
@@ -295,6 +296,8 @@ export const downloadYoutubeAudio = async (
         mainWindow.webContents.send('youtube-download-status', {
             status: 'done',
             downloadPath: downloadPath,
+            downloadId: downloadId,
+            searchTerms: originalSearchTerms,
             message: `was already downloaded`,
         });
     } else {
@@ -313,6 +316,8 @@ export const downloadYoutubeAudio = async (
             mainWindow.webContents.send('youtube-download-status', {
                 status: 'error',
                 downloadPath: downloadPath,
+                downloadId: downloadId,
+                searchTerms: originalSearchTerms,
                 message: `Failed to initialize yt-dlp/ffmpeg: ${error.message}`,
             });
             return { downloaded: false, downloadPath }
@@ -337,6 +342,8 @@ export const downloadYoutubeAudio = async (
         ytdlp.stdout.on('data', (data) => {
             mainWindow.webContents.send('youtube-download-status', {
                 status: 'downloading',
+                downloadId: downloadId,
+                searchTerms: originalSearchTerms,
                 downloadPath: downloadPath,
                 message: data.toString(),
             });
@@ -346,6 +353,8 @@ export const downloadYoutubeAudio = async (
         ytdlp.stderr.on('data', (data) => {
             mainWindow.webContents.send('youtube-download-status', {
                 status: 'error',
+                downloadId: downloadId,
+                searchTerms: originalSearchTerms,
                 downloadPath: downloadPath,
                 message: data.toString(),
             });
@@ -355,6 +364,8 @@ export const downloadYoutubeAudio = async (
         ytdlp.on('close', (code) => {
             mainWindow.webContents.send('youtube-download-status', {
                 status: 'done',
+                downloadId: downloadId,
+                searchTerms: originalSearchTerms,
                 downloadPath: downloadPath,
                 message: `code: ${code}`,
             });

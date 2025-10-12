@@ -49,4 +49,38 @@ export interface APICredentials {
     spotifyClientSecret: string
     youtubeClientId: string
     youtubeClientSecret: string
+    spotifyCookie: string
+}
+
+export type LyricsProviders = "Spotify" | "MusixMatch" | "Genius" | "LrcLib"
+
+export type SpotifyLyrics = {
+    lyrics: {
+        syncType: 'LINE_SYNCED' | 'LINE_UNSYNCED',
+        lines: SpotifyLyricsLine[],
+        provider: 'MusixMatch',
+        providerLyricsId: number,
+        providerDisplayName: 'Musixmatch',
+        syncLyricsUri: string,
+        isDenseTypeface: boolean,
+        alternatives: [],
+        langauge: string,
+        isRtlLanguage: boolean,
+        capStatus: string,
+        previewLines: []
+    },
+    colors: {
+        background: number,
+        text: number,
+        highlightText: number,
+    },
+    hasVocalRemoval: false
+}
+
+type SpotifyLyricsLine = {
+    startTimeMs: string,
+    words: string,
+    syllables: [],
+    endTimeMs: string,
+    transliteratedWords: string
 }

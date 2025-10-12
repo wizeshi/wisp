@@ -34,14 +34,35 @@ import { useData } from "../hooks/useData"
 const ProgressControl: React.FC = () => {
     const { music } = useAppContext()
     const player = music.player
+    const [isDragging, setIsDragging] = useState(false)
+    const [tempValue, setTempValue] = useState(0)
+    const [wasPlaying, setWasPlaying] = useState(false)
 
-    const handleProgressChange = (event: Event, newValue: number) => {
-        player.seek(newValue)
+    const handleProgressChange = (event: Event, newValue: number | number[]) => {
+        const value = Array.isArray(newValue) ? newValue[0] : newValue
+        setTempValue(value)
+    }
+
+    const handleProgressCommit = (event: Event | React.SyntheticEvent, newValue: number | number[]) => {
+        const value = Array.isArray(newValue) ? newValue[0] : newValue
+        player.seek(value)
+        setIsDragging(false)
+        
+        // Seek itself doesn't stop playback, so no need to resume
+        // The wasPlaying state is kept for future potential use
+    }
+
+    const handleDragStart = () => {
+        setWasPlaying(player.isPlaying)
+        setIsDragging(true)
+        setTempValue(player.currentTime)
+        // Don't pause during drag - let it continue playing
     }
 
     const currentSong = music.player.getCurrentSong()
     const songDurationSeconds = currentSong?.durationSecs || 0
     const songDurationFormatted = currentSong?.durationFormatted || "00:00"
+    const displayTime = isDragging ? tempValue : player.currentTime
 
     if (player.isLoading || music.isDownloading) {
         return (
@@ -62,15 +83,18 @@ const ProgressControl: React.FC = () => {
     return (
         <Box display="flex" flexDirection="row" sx={{ marginTop: "8px" }}>
             <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }}
-            variant="body2">{ secondsToSecAndMin(music.player.currentTime) }</Typography>
+            variant="body2">{ secondsToSecAndMin(displayTime) }</Typography>
 
             <Slider
                 size="medium"
                 min={0}
                 max={songDurationSeconds}
                 step={1}
-                value={music.player.currentTime}
+                value={displayTime}
                 onChange={handleProgressChange}
+                onChangeCommitted={handleProgressCommit}
+                onMouseDown={handleDragStart}
+                onTouchStart={handleDragStart}
                 slotProps={{
                     thumb: { style: {
                         width: "12px", height: "12px"
@@ -117,6 +141,16 @@ export const PlayerBar: React.FC = () => {
             setInitialized(true)
         }
     }, [loading, initialized])
+
+    // Track when the current song changes and save it to lastPlayed
+    useEffect(() => {
+        if (loading) return
+        
+        const currentSong = player.getCurrentSong()
+        if (currentSong && currentSong !== data.lastPlayed) {
+            updateData({ lastPlayed: currentSong })
+        }
+    }, [player.currentIndex, loading])
 
     // Update player volume immediately, but don't save yet
     useEffect(() => {
@@ -321,7 +355,7 @@ export const PlayerBar: React.FC = () => {
                         </Box>
         
                         <Box display="flex" sx={{ marginLeft: "auto", marginRight: "12px", marginTop:"auto", marginBottom: "auto"}}>
-                            <IconButton sx={{ paddingRight: "4px" }}>
+                            <IconButton sx={{ paddingRight: "4px" }} onClick={() => { app.screen.setCurrentView("lyricsView"); }}>
                                 <MusicNoteIcon />
                             </IconButton>
                             

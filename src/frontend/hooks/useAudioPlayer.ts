@@ -13,20 +13,18 @@ export const useAudioPlayer = () => {
     const [isPlaying, setIsPlaying] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const isSeekingRef = useRef(false)
     
-    // Queue state
     const [queue, setQueue] = useState<Song[]>([])
     const [currentIndex, setCurrentIndex] = useState<number>(-1)
     
-    // Shuffle state
     const [shuffleEnabled, setShuffleEnabled] = useState<boolean>(false)
     const [shuffleOrder, setShuffleOrder] = useState<number[]>([])
     const [shuffleIndex, setShuffleIndex] = useState<number>(0)
     
-    // Loop state
     const [loopMode, setLoopMode] = useState<LoopingEnum>(LoopingEnum.Off)
 
-    // Helper: Get actual song index (respecting shuffle)
+    // Get actual song index (respecting shuffle)
     const getActualIndex = () => {
         if (shuffleEnabled && shuffleOrder.length > 0) {
             return shuffleOrder[shuffleIndex]
@@ -34,7 +32,7 @@ export const useAudioPlayer = () => {
         return currentIndex
     }
 
-    // Helper: Get current song
+    // Get current song
     const getCurrentSong = useCallback(() => {
         const index = getActualIndex()
         return queue[index] || null
@@ -154,7 +152,12 @@ export const useAudioPlayer = () => {
     }
 
     const seek = (seekTo: number) => {
+        isSeekingRef.current = true
         player.currentTime = seekTo
+        // Clear the seeking flag after a short delay to allow seek to complete
+        setTimeout(() => {
+            isSeekingRef.current = false
+        }, 100)
     }
 
     const setVolume = (newVol: number) => {
@@ -287,6 +290,7 @@ export const useAudioPlayer = () => {
         isPlaying,
         isLoading,
         error,
+        isSeeking: isSeekingRef.current,
         
         // Raw player (for advanced use)
         player,

@@ -6,19 +6,30 @@ import Stack from '@mui/material/Stack';
 import Avatar from "@mui/material/Avatar"
 import ButtonBase from "@mui/material/ButtonBase"
 import Skeleton from "@mui/material/Skeleton";
+import { SpotifyUserHome } from "../../backend/sources/Spotify";
 
 export const HomeScreen: React.FC = () => {
     const [username, setUsername] = useState("(username)")
     const [loading, setLoading] = useState(true)
+    const [userHome, setUserHome] = useState<SpotifyUserHome | null>(null)
     
     useEffect(() => {
-        const fetchUsername = async () => {
-            setUsername((await window.electronAPI.extractors.spotify.getUserInfo()).display_name)
-            setLoading(false)
-        }
+        let cancelled = false;
+        Promise.all([
+            window.electronAPI.extractors.spotify.getUserInfo(),
+            window.electronAPI.extractors.spotify.getUserHome()
+        ]).then(([userInfo, userHome]) => {
+            console.log(userInfo)
+            console.log(userHome)
+            if (!cancelled) {
+                setUsername(userInfo.display_name)
+                setUserHome(userHome)
+                setLoading(false)
+            }
+        })
 
-        fetchUsername()
-    })
+        return () => { cancelled = true; }
+    }, [])
 
     return (
         <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, flexGrow: 1, flexDirection: "column", padding: "24px" }}>
@@ -37,17 +48,9 @@ export const HomeScreen: React.FC = () => {
                 </Typography>
 
                 <Stack direction="row" sx={{ overflowX: "scroll", marginTop: "8px", backgroundColor: "rgba(0, 0, 0, 0.25)", borderRadius: "8px", border: "1px solid rgba(255, 255, 255, 0.15)", padding: "12px" }}>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
-                    <CustomButton name="Playlist 1" artist="Artist 1" source=""/>
+                    {userHome && userHome.savedPlaylists.map((playlist) => (
+                        <CustomButton name={playlist.name} artist={playlist.owner.display_name} source=""/>
+                    ))}
                 </Stack>
             </Box>
 
@@ -59,7 +62,7 @@ export const HomeScreen: React.FC = () => {
 const CustomButton: React.FC<{ name: string, artist: string, source: string }> = ({ name, artist, source }) => {
     
     return (
-        <ButtonBase sx={{ marginRight: "12px", backgroundColor: "rgba(0, 0, 0, 0.35)", padding: "12px", borderRadius: "12px", border: "1px solid rgba(255, 255, 255, 0.25)" }}>
+        <ButtonBase sx={{ minWidth: "240px", maxWidth: "240px", marginRight: "12px", backgroundColor: "rgba(0, 0, 0, 0.35)", padding: "12px", borderRadius: "12px", border: "1px solid rgba(255, 255, 255, 0.25)" }}>
             <Avatar variant="rounded" sx={{ height: "80px", width: "80px" }} src={ source }/>
                             
             <Box display="flex" sx={{ textAlign: "left", flexDirection: "column", paddingLeft: "16px", marginTop: "8px", marginBottom: "auto" }}>

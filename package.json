@@ -52,10 +52,12 @@
     "@mui/icons-material": "^7.3.2",
     "@mui/material": "^7.3.2",
     "@spotify/web-api-ts-sdk": "^1.2.0",
+    "@types/totp-generator": "^0.0.8",
     "electron-squirrel-startup": "^1.0.1",
     "node-fetch": "^3.3.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "totp-generator": "^2.0.0",
     "youtubei.js": "^15.1.1"
   }
 }

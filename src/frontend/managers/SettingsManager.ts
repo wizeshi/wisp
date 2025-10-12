@@ -5,13 +5,13 @@ class SettingsManager {
     private listeners: Set<(settings: UserSettings) => void> = new Set()
 
     async load(): Promise<UserSettings> {
-        this.settings = await window.electronAPI.settings.load()
+        this.settings = await window.electronAPI.info.settings.load()
         this.notifyListeners()
         return this.settings
     }
 
     async save(newSettings: UserSettings): Promise<void> {
-        await window.electronAPI.settings.save(newSettings)
+        await window.electronAPI.info.settings.save(newSettings)
         this.settings = newSettings
         this.notifyListeners()
     }

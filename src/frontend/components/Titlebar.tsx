@@ -10,6 +10,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import TextField from "@mui/material/TextField";
 import { useAppContext } from "../providers/AppContext";
 import Avatar from "@mui/material/Avatar";
+import logoImage from "../../../assets/wisp.png";
 
 export const Titlebar: React.FC = () => {
     const { app } = useAppContext()
@@ -20,6 +21,15 @@ export const Titlebar: React.FC = () => {
 
         if (event.target.value == "") {
             app.screen.setCurrentView("home")
+        }
+    }
+
+    const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === "Enter") {
+            // Trigger search or any action you want on Enter
+            if (app.screen.search && app.screen.currentView != "search") {
+                app.screen.setCurrentView("search")
+            }
         }
     }
 
@@ -43,10 +53,20 @@ export const Titlebar: React.FC = () => {
         app.screen.setCurrentView("settings"); return
     }
 
+    const handleSearchInputSubmit: React.FormEventHandler<HTMLDivElement> = (event) => {
+        console.log(event)
+        /* app.screen.setSearch(event.)
+        if (app.screen.currentView != "search") app.screen.setCurrentView("search")
+
+        if (event.target.value == "") {
+            app.screen.setCurrentView("home")
+        } */
+    }
+
     return (
         <Box sx={{ display: "flex", flexDirection: "row", height: "32px", zIndex: "999", backgroundColor: "var(--mui-palette-common-background)", WebkitAppRegion: "drag" }}>
             <Box sx={{ padding: "4px", marginLeft: "4px", display: "flex" }}>
-                <Avatar variant="rounded" src="assets/wisp.png" sx={{ maxHeight: "24px",  aspectRatio: "1/1", width: "auto"}}/>
+                <Avatar variant="rounded" src={logoImage} sx={{ maxHeight: "24px",  aspectRatio: "1/1", width: "auto"}}/>
                 <Typography fontSize="medium" variant="h6" sx={{ marginLeft: "8px" }}>wizeshi's Interfaceable Song Provider</Typography>
             </Box>
 
@@ -59,9 +79,15 @@ export const Titlebar: React.FC = () => {
                         <HomeIcon fontSize="small"/>
                     </IconButton>
                     
-                    <TextField onChange={handleSearchInputChange} sx={{ margin: "auto 0 auto 0" }} size="small" variant="outlined" placeholder="Search..."
+                    <TextField 
+                        onChange={handleSearchInputChange}
+                        onKeyDown={handleSearchKeyDown}
+                        sx={{ margin: "auto 0 auto 0" }} 
+                        size="small" 
+                        variant="outlined" 
+                        placeholder="Search..."
                         slotProps={{
-                            htmlInput: { sx: { padding: "0px 8px 0px 8px", fontSize: "16px" } }
+                            htmlInput: { sx: { padding: "0px 8px 0px 8px", fontSize: "16px" } },
                         }}
                     />
                 </Box>

@@ -15,7 +15,6 @@ import { getServiceIcon, spotifyArtistToArtist } from "../utils/Helpers"
 import Fab from "@mui/material/Fab"
 import { useSettings } from "../hooks/useSettings"
 import Skeleton from "@mui/material/Skeleton"
-import { DotRowSeparator } from "../components/DotRowSeparator"
 import Divider from "@mui/material/Divider"
 
 export const ArtistScreen: React.FC = () => {
@@ -29,7 +28,7 @@ export const ArtistScreen: React.FC = () => {
         const fetchLists = async () => {
             setArtist(
                 spotifyArtistToArtist(
-                    await window.electronAPI.extractors.spotify.getArtistInfo(app.screen.shownThing.id)
+                    await window.electronAPI.extractors.spotify.getArtistDetails(app.screen.shownThing.id)
                 )
             )
         }

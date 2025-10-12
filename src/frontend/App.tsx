@@ -15,6 +15,8 @@ import { Settings } from "./views/Settings"
 import { SongQueue } from "./views/SongQueue"
 import { ArtistScreen } from "./views/ArtistScreen"
 import { FirstTimeScreen } from "./views/FirstTimeScreen"
+import CircularProgress from "@mui/material/CircularProgress"
+import { LyricsScreen } from "./views/LyricsScreen"
 
 export const App: React.FC = () => {
     const { app, music } = useAppContext()
@@ -25,8 +27,8 @@ export const App: React.FC = () => {
     useEffect(() => {
         const checkFirstTimeSetup = async () => {
             try {
-                const userData = await window.electronAPI.data.load()
-                const hasCredentials = await window.electronAPI.credentials.has()
+                const userData = await window.electronAPI.info.data.load()
+                const hasCredentials = await window.electronAPI.info.credentials.has()
                 
                 // Show setup if user is new OR if no credentials exist
                 setIsFirstTimeSetup(userData.isNewUser || !hasCredentials)
@@ -54,7 +56,7 @@ export const App: React.FC = () => {
                     justifyContent: "center",
                     background: "linear-gradient(135deg, rgba(25,25,25,1) 0%, rgba(15,15,15,1) 100%)"
                 }}>
-                    {/* Optional: Add a loading spinner here */}
+                    <CircularProgress />
                 </Box>
             </ThemeProvider>
         )
@@ -72,6 +74,9 @@ export const App: React.FC = () => {
             break
         case "artistView":
             mainContent = <ArtistScreen />
+            break
+        case "lyricsView":
+            mainContent = <LyricsScreen />
             break
         case "search":
             mainContent = <SearchScreen searchQuery={app.screen.search} />
@@ -116,7 +121,7 @@ export const App: React.FC = () => {
                         maxHeight: "calc(100vh - 32px)",
                         position: "relative",
                         height: "100%",
-                        overflow: "auto",
+                        overflow: "hidden",
                         ...(backgroundImage && {
                             "&::before": {
                                 content: '""',
@@ -132,6 +137,7 @@ export const App: React.FC = () => {
                                 filter: "blur(28px) brightness(0.4)",
                                 transform: "scale(1.1)",
                                 zIndex: 0,
+                                maxHeight: "calc(100% - 64px)" 
                             },
                             "&::after": {
                                 content: '""',

@@ -5,13 +5,13 @@ class DataManager {
     private listeners: Set<(data: UserData) => void> = new Set()
 
     async load(): Promise<UserData> {
-        this.data = await window.electronAPI.data.load()
+        this.data = await window.electronAPI.info.data.load()
         this.notifyListeners()
         return this.data
     }
 
     async save(newData: UserData): Promise<void> {
-        await window.electronAPI.data.save(newData)
+        await window.electronAPI.info.data.save(newData)
         this.data = newData
         this.notifyListeners()
     }

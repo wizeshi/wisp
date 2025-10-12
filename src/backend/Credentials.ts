@@ -69,7 +69,8 @@ export const validateCredentials = (credentials: Partial<APICredentials>): boole
         credentials.spotifyClientId?.trim() &&
         credentials.spotifyClientSecret?.trim() &&
         credentials.youtubeClientId?.trim() &&
-        credentials.youtubeClientSecret?.trim()
+        credentials.youtubeClientSecret?.trim() &&
+        credentials.spotifyCookie?.trim()
     )
 }
 

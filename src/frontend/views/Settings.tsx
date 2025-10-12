@@ -26,6 +26,26 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import Alert from "@mui/material/Alert";
+import Avatar from "@mui/material/Avatar";
+
+const LyricsProviders = [
+    {
+        name: "Spotify",
+        iconUrl: "https://storage.googleapis.com/pr-newsroom-wp/1/2023/05/Spotify_Primary_Logo_RGB_White.png"
+    },
+    {
+        name: "Genius",
+        iconUrl: "https://images.genius.com/0ca83e3130e1303a7f78ba351e3091cd.1000x1000x1.png",
+    },
+    {
+        name: "MusixMatch",
+        iconUrl: "https://dashboard.snapcraft.io/site_media/appmedia/2018/09/Mark256.png"
+    },
+    {
+        name: "LrcLib",
+        iconUrl: "https://lrclib.net/assets/lrclib-370c57eb.png"
+    },
+]
 
 export const Settings: React.FC = () => {
     const [spotifyLoggedIn, setSpotifyLoggedIn] = useState<boolean>(false)
@@ -88,116 +108,114 @@ export const Settings: React.FC = () => {
 
             <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0" }} />
 
-            <Box>
-                <Typography variant="h6">Accounts</Typography>
+            <Box sx={{ overflowY: "scroll", flexShrink: 0 }}>
+                <Box>
+                    <Typography variant="h6">Accounts</Typography>
+
+                    <Box>
+                        <AccountRow 
+                            serviceName="Spotify" 
+                            ServiceIcon={GraphicEqIcon} 
+                            loginState={spotifyLoggedIn} 
+                            loginHandler={handleSpotifyLogin}
+                        />
+
+                        <AccountRow 
+                            serviceName="Youtube" 
+                            ServiceIcon={YoutubeIcon} 
+                            loginState={youtubeLoggedIn} 
+                            loginHandler={handleYoutubeLogin}
+                        />
+                    </Box>
+                </Box>
+
+                <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0" }} />
 
                 <Box>
-                    <AccountRow 
-                        serviceName="Spotify" 
-                        ServiceIcon={GraphicEqIcon} 
-                        loginState={spotifyLoggedIn} 
-                        loginHandler={handleSpotifyLogin}
-                    />
+                    <Typography variant="h6">Lyrics Providers</Typography>
 
-                    <AccountRow 
-                        serviceName="Youtube" 
-                        ServiceIcon={YoutubeIcon} 
-                        loginState={youtubeLoggedIn} 
-                        loginHandler={handleYoutubeLogin}
-                    />
+                    {LyricsProviders.map((provider) => (
+                        <LyricsRow 
+                            serviceName={provider.name}
+                            iconUrl={provider.iconUrl}
+                        />
+                    ))}
                 </Box>
-            </Box>
 
-            <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0" }} />
+                <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0" }} />
+                
+                <Box>
+                    <Typography variant="h6">Your Preferences</Typography>
 
-            <Box>
-                <Typography variant="h6">Lyrics Providers</Typography>
-
-                {["Genius", "MusixMatch", "NetEase", "LrcLib"].map((provider, index) => (
                     <SettingRowBox>
-                        <Typography variant="body1">{ provider }</Typography>
+                        <Typography variant="body1">Shuffle Type</Typography>
 
                         <Box sx={{ marginLeft: "auto" }}>
-                            <Typography variant="body1" color="error">Not Linked</Typography>
+                            <FormControl>
+                                <Select
+                                    size="small"
+                                    value={settings.shuffleType || "Fisher-Yates"}
+                                    onChange={(e) => updateSettings({ shuffleType: e.target.value as typeof settings.shuffleType })}
+                                >
+                                    {SHUFFLE_TYPES.map((type) => {
+                                        let tooltip = ""
+                                        switch (type) {
+                                            case "Fisher-Yates":
+                                                tooltip = "Shuffles using the Fisher-Yates method, randomizing the queue"
+                                                break
+                                            case "Algorithmic":
+                                                tooltip = "Shuffles using a custom method, pseudo-randomizing the queue"
+                                                break
+                                        }
+
+                                        return (
+                                            <MenuItem key={type} value={type}>
+                                                <Tooltip title={tooltip} disableInteractive>
+                                                    <span>{type}</span>
+                                                </Tooltip>
+                                            </MenuItem>
+                                        )
+                                    })}
+                                </Select>
+                            </FormControl>
                         </Box>
                     </SettingRowBox>
-                ))}
+
+                    <SettingRowBox>
+                        <Typography variant="body1">List Play Type</Typography>
+
+                        <Box sx={{ marginLeft: "auto" }}>
+                            <FormControl>
+                                <Select
+                                    size="small"
+                                    value={settings.listPlay || "Single"}
+                                    onChange={(e) => updateSettings({ listPlay: e.target.value as typeof settings.listPlay })}
+                                >
+                                    {LIST_PLAY_TYPES.map((type) => {
+                                        let tooltip = ""
+                                        switch (type) {
+                                            case "Single":
+                                                tooltip = "When selecting a song from a list, only plays that song"
+                                                break
+                                            case "Multiple":
+                                                tooltip = "When selecting a song from a list, plays that song and adds the rest to the queue"
+                                                break
+                                        }
+
+                                        return (
+                                            <MenuItem key={type} value={type}>
+                                                <Tooltip title={tooltip} disableInteractive>
+                                                    <span>{type}</span>
+                                                </Tooltip>
+                                            </MenuItem>
+                                        )
+                                    })}
+                                </Select>
+                            </FormControl>
+                        </Box>
+                    </SettingRowBox>
+                </Box>
             </Box>
-
-            <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0" }} />
-            
-            <Box>
-                <Typography variant="h6">Your Preferences</Typography>
-
-                <SettingRowBox>
-                    <Typography variant="body1">Shuffle Type</Typography>
-
-                    <Box sx={{ marginLeft: "auto" }}>
-                        <FormControl>
-                            <Select
-                                size="small"
-                                value={settings.shuffleType || "Fisher-Yates"}
-                                onChange={(e) => updateSettings({ shuffleType: e.target.value as typeof settings.shuffleType })}
-                            >
-                                {SHUFFLE_TYPES.map((type) => {
-                                    let tooltip = ""
-                                    switch (type) {
-                                        case "Fisher-Yates":
-                                            tooltip = "Shuffles using the Fisher-Yates method, randomizing the queue"
-                                            break
-                                        case "Algorithmic":
-                                            tooltip = "Shuffles using a custom method, pseudo-randomizing the queue"
-                                            break
-                                    }
-
-                                    return (
-                                        <MenuItem key={type} value={type}>
-                                            <Tooltip title={tooltip} disableInteractive>
-                                                <span>{type}</span>
-                                            </Tooltip>
-                                        </MenuItem>
-                                    )
-                                })}
-                            </Select>
-                        </FormControl>
-                    </Box>
-                </SettingRowBox>
-
-                <SettingRowBox>
-                    <Typography variant="body1">List Play Type</Typography>
-
-                    <Box sx={{ marginLeft: "auto" }}>
-                        <FormControl>
-                            <Select
-                                size="small"
-                                value={settings.listPlay || "Single"}
-                                onChange={(e) => updateSettings({ listPlay: e.target.value as typeof settings.listPlay })}
-                            >
-                                {LIST_PLAY_TYPES.map((type) => {
-                                    let tooltip = ""
-                                    switch (type) {
-                                        case "Single":
-                                            tooltip = "When selecting a song from a list, only plays that song"
-                                            break
-                                        case "Multiple":
-                                            tooltip = "When selecting a song from a list, plays that song and adds the rest to the queue"
-                                            break
-                                    }
-
-                                    return (
-                                        <MenuItem key={type} value={type}>
-                                            <Tooltip title={tooltip} disableInteractive>
-                                                <span>{type}</span>
-                                            </Tooltip>
-                                        </MenuItem>
-                                    )
-                                })}
-                            </Select>
-                        </FormControl>
-                    </Box>
-                </SettingRowBox>
-            </Box>
-            
         </Box>
     )
 }
@@ -210,6 +228,77 @@ const SettingRowBox: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         }}>
             { children }
         </Box>
+    )
+}
+
+const LyricsRow: React.FC<{
+    serviceName: string,
+    iconUrl: string,
+}> = ({ serviceName, iconUrl }) => {
+    const [dialogOpen, setDialogOpen] = useState(false)
+    const [hasCredentials, setHasCredentials] = useState(false)
+    
+    useEffect(() => {
+        let cancelled = false;
+        window.electronAPI.info.credentials.load()
+            .then((creds) => {
+                if (!cancelled && creds) {
+                    if (serviceName === "Spotify") {
+                        setHasCredentials(!!creds.spotifyCookie)
+                    }
+                    // Add more providers here as needed
+                }
+            })
+            .catch((err) => {
+                console.error("Failed to load credentials:", err)
+            })
+        
+        return () => { cancelled = true; }
+    }, [serviceName])
+    
+    const handleEditClick = () => {
+        setDialogOpen(true)
+    }
+
+    const handleDialogClose = (hadInfo: boolean) => {
+        setHasCredentials(hadInfo)
+        setDialogOpen(false)
+    }
+
+    return (
+        <>
+            <SettingRowBox>
+                <Box display="flex">
+                    <Box sx={{ aspectRatio: "1/1", width: "24px", height: "auto", marginRight: "12px"}}>
+                        <Avatar src={iconUrl} sx={{ width: "inherit", height: "inherit" }}/>
+                    </Box>
+
+                    <Typography variant="body1">{ serviceName }</Typography>
+                </Box>
+
+                <Box display="flex" sx={{ marginLeft: "auto", gap: "8px" }}>
+                        {hasCredentials ?
+                        <Typography variant="body1" color="success" sx={{ alignSelf: "center", marginRight: "12px"}}>
+                            Logged In
+                        </Typography>
+                        :   <Typography variant="body1" color="error" sx={{ alignSelf: "center", marginRight: "12px"}}>
+                            Not Logged In
+                        </Typography>}
+                        
+                        <Tooltip title="Edit API Credentials">
+                            <IconButton onClick={handleEditClick}>
+                                <EditIcon />
+                            </IconButton>
+                        </Tooltip>
+                    </Box>
+            </SettingRowBox>
+
+            <LyricsCredentialDialog
+                open={dialogOpen}
+                serviceName={serviceName}
+                onClose={handleDialogClose}
+            />
+        </>
     )
 }
 
@@ -265,7 +354,7 @@ const AccountRow: React.FC<{
                     </Box>
             </SettingRowBox>
 
-            <CredentialDialog
+            <AccountCredentialDialog
                 open={dialogOpen}
                 serviceName={serviceName}
                 onClose={handleDialogClose}
@@ -275,14 +364,14 @@ const AccountRow: React.FC<{
     )
 }
 
-interface CredentialDialogProps {
+interface AccountCredentialDialogProps {
     open: boolean
     serviceName: string
     onClose: () => void
     onSave: () => void
 }
 
-const CredentialDialog: React.FC<CredentialDialogProps> = ({ open, serviceName, onClose, onSave }) => {
+const AccountCredentialDialog: React.FC<AccountCredentialDialogProps> = ({ open, serviceName, onClose, onSave }) => {
     const [clientId, setClientId] = useState("")
     const [clientSecret, setClientSecret] = useState("")
     const [showClientSecret, setShowClientSecret] = useState(false)
@@ -297,7 +386,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({ open, serviceName, 
             setError("")
             setSuccess(false)
             
-            window.electronAPI.credentials.load()
+            window.electronAPI.info.credentials.load()
                 .then((creds) => {
                     if (creds) {
                         if (serviceName === "Spotify") {
@@ -331,11 +420,12 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({ open, serviceName, 
 
         try {
             // Load existing credentials to preserve other service's credentials
-            const existingCreds = await window.electronAPI.credentials.load() || {
+            const existingCreds = await window.electronAPI.info.credentials.load() || {
                 spotifyClientId: "",
                 spotifyClientSecret: "",
                 youtubeClientId: "",
-                youtubeClientSecret: ""
+                youtubeClientSecret: "",
+                spotifyCookie: ""
             }
 
             // Update only the current service's credentials
@@ -348,7 +438,7 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({ open, serviceName, 
                 updatedCreds.youtubeClientSecret = clientSecret.trim()
             }
 
-            await window.electronAPI.credentials.save(updatedCreds)
+            await window.electronAPI.info.credentials.save(updatedCreds)
             setSuccess(true)
             
             // Close dialog after a short delay to show success message
@@ -428,6 +518,150 @@ const CredentialDialog: React.FC<CredentialDialogProps> = ({ open, serviceName, 
                                     </InputAdornment>
                                 )
                             }}
+                        />
+                    </>
+                )}
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={handleClose} disabled={loading}>
+                    Cancel
+                </Button>
+                <Button 
+                    onClick={handleSave} 
+                    variant="contained" 
+                    disabled={loading || success}
+                >
+                    {loading ? "Saving..." : "Save"}
+                </Button>
+            </DialogActions>
+        </Dialog>
+    )
+}
+
+interface LyricsCredentialDialogProps {
+    open: boolean
+    serviceName: string
+    onClose: (hadInfo: boolean) => void
+}
+
+const LyricsCredentialDialog: React.FC<LyricsCredentialDialogProps> = ({ open, serviceName, onClose }) => {
+    const [apiKey, setApiKey] = useState("")
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
+    const [success, setSuccess] = useState(false)
+
+    // Load existing credentials when dialog opens
+    useEffect(() => {
+        if (open) {
+            setLoading(true)
+            setError("")
+            setSuccess(false)
+            
+            window.electronAPI.info.credentials.load()
+                .then((creds) => {
+                    if (creds) {
+                        if (serviceName === "Spotify") {
+                            setApiKey(creds.spotifyCookie || "")
+                        } else if (serviceName === "Youtube") {
+                            /* setClientId(creds.youtubeClientId || "")
+                            setClientSecret(creds.youtubeClientSecret || "") */
+                        }
+                    }
+                })
+                .catch((err) => {
+                    console.error("Failed to load credentials:", err)
+                    setError("Failed to load existing credentials")
+                })
+                .finally(() => {
+                    setLoading(false)
+                })
+        }
+    }, [open, serviceName])
+
+    const handleSave = async () => {
+        if (!apiKey.trim()) {
+            setError("An API key / Cookie is required")
+            return
+        }
+
+        setLoading(true)
+        setError("")
+        setSuccess(false)
+
+        try {
+            // Load existing credentials to preserve other service's credentials
+            const existingCreds = await window.electronAPI.info.credentials.load() || {
+                spotifyClientId: "",
+                spotifyClientSecret: "",
+                youtubeClientId: "",
+                youtubeClientSecret: "",
+                spotifyCookie: ""
+            }
+
+            // Update only the current service's credentials
+            const updatedCreds = { ...existingCreds }
+            if (serviceName === "Spotify") {
+                updatedCreds.spotifyCookie = apiKey
+            } else if (serviceName === "Youtube") {
+                /* updatedCreds.youtubeClientId = clientId.trim()
+                updatedCreds.youtubeClientSecret = clientSecret.trim() */
+            }
+
+            await window.electronAPI.info.credentials.save(updatedCreds)
+            setSuccess(true)
+            
+            // Close dialog after a short delay to show success message
+            setTimeout(() => {
+                onClose(apiKey.length > 0 ? true : false)
+            }, 1500)
+        } catch (err) {
+            console.error("Failed to save credentials:", err)
+            setError("Failed to save credentials. Please try again.")
+            setLoading(false)
+        }
+    }
+
+    const handleClose = () => {
+        if (!loading) {
+            onClose(apiKey.length > 0 ? true : false)
+            setApiKey("")
+            setError("")
+            setSuccess(false)
+        }
+    }
+
+    return (
+        <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+            <DialogTitle>
+                Edit {serviceName} API Credentials
+            </DialogTitle>
+            <DialogContent>
+                {loading && !success ? (
+                    <Box display="flex" justifyContent="center" padding="24px">
+                        <Typography>Loading credentials...</Typography>
+                    </Box>
+                ) : (
+                    <>
+                        {error && (
+                            <Alert severity="error" sx={{ marginBottom: "16px" }}>
+                                {error}
+                            </Alert>
+                        )}
+                        
+                        {success && (
+                            <Alert severity="success" sx={{ marginBottom: "16px" }}>
+                                Credentials updated successfully!
+                            </Alert>
+                        )}
+
+                        <TextField
+                            fullWidth
+                            label="API key / Cookie"
+                            value={apiKey}
+                            onChange={(e) => setApiKey(e.target.value)}
+                            margin="normal"
+                            type="text"
+                            disabled={loading}
                         />
                     </>
                 )}

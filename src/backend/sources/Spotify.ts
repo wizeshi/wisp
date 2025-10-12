@@ -3,8 +3,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 import { spotifyAccessType, spotifySavedCredentials } from '../utils/types'
-import { Market, SpotifyApi, UserProfile } from '@spotify/web-api-ts-sdk'
-import { SidebarItemType, SidebarListType } from '../../frontend/types/SongTypes'
+import { Market, SpotifyApi, User, UserProfile } from '@spotify/web-api-ts-sdk'
+import { SidebarListType } from '../../frontend/types/SongTypes'
 import { loadCredentials } from '../Credentials'
 
 const tokenFilePath = path.join(app.getPath('userData'), 'spotify_tokens.json')
@@ -175,7 +175,29 @@ export const getSpotifyUserInfo = async (): Promise<UserProfile> => {
     return (await spotify.currentUser.profile())
 }
 
-export const getSpotifyListDetails = async (type: "Playlist" | "Album", id: string) => {
+export const getSpotifyUserDetails = async (id: string): Promise<User> => {
+    if ((await isSpotifyLoggedIn()).expired) {
+        await refreshSpotifyAccess()
+    }
+
+    const clientId = await getSpotifyClientId()
+    const tokens = await loadSpotifyCredentials();
+    const accessToken = {
+        ...tokens,
+        expires: tokens.expires_at 
+    }
+
+    const spotify = SpotifyApi.withAccessToken(clientId, accessToken)
+
+    return (await spotify.users.profile(id))
+}
+
+export const getSpotifyListDetails = async (type: "Playlist" | "Album" | "Artist", id: string) => {
+    if (type == "Artist") {
+        console.log("Wrong function called, redirecting...")
+        return getSpotifyArtistDetails(id)
+    }
+    
     if ((await isSpotifyLoggedIn()).expired) {
         await refreshSpotifyAccess()
     }
@@ -195,6 +217,25 @@ export const getSpotifyListDetails = async (type: "Playlist" | "Album", id: stri
         case "Album":
             return (await spotify.albums.get(id))
     }
+}
+
+export const getSpotifyArtistInfo = async (id: string) => {
+    if ((await isSpotifyLoggedIn()).expired) {
+        await refreshSpotifyAccess()
+    }
+
+    const clientId = await getSpotifyClientId()
+    const tokens = await loadSpotifyCredentials();
+    const accessToken = {
+        ...tokens,
+        expires: tokens.expires_at 
+    }
+
+    const spotify = SpotifyApi.withAccessToken(clientId, accessToken)
+
+    const artistInfo = await spotify.artists.get(id)
+
+    return artistInfo
 }
 
 export const getSpotifyArtistDetails = async (id: string) => {
@@ -222,3 +263,34 @@ export const getSpotifyArtistDetails = async (id: string) => {
         albums: artistAlbums,
     }
 }
+
+export const getSpotifyUserHome = async () => {
+    if ((await isSpotifyLoggedIn()).expired) {
+        await refreshSpotifyAccess()
+    }
+
+    const clientId = await getSpotifyClientId()
+    const tokens = await loadSpotifyCredentials();
+    const accessToken = {
+        ...tokens,
+        expires: tokens.expires_at 
+    }
+
+    const spotify = SpotifyApi.withAccessToken(clientId, accessToken)
+    
+    const topTracks = (await spotify.currentUser.topItems("tracks", 'short_term', 5)).items
+    const topArtists = (await spotify.currentUser.topItems("artists", 'short_term', 5)).items
+    const followedArtists = (await spotify.currentUser.followedArtists()).artists.items
+    const followedAlbums = (await spotify.currentUser.albums.savedAlbums()).items
+    const savedPlaylists = (await spotify.currentUser.playlists.playlists()).items
+
+    return {
+        topTracks: topTracks,
+        topArtists: topArtists,
+        followedArtists: followedArtists,
+        followedAlbums: followedAlbums,
+        savedPlaylists: savedPlaylists
+    }
+}
+
+export type SpotifyUserHome = Awaited<ReturnType<typeof getSpotifyUserHome>>

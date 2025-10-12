@@ -1,15 +1,17 @@
-import { app, BrowserWindow, ipcMain, shell, protocol, net } from 'electron';
 import path from 'node:path';
-import started from 'electron-squirrel-startup';
-import { getSpotifyAccess, getSpotifyArtistDetails, getSpotifyListDetails, getSpotifyUserInfo, isSpotifyLoggedIn, loadSpotifyUserLists, saveSpotifyCredentials, spotifySearch } from './backend/sources/Spotify'
-import dns from 'dns';
-import { downloadYoutubeAudio, getYoutubeAccess, isYoutubeLoggedIn, saveYoutubeCredentials, searchYoutube } from './backend/sources/Youtube';
-import { loadSettings, saveSettings } from './backend/Settings';
-import { APICredentials, UserData, UserSettings } from './backend/utils/types';
-import { SidebarItemType, SidebarListType } from './frontend/types/SongTypes';
 import { createServer, Server } from 'node:http';
+import dns from 'dns';
+import { app, BrowserWindow, ipcMain, shell, protocol, net } from 'electron';
+import started from 'electron-squirrel-startup';
+import { getSpotifyAccess, getSpotifyArtistDetails, getSpotifyArtistInfo, getSpotifyListDetails, getSpotifyUserDetails, getSpotifyUserHome, getSpotifyUserInfo, isSpotifyLoggedIn, loadSpotifyUserLists, saveSpotifyCredentials, spotifySearch } from './backend/sources/Spotify'
+import { downloadYoutubeAudio, getYoutubeAccess, isYoutubeLoggedIn, saveYoutubeCredentials, searchYoutube } from './backend/sources/Youtube';
+import { ytDlpManager } from './backend/utils/YtDlpManager';
+import { loadSettings, saveSettings } from './backend/Settings';
 import { loadData, saveData } from './backend/Data';
 import { deleteCredentials, hasCredentials, loadCredentials, saveCredentials, validateCredentials } from './backend/Credentials';
+import { APICredentials, LyricsProviders, UserData, UserSettings } from './backend/utils/types';
+import { SidebarListType } from './frontend/types/SongTypes';
+import { getLyrics } from './backend/lyrics/Common';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -50,11 +52,12 @@ app.whenReady().then(() => {
             contextIsolation: true,
             nodeIntegration: false,
         },
-        icon: "assets/wisp.ico"
+        icon: path.join(__dirname, '../assets/wisp.ico')
     });
 
     if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
         mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+        mainWindow.webContents.openDevTools();
     } else {
         mainWindow.loadFile(
             path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
@@ -118,9 +121,10 @@ app.whenReady().then(() => {
             youtubeOAuthServer = null
         })
 
-            youtubeOAuthServer.listen(8080, () => {
-                shell.openExternal(authUrl)
-            })
+        youtubeOAuthServer.listen(8080, () => {
+            shell.openExternal(authUrl)
+        })
+        
         } catch (error) {
             console.error('YouTube login error:', error)
             mainWindow.webContents.send('login:youtube-error', error.message)
@@ -159,9 +163,6 @@ app.whenReady().then(() => {
         shell.openExternal(url)
         return { action: 'deny' }
     })
-
-    // Open the DevTools.
-    mainWindow.webContents.openDevTools();
 })
 
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
@@ -254,12 +255,24 @@ ipcMain.handle('extractors:spotify-user-info', (_event) => {
     return getSpotifyUserInfo()
 })
 
+ipcMain.handle('extractors:spotify-user-details', (_event, id: string) => {
+    return getSpotifyUserDetails(id)
+})
+
 ipcMain.handle('extractors:spotify-list-info', (_event, type: "Album" | "Playlist", id) => {
     return getSpotifyListDetails(type, id)
 })
 
 ipcMain.handle('extractors:spotify-artist-info', (_event, id) => {
+    return getSpotifyArtistInfo(id)
+})
+
+ipcMain.handle('extractors:spotify-artist-details', (_event, id) => {
     return getSpotifyArtistDetails(id)
+})
+
+ipcMain.handle('extractors:spotify-user-home', (_event) => {
+    return getSpotifyUserHome()
 })
 
 ipcMain.handle("extractors:youtube-search", (_event, searchQuery) => {
@@ -276,6 +289,10 @@ ipcMain.handle("login:spotify-logged-in", () => {
 
 ipcMain.handle("login:youtube-logged-in", () => {
     return isYoutubeLoggedIn()
+})
+
+ipcMain.handle("extractors:lyrics-get", (event, source: LyricsProviders, id: string) => {
+    return getLyrics(source, id)
 })
 
 ipcMain.handle("system:check-internet-connection", () => {
@@ -324,9 +341,6 @@ ipcMain.handle("credentials:validate", (event, credentials: Partial<APICredentia
 ipcMain.handle("credentials:delete", async () => {
     return await deleteCredentials()
 })
-
-// yt-dlp handlers
-import { ytDlpManager } from './backend/utils/YtDlpManager';
 
 ipcMain.handle("ytdlp:ensure", async () => {
     return await ytDlpManager.ensureYtDlp()

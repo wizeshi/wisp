@@ -16,6 +16,8 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import ErrorIcon from "@mui/icons-material/Error"
 import MusicNoteIcon from "@mui/icons-material/MusicNote"
 import Avatar from "@mui/material/Avatar"
+import logoImage from "../../../assets/wisp.png"
+import { APICredentials } from "../../backend/utils/types"
 
 const steps = [
     "Welcome",
@@ -25,13 +27,6 @@ const steps = [
     "Download Tools",
     "Complete"
 ]
-
-interface Credentials {
-    spotifyClientId: string
-    spotifyClientSecret: string
-    youtubeClientId: string
-    youtubeClientSecret: string
-}
 
 interface AuthStatus {
     spotify: "idle" | "loading" | "success" | "error"
@@ -45,11 +40,12 @@ interface DownloadStatus {
 
 export const FirstTimeScreen: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0)
-    const [credentials, setCredentials] = useState<Credentials>({
+    const [credentials, setCredentials] = useState<APICredentials>({
         spotifyClientId: "",
         spotifyClientSecret: "",
         youtubeClientId: "",
-        youtubeClientSecret: ""
+        youtubeClientSecret: "",
+        spotifyCookie: ""
     })
     const [authStatus, setAuthStatus] = useState<AuthStatus>({
         spotify: "idle",
@@ -93,7 +89,7 @@ export const FirstTimeScreen: React.FC = () => {
         setActiveStep((prevStep) => prevStep - 1)
     }
 
-    const handleCredentialChange = (field: keyof Credentials) => (
+    const handleCredentialChange = (field: keyof APICredentials) => (
         event: React.ChangeEvent<HTMLInputElement>
     ) => {
         setCredentials({
@@ -138,7 +134,7 @@ export const FirstTimeScreen: React.FC = () => {
         if (validateSpotifyCredentials()) {
             try {
                 // Save credentials (partial save for now, will be completed after YouTube step)
-                await window.electronAPI.credentials.save(credentials)
+                await window.electronAPI.info.credentials.save(credentials)
                 handleNext()
             } catch (error) {
                 console.error("Error saving Spotify credentials:", error)
@@ -151,7 +147,7 @@ export const FirstTimeScreen: React.FC = () => {
         if (validateYoutubeCredentials()) {
             try {
                 // Save complete credentials
-                await window.electronAPI.credentials.save(credentials)
+                await window.electronAPI.info.credentials.save(credentials)
                 handleNext()
             } catch (error) {
                 console.error("Error saving YouTube credentials:", error)
@@ -198,8 +194,8 @@ export const FirstTimeScreen: React.FC = () => {
     const handleComplete = async () => {
         try {
             // Mark user as not new
-            const userData = await window.electronAPI.data.load()
-            await window.electronAPI.data.save({ ...userData, isNewUser: false })
+            const userData = await window.electronAPI.info.data.load()
+            await window.electronAPI.info.data.save({ ...userData, isNewUser: false })
             
             console.log("Setup complete! User data updated.")
             
@@ -286,7 +282,7 @@ export const FirstTimeScreen: React.FC = () => {
                 boxSizing: "border-box"
             }}>
                 <Box display="flex" alignItems="center" justifyContent="center" sx={{ marginBottom: "32px", gap: "16px" }}>
-                    <Avatar variant="rounded" src={"/assets/wisp.png"} sx={{ aspectRatio: "1/1", height: "48px", width: "auto"}}/>
+                    <Avatar variant="rounded" src={logoImage} sx={{ aspectRatio: "1/1", height: "48px", width: "auto"}}/>
                     <Typography variant="h3" fontWeight="bold">
                         WISP Setup
                     </Typography>
@@ -346,9 +342,9 @@ const WelcomeStep: React.FC<{ onNext: () => void }> = ({ onNext }) => (
 )
 
 interface SpotifySetupStepProps {
-    credentials: Credentials
+    credentials: APICredentials
     errors: Record<string, string>
-    onChange: (field: keyof Credentials) => (event: React.ChangeEvent<HTMLInputElement>) => void
+    onChange: (field: keyof APICredentials) => (event: React.ChangeEvent<HTMLInputElement>) => void
     onNext: () => void
     onBack: () => void
 }
@@ -413,9 +409,9 @@ const SpotifySetupStep: React.FC<SpotifySetupStepProps> = ({
 )
 
 interface YoutubeSetupStepProps {
-    credentials: Credentials
+    credentials: APICredentials
     errors: Record<string, string>
-    onChange: (field: keyof Credentials) => (event: React.ChangeEvent<HTMLInputElement>) => void
+    onChange: (field: keyof APICredentials) => (event: React.ChangeEvent<HTMLInputElement>) => void
     onNext: () => void
     onBack: () => void
 }

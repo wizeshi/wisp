@@ -109,7 +109,8 @@ export function spotifyTrackToSong(spotifyTrack: SpotifyTrack): Song {
         spotifyTrack.explicit,
         spotifyTrack.duration_ms / 1000,
         "spotify",
-        spotifyTrack.album.images.length != 0 ? spotifyTrack.album.images[0].url : ""
+        spotifyTrack.album.images.length != 0 ? spotifyTrack.album.images[0].url : "",
+        spotifyTrack.id
     )
 }
 
@@ -125,7 +126,8 @@ export function spotifySimpleTrackToSong(simpleTrack: SimplifiedTrack, thumbnail
         simpleTrack.explicit,
         simpleTrack.duration_ms / 1000,
         "spotify",
-        thumbnailURL
+        thumbnailURL,
+        simpleTrack.id
     )
 }
 
@@ -141,7 +143,10 @@ export function spotifyPlaylistToPlaylist(spotifyPlaylist: SpotifyPlaylist<Spoti
 
     return new Playlist(
         spotifyPlaylist.name,
-        spotifyPlaylist.owner.display_name,
+        { 
+            name: spotifyPlaylist.owner.display_name,
+            id: spotifyPlaylist.owner.id
+        },
         Songs,
         spotifyPlaylist.images[0].url,
         spotifyPlaylist.id,

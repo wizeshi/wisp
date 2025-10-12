@@ -40,18 +40,20 @@ export class Song {
     title: string;
     artists: Array<SimpleArtist>;
     source: Sources;
+    source_id?: string;
     thumbnailURL: string;
     explicit: boolean;
     durationSecs: number;
     durationFormatted: string;
 
-    constructor(title: string, artists: Array<SimpleArtist>, explicit: boolean, duration: number, source: Sources, thumbnailURL: string) {
+    constructor(title: string, artists: Array<SimpleArtist>, explicit: boolean, duration: number, source: Sources, thumbnailURL: string, source_id?: string) {
         this.title = title;
         this.artists = artists;
         this.source = source;
         this.thumbnailURL = thumbnailURL;
         this.explicit = explicit
         this.durationSecs = duration
+        this.source_id = source_id;
 
         this.durationFormatted = secondsToSecAndMin(duration)
     }
@@ -116,9 +118,12 @@ export class Album extends BaseSongList {
 }
 
 export class Playlist extends BaseSongList {
-    author: string;
+    author: {
+        name: string;
+        id: string
+    }
 
-    constructor(title: string, author: string, songs: Array<Song> | undefined, thumbnailURL: string, id: string) {
+    constructor(title: string, author: {name: string, id: string}, songs: Array<Song> | undefined, thumbnailURL: string, id: string) {
         super(title, songs, thumbnailURL, id);
         this.author = author
     }

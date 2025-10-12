@@ -3,24 +3,29 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer } from "electron";
-import { APICredentials, UserData, UserSettings } from "./backend/utils/types";
+import { APICredentials, LyricsProviders, UserData, UserSettings } from "./backend/utils/types";
 import { SidebarItemType, SidebarListType } from "./frontend/types/SongTypes";
 
 contextBridge.exposeInMainWorld('electronAPI', {
-    settings: {
-        load: () => ipcRenderer.invoke("settings:load"),
-        save: (settings: UserSettings) => ipcRenderer.invoke("settings:save", settings)
-    },
-    data: {
-        load: () => ipcRenderer.invoke("data:load"),
-        save: (data: UserData) => ipcRenderer.invoke("data:save", data)
-    },
-    credentials: {
-        save: (credentials: APICredentials) => ipcRenderer.invoke("credentials:save", credentials),
-        load: () => ipcRenderer.invoke("credentials:load"),
-        has: () => ipcRenderer.invoke("credentials:has"),
-        validate: (credentials: Partial<APICredentials>) => ipcRenderer.invoke("credentials:validate", credentials),
-        delete: () => ipcRenderer.invoke("credentials:delete")
+    info:{
+        settings: {
+            load: () => ipcRenderer.invoke("settings:load"),
+            save: (settings: UserSettings) => ipcRenderer.invoke("settings:save", settings)
+        },
+        data: {
+            load: () => ipcRenderer.invoke("data:load"),
+            save: (data: UserData) => ipcRenderer.invoke("data:save", data)
+        },
+        credentials: {
+            save: (credentials: APICredentials) => ipcRenderer.invoke("credentials:save", credentials),
+            load: () => ipcRenderer.invoke("credentials:load"),
+            has: () => ipcRenderer.invoke("credentials:has"),
+            validate: (credentials: Partial<APICredentials>) => ipcRenderer.invoke("credentials:validate", credentials),
+            delete: () => ipcRenderer.invoke("credentials:delete")
+        },
+        system: {
+            checkInternetConnection: () => ipcRenderer.invoke("system:check-internet-connection")
+        },
     },
     window: {
         minimize: () => ipcRenderer.invoke("window:minimize"),
@@ -28,9 +33,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         isMaximized: () => ipcRenderer.invoke("window:isMaximized"),
         close: () => ipcRenderer.invoke("window:close"),
         send: (channel: string, ...args: any[]) => ipcRenderer.send(channel, ...args)
-    },
-    system: {
-        checkInternetConnection: () => ipcRenderer.invoke("system:check-internet-connection")
     },
     login: {
         spotify: {
@@ -47,12 +49,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
         }
     },
     extractors: {
+        getLyrics: (source: LyricsProviders, id: string) => ipcRenderer.invoke("extractors:lyrics-get", source, id),
         spotify: {
             search: (searchQuery: string) => ipcRenderer.invoke('extractors:spotify-search', searchQuery),
             getUserLists: (type: SidebarListType) => ipcRenderer.invoke('extractors:spotify-user-lists', type),
             getUserInfo: () => ipcRenderer.invoke('extractors:spotify-user-info'),
+            getUserDetails: (id: string) => ipcRenderer.invoke('extractors:spotify-user-details', id),
             getListInfo: (type: SidebarItemType, id: string) => ipcRenderer.invoke('extractors:spotify-list-info', type, id),
-            getArtistInfo: (id: string) => ipcRenderer.invoke('extractors:spotify-artist-info', id)
+            getArtistInfo: (id: string) => ipcRenderer.invoke('extractors:spotify-artist-info', id),
+            getArtistDetails: (id: string) => ipcRenderer.invoke('extractors:spotify-artist-details', id),
+            getUserHome: (id: string) => ipcRenderer.invoke('extractors:spotify-user-home', id),
         },
         youtube: {
             search: (searchQuery: string) => ipcRenderer.invoke('extractors:youtube-search', searchQuery),

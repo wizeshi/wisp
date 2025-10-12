@@ -16,28 +16,41 @@ import Fab from "@mui/material/Fab"
 import { useSettings } from "../hooks/useSettings"
 import Skeleton from "@mui/material/Skeleton"
 import { DotRowSeparator } from "../components/DotRowSeparator"
+import AvatarGroup from "@mui/material/AvatarGroup"
 
 export const ListScreen: React.FC = () => {
     const { app, music } = useAppContext()
     const [ overIndex, setOverIndex ] = useState<number>(0)
     const [list, setList] = useState<Album | Playlist | undefined>(undefined)
+    const [hoverOverHeader, setHoverOverHeader] = useState(false)
+    const [artistImages, setArtistImages] = useState<string[]>([])
     const { settings, loading, updateSettings }= useSettings()
 
     useEffect(() => {
         const fetchLists = async () => {
             if (app.screen.shownThing.type == "Album") {
+                const album = await window.electronAPI.extractors.spotify.getListInfo("Album", app.screen.shownThing.id)
+                const artistImagesPromise = album.artists.map(async (oldArtist) => {
+                    const artist = await window.electronAPI.extractors.spotify.getArtistInfo(oldArtist.id)
+                    return artist.images[0].url
+                })
+
+                const artistImagesURL = await Promise.all(artistImagesPromise)
+                setArtistImages(artistImagesURL)
+                console.log(artistImagesURL)
                 setList(
-                    spotifyAlbumToAlbum(
-                        await window.electronAPI.extractors.spotify.getListInfo("Album", app.screen.shownThing.id)
-                    )
+                    spotifyAlbumToAlbum(album)
                 )
             }
 
             if (app.screen.shownThing.type == "Playlist") {
+                const playlist = await window.electronAPI.extractors.spotify.getListInfo("Playlist", app.screen.shownThing.id)
+                console.log(playlist)
+                setArtistImages([
+                    (await window.electronAPI.extractors.spotify.getUserDetails(playlist.owner.id)).images[0].url
+                ])
                 setList(
-                    spotifyPlaylistToPlaylist(
-                        await window.electronAPI.extractors.spotify.getListInfo("Playlist", app.screen.shownThing.id)
-                    )
+                    spotifyPlaylistToPlaylist(playlist)
                 )
             }
         }
@@ -75,31 +88,74 @@ export const ListScreen: React.FC = () => {
     const handlePlayList = (list: Song[]) => {
         music.player.setQueue(list, 0)
     }
-    
-    let artist = ""
-    const explicit = true
-    if (list instanceof Playlist) {
-        artist = list.author
-    }
+
+    let artistElement 
+
     if (list instanceof Album) {
-        list.artists.forEach((listArtist, index) => {
-            artist += listArtist.name
-            index < list.artists.length - 1 ? artist += ", " : ""
-        })
+        artistElement = list.artists.map((artist, index) => (
+            <React.Fragment>
+                <Typography variant="h6" fontWeight={200}>
+                    { artist.name }
+                </Typography>
+                { index < list.artists.length - 1 && <Typography variant="h6" fontWeight={200} sx={{ letterSpacing: "-6px" }}>, &nbsp; </Typography> }
+            </React.Fragment>
+        ))
+    } else if (list instanceof Playlist) {
+        artistElement = <Typography variant="h6" fontWeight={200}> { list.author.name } </Typography>
     }
+    
+    const explicit = true
 
     return (
-        <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, height: "calc(100% - 64px)", flexGrow: 1, flexDirection: "column", padding: "24px", overflow: "hidden" }}>
-            <Box display="flex" sx={{ padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)", flexShrink: 0 }}>
+        <Box display="flex" sx={{ 
+            maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, 
+            height: "calc(100% - 64px)", 
+            flexGrow: 1, 
+            flexDirection: "column", 
+            padding: "24px", 
+            overflow: "hidden",
+            position: "relative"
+        }}>
+            {/* Blurred background */}
+            {list && (
+                <Box sx={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: "50%",
+                    backgroundImage: `url(${list.thumbnailURL})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    filter: "blur(2px)",
+                    opacity: 0.65,
+                    zIndex: 0,
+                    '&::after': {
+                        content: '""',
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: "100%",
+                        background: "linear-gradient(to bottom, transparent 0%, var(--mui-palette-background-default) 100%)",
+                    }
+                }}/>
+            )}
+
+            <Box display="flex" sx={{ padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)", flexShrink: 0, position: "relative", zIndex: 1 }}
+                onMouseEnter={() => setHoverOverHeader(true)}
+                onMouseLeave={() => setHoverOverHeader(false)}>
                 <Box sx={{ position: "relative" }}>
                     {!list ?
                         <Skeleton variant="rounded" sx={{ height: "200px", width: "200px"}}/>
                     : <Avatar variant="rounded" src={list.thumbnailURL} sx={{ height: "200px", width: "200px"}}/>}
                 
                     <Box sx={{ position: "absolute", left: "4px", bottom: "4px" }}>
-                        <Fab color="success" onClick={() => handlePlayList(list.songs)}>
-                            <PlayArrow />    
-                        </Fab>
+                        {hoverOverHeader && 
+                            <Fab color="success" onClick={() => {handlePlayList(list.songs); console.log(list.songs)}}>
+                                <PlayArrow />    
+                            </Fab>
+                        }
                     </Box>
                 </Box>
                 
@@ -121,9 +177,16 @@ export const ListScreen: React.FC = () => {
                         </Box>
                         
                         <Box display="flex" sx={{ flexDirection: "row", paddingLeft: "12px" }}>
-                            <Avatar variant="rounded" src="" sx={{ margin: "auto 0 auto 0", height: "24px", width: "24px"}}/>
+                            <Box display="flex" sx={{ gap: "8px"}}>
+                                {artistImages && artistImages.map((url) => (
+                                    <Avatar variant="rounded" src={url} 
+                                    sx={{ margin: "auto 0 auto 0", height: "24px", width: "24px"}}/>
+                                ))}
+                            </Box>
 
-                            <Typography variant="h6" fontWeight={200} sx={{ paddingLeft: "12px" }}>{ artist }</Typography>
+                            <Box display="flex" sx={{ marginLeft: "12px" }}>
+                                { artistElement }
+                            </Box>
 
                             {!list ?
                                 <Skeleton />
@@ -160,7 +223,7 @@ export const ListScreen: React.FC = () => {
                     </Box>
                 </Box>
             </Box>
-            <Box display="flex" sx={{ flexDirection:"column", marginTop: "16px", padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)", flexGrow: 1, minHeight: 0, overflow: "hidden" }}>
+            <Box display="flex" sx={{ flexDirection:"column", marginTop: "16px", padding: "12px", border: "1px solid rgba(255, 255, 255, 0.15)", borderRadius: "12px", backgroundColor: "rgba(0, 0, 0, 0.25)", flexGrow: 1, minHeight: 0, overflow: "hidden", position: "relative", zIndex: 1 }}>
                 <Box display="grid" sx={{ gridTemplateColumns: "0.075fr 2fr 1fr 0.1fr", paddingLeft: "16px", paddingRight: "16px", flexShrink: 0 }}>
                     <Typography color="textSecondary">#</Typography>
                     <Typography color="textSecondary">Title</Typography>
