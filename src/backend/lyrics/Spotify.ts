@@ -1,6 +1,5 @@
 import { TOTP } from "totp-generator"
 import { loadCredentials } from "../Credentials"
-import { SpotifyLyrics } from "../utils/types"
 
 const SPOTIFY_WEB_TOKEN_URL = 'https://open.spotify.com/api/token'
 const SPOTIFY_CLIENT_TOKEN_URL = 'https://clienttoken.spotify.com/v1/clienttoken'
@@ -114,13 +113,18 @@ class SpotifyProvider {
         const accessTokenResponse: SpotifyAccessTokenResponse = await res.json()
         this.ACCESS_TOKEN = accessTokenResponse.accessToken
 
+        // Generate random device ID (32-character hex string)
+        const deviceId = Array.from({length: 32}, () => 
+            Math.floor(Math.random() * 16).toString(16)
+        ).join('')
+        
         const data = {
             client_data: {
                 client_id: accessTokenResponse.clientId,
                 client_version: SPOTIFY_APP_VERSION,
                 js_sdk_data: {
                     device_brand: "unknown",
-                    device_id: "206907bb3d55c469654d9f3fc6dc3452",
+                    device_id: deviceId,
                     device_model: "unknown",
                     device_type: "computer",
                     os: "windows",
