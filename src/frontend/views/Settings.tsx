@@ -27,19 +27,12 @@ import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import Alert from "@mui/material/Alert";
 import Avatar from "@mui/material/Avatar";
+import { GenericUser } from "../../common/types/SongTypes";
 
 const LyricsProviders = [
     {
         name: "Spotify",
         iconUrl: "https://storage.googleapis.com/pr-newsroom-wp/1/2023/05/Spotify_Primary_Logo_RGB_White.png"
-    },
-    {
-        name: "Genius",
-        iconUrl: "https://images.genius.com/0ca83e3130e1303a7f78ba351e3091cd.1000x1000x1.png",
-    },
-    {
-        name: "MusixMatch",
-        iconUrl: "https://dashboard.snapcraft.io/site_media/appmedia/2018/09/Mark256.png"
     },
     {
         name: "LrcLib",
@@ -49,7 +42,9 @@ const LyricsProviders = [
 
 export const Settings: React.FC = () => {
     const [spotifyLoggedIn, setSpotifyLoggedIn] = useState<boolean>(false)
+    const [spotifyUserInfo, setSpotifyUserInfo] = useState<GenericUser | null>(null)
     const [youtubeLoggedIn, setYoutubeLoggedIn] = useState<boolean>(false)
+    const [youtubeUserInfo, setYoutubeUserInfo] = useState<GenericUser | null>(null)
     const { settings, loading, updateSettings } = useSettings()
 
     const handleSpotifyLogin = () => {
@@ -85,14 +80,24 @@ export const Settings: React.FC = () => {
     useEffect(() => {
         let cancelled = false;
         Promise.all([
-            window.electronAPI.login.spotify.loggedIn(),
-            window.electronAPI.login.youtube.loggedIn()
+            window.electronAPI.login.isLoggedIn("spotify"),
+            window.electronAPI.login.isLoggedIn("youtube")
         ]).then(([spotify, youtube]) => {
-            console.log(spotify)
-            console.log(youtube)
             if (!cancelled) {
-                setSpotifyLoggedIn(spotify.loggedIn && !spotify.expired)
-                setYoutubeLoggedIn(youtube.loggedIn && !youtube.expired)
+                if (spotify.loggedIn && !spotify.expired) {
+                    setSpotifyLoggedIn(true)
+                    window.electronAPI.extractors.getUserInfo("spotify").then((userInfo) => {
+                            setSpotifyUserInfo(userInfo)
+                    })
+                }
+
+                if (youtube.loggedIn && !youtube.expired) {
+                    setYoutubeLoggedIn(true)
+                    window.electronAPI.extractors.getUserInfo("youtube").then((userInfo) => {
+                        setYoutubeUserInfo(userInfo)
+                        console.log(userInfo)
+                    })
+                }
             }
         })
 
@@ -108,7 +113,7 @@ export const Settings: React.FC = () => {
 
             <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0" }} />
 
-            <Box sx={{ overflowY: "scroll", flexShrink: 0 }}>
+            <Box sx={{ overflowY: "auto" }}>
                 <Box>
                     <Typography variant="h6">Accounts</Typography>
 
@@ -118,6 +123,7 @@ export const Settings: React.FC = () => {
                             ServiceIcon={GraphicEqIcon} 
                             loginState={spotifyLoggedIn} 
                             loginHandler={handleSpotifyLogin}
+                            additionalInfo={spotifyUserInfo}
                         />
 
                         <AccountRow 
@@ -125,6 +131,7 @@ export const Settings: React.FC = () => {
                             ServiceIcon={YoutubeIcon} 
                             loginState={youtubeLoggedIn} 
                             loginHandler={handleYoutubeLogin}
+                            additionalInfo={youtubeUserInfo}
                         />
                     </Box>
                 </Box>
@@ -309,9 +316,10 @@ const AccountRow: React.FC<{
         muiName: string;
     },
     loginState: boolean,
-    loginHandler: () => void
+    loginHandler: () => void,
+    additionalInfo?: GenericUser | null
 }> = 
-({ serviceName, ServiceIcon, loginState, loginHandler }) => {
+({ serviceName, ServiceIcon, loginState, loginHandler, additionalInfo }) => {
     const [dialogOpen, setDialogOpen] = useState(false)
 
     const handleEditClick = () => {
@@ -331,13 +339,26 @@ const AccountRow: React.FC<{
                     
                     <Box display="flex" sx={{ marginLeft: "auto", gap: "8px" }}>
                         {loginState ?
-                        <Typography variant="body1" color="success" sx={{ alignSelf: "center", marginRight: "12px"}}>
-                            Logged In
-                        </Typography>
-                        :   <Typography variant="body1" color="error" sx={{ alignSelf: "center", marginRight: "12px"}}>
-                            Not Logged In
-                        </Typography>}
-                        
+                            (<Box sx={{ textAlign: "right", marginRight: "12px" }}>
+                                <Typography variant="body1" color="success">
+                                    Logged In
+                                </Typography>
+                                {additionalInfo &&
+                                    <Box sx={{ display: "flex", gap: "8px", justifyContent: "end" }}>
+                                        <Avatar variant="rounded" src={additionalInfo.avatarURL} sx={{ width: 20, height: 20 }}/>
+
+                                        <Typography variant="caption" color="textSecondary">
+                                            {additionalInfo.displayName}
+                                        </Typography>
+                                    </Box>
+                                }
+                            </Box>
+                            ) : (
+                            <Typography variant="body1" color="error">
+                                Not Logged In
+                            </Typography>
+                        )}
+
                         <Tooltip title="Edit API Credentials">
                             <IconButton onClick={handleEditClick}>
                                 <EditIcon />

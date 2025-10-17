@@ -14,7 +14,6 @@ import Link from "@mui/material/Link"
 import CircularProgress from "@mui/material/CircularProgress"
 import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import ErrorIcon from "@mui/icons-material/Error"
-import MusicNoteIcon from "@mui/icons-material/MusicNote"
 import Avatar from "@mui/material/Avatar"
 import logoImage from "../../../assets/wisp.png"
 import { APICredentials } from "../../backend/utils/types"
@@ -23,6 +22,7 @@ const steps = [
     "Welcome",
     "Spotify Setup",
     "YouTube Setup",
+    "Spotify Cookie (Optional)",
     "Authentication",
     "Download Tools",
     "Complete"
@@ -235,6 +235,16 @@ export const FirstTimeScreen: React.FC = () => {
             
             case 3:
                 return (
+                    <SpotifyCookieStep
+                        credentials={credentials}
+                        onChange={handleCredentialChange}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )
+            
+            case 4:
+                return (
                     <AuthenticationStep
                         authStatus={authStatus}
                         onSpotifyAuth={handleSpotifyAuth}
@@ -244,7 +254,7 @@ export const FirstTimeScreen: React.FC = () => {
                     />
                 )
             
-            case 4:
+            case 5:
                 return (
                     <DownloadToolsStep
                         downloadStatus={downloadStatus}
@@ -254,7 +264,7 @@ export const FirstTimeScreen: React.FC = () => {
                     />
                 )
             
-            case 5:
+            case 6:
                 return <CompleteStep onComplete={handleComplete} />
             
             default:
@@ -289,7 +299,7 @@ export const FirstTimeScreen: React.FC = () => {
                 </Box>
 
                 {/* Stepper */}
-                <Stepper activeStep={activeStep} sx={{ marginBottom: "32px" }}>
+                <Stepper activeStep={activeStep} sx={{ marginBottom: "32px", justifyContent: "center" }}>
                     {steps.map((label) => (
                         <Step key={label}>
                             <StepLabel>{label}</StepLabel>
@@ -480,6 +490,89 @@ const YoutubeSetupStep: React.FC<YoutubeSetupStepProps> = ({
         </Box>
     </Box>
 )
+
+interface SpotifyCookieStepProps {
+    credentials: APICredentials
+    onChange: (field: keyof APICredentials) => (event: React.ChangeEvent<HTMLInputElement>) => void
+    onNext: () => void
+    onBack: () => void
+}
+
+const SpotifyCookieStep: React.FC<SpotifyCookieStepProps> = ({
+    credentials,
+    onChange,
+    onNext,
+    onBack
+}) => {
+    const handleNext = async () => {
+        // Save cookie if provided
+        if (credentials.spotifyCookie.trim()) {
+            await window.electronAPI.info.credentials.save(credentials)
+        }
+        onNext()
+    }
+
+    const handleSkip = () => {
+        onNext()
+    }
+
+    return (
+        <Box>
+            <Typography variant="h4" gutterBottom>
+                Spotify Cookie (Optional)
+            </Typography>
+            
+            <Typography variant="body1" paragraph>
+                To fetch lyrics from Spotify, you need to provide a Spotify cookie (<code>sp_dc</code>).
+                This is <strong>completely optional</strong> — you can skip this step if you don't need lyrics.
+            </Typography>
+
+            <Alert severity="info" sx={{ marginBottom: "24px" }}>
+                <AlertTitle>How to Get Your Spotify Cookie</AlertTitle>
+                <ol style={{ paddingLeft: "20px", margin: "8px 0" }}>
+                    <li>Open <Link href="https://open.spotify.com" target="_blank" rel="noopener">open.spotify.com</Link> and log in</li>
+                    <li>Press <code>F12</code> to open Developer Tools</li>
+                    <li>Go to the <strong>Application</strong> tab (Chrome) or <strong>Storage</strong> tab (Firefox)</li>
+                    <li>In the left sidebar, expand <strong>Cookies</strong> and click on <code>https://open.spotify.com</code></li>
+                    <li>Find the cookie named <strong>sp_dc</strong></li>
+                    <li>Copy the entire <strong>Value</strong> (should be a long string)</li>
+                    <li>Paste it below (it needs to have "sp_dc=" before it)</li>
+                </ol>
+            </Alert>
+
+            <Alert severity="warning" sx={{ marginBottom: "24px" }}>
+                <strong>Privacy Note:</strong> This cookie is stored locally on your computer and is only used
+                to authenticate with Spotify's lyrics API. It is never shared with anyone.
+            </Alert>
+
+            <TextField
+                fullWidth
+                label="Spotify Cookie (sp_dc)"
+                value={credentials.spotifyCookie}
+                onChange={onChange("spotifyCookie")}
+                helperText="Paste your sp_dc cookie value here, or leave empty to skip"
+                margin="normal"
+                variant="outlined"
+                multiline
+                rows={3}
+            />
+
+            <Box display="flex" justifyContent="space-between" sx={{ marginTop: "24px" }}>
+                <Button onClick={onBack}>
+                    Back
+                </Button>
+                <Box display="flex" gap={1}>
+                    <Button onClick={handleSkip} color="inherit">
+                        Skip
+                    </Button>
+                    <Button variant="contained" onClick={handleNext}>
+                        {credentials.spotifyCookie.trim() ? 'Save & Continue' : 'Continue'}
+                    </Button>
+                </Box>
+            </Box>
+        </Box>
+    )
+}
 
 interface AuthenticationStepProps {
     authStatus: AuthStatus

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
 import { useAppContext } from "../providers/AppContext"
-import { Artist, Song } from "../types/SongTypes"
+import { GenericArtist, GenericSong, SongSources } from "../../common/types/SongTypes"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Avatar from "@mui/material/Avatar"
@@ -11,56 +11,56 @@ import Link from "@mui/material/Link"
 import ExplicitIcon from '@mui/icons-material/Explicit';
 import IconButton from "@mui/material/IconButton"
 import PlayArrow from "@mui/icons-material/PlayArrow"
-import { getServiceIcon, spotifyArtistToArtist } from "../utils/Helpers"
+import { getServiceIcon } from "../utils/Helpers"
 import Fab from "@mui/material/Fab"
 import { useSettings } from "../hooks/useSettings"
 import Skeleton from "@mui/material/Skeleton"
 import Divider from "@mui/material/Divider"
+import { usePlayer } from "../providers/PlayerContext"
 
-export const ArtistScreen: React.FC = () => {
-    const { app, music } = useAppContext()
+export const ArtistScreen: React.FC<{ artistId: string, artistSource?: SongSources | undefined }> = ({ artistId, artistSource }) => {
+    const { app } = useAppContext()
+    const player = usePlayer()
     const [ overIndex, setOverIndex ] = useState<number>(0)
-    const [artist, setArtist] = useState<Artist | undefined>(undefined)
+    const [artist, setArtist] = useState<GenericArtist | undefined>(undefined)
     const [albumIndex, setAlbumIndex] = useState(0)
     const { settings, loading, updateSettings }= useSettings()
 
     useEffect(() => {
         const fetchLists = async () => {
             setArtist(
-                spotifyArtistToArtist(
-                    await window.electronAPI.extractors.spotify.getArtistDetails(app.screen.shownThing.id)
-                )
+                    await window.electronAPI.extractors.getArtistDetails(artistId, artistSource)
             )
         }
 
         fetchLists()
-    }, [app.screen.shownThing])
+    }, [artistId, artistSource])
 
-    const handlePlay = (song: Song) => {
-        /* switch(settings.listPlay) {
+    const handlePlay = (song: GenericSong) => {
+        switch(settings.listPlay) {
             case "Single": {
                 // Add only this song to queue and play it
-                music.player.setQueue([song])
-                music.player.setSongIndex(0)
+                const index = player.addToQueue(song)
+                player.goToIndex(index)
                 break
             }
             case "Multiple": {
                 // Add all songs from the list to queue
-                music.player.setQueue(list.songs)
+                player.setQueue(artist.topSongs)
                 // Find and play the selected song (comparing by title and artists)
-                const songIndex = list.songs.findIndex(s => 
+                const songIndex = artist.topSongs.findIndex(s => 
                     s.title === song.title && 
                     s.artists.length === song.artists.length &&
                     s.artists.every((artist, i) => artist.name === song.artists[i].name)
                 )
-                music.player.setSongIndex(songIndex !== -1 ? songIndex : 0)
+                player.goToIndex(songIndex !== -1 ? songIndex : 0)
                 break
             }
-        } */
+        }
     }
 
-    const handlePlayArtist = (list: Song[]) => {
-        music.player.setQueue(list)
+    const handlePlayArtist = (list: GenericSong[]) => {
+        player.setQueue(list)
     }
 
     return (
@@ -150,7 +150,7 @@ export const ArtistScreen: React.FC = () => {
                                         alignItems: "center",
                                         borderRadius: "12px",
                                         zIndex: "5",
-                                    }, (music.player.getCurrentSong() && music.player.getCurrentSong().title == song.title) &&  {
+                                    }, (player.getCurrentSong() && player.getCurrentSong().title == song.title) &&  {
                                         backgroundColor: "rgba(255, 255, 255, 0.075)",
                                         color: "#90ee90"
                                     }]}
@@ -183,7 +183,7 @@ export const ArtistScreen: React.FC = () => {
                                         <Typography variant="body2" sx={{ textAlign: "center" }}>{song.durationFormatted}</Typography>
                                     </Box>
                                     <Box>
-                                        <Typography variant="body2" sx={{ textAlign: "right" }}>{ getServiceIcon(song.source) }</Typography>
+                                        <Box display="flex" sx={{ justifyContent: "right" }}>{ getServiceIcon(song.source, { width: "24px", height: "24px" }) }</Box>
                                     </Box>
                                 </ListItemButton>
                             </ListItem>

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react"
-import { LoopingEnum, Song } from "../types/SongTypes"
+import { useCallback, useEffect, useRef, useState, useMemo } from "react"
+import { LoopingEnum, GenericSong } from "../../common/types/SongTypes"
 import { useSettings } from "./useSettings"
 
 export const useAudioPlayer = () => {
@@ -7,15 +7,15 @@ export const useAudioPlayer = () => {
     const player = audioRef.current
     const { settings, loading: settingsLoading } = useSettings()
     
-    // Audio state
-    const [currentTime, setCurrentTime] = useState(0)
+    // Audio state - currentTime is separated to prevent re-renders
+/*     const [currentTime, setCurrentTime] = useState(0) */
     const [duration, setDuration] = useState(0)
     const [isPlaying, setIsPlaying] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const isSeekingRef = useRef(false)
     
-    const [queue, setQueue] = useState<Song[]>([])
+    const [queue, setQueue] = useState<GenericSong[]>([])
     const [currentIndex, setCurrentIndex] = useState<number>(-1)
     
     const [shuffleEnabled, setShuffleEnabled] = useState<boolean>(false)
@@ -39,7 +39,7 @@ export const useAudioPlayer = () => {
     }, [shuffleEnabled, shuffleOrder, shuffleIndex, currentIndex, queue])
 
     // Generate shuffle order - shuffles all songs
-    const generateShuffleOrder = (songs: Song[]) => {
+    const generateShuffleOrder = (songs: GenericSong[]) => {
         if (settingsLoading) return []
         
         const indices = songs.map((_, index) => index)
@@ -80,7 +80,7 @@ export const useAudioPlayer = () => {
 
     // Event listeners for HTML5 Audio element
     useEffect(() => {
-        const handleTimeUpdate = () => setCurrentTime(player.currentTime)
+/*         const handleTimeUpdate = () => setCurrentTime(player.currentTime) */
         const handleDurationChange = () => setDuration(player.duration)
         const handlePlay = () => setIsPlaying(true)
         const handlePause = () => setIsPlaying(false)
@@ -89,7 +89,7 @@ export const useAudioPlayer = () => {
         const handleWaiting = () => setIsLoading(true)
         const handleError = () => setError(player.error?.message || 'Unknown error')
 
-        player.addEventListener('timeupdate', handleTimeUpdate)
+/*         player.addEventListener('timeupdate', handleTimeUpdate) */
         player.addEventListener('durationchange', handleDurationChange)
         player.addEventListener('play', handlePlay)
         player.addEventListener('pause', handlePause)
@@ -99,7 +99,7 @@ export const useAudioPlayer = () => {
         player.addEventListener('error', handleError)
 
         return () => {
-            player.removeEventListener('timeupdate', handleTimeUpdate)
+/*             player.removeEventListener('timeupdate', handleTimeUpdate) */
             player.removeEventListener('durationchange', handleDurationChange)
             player.removeEventListener('play', handlePlay)
             player.removeEventListener('pause', handlePause)
@@ -110,33 +110,32 @@ export const useAudioPlayer = () => {
         }
     }, [])
 
-    // Auto-advance to next song
+    // Use audio element's 'ended' event for auto-advance/loop
     useEffect(() => {
-        const currentSong = getCurrentSong()
-        if (isPlaying && currentSong && currentSong.durationSecs) {
-            if (currentTime >= currentSong.durationSecs - 0.5) {
-                if (loopMode === LoopingEnum.Song) {
-                    seek(0)
-                } else if (loopMode === LoopingEnum.List) {
+        const handleEnded = () => {
+            if (loopMode === LoopingEnum.Song) {
+                seek(0)
+                play()
+            } else if (loopMode === LoopingEnum.List) {
+                skipNext()
+            } else {
+                const hasNext = shuffleEnabled 
+                    ? shuffleIndex < shuffleOrder.length - 1
+                    : currentIndex < queue.length - 1
+                if (hasNext) {
                     skipNext()
                 } else {
-                    // No loop - advance only if not at end
-                    const hasNext = shuffleEnabled 
-                        ? shuffleIndex < shuffleOrder.length - 1
-                        : currentIndex < queue.length - 1
-                    if (hasNext) {
-                        skipNext()
-                    } else {
-                        pause()
-                    }
+                    pause()
                 }
             }
         }
-    }, [currentTime, isPlaying, loopMode, shuffleEnabled, shuffleIndex, currentIndex, queue.length])
+        player.addEventListener('ended', handleEnded)
+        return () => player.removeEventListener('ended', handleEnded)
+    }, [loopMode, shuffleEnabled, shuffleOrder, shuffleIndex, currentIndex, queue.length])
 
     // Playback controls
     const load = (src: string) => {
-        setCurrentTime(0)
+        player.currentTime = 0
         player.src = src
     }
 
@@ -165,7 +164,7 @@ export const useAudioPlayer = () => {
     }
 
     // Queue controls
-    const setQueueAndPlay = (songs: Song[], startIndex = 0) => {
+    const setQueueAndPlay = (songs: GenericSong[], startIndex = 0) => {
         setQueue(songs)
         
         if (shuffleEnabled && songs.length > 0) {
@@ -182,7 +181,7 @@ export const useAudioPlayer = () => {
         }
     }
 
-    const addToQueue = (song: Song) => {
+    const addToQueue = (song: GenericSong) => {
         setQueue([...queue, song])
         return queue.length
     }
@@ -254,7 +253,9 @@ export const useAudioPlayer = () => {
         setLoopMode((prev) => (prev < 2 ? prev + 1 : 0))
     }
 
-    return {
+    // Memoize the return value to prevent unnecessary re-renders
+    // Only recreate when essential state changes
+    return useMemo(() => ({
         // Playback
         load,
         play,
@@ -284,8 +285,8 @@ export const useAudioPlayer = () => {
         loopMode,
         toggleLoop,
         
-        // State
-        currentTime,
+/*         // State - currentTime is included but components should use usePlayerTime hook
+        currentTime, */
         duration,
         isPlaying,
         isLoading,
@@ -294,7 +295,19 @@ export const useAudioPlayer = () => {
         
         // Raw player (for advanced use)
         player,
-    }
+    }), [
+        queue,
+        currentIndex,
+        shuffleEnabled,
+        shuffleOrder,
+        shuffleIndex,
+        loopMode,
+/*         currentTime, // Include for components that need it */
+        duration,
+        isPlaying,
+        isLoading,
+        error,
+    ])
 }
 
 export type AudioPlayer = ReturnType<typeof useAudioPlayer>

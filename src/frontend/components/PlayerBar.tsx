@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAppContext } from "../providers/AppContext"
+import { usePlayer } from "../providers/PlayerContext"
+import { usePlayerTime } from "../hooks/usePlayerTime"
 import Box from "@mui/material/Box"
 import Typography from "@mui/material/Typography"
 import Avatar from "@mui/material/Avatar"
@@ -22,69 +24,57 @@ import VolumeDownIcon from '@mui/icons-material/VolumeDown';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import Input from "@mui/material/Input"
-import { secondsToSecAndMin } from "../utils/Utils"
-import { LoopingEnum, SimpleArtist } from "../types/SongTypes"
 import Button from "@mui/material/Button"
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import Slide from "@mui/material/Slide"
 import LinearProgress from "@mui/material/LinearProgress"
+import { secondsToSecAndMin } from "../utils/Utils"
+import { LoopingEnum, GenericSong } from "../../common/types/SongTypes"
 import { useData } from "../hooks/useData"
+import Skeleton from "@mui/material/Skeleton"
+
 
 const ProgressControl: React.FC = () => {
-    const { music } = useAppContext()
-    const player = music.player
-    const [isDragging, setIsDragging] = useState(false)
-    const [tempValue, setTempValue] = useState(0)
-    const [wasPlaying, setWasPlaying] = useState(false)
+    const player = usePlayer();
+    const playerTime = usePlayerTime(); // Poll every 500ms
+    const [isDragging, setIsDragging] = useState(false);
+    const [tempValue, setTempValue] = useState(0);
 
     const handleProgressChange = (event: Event, newValue: number | number[]) => {
-        const value = Array.isArray(newValue) ? newValue[0] : newValue
-        setTempValue(value)
-    }
+        const value = Array.isArray(newValue) ? newValue[0] : newValue;
+        setTempValue(value);
+    };
 
     const handleProgressCommit = (event: Event | React.SyntheticEvent, newValue: number | number[]) => {
-        const value = Array.isArray(newValue) ? newValue[0] : newValue
-        player.seek(value)
-        setIsDragging(false)
-        
-        // Seek itself doesn't stop playback, so no need to resume
-        // The wasPlaying state is kept for future potential use
-    }
+        const value = Array.isArray(newValue) ? newValue[0] : newValue;
+        player.seek(value);
+        setIsDragging(false);
+    };
 
     const handleDragStart = () => {
-        setWasPlaying(player.isPlaying)
-        setIsDragging(true)
-        setTempValue(player.currentTime)
-        // Don't pause during drag - let it continue playing
-    }
+        setIsDragging(true);
+        setTempValue(playerTime);
+    };
 
-    const currentSong = music.player.getCurrentSong()
-    const songDurationSeconds = currentSong?.durationSecs || 0
-    const songDurationFormatted = currentSong?.durationFormatted || "00:00"
-    const displayTime = isDragging ? tempValue : player.currentTime
+    const currentSong = player.getCurrentSong();
+    const songDurationSeconds = currentSong?.durationSecs || 0;
+    const songDurationFormatted = currentSong?.durationFormatted || "00:00";
+    const displayTime = isDragging ? tempValue : playerTime;
 
-    if (player.isLoading || music.isDownloading) {
+    if (player.isLoading) {
         return (
             <Box display="flex" flexDirection="row" sx={{ marginTop: "8px", alignItems: "center" }}>
-                <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }}
-                variant="body2">00:00</Typography>
-
-                <LinearProgress
-                    variant="indeterminate"
-                    sx={{ width: "30vw", padding: "0", marginBottom: "14px" }}/>
-
-                <Typography sx={{ position: "relative", left: "12px", top: "-8px" }}
-                variant="body2">{songDurationFormatted}</Typography>
+                <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }} variant="body2">00:00</Typography>
+                <LinearProgress variant="indeterminate" sx={{ width: "30vw", padding: "0", marginBottom: "14px" }}/>
+                <Typography sx={{ position: "relative", left: "12px", top: "-8px" }} variant="body2">{songDurationFormatted}</Typography>
             </Box>
-        )
+        );
     }
 
     return (
         <Box display="flex" flexDirection="row" sx={{ marginTop: "8px" }}>
-            <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }}
-            variant="body2">{ secondsToSecAndMin(displayTime) }</Typography>
-
+            <Typography sx={{ position: "relative", left: "-12px", top: "-8px" }} variant="body2">{ secondsToSecAndMin(displayTime) }</Typography>
             <Slider
                 size="medium"
                 min={0}
@@ -96,77 +86,112 @@ const ProgressControl: React.FC = () => {
                 onMouseDown={handleDragStart}
                 onTouchStart={handleDragStart}
                 slotProps={{
-                    thumb: { style: {
-                        width: "12px", height: "12px"
-                    }}
+                    thumb: { style: { width: "12px", height: "12px" } }
                 }}
-                sx={{ width: "30vw", padding: "0" }}/>
+                sx={{ width: "30vw", padding: "0" }}
+            />
+            <Typography sx={{ position: "relative", left: "12px", top: "-8px" }} variant="body2">{songDurationFormatted}</Typography>
+        </Box>
+    );
+};
 
-            <Typography sx={{ position: "relative", left: "12px", top: "-8px" }}
-            variant="body2">{songDurationFormatted}</Typography>
+const PlayerSongDetails = React.memo(({ song }: { song: GenericSong }) => {
+    if (!song || song == null || song == undefined) {
+        return (
+            <Box display="flex" sx={{ zIndex: "calc(var(--mui-zIndex-drawer) + 10)" }}>
+                <ButtonBase sx={{ marginTop: "auto", marginBottom: "auto" }}>
+                    <Avatar variant="rounded" src="" sx={{ height: "64px", width: "64px" }}/>
+
+                </ButtonBase>
+
+                <Box display="flex" sx={{ textAlign: "left", flexDirection: "column", paddingLeft: "16px", marginTop: "auto", marginBottom: "auto" }}>
+                    <Link underline="hover" variant="body1" sx={{ color: "var(--mui-palette-text-primary)" }}>
+                        <Skeleton />
+                    </Link>
+
+                    <Box>
+                        <Link underline="hover" variant="caption" fontWeight="200" sx={{ color: "var(--mui-palette-text-secondary)" }}>
+                            <Skeleton />
+                        </Link>
+                    </Box>
+                </Box>
+            </Box>
+        )
+    }
+
+    return (
+        <Box display="flex" sx={{ zIndex: "calc(var(--mui-zIndex-drawer) + 10)" }}>
+            <ButtonBase sx={{ marginTop: "auto", marginBottom: "auto" }}>
+                <Avatar variant="rounded" src={song.thumbnailURL} sx={{ height: "64px", width: "64px" }}/>
+
+            </ButtonBase>
+
+            <Box display="flex" sx={{ textAlign: "left", flexDirection: "column", paddingLeft: "16px", marginTop: "auto", marginBottom: "auto" }}>
+                <Link href="" underline="hover" variant="body1" sx={{ color: "var(--mui-palette-text-primary)" }}>{song.title}</Link>
+
+                <Box>
+                    {song.artists.map((artist, index) => (
+                        <React.Fragment key={artist.id}>
+                            <Link href="" underline="hover" variant="caption" fontWeight="200" sx={{ color: "var(--mui-palette-text-secondary)" }}>{ artist.name }</Link>
+                            {index < song.artists.length - 1 && <Typography variant="caption" color="textSecondary">,&nbsp;</Typography>}
+                        </React.Fragment>
+                    ))}
+                </Box>
+            </Box>
         </Box>
     )
-}
+})
 
 export const PlayerBar: React.FC = () => {
+
     const [playerBarShown, setPlayerBarShown] = useState<boolean>(true)
     const [volume, setVolume] = useState<number>(10)
-    const [oldVolume, setOldVolume] = useState<number>(0)
+    const oldVolumeRef = useRef<number>(10)
     const [initialized, setInitialized] = useState<boolean>(false)
-    const { app, music } = useAppContext()
-    const player = music.player
+    const { app } = useAppContext()
+    const player = usePlayer()
     const { data, loading, updateData } = useData()
 
-    // Load saved settings on mount (only once)
+    const currentSong = useMemo(() => player.getCurrentSong(), [player.currentIndex])
+
+    // Load saved settings on mount
     useEffect(() => {
         if (!loading && !initialized) {
             setVolume(data.preferredVolume)
-            
-            // Set shuffle state if different from saved
             if (data.shuffled !== player.shuffleEnabled) {
                 player.toggleShuffle()
             }
-            
-            // Set loop mode if different from saved - toggle the appropriate number of times
             const currentLoop = player.loopMode
             const targetLoop = data.looped
             if (currentLoop !== targetLoop) {
-                // Calculate how many times to toggle (0->1->2->0)
                 const toggleCount = (targetLoop - currentLoop + 3) % 3
                 for (let i = 0; i < toggleCount; i++) {
                     player.toggleLoop()
                 }
             }
-            
             setInitialized(true)
         }
-    }, [loading, initialized])
+    }, [loading, initialized, data, player])
 
-    // Track when the current song changes and save it to lastPlayed
     useEffect(() => {
-        if (loading) return
-        
-        const currentSong = player.getCurrentSong()
+        if (loading || !data) return;
         if (currentSong && currentSong !== data.lastPlayed) {
             updateData({ lastPlayed: currentSong })
         }
-    }, [player.currentIndex, loading])
+    }, [player.currentIndex, loading, currentSong, data, updateData])
 
-    // Update player volume immediately, but don't save yet
     useEffect(() => {
         player.setVolume(volume)
-    }, [volume])
+    }, [volume, player])
 
     // Debounce saving volume changes
     useEffect(() => {
         if (loading) return
-
         const timeoutId = setTimeout(() => {
             updateData({ preferredVolume: volume })
-        }, 500) // Save 500ms after user stops changing volume
-
+        }, 500)
         return () => clearTimeout(timeoutId)
-    }, [volume, loading])
+    }, [volume, loading, updateData])
 
     useEffect(() => {
         if (volume > 100) {
@@ -177,20 +202,16 @@ export const PlayerBar: React.FC = () => {
         }
     }, [volume])
 
-    // Global spacebar handler for play/pause
     useEffect(() => {
         const handleKeyPress = (event: KeyboardEvent) => {
-            // Only trigger if spacebar is pressed and not typing in an input/textarea
             if (event.code === 'Space' && 
                 event.target instanceof HTMLElement && 
                 !['INPUT', 'TEXTAREA'].includes(event.target.tagName)) {
-                event.preventDefault() // Prevent page scroll
+                event.preventDefault()
                 player.isPlaying ? player.pause() : player.play()
             }
         }
-
         window.addEventListener('keydown', handleKeyPress)
-
         return () => {
             window.removeEventListener('keydown', handleKeyPress)
         }
@@ -204,25 +225,23 @@ export const PlayerBar: React.FC = () => {
         player.skipPrevious()
     }
 
-    const handlePlay = () => {
+    const handlePlay = useCallback(() => {
         player.isPlaying ? player.pause() : player.play()
-    }
+    }, [player])
 
     const handleShuffle = () => {
-        music.player.toggleShuffle()
-        // Save the new shuffle state
+        player.toggleShuffle()
         updateData({ shuffled: !player.shuffleEnabled })
     }
 
     const handleRepeat = () => {
-        music.player.toggleLoop()
-        // Save the new loop state (after toggle, so we need to calculate next state)
+        player.toggleLoop()
         const nextLoopState = player.loopMode < 2 ? player.loopMode + 1 : 0
         updateData({ looped: nextLoopState as LoopingEnum })
     }
 
     let repeatButton
-    switch (music.player.loopMode) {
+    switch (player.loopMode) {
         default:
         case LoopingEnum.Off:
             repeatButton = (
@@ -251,10 +270,10 @@ export const PlayerBar: React.FC = () => {
 
     const handleVolumeButton = () => {
         if (volume > 0) {
-            setOldVolume(volume)
+            oldVolumeRef.current = volume
             setVolume(0)
         } else {
-            setVolume(oldVolume)
+            setVolume(oldVolumeRef.current)
         }
     }
 
@@ -278,95 +297,54 @@ export const PlayerBar: React.FC = () => {
         volumeIcon = <VolumeUpIcon />
     }
 
-    let songName = ""
-    let artists: Array<SimpleArtist> = []
-    let songThumbnailUrl = ""
-    const currentSong = music.player.getCurrentSong()
-    if (currentSong != undefined) {
-        songName = currentSong.title
-        artists = currentSong.artists
-        songThumbnailUrl = currentSong.thumbnailURL
-    }
-
     if (loading) {
         return <></>
     }
-    
     return (
         <React.Fragment>
             <Slide direction="up" in={playerBarShown} mountOnEnter unmountOnExit>
                 <Box display="flex" sx={{ height: "92px", width: "calc(100% - 24px)", marginLeft: "12px", marginBottom: "12px", border: "1px solid rgba(255, 255, 255, 0.175)", backgroundColor: "rgba(0, 0, 0, 0.5)",
                                         position: "absolute", zIndex: "calc(var(--mui-zIndex-drawer) + 1)", bottom: "0", backdropFilter: "blur(6px)" }}>
-                    
                     <Box sx={{ padding: "12px", display: "flex", width: "inherit" }}>
-                        <Box display="flex" sx={{ zIndex: "calc(var(--mui-zIndex-drawer) + 10)" }}>
-                            <ButtonBase sx={{ marginTop: "auto", marginBottom: "auto" }}>
-                                <Avatar variant="rounded" src={songThumbnailUrl} sx={{ height: "64px", width: "64px" }}/>
-        
-                            </ButtonBase>
-                
-                            <Box display="flex" sx={{ textAlign: "left", flexDirection: "column", paddingLeft: "16px", marginTop: "auto", marginBottom: "auto" }}>
-                                <Link href="" underline="hover" variant="body1" sx={{ color: "var(--mui-palette-text-primary)" }}>{songName}</Link>
-                                
-                                <Box>
-                                    {artists.map((artist, index) => (
-                                        <React.Fragment>
-                                            <Link href="" underline="hover" variant="caption" fontWeight="200" sx={{ color: "var(--mui-palette-text-secondary)" }}>{ artist.name }</Link>
-                                            {index < artists.length - 1 && <Typography variant="caption" color="textSecondary">,&nbsp;</Typography>}
-                                        </React.Fragment>
-                                    ))}
-                                </Box>
-                            </Box>
-                        </Box>
-            
+                        <PlayerSongDetails song={currentSong}/>
                         <Box display="flex" sx={{ width: "inherit", position: "absolute", top: "12px", left: "12px" }}>
                             <Box display="flex" sx={{ alignItems: "center", flexDirection: "column", marginLeft: "auto", marginRight: "auto" }}>
                                 <Box sx={{ paddingTop: "4px" }}>
                                     <IconButton onClick={handleShuffle}>
-                                        {music.player.shuffleEnabled ?
+                                        {player.shuffleEnabled ?
                                             <ShuffleOnIcon />
                                         :   <ShuffleIcon />
                                         }
                                     </IconButton>
-        
                                     <IconButton onClick={handleSkipBack}>
                                         <SkipPreviousIcon />
                                     </IconButton>
-                                    
                                     <IconButton onClick={handlePlay}>
                                         {player.isPlaying ?
                                             <PauseIcon />
                                         : <PlayArrowIcon />
                                         }
                                     </IconButton>
-                                    
                                     <IconButton onClick={handleSkipForward}>
                                         <SkipNextIcon />
                                     </IconButton>
-        
                                     <IconButton onClick={handleRepeat}>
                                         {repeatButton}
                                     </IconButton>
                                 </Box>
-        
                                 <ProgressControl />
-        
                             </Box>
                         </Box>
-        
                         <Box display="flex" sx={{ marginLeft: "auto", marginRight: "12px", marginTop:"auto", marginBottom: "auto"}}>
                             <IconButton sx={{ paddingRight: "4px" }} onClick={() => { app.screen.setCurrentView("lyricsView"); }}>
                                 <MusicNoteIcon />
                             </IconButton>
-                            
                             <IconButton sx={{ paddingRight: "4px" }} onClick={() => { app.screen.setCurrentView("songQueue") }}>
                                 <QueueMusicIcon />
                             </IconButton>
-                            
                             <IconButton onClick={handleVolumeButton} sx={{ marginRight: "6px" }}>
                                 {volumeIcon}
                             </IconButton>
-        
                             <Slider 
                                 size="small" 
                                 min={0} 
@@ -377,21 +355,19 @@ export const PlayerBar: React.FC = () => {
                                 sx={{ width: "100px", padding: "18px 0", marginRight: "12px" }}
                             />
                             <Input
-                            value={volume}
-                            size="small"
-                            onChange={handleVolumeInput}
-                            inputProps={{
-                                step: 10,
-                                min: 0,
-                                max: 100,
-                                type: 'number'
-                            }}
-                            sx={{ marginTop: "auto", marginBottom: "auto", width: "48px", height: "28px", textAlign: "center" }}
+                                value={volume}
+                                size="small"
+                                onChange={handleVolumeInput}
+                                inputProps={{
+                                    step: 10,
+                                    min: 0,
+                                    max: 100,
+                                    type: 'number'
+                                }}
+                                sx={{ marginTop: "auto", marginBottom: "auto", width: "48px", height: "28px", textAlign: "center" }}
                             />
                         </Box>
-        
                     </Box>
-
                     <Button sx={{
                         position: "absolute", right: "-1px", top: "-36px", backgroundColor: "rgba(0, 0, 0, 0.35)",
                         border: "1px solid rgba(255, 255, 255, 0.175)", borderBottom: "0px"
@@ -402,7 +378,6 @@ export const PlayerBar: React.FC = () => {
                     </Button>
                 </Box>
             </Slide>
-            
             {!playerBarShown &&
                 <Button sx={{
                     position: "fixed", right: "12px", bottom: "0px", backgroundColor: "rgba(0, 0, 0, 0.35)",

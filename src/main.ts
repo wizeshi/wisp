@@ -1,17 +1,21 @@
 import path from 'node:path';
 import { createServer, Server } from 'node:http';
 import dns from 'dns';
-import { app, BrowserWindow, ipcMain, shell, protocol, net } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, protocol, net, dialog, session } from 'electron';
 import started from 'electron-squirrel-startup';
-import { getSpotifyAccess, getSpotifyArtistDetails, getSpotifyArtistInfo, getSpotifyListDetails, getSpotifyUserDetails, getSpotifyUserHome, getSpotifyUserInfo, isSpotifyLoggedIn, loadSpotifyUserLists, saveSpotifyCredentials, spotifySearch } from './backend/sources/Spotify'
-import { downloadYoutubeAudio, getYoutubeAccess, isYoutubeLoggedIn, saveYoutubeCredentials, searchYoutube } from './backend/sources/Youtube';
+import { spotifyExtractor } from './backend/sources/Spotify';
+import { youtubeExtractor } from './backend/sources/Youtube';
+import * as Common from './backend/sources/Common';
 import { ytDlpManager } from './backend/utils/YtDlpManager';
 import { loadSettings, saveSettings } from './backend/Settings';
 import { loadData, saveData } from './backend/Data';
 import { deleteCredentials, hasCredentials, loadCredentials, saveCredentials, validateCredentials } from './backend/Credentials';
-import { APICredentials, LyricsProviders, UserData, UserSettings } from './backend/utils/types';
-import { SidebarListType } from './frontend/types/SongTypes';
+import { APICredentials, UserData, UserSettings } from './backend/utils/types';
+import { GenericSong, GenericPlaylist, GenericAlbum, SidebarListType, SongSources } from './common/types/SongTypes';
 import { getLyrics } from './backend/lyrics/Common';
+import { LyricsSources } from './common/types/LyricsTypes';
+import { queryCache } from './backend/QueryCache';
+import { localManager } from './backend/LocalManager';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -33,7 +37,7 @@ if (process.defaultApp) {
     app.setAsDefaultProtocolClient('wisp-login')
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     protocol.handle('wisp-audio', async request => {
         const requestUrl = request.url.replace('wisp-audio://', '')
         const filePath = `file:///${requestUrl.charAt(0) + ':' + requestUrl.slice(1)}`;
@@ -63,6 +67,8 @@ app.whenReady().then(() => {
             path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
         );
     }
+
+    await session.defaultSession.extensions.loadExtension("C:/Users/wizeshi/AppData/Local/Google/Chrome/User Data/Default/Extensions/fmkadmapgofadopljbjfkapdkoienihi/7.0.0_0")
 
     ipcMain.on("login:youtube-login", async () => {
         try {
@@ -100,11 +106,11 @@ app.whenReady().then(() => {
                     res.writeHead(200, { 'Content-Type': 'text/html' })
                     res.end('<h1>Success! You can close this window.</h1><script>window.close()</script>')
                     
-                    getYoutubeAccess(code).then((access) => {
-                        saveYoutubeCredentials(access)
+                    youtubeExtractor.getAccess(code).then(async (access) => {
+                        await youtubeExtractor.saveTokens(access)
 
                         mainWindow.webContents.send('login:youtube-success')
-                    }).catch((err) => {
+                    }).catch((err: Error) => {
                         console.error('Failed to get YouTube access:', err)
                         mainWindow.webContents.send('login:youtube-error', err.message)
                     })
@@ -202,22 +208,22 @@ function handleOAuthCallback(url: string) {
     if (mainWindow && code) {
         switch (state) {
             case "spotify":
-                getSpotifyAccess(code).then((access) => {                    
-                    saveSpotifyCredentials(access)
+                spotifyExtractor.getAccess(code).then(async (access) => {                    
+                    await spotifyExtractor.saveTokens(access)
 
                     mainWindow.webContents.send('login:spotify-success')
-                }).catch((err) => {
+                }).catch((err: Error) => {
                     console.error('Failed to get Spotify access:', err)
                     mainWindow.webContents.send('login:spotify-error', err.message)
                 })
                 break
             case "youtube":
                 // This case probably won't happen since YouTube uses localhost, but keep bc why not
-                getYoutubeAccess(code).then((access) => {
-                    saveYoutubeCredentials(access)
+                youtubeExtractor.getAccess(code).then(async (access) => {
+                    await youtubeExtractor.saveTokens(access)
 
                     mainWindow.webContents.send('login:youtube-success')
-                }).catch((err) => {
+                }).catch((err: Error) => {
                     console.error('Failed to get YouTube access:', err)
                     mainWindow.webContents.send('login:youtube-error', err.message)
                 })
@@ -243,56 +249,110 @@ ipcMain.handle("window:close", () => {
     mainWindow.close()
 })
 
-ipcMain.handle("extractors:spotify-search", (_event, searchQuery: string) => {
-    return spotifySearch(searchQuery)
+ipcMain.handle("extractors:search", (_event, searchQuery: string, source?: SongSources) => {
+    return Common.search(searchQuery, source)
 })
 
-ipcMain.handle("extractors:spotify-user-lists", (_event, type: SidebarListType) => {
-    return loadSpotifyUserLists(type)
+ipcMain.handle("extractors:user-lists", (_event, type: SidebarListType, source?: SongSources) => {
+    return Common.getUserLists(type, source)
 })
 
-ipcMain.handle('extractors:spotify-user-info', (_event) => {
-    return getSpotifyUserInfo()
+ipcMain.handle('extractors:user-info', (_event, source?: SongSources) => {
+    return Common.getUserInfo(source)
 })
 
-ipcMain.handle('extractors:spotify-user-details', (_event, id: string) => {
-    return getSpotifyUserDetails(id)
+ipcMain.handle('extractors:user-details', (_event, id: string, source?: SongSources) => {
+    return Common.getUserDetails(id, source)
 })
 
-ipcMain.handle('extractors:spotify-list-info', (_event, type: "Album" | "Playlist", id) => {
-    return getSpotifyListDetails(type, id)
+ipcMain.handle('extractors:list-details', (_event, type: "Album" | "Playlist" | "Artist", id: string, source?: SongSources) => {
+    return Common.getListDetails(type, id, source)
 })
 
-ipcMain.handle('extractors:spotify-artist-info', (_event, id) => {
-    return getSpotifyArtistInfo(id)
+ipcMain.handle('extractors:force-refresh-list', (_event, type: "Album" | "Playlist", id: string, source?: SongSources) => {
+    return Common.forceRefreshListDetails(type, id, source)
 })
 
-ipcMain.handle('extractors:spotify-artist-details', (_event, id) => {
-    return getSpotifyArtistDetails(id)
+ipcMain.handle('extractors:artist-info', (_event, id: string, source?: SongSources) => {
+    return Common.getArtistInfo(id, source)
 })
 
-ipcMain.handle('extractors:spotify-user-home', (_event) => {
-    return getSpotifyUserHome()
+ipcMain.handle('extractors:artist-details', (_event, id: string, source?: SongSources) => {
+    return Common.getArtistDetails(id, source)
 })
 
-ipcMain.handle("extractors:youtube-search", (_event, searchQuery) => {
-    return searchYoutube(searchQuery)
+ipcMain.handle('extractors:user-home', (_event, source?: SongSources) => {
+    return Common.getUserHome(source)
 })
 
-ipcMain.handle("extractors:youtube-download", (_event, type, searchQuery) => {
-    return downloadYoutubeAudio(type, searchQuery)
+ipcMain.handle("extractors:youtube-download", (_event, type: "url" | "terms", searchQuery: string) => {
+    return youtubeExtractor.downloadAudio(type, searchQuery)
 })
 
-ipcMain.handle("login:spotify-logged-in", () => {
-	return isSpotifyLoggedIn()
+ipcMain.handle("extractors:saved-songs", (_event, source?: SongSources, offset?: number) => {
+    return Common.getSavedSongs(source, offset)
 })
 
-ipcMain.handle("login:youtube-logged-in", () => {
-    return isYoutubeLoggedIn()
+ipcMain.handle("login:is-logged-in", (_event, source: SongSources) => {
+    const extractor = Common.getSourceExtractor(source)
+    return extractor.isLoggedIn()
 })
 
-ipcMain.handle("extractors:lyrics-get", (event, source: LyricsProviders, id: string) => {
-    return getLyrics(source, id)
+ipcMain.handle("extractors:lyrics-get", (event, song: GenericSong, source?: LyricsSources) => {
+    return getLyrics(song, source)
+})
+
+// Local file management handlers
+ipcMain.handle('local:select-audio-files', async () => {
+    if (!mainWindow) {
+        return []
+    }
+    
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+            { name: 'Audio Files', extensions: ['mp3', 'flac', 'm4a', 'ogg', 'wav', 'aac', 'opus', 'wma'] }
+        ]
+    }) as unknown as { canceled: boolean; filePaths: string[] }
+    
+    return result.canceled ? [] : result.filePaths
+})
+
+ipcMain.handle('local:import-audio-file', async (_event, filePath: string) => {
+    return await localManager.importLocalAudioFileWithMetadata(filePath)
+})
+
+ipcMain.handle('local:import-audio-files', async (_event, filePaths: string[]) => {
+    const songs = []
+    for (const filePath of filePaths) {
+        try {
+            const song = await localManager.importLocalAudioFileWithMetadata(filePath)
+            songs.push(song)
+        } catch (error) {
+            console.error(`Failed to import ${filePath}:`, error)
+        }
+    }
+    return songs
+})
+
+ipcMain.handle('local:get-audio-path', async (_event, songId: string) => {
+    return await localManager.getLocalAudioPath(songId)
+})
+
+ipcMain.handle('local:delete-song', async (_event, songId: string) => {
+    return await localManager.deleteLocalSong(songId)
+})
+
+ipcMain.handle('local:get-all-songs', async () => {
+    return await localManager.getAllLocalSongs()
+})
+
+ipcMain.handle('local:save-playlist', async (_event, playlist: GenericPlaylist) => {
+    return await localManager.savePlaylist(playlist)
+})
+
+ipcMain.handle('local:save-album', async (_event, album: GenericAlbum) => {
+    return await localManager.saveAlbum(album)
 })
 
 ipcMain.handle("system:check-internet-connection", () => {
@@ -364,4 +424,29 @@ ipcMain.handle("ytdlp:ensure-ffmpeg", async () => {
 
 ipcMain.handle("ytdlp:ensure-both", async () => {
     return await ytDlpManager.ensureBoth()
+})
+
+// Query cache handlers
+ipcMain.handle("query-cache:get", async (event, searchTerms: string) => {
+    return await queryCache.get(searchTerms)
+})
+
+ipcMain.handle("query-cache:set", async (event, searchTerms: string, youtubeId: string) => {
+    return await queryCache.set(searchTerms, youtubeId)
+})
+
+ipcMain.handle("query-cache:has", async (event, searchTerms: string) => {
+    return await queryCache.has(searchTerms)
+})
+
+ipcMain.handle("query-cache:delete", async (event, searchTerms: string) => {
+    return await queryCache.delete(searchTerms)
+})
+
+ipcMain.handle("query-cache:clear", async () => {
+    return await queryCache.clear()
+})
+
+ipcMain.handle("query-cache:stats", async () => {
+    return await queryCache.getStats()
 })

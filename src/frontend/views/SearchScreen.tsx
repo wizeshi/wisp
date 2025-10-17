@@ -6,17 +6,18 @@ import Divider from "@mui/material/Divider"
 import Avatar from "@mui/material/Avatar"
 import Link from "@mui/material/Link"
 import ExplicitIcon from "@mui/icons-material/Explicit"
-import { DotRowSeparator } from "../components/DotRowSeparator"
 import List from "@mui/material/List"
 import ListItemButton from "@mui/material/ListItemButton"
-import { Album, Artist, BaseSongList, Playlist, SimpleArtist, Song } from "../types/SongTypes"
-import { getListType, getServiceIcon, spotifySimpleArtistToSimpleArtist, spotifyTrackToSong } from "../utils/Helpers"
+import { GenericAlbum, GenericArtist, GenericPlaylist, GenericSimpleArtist, GenericSong, SongSources, SongSourcesList } from "../../common/types/SongTypes"
+import { getServiceIcon, isPlaylist, isSimpleAlbum, isSimpleArtist } from "../utils/Helpers"
 import Fab from "@mui/material/Fab"
 import PlayArrow from "@mui/icons-material/PlayArrow"
 import { useAppContext } from "../providers/AppContext"
 import Stack from "@mui/material/Stack"
-import { ItemTypes, SearchResults } from "@spotify/web-api-ts-sdk"
 import { secondsToSecAndMin } from "../utils/Utils"
+import { GenericSearch } from "../../common/types/SourcesTypes"
+import Skeleton from "@mui/material/Skeleton"
+import { usePlayer } from "../providers/PlayerContext"
 
 type playAreas = "MainResult" | "SuggestedArea" | "LowerFirstArea" | "LowerSecondArea" | "LowerThirdArea"
 
@@ -33,9 +34,11 @@ const convertThreeAreasToTypeArea = (index: number) => {
 
 export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery }) => {
     const [ playSongButtonShowing, setPlaySongButtonShowing ] = useState<Map<playAreas, Map<number, boolean>>>(new Map())
-    const { app, music } = useAppContext()
-    const [ searchResults, setSearchResults ] = useState<SearchResults<readonly ItemTypes[]>>(undefined)
+    const { app } = useAppContext()
+    const player = usePlayer()
+    const [ searchResults, setSearchResults ] = useState<GenericSearch | undefined>(undefined)
     const [ debouncedQuery, setDebouncedQuery ] = useState(searchQuery)
+    const [ provider, setProvider ] = useState<SongSources | null>(null)
     const [ loading, setLoading ] = useState(true)
 
     useEffect(() => {
@@ -47,13 +50,14 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
         if (!debouncedQuery) return;
         const fetchResults = async () => {
             setLoading(true)
-            const results = await window.electronAPI.extractors.spotify.search(searchQuery)
-            console.log(results)
+            const results = await window.electronAPI.extractors.search(searchQuery, provider)
             setSearchResults(results)
             setLoading(false)
+            console.log(results)
         }
         fetchResults()
-    }, [debouncedQuery])
+
+    }, [debouncedQuery, provider])
 
     const isPlayButtonShowing = (area: playAreas, index: number) => {
         if (!playSongButtonShowing.get(area)) return false
@@ -65,15 +69,13 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
         setPlaySongButtonShowing(new Map().set(area, new Map().set(index, true)))
     }
 
-    const handlePlay = (song: Song) => {
-        const songInQueueIndex = music.player.queue.findIndex(queueSong => queueSong === song)
+    const handlePlay = (song: GenericSong) => {
+        const songInQueueIndex = player.queue.findIndex(queueSong => queueSong === song)
         if (songInQueueIndex !== -1) {
-            // Song already in queue, just play it
-            music.player.goToIndex(songInQueueIndex)
+            player.goToIndex(songInQueueIndex)
         } else {
-            // Add song to queue and play it
-            const newIndex = music.player.addToQueue(song)
-            music.player.goToIndex(newIndex)
+            const newIndex = player.addToQueue(song)
+            player.goToIndex(newIndex)
         }
     }
 
@@ -94,13 +96,23 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
     }
 
     if (!loading && searchResults) {
-        const mainResult = searchResults.tracks.items[0]
+        const mainResult = searchResults.songs[0]
 
-        const songsToDisplay = searchResults.tracks.items.slice(1, 9)
+        const songsToDisplay = searchResults.songs.slice(1, 9)
 
         return (
             <Box display="flex" sx={{ maxWidth: `calc(100% - calc(calc(7 * var(--mui-spacing, 8px)) + 1px))`, maxHeight: "inherit", flexGrow: 1, flexDirection: "column", padding: "24px" }}>
-                <Typography variant="h6"> Search Results | { searchQuery }</Typography>
+                <Box display="flex" flexDirection="row">
+                    <Typography variant="h6"> Search Results | { searchQuery }</Typography>
+                    
+                    <Box display="flex" sx={{ marginLeft: "auto", gap: "12px" }}>
+                        {SongSourcesList.map((source, index) => (
+                                <ButtonBase key={index} sx={{ borderRadius: "50%"}} onClick={() => setProvider(source)}>
+                                    {getServiceIcon(source, { width: "36px", height: "36px" })}
+                                </ButtonBase>
+                        ))}
+                    </Box>
+                </Box>
 
                 <Divider variant="fullWidth" sx={{ margin: "12px 0 12px 0" }} />
 
@@ -114,17 +126,17 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                             position:"sticky", cursor: "pointer" }}
                         onMouseEnter={handleMouseEnterMainResult} onMouseLeave={handleMouseLeaveMainResult} 
                         onClick={() => {
-                            app.screen.setShownThing({ id: mainResult.album.id, type: "Album" })
+                            app.screen.setShownThing({ id: mainResult.id, type: "Album" })
                             app.screen.setCurrentView("listView")
                         }}
                         >
-                            <Avatar src={mainResult.album.images[0].url} variant="rounded" sx={{ width: "95%", aspectRatio: "1 / 1", height: "auto", margin: "0 auto 0 auto" }} />
+                            <Avatar src={mainResult.thumbnailURL} variant="rounded" sx={{ width: "95%", aspectRatio: "1 / 1", height: "auto", margin: "0 auto 0 auto" }} />
                             
                             <Box>
                                 <Box display="flex" flexDirection="row" sx={{ alignSelf: "flex-start", width: "stretch" }}>
                                     <Link href="" variant="h4" color="textPrimary" underline="hover" 
                                     sx={{ padding: "8px 8px 0 8px", overflow: "hidden", textWrap: "nowrap"
-                                    }} textOverflow="ellipsis"> { mainResult.name } </Link>
+                                    }} textOverflow="ellipsis"> { mainResult.title } </Link>
 
                                 </Box>
                                 <Box display="flex" flexDirection="row" sx={{ alignSelf: "flex-start", margin: "auto 0 auto 0", width: "stretch", textOverflow: "ellipsis", overflowX: "hidden" }}>
@@ -134,27 +146,19 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                                     }
 
                                     {mainResult.artists.map((artist, index) => (
-                                        <React.Fragment>
+                                        <React.Fragment key={index}>
                                             <Link href="" variant="h5" color="textSecondary" underline="hover" textOverflow="ellipsis"
                                             sx={{ padding: "0px 8px 8px 8px", alignSelf: "flex-start", textWrap: "nowrap" }}> { artist.name } </Link>
                                             {index < mainResult.artists.length - 1 && <Typography variant="h5" color="textSecondary">,&nbsp;</Typography>}
                                         </React.Fragment>
                                     ))}
-
-
-                                    {(mainResult instanceof BaseSongList) && (
-                                        <React.Fragment>
-                                            <DotRowSeparator sx={{ paddingLeft: "0px" }}/>
-                                            <Typography variant="h6"> { getListType(mainResult) } </Typography>
-                                        </React.Fragment>
-                                    )}
                                 </Box>
                             </Box>
                             
                             {isPlayButtonShowing("MainResult", 1) &&
                                 <>
                                     <Box sx={{ position: "absolute", right: "12px", bottom: "12px" }}>
-                                        <Fab size="medium" color="success" onClick={() => { handlePlay(spotifyTrackToSong(mainResult)) }}>
+                                        <Fab size="medium" color="success" onClick={() => { handlePlay(mainResult) }}>
                                             <PlayArrow />
                                         </Fab>
                                     </Box>
@@ -173,7 +177,7 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                         sx={{ marginTop: "8px", borderRadius: "12px", border: "1px solid rgba(255, 255, 255, 0.15)" }}>
                             {songsToDisplay.map((song, index) => (
                             <ListItemButton
-                                onDoubleClick={() => { handlePlay(spotifyTrackToSong(song)) } }
+                                onDoubleClick={() => { handlePlay(song) } }
                                 sx={{
                                 display: "grid",
                                 gridTemplateColumns: "3em 70fr 1fr",
@@ -184,7 +188,7 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                                 <Box sx={{ width: "40px", height: "40px", display: "flex", position: "relative" }}
                                     onMouseEnter={() => handleMouseEnterSearchedSong(index + 1)}
                                     onMouseLeave={handleMouseLeaveSearchedSong}>
-                                    <Avatar variant="rounded" src={song.album.images[0].url}
+                                    <Avatar variant="rounded" src={song.thumbnailURL}
                                         sx={{ width: "40px", height: "40px" }}>
                                     </Avatar>
                                     {isPlayButtonShowing("SuggestedArea", index + 1) &&
@@ -192,7 +196,7 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                                             <ButtonBase sx={{ width: "inherit", height: "inherit", position: "absolute", top: "0px", left: "0px", borderRadius: "4px",
                                             backgroundColor: "rgba(0, 0, 0, 0.6)"}} 
                                             onClick={(event) => { 
-                                                handlePlay(spotifyTrackToSong(song)); event.stopPropagation() 
+                                                handlePlay(song); event.stopPropagation() 
                                             }}>
                                                 <PlayArrow />
                                             </ButtonBase>
@@ -200,7 +204,7 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                                     }
                                 </Box>
                                 <Box>
-                                    <Typography variant="body1">{song.name}</Typography>
+                                    <Typography variant="body1">{song.title}</Typography>
                                     <Box display="flex" flexDirection="row">
                                         {song.explicit && (
                                             <ExplicitIcon color="disabled" />
@@ -217,9 +221,9 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
                                     </Box>
                                 </Box>
                                 <Box display="flex">
-                                    <Typography variant="body2" sx={{ textAlign: "right", marginRight: "12px", alignSelf: "center" }}>{secondsToSecAndMin(song.duration_ms / 1000)}</Typography>
+                                    <Typography variant="body2" sx={{ textAlign: "right", marginRight: "12px", alignSelf: "center" }}>{secondsToSecAndMin(song.durationSecs)}</Typography>
                                     <Box display="flex" justifyContent="center">
-                                        {getServiceIcon("spotify")}
+                                        {getServiceIcon(song.source, { width: "24px", height: "24px", alignSelf: "center" })}
                                     </Box>
                                 </Box>
                             </ListItemButton>  
@@ -232,37 +236,31 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
 
                 <Box display="grid" gridTemplateColumns="32.3% 1.5% 32.3% 1.5% 32.3%">
                     {['Albums', 'Playlists', 'Artists'].map((item, index, array) => {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        let listItems: any[] = []
+                        let listItems: GenericAlbum[] | GenericPlaylist[] | GenericArtist[] = []
 
                         switch (item) {
                             case "Albums":
-                                listItems = searchResults.albums.items.map((oldAlbum) => {
-                                    const tempArtists = oldAlbum.artists.map((oldArtist) => {
-                                        return spotifySimpleArtistToSimpleArtist(oldArtist)
-                                    })
-
-                                    return new Album(oldAlbum.name, tempArtists, "", new Date(oldAlbum.release_date), true, [], oldAlbum.images[0].url, oldAlbum.id)
-                                })
+                                if (!searchResults.albums) {
+                                    return <></>
+                                }
+                                listItems = searchResults.albums
                                 break
-                            case "Playlists": {
-                                searchResults.playlists.items.forEach((playlist, index, array) => {
-                                    if (!playlist || playlist == null) { return }
-                                    else listItems.push(new Playlist(playlist.name, playlist.owner.display_name, [], playlist.images[0].url, playlist.id))
-                                })
-
+                            case "Playlists":
+                                if (!searchResults.playlists) {
+                                    return <></>
+                                }
+                                listItems = searchResults.playlists
                                 break
-                            }
                             case "Artists":
-                                listItems = searchResults.artists.items.map((oldArtists) => {
-                                    return new SimpleArtist(oldArtists.id, oldArtists.name, oldArtists.images.length != 0 ? oldArtists.images[0].url : "")
-                                })
-
+                                if (!searchResults.artists) {
+                                    return <></>
+                                }
+                                listItems = searchResults.artists
                                 break
                         }
 
                         return (
-                        <React.Fragment>
+                        <React.Fragment key={index}>
                             <ListSlider title={item} listItems={listItems}
                             isButtonShowing={(number: number) => isPlayButtonShowing(convertThreeAreasToTypeArea(index + 1), number)}
                             setButtonShowing={(number: number) => setPlayButtonShowing(convertThreeAreasToTypeArea(index + 1), number)}/>
@@ -280,7 +278,7 @@ export const SearchScreen: React.FC<{ searchQuery: string }> = ({ searchQuery })
 const ListSlider: 
     React.FC<{ 
         title: string, 
-        listItems: Array<Album> | Array<Artist> | Array<Playlist>, 
+        listItems: Array<GenericAlbum> | Array<GenericArtist> | Array<GenericPlaylist>, 
         isButtonShowing: (index: number) => boolean, 
         setButtonShowing: (index: number) => void
     }> 
@@ -295,14 +293,18 @@ const ListSlider:
         setButtonShowing(0)
     }
 
-    const handleItemClick = (item: Album | Artist | Playlist) => {
-        if (item instanceof Album) {
+    const handleItemClick = (item: GenericAlbum | GenericArtist | GenericPlaylist) => {
+        // Check by properties instead of instanceof since objects come from IPC
+        if (isSimpleAlbum(item)) {
+            // It's a GenericAlbum
             app.screen.setShownThing({ id: item.id, type: "Album" })
             app.screen.setCurrentView("listView")
-        } else if (item instanceof Playlist) {
+        } else if (isPlaylist(item)) {
+            // It's a GenericPlaylist
             app.screen.setShownThing({ id: item.id, type: "Playlist" })
             app.screen.setCurrentView("listView")
-        } else if (item instanceof Artist) {
+        } else if (isSimpleArtist(item)) {
+            // It's a GenericArtist
             app.screen.setShownThing({ id: item.id, type: "Artist" })
             app.screen.setCurrentView("artistView")
         }
@@ -316,22 +318,31 @@ const ListSlider:
                 <Stack direction="row" sx={{
                     overflowX: "scroll"
                 }}>
-                    {listItems.map((listItem, index) => {
-                        let itemName
-                        let itemArtists
+                    {!listItems ? 
+                        <Skeleton />
+                :   listItems.map((listItem, index) => {
+                        let itemName: string
+                        let itemArtists: GenericSimpleArtist[]
                         let itemExplicit
                         const itemIcon = listItem.thumbnailURL
-                        if (listItem instanceof Album) {
+                        // Check by properties instead of instanceof since objects come from IPC
+                        if (isSimpleAlbum(listItem)) {
+                            // It's a GenericAlbum
                             itemName = listItem.title 
                             itemArtists = listItem.artists
                             itemExplicit = listItem.explicit 
                         }
-                        if (listItem instanceof Artist) {
+                        if (isSimpleArtist(listItem)) {
                             itemName = listItem.name
                         }
-                        if (listItem instanceof Playlist) {
+                        if (isPlaylist(listItem)) {
                             itemName = listItem.title
-                            itemArtists = [ { name: listItem.author, thumbnailURL: "" } ]
+                            itemArtists = [{
+                                name: listItem.author.displayName,
+                                id: listItem.author.id,
+                                source: listItem.author.source,
+                                thumbnailURL: listItem.author.avatarURL,
+                            }]
                         }
 
 
@@ -347,22 +358,23 @@ const ListSlider:
                                             <Typography variant="h5">{ itemName }</Typography>
 
                                             <Box sx={{ display: "flex", flexDirection: "row" }}>
-                                                {itemArtists?.map((artist, index) => (
-                                                    <React.Fragment>
+                                                {Array.isArray(itemArtists) ? itemArtists?.map((artist: { name: string }, artistIndex: number) => (
+                                                    <React.Fragment key={artistIndex}>
                                                         <Link href="" variant="h5" color="textSecondary" underline="hover" textOverflow="ellipsis"
                                                         sx={{ padding: "0px 8px 8px 8px", alignSelf: "flex-start", overflow: "hidden" }}> { artist.name } </Link>
-                                                        {index < itemArtists.length - 1 && <Typography variant="h5" color="textSecondary">,&nbsp;</Typography>}
+                                                        {artistIndex < itemArtists.length - 1 && <Typography variant="h5" color="textSecondary">,&nbsp;</Typography>}
                                                     </React.Fragment>
-                                                    ))
-                                                }
+                                                    )
+                                                ) : <Typography variant="h5" color="textSecondary">Artist</Typography>}
                                             </Box>
                                         </Box>
                                     </Box>
 
                                     {isButtonShowing(index + 1) &&
-                                            <Fab size="small" color="success" sx={{ position: "absolute", right: "0px", bottom: "0px" }}>
-                                                <PlayArrow />
-                                            </Fab> }
+                                        <Fab size="small" color="success" sx={{ position: "absolute", right: "0px", bottom: "0px" }}>
+                                            <PlayArrow />
+                                        </Fab>
+                                    }
                                 </Box>
                             </ButtonWrapper>
                         )

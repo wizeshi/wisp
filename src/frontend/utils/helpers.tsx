@@ -1,192 +1,83 @@
 import YouTubeIcon from '@mui/icons-material/YouTube';
-import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import CloudIcon from '@mui/icons-material/Cloud';
-import { Album, Artist, BaseSongList, Playlist, SimpleAlbum, SimpleArtist, Song, Sources, spotifyArtistDetails } from '../types/SongTypes';
-import { SimplifiedArtist,
-    Artist as SpotifyArtist,
-    SimplifiedAlbum as SpotifySimplifiedAlbum,
-    Track as SpotifyTrack,
-    TrackItem as SpotifyTrackItem,
-    Playlist as SpotifyPlaylist,
-    Album as SpotifyAlbum,
-    SimplifiedTrack,
-} from '@spotify/web-api-ts-sdk';
+import LanIcon from '@mui/icons-material/Lan';
+import { GenericAlbum, GenericSimpleArtist, GenericPlaylist, SongSources, GenericSimpleAlbum, GenericArtist, GenericSong } from '../../common/types/SongTypes';
+import Avatar from '@mui/material/Avatar';
+import { SxProps } from '@mui/material';
+import { Theme } from '@mui/material/styles';
 
 
-export const getServiceIcon = (service: Sources) => {
-    let serviceIcon
-
+export const getServiceIcon = (service: SongSources, style?: SxProps<Theme>) => {
     switch (service) {
         default:
+        case 'local':
+            return (
+                <Avatar sx={{...style, bgcolor: "transparent"}}>
+                    <LanIcon sx={{ color: "#1976d2" }}/>
+                </Avatar>
+            )
         case "youtube":
-            serviceIcon = <YouTubeIcon />
-            break
+            return (
+                <Avatar sx={{...style, bgcolor: "transparent"}}>
+                    <YouTubeIcon sx={{ color: "#FF0033" }}/>
+                </Avatar>
+            )
         case "spotify":
-            serviceIcon = <GraphicEqIcon />
-            break
+            return (
+                <Avatar sx={style} src="https://storage.googleapis.com/pr-newsroom-wp/1/2023/05/Spotify_Primary_Logo_RGB_Green.png" alt="Spotify Logo"/>
+            )
         case "soundcloud":
-            serviceIcon = <CloudIcon />
-            break
+            return (
+                <Avatar sx={style}>
+                    <CloudIcon />
+                </Avatar>
+            )
     }
-
-    return serviceIcon   
 }
 
-export const getListType = (list: Album | Playlist | BaseSongList)  => {
-    let listType = ""
-    
-    if (list instanceof Album) {
-        listType = "Album"
-    }
-    if (list instanceof Playlist) {
-        listType = "Playlist"
-    }
-
-    return listType
-}
-
-/* export function spotifySimpleArtistToArtist(spotifyArtist: SimplifiedArtist) {
-    return new Artist(
-        spotifyArtist.name,
-        ""
-    )
-} */
-
-export function spotifySimpleArtistToSimpleArtist(spotifyArtist: SimplifiedArtist) {
-    return new SimpleArtist(
-        spotifyArtist.id,
-        spotifyArtist.name,
-        ""
+export const isSong = (item: unknown): item is GenericSong => {
+    return (
+        item instanceof GenericSong ||
+        (typeof item === 'object' && item !== null && 'title' in item && 'artists' in item && 'durationSecs' in item)
     )
 }
 
-export function spotifyArtistToArtist(spotifyArtist: spotifyArtistDetails) {
-    let imageUrl = ""
-    if (spotifyArtist.info.images) {
-        imageUrl = spotifyArtist.info.images[0].url
-    }
-
-    const albums = spotifyArtist.albums.map((album) => {
-        return spotifySimpleAlbumToSimpleAlbum(album)
-    })
-
-    const topSongs = spotifyArtist.topTracks.tracks.map((track) => {
-        return spotifyTrackToSong(track)
-    })
-    
-    return new Artist(
-        spotifyArtist.info.id,
-        spotifyArtist.info.name,
-        imageUrl,
-        spotifyArtist.info.followers.total,
-        topSongs,
-        albums,
+// Type guard for GenericSimpleAlbum - has artists, releaseDate, label but NO songs
+export const isSimpleAlbum = (item: unknown): item is GenericSimpleAlbum => {
+    return (
+        item instanceof GenericSimpleAlbum ||
+        (typeof item === 'object' && item !== null && 'artists' in item && 'releaseDate' in item && 'label' in item && !('songs' in item))
     )
 }
 
-export function spotifyArtistToSimpleArtist(spotifyArtist: SpotifyArtist) {
-    let imageUrl = ""
-    if (spotifyArtist.images) {
-        imageUrl = spotifyArtist.images[0].url
-    }
-    
-    return new SimpleArtist(
-        spotifyArtist.id,
-        spotifyArtist.name,
-        imageUrl
+// Type guard for GenericAlbum - extends GenericSimpleAlbum but also has songs and explicit
+export const isAlbum = (item: unknown): item is GenericAlbum => {
+    return (
+        item instanceof GenericAlbum ||
+        (typeof item === 'object' && item !== null && 'artists' in item && 'explicit' in item && 'releaseDate' in item && 'label' in item && 'songs' in item && 'title' in item)
     )
 }
 
-export function spotifyTrackToSong(spotifyTrack: SpotifyTrack): Song {
-    const artists: SimpleArtist[] = []
-    spotifyTrack.artists.forEach((artist) => {
-        artists.push(spotifySimpleArtistToSimpleArtist(artist))
-    })
-    
-    return new Song(
-        spotifyTrack.name,
-        artists,
-        spotifyTrack.explicit,
-        spotifyTrack.duration_ms / 1000,
-        "spotify",
-        spotifyTrack.album.images.length != 0 ? spotifyTrack.album.images[0].url : "",
-        spotifyTrack.id
+// Type guard for GenericPlaylist - has author and songs
+export const isPlaylist = (item: unknown): item is GenericPlaylist => {
+    return (
+        item instanceof GenericPlaylist ||
+        (typeof item === 'object' && item !== null && 'author' in item && 'songs' in item && 'title' in item)
     )
 }
 
-export function spotifySimpleTrackToSong(simpleTrack: SimplifiedTrack, thumbnailURL: string): Song {
-    const artists: SimpleArtist[] = []
-    simpleTrack.artists.forEach((artist) => {
-        artists.push(spotifySimpleArtistToSimpleArtist(artist))
-    })
-    
-    return new Song(
-        simpleTrack.name,
-        artists,
-        simpleTrack.explicit,
-        simpleTrack.duration_ms / 1000,
-        "spotify",
-        thumbnailURL,
-        simpleTrack.id
+// Type guard for GenericSimpleArtist - has name and thumbnailURL but NOT monthlyListeners/topSongs
+export const isSimpleArtist = (item: unknown): item is GenericSimpleArtist => {
+    return (
+        item instanceof GenericSimpleArtist ||
+        (typeof item === 'object' && item !== null && 'name' in item && 'thumbnailURL' in item && !('monthlyListeners' in item))
     )
 }
 
-const isSpotifyTrack = (item: SpotifyTrackItem): item is SpotifyTrack => {
-    return item.type === "track"
-}
-
-export function spotifyPlaylistToPlaylist(spotifyPlaylist: SpotifyPlaylist<SpotifyTrackItem>) {
-    const Songs: Song[] = []
-    spotifyPlaylist.tracks.items.forEach((track) => Songs.push(spotifyTrackToSong(
-        isSpotifyTrack(track.track) && track.track 
-    )))
-
-    return new Playlist(
-        spotifyPlaylist.name,
-        { 
-            name: spotifyPlaylist.owner.display_name,
-            id: spotifyPlaylist.owner.id
-        },
-        Songs,
-        spotifyPlaylist.images[0].url,
-        spotifyPlaylist.id,
-    )
-}
-
-export function spotifyAlbumToAlbum(spotifyAlbum: SpotifyAlbum) {
-    const Songs: Song[] = []
-    spotifyAlbum.tracks.items.forEach((track) => Songs.push(spotifySimpleTrackToSong(track, spotifyAlbum.images[0].url)))
-
-    const Artists: SimpleArtist[] = []
-    spotifyAlbum.artists.forEach((artist, index) => {
-        Artists.push(spotifyArtistToSimpleArtist(artist))
-    })
-
-
-    return new Album(
-        spotifyAlbum.name,
-        Artists,
-        spotifyAlbum.copyrights[0].text,
-        new Date(),
-        true,
-        Songs,
-        spotifyAlbum.images[0].url,
-        spotifyAlbum.id,
-    )
-}
-
-export function spotifySimpleAlbumToSimpleAlbum(spotifyAlbum: SpotifySimplifiedAlbum) {
-    const Artists: SimpleArtist[] = []
-    spotifyAlbum.artists.forEach((artist, index) => {
-        Artists.push(spotifySimpleArtistToSimpleArtist(artist))
-    })
-
-    return new SimpleAlbum(
-        spotifyAlbum.id,
-        spotifyAlbum.name,
-        spotifyAlbum.images[0].url,
-        Artists,
-        new Date(spotifyAlbum.release_date),
-        (spotifyAlbum.copyrights) ? spotifyAlbum.copyrights[0].text : ""
+// Type guard for GenericArtist - extends GenericSimpleArtist but also has monthlyListeners, topSongs, albums
+export const isArtist = (item: unknown): item is GenericArtist => {
+    return (
+        item instanceof GenericArtist ||
+        (typeof item === 'object' && item !== null && 'name' in item && 'thumbnailURL' in item && 'monthlyListeners' in item && 'topSongs' in item && 'albums' in item)
     )
 }

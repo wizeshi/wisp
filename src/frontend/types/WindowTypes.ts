@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Album, Artist, ItemTypes, Playlist, SavedAlbum, SearchResults, SimplifiedPlaylist, User, UserProfile } from "@spotify/web-api-ts-sdk";
-import { spotifyArtistDetails, youtubeSearchType } from "./SongTypes";
-import { APICredentials, LyricsProviders, SpotifyLyrics, UserData, UserSettings } from "../../backend/utils/types";
-import { SpotifyUserHome } from "../../backend/sources/Spotify";
+import { GenericAlbum, GenericArtist, GenericPlaylist, GenericSimpleArtist, GenericSimpleUser, GenericSong, GenericUser, SongSources } from "../../common/types/SongTypes";
+import { GenericSearch, GenericUserHome } from "../../common/types/SourcesTypes";
+import { APICredentials, UserData, UserSettings } from "../../backend/utils/types";
+import { GenericLyrics, LyricsSources } from "../../common/types/LyricsTypes";
 export {}
 
 declare global {
@@ -40,39 +40,51 @@ declare global {
                     login: () => void,
                     onSuccess: (callback: () => void) => void,
                     onError: (callback: (error: string) => void) => void,
-                    loggedIn: () => Promise<{ loggedIn: boolean, expired: boolean }>
                 },
                 youtube: {
                     login: () => void,
                     onSuccess: (callback: () => void) => void,
                     onError: (callback: (error: string) => void) => void,
-                    loggedIn: () => Promise<{ loggedIn: boolean, expired: boolean }>
-                }
+                },
+                isLoggedIn: (source: SongSources) => Promise<{ loggedIn: boolean, expired: boolean }>
             },
             extractors: {
-                getLyrics: (source: LyricsProviders, id: string) => Promise<SpotifyLyrics>, 
-                spotify: {
-                    search: (searchQuery: string) => Promise<SearchResults<readonly ItemTypes[]>>,
-                    getUserLists: {
-                        (type: "Playlists"): Promise<SimplifiedPlaylist[]>,
-                        (type: "Albums"): Promise<SavedAlbum[]>,
-                        (type: "Artists"): Promise<Artist[]>
-                    },
-                    getUserInfo: () => Promise<UserProfile>,
-                    getUserDetails: (id: string) => Promise<User>,
-                    getListInfo: {
-                        (type: "Playlist", id: string): Promise<Playlist>,
-                        (type: "Album", id: string): Promise<Album>,
-                    },
-                    getArtistDetails: (id: string) => Promise<spotifyArtistDetails>,
-                    getArtistInfo: (id: string) => Promise<Artist>,
-                    getUserHome: () => Promise<SpotifyUserHome>
-                },
+                getLyrics: (song: GenericSong, source?: LyricsSources) => Promise<GenericLyrics>,
+                search: (searchQuery: string, source?: SongSources) => Promise<GenericSearch>,
+                getUserLists: {
+                    (type: "Playlists", source?: SongSources): Promise<GenericPlaylist[]>;
+                    (type: "Albums", source?: SongSources): Promise<GenericAlbum[]>;
+                    (type: "Artists", source?: SongSources): Promise<GenericArtist[]>;
+                }
+                getUserInfo: (source?: SongSources) => Promise<GenericUser>,
+                getUserDetails: (id: string, source?: SongSources) => Promise<GenericSimpleUser>,
+                getListDetails: {
+                    (type: "Album", id: string, source?: SongSources): Promise<GenericAlbum>;
+                    (type: "Playlist", id: string, source?: SongSources): Promise<GenericPlaylist>;
+                    (type: "Artist", id: string, source?: SongSources): Promise<GenericArtist>;
+                }
+                forceRefreshList: {
+                    (type: "Album", id: string, source?: SongSources): Promise<GenericAlbum>;
+                    (type: "Playlist", id: string, source?: SongSources): Promise<GenericPlaylist>;
+                }
+                getArtistInfo: (id: string, source?: SongSources) => Promise<GenericSimpleArtist>,
+                getArtistDetails: (id: string, source?: SongSources) => Promise<GenericArtist>,
+                getUserHome: (source?: SongSources) => Promise<GenericUserHome>,
+                getUserLikes: (source?: SongSources, offset?: number) => Promise<GenericPlaylist>,
                 youtube: {
-                    search: (searchQuery: string) => Promise<youtubeSearchType>,
-                    downloadYoutubeAudio: (type: "url" | "terms", searchQuery: string) => Promise<{ downloaded: boolean, downloadPath?: string }>
+                    downloadAudio: (type: "url" | "terms", searchQuery: string) => Promise<{ downloaded: boolean, downloadPath?: string }>
                     onDownloadStatus: (callback: (status: { status: string, downloadId: string, searchTerms: string, downloadPath: string, message: string }) => void) => void
                 }
+            },
+            local: {
+                selectAudioFiles: () => Promise<string[]>,
+                importAudioFile: (filePath: string) => Promise<GenericSong>,
+                importAudioFiles: (filePaths: string[]) => Promise<GenericSong[]>,
+                getAudioPath: (songId: string) => Promise<string | null>,
+                deleteSong: (songId: string) => Promise<boolean>,
+                getAllSongs: () => Promise<GenericSong[]>,
+                savePlaylist: (playlist: GenericPlaylist) => Promise<boolean>,
+                saveAlbum: (album: GenericAlbum) => Promise<boolean>
             },
             ytdlp: {
                 ensure: () => Promise<string>,
@@ -81,6 +93,19 @@ declare global {
                 isAvailable: () => Promise<boolean>,
                 update: () => Promise<void>,
                 forceRedownload: () => Promise<string>
+            },
+            queryCache: {
+                get: (searchTerms: string) => Promise<string | undefined>,
+                set: (searchTerms: string, youtubeId: string) => Promise<void>,
+                has: (searchTerms: string) => Promise<boolean>,
+                delete: (searchTerms: string) => Promise<boolean>,
+                clear: () => Promise<void>,
+                getStats: () => Promise<{
+                    totalEntries: number;
+                    totalHits: number;
+                    oldestEntry: number | null;
+                    newestEntry: number | null;
+                }>
             }
         }
     }

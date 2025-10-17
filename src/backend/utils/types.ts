@@ -1,4 +1,4 @@
-import { LoopingEnum, Song } from "../../frontend/types/SongTypes"
+import { LoopingEnum, GenericSong } from "../../common/types/SongTypes"
 
 export type spotifyAccessType = {
     access_token: string,
@@ -32,7 +32,7 @@ export const LIST_PLAY_TYPES = ["Single", "Multiple"] as const
 export type ListPlayType = typeof LIST_PLAY_TYPES[number]
 
 export interface UserData {
-    lastPlayed: Song | undefined,
+    lastPlayed: GenericSong | undefined,
     preferredVolume: number,
     shuffled: boolean,
     looped: LoopingEnum,
@@ -50,37 +50,4 @@ export interface APICredentials {
     youtubeClientId: string
     youtubeClientSecret: string
     spotifyCookie: string
-}
-
-export type LyricsProviders = "Spotify" | "MusixMatch" | "Genius" | "LrcLib"
-
-export type SpotifyLyrics = {
-    lyrics: {
-        syncType: 'LINE_SYNCED' | 'LINE_UNSYNCED',
-        lines: SpotifyLyricsLine[],
-        provider: 'MusixMatch',
-        providerLyricsId: number,
-        providerDisplayName: 'Musixmatch',
-        syncLyricsUri: string,
-        isDenseTypeface: boolean,
-        alternatives: [],
-        langauge: string,
-        isRtlLanguage: boolean,
-        capStatus: string,
-        previewLines: []
-    },
-    colors: {
-        background: number,
-        text: number,
-        highlightText: number,
-    },
-    hasVocalRemoval: false
-}
-
-type SpotifyLyricsLine = {
-    startTimeMs: string,
-    words: string,
-    syllables: [],
-    endTimeMs: string,
-    transliteratedWords: string
 }

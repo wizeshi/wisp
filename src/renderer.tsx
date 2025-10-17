@@ -29,12 +29,23 @@
 import ReactDOM from "react-dom/client"
 import { App } from "./frontend/App";
 import { AppContextProvider } from "./frontend/providers/AppContext";
+import { ContextMenuProvider } from "./frontend/providers/ContextMenuProvider";
+import { theme } from "./frontend/utils/Theme";
+import { ThemeProvider } from "@mui/material/styles/"
 import './frontend/types/WindowTypes'
+import "@fontsource-variable/jetbrains-mono"
+import { PlayerProvider } from "./frontend/providers/PlayerContext";
 
 const root = ReactDOM.createRoot(document.getElementById("root"))
 
 root.render(
     <AppContextProvider>
-        <App />
+        <ThemeProvider theme={theme}>
+            <PlayerProvider>
+                <ContextMenuProvider>
+                    <App />
+                </ContextMenuProvider>
+            </PlayerProvider>
+        </ThemeProvider>
     </AppContextProvider>
 )

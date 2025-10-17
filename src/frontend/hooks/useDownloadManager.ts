@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Song } from "../types/SongTypes";
+import { GenericSong } from "../../common/types/SongTypes";
 
 export type DownloadStatus = {
     status: 'pending' | 'downloading' | 'done' | 'error';
@@ -10,7 +10,7 @@ export type DownloadStatus = {
 
 export type DownloadManager = {
     getDownloadStatus: (downloadId: string) => DownloadStatus | undefined;
-    requestDownload: (song: Song) => string;
+    requestDownload: (song: GenericSong) => string;
     isDownloading: (downloadId: string) => boolean;
     hasDownloaded: (downloadId: string) => boolean;
     getDownloadPath: (downloadId: string) => string | undefined;
@@ -28,7 +28,12 @@ export const useDownloadManager = (): DownloadManager => {
     const [statusVersion, setStatusVersion] = useState(0); // Track state changes
 
     // Generate consistent download ID from song metadata
-    const generateDownloadId = useCallback((song: Song): string => {
+    const generateDownloadId = useCallback((song: GenericSong): string => {
+        // For YouTube sources, use the video ID directly
+        if (song.source === 'youtube') {
+            return song.id;
+        }
+        // For other sources, use title - artists format
         const artists = song.artists.map(a => a.name).join(", ");
         return `${song.title} - ${artists}`;
     }, []);
@@ -68,8 +73,14 @@ export const useDownloadManager = (): DownloadManager => {
 
         console.log(`Starting download: ${nextDownloadId} (${activeDownloadsRef.current.size}/${MAX_CONCURRENT_DOWNLOADS} active)`);
         
-        // Request download from backend (backend will search and return video ID in status updates)
-        window.electronAPI.extractors.youtube.downloadYoutubeAudio("terms", nextDownloadId);
+        // Request download from backend
+        // If nextDownloadId looks like a YouTube video ID (11 chars, alphanumeric), use "url"
+        // Otherwise, it's a search term like "title - artists", use "terms"
+        const isYouTubeId = /^[a-zA-Z0-9_-]{11}$/.test(nextDownloadId);
+        const downloadType = isYouTubeId ? "url" : "terms";
+        
+        console.log(`Download type: ${downloadType} for ID: ${nextDownloadId}`);
+        window.electronAPI.extractors.youtube.downloadAudio(downloadType, nextDownloadId);
     }, [downloadQueue, downloadStatuses]);
 
     // Listen for download status updates from backend
@@ -122,7 +133,7 @@ export const useDownloadManager = (): DownloadManager => {
         }
     }, [downloadStatuses]);
 
-    const requestDownload = useCallback((song: Song): string => {
+    const requestDownload = useCallback((song: GenericSong): string => {
         const downloadId = generateDownloadId(song);
         
         // Check if already downloaded or in progress

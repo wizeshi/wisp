@@ -31,9 +31,23 @@ class DataManager {
         return () => this.listeners.delete(listener)
     }
 
+    private lastNotifiedData: UserData | null = null;
+    private shallowEqual(objA: UserData, objB: UserData) {
+        if (objA === objB) return true;
+        if (!objA || !objB) return false;
+        const keysA = Object.keys(objA);
+        const keysB = Object.keys(objB);
+        if (keysA.length !== keysB.length) return false;
+        for (const key of keysA) {
+            if (objA[key as keyof UserData] !== objB[key as keyof UserData]) return false;
+        }
+        return true;
+    }
+
     private notifyListeners() {
-        if (this.data) {
-            this.listeners.forEach(listener => listener(this.data))
+        if (this.data && !this.shallowEqual(this.data, this.lastNotifiedData as UserData)) {
+            this.listeners.forEach(listener => listener(this.data));
+            this.lastNotifiedData = { ...this.data };
         }
     }
 }

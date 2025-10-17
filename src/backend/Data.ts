@@ -2,7 +2,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { app } from "electron"
 import { UserData, UserSettings } from "./utils/types"
-import { LoopingEnum } from "../frontend/types/SongTypes"
+import { LoopingEnum } from "../common/types/SongTypes"
 
 const dataPath = path.join(app.getPath('userData'), 'userData.json')
 

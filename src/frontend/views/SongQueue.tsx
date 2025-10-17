@@ -2,7 +2,7 @@ import Box from "@mui/material/Box"
 import Divider from "@mui/material/Divider"
 import Typography from "@mui/material/Typography"
 import { useAppContext } from "../providers/AppContext"
-import { Song } from "../types/SongTypes"
+import { GenericSong } from "../../common/types/SongTypes"
 import Avatar from "@mui/material/Avatar"
 import Link from "@mui/material/Link"
 import React, { useState } from "react"
@@ -10,44 +10,45 @@ import ButtonBase from "@mui/material/ButtonBase"
 import PlayArrow from "@mui/icons-material/PlayArrow"
 import List from "@mui/material/List"
 import ListItemButton from "@mui/material/ListItemButton"
+import { usePlayer } from "../providers/PlayerContext"
 
 export const SongQueue: React.FC = () => {
-    const { music } = useAppContext();
+    const player = usePlayer()
     const [buttonShowingIndex, setButtonShowingIndex] = useState<number | null>(null)
 
     const isButtonShowing = (index: number) => buttonShowingIndex === index
 
     const handlePlay = (index: number) => {
-        music.player.goToIndex(index)
+        player.goToIndex(index)
     }
 
-    const currentSong = music.player.getCurrentSong()
-    const currentIndex = music.player.currentIndex
+    const currentSong = player.getCurrentSong()
+    const currentIndex = player.currentIndex
     
     // Calculate next up based on shuffle state
-    const nextUp: Song[] = []
+    const nextUp: GenericSong[] = []
     const nextUpIndices: number[] = []
     
-    if (music.player.shuffleEnabled && music.player.shuffleOrder.length > 0) {
+    if (player.shuffleEnabled && player.shuffleOrder.length > 0) {
         // Use shuffle order
-        const currentShuffleIndex = music.player.shuffleIndex
-        for (let i = 1; i < music.player.shuffleOrder.length; i++) {
-            const shuffleIdx = (currentShuffleIndex + i) % music.player.shuffleOrder.length
-            const actualIdx = music.player.shuffleOrder[shuffleIdx]
-            nextUp.push(music.player.queue[actualIdx])
+        const currentShuffleIndex = player.shuffleIndex
+        for (let i = 1; i < player.shuffleOrder.length; i++) {
+            const shuffleIdx = (currentShuffleIndex + i) % player.shuffleOrder.length
+            const actualIdx = player.shuffleOrder[shuffleIdx]
+            nextUp.push(player.queue[actualIdx])
             nextUpIndices.push(actualIdx)
         }
     } else {
         // Normal order: only songs after current (don't loop back to show current song again)
-        for (let i = currentIndex + 1; i < music.player.queue.length; i++) {
-            nextUp.push(music.player.queue[i])
+        for (let i = currentIndex + 1; i < player.queue.length; i++) {
+            nextUp.push(player.queue[i])
             nextUpIndices.push(i)
         }
         
         // If looping is enabled, add songs from the beginning (but skip the current song)
-        if (music.player.loopMode !== 0) { // 0 = LoopingEnum.Off
+        if (player.loopMode !== 0) { // 0 = LoopingEnum.Off
             for (let i = 0; i < currentIndex; i++) {
-                nextUp.push(music.player.queue[i])
+                nextUp.push(player.queue[i])
                 nextUpIndices.push(i)
             }
         }
@@ -105,7 +106,7 @@ export const SongQueue: React.FC = () => {
 }
 
 const QueueItem: React.FC<{
-    song: Song,
+    song: GenericSong,
     index: number,
     handlePlay: (index: number) => void,
     isButtonShowing: (index: number) => boolean,
@@ -145,6 +146,11 @@ const QueueItem: React.FC<{
                     ))}
                 </Box>
             </Box>
+
+            <Typography variant="body2" color="textSecondary" sx={{ alignSelf: "center" }}>{song.album.title}</Typography>
+
+            <Typography variant="body2" color="textSecondary" sx={{ alignSelf: "center" }}>{song.durationFormatted}</Typography>
+
         </Box>
     )
 }

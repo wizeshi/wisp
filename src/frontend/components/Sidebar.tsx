@@ -14,12 +14,12 @@ import { useAppContext } from "../providers/AppContext"
 import ViewWeekIcon from '@mui/icons-material/ViewWeek';
 import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 import ListItemText from "@mui/material/ListItemText"
-import { Album, Artist, SidebarListType, SidebarListTypes, Playlist, BaseSongList, SimpleArtist } from "../types/SongTypes"
+import { GenericAlbum, SidebarListType,SidebarListTypes, GenericPlaylist, GenericSimpleArtist } from "../../common/types/SongTypes"
 import Stack from "@mui/material/Stack"
 import ButtonBase from "@mui/material/ButtonBase"
-import { spotifyArtistToArtist, spotifyArtistToSimpleArtist } from "../utils/Helpers"
 import Skeleton from "@mui/material/Skeleton"
 import ExplicitIcon from '@mui/icons-material/Explicit'
+import { isAlbum, isPlaylist, isSimpleArtist } from "../utils/Helpers"
 
 const drawerWidth = 320
 
@@ -170,7 +170,7 @@ export const Sidebar: React.FC = () => {
     const { app } = useAppContext()
     const [typeShown, setTypeShown] = useState<SidebarListType>("Playlists")
     const [loading, setLoading] = useState(true)
-    const [lists, setLists] = useState<Playlist[] | Album[] | SimpleArtist[] | null>(null)
+    const [lists, setLists] = useState<GenericPlaylist[] | GenericAlbum[] | GenericSimpleArtist[] | null>(null)
     const [username, setUsername] = useState<string | null>(null)
 
     const handleToggle = useCallback(() => {
@@ -181,8 +181,8 @@ export const Sidebar: React.FC = () => {
     useEffect(() => {
         const fetchUsername = async () => {
             try {
-                const userInfo = await window.electronAPI.extractors.spotify.getUserInfo()
-                setUsername(userInfo.display_name || userInfo.id || "User")
+                const userInfo = await window.electronAPI.extractors.getUserInfo()
+                setUsername(userInfo.displayName || userInfo.id || "User")
             } catch (err) {
                 console.error('Error fetching user info:', err)
                 setUsername("User")
@@ -199,64 +199,24 @@ export const Sidebar: React.FC = () => {
           setLoading(true)
           
           try {
-            let realList: Album[] | Playlist[] | SimpleArtist[]
+            let realList: GenericAlbum[] | GenericPlaylist[] | GenericSimpleArtist[]
             switch (typeShown) {
               case "Playlists": {
-                const resultList = await window.electronAPI.extractors.spotify.getUserLists("Playlists")
-                const playlists: Playlist[] = []
-                resultList.forEach((item) => {
-                  const thumbnailUrl = item.images && item.images.length > 0 ? item.images[0].url : ""
-                  const result = new Playlist(item.name, { 
-                    name: item.owner.display_name ?? "Unknown", id: item.owner.id ?? "unknown"},
-                  [], thumbnailUrl, item.id)
-                  playlists.push(result)
-                })
-                realList = playlists
+                const resultList = await window.electronAPI.extractors.getUserLists("Playlists", "spotify")
+                realList = resultList
                 break
               }
               case "Albums": {
-                const resultList = await window.electronAPI.extractors.spotify.getUserLists("Albums")
-                const albums: Album[] = []
-                resultList.forEach((item) => {
-                  const artists: SimpleArtist[] = []
-                  item.album.artists.forEach((artist) => {
-                    artists.push(spotifyArtistToSimpleArtist(artist))
-                  })
-
-                  const label = item.album.copyrights && item.album.copyrights.length > 0 
-                    ? item.album.copyrights[0].text 
-                    : "Unknown"
-                  const thumbnailUrl = item.album.images && item.album.images.length > 0 
-                    ? item.album.images[0].url
-                    : ""
-                  const releaseDate = item.album.release_date ? new Date(item.album.release_date) : new Date()
-                  
-                  const result = new Album(
-                    item.album.name, 
-                    artists, 
-                    label, 
-                    releaseDate, 
-                    false, 
-                    [], 
-                    thumbnailUrl,
-                    item.album.id
-                  )
-                  albums.push(result)
-                })
-                realList = albums
+                const resultList = await window.electronAPI.extractors.getUserLists("Albums", "spotify")
+                realList = resultList
                 break
               }
               case "Artists": {
-                const resultList = await window.electronAPI.extractors.spotify.getUserLists("Artists")
-                const artists: SimpleArtist[] = []
-                resultList.forEach((item) => {
-                  const thumbnailUrl = item.images && item.images.length > 0 ? item.images[0].url : ""
-                  artists.push(new SimpleArtist(item.id, item.name, thumbnailUrl))
-                })
-                realList = artists
+                const resultList = await window.electronAPI.extractors.getUserLists("Artists")
+                realList = resultList
                 break
               }
-            }      
+            }
 
             if (!cancelled) {
               setLists(realList)
@@ -287,28 +247,35 @@ export const Sidebar: React.FC = () => {
       }}>
         <SidebarHeader isOpen={app.sidebar.open} onToggle={handleToggle} username={username} />
         <Divider />
+        <ButtonBase onClick={() => {app.screen.setCurrentView("likesView")}} sx={{ justifyContent: "unset", display: "flex", padding: "8px 8px 8px 16px", overflowX: "clip" }}>
+          <Avatar variant="rounded" src="https://misc.scdn.co/liked-songs/liked-songs-300.jpg" sx={{ height: "60px", width: "60px" }}/>
+          {app.sidebar.open && (
+            <Typography variant="body1" sx={{ alignSelf: "center", margin: "6px 0px 6px 16px", fontWeight: "bold", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>Liked Songs</Typography>
+          )}
+        </ButtonBase>
+        <Divider />
         <TypeFilterButtons isOpen={app.sidebar.open} typeShown={typeShown} onTypeChange={setTypeShown} />
         {loading || !lists ? <LoadingSkeletonList isOpen={app.sidebar.open} /> : <SidebarList sidebarThings={lists} />}
       </Drawer>
     )
 }
 
-const getItemDetails = (thing: Album | Playlist | SimpleArtist) => {
-  if (thing instanceof Album) {
+const getItemDetails = (thing: GenericAlbum | GenericPlaylist | GenericSimpleArtist) => {
+  if (isAlbum(thing)) {
     const desc = thing.artists.map(artist => artist.name).join(", ")
     return { name: thing.title, desc, explicit: thing.explicit, thumbnailURL: thing.thumbnailURL }
   }
-  if (thing instanceof Playlist) {
-    return { name: thing.title, desc: thing.author.name, explicit: false, thumbnailURL: thing.thumbnailURL }
+  if (isPlaylist(thing)) {
+    return { name: thing.title, desc: thing.author.displayName, explicit: false, thumbnailURL: thing.thumbnailURL }
   }
-  if (thing instanceof SimpleArtist) {
+  if (isSimpleArtist(thing)) {
     return { name: thing.name, desc: "Artist", explicit: false, thumbnailURL: thing.thumbnailURL }
   }
   return { name: "", desc: "", explicit: false, thumbnailURL: "" }
 }
 
 const SidebarListItem = memo<{ 
-  thing: Album | Playlist | SimpleArtist
+  thing: GenericAlbum | GenericPlaylist | GenericSimpleArtist
   isOpen: boolean
   onItemClick: () => void
 }>(({ thing, isOpen, onItemClick }) => {
@@ -333,18 +300,21 @@ const SidebarListItem = memo<{
 
 SidebarListItem.displayName = 'SidebarListItem'
 
-export const SidebarList: React.FC<{ sidebarThings: Album[] | Playlist[] | SimpleArtist[] }> = memo(({ sidebarThings }) => {
+export const SidebarList: React.FC<{ sidebarThings: GenericAlbum[] | GenericPlaylist[] | GenericSimpleArtist[] }> = memo(({ sidebarThings }) => {
   const { app } = useAppContext()
   
-  const handleItemClick = useCallback((item: Album | Playlist | SimpleArtist) => {
-    app.screen.setShownThing({ id: item.id, type: "Artist" })
-    if (item instanceof Playlist) {
+  const handleItemClick = useCallback((item: GenericAlbum | GenericPlaylist | GenericSimpleArtist) => {
+    // Check by properties instead of instanceof since objects come from IPC
+    if ('author' in item && 'title' in item) {
+      // It's a GenericPlaylist
       app.screen.setShownThing({ id: item.id, type: "Playlist" })
       app.screen.setCurrentView("listView")
-    } else if (item instanceof Album) {
+    } else if ('artists' in item && 'explicit' in item && 'releaseDate' in item) {
+      // It's a GenericAlbum
       app.screen.setShownThing({ id: item.id, type: "Album" })
       app.screen.setCurrentView("listView")
-    } else if (item instanceof SimpleArtist) {
+    } else if ('name' in item && !('title' in item)) {
+      // It's a GenericSimpleArtist
       app.screen.setShownThing({ id: item.id, type: "Artist" })
       app.screen.setCurrentView("artistView")
     }
@@ -358,19 +328,9 @@ export const SidebarList: React.FC<{ sidebarThings: Album[] | Playlist[] | Simpl
   return (
     <List sx={listSx}>
       {sidebarThings.map((thing, index) => {
-        let type: "Album" | "Playlist"
-        let id = ""
-        if (thing instanceof Album) {
-          type = "Album"
-          id = thing.id
-        }
-        if (thing instanceof Playlist) {
-          type = "Playlist"
-          id = thing.id
-        }
         return(
           <SidebarListItem 
-            key={`${getItemDetails(thing).name}-${index}`}
+            key={`${thing.id}-${index}`}
             thing={thing}
             isOpen={app.sidebar.open}
             onItemClick={() => handleItemClick(thing)}
