@@ -17,19 +17,19 @@ class DesktopNotificationOverlay extends StatelessWidget {
         return DefaultTextStyle.merge(
           style: textTheme.bodySmall,
           child: AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          alignment: Alignment.topRight,
-          child: center.collapsed
-              ? _CollapsedPill(
-                  count: center.items.length,
-                  onTap: center.toggleCollapsed,
-                )
-              : _NotificationPanel(
-                  items: center.items,
-                  onCollapse: center.toggleCollapsed,
-                  onDismiss: center.dismiss,
-                  onClearAll: center.clearAll,
-                ),
+            duration: const Duration(milliseconds: 200),
+            alignment: Alignment.topRight,
+            child: center.collapsed
+                ? _CollapsedPill(
+                    count: center.items.length,
+                    onTap: center.toggleCollapsed,
+                  )
+                : _NotificationPanel(
+                    items: center.items,
+                    onCollapse: center.toggleCollapsed,
+                    onDismiss: center.dismiss,
+                    onClearAll: center.clearAll,
+                  ),
           ),
         );
       },
@@ -127,14 +127,17 @@ class _NotificationPanel extends StatelessWidget {
                   onPressed: onClearAll,
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.grey[400],
-                    textStyle: (textTheme.labelSmall ?? const TextStyle()).copyWith(
-                      fontSize: 11,
-                    ),
+                    textStyle: (textTheme.labelSmall ?? const TextStyle())
+                        .copyWith(fontSize: 11),
                   ),
                   child: const Text('Clear'),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.expand_less, color: Colors.white, size: 18),
+                  icon: const Icon(
+                    Icons.expand_less,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                   onPressed: onCollapse,
                 ),
               ],
@@ -220,7 +223,9 @@ class _NotificationCard extends StatelessWidget {
             LinearProgressIndicator(
               value: progress,
               backgroundColor: Colors.grey[850],
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1DB954)),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).colorScheme.primary,
+              ),
             ),
           ],
           if (item.isComplete) ...[

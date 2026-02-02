@@ -42,9 +42,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
       height: 48,
       decoration: BoxDecoration(
         color: Color(0xFF000000),
-        border: Border(
-          bottom: BorderSide(color: Colors.grey[900]!, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.grey[900]!, width: 1)),
       ),
       child: Row(
         children: [
@@ -192,21 +190,28 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      Icon(Icons.notifications_none, color: Colors.grey[400], size: 20),
+                      Icon(
+                        Icons.notifications_none,
+                        color: Colors.grey[400],
+                        size: 20,
+                      ),
                       if (center.items.isNotEmpty)
                         Positioned(
                           right: 4,
                           top: 4,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
+                            ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1DB954),
+                              color: Theme.of(context).colorScheme.primary,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
                               '${center.items.length}',
-                              style: const TextStyle(
-                                color: Colors.black,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onPrimary,
                                 fontSize: 9,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -229,7 +234,8 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     final box = context.findRenderObject() as RenderBox;
     final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
     final menuTopLeft = topLeft + Offset(0, box.size.height + 8);
-    final menuBottomRight = menuTopLeft + Offset(box.size.width, box.size.height);
+    final menuBottomRight =
+        menuTopLeft + Offset(box.size.width, box.size.height);
 
     await showMenu<void>(
       context: context,
@@ -249,7 +255,11 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  Widget _buildWindowButton(IconData icon, VoidCallback onPressed, {bool isClose = false}) {
+  Widget _buildWindowButton(
+    IconData icon,
+    VoidCallback onPressed, {
+    bool isClose = false,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -258,11 +268,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
         child: SizedBox(
           width: 48,
           height: 48,
-          child: Icon(
-            icon,
-            color: Colors.grey[400],
-            size: 18,
-          ),
+          child: Icon(icon, color: Colors.grey[400], size: 18),
         ),
       ),
     );
@@ -314,7 +320,11 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
               prefixIcon: Icon(Icons.search, color: Colors.grey[600], size: 20),
               suffixIcon: value.text.isNotEmpty
                   ? IconButton(
-                      icon: Icon(Icons.close, color: Colors.grey[500], size: 18),
+                      icon: Icon(
+                        Icons.close,
+                        color: Colors.grey[500],
+                        size: 18,
+                      ),
                       onPressed: () {
                         controller.clear();
                         if (onSearchCleared != null) {
@@ -368,28 +378,35 @@ class _NotificationDropdown extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
-                    const Icon(Icons.notifications, color: Colors.white, size: 18),
+                    const Icon(
+                      Icons.notifications,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Notifications',
-                        style: (textTheme.titleSmall ?? const TextStyle()).copyWith(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: (textTheme.titleSmall ?? const TextStyle())
+                            .copyWith(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
                     ),
                     TextButton(
                       onPressed: center.clearAll,
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.grey[400],
-                        textStyle: (textTheme.labelSmall ?? const TextStyle()).copyWith(
-                          fontSize: 11,
-                        ),
+                        textStyle: (textTheme.labelSmall ?? const TextStyle())
+                            .copyWith(fontSize: 11),
                       ),
                       child: const Text('Clear'),
                     ),
@@ -404,9 +421,8 @@ class _NotificationDropdown extends StatelessWidget {
                         padding: const EdgeInsets.all(16),
                         child: Text(
                           'No notifications',
-                          style: (textTheme.bodySmall ?? const TextStyle()).copyWith(
-                            color: Colors.grey[500],
-                          ),
+                          style: (textTheme.bodySmall ?? const TextStyle())
+                              .copyWith(color: Colors.grey[500]),
                         ),
                       )
                     : ListView.separated(
@@ -416,9 +432,13 @@ class _NotificationDropdown extends StatelessWidget {
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final item = items[index];
-                          final hasProgress = item.maxProgress > 1 && !item.isComplete;
+                          final hasProgress =
+                              item.maxProgress > 1 && !item.isComplete;
                           final progress = hasProgress
-                              ? (item.progress / item.maxProgress).clamp(0.0, 1.0)
+                              ? (item.progress / item.maxProgress).clamp(
+                                  0.0,
+                                  1.0,
+                                )
                               : 1.0;
 
                           return Container(
@@ -436,27 +456,36 @@ class _NotificationDropdown extends StatelessWidget {
                                     Expanded(
                                       child: Text(
                                         item.title,
-                                        style: (textTheme.labelMedium ?? const TextStyle()).copyWith(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                        style:
+                                            (textTheme.labelMedium ??
+                                                    const TextStyle())
+                                                .copyWith(
+                                                  color: Colors.white,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.close, size: 16, color: Colors.grey),
+                                      icon: const Icon(
+                                        Icons.close,
+                                        size: 16,
+                                        color: Colors.grey,
+                                      ),
                                       onPressed: () => center.dismiss(item.id),
                                     ),
                                   ],
                                 ),
                                 Text(
                                   item.body,
-                                  style: (textTheme.bodySmall ?? const TextStyle()).copyWith(
-                                    color: Colors.grey[400],
-                                    fontSize: 11,
-                                  ),
+                                  style:
+                                      (textTheme.bodySmall ?? const TextStyle())
+                                          .copyWith(
+                                            color: Colors.grey[400],
+                                            fontSize: 11,
+                                          ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -465,18 +494,22 @@ class _NotificationDropdown extends StatelessWidget {
                                   LinearProgressIndicator(
                                     value: progress,
                                     backgroundColor: Colors.grey[850],
-                                    valueColor:
-                                        const AlwaysStoppedAnimation<Color>(Color(0xFF1DB954)),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Theme.of(context).colorScheme.primary,
+                                    ),
                                   ),
                                 ],
                                 if (item.isComplete) ...[
                                   const SizedBox(height: 6),
                                   Text(
                                     'Completed',
-                                    style: (textTheme.labelSmall ?? const TextStyle()).copyWith(
-                                      color: Colors.grey[500],
-                                      fontSize: 10,
-                                    ),
+                                    style:
+                                        (textTheme.labelSmall ??
+                                                const TextStyle())
+                                            .copyWith(
+                                              color: Colors.grey[500],
+                                              fontSize: 10,
+                                            ),
                                   ),
                                 ],
                               ],

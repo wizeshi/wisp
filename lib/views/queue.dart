@@ -19,11 +19,8 @@ import '../widgets/navigation.dart';
 class QueueView extends StatefulWidget {
   /// If true, only returns the queue content without scaffold (for mobile bottom sheet)
   final bool contentOnly;
-  
-  const QueueView({
-    super.key,
-    this.contentOnly = false,
-  });
+
+  const QueueView({super.key, this.contentOnly = false});
 
   @override
   State<QueueView> createState() => _QueueViewState();
@@ -33,11 +30,13 @@ class _QueueViewState extends State<QueueView> {
   NavigationState get _navState => context.read<NavigationState>();
   LibraryView get _currentLibraryView => _navState.selectedLibraryView;
   int get _currentNavIndex => _navState.selectedNavIndex;
-  bool get _isDesktop => Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  bool get _isDesktop =>
+      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     if (widget.contentOnly) {
       return _buildQueueContent();
     }
@@ -56,10 +55,7 @@ class _QueueViewState extends State<QueueView> {
         ),
         title: const Text(
           'Queue',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
           Consumer<AudioPlayerProvider>(
@@ -69,9 +65,11 @@ class _QueueViewState extends State<QueueView> {
                 onPressed: () {
                   player.clearQueue();
                 },
-                child: const Text(
+                child: Text(
                   'Clear',
-                  style: TextStyle(color: Color(0xFF1DB954)),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               );
             },
@@ -81,14 +79,14 @@ class _QueueViewState extends State<QueueView> {
       body: _buildQueueContent(),
     );
   }
-  
+
   Widget _buildQueueContent() {
     return Consumer<AudioPlayerProvider>(
       builder: (context, player, child) {
         final contextName = player.playbackContextName;
         final queue = player.queue;
         final currentIndex = player.currentIndex;
-        
+
         return Container(
           color: const Color(0xFF121212),
           child: Column(
@@ -108,8 +106,12 @@ class _QueueViewState extends State<QueueView> {
       },
     );
   }
-  
-  Widget _buildHeader(String? contextName, int queueLength, AudioPlayerProvider player) {
+
+  Widget _buildHeader(
+    String? contextName,
+    int queueLength,
+    AudioPlayerProvider player,
+  ) {
     return Container(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -125,10 +127,7 @@ class _QueueViewState extends State<QueueView> {
                       contextName != null && contextName.isNotEmpty
                           ? 'Next up from:'
                           : 'Next up',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 14),
                     ),
                     if (contextName != null && contextName.isNotEmpty)
                       Text(
@@ -167,50 +166,41 @@ class _QueueViewState extends State<QueueView> {
           const SizedBox(height: 8),
           Text(
             '$queueLength ${queueLength == 1 ? 'track' : 'tracks'}',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey[500], fontSize: 14),
           ),
         ],
       ),
     );
   }
-  
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.queue_music,
-            size: 64,
-            color: Colors.grey[700],
-          ),
+          Icon(Icons.queue_music, size: 64, color: Colors.grey[700]),
           const SizedBox(height: 16),
           Text(
             'queue is empty',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 18,
-            ),
+            style: TextStyle(color: Colors.grey[500], fontSize: 18),
           ),
           const SizedBox(height: 8),
           Text(
             'Play some music to start your queue',
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
         ],
       ),
     );
   }
-  
-  Widget _buildQueueList(AudioPlayerProvider player, List<GenericSong> queue, int currentIndex) {
+
+  Widget _buildQueueList(
+    AudioPlayerProvider player,
+    List<GenericSong> queue,
+    int currentIndex,
+  ) {
     final libraryState = context.read<LibraryState>();
-    
+
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       itemCount: queue.length,
@@ -231,7 +221,7 @@ class _QueueViewState extends State<QueueView> {
         final track = queue[index];
         final isCurrentTrack = index == currentIndex;
         final isEven = index % 2 == 0;
-        
+
         return _buildQueueItem(
           key: ValueKey('${track.id}_$index'),
           track: track,
@@ -244,7 +234,7 @@ class _QueueViewState extends State<QueueView> {
       },
     );
   }
-  
+
   Widget _buildQueueItem({
     required Key key,
     required GenericSong track,
@@ -296,13 +286,17 @@ class _QueueViewState extends State<QueueView> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: isCurrentTrack
-                  ? const Color(0xFF1DB954).withOpacity(0.1)
+                  ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
                   : isEven
-                      ? Colors.transparent
-                      : Colors.black.withOpacity(0.15),
+                  ? Colors.transparent
+                  : Colors.black.withOpacity(0.15),
               borderRadius: BorderRadius.circular(8),
               border: isCurrentTrack
-                  ? Border.all(color: const Color(0xFF1DB954).withOpacity(0.3))
+                  ? Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.3),
+                    )
                   : null,
             ),
             child: Row(
@@ -311,9 +305,9 @@ class _QueueViewState extends State<QueueView> {
                 SizedBox(
                   width: 32,
                   child: isCurrentTrack
-                      ? const Icon(
+                      ? Icon(
                           Icons.play_arrow,
-                          color: Color(0xFF1DB954),
+                          color: Theme.of(context).colorScheme.primary,
                           size: 24,
                         )
                       : ReorderableDragStartListener(
@@ -358,7 +352,7 @@ class _QueueViewState extends State<QueueView> {
                                 track.title,
                                 style: TextStyle(
                                   color: isCurrentTrack
-                                      ? const Color(0xFF1DB954)
+                                      ? Theme.of(context).colorScheme.primary
                                       : Colors.white,
                                   fontWeight: isCurrentTrack
                                       ? FontWeight.bold
@@ -375,7 +369,7 @@ class _QueueViewState extends State<QueueView> {
                               track.title,
                               style: TextStyle(
                                 color: isCurrentTrack
-                                    ? const Color(0xFF1DB954)
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white,
                                 fontWeight: isCurrentTrack
                                     ? FontWeight.bold
@@ -387,7 +381,8 @@ class _QueueViewState extends State<QueueView> {
                       const SizedBox(height: 2),
                       (_isDesktop && primaryArtist != null)
                           ? HoverUnderline(
-                              onTap: () => _openArtist(primaryArtist, libraryState),
+                              onTap: () =>
+                                  _openArtist(primaryArtist, libraryState),
                               onSecondaryTapDown: (details) {
                                 LibraryItemContextMenu.show(
                                   context: context,
@@ -430,10 +425,7 @@ class _QueueViewState extends State<QueueView> {
                   width: 50,
                   child: Text(
                     _formatDuration(track.durationSecs),
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -446,7 +438,10 @@ class _QueueViewState extends State<QueueView> {
                       player.removeFromQueue(index);
                     },
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
                   )
                 else
                   const SizedBox(width: 32),
@@ -466,16 +461,16 @@ class _QueueViewState extends State<QueueView> {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             SharedListDetailView(
-          id: album.id,
-          type: SharedListType.album,
-          initialTitle: album.title,
-          initialThumbnailUrl: album.thumbnailUrl,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: _currentLibraryView,
-          initialNavIndex: _currentNavIndex,
-        ),
+              id: album.id,
+              type: SharedListType.album,
+              initialTitle: album.title,
+              initialThumbnailUrl: album.thumbnailUrl,
+              playlists: libraryState.playlists,
+              albums: libraryState.albums,
+              artists: libraryState.artists,
+              initialLibraryView: _currentLibraryView,
+              initialNavIndex: _currentNavIndex,
+            ),
       ),
     );
   }
@@ -488,18 +483,18 @@ class _QueueViewState extends State<QueueView> {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             ArtistDetailView(
-          artistId: artist.id,
-          initialArtist: artist,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: _currentLibraryView,
-          initialNavIndex: _currentNavIndex,
-        ),
+              artistId: artist.id,
+              initialArtist: artist,
+              playlists: libraryState.playlists,
+              albums: libraryState.albums,
+              artists: libraryState.artists,
+              initialLibraryView: _currentLibraryView,
+              initialNavIndex: _currentNavIndex,
+            ),
       ),
     );
   }
-  
+
   String _formatDuration(int seconds) {
     final minutes = seconds ~/ 60;
     final secs = seconds % 60;
@@ -537,24 +532,33 @@ void showMobileQueueSheet(BuildContext context) {
               ),
               // Close button row
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.white,
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                     Consumer<AudioPlayerProvider>(
                       builder: (context, player, child) {
-                        if (player.queue.isEmpty) return const SizedBox.shrink();
+                        if (player.queue.isEmpty)
+                          return const SizedBox.shrink();
                         return TextButton(
                           onPressed: () {
                             player.clearQueue();
                           },
-                          child: const Text(
+                          child: Text(
                             'Clear',
-                            style: TextStyle(color: Color(0xFF1DB954)),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                           ),
                         );
                       },
@@ -563,9 +567,7 @@ void showMobileQueueSheet(BuildContext context) {
                 ),
               ),
               // Queue content
-              const Expanded(
-                child: QueueView(contentOnly: true),
-              ),
+              const Expanded(child: QueueView(contentOnly: true)),
             ],
           ),
         );

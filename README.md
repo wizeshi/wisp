@@ -17,7 +17,8 @@ wisp is a Flutter-based song player, with (pretty much) modular support for mult
 ## Installation
 
 The app is currently distributed and maintained for Windows, Linux & Android. If you want to know why, go to the FAQ below. 
-Follow the [Installation Guide](https://github.com/wizeshi/wisp/blob/master/docs/INSTALLATION_GUIDE.md)
+
+Follow the [Installation Guide](https://github.com/wizeshi/wisp/blob/main/docs/INSTALLATION_GUIDE.md)
 
 ## Roadmap
 
@@ -94,7 +95,7 @@ So, that was the best I could do, but these days nothing on the app itself refle
 I mean yeah, they do. I did this because for some reason, apps like Spotube frequently don't work (and I also usually don't like the UI)
 
 #### Is this ready?
-Kinda? It can already handle some day to day biz, but it still sometimes crashes, and the UX isn't the best for now. 
+Mostly. Right now, it's mostly missing writing to spotify, source mixing and controlling playback from other devices.
 
 #### Why is this only avaliable on 3 platforms?
 Well, they're the ones I have access to. I don't have a Mac, neither do I have an iPhone, so I can't developer for macOS or iOS. If you want to help me bring support to those (and other) platforms, create a PR with the features for them.
@@ -109,8 +110,8 @@ An enourmous thank you to all of the incredible people who have contributed to t
 
 ## Contributing
 
-If you wanna contribute (no idea why), check out [contributing.md](https://github.com/wizeshi/wisp/blob/master/docs/CONTRIBUTING.md)
+If you wanna contribute (no idea why), check out [contributing.md](https://github.com/wizeshi/wisp/blob/main/docs/CONTRIBUTING.md)
 
 ## License
 
-This project is currently licensed under the [MIT License](https://github.com/wizeshi/wisp/blob/master/LICENSE)
+This project is currently licensed under the [MIT License](https://github.com/wizeshi/wisp/blob/main/LICENSE)

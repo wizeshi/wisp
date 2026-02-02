@@ -98,137 +98,147 @@ class TrackContextMenu {
               ),
               child: Column(
                 children: [
-                // Drag handle
-                Container(
-                  margin: const EdgeInsets.only(top: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[600],
-                    borderRadius: BorderRadius.circular(2),
+                  // Drag handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[600],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                ),
-                // Track info header
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Container(
-                          width: 56,
-                          height: 56,
-                          color: Colors.grey[900],
-                          child: track.thumbnailUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: track.thumbnailUrl,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (context, url, error) =>
-                                      Icon(Icons.music_note, color: Colors.grey[700]),
-                                )
-                              : Icon(Icons.music_note, color: Colors.grey[700]),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              track.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              track.artists.map((a) => a.name).join(', '),
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 14,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(color: Colors.grey[700], height: 1),
-                // Menu items
-                Expanded(
-                  child: ListView(
-                    controller: scrollController,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    children: [
-                      _buildMobileMenuItem(
-                        icon: Icons.share,
-                        label: 'Share',
-                        onTap: () {
-                          Navigator.pop(context);
-                          _handleShare(track);
-                        },
-                      ),
-                      _buildDownloadMenuItem(context, track, isMobile: true),
-                      _buildChangeVideoIdMenuItem(context, track, isMobile: true),
-                      if (track.album != null)
-                        _buildMobileMenuItem(
-                          icon: Icons.album,
-                          label: 'Go to Album',
-                          onTap: () {
-                            Navigator.pop(context);
-                            _navigateToAlbum(
-                              context,
-                              track.album!.id,
-                              track.album!.title,
-                              track.thumbnailUrl,
-                              playlists,
-                              albums,
-                              artists,
-                              currentLibraryView,
-                              currentNavIndex,
-                            );
-                          },
-                        ),
-                      if (playlistId != null && playlistName != null)
-                        _buildMobileMenuItem(
-                          icon: Icons.playlist_play,
-                          label: 'Go to Playlist',
-                          onTap: () {
-                            Navigator.pop(context);
-                            _navigateToPlaylist(
-                              context,
-                              playlistId,
-                              playlistName,
-                              null,
-                              playlists,
-                              albums,
-                              artists,
-                              currentLibraryView,
-                              currentNavIndex,
-                            );
-                          },
-                        ),
-                      // Artists section
-                      if (track.artists.isNotEmpty) ...[
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Text(
-                            'Artists',
-                            style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
+                  // Track info header
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            color: Colors.grey[900],
+                            child: track.thumbnailUrl.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: track.thumbnailUrl,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, error) => Icon(
+                                      Icons.music_note,
+                                      color: Colors.grey[700],
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.music_note,
+                                    color: Colors.grey[700],
+                                  ),
                           ),
                         ),
-                        ...track.artists.map((artist) => _buildMobileMenuItem(
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                track.title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                track.artists.map((a) => a.name).join(', '),
+                                style: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 14,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(color: Colors.grey[700], height: 1),
+                  // Menu items
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      children: [
+                        _buildMobileMenuItem(
+                          icon: Icons.share,
+                          label: 'Share',
+                          onTap: () {
+                            Navigator.pop(context);
+                            _handleShare(track);
+                          },
+                        ),
+                        _buildDownloadMenuItem(context, track, isMobile: true),
+                        _buildChangeVideoIdMenuItem(
+                          context,
+                          track,
+                          isMobile: true,
+                        ),
+                        if (track.album != null)
+                          _buildMobileMenuItem(
+                            icon: Icons.album,
+                            label: 'Go to Album',
+                            onTap: () {
+                              Navigator.pop(context);
+                              _navigateToAlbum(
+                                context,
+                                track.album!.id,
+                                track.album!.title,
+                                track.thumbnailUrl,
+                                playlists,
+                                albums,
+                                artists,
+                                currentLibraryView,
+                                currentNavIndex,
+                              );
+                            },
+                          ),
+                        if (playlistId != null && playlistName != null)
+                          _buildMobileMenuItem(
+                            icon: Icons.playlist_play,
+                            label: 'Go to Playlist',
+                            onTap: () {
+                              Navigator.pop(context);
+                              _navigateToPlaylist(
+                                context,
+                                playlistId,
+                                playlistName,
+                                null,
+                                playlists,
+                                albums,
+                                artists,
+                                currentLibraryView,
+                                currentNavIndex,
+                              );
+                            },
+                          ),
+                        // Artists section
+                        if (track.artists.isNotEmpty) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                            child: Text(
+                              'Artists',
+                              style: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          ...track.artists.map(
+                            (artist) => _buildMobileMenuItem(
                               icon: Icons.person,
                               label: artist.name,
                               onTap: () {
@@ -243,11 +253,12 @@ class TrackContextMenu {
                                   currentNavIndex,
                                 );
                               },
-                            )),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
                 ],
               ),
             );
@@ -273,10 +284,7 @@ class TrackContextMenu {
             const SizedBox(width: 16),
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
           ],
         ),
@@ -297,15 +305,21 @@ class TrackContextMenu {
     int? currentNavIndex,
   }) {
     final overlay =
-      Overlay.of(context, rootOverlay: true).context.findRenderObject() as RenderBox;
+        Overlay.of(context, rootOverlay: true).context.findRenderObject()
+            as RenderBox;
     final localPosition = overlay.globalToLocal(position);
     const edgePadding = 8.0;
     const menuWidth = 260.0;
     const menuMaxHeight = 360.0;
 
-    final maxDx = (overlay.size.width - menuWidth - edgePadding).clamp(0.0, double.infinity);
-    final maxDy =
-      (overlay.size.height - menuMaxHeight - edgePadding).clamp(0.0, double.infinity);
+    final maxDx = (overlay.size.width - menuWidth - edgePadding).clamp(
+      0.0,
+      double.infinity,
+    );
+    final maxDy = (overlay.size.height - menuMaxHeight - edgePadding).clamp(
+      0.0,
+      double.infinity,
+    );
 
     final dx = localPosition.dx.clamp(edgePadding, maxDx);
     final dy = localPosition.dy.clamp(edgePadding, maxDy);
@@ -341,7 +355,11 @@ class TrackContextMenu {
                           const SizedBox(height: 4),
                           _buildDesktopMenuButton(
                             context: dialogContext,
-                            child: _buildDownloadMenuItem(context, track, isMobile: false),
+                            child: _buildDownloadMenuItem(
+                              context,
+                              track,
+                              isMobile: false,
+                            ),
                             onTap: () => _handleDownload(context, track),
                           ),
                           const SizedBox(height: 4),
@@ -352,13 +370,17 @@ class TrackContextMenu {
                               track,
                               isMobile: false,
                             ),
-                            onTap: () => _showChangeVideoIdDialog(context, track),
+                            onTap: () =>
+                                _showChangeVideoIdDialog(context, track),
                           ),
                           if (track.album != null) ...[
                             const SizedBox(height: 4),
                             _buildDesktopMenuButton(
                               context: dialogContext,
-                              child: _buildDesktopMenuItem(Icons.album, 'Go to Album'),
+                              child: _buildDesktopMenuItem(
+                                Icons.album,
+                                'Go to Album',
+                              ),
                               onTap: () {
                                 _navigateToAlbum(
                                   context,
@@ -401,7 +423,10 @@ class TrackContextMenu {
                             const SizedBox(height: 4),
                             _buildDesktopMenuButton(
                               context: dialogContext,
-                              child: _buildDesktopMenuItem(Icons.person, 'Go to Artist'),
+                              child: _buildDesktopMenuItem(
+                                Icons.person,
+                                'Go to Artist',
+                              ),
                               onTap: () {
                                 _navigateToArtist(
                                   context,
@@ -459,15 +484,16 @@ class TrackContextMenu {
     );
   }
 
-  static Widget _buildDesktopMenuItem(IconData icon, String label, {Color? iconColor}) {
+  static Widget _buildDesktopMenuItem(
+    IconData icon,
+    String label, {
+    Color? iconColor,
+  }) {
     return Row(
       children: [
         Icon(icon, color: iconColor ?? Colors.grey[300], size: 20),
         const SizedBox(width: 12),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white),
-        ),
+        Text(label, style: const TextStyle(color: Colors.white)),
       ],
     );
   }
@@ -508,10 +534,13 @@ class TrackContextMenu {
     logger.d('Track ID: ${track.id}');
   }
 
-  static Future<void> _handleDownload(BuildContext context, GenericSong track) async {
+  static Future<void> _handleDownload(
+    BuildContext context,
+    GenericSong track,
+  ) async {
     final cacheManager = AudioCacheManager.instance;
     final player = context.read<AudioPlayerProvider>();
-    
+
     // Check if already cached
     if (cacheManager.isTrackCached(track.id)) {
       // Show option to remove from cache
@@ -519,7 +548,10 @@ class TrackContextMenu {
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: const Color(0xFF282828),
-          title: const Text('Remove from Cache', style: TextStyle(color: Colors.white)),
+          title: const Text(
+            'Remove from Cache',
+            style: TextStyle(color: Colors.white),
+          ),
           content: Text(
             'This track is already cached. Would you like to remove it?',
             style: TextStyle(color: Colors.grey[400]),
@@ -537,7 +569,7 @@ class TrackContextMenu {
           ],
         ),
       );
-      
+
       if (shouldRemove == true) {
         await player.removeFromCache(track.id);
         if (context.mounted) {
@@ -551,7 +583,7 @@ class TrackContextMenu {
       }
       return;
     }
-    
+
     // Check if already downloading
     if (cacheManager.isDownloading(track.id)) {
       // Cancel download
@@ -566,7 +598,7 @@ class TrackContextMenu {
       }
       return;
     }
-    
+
     // Start download
     try {
       await player.downloadTrack(track);
@@ -589,32 +621,39 @@ class TrackContextMenu {
       }
     }
   }
-  
+
   /// Build download menu item with dynamic state
-  static Widget _buildDownloadMenuItem(BuildContext context, GenericSong track, {required bool isMobile}) {
+  static Widget _buildDownloadMenuItem(
+    BuildContext context,
+    GenericSong track, {
+    required bool isMobile,
+  }) {
     final cacheManager = AudioCacheManager.instance;
     final isCached = cacheManager.isTrackCached(track.id);
     final isDownloading = cacheManager.isDownloading(track.id);
     final progress = cacheManager.getDownloadProgress(track.id);
-    
+    final colorScheme = Theme.of(context).colorScheme;
+
     IconData icon;
     String label;
     Color? iconColor;
-    
+
     if (isCached) {
       icon = Icons.download_done;
       label = 'Remove from Cache';
-      iconColor = const Color(0xFF1DB954);
+      iconColor = colorScheme.primary;
     } else if (isDownloading) {
       icon = Icons.downloading;
-      label = progress != null ? 'Downloading ${(progress * 100).toInt()}%' : 'Downloading...';
-      iconColor = const Color(0xFF1DB954);
+      label = progress != null
+          ? 'Downloading ${(progress * 100).toInt()}%'
+          : 'Downloading...';
+      iconColor = colorScheme.primary;
     } else {
       icon = Icons.download_outlined;
       label = 'Download';
       iconColor = null;
     }
-    
+
     if (isMobile) {
       return _buildMobileMenuItem(
         icon: icon,
@@ -636,7 +675,9 @@ class TrackContextMenu {
     required bool isMobile,
   }) {
     final hasOverride = YouTubeProvider.getCachedVideoId(track.id) != null;
-    final label = hasOverride ? 'Change YouTube Video ID' : 'Set YouTube Video ID';
+    final label = hasOverride
+        ? 'Change YouTube Video ID'
+        : 'Set YouTube Video ID';
     final icon = Icons.video_settings;
 
     if (isMobile) {
@@ -699,7 +740,8 @@ class TrackContextMenu {
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1DB954),
+              backgroundColor: Theme.of(dialogContext).colorScheme.primary,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onPrimary,
             ),
             child: const Text('Save'),
           ),
@@ -722,9 +764,9 @@ class TrackContextMenu {
 
     await YouTubeProvider.setCachedVideoId(track.id, input);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('YouTube video ID updated')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('YouTube video ID updated')));
     }
   }
 
@@ -746,16 +788,16 @@ class TrackContextMenu {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             SharedListDetailView(
-          id: albumId,
-          type: SharedListType.album,
-          initialTitle: title,
-          initialThumbnailUrl: thumbnailUrl,
-          playlists: playlists,
-          albums: albums,
-          artists: artists,
-          initialLibraryView: currentLibraryView ?? LibraryView.albums,
-          initialNavIndex: currentNavIndex ?? 0,
-        ),
+              id: albumId,
+              type: SharedListType.album,
+              initialTitle: title,
+              initialThumbnailUrl: thumbnailUrl,
+              playlists: playlists,
+              albums: albums,
+              artists: artists,
+              initialLibraryView: currentLibraryView ?? LibraryView.albums,
+              initialNavIndex: currentNavIndex ?? 0,
+            ),
       ),
     );
   }
@@ -778,16 +820,16 @@ class TrackContextMenu {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             SharedListDetailView(
-          id: playlistId,
-          type: SharedListType.playlist,
-          initialTitle: title,
-          initialThumbnailUrl: thumbnailUrl,
-          playlists: playlists,
-          albums: albums,
-          artists: artists,
-          initialLibraryView: currentLibraryView ?? LibraryView.playlists,
-          initialNavIndex: currentNavIndex ?? 0,
-        ),
+              id: playlistId,
+              type: SharedListType.playlist,
+              initialTitle: title,
+              initialThumbnailUrl: thumbnailUrl,
+              playlists: playlists,
+              albums: albums,
+              artists: artists,
+              initialLibraryView: currentLibraryView ?? LibraryView.playlists,
+              initialNavIndex: currentNavIndex ?? 0,
+            ),
       ),
     );
   }
@@ -808,14 +850,14 @@ class TrackContextMenu {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             ArtistDetailView(
-          artistId: artist.id,
-          initialArtist: artist,
-          playlists: playlists,
-          albums: albums,
-          artists: artists,
-          initialLibraryView: currentLibraryView ?? LibraryView.artists,
-          initialNavIndex: currentNavIndex ?? 0,
-        ),
+              artistId: artist.id,
+              initialArtist: artist,
+              playlists: playlists,
+              albums: albums,
+              artists: artists,
+              initialLibraryView: currentLibraryView ?? LibraryView.artists,
+              initialNavIndex: currentNavIndex ?? 0,
+            ),
       ),
     );
   }

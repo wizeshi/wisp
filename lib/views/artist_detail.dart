@@ -328,6 +328,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Widget _buildMobileActionsRow() {
+    final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 56,
       child: Row(
@@ -354,13 +355,13 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
           Container(
             width: 56,
             height: 56,
-            decoration: const BoxDecoration(
-              color: Color(0xFF1DB954),
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
               shape: BoxShape.circle,
             ),
             child: IconButton(
               icon: const Icon(Icons.play_arrow, size: 32),
-              color: Colors.black,
+              color: colorScheme.onPrimary,
               onPressed: () {
                 // Play top songs
               },
@@ -431,6 +432,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   Widget _buildActionsRow() {
     return Consumer<AudioPlayerProvider>(
       builder: (context, player, child) {
+        final colorScheme = Theme.of(context).colorScheme;
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -445,8 +447,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 FilledButton(
                   onPressed: _isLoading ? null : () => _playTopTracks(0),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF1DB954),
-                    foregroundColor: Colors.black,
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 18,
                       vertical: 12,
@@ -460,7 +462,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   icon: Icon(
                     Icons.shuffle,
                     color: player.shuffleEnabled
-                        ? const Color(0xFF1DB954)
+                        ? colorScheme.primary
                         : Colors.grey[300],
                   ),
                 ),
@@ -472,7 +474,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                         : Icons.repeat,
                     color: player.repeatMode == RepeatMode.off
                         ? Colors.grey[300]
-                        : const Color(0xFF1DB954),
+                        : colorScheme.primary,
                   ),
                 ),
                 IconButton(
@@ -545,6 +547,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   Widget _buildTopTracksSection() {
     final tracks = _artist?.topSongs ?? [];
     final player = context.watch<AudioPlayerProvider>();
+    final colorScheme = Theme.of(context).colorScheme;
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
@@ -698,7 +701,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                                           track.title,
                                           style: TextStyle(
                                             color: isCurrentTrack
-                                                ? const Color(0xFF1DB954)
+                                                ? colorScheme.primary
                                                 : Colors.white,
                                             decoration: isHovering
                                                 ? TextDecoration.underline
@@ -712,7 +715,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                                         track.title,
                                         style: TextStyle(
                                           color: isCurrentTrack
-                                              ? const Color(0xFF1DB954)
+                                              ? colorScheme.primary
                                               : Colors.white,
                                         ),
                                         maxLines: 1,
@@ -802,9 +805,9 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                             ),
                           ),
                           SizedBox(width: isDesktop ? 16 : 12),
-                          const Icon(
+                          Icon(
                             Icons.graphic_eq,
-                            color: Color(0xFF1DB954),
+                            color: colorScheme.primary,
                             size: 18,
                           ),
                         ],

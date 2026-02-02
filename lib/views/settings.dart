@@ -89,9 +89,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _showSnackBar(String message) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
@@ -104,7 +104,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
     if (isDesktop) {
       return SettingsContent(
@@ -133,7 +134,7 @@ class _SettingsPageState extends State<SettingsPage> {
       listenable: AudioCacheManager.instance,
       builder: (context, _) {
         final cacheManager = AudioCacheManager.instance;
-        
+
         return Container(
           decoration: BoxDecoration(
             color: Color(0xFF181818),
@@ -145,7 +146,11 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.storage, color: Color(0xFF1DB954), size: 28),
+                  Icon(
+                    Icons.storage,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 28,
+                  ),
                   SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -173,7 +178,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ],
               ),
               SizedBox(height: 20),
-              
+
               // Cache size slider
               _buildSliderSetting(
                 'Maximum Cache Size',
@@ -186,9 +191,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
                 divisions: 19,
               ),
-              
+
               SizedBox(height: 16),
-              
+
               // Pre-download count slider
               _buildSliderSetting(
                 'Pre-download Next Tracks',
@@ -201,9 +206,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
                 divisions: 5,
               ),
-              
+
               SizedBox(height: 16),
-              
+
               // Concurrent downloads slider
               _buildSliderSetting(
                 'Concurrent Downloads',
@@ -216,9 +221,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
                 divisions: 4,
               ),
-              
+
               Divider(color: Colors.grey[800], height: 32),
-              
+
               // Toggle settings
               _buildToggleSetting(
                 'Auto-cache while playing',
@@ -228,9 +233,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   cacheManager.setAutoCacheEnabled(value);
                 },
               ),
-              
+
               SizedBox(height: 12),
-              
+
               _buildToggleSetting(
                 'WiFi-only downloads',
                 'Only download when connected to WiFi',
@@ -239,9 +244,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   cacheManager.setWifiOnlyDownloads(value);
                 },
               ),
-              
+
               SizedBox(height: 12),
-              
+
               _buildToggleSetting(
                 'Network-only mode',
                 'Only play cached tracks (offline mode)',
@@ -250,9 +255,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   cacheManager.setNetworkOnlyMode(value);
                 },
               ),
-              
+
               Divider(color: Colors.grey[800], height: 32),
-              
+
               // Cache management buttons
               Row(
                 children: [
@@ -310,17 +315,11 @@ class _SettingsPageState extends State<SettingsPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-              ),
-            ),
+            Text(label, style: TextStyle(color: Colors.white, fontSize: 14)),
             Text(
               valueLabel,
               style: TextStyle(
-                color: Color(0xFF1DB954),
+                color: Theme.of(context).colorScheme.primary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -330,10 +329,12 @@ class _SettingsPageState extends State<SettingsPage> {
         SizedBox(height: 8),
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            activeTrackColor: Color(0xFF1DB954),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor: Colors.grey[800],
-            thumbColor: Color(0xFF1DB954),
-            overlayColor: Color(0xFF1DB954).withValues(alpha: 0.2),
+            thumbColor: Theme.of(context).colorScheme.primary,
+            overlayColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.2),
             trackHeight: 4,
           ),
           child: Slider(
@@ -360,20 +361,11 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
-              ),
+              Text(label, style: TextStyle(color: Colors.white, fontSize: 14)),
               SizedBox(height: 2),
               Text(
                 description,
-                style: TextStyle(
-                  color: Colors.grey[500],
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey[500], fontSize: 12),
               ),
             ],
           ),
@@ -381,7 +373,7 @@ class _SettingsPageState extends State<SettingsPage> {
         Switch(
           value: value,
           onChanged: onChanged,
-          activeThumbColor: Color(0xFF1DB954),
+          activeThumbColor: Theme.of(context).colorScheme.primary,
         ),
       ],
     );
@@ -410,9 +402,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 _showSnackBar('Cache cleared');
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red[700],
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red[700]),
             child: Text('Clear'),
           ),
         ],
@@ -503,7 +493,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     IconButton(
                       icon: Icon(Icons.login, color: accentColor),
-                      onPressed: _hasCredentials ? _handleLogin : () => _showCredentialsDialog(context),
+                      onPressed: _hasCredentials
+                          ? _handleLogin
+                          : () => _showCredentialsDialog(context),
                       tooltip: 'Login',
                     ),
                   ],
@@ -515,10 +507,7 @@ class _SettingsPageState extends State<SettingsPage> {
             SizedBox(height: 12),
             Text(
               'Add your Spotify API credentials to get started',
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.grey[500], fontSize: 13),
             ),
           ],
         ],
@@ -530,21 +519,12 @@ class _SettingsPageState extends State<SettingsPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-          ),
-        ),
+        Text(label, style: TextStyle(color: Colors.white, fontSize: 14)),
         Row(
           children: [
             Text(
               value,
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 14,
-              ),
+              style: TextStyle(color: Colors.grey[400], fontSize: 14),
             ),
             SizedBox(width: 8),
             Icon(Icons.arrow_drop_down, color: Colors.grey[400]),
@@ -559,7 +539,10 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Color(0xFF282828),
-        title: Text('Spotify Credentials', style: TextStyle(color: Colors.white)),
+        title: Text(
+          'Spotify Credentials',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -573,7 +556,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderSide: BorderSide(color: Colors.grey[700]!),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF1DB954)),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
             ),
@@ -589,7 +574,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderSide: BorderSide(color: Colors.grey[700]!),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF1DB954)),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
             ),
@@ -606,7 +593,8 @@ class _SettingsPageState extends State<SettingsPage> {
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF1DB954),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
             ),
             child: Text('Save'),
           ),
@@ -617,13 +605,8 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class SettingsContent extends StatelessWidget {
-  final Widget Function(
-    BuildContext,
-    SpotifyProvider,
-    String,
-    IconData,
-    Color,
-  ) buildProviderCard;
+  final Widget Function(BuildContext, SpotifyProvider, String, IconData, Color)
+  buildProviderCard;
   final Widget Function(BuildContext) buildCacheSettingsCard;
   final Widget Function(String, String) buildPreferenceRow;
 
@@ -659,13 +642,13 @@ class SettingsContent extends StatelessWidget {
               spotifyProvider,
               'Spotify',
               Icons.graphic_eq,
-              Color(0xFF1DB954),
+              Theme.of(context).colorScheme.primary,
             ),
 
             SizedBox(height: 16),
 
             SizedBox(height: 32),
-            
+
             // Cache section
             Text(
               'CACHE',
@@ -677,7 +660,7 @@ class SettingsContent extends StatelessWidget {
               ),
             ),
             SizedBox(height: 16),
-            
+
             // Cache settings card
             buildCacheSettingsCard(context),
           ],

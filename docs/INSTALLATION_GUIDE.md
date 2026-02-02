@@ -12,7 +12,7 @@ There are a couple more steps to go.
 ### Desktop-only setup
 If on desktop, when you first open the app, everything should work. The app will install all related dependencies (at least, those that weren't at install-time)
 
-If, for some reason, the app doesn't (be it that the app didn't detect the deps, or it failed to install them, whatever), you'll need these in your PATH (search up on how to do that, I'm not Google):
+If, for some reason, the app doesn't (be it that the app didn't detect the deps, or it failed to install them, whatever), you'll need these either installed or in your PATH (search up on how to do that, I'm not Google):
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 - glibc 2.17+ (Linux)
 - libmpv (Linux, mpv-devel on Fedora, libmpv-dev on Debian)

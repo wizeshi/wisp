@@ -345,7 +345,8 @@ class HomePageState extends State<HomePage> {
                                 playlists: _savedPlaylists,
                                 albums: _savedAlbums,
                                 artists: _followedArtists,
-                                currentLibraryView: navState.selectedLibraryView,
+                                currentLibraryView:
+                                    navState.selectedLibraryView,
                                 currentNavIndex: navState.selectedNavIndex,
                               );
                             },
@@ -381,7 +382,8 @@ class HomePageState extends State<HomePage> {
                                 playlists: _savedPlaylists,
                                 albums: _savedAlbums,
                                 artists: _followedArtists,
-                                currentLibraryView: navState.selectedLibraryView,
+                                currentLibraryView:
+                                    navState.selectedLibraryView,
                                 currentNavIndex: navState.selectedNavIndex,
                               );
                             },
@@ -508,7 +510,8 @@ class HomePageState extends State<HomePage> {
                                 playlists: _savedPlaylists,
                                 albums: _savedAlbums,
                                 artists: _followedArtists,
-                                currentLibraryView: navState.selectedLibraryView,
+                                currentLibraryView:
+                                    navState.selectedLibraryView,
                                 currentNavIndex: navState.selectedNavIndex,
                               );
                             },
@@ -951,7 +954,7 @@ class HomePageState extends State<HomePage> {
                                 track.title,
                                 style: TextStyle(
                                   color: player.currentTrack?.id == track.id
-                                      ? const Color(0xFF1DB954)
+                                      ? Theme.of(context).colorScheme.primary
                                       : Colors.white,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -967,7 +970,7 @@ class HomePageState extends State<HomePage> {
                               track.title,
                               style: TextStyle(
                                 color: player.currentTrack?.id == track.id
-                                    ? const Color(0xFF1DB954)
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
@@ -1078,7 +1081,11 @@ class HomePageState extends State<HomePage> {
                 ),
                 SizedBox(width: isDesktop ? 16 : 12),
                 // Spotify icon
-                Icon(Icons.graphic_eq, color: Color(0xFF1DB954), size: 20),
+                Icon(
+                  Icons.graphic_eq,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 20,
+                ),
               ],
             ),
           ),
@@ -1198,7 +1205,7 @@ class HomePageState extends State<HomePage> {
                       // Spotify icon
                       Icon(
                         Icons.graphic_eq,
-                        color: Color(0xFF1DB954),
+                        color: Theme.of(context).colorScheme.primary,
                         size: 20,
                       ),
                     ],

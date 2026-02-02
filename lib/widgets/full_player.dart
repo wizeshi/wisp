@@ -48,9 +48,12 @@ class FullScreenPlayer extends StatelessWidget {
             final windowPadding = MediaQueryData.fromView(
               WidgetsBinding.instance.platformDispatcher.views.first,
             ).padding;
-            final topInset = viewPadding.top == 0 ? windowPadding.top : viewPadding.top;
-            final bottomInset =
-                viewPadding.bottom == 0 ? windowPadding.bottom : viewPadding.bottom;
+            final topInset = viewPadding.top == 0
+                ? windowPadding.top
+                : viewPadding.top;
+            final bottomInset = viewPadding.bottom == 0
+                ? windowPadding.bottom
+                : viewPadding.bottom;
             return _CoverGradientContainer(
               imageUrl: imageUrl,
               child: BackdropFilter(
@@ -77,13 +80,18 @@ class FullScreenPlayer extends StatelessWidget {
                           child: SingleChildScrollView(
                             controller: scrollController,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24.0,
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   // Album art at 90% width
                                   _buildAlbumArt(context, imageUrl),
-                                  _buildSingleLyricsLine(player, lyricsProvider),
+                                  _buildSingleLyricsLine(
+                                    player,
+                                    lyricsProvider,
+                                  ),
                                   const SizedBox(height: 24),
                                   // Track info with links
                                   _buildTrackInfo(currentTrack),
@@ -130,18 +138,20 @@ class FullScreenPlayer extends StatelessWidget {
       builder: (context, player, child) {
         final contextType = player.playbackContextType;
         final contextName = player.playbackContextName;
-        
+
         String firstLine = 'playing from';
         String secondLine = '';
-        
-        if (contextType != null && contextName != null && contextName.isNotEmpty) {
+
+        if (contextType != null &&
+            contextName != null &&
+            contextName.isNotEmpty) {
           if (contextType == 'artist') {
             secondLine = 'Top 10 - $contextName';
           } else {
             secondLine = contextName;
           }
         }
-        
+
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -238,12 +248,20 @@ class FullScreenPlayer extends StatelessWidget {
                       ),
                       errorWidget: (context, url, error) => Container(
                         color: Colors.grey[900],
-                        child: const Icon(Icons.music_note, size: 80, color: Colors.grey),
+                        child: const Icon(
+                          Icons.music_note,
+                          size: 80,
+                          color: Colors.grey,
+                        ),
                       ),
                     )
                   : Container(
                       color: Colors.grey[900],
-                      child: const Icon(Icons.music_note, size: 80, color: Colors.grey),
+                      child: const Icon(
+                        Icons.music_note,
+                        size: 80,
+                        color: Colors.grey,
+                      ),
                     ),
             ),
           ),
@@ -329,58 +347,49 @@ class FullScreenPlayer extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-          GestureDetector(
-            onTap: () {
-              // TODO: Navigate to track
-            },
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+        GestureDetector(
+          onTap: () {
+            // TODO: Navigate to track
+          },
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w500,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 2),
-          if (artists.isNotEmpty)
-            Wrap(
-              children: [
-                for (int i = 0; i < artists.length; i++) ...[
-                  GestureDetector(
-                    onTap: () {
-                      // TODO: Navigate to artist
-                    },
-                    child: Text(
-                      artists[i].name,
-                      style: TextStyle(
-                        color: Colors.grey[300],
-                        fontSize: 16,
-                      ),
-                    ),
+        ),
+        const SizedBox(height: 2),
+        if (artists.isNotEmpty)
+          Wrap(
+            children: [
+              for (int i = 0; i < artists.length; i++) ...[
+                GestureDetector(
+                  onTap: () {
+                    // TODO: Navigate to artist
+                  },
+                  child: Text(
+                    artists[i].name,
+                    style: TextStyle(color: Colors.grey[300], fontSize: 16),
                   ),
-                  if (i < artists.length - 1)
-                    Text(
-                      ', ',
-                      style: TextStyle(
-                        color: Colors.grey[300],
-                        fontSize: 16,
-                      ),
-                    ),
-                ],
+                ),
+                if (i < artists.length - 1)
+                  Text(
+                    ', ',
+                    style: TextStyle(color: Colors.grey[300], fontSize: 16),
+                  ),
               ],
-            )
-          else
-            Text(
-              'No Artist',
-              style: TextStyle(
-                color: Colors.grey[300],
-                fontSize: 16,
-              ),
-            ),
-        ],
+            ],
+          )
+        else
+          Text(
+            'No Artist',
+            style: TextStyle(color: Colors.grey[300], fontSize: 16),
+          ),
+      ],
     );
   }
 
@@ -453,10 +462,16 @@ class FullScreenPlayer extends StatelessWidget {
                         _openLyrics(context);
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1DB954),
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 child: const Text('Show lyrics'),
               ),
@@ -514,7 +529,10 @@ class FullScreenPlayer extends StatelessWidget {
     return index;
   }
 
-  Widget _buildPlayerControls(BuildContext context, AudioPlayerProvider player) {
+  Widget _buildPlayerControls(
+    BuildContext context,
+    AudioPlayerProvider player,
+  ) {
     return Column(
       children: [
         const SizedBox(height: 4),
@@ -552,6 +570,7 @@ class FullScreenPlayer extends StatelessWidget {
   }
 
   Widget _buildProgressBar(BuildContext context, AudioPlayerProvider player) {
+    final colorScheme = Theme.of(context).colorScheme;
     final position = player.position;
     final duration = player.duration;
     final progress = duration.inMilliseconds > 0
@@ -565,10 +584,10 @@ class FullScreenPlayer extends StatelessWidget {
             trackHeight: 4,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-            activeTrackColor: const Color(0xFF1DB954),
+            activeTrackColor: colorScheme.primary,
             inactiveTrackColor: Colors.grey[800],
             thumbColor: Colors.white,
-            overlayColor: const Color(0xFF1DB954).withOpacity(0.2),
+            overlayColor: colorScheme.primary.withOpacity(0.2),
           ),
           child: Slider(
             value: progress.clamp(0.0, 1.0),
@@ -600,7 +619,11 @@ class FullScreenPlayer extends StatelessWidget {
     );
   }
 
-  Widget _buildPlaybackControls(BuildContext context, AudioPlayerProvider player) {
+  Widget _buildPlaybackControls(
+    BuildContext context,
+    AudioPlayerProvider player,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -608,7 +631,7 @@ class FullScreenPlayer extends StatelessWidget {
         IconButton(
           icon: const Icon(Icons.shuffle),
           iconSize: 28,
-          color: player.shuffleEnabled ? const Color(0xFF1DB954) : Colors.white,
+          color: player.shuffleEnabled ? colorScheme.primary : Colors.white,
           padding: const EdgeInsets.all(8),
           onPressed: player.toggleShuffle,
         ),
@@ -621,7 +644,7 @@ class FullScreenPlayer extends StatelessWidget {
           onPressed: player.queue.isEmpty ? null : player.skipPrevious,
         ),
         // Play/Pause - Large circular button
-        _buildPlayPauseButton(player),
+        _buildPlayPauseButton(context, player),
         // Next
         IconButton(
           icon: const Icon(Icons.skip_next),
@@ -633,11 +656,13 @@ class FullScreenPlayer extends StatelessWidget {
         // Repeat
         IconButton(
           icon: Icon(
-            player.repeatMode == RepeatMode.one ? Icons.repeat_one : Icons.repeat,
+            player.repeatMode == RepeatMode.one
+                ? Icons.repeat_one
+                : Icons.repeat,
           ),
           iconSize: 28,
           color: player.repeatMode != RepeatMode.off
-              ? const Color(0xFF1DB954)
+              ? colorScheme.primary
               : Colors.white,
           padding: const EdgeInsets.all(8),
           onPressed: player.toggleRepeat,
@@ -646,20 +671,24 @@ class FullScreenPlayer extends StatelessWidget {
     );
   }
 
-  Widget _buildPlayPauseButton(AudioPlayerProvider player) {
+  Widget _buildPlayPauseButton(
+    BuildContext context,
+    AudioPlayerProvider player,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
     if (player.isLoading || player.isBuffering) {
       return SizedBox(
         width: 64,
         height: 64,
         child: Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF1DB954),
+          decoration: BoxDecoration(
+            color: colorScheme.primary,
             shape: BoxShape.circle,
           ),
           child: const Center(
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ),
         ),
@@ -671,14 +700,14 @@ class FullScreenPlayer extends StatelessWidget {
     return Container(
       width: 64,
       height: 64,
-      decoration: const BoxDecoration(
-        color: Color(0xFF1DB954),
+      decoration: BoxDecoration(
+        color: colorScheme.primary,
         shape: BoxShape.circle,
       ),
       child: IconButton(
         icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
         iconSize: 36,
-        color: Colors.black,
+        color: colorScheme.onPrimary,
         padding: EdgeInsets.zero,
         onPressed: () {
           if (isPlaying) {
@@ -710,13 +739,11 @@ class _CoverGradientContainer extends StatefulWidget {
   final String imageUrl;
   final Widget child;
 
-  const _CoverGradientContainer({
-    required this.imageUrl,
-    required this.child,
-  });
+  const _CoverGradientContainer({required this.imageUrl, required this.child});
 
   @override
-  State<_CoverGradientContainer> createState() => _CoverGradientContainerState();
+  State<_CoverGradientContainer> createState() =>
+      _CoverGradientContainerState();
 }
 
 class _CoverGradientContainerState extends State<_CoverGradientContainer> {
@@ -805,7 +832,8 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
       future: _artistFuture,
       builder: (context, snapshot) {
         final data = snapshot.data;
-        final topSongs = data?.topSongs.take(3).toList() ?? const <GenericSong>[];
+        final topSongs =
+            data?.topSongs.take(3).toList() ?? const <GenericSong>[];
         final imageUrl = data?.thumbnailUrl.isNotEmpty == true
             ? data!.thumbnailUrl
             : widget.artist.thumbnailUrl;
@@ -819,7 +847,9 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
                 child: Stack(
                   children: [
                     SizedBox(
@@ -992,14 +1022,14 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             ArtistDetailView(
-          artistId: artist.id,
-          initialArtist: artist,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: navState.selectedLibraryView,
-          initialNavIndex: navState.selectedNavIndex,
-        ),
+              artistId: artist.id,
+              initialArtist: artist,
+              playlists: libraryState.playlists,
+              albums: libraryState.albums,
+              artists: libraryState.artists,
+              initialLibraryView: navState.selectedLibraryView,
+              initialNavIndex: navState.selectedNavIndex,
+            ),
       ),
     );
   }

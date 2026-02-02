@@ -27,11 +27,14 @@ class _LyricsViewState extends State<LyricsView> {
   bool _autoScrollEnabled = true;
   int _currentLineIndex = 0;
   String? _trackId;
-  final TextEditingController _delayController = TextEditingController(text: '0');
+  final TextEditingController _delayController = TextEditingController(
+    text: '0',
+  );
   double _lyricsDelaySeconds = 0;
 
   bool get _isMobile => Platform.isAndroid || Platform.isIOS;
-  bool get _isDesktop => Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  bool get _isDesktop =>
+      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
   @override
   void initState() {
@@ -148,7 +151,7 @@ class _LyricsViewState extends State<LyricsView> {
     });
     _saveLyricsDelay();
   }
-  
+
   /// Load lyrics delay for current track from persistence
   Future<void> _loadLyricsDelay(String trackId) async {
     final prefs = await SharedPreferences.getInstance();
@@ -179,15 +182,15 @@ class _LyricsViewState extends State<LyricsView> {
       });
     }
   }
-  
+
   /// Save lyrics delay for current track to persistence
   Future<void> _saveLyricsDelay() async {
     final trackId = _trackId;
     if (trackId == null) return;
-    
+
     final prefs = await SharedPreferences.getInstance();
     Map<String, dynamic> delays = {};
-    
+
     final existingJson = prefs.getString('lyrics_delays');
     if (existingJson != null) {
       try {
@@ -196,14 +199,14 @@ class _LyricsViewState extends State<LyricsView> {
         logger.e('Error parsing existing lyrics delays', error: e);
       }
     }
-    
+
     // Only save non-zero delays to save space
     if (_lyricsDelaySeconds == 0) {
       delays.remove(trackId);
     } else {
       delays[trackId] = _lyricsDelaySeconds;
     }
-    
+
     await prefs.setString('lyrics_delays', json.encode(delays));
   }
 
@@ -212,18 +215,13 @@ class _LyricsViewState extends State<LyricsView> {
     final content = _buildLyricsContent();
 
     if (_isDesktop) {
-      return Material(
-        color: const Color(0xFF121212),
-        child: content,
-      );
+      return Material(color: const Color(0xFF121212), child: content);
     }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lyrics'),
-        actions: [
-          _buildLyricsControls(),
-        ],
+        actions: [_buildLyricsControls()],
       ),
       body: content,
     );
@@ -235,7 +233,10 @@ class _LyricsViewState extends State<LyricsView> {
         final track = player.currentTrack;
         if (track == null) {
           return const Center(
-            child: Text('No track playing', style: TextStyle(color: Colors.grey)),
+            child: Text(
+              'No track playing',
+              style: TextStyle(color: Colors.grey),
+            ),
           );
         }
 
@@ -265,7 +266,10 @@ class _LyricsViewState extends State<LyricsView> {
         final lyrics = state.lyrics;
         if (lyrics == null || lyrics.lines.isEmpty) {
           return const Center(
-            child: Text('No lyrics found', style: TextStyle(color: Colors.grey)),
+            child: Text(
+              'No lyrics found',
+              style: TextStyle(color: Colors.grey),
+            ),
           );
         }
 
@@ -314,22 +318,27 @@ class _LyricsViewState extends State<LyricsView> {
                   child: ListView.builder(
                     key: _listKey,
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 24,
+                    ),
                     itemCount: lyrics.lines.length,
                     itemBuilder: (context, index) {
                       final line = lyrics.lines[index];
                       final displayContent = line.content.trim().isEmpty
                           ? '🎶'
                           : line.content;
-                        final isSynced = lyrics.synced;
-                        final distance = isSynced ? (index - _currentLineIndex).abs() : 0;
-                        final blurSigma = isSynced
+                      final isSynced = lyrics.synced;
+                      final distance = isSynced
+                          ? (index - _currentLineIndex).abs()
+                          : 0;
+                      final blurSigma = isSynced
                           ? (distance * 1.4).clamp(0, 8).toDouble()
                           : 0.0;
-                        final opacity = isSynced
+                      final opacity = isSynced
                           ? (1 - (distance * 0.12)).clamp(0.35, 1.0)
                           : 1.0;
-                        final isCurrent = isSynced && index == _currentLineIndex;
+                      final isCurrent = isSynced && index == _currentLineIndex;
                       final canSeek = line.startTimeMs > 0;
                       final delayMs = (_lyricsDelaySeconds * 1000).round();
 
@@ -343,14 +352,20 @@ class _LyricsViewState extends State<LyricsView> {
                         child: Align(
                           alignment: Alignment.center,
                           child: MouseRegion(
-                            cursor:
-                                canSeek ? SystemMouseCursors.click : MouseCursor.defer,
+                            cursor: canSeek
+                                ? SystemMouseCursors.click
+                                : MouseCursor.defer,
                             child: GestureDetector(
                               onTap: canSeek
                                   ? () {
-                                      final targetMs = line.startTimeMs + delayMs;
-                                      final safeMs = targetMs < 0 ? 0 : targetMs;
-                                      player.seek(Duration(milliseconds: safeMs));
+                                      final targetMs =
+                                          line.startTimeMs + delayMs;
+                                      final safeMs = targetMs < 0
+                                          ? 0
+                                          : targetMs;
+                                      player.seek(
+                                        Duration(milliseconds: safeMs),
+                                      );
                                     }
                                   : null,
                               child: ImageFiltered(
@@ -363,9 +378,13 @@ class _LyricsViewState extends State<LyricsView> {
                                   child: AnimatedDefaultTextStyle(
                                     duration: const Duration(milliseconds: 250),
                                     style: TextStyle(
-                                      color: isCurrent ? Colors.white : Colors.grey[400],
+                                      color: isCurrent
+                                          ? Colors.white
+                                          : Colors.grey[400],
                                       fontSize: fontSize,
-                                      fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w500,
+                                      fontWeight: isCurrent
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
                                       height: 1.4,
                                     ),
                                     child: Text(
@@ -389,7 +408,6 @@ class _LyricsViewState extends State<LyricsView> {
       },
     );
   }
-
 
   Widget _buildLyricsControls() {
     return Material(
@@ -415,14 +433,19 @@ class _LyricsViewState extends State<LyricsView> {
                   isDense: true,
                   filled: true,
                   fillColor: const Color(0xFF1A1A1A),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Colors.grey[700]!),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF1DB954)),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
               ),
@@ -434,7 +457,9 @@ class _LyricsViewState extends State<LyricsView> {
               onPressed: _resetDelay,
             ),
             const SizedBox(width: 4),
-            _isMobile ? _buildMobileSyncSelector() : _buildDesktopSyncSelector(),
+            _isMobile
+                ? _buildMobileSyncSelector()
+                : _buildDesktopSyncSelector(),
           ],
         ),
       ),
@@ -469,6 +494,7 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildDesktopSyncSelector() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(right: 12),
       child: ToggleButtons(
@@ -483,13 +509,10 @@ class _LyricsViewState extends State<LyricsView> {
         },
         borderRadius: BorderRadius.circular(8),
         color: Colors.grey[400],
-        selectedColor: Colors.black,
-        fillColor: const Color(0xFF1DB954),
+        selectedColor: colorScheme.onPrimary,
+        fillColor: colorScheme.primary,
         constraints: const BoxConstraints(minHeight: 32, minWidth: 72),
-        children: const [
-          Text('Synced'),
-          Text('Unsynced'),
-        ],
+        children: const [Text('Synced'), Text('Unsynced')],
       ),
     );
   }

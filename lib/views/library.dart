@@ -271,6 +271,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
 
   Widget _buildTabChip(LibraryView tab, String label, int count) {
     final isSelected = _selectedTab == tab;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -278,7 +279,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
         label: Text(
           '$label ($count)',
           style: TextStyle(
-            color: isSelected ? Colors.black : Colors.white,
+            color: isSelected ? colorScheme.onPrimary : Colors.white,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -287,7 +288,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
           setState(() => _selectedTab = tab);
         },
         backgroundColor: const Color(0xFF282828),
-        selectedColor: const Color(0xFF1DB954),
+        selectedColor: colorScheme.primary,
         showCheckmark: false,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
@@ -449,8 +450,8 @@ class _LibraryTabViewState extends State<LibraryTabView> {
             icon: const Icon(Icons.refresh),
             label: const Text('Retry'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1DB954),
-              foregroundColor: Colors.black,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
         ],

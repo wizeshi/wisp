@@ -139,6 +139,7 @@ class _WispNavigationState extends State<WispNavigation> {
 
   Widget _buildCollapsedViewSelector() {
     final icon = _iconForLibraryView(widget.selectedView);
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Container(
@@ -147,7 +148,7 @@ class _WispNavigationState extends State<WispNavigation> {
             color: const Color(0xFF282828),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: const Color(0xFF1DB954), size: 24),
+          child: Icon(icon, color: colorScheme.primary, size: 24),
         ),
       ],
     );
@@ -166,6 +167,7 @@ class _WispNavigationState extends State<WispNavigation> {
 
   Widget _buildViewButton(IconData icon, LibraryView view) {
     final isSelected = widget.selectedView == view;
+    final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: isSelected ? Color(0xFF282828) : Colors.transparent,
       borderRadius: BorderRadius.circular(8),
@@ -176,7 +178,7 @@ class _WispNavigationState extends State<WispNavigation> {
           padding: EdgeInsets.all(8),
           child: Icon(
             icon,
-            color: isSelected ? Color(0xFF1DB954) : Colors.grey[600],
+            color: isSelected ? colorScheme.primary : Colors.grey[600],
             size: 22,
           ),
         ),
@@ -315,20 +317,21 @@ class _WispNavigationState extends State<WispNavigation> {
   }
 
   Widget _buildMobileBottomNav() {
+    final colorScheme = Theme.of(context).colorScheme;
     final destinations = [
       NavigationDestination(
         icon: Icon(Icons.home_outlined),
-        selectedIcon: Icon(Icons.home, color: Color(0xFF1DB954)),
+        selectedIcon: Icon(Icons.home, color: colorScheme.primary),
         label: 'Home',
       ),
       NavigationDestination(
         icon: Icon(Icons.search_outlined),
-        selectedIcon: Icon(Icons.search, color: Color(0xFF1DB954)),
+        selectedIcon: Icon(Icons.search, color: colorScheme.primary),
         label: 'Search',
       ),
       NavigationDestination(
         icon: Icon(Icons.library_music_outlined),
-        selectedIcon: Icon(Icons.library_music, color: Color(0xFF1DB954)),
+        selectedIcon: Icon(Icons.library_music, color: colorScheme.primary),
         label: 'Library',
       ),
     ];
@@ -340,9 +343,9 @@ class _WispNavigationState extends State<WispNavigation> {
         selectedIndex: safeIndex,
         onDestinationSelected: widget.onDestinationSelected,
         backgroundColor: Color(0xFF000000),
-        indicatorColor: Color(0xFF1DB954).withOpacity(0.2),
+        indicatorColor: colorScheme.primary.withOpacity(0.2),
         destinations: destinations,
-      )
+      ),
     );
   }
 }

@@ -26,7 +26,8 @@ class RightSidebar extends StatelessWidget {
 
   const RightSidebar({super.key, required this.width, required this.onResize});
 
-  bool get _isDesktop => Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  bool get _isDesktop =>
+      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +45,9 @@ class RightSidebar extends StatelessWidget {
               color: const Color(0xFF0F0F0F),
               child: Container(
                 decoration: BoxDecoration(
-                  border: Border(left: BorderSide(color: Colors.grey[900]!, width: 1)),
+                  border: Border(
+                    left: BorderSide(color: Colors.grey[900]!, width: 1),
+                  ),
                 ),
                 child: SafeArea(
                   left: false,
@@ -134,7 +137,8 @@ class _NowPlayingCard extends StatelessWidget {
     return Consumer3<AudioPlayerProvider, LibraryState, NavigationState>(
       builder: (context, player, libraryState, navState, child) {
         final track = player.currentTrack;
-        final headerText = (player.playbackContextName?.trim().isNotEmpty ?? false)
+        final headerText =
+            (player.playbackContextName?.trim().isNotEmpty ?? false)
             ? player.playbackContextName!.trim()
             : 'Now playing';
         final album = track?.album;
@@ -173,11 +177,7 @@ class _NowPlayingCard extends StatelessWidget {
                           ? SystemMouseCursors.click
                           : SystemMouseCursors.basic,
                       onTap: album != null && album.id.isNotEmpty
-                          ? () => _openAlbum(
-                                album,
-                                libraryState,
-                                navState,
-                              )
+                          ? () => _openAlbum(album, libraryState, navState)
                           : null,
                       builder: (isHovering) => _MarqueeText(
                         text: track.title,
@@ -198,10 +198,10 @@ class _NowPlayingCard extends StatelessWidget {
                           : SystemMouseCursors.basic,
                       onTap: primaryArtist != null
                           ? () => _openArtist(
-                                primaryArtist,
-                                libraryState,
-                                navState,
-                              )
+                              primaryArtist,
+                              libraryState,
+                              navState,
+                            )
                           : null,
                       onSecondaryTapDown: primaryArtist != null
                           ? (details) {
@@ -212,7 +212,8 @@ class _NowPlayingCard extends StatelessWidget {
                                 playlists: libraryState.playlists,
                                 albums: libraryState.albums,
                                 artists: libraryState.artists,
-                                currentLibraryView: navState.selectedLibraryView,
+                                currentLibraryView:
+                                    navState.selectedLibraryView,
                                 currentNavIndex: navState.selectedNavIndex,
                               );
                             }
@@ -250,16 +251,16 @@ class _NowPlayingCard extends StatelessWidget {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             SharedListDetailView(
-          id: album.id,
-          type: SharedListType.album,
-          initialTitle: album.title,
-          initialThumbnailUrl: album.thumbnailUrl,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: navState.selectedLibraryView,
-          initialNavIndex: navState.selectedNavIndex,
-        ),
+              id: album.id,
+              type: SharedListType.album,
+              initialTitle: album.title,
+              initialThumbnailUrl: album.thumbnailUrl,
+              playlists: libraryState.playlists,
+              albums: libraryState.albums,
+              artists: libraryState.artists,
+              initialLibraryView: navState.selectedLibraryView,
+              initialNavIndex: navState.selectedNavIndex,
+            ),
       ),
     );
   }
@@ -275,14 +276,14 @@ class _NowPlayingCard extends StatelessWidget {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             ArtistDetailView(
-          artistId: artist.id,
-          initialArtist: artist,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: navState.selectedLibraryView,
-          initialNavIndex: navState.selectedNavIndex,
-        ),
+              artistId: artist.id,
+              initialArtist: artist,
+              playlists: libraryState.playlists,
+              albums: libraryState.albums,
+              artists: libraryState.artists,
+              initialLibraryView: navState.selectedLibraryView,
+              initialNavIndex: navState.selectedNavIndex,
+            ),
       ),
     );
   }
@@ -300,9 +301,7 @@ class _TrackArtwork extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: (width == null && height == null)
-          ? SizedBox.expand(
-              child: _buildImage(),
-            )
+          ? SizedBox.expand(child: _buildImage())
           : SizedBox(
               width: width ?? height,
               height: height ?? width,
@@ -313,13 +312,14 @@ class _TrackArtwork extends StatelessWidget {
 
   Widget _buildImage() {
     return url.isEmpty
-        ? Container(color: Colors.grey[850], child: const Icon(Icons.music_note))
+        ? Container(
+            color: Colors.grey[850],
+            child: const Icon(Icons.music_note),
+          )
         : CachedNetworkImage(
             imageUrl: url,
             fit: BoxFit.cover,
-            placeholder: (context, url) => Container(
-              color: Colors.grey[850],
-            ),
+            placeholder: (context, url) => Container(color: Colors.grey[850]),
             errorWidget: (context, url, error) => Container(
               color: Colors.grey[850],
               child: const Icon(Icons.music_note),
@@ -570,7 +570,10 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                               data == null
                                   ? 'Loading artist info…'
                                   : '${_formatNumber(data.monthlyListeners)} monthly listeners',
-                              style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
@@ -639,14 +642,14 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             ArtistDetailView(
-          artistId: artist.id,
-          initialArtist: artist,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: navState.selectedLibraryView,
-          initialNavIndex: navState.selectedNavIndex,
-        ),
+              artistId: artist.id,
+              initialArtist: artist,
+              playlists: libraryState.playlists,
+              albums: libraryState.albums,
+              artists: libraryState.artists,
+              initialLibraryView: navState.selectedLibraryView,
+              initialNavIndex: navState.selectedNavIndex,
+            ),
       ),
     );
   }
@@ -745,8 +748,11 @@ class _LyricsPreviewCard extends StatelessWidget {
                   TextButton(
                     onPressed: lyrics == null ? null : () => _openLyrics(),
                     style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF1DB954),
-                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     child: const Text('Open'),
                   ),
@@ -828,8 +834,11 @@ class _QueuePreviewCard extends StatelessWidget {
                   TextButton(
                     onPressed: () => _openQueue(),
                     style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF1DB954),
-                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     child: const Text('View all'),
                   ),
@@ -872,7 +881,10 @@ class _QueuePreviewCard extends StatelessWidget {
                                   track.artists.map((a) => a.name).join(', '),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ],
                             ),

@@ -199,7 +199,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2.5,
-            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1DB954)),
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
           ),
         ),
       );
@@ -229,7 +229,9 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       child: LinearProgressIndicator(
         value: progress.clamp(0.0, 1.0),
         backgroundColor: Colors.grey[850],
-        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1DB954)),
+        valueColor: AlwaysStoppedAnimation<Color>(
+          Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }
@@ -263,7 +265,7 @@ extension on WispPlayerBar {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildPlaybackControls(context, player),
-                  _buildProgressBar(player),
+                  _buildProgressBar(context, player),
                 ],
               ),
             ),
@@ -278,7 +280,7 @@ extension on WispPlayerBar {
     );
   }
 
-  Widget _buildProgressBar(AudioPlayerProvider player) {
+  Widget _buildProgressBar(BuildContext context, AudioPlayerProvider player) {
     final position = player.position;
     final duration = player.duration;
     final progress = duration.inMilliseconds > 0
@@ -304,10 +306,12 @@ extension on WispPlayerBar {
               trackHeight: 4,
               thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
               overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
-              activeTrackColor: Color(0xFF1DB954),
+              activeTrackColor: Theme.of(context).colorScheme.primary,
               inactiveTrackColor: Colors.grey[800],
               thumbColor: Colors.white,
-              overlayColor: Color(0xFF1DB954).withOpacity(0.2),
+              overlayColor: Theme.of(
+                context,
+              ).colorScheme.primary.withOpacity(0.2),
             ),
             child: Slider(
               value: progress.clamp(0.0, 1.0),
@@ -430,18 +434,24 @@ extension on WispPlayerBar {
                                   PageRouteBuilder(
                                     transitionDuration: Duration.zero,
                                     reverseTransitionDuration: Duration.zero,
-                                    pageBuilder: (context, animation, secondaryAnimation) =>
-                                        SharedListDetailView(
-                                      id: album.id,
-                                      type: SharedListType.album,
-                                      initialTitle: album.title,
-                                      initialThumbnailUrl: album.thumbnailUrl,
-                                      playlists: libraryState.playlists,
-                                      albums: libraryState.albums,
-                                      artists: libraryState.artists,
-                                        initialLibraryView: currentLibraryView,
-                                        initialNavIndex: currentNavIndex,
-                                    ),
+                                    pageBuilder:
+                                        (
+                                          context,
+                                          animation,
+                                          secondaryAnimation,
+                                        ) => SharedListDetailView(
+                                          id: album.id,
+                                          type: SharedListType.album,
+                                          initialTitle: album.title,
+                                          initialThumbnailUrl:
+                                              album.thumbnailUrl,
+                                          playlists: libraryState.playlists,
+                                          albums: libraryState.albums,
+                                          artists: libraryState.artists,
+                                          initialLibraryView:
+                                              currentLibraryView,
+                                          initialNavIndex: currentNavIndex,
+                                        ),
                                   ),
                                 );
                               }
@@ -487,16 +497,17 @@ extension on WispPlayerBar {
                             PageRouteBuilder(
                               transitionDuration: Duration.zero,
                               reverseTransitionDuration: Duration.zero,
-                              pageBuilder: (context, animation, secondaryAnimation) =>
-                                  ArtistDetailView(
-                                artistId: primaryArtist.id,
-                                initialArtist: primaryArtist,
-                                playlists: libraryState.playlists,
-                                albums: libraryState.albums,
-                                artists: libraryState.artists,
-                                initialLibraryView: currentLibraryView,
-                                initialNavIndex: currentNavIndex,
-                              ),
+                              pageBuilder:
+                                  (context, animation, secondaryAnimation) =>
+                                      ArtistDetailView(
+                                        artistId: primaryArtist.id,
+                                        initialArtist: primaryArtist,
+                                        playlists: libraryState.playlists,
+                                        albums: libraryState.albums,
+                                        artists: libraryState.artists,
+                                        initialLibraryView: currentLibraryView,
+                                        initialNavIndex: currentNavIndex,
+                                      ),
                             ),
                           );
                         },
@@ -524,7 +535,9 @@ extension on WispPlayerBar {
                         ),
                       )
                     : _MarqueeText(
-                        text: currentTrack.artists.map((a) => a.name).join(', '),
+                        text: currentTrack.artists
+                            .map((a) => a.name)
+                            .join(', '),
                         style: TextStyle(color: Colors.grey[400], fontSize: 12),
                       ),
               ],
@@ -549,7 +562,9 @@ extension on WispPlayerBar {
           constraints: BoxConstraints(),
           icon: Icon(
             Icons.shuffle,
-            color: player.shuffleEnabled ? Color(0xFF1DB954) : Colors.grey[400],
+            color: player.shuffleEnabled
+                ? Theme.of(context).colorScheme.primary
+                : Colors.grey[400],
             size: 20,
           ),
           onPressed: player.toggleShuffle,
@@ -591,7 +606,7 @@ extension on WispPlayerBar {
                 ? Icons.repeat_one
                 : Icons.repeat,
             color: player.repeatMode != RepeatMode.off
-                ? Color(0xFF1DB954)
+                ? Theme.of(context).colorScheme.primary
                 : Colors.grey[400],
             size: 20,
           ),
@@ -614,7 +629,9 @@ extension on WispPlayerBar {
         height: 40,
         child: CircularProgressIndicator(
           strokeWidth: 2.5,
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1DB954)),
+          valueColor: AlwaysStoppedAnimation<Color>(
+            Theme.of(context).colorScheme.primary,
+          ),
         ),
       );
     }
@@ -646,7 +663,7 @@ extension on WispPlayerBar {
     return IconButton(
       padding: EdgeInsets.all(4),
       constraints: BoxConstraints(),
-      icon: Icon(icon, color: Color(0xFF1DB954), size: 40),
+      icon: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 40),
       onPressed: onPressed,
     );
   }
@@ -664,7 +681,7 @@ extension on WispPlayerBar {
         final isLyricsOpen = routeName == '/lyrics';
         final isQueueOpen = routeName == '/queue';
         final isSidebarOpen = navState.rightSidebarVisible;
-        final activeColor = const Color(0xFF1DB954);
+        final activeColor = Theme.of(context).colorScheme.primary;
         final inactiveColor = Colors.grey[400];
 
         return Row(
@@ -723,8 +740,8 @@ extension on WispPlayerBar {
                       player.volume == 0
                           ? Icons.volume_off
                           : player.volume < 0.5
-                              ? Icons.volume_down
-                              : Icons.volume_up,
+                          ? Icons.volume_down
+                          : Icons.volume_up,
                       color: Colors.grey[400],
                       size: 20,
                     ),
@@ -738,10 +755,12 @@ extension on WispPlayerBar {
                       trackHeight: 4,
                       thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
                       overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
-                      activeTrackColor: Color(0xFF1DB954),
+                      activeTrackColor: Theme.of(context).colorScheme.primary,
                       inactiveTrackColor: Colors.grey[800],
                       thumbColor: Colors.white,
-                      overlayColor: Color(0xFF1DB954).withOpacity(0.2),
+                      overlayColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.2),
                     ),
                     child: Slider(
                       value: player.volume,
@@ -878,8 +897,8 @@ class _MarqueeTextState extends State<_MarqueeText>
         final needsMarquee = textWidth > maxWidth;
         const endPadding = 8.0;
         final scrollDistance = (textWidth - maxWidth + endPadding)
-          .clamp(0, textWidth)
-          .toDouble();
+            .clamp(0, textWidth)
+            .toDouble();
 
         if (_needsMarquee != needsMarquee ||
             _scrollDistance != scrollDistance) {

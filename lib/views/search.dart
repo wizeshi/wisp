@@ -302,6 +302,7 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildTabChips() {
+    final colorScheme = Theme.of(context).colorScheme;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -317,7 +318,7 @@ class _SearchViewState extends State<SearchView> {
                 label: Text(
                   '${_getLabelForTab(tab)} ($count)',
                   style: TextStyle(
-                    color: isSelected ? Colors.black : Colors.white,
+                    color: isSelected ? colorScheme.onPrimary : Colors.white,
                     fontWeight: isSelected
                         ? FontWeight.bold
                         : FontWeight.normal,
@@ -331,8 +332,8 @@ class _SearchViewState extends State<SearchView> {
                   }
                 },
                 backgroundColor: const Color(0xFF282828),
-                selectedColor: const Color(0xFF1DB954),
-                checkmarkColor: Colors.black,
+                selectedColor: colorScheme.primary,
+                checkmarkColor: colorScheme.onPrimary,
                 showCheckmark: false,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
@@ -555,7 +556,7 @@ class _SearchViewState extends State<SearchView> {
                           track.title,
                           style: TextStyle(
                             color: isCurrentPlaying
-                                ? const Color(0xFF1DB954)
+                                ? Theme.of(context).colorScheme.primary
                                 : Colors.white,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -584,8 +585,8 @@ class _SearchViewState extends State<SearchView> {
                     child: FloatingActionButton(
                       heroTag: 'bestMatchPlay',
                       mini: true,
-                      backgroundColor: const Color(0xFF1DB954),
-                      foregroundColor: Colors.black,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       onPressed: () => _toggleTrackPlayback(track, 0),
                       child: Icon(
                         isCurrentPlaying ? Icons.pause : Icons.play_arrow,
@@ -718,7 +719,9 @@ class _SearchViewState extends State<SearchView> {
                                         style: TextStyle(
                                           color:
                                               player.currentTrack?.id == song.id
-                                              ? const Color(0xFF1DB954)
+                                              ? Theme.of(
+                                                  context,
+                                                ).colorScheme.primary
                                               : Colors.white,
                                         ),
                                         maxLines: 1,
@@ -1002,8 +1005,8 @@ class _SearchViewState extends State<SearchView> {
             icon: const Icon(Icons.refresh),
             label: const Text('Retry'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1DB954),
-              foregroundColor: Colors.black,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
         ],
@@ -1854,8 +1857,8 @@ class _MiniAlbumCard extends StatelessWidget {
                     child: FloatingActionButton(
                       heroTag: 'albumPlay_${album.id}',
                       mini: true,
-                      backgroundColor: const Color(0xFF1DB954),
-                      foregroundColor: Colors.black,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       onPressed: () {
                         if (isActiveContext) {
                           if (isPlaying) {
@@ -2025,8 +2028,8 @@ class _MiniPlaylistCard extends StatelessWidget {
                     child: FloatingActionButton(
                       heroTag: 'playlistPlay_${playlist.id}',
                       mini: true,
-                      backgroundColor: const Color(0xFF1DB954),
-                      foregroundColor: Colors.black,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       onPressed: () {
                         if (isActiveContext) {
                           if (isPlaying) {
@@ -2193,8 +2196,8 @@ class _MiniArtistCard extends StatelessWidget {
                     child: FloatingActionButton(
                       heroTag: 'artistPlay_${artist.id}',
                       mini: true,
-                      backgroundColor: const Color(0xFF1DB954),
-                      foregroundColor: Colors.black,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       onPressed: () {
                         if (isActiveContext) {
                           if (isPlaying) {

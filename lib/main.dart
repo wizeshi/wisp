@@ -12,6 +12,7 @@ import 'providers/lyrics/provider.dart';
 import 'providers/library/library_state.dart';
 import 'providers/search/search_state.dart';
 import 'providers/navigation_state.dart';
+import 'theme/app_theme.dart';
 import 'services/notification_service.dart';
 import 'services/cache_manager.dart';
 import 'services/desktop_notification_center.dart';
@@ -25,25 +26,24 @@ class AudioPlayerHandler extends BaseAudioHandler {
   static AudioPlayerHandler get instance => _instance!;
 
   static MediaControl shuffleControl(bool enabled) => MediaControl.custom(
-        androidIcon:
-            enabled ? 'drawable/ic_shuffle_on' : 'drawable/ic_shuffle_off',
-        label: 'Shuffle',
-        name: 'toggleShuffle',
-      );
+    androidIcon: enabled ? 'drawable/ic_shuffle_on' : 'drawable/ic_shuffle_off',
+    label: 'Shuffle',
+    name: 'toggleShuffle',
+  );
 
   static MediaControl repeatControl(AudioServiceRepeatMode mode) {
     final icon = mode == AudioServiceRepeatMode.one
         ? 'drawable/ic_repeat_one'
         : mode == AudioServiceRepeatMode.all
-            ? 'drawable/ic_repeat_on'
-            : 'drawable/ic_repeat_off';
+        ? 'drawable/ic_repeat_on'
+        : 'drawable/ic_repeat_off';
     return MediaControl.custom(
       androidIcon: icon,
       label: 'Repeat',
       name: 'toggleRepeat',
     );
   }
-  
+
   // Callback functions to control the player
   Function()? onPlay;
   Function()? onPause;
@@ -54,29 +54,31 @@ class AudioPlayerHandler extends BaseAudioHandler {
   Function(AudioServiceRepeatMode)? onSetRepeatMode;
   Function()? onToggleShuffle;
   Function()? onToggleRepeat;
-  
+
   AudioPlayerHandler() {
     _instance = this;
     // Initialize with idle state
-    playbackState.add(playbackState.value.copyWith(
-      playing: false,
-      processingState: AudioProcessingState.idle,
-      controls: [
-        shuffleControl(false),
-        MediaControl.skipToPrevious,
-        MediaControl.pause,
-        MediaControl.play,
-        MediaControl.skipToNext,
-        repeatControl(AudioServiceRepeatMode.none),
-      ],
-      systemActions: const {
-        MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward,
-        MediaAction.setShuffleMode,
-        MediaAction.setRepeatMode,
-      },
-    ));
+    playbackState.add(
+      playbackState.value.copyWith(
+        playing: false,
+        processingState: AudioProcessingState.idle,
+        controls: [
+          shuffleControl(false),
+          MediaControl.skipToPrevious,
+          MediaControl.pause,
+          MediaControl.play,
+          MediaControl.skipToNext,
+          repeatControl(AudioServiceRepeatMode.none),
+        ],
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
+          MediaAction.setShuffleMode,
+          MediaAction.setRepeatMode,
+        },
+      ),
+    );
   }
 
   @override
@@ -98,7 +100,7 @@ class AudioPlayerHandler extends BaseAudioHandler {
   Future<void> skipToPrevious() async {
     onSkipPrevious?.call();
   }
-  
+
   @override
   Future<void> seek(Duration position) async {
     onSeek?.call(position);
@@ -131,10 +133,10 @@ class AudioPlayerHandler extends BaseAudioHandler {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize just_audio with media_kit backend for Linux
   JustAudioMediaKit.ensureInitialized();
-  
+
   // Initialize audio_service for system media controls (MPRIS on Linux)
   if (Platform.isLinux) {
     AudioServiceMpris.registerWith();
@@ -145,14 +147,13 @@ void main() async {
       androidNotificationChannelId: 'com.wizeshi.wisp.channel.audio',
       androidNotificationChannelName: 'wisp',
       androidNotificationOngoing: true,
-      
     ),
   );
-  
+
   // Initialize window manager for custom titlebar (desktop only)
   if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
     await windowManager.ensureInitialized();
-    
+
     WindowOptions windowOptions = WindowOptions(
       size: Size(1280, 800),
       minimumSize: Size(800, 600),
@@ -161,13 +162,13 @@ void main() async {
       skipTaskbar: false,
       titleBarStyle: TitleBarStyle.hidden,
     );
-    
+
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       await windowManager.show();
       await windowManager.focus();
     });
   }
-  
+
   // Initialize notification service for download progress (mobile only)
   await NotificationService.instance.initialize();
 
@@ -175,13 +176,13 @@ void main() async {
   if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
     await YtDlpManager.instance.ensureReady(notifyOnFailure: true);
   }
-  
+
   // Initialize audio cache manager
   await AudioCacheManager.instance.initialize();
 
   // Initialize Discord RPC (desktop only)
   await DiscordRpcService.instance.initialize();
-  
+
   runApp(const MyApp());
 }
 
@@ -202,32 +203,8 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Wisp',
-        theme: ThemeData(
-          colorScheme: ColorScheme.dark(
-            primary: Color(0xFF1DB954), // Spotify green
-            secondary: Color(0xFF1DB954),
-            surface: Color(0xFF181818),
-            onPrimary: Colors.white,
-            onSecondary: Colors.white,
-            onSurface: Colors.white,
-          ),
-          scaffoldBackgroundColor: Color(0xFF121212),
-          cardColor: Color(0xFF181818),
-          useMaterial3: true,
-        ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.dark(
-            primary: Color(0xFF1DB954),
-            secondary: Color(0xFF1DB954),
-            surface: Color(0xFF181818),
-            onPrimary: Colors.white,
-            onSecondary: Colors.white,
-            onSurface: Colors.white,
-          ),
-          scaffoldBackgroundColor: Color(0xFF121212),
-          cardColor: Color(0xFF181818),
-          useMaterial3: true,
-        ),
+        theme: AppTheme.dark(),
+        darkTheme: AppTheme.dark(),
         themeMode: ThemeMode.dark,
         home: const AppShell(),
       ),

@@ -472,7 +472,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1DB954),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
             ),
             child: const Text('Download'),
           ),
@@ -639,7 +640,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   child: CircularProgressIndicator(
                     value: progress,
                     strokeWidth: 2,
-                    color: const Color(0xFF1DB954),
+                    color: Theme.of(context).colorScheme.primary,
                     backgroundColor: Colors.grey[800],
                   ),
                 ),
@@ -648,9 +649,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           );
         }
 
-        return const SizedBox(
+        return SizedBox(
           width: 20,
-          child: Icon(Icons.download_done, size: 14, color: Color(0xFF1DB954)),
+          child: Icon(
+            Icons.download_done,
+            size: 14,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         );
       },
     );
@@ -771,6 +776,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     String label,
   ) {
     final isSelected = _sortMethod == method;
+    final colorScheme = Theme.of(context).colorScheme;
     return PopupMenuItem(
       value: method,
       child: Row(
@@ -778,7 +784,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           Text(
             label,
             style: TextStyle(
-              color: isSelected ? const Color(0xFF1DB954) : Colors.white,
+              color: isSelected ? colorScheme.primary : Colors.white,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
@@ -787,7 +793,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             Icon(
               _ascending ? Icons.arrow_upward : Icons.arrow_downward,
               size: 16,
-              color: const Color(0xFF1DB954),
+              color: colorScheme.primary,
             ),
           ],
         ],
@@ -1053,13 +1059,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           Container(
             width: 56,
             height: 56,
-            decoration: const BoxDecoration(
-              color: Color(0xFF1DB954),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
               shape: BoxShape.circle,
             ),
             child: IconButton(
               icon: const Icon(Icons.play_arrow, size: 32),
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onPrimary,
               onPressed: () {
                 if (_items.isNotEmpty) {
                   _playQueueAt(0);
@@ -1185,6 +1191,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   Widget _buildActionsRow(bool isDesktop) {
     return Consumer<AudioPlayerProvider>(
       builder: (context, player, child) {
+        final colorScheme = Theme.of(context).colorScheme;
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -1202,8 +1209,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   child: FilledButton(
                     onPressed: _isLoading ? null : () => _playFromStart(),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF1DB954),
-                      foregroundColor: Colors.black,
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
                       padding: EdgeInsets.zero,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -1223,7 +1230,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         (_isCurrentListPlaying(player)
                             ? player.shuffleEnabled
                             : _preShuffleEnabled)
-                        ? const Color(0xFF1DB954)
+                        ? colorScheme.primary
                         : Colors.grey[300],
                   ),
                 ),
@@ -1235,7 +1242,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         : Icons.repeat,
                     color: player.repeatMode == RepeatMode.off
                         ? Colors.grey[300]
-                        : const Color(0xFF1DB954),
+                        : colorScheme.primary,
                   ),
                 ),
                 IconButton(
@@ -1292,7 +1299,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   icon: Icon(
                     Icons.search,
                     color: _showSearch
-                        ? const Color(0xFF1DB954)
+                        ? Theme.of(context).colorScheme.primary
                         : Colors.grey[300],
                   ),
                 ),
@@ -1580,7 +1587,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               _getTitle(item),
                               style: TextStyle(
                                 color: isCurrentTrack
-                                    ? const Color(0xFF1DB954)
+                                    ? Theme.of(context).colorScheme.primary
                                     : Colors.white,
                               ),
                               maxLines: 1,
@@ -1698,7 +1705,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       SizedBox(width: isMobile ? 12 : 16),
                       Icon(
                         Icons.graphic_eq,
-                        color: const Color(0xFF1DB954),
+                        color: Theme.of(context).colorScheme.primary,
                         size: isMobile ? 16 : 18,
                       ),
                     ],

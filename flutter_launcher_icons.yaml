@@ -5,9 +5,9 @@ flutter_launcher_icons:
   android: true
   # image_path_android: "assets/wisp.png"
   min_sdk_android: 21 # android min sdk min:16, default 21
-  # adaptive_icon_background: "assets/wisp.png"
-  # adaptive_icon_foreground: "assets/wisp.png"
-  # adaptive_icon_foreground_inset: 16
+  adaptive_icon_background: "#1f3298"
+  adaptive_icon_foreground: "assets/wisp.png"
+  adaptive_icon_foreground_inset: 16
   # adaptive_icon_monochrome: "assets/wisp.png"
 
   ios: true
@@ -27,7 +27,7 @@ flutter_launcher_icons:
   windows:
     generate: true
     image_path: "assets/wisp.png"
-    icon_size: 48 # min:48, max:256, default: 48
+    icon_size: 128 # min:48, max:256, default: 48
 
   macos:
     generate: true
