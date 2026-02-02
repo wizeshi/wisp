@@ -1,0 +1,28 @@
+icon: assets/wisp.png
+summary: A fast, open-source music player.
+group: Application/Multimedia
+vendor: wizeshi
+packager: wizeshi
+packagerEmail: joaogmoreira08@gmail.com
+license: MIT
+url: https://github.com/wizeshi/wisp
+
+display_name: wisp
+
+requires:
+  - mpv-devel
+  - glibc
+
+keywords:
+  - song
+  - music
+  - player
+  - audio
+
+generic_name: Music Player
+
+categories:
+  - Multimedia
+  - Audio
+
+startup_notify: true

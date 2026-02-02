@@ -1,0 +1,24 @@
+icon: assets/wisp.png
+package_name: wisp
+maintainer:
+  name: wizeshi
+  email: joaogmoreira08@gmail.com
+
+display_name: wisp
+
+dependencies:
+  - glibc
+
+keywords:
+  - song
+  - music
+  - player
+  - audio
+
+categories:
+  - Multimedia
+  - Audio
+
+generic_name: Music Player
+
+startup_notify: true
