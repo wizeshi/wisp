@@ -18,7 +18,7 @@ wisp is a Flutter-based song player, with (pretty much) modular support for mult
 
 The app is currently distributed and maintained for Windows, Linux & Android. If you want to know why, go to the FAQ below. 
 
-Follow the [Installation Guide](https://github.com/wizeshi/wisp/blob/main/docs/INSTALLATION_GUIDE.md)
+Follow the [Installation Guide](https://github.com/wizeshi/wisp/blob/main/docs/en/INSTALLATION_GUIDE.md)
 
 ## Roadmap
 
@@ -110,7 +110,7 @@ An enourmous thank you to all of the incredible people who have contributed to t
 
 ## Contributing
 
-If you wanna contribute (no idea why), check out [contributing.md](https://github.com/wizeshi/wisp/blob/main/docs/CONTRIBUTING.md)
+If you wanna contribute (no idea why), check out [contributing.md](https://github.com/wizeshi/wisp/blob/main/docs/en/CONTRIBUTING.md)
 
 ## License
 

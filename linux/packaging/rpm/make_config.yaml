@@ -22,7 +22,9 @@ keywords:
 generic_name: Music Player
 
 categories:
-  - Multimedia
+  - AudioVideo
   - Audio
+  - Music
+  - Player
 
 startup_notify: true
