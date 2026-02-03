@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'notification_service.dart';
+import 'download_foreground_service.dart';
 import '../utils/logger.dart';
 
 /// Metadata for a cached audio file
@@ -110,6 +111,7 @@ class AudioCacheManager extends ChangeNotifier {
   Directory? _cacheDirectory;
   bool _initialized = false;
   int _currentCacheSize = 0;
+  int _lastOverallProgressPercent = -1;
 
   // Dio instance for downloads
   final Dio _dio = Dio(
@@ -266,6 +268,7 @@ class AudioCacheManager extends ChangeNotifier {
       artistName: artistName,
     );
     notifyListeners();
+    _updateForegroundServiceProgress(force: true);
 
     // Store the resolve callback for later (YouTube search happens when download starts)
     _pendingDownloads[trackId] = _PendingDownload(
@@ -333,6 +336,11 @@ class AudioCacheManager extends ChangeNotifier {
     _activeDownloads.add(trackId);
     notifyListeners();
 
+    await DownloadForegroundService.start(
+      title: 'Downloading audio',
+      text: _formatOverallProgressText(),
+    );
+
     try {
       // Ensure space is available
       await _ensureSpace(50 * 1024 * 1024); // Assume 50MB per track max
@@ -352,8 +360,8 @@ class AudioCacheManager extends ChangeNotifier {
       );
       await NotificationService.instance.showDownloadProgress(
         id: notificationId,
-        title: 'Downloading',
-        body: '${task.trackTitle} - ${task.artistName}',
+        title: task.trackTitle,
+        body: '${task.artistName} • 0%',
         progress: 0,
         maxProgress: 100,
       );
@@ -380,11 +388,12 @@ class AudioCacheManager extends ChangeNotifier {
             if (progressPercent % 5 == 0) {
               NotificationService.instance.showDownloadProgress(
                 id: notificationId,
-                title: 'Downloading ($progressPercent%)',
-                body: '${task.trackTitle} - ${task.artistName}',
+                title: task.trackTitle,
+                body: '${task.artistName} • $progressPercent%',
                 progress: progressPercent,
                 maxProgress: 100,
               );
+              _updateForegroundServiceProgress();
             }
           }
         },
@@ -417,14 +426,16 @@ class AudioCacheManager extends ChangeNotifier {
       onDownloadComplete?.call(trackId, true, null);
       onCacheChanged?.call();
 
+      _updateForegroundServiceProgress(force: true);
+
       // Show completion notification
       logger.d(
         '[CacheManager] Requesting completion notification (id=$notificationId)',
       );
       await NotificationService.instance.showDownloadComplete(
         id: notificationId,
-        title: 'Download Complete',
-        body: '${task.trackTitle} - ${task.artistName}',
+        title: 'Download complete',
+        body: '${task.trackTitle} • ${task.artistName}',
       );
 
       logger.i(
@@ -473,6 +484,57 @@ class AudioCacheManager extends ChangeNotifier {
       }
       notifyListeners();
       _processDownloadQueue();
+      await _updateForegroundService();
+    }
+  }
+
+  Future<void> _updateForegroundService() async {
+    if (_activeDownloads.isNotEmpty) return;
+    await DownloadForegroundService.stop();
+  }
+
+  String _formatOverallProgressText() {
+    final total = _downloadQueue.length;
+    if (total == 0) return 'Preparing downloads…';
+    final completed = _downloadQueue.values
+        .where((task) => task.status == DownloadStatus.completed)
+        .length;
+    final totalProgress = _downloadQueue.values.fold<double>(
+      0,
+      (sum, task) => sum + task.progress.clamp(0.0, 1.0),
+    );
+    final overallPercent = ((totalProgress / total) * 100).clamp(0, 100).toInt();
+    final activeCount = _activeDownloads.length;
+    return '$activeCount active • $completed/$total ($overallPercent%)';
+  }
+
+  Future<void> _updateForegroundServiceProgress({bool force = false}) async {
+    if (_downloadQueue.isEmpty) {
+      if (!Platform.isAndroid) {
+        await NotificationService.instance.cancelDownloadGroupSummary();
+      }
+      return;
+    }
+    final total = _downloadQueue.length;
+    final totalProgress = _downloadQueue.values.fold<double>(
+      0,
+      (sum, task) => sum + task.progress.clamp(0.0, 1.0),
+    );
+    final overallPercent = ((totalProgress / total) * 100).clamp(0, 100).toInt();
+    if (!force && overallPercent == _lastOverallProgressPercent) return;
+    _lastOverallProgressPercent = overallPercent;
+
+    await DownloadForegroundService.start(
+      title: 'Downloading audio',
+      text: _formatOverallProgressText(),
+    );
+
+    if (!Platform.isAndroid) {
+      await NotificationService.instance.showDownloadGroupSummary(
+        title: 'Downloads',
+        body: _formatOverallProgressText(),
+        ongoing: _activeDownloads.isNotEmpty,
+      );
     }
   }
 
@@ -488,6 +550,10 @@ class AudioCacheManager extends ChangeNotifier {
       _activeDownloads.remove(trackId);
       NotificationService.instance.cancelNotification(trackId.hashCode);
       notifyListeners();
+      _updateForegroundServiceProgress(force: true);
+      if (_activeDownloads.isEmpty) {
+        DownloadForegroundService.stop();
+      }
     }
   }
 
@@ -502,6 +568,8 @@ class AudioCacheManager extends ChangeNotifier {
     _retryAfter.clear();
     _activeDownloads.clear();
     notifyListeners();
+    DownloadForegroundService.stop();
+    NotificationService.instance.cancelDownloadGroupSummary();
   }
 
   /// Check if a track is currently downloading

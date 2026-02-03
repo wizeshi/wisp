@@ -15,11 +15,14 @@ class NotificationService {
   
   final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
   bool _initialized = false;
+  bool _permissionRequested = false;
   
   /// Notification channel ID for downloads
   static const String _downloadChannelId = 'download_progress';
   static const String _downloadChannelName = 'Download Progress';
   static const String _downloadChannelDesc = 'Shows progress of audio downloads';
+  static const String _downloadGroupKey = 'download_progress_group';
+  static const int _downloadSummaryId = 1000001;
   
   /// Initialize the notification service
   Future<void> initialize() async {
@@ -51,7 +54,7 @@ class NotificationService {
       if (Platform.isAndroid) {
         final androidPlugin = _notifications
             .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-        
+
         await androidPlugin?.createNotificationChannel(
           const AndroidNotificationChannel(
             _downloadChannelId,
@@ -71,6 +74,21 @@ class NotificationService {
       logger.e('[Notification] Error initializing notifications', error: e);
     }
   }
+
+  /// Request notification permission on Android 13+
+  Future<void> requestPermissionIfNeeded() async {
+    if (_permissionRequested) return;
+    _permissionRequested = true;
+
+    if (!Platform.isAndroid) return;
+    try {
+      final androidPlugin = _notifications
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.requestNotificationsPermission();
+    } catch (e) {
+      logger.e('[Notification] Error requesting permission', error: e);
+    }
+  }
   
   /// Show or update download progress notification
   Future<void> showDownloadProgress({
@@ -80,6 +98,9 @@ class NotificationService {
     required int progress,
     required int maxProgress,
   }) async {
+    if (Platform.isAndroid) {
+      return; // Android uses foreground service notification only
+    }
     if (!Platform.isAndroid && !Platform.isIOS) {
       DesktopNotificationCenter.instance.showProgress(
         id: id,
@@ -101,8 +122,8 @@ class NotificationService {
         _downloadChannelId,
         _downloadChannelName,
         channelDescription: _downloadChannelDesc,
-        importance: Importance.low,
-        priority: Priority.low,
+        importance: Importance.min,
+        priority: Priority.min,
         showProgress: true,
         maxProgress: maxProgress,
         progress: progress,
@@ -112,6 +133,9 @@ class NotificationService {
         enableVibration: false,
         silent: true,
         category: AndroidNotificationCategory.progress,
+        groupKey: _downloadGroupKey,
+        setAsGroupSummary: false,
+        groupAlertBehavior: GroupAlertBehavior.summary,
       );
       
       const iosDetails = DarwinNotificationDetails(
@@ -138,6 +162,9 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
+    if (Platform.isAndroid) {
+      return; // Android uses foreground service notification only
+    }
     if (!Platform.isAndroid && !Platform.isIOS) {
       DesktopNotificationCenter.instance.showComplete(
         id: id,
@@ -154,13 +181,16 @@ class NotificationService {
         _downloadChannelId,
         _downloadChannelName,
         channelDescription: _downloadChannelDesc,
-        importance: Importance.low,
-        priority: Priority.low,
+        importance: Importance.min,
+        priority: Priority.min,
         ongoing: false,
         playSound: false,
         enableVibration: false,
         silent: true,
         autoCancel: true,
+        groupKey: _downloadGroupKey,
+        setAsGroupSummary: false,
+        groupAlertBehavior: GroupAlertBehavior.summary,
       );
       
       const iosDetails = DarwinNotificationDetails(
@@ -192,6 +222,9 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
+    if (Platform.isAndroid) {
+      return; // Android uses foreground service notification only
+    }
     if (!Platform.isAndroid && !Platform.isIOS) {
       DesktopNotificationCenter.instance.showComplete(
         id: id,
@@ -207,13 +240,16 @@ class NotificationService {
         _downloadChannelId,
         _downloadChannelName,
         channelDescription: _downloadChannelDesc,
-        importance: Importance.low,
-        priority: Priority.low,
+        importance: Importance.min,
+        priority: Priority.min,
         ongoing: false,
         playSound: false,
         enableVibration: false,
         silent: true,
         autoCancel: true,
+        groupKey: _downloadGroupKey,
+        setAsGroupSummary: false,
+        groupAlertBehavior: GroupAlertBehavior.summary,
       );
 
       const iosDetails = DarwinNotificationDetails(
@@ -247,6 +283,46 @@ class NotificationService {
       logger.e('Error cancelling notification', error: e);
     }
   }
+
+  /// Show or update grouped summary for downloads
+  Future<void> showDownloadGroupSummary({
+    required String title,
+    required String body,
+    required bool ongoing,
+  }) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!_initialized || (!Platform.isAndroid && !Platform.isIOS)) return;
+
+    if (!Platform.isAndroid) return;
+
+    try {
+      final androidDetails = AndroidNotificationDetails(
+        _downloadChannelId,
+        _downloadChannelName,
+        channelDescription: _downloadChannelDesc,
+        importance: Importance.min,
+        priority: Priority.min,
+        ongoing: ongoing,
+        playSound: false,
+        enableVibration: false,
+        silent: true,
+        autoCancel: !ongoing,
+        groupKey: _downloadGroupKey,
+        setAsGroupSummary: true,
+        groupAlertBehavior: GroupAlertBehavior.summary,
+      );
+
+      final details = NotificationDetails(android: androidDetails);
+      await _notifications.show(_downloadSummaryId, title, body, details);
+    } catch (e) {
+      logger.e('[Notification] Error showing download summary', error: e);
+    }
+  }
+
+  Future<void> cancelDownloadGroupSummary() async {
+    await cancelNotification(_downloadSummaryId);
+  }
+
   
   /// Cancel all notifications
   Future<void> cancelAllNotifications() async {

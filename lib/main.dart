@@ -15,6 +15,7 @@ import 'providers/navigation_state.dart';
 import 'theme/app_theme.dart';
 import 'services/notification_service.dart';
 import 'services/cache_manager.dart';
+import 'services/download_foreground_service.dart';
 import 'services/desktop_notification_center.dart';
 import 'services/discord_rpc_service.dart';
 import 'services/ytdlp_manager.dart';
@@ -146,6 +147,8 @@ void main() async {
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.wizeshi.wisp.channel.audio',
       androidNotificationChannelName: 'wisp',
+      androidNotificationChannelDescription: 'Media playback controls',
+      androidNotificationIcon: 'drawable/ic_stat_wisp',
       androidNotificationOngoing: true,
     ),
   );
@@ -172,6 +175,9 @@ void main() async {
   // Initialize notification service for download progress (mobile only)
   await NotificationService.instance.initialize();
 
+  // Initialize foreground service for background downloads (Android)
+  await DownloadForegroundService.initialize();
+
   // Ensure yt-dlp is available on desktop
   if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
     await YtDlpManager.instance.ensureReady(notifyOnFailure: true);
@@ -184,6 +190,11 @@ void main() async {
   await DiscordRpcService.instance.initialize();
 
   runApp(const MyApp());
+
+  // Request notification permission on Android 13+ after UI is ready
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    NotificationService.instance.requestPermissionIfNeeded();
+  });
 }
 
 class MyApp extends StatelessWidget {

@@ -27,29 +27,22 @@ class WispPlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AudioPlayerProvider>(
-      builder: (context, player, child) {
-        final currentTrack = player.currentTrack;
-
-        if (_isMobile) {
-          return _MobilePlayerBarAnimated(
-            player: player,
-            currentTrack: currentTrack,
-          );
-        }
-
-        return _buildDesktopPlayerBar(context, player, currentTrack);
-      },
+    final currentTrack = context.select<AudioPlayerProvider, GenericSong?>(
+      (player) => player.currentTrack,
     );
+
+    if (_isMobile) {
+      return _MobilePlayerBarAnimated(currentTrack: currentTrack);
+    }
+
+    return _DesktopPlayerBar(currentTrack: currentTrack);
   }
 }
 
 class _MobilePlayerBarAnimated extends StatefulWidget {
-  final AudioPlayerProvider player;
   final dynamic currentTrack;
 
   const _MobilePlayerBarAnimated({
-    required this.player,
     required this.currentTrack,
   });
 
@@ -70,14 +63,15 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
   void _onHorizontalDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
+    final player = context.read<AudioPlayerProvider>();
 
     if (velocity.abs() > 200 || _dragOffset.abs() > 50) {
       if (_dragOffset < 0 || velocity < -200) {
         // Swipe left -> skip next
-        widget.player.skipNext();
+        player.skipNext();
       } else {
         // Swipe right -> skip previous
-        widget.player.skipPrevious();
+        player.skipPrevious();
       }
     }
 
@@ -128,11 +122,11 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                       ),
                     ),
                     // Play/Pause button
-                    _buildMobilePlayPauseButton(widget.player),
+                    _buildMobilePlayPauseButton(),
                   ],
                 ),
               ),
-              _buildMiniProgressBar(widget.player),
+              _buildMiniProgressBar(),
             ],
           ),
         ),
@@ -191,58 +185,100 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     );
   }
 
-  Widget _buildMobilePlayPauseButton(AudioPlayerProvider player) {
-    if (player.isLoading || player.isBuffering) {
-      return const SizedBox(
-        width: 40,
-        height: 40,
-        child: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-          ),
-        ),
-      );
-    }
+  Widget _buildMobilePlayPauseButton() {
+    return Selector<AudioPlayerProvider, _PlayPauseData>(
+      selector: (context, player) {
+        final track = player.currentTrack;
+        final queueFirst = player.queue.isNotEmpty ? player.queue.first : null;
+        return _PlayPauseData(
+          isPlaying: player.isPlaying,
+          isLoading: player.isLoading,
+          isBuffering: player.isBuffering,
+          isOnline: player.isOnline,
+          currentTrackId: track?.id,
+          currentTrackCached:
+              track == null ? true : player.isTrackCached(track.id),
+          queueNotEmpty: player.queue.isNotEmpty,
+          queueFirstId: queueFirst?.id,
+        );
+      },
+      builder: (context, data, child) {
+        if (data.isLoading || data.isBuffering) {
+          return const SizedBox(
+            width: 40,
+            height: 40,
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          );
+        }
 
-    return IconButton(
-      icon: Icon(
-        player.isPlaying ? Icons.pause : Icons.play_arrow,
-        size: 40,
-        color: Colors.white,
-      ),
-      onPressed: player.isPlaying ? player.pause : player.play,
+        final player = context.read<AudioPlayerProvider>();
+        final isOfflineBlocked =
+            !data.isOnline && data.currentTrackId != null && !data.currentTrackCached;
+        final IconData icon =
+            data.isPlaying ? Icons.pause : Icons.play_arrow;
+        VoidCallback? onPressed;
+        if (!isOfflineBlocked) {
+          if (data.isPlaying) {
+            onPressed = player.pause;
+          } else if (data.currentTrackId != null) {
+            onPressed = player.play;
+          } else if (data.queueNotEmpty) {
+            onPressed = () => player.playTrack(player.queue.first);
+          }
+        }
+
+        return IconButton(
+          icon: Icon(icon, size: 40, color: Colors.white),
+          onPressed: onPressed,
+        );
+      },
     );
   }
 
-  Widget _buildMiniProgressBar(AudioPlayerProvider player) {
-    if (player.currentTrack == null) {
+  Widget _buildMiniProgressBar() {
+    final trackId =
+        context.select<AudioPlayerProvider, String?>((p) => p.currentTrack?.id);
+    if (trackId == null) {
       return const SizedBox.shrink();
     }
 
-    final progress = player.duration.inMilliseconds > 0
-        ? player.position.inMilliseconds / player.duration.inMilliseconds
-        : 0.0;
-
-    return SizedBox(
-      height: 3,
-      child: LinearProgressIndicator(
-        value: progress.clamp(0.0, 1.0),
-        backgroundColor: Colors.grey[850],
-        valueColor: AlwaysStoppedAnimation<Color>(
-          Theme.of(context).colorScheme.primary,
-        ),
+    return Selector<AudioPlayerProvider, _PositionData>(
+      selector: (context, player) => _PositionData(
+        position: player.position,
+        duration: player.duration,
       ),
+      builder: (context, data, child) {
+        final progress = data.duration.inMilliseconds > 0
+            ? data.position.inMilliseconds / data.duration.inMilliseconds
+            : 0.0;
+
+        return SizedBox(
+          height: 3,
+          child: LinearProgressIndicator(
+            value: progress.clamp(0.0, 1.0),
+            backgroundColor: Colors.grey[850],
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
-extension on WispPlayerBar {
-  Widget _buildDesktopPlayerBar(
-    BuildContext context,
-    AudioPlayerProvider player,
-    dynamic currentTrack,
-  ) {
+class _DesktopPlayerBar extends StatelessWidget {
+  final GenericSong? currentTrack;
+
+  const _DesktopPlayerBar({required this.currentTrack});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       height: 90,
       decoration: BoxDecoration(
@@ -254,18 +290,18 @@ extension on WispPlayerBar {
         child: Row(
           children: [
             // Left: Album art + track info
-            _buildTrackInfo(context, currentTrack),
+            _DesktopTrackInfo(currentTrack: currentTrack),
 
             const SizedBox(width: 24),
 
             // Center: Playback controls + progress
-            Expanded(
+            const Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildPlaybackControls(context, player),
-                  _buildProgressBar(context, player),
+                  _DesktopPlaybackControls(),
+                  _DesktopProgressBar(),
                 ],
               ),
             ),
@@ -273,90 +309,111 @@ extension on WispPlayerBar {
             const SizedBox(width: 24),
 
             // Right: Volume + queue
-            _buildRightControls(context, player, currentTrack),
+            _DesktopRightControls(currentTrack: currentTrack),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildProgressBar(BuildContext context, AudioPlayerProvider player) {
-    final position = player.position;
-    final duration = player.duration;
-    final progress = duration.inMilliseconds > 0
-        ? position.inMilliseconds / duration.inMilliseconds
-        : 0.0;
+class _DesktopProgressBar extends StatelessWidget {
+  const _DesktopProgressBar();
 
-    return Row(
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 16.0, right: 8.0),
-          child: SizedBox(
-            width: 64,
-            child: Text(
-              _formatDuration(position),
-              style: TextStyle(color: Colors.grey[400], fontSize: 12),
-              textAlign: TextAlign.right,
+  @override
+  Widget build(BuildContext context) {
+    return Selector<AudioPlayerProvider, _PositionData>(
+      selector: (context, player) => _PositionData(
+        position: player.position,
+        duration: player.duration,
+      ),
+      builder: (context, data, child) {
+        final duration = data.duration;
+        final position = data.position;
+        final progress = duration.inMilliseconds > 0
+            ? position.inMilliseconds / duration.inMilliseconds
+            : 0.0;
+
+        return Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 16.0, right: 8.0),
+              child: SizedBox(
+                width: 64,
+                child: Text(
+                  _formatDuration(position),
+                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                  textAlign: TextAlign.right,
+                ),
+              ),
             ),
-          ),
-        ),
-        Expanded(
-          child: SliderTheme(
-            data: SliderThemeData(
-              trackHeight: 4,
-              thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
-              overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
-              activeTrackColor: Theme.of(context).colorScheme.primary,
-              inactiveTrackColor: Colors.grey[800],
-              thumbColor: Colors.white,
-              overlayColor: Theme.of(
-                context,
-              ).colorScheme.primary.withOpacity(0.2),
+            Expanded(
+              child: SliderTheme(
+                data: SliderThemeData(
+                  trackHeight: 4,
+                  thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
+                  overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
+                  activeTrackColor: Theme.of(context).colorScheme.primary,
+                  inactiveTrackColor: Colors.grey[800],
+                  thumbColor: Colors.white,
+                  overlayColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withOpacity(0.2),
+                ),
+                child: Slider(
+                  value: progress.clamp(0.0, 1.0),
+                  onChanged: (value) {
+                    final newPosition = Duration(
+                      milliseconds:
+                          (value * duration.inMilliseconds).toInt(),
+                    );
+                    context.read<AudioPlayerProvider>().seek(newPosition);
+                  },
+                ),
+              ),
             ),
-            child: Slider(
-              value: progress.clamp(0.0, 1.0),
-              onChanged: (value) {
-                final newPosition = Duration(
-                  milliseconds: (value * duration.inMilliseconds).toInt(),
-                );
-                player.seek(newPosition);
-              },
+            Padding(
+              padding: const EdgeInsets.only(left: 8.0, right: 16.0),
+              child: SizedBox(
+                width: 64,
+                child: Text(
+                  _formatDuration(duration),
+                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                  textAlign: TextAlign.left,
+                ),
+              ),
             ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: 8.0, right: 16.0),
-          child: SizedBox(
-            width: 64,
-            child: Text(
-              _formatDuration(duration),
-              style: TextStyle(color: Colors.grey[400], fontSize: 12),
-              textAlign: TextAlign.left,
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
+}
 
-  String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    final seconds = duration.inSeconds.remainder(60);
+String _formatDuration(Duration duration) {
+  String twoDigits(int n) => n.toString().padLeft(2, '0');
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  final seconds = duration.inSeconds.remainder(60);
 
-    if (hours > 0) {
-      return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
-    }
-    return '$minutes:${twoDigits(seconds)}';
+  if (hours > 0) {
+    return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
   }
+  return '$minutes:${twoDigits(seconds)}';
+}
 
-  Widget _buildTrackInfo(BuildContext context, dynamic currentTrack) {
+class _DesktopTrackInfo extends StatelessWidget {
+  final GenericSong? currentTrack;
+
+  const _DesktopTrackInfo({required this.currentTrack});
+
+  @override
+  Widget build(BuildContext context) {
     final libraryState = context.read<LibraryState>();
     final navState = context.read<NavigationState>();
     final currentLibraryView = navState.selectedLibraryView;
     final currentNavIndex = navState.selectedNavIndex;
-    final track = currentTrack is GenericSong ? currentTrack : null;
+    final track = currentTrack;
     final album = track?.album;
     final artists = track?.artists ?? <GenericSimpleArtist>[];
     final primaryArtist = artists.isNotEmpty ? artists.first : null;
@@ -403,9 +460,9 @@ extension on WispPlayerBar {
               width: 48,
               height: 48,
               color: Colors.grey[900],
-              child: currentTrack.thumbnailUrl.isNotEmpty
+              child: currentTrack!.thumbnailUrl.isNotEmpty
                   ? CachedNetworkImage(
-                      imageUrl: currentTrack.thumbnailUrl,
+                      imageUrl: currentTrack!.thumbnailUrl,
                       fit: BoxFit.cover,
                       placeholder: (context, url) =>
                           Container(color: Colors.grey[800]),
@@ -481,7 +538,7 @@ extension on WispPlayerBar {
                         ),
                       )
                     : _MarqueeText(
-                        text: currentTrack.title,
+                        text: currentTrack!.title,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -535,7 +592,7 @@ extension on WispPlayerBar {
                         ),
                       )
                     : _MarqueeText(
-                        text: currentTrack.artists
+                        text: currentTrack!.artists
                             .map((a) => a.name)
                             .join(', '),
                         style: TextStyle(color: Colors.grey[400], fontSize: 12),
@@ -547,83 +604,108 @@ extension on WispPlayerBar {
       ),
     );
   }
+}
 
-  Widget _buildPlaybackControls(
-    BuildContext context,
-    AudioPlayerProvider player,
-  ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Shuffle
-        IconButton(
-          padding: EdgeInsets.all(4),
-          constraints: BoxConstraints(),
-          icon: Icon(
-            Icons.shuffle,
-            color: player.shuffleEnabled
-                ? Theme.of(context).colorScheme.primary
-                : Colors.grey[400],
-            size: 20,
-          ),
-          onPressed: player.toggleShuffle,
-        ),
+class _DesktopPlaybackControls extends StatelessWidget {
+  const _DesktopPlaybackControls();
 
-        SizedBox(width: 4),
+  @override
+  Widget build(BuildContext context) {
+    return Selector<AudioPlayerProvider, _PlayPauseData>(
+      selector: (context, player) {
+        final track = player.currentTrack;
+        final queueFirst = player.queue.isNotEmpty ? player.queue.first : null;
+        return _PlayPauseData(
+          isPlaying: player.isPlaying,
+          isLoading: player.isLoading,
+          isBuffering: player.isBuffering,
+          isOnline: player.isOnline,
+          currentTrackId: track?.id,
+          currentTrackCached:
+              track == null ? true : player.isTrackCached(track.id),
+          queueNotEmpty: player.queue.isNotEmpty,
+          queueFirstId: queueFirst?.id,
+          shuffleEnabled: player.shuffleEnabled,
+          repeatMode: player.repeatMode,
+        );
+      },
+      builder: (context, data, child) {
+        final player = context.read<AudioPlayerProvider>();
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Shuffle
+            IconButton(
+              padding: EdgeInsets.all(4),
+              constraints: BoxConstraints(),
+              icon: Icon(
+                Icons.shuffle,
+                color: data.shuffleEnabled
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.grey[400],
+                size: 20,
+              ),
+              onPressed: player.toggleShuffle,
+            ),
 
-        // Previous
-        IconButton(
-          padding: EdgeInsets.all(4),
-          constraints: BoxConstraints(),
-          icon: Icon(Icons.skip_previous, color: Colors.white, size: 28),
-          onPressed: player.queue.isEmpty ? null : player.skipPrevious,
-        ),
+            SizedBox(width: 4),
 
-        SizedBox(width: 4),
+            // Previous
+            IconButton(
+              padding: EdgeInsets.all(4),
+              constraints: BoxConstraints(),
+              icon: Icon(Icons.skip_previous, color: Colors.white, size: 28),
+              onPressed: data.queueNotEmpty ? player.skipPrevious : null,
+            ),
 
-        // Play/Pause
-        _buildPlayPauseButton(context, player),
+            SizedBox(width: 4),
 
-        SizedBox(width: 4),
+            // Play/Pause
+            _DesktopPlayPauseButton(data: data),
 
-        // Next
-        IconButton(
-          padding: EdgeInsets.all(4),
-          constraints: BoxConstraints(),
-          icon: Icon(Icons.skip_next, color: Colors.white, size: 28),
-          onPressed: player.queue.isEmpty ? null : player.skipNext,
-        ),
+            SizedBox(width: 4),
 
-        SizedBox(width: 4),
+            // Next
+            IconButton(
+              padding: EdgeInsets.all(4),
+              constraints: BoxConstraints(),
+              icon: Icon(Icons.skip_next, color: Colors.white, size: 28),
+              onPressed: data.queueNotEmpty ? player.skipNext : null,
+            ),
 
-        // Repeat
-        IconButton(
-          padding: EdgeInsets.all(4),
-          constraints: BoxConstraints(),
-          icon: Icon(
-            player.repeatMode == RepeatMode.one
-                ? Icons.repeat_one
-                : Icons.repeat,
-            color: player.repeatMode != RepeatMode.off
-                ? Theme.of(context).colorScheme.primary
-                : Colors.grey[400],
-            size: 20,
-          ),
-          onPressed: player.toggleRepeat,
-        ),
-      ],
+            SizedBox(width: 4),
+
+            // Repeat
+            IconButton(
+              padding: EdgeInsets.all(4),
+              constraints: BoxConstraints(),
+              icon: Icon(
+                data.repeatMode == RepeatMode.one
+                    ? Icons.repeat_one
+                    : Icons.repeat,
+                color: data.repeatMode != RepeatMode.off
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.grey[400],
+                size: 20,
+              ),
+              onPressed: player.toggleRepeat,
+            ),
+          ],
+        );
+      },
     );
   }
+}
 
-  Widget _buildPlayPauseButton(
-    BuildContext context,
-    AudioPlayerProvider player,
-  ) {
-    IconData icon;
-    VoidCallback? onPressed;
+class _DesktopPlayPauseButton extends StatelessWidget {
+  final _PlayPauseData data;
 
-    if (player.isLoading || player.isBuffering) {
+  const _DesktopPlayPauseButton({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isLoading || data.isBuffering) {
       return SizedBox(
         width: 40,
         height: 40,
@@ -636,22 +718,25 @@ extension on WispPlayerBar {
       );
     }
 
-    if (player.isPlaying) {
-      icon = Icons.pause_circle_filled;
-      onPressed = player.pause;
-    } else {
-      icon = Icons.play_circle_filled;
-      onPressed = player.currentTrack != null
-          ? player.play
-          : (player.queue.isNotEmpty
-                ? () => player.playTrack(player.queue.first)
-                : null);
+    final player = context.read<AudioPlayerProvider>();
+    final isOfflineBlocked =
+        !data.isOnline && data.currentTrackId != null && !data.currentTrackCached;
+    IconData icon = data.isPlaying
+        ? Icons.pause_circle_filled
+        : Icons.play_circle_filled;
+    VoidCallback? onPressed;
+
+    if (!isOfflineBlocked) {
+      if (data.isPlaying) {
+        onPressed = player.pause;
+      } else if (data.currentTrackId != null) {
+        onPressed = player.play;
+      } else if (data.queueNotEmpty) {
+        onPressed = () => player.playTrack(player.queue.first);
+      }
     }
 
-    // Disable if offline and track not cached
-    if (!player.isOnline &&
-        player.currentTrack != null &&
-        !player.isTrackCached(player.currentTrack!.id)) {
+    if (isOfflineBlocked) {
       return IconButton(
         padding: EdgeInsets.all(4),
         constraints: BoxConstraints(),
@@ -667,12 +752,15 @@ extension on WispPlayerBar {
       onPressed: onPressed,
     );
   }
+}
 
-  Widget _buildRightControls(
-    BuildContext context,
-    AudioPlayerProvider player,
-    dynamic currentTrack,
-  ) {
+class _DesktopRightControls extends StatelessWidget {
+  final GenericSong? currentTrack;
+
+  const _DesktopRightControls({required this.currentTrack});
+
+  @override
+  Widget build(BuildContext context) {
     final navState = context.watch<NavigationState>();
     return ValueListenableBuilder<Route<dynamic>?>(
       valueListenable: NavigationHistory.instance.currentRoute,
@@ -728,85 +816,167 @@ extension on WispPlayerBar {
             SizedBox(width: 8),
 
             // Volume control
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                InkWell(
-                  onTap: player.toggleMute,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
-                      player.volume == 0
-                          ? Icons.volume_off
-                          : player.volume < 0.5
-                          ? Icons.volume_down
-                          : Icons.volume_up,
-                      color: Colors.grey[400],
-                      size: 20,
+            Selector<AudioPlayerProvider, double>(
+              selector: (context, player) => player.volume,
+              builder: (context, volume, child) {
+                final player = context.read<AudioPlayerProvider>();
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkWell(
+                      onTap: player.toggleMute,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          volume == 0
+                              ? Icons.volume_off
+                              : volume < 0.5
+                              ? Icons.volume_down
+                              : Icons.volume_up,
+                          color: Colors.grey[400],
+                          size: 20,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                SizedBox(width: 8),
-                SizedBox(
-                  width: 100,
-                  child: SliderTheme(
-                    data: SliderThemeData(
-                      trackHeight: 4,
-                      thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
-                      overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
-                      activeTrackColor: Theme.of(context).colorScheme.primary,
-                      inactiveTrackColor: Colors.grey[800],
-                      thumbColor: Colors.white,
-                      overlayColor: Theme.of(
-                        context,
-                      ).colorScheme.primary.withOpacity(0.2),
+                    SizedBox(width: 8),
+                    SizedBox(
+                      width: 100,
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 4,
+                          thumbShape:
+                              RoundSliderThumbShape(enabledThumbRadius: 6),
+                          overlayShape:
+                              RoundSliderOverlayShape(overlayRadius: 12),
+                          activeTrackColor:
+                              Theme.of(context).colorScheme.primary,
+                          inactiveTrackColor: Colors.grey[800],
+                          thumbColor: Colors.white,
+                          overlayColor: Theme.of(
+                            context,
+                          ).colorScheme.primary.withOpacity(0.2),
+                        ),
+                        child: Slider(
+                          value: volume,
+                          onChanged: (value) => player.setVolume(value),
+                        ),
+                      ),
                     ),
-                    child: Slider(
-                      value: player.volume,
-                      onChanged: (value) => player.setVolume(value),
-                    ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ],
         );
       },
     );
   }
+}
 
-  void _openLyrics(BuildContext context) {
-    final currentRoute = ModalRoute.of(context);
-    if (currentRoute?.settings.name == '/lyrics') {
-      return;
-    }
-    NavigationHistory.instance.navigatorKey.currentState?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: const RouteSettings(name: '/lyrics'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const LyricsView(),
-      ),
-    );
+void _openLyrics(BuildContext context) {
+  final currentRoute = ModalRoute.of(context);
+  if (currentRoute?.settings.name == '/lyrics') {
+    return;
   }
+  NavigationHistory.instance.navigatorKey.currentState?.push(
+    PageRouteBuilder(
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      settings: const RouteSettings(name: '/lyrics'),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          const LyricsView(),
+    ),
+  );
+}
 
-  void _openQueue(BuildContext context) {
-    final currentRoute = ModalRoute.of(context);
-    if (currentRoute?.settings.name == '/queue') {
-      return;
-    }
-    NavigationHistory.instance.navigatorKey.currentState?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: const RouteSettings(name: '/queue'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const QueueView(),
-      ),
-    );
+void _openQueue(BuildContext context) {
+  final currentRoute = ModalRoute.of(context);
+  if (currentRoute?.settings.name == '/queue') {
+    return;
   }
+  NavigationHistory.instance.navigatorKey.currentState?.push(
+    PageRouteBuilder(
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      settings: const RouteSettings(name: '/queue'),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          const QueueView(),
+    ),
+  );
+}
+
+class _PositionData {
+  final Duration position;
+  final Duration duration;
+
+  const _PositionData({required this.position, required this.duration});
+
+  @override
+  bool operator ==(Object other) =>
+      other is _PositionData &&
+      other.position.inMilliseconds == position.inMilliseconds &&
+      other.duration.inMilliseconds == duration.inMilliseconds;
+
+  @override
+  int get hashCode => Object.hash(
+    position.inMilliseconds,
+    duration.inMilliseconds,
+  );
+}
+
+class _PlayPauseData {
+  final bool isPlaying;
+  final bool isLoading;
+  final bool isBuffering;
+  final bool isOnline;
+  final String? currentTrackId;
+  final bool currentTrackCached;
+  final bool queueNotEmpty;
+  final String? queueFirstId;
+  final bool shuffleEnabled;
+  final RepeatMode? repeatMode;
+
+  const _PlayPauseData({
+    required this.isPlaying,
+    required this.isLoading,
+    required this.isBuffering,
+    required this.isOnline,
+    required this.currentTrackId,
+    required this.currentTrackCached,
+    required this.queueNotEmpty,
+    required this.queueFirstId,
+    this.shuffleEnabled = false,
+    this.repeatMode,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      other is _PlayPauseData &&
+      other.isPlaying == isPlaying &&
+      other.isLoading == isLoading &&
+      other.isBuffering == isBuffering &&
+      other.isOnline == isOnline &&
+      other.currentTrackId == currentTrackId &&
+      other.currentTrackCached == currentTrackCached &&
+      other.queueNotEmpty == queueNotEmpty &&
+      other.queueFirstId == queueFirstId &&
+      other.shuffleEnabled == shuffleEnabled &&
+      other.repeatMode == repeatMode;
+
+  @override
+  int get hashCode => Object.hash(
+    isPlaying,
+    isLoading,
+    isBuffering,
+    isOnline,
+    currentTrackId,
+    currentTrackCached,
+    queueNotEmpty,
+    queueFirstId,
+    shuffleEnabled,
+    repeatMode,
+  );
 }
 
 class _MarqueeText extends StatefulWidget {

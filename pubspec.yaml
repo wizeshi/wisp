@@ -74,6 +74,9 @@ dependencies:
   # Local notifications for download progress
   flutter_local_notifications: ^19.1.0
 
+  # Foreground service to keep downloads running in background (Android)
+  flutter_foreground_task: ^8.11.0
+
   logger: ^2.6.2
   flutter_discord_rpc: ^1.1.0
 

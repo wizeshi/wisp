@@ -134,12 +134,18 @@ class _NowPlayingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer3<AudioPlayerProvider, LibraryState, NavigationState>(
-      builder: (context, player, libraryState, navState, child) {
-        final track = player.currentTrack;
+    return Selector<AudioPlayerProvider, _NowPlayingData>(
+      selector: (context, player) => _NowPlayingData(
+        track: player.currentTrack,
+        playbackContextName: player.playbackContextName,
+      ),
+      builder: (context, data, child) {
+        final libraryState = context.read<LibraryState>();
+        final navState = context.read<NavigationState>();
+        final track = data.track;
         final headerText =
-            (player.playbackContextName?.trim().isNotEmpty ?? false)
-            ? player.playbackContextName!.trim()
+            (data.playbackContextName?.trim().isNotEmpty ?? false)
+            ? data.playbackContextName!.trim()
             : 'Now playing';
         final album = track?.album;
         final primaryArtist = track?.artists.isNotEmpty == true
@@ -470,12 +476,14 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AudioPlayerProvider>(
-      builder: (context, player, child) {
-        final artist = player.currentTrack?.artists.isNotEmpty == true
-            ? player.currentTrack!.artists.first
+    return Selector<AudioPlayerProvider, GenericSimpleArtist?>(
+      selector: (context, player) {
+        final track = player.currentTrack;
+        return track?.artists.isNotEmpty == true
+            ? track!.artists.first
             : null;
-
+      },
+      builder: (context, artist, child) {
         if (artist != null && artist.id != _artistId) {
           _artistId = artist.id;
           final spotify = context.read<SpotifyProvider>();
@@ -660,32 +668,33 @@ class _LyricsPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<AudioPlayerProvider, LyricsProvider>(
-      builder: (context, player, lyricsProvider, child) {
-        final track = player.currentTrack;
-        if (track == null) {
-          return _SectionCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Lyrics preview',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  'Play a song to see lyrics',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-              ],
+    final track =
+        context.select<AudioPlayerProvider, GenericSong?>((p) => p.currentTrack);
+    if (track == null) {
+      return _SectionCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text(
+              'Lyrics preview',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          );
-        }
+            SizedBox(height: 10),
+            Text(
+              'Play a song to see lyrics',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
 
+    return Consumer<LyricsProvider>(
+      builder: (context, lyricsProvider, child) {
         final state = lyricsProvider.getState(track, LyricsSyncMode.synced);
         if (!state.isLoading && state.lyrics == null && state.error == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -694,9 +703,6 @@ class _LyricsPreviewCard extends StatelessWidget {
         }
 
         final lyrics = state.lyrics;
-        final previewLines = lyrics == null
-            ? const <LyricsLine>[]
-            : _getPreviewLines(lyrics, player.position.inMilliseconds);
 
         return _SectionCard(
           child: Column(
@@ -716,22 +722,13 @@ class _LyricsPreviewCard extends StatelessWidget {
                   'Loading lyrics…',
                   style: TextStyle(color: Colors.grey, fontSize: 13),
                 )
-              else if (previewLines.isEmpty)
+              else if (lyrics == null)
                 const Text(
                   'No lyrics found',
                   style: TextStyle(color: Colors.grey, fontSize: 13),
                 )
               else
-                AnimatedLyricsPreviewList(
-                  lines: previewLines,
-                  resetKey: track.id,
-                  maxLines: 2,
-                  textStyle: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                _LyricsPreviewLines(lyrics: lyrics, resetKey: track.id),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -780,26 +777,6 @@ class _LyricsPreviewCard extends StatelessWidget {
     );
   }
 
-  List<LyricsLine> _getPreviewLines(LyricsResult lyrics, int positionMs) {
-    if (lyrics.lines.isEmpty) return const [];
-    if (!lyrics.synced) {
-      return lyrics.lines.take(3).toList();
-    }
-    final currentIndex = _findCurrentLineIndex(lyrics.lines, positionMs);
-    return lyrics.lines.skip(currentIndex).take(3).toList();
-  }
-
-  int _findCurrentLineIndex(List<LyricsLine> lines, int positionMs) {
-    var index = 0;
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].startTimeMs <= positionMs) {
-        index = i;
-      } else {
-        break;
-      }
-    }
-    return index;
-  }
 }
 
 class _QueuePreviewCard extends StatelessWidget {
@@ -807,10 +784,16 @@ class _QueuePreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AudioPlayerProvider>(
-      builder: (context, player, child) {
+    return Selector<AudioPlayerProvider, _QueuePreviewData>(
+      selector: (context, player) => _QueuePreviewData(
+        queueLength: player.queue.length,
+        currentIndex: player.currentIndex,
+        currentTrackId: player.currentTrack?.id,
+      ),
+      builder: (context, data, child) {
+        final player = context.read<AudioPlayerProvider>();
         final queue = player.queue;
-        final currentIndex = player.currentIndex;
+        final currentIndex = data.currentIndex;
         final upcoming = currentIndex + 1 < queue.length
             ? queue.sublist(currentIndex + 1)
             : <GenericSong>[];
@@ -915,4 +898,97 @@ class _QueuePreviewCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LyricsPreviewLines extends StatelessWidget {
+  final LyricsResult lyrics;
+  final String resetKey;
+
+  const _LyricsPreviewLines({required this.lyrics, required this.resetKey});
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<AudioPlayerProvider, int>(
+      selector: (context, player) => player.position.inMilliseconds,
+      builder: (context, positionMs, child) {
+        final previewLines = _getPreviewLines(lyrics, positionMs);
+        if (previewLines.isEmpty) {
+          return const Text(
+            'No lyrics found',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          );
+        }
+
+        return AnimatedLyricsPreviewList(
+          lines: previewLines,
+          resetKey: resetKey,
+          maxLines: 2,
+          textStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+      },
+    );
+  }
+}
+
+List<LyricsLine> _getPreviewLines(LyricsResult lyrics, int positionMs) {
+  if (lyrics.lines.isEmpty) return const [];
+  if (!lyrics.synced) {
+    return lyrics.lines.take(3).toList();
+  }
+  final currentIndex = _findCurrentLineIndex(lyrics.lines, positionMs);
+  return lyrics.lines.skip(currentIndex).take(3).toList();
+}
+
+int _findCurrentLineIndex(List<LyricsLine> lines, int positionMs) {
+  var index = 0;
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].startTimeMs <= positionMs) {
+      index = i;
+    } else {
+      break;
+    }
+  }
+  return index;
+}
+
+class _NowPlayingData {
+  final GenericSong? track;
+  final String? playbackContextName;
+
+  const _NowPlayingData({required this.track, required this.playbackContextName});
+
+  @override
+  bool operator ==(Object other) =>
+      other is _NowPlayingData &&
+      other.track?.id == track?.id &&
+      other.playbackContextName == playbackContextName;
+
+  @override
+  int get hashCode => Object.hash(track?.id, playbackContextName);
+}
+
+class _QueuePreviewData {
+  final int queueLength;
+  final int currentIndex;
+  final String? currentTrackId;
+
+  const _QueuePreviewData({
+    required this.queueLength,
+    required this.currentIndex,
+    required this.currentTrackId,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      other is _QueuePreviewData &&
+      other.queueLength == queueLength &&
+      other.currentIndex == currentIndex &&
+      other.currentTrackId == currentTrackId;
+
+  @override
+  int get hashCode => Object.hash(queueLength, currentIndex, currentTrackId);
 }

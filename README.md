@@ -34,7 +34,7 @@ Here's the TODO list (24/50)
     - [x] Fix cache manager retries sometimes crashing the app
     - [x] Play/pause button in list view song row only appears for a split second after hovering (only when player is playing though). 
     - [x] Fix skipping buttons, they sometimes do not work
-    - [ ] Fix icons in mobile (media control icon is just a white circle now)
+    - [x] Fix icons in mobile (media control icon is just a white circle now)
 - Future changes:
     - [x] Change print statements to a logging framework
     - [x] Adjust player bar loading spinner size
@@ -74,9 +74,9 @@ Here's the TODO list (24/50)
         - [ ] Support for multiple metadata providers
         - [ ] Add ability to create playlists and save them to a provider, but only that provider's tracks
         - [ ] Add playlist/library caching (with the ability to sync or unlink from the original provider)
-    - [ ] Add ability to like songs, and the Liked Songs playlist in the playlists tab. 
-    - [ ] Add the Connect capability (being able to control devices remotely, probably with bluetooth/nearby devices for now)
+    - [ ] Add ability to like songs, and see the Liked Songs playlist in the playlists tab. 
     - [ ] Add playlist folders (unfortunately unable to sync with spotify :/)
+    - [ ] Add the Connect capability (being able to control devices remotely, probably with bluetooth/nearby devices for now)
     - [ ] Add a fullscreen player (desktop)
     - [ ] Add minimizing to the tray area (desktop)
 
