@@ -13,6 +13,10 @@ import '../widgets/navigation.dart';
 import '../providers/audio/player.dart';
 import '../providers/audio/youtube.dart';
 import '../services/cache_manager.dart';
+import '../providers/library/library_state.dart';
+import '../providers/library/local_playlists.dart';
+import '../utils/liked_songs.dart';
+import '../providers/metadata/spotify.dart';
 
 /// Shows a context menu for a track
 /// On mobile: bottom sheet drawer
@@ -80,6 +84,7 @@ class TrackContextMenu {
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   }) {
+    context.read<SpotifyProvider>().ensureLikedTracksLoaded();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -186,6 +191,16 @@ class TrackContextMenu {
                           track,
                           isMobile: true,
                         ),
+                        _buildMobileMenuItem(
+                          icon: Icons.playlist_add,
+                          label: 'Add to Playlist',
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showAddToPlaylistDialog(context, track);
+                          },
+                        ),
+                        _buildMobileSectionHeader('Likes'),
+                        _buildLikeMobileMenuItem(context, track),
                         if (track.album != null)
                           _buildMobileMenuItem(
                             icon: Icons.album,
@@ -271,7 +286,7 @@ class TrackContextMenu {
   static Widget _buildMobileMenuItem({
     required IconData icon,
     required String label,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
     Color? iconColor,
   }) {
     return InkWell(
@@ -280,15 +295,61 @@ class TrackContextMenu {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, color: iconColor ?? Colors.white, size: 24),
+            Icon(
+              icon,
+              color: iconColor ?? (onTap == null ? Colors.grey[600] : Colors.white),
+              size: 24,
+            ),
             const SizedBox(width: 16),
             Text(
               label,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
+              style: TextStyle(
+                color: onTap == null ? Colors.grey[500] : Colors.white,
+                fontSize: 16,
+              ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  static Widget _buildMobileSectionHeader(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          color: Colors.grey[500],
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1.1,
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildLikeMobileMenuItem(
+    BuildContext context,
+    GenericSong track,
+  ) {
+    final spotify = context.watch<SpotifyProvider>();
+    final isSpotify = track.source == SongSource.spotify;
+    final isLiked = isSpotify ? spotify.isTrackLiked(track.id) : false;
+    final label = isLiked ? 'Remove from Likes' : 'Add to Likes';
+    final icon = isLiked ? Icons.favorite : Icons.favorite_border;
+    return _buildMobileMenuItem(
+      icon: icon,
+      label: label,
+      iconColor: isSpotify
+          ? Theme.of(context).colorScheme.primary
+          : Colors.grey[600],
+      onTap: isSpotify
+          ? () async {
+              Navigator.pop(context);
+              await context.read<SpotifyProvider>().toggleTrackLike(track);
+            }
+          : null,
     );
   }
 
@@ -304,6 +365,7 @@ class TrackContextMenu {
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   }) {
+    context.read<SpotifyProvider>().ensureLikedTracksLoaded();
     final overlay =
         Overlay.of(context, rootOverlay: true).context.findRenderObject()
             as RenderBox;
@@ -373,6 +435,32 @@ class TrackContextMenu {
                             onTap: () =>
                                 _showChangeVideoIdDialog(context, track),
                           ),
+                          const SizedBox(height: 4),
+                          _buildDesktopMenuButton(
+                            context: dialogContext,
+                            child: _buildDesktopMenuItem(
+                              Icons.playlist_add,
+                              'Add to Playlist',
+                            ),
+                            onTap: () => _showAddToPlaylistDialog(
+                              context,
+                              track,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          _buildDesktopMenuSectionHeader('Likes'),
+                          const SizedBox(height: 2),
+                          _buildDesktopMenuButton(
+                            context: dialogContext,
+                            child: _buildLikeDesktopMenuItem(
+                              dialogContext,
+                              track,
+                            ),
+                            onTap: track.source == SongSource.spotify
+                                ? () =>
+                                    context.read<SpotifyProvider>().toggleTrackLike(track)
+                                : null,
+                          ),
                           if (track.album != null) ...[
                             const SizedBox(height: 4),
                             _buildDesktopMenuButton(
@@ -419,7 +507,8 @@ class TrackContextMenu {
                               },
                             ),
                           ],
-                          if (track.artists.length == 1) ...[
+                          if (track.source == SongSource.spotify &&
+                              track.artists.length == 1) ...[
                             const SizedBox(height: 4),
                             _buildDesktopMenuButton(
                               context: dialogContext,
@@ -440,7 +529,8 @@ class TrackContextMenu {
                               },
                             ),
                           ],
-                          if (track.artists.length > 1) ...[
+                          if (track.source == SongSource.spotify &&
+                              track.artists.length > 1) ...[
                             const SizedBox(height: 6),
                             _buildDesktopMenuSectionHeader('Artists'),
                             const SizedBox(height: 2),
@@ -488,12 +578,16 @@ class TrackContextMenu {
     IconData icon,
     String label, {
     Color? iconColor,
+    Color? textColor,
   }) {
     return Row(
       children: [
         Icon(icon, color: iconColor ?? Colors.grey[300], size: 20),
         const SizedBox(width: 12),
-        Text(label, style: const TextStyle(color: Colors.white)),
+        Text(
+          label,
+          style: TextStyle(color: textColor ?? Colors.white),
+        ),
       ],
     );
   }
@@ -501,17 +595,38 @@ class TrackContextMenu {
   static Widget _buildDesktopMenuButton({
     required BuildContext context,
     required Widget child,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
   }) {
     return InkWell(
-      onTap: () {
-        Navigator.of(context).pop();
-        onTap();
-      },
+      onTap: onTap == null
+          ? null
+          : () {
+              Navigator.of(context).pop();
+              onTap();
+            },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: child,
       ),
+    );
+  }
+
+  static Widget _buildLikeDesktopMenuItem(
+    BuildContext context,
+    GenericSong track,
+  ) {
+    final spotify = context.watch<SpotifyProvider>();
+    final isSpotify = track.source == SongSource.spotify;
+    final isLiked = isSpotify ? spotify.isTrackLiked(track.id) : false;
+    final label = isLiked ? 'Remove from Likes' : 'Add to Likes';
+    final icon = isLiked ? Icons.favorite : Icons.favorite_border;
+    return _buildDesktopMenuItem(
+      icon,
+      label,
+      iconColor: isSpotify
+          ? Theme.of(context).colorScheme.primary
+          : Colors.grey[600],
+      textColor: isSpotify ? Colors.white : Colors.grey[500],
     );
   }
 
@@ -527,6 +642,86 @@ class TrackContextMenu {
           letterSpacing: 1.1,
         ),
       ),
+    );
+  }
+
+  static void _showAddToPlaylistDialog(
+    BuildContext context,
+    GenericSong track,
+  ) {
+    final libraryState = context.read<LibraryState>();
+    final localState = context.read<LocalPlaylistState>();
+    final playlists = libraryState.playlists
+        .where((p) => !isLikedSongsPlaylistId(p.id))
+        .toList();
+
+    if (playlists.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No playlists available.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1B1B1B),
+          title: const Text(
+            'Add to playlist',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SizedBox(
+            width: 320,
+            height: 360,
+            child: ListView.builder(
+              itemCount: playlists.length,
+              itemBuilder: (context, index) {
+                final playlist = playlists[index];
+                return ListTile(
+                  title: Text(
+                    playlist.title,
+                    style: const TextStyle(color: Colors.white),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    playlist.author.displayName,
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () async {
+                    if (!localState.isLocalPlaylistId(playlist.id)) {
+                      await localState.ensureLinkedFromProvider(playlist);
+                    }
+                    await localState.addTrackFromSong(playlist.id, track);
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Added to ${playlist.title}'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+            ),
+          ],
+        );
+      },
     );
   }
 

@@ -1,10 +1,33 @@
 import 'package:flutter/material.dart';
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, File;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../models/metadata_models.dart';
+import '../models/library_folder.dart';
+import '../providers/library/library_folders.dart';
+import '../providers/library/library_state.dart';
 import 'library_item_context_menu.dart';
+import 'playlist_folder_modals.dart';
+import '../utils/liked_songs.dart';
+import 'liked_songs_art.dart';
 
 enum LibraryView { playlists, albums, artists }
+
+enum LibrarySidebarEntryType { item, unassignedHeader }
+
+class LibrarySidebarEntry {
+  final LibrarySidebarEntryType type;
+  final dynamic item;
+  final String? folderId;
+
+  const LibrarySidebarEntry.item(this.item, {this.folderId})
+      : type = LibrarySidebarEntryType.item;
+
+  const LibrarySidebarEntry.unassigned()
+      : type = LibrarySidebarEntryType.unassignedHeader,
+        item = null,
+        folderId = null;
+}
 
 class WispNavigation extends StatefulWidget {
   final LibraryView selectedView;
@@ -34,6 +57,11 @@ class WispNavigation extends StatefulWidget {
 
 class _WispNavigationState extends State<WispNavigation> {
   bool _isCollapsed = false;
+
+  bool _isLocalPath(String? path) {
+    if (path == null || path.isEmpty) return false;
+    return path.startsWith('/') || path.startsWith('file://');
+  }
 
   bool _isDesktop() {
     return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -80,7 +108,23 @@ class _WispNavigationState extends State<WispNavigation> {
                           color: Colors.white,
                         ),
                       ),
+                      const Spacer(),
+                      Builder(
+                        builder: (buttonContext) {
+                          return IconButton(
+                            tooltip: 'Create',
+                            icon: const Icon(Icons.add, color: Colors.white),
+                            onPressed: () => _showCreateMenu(buttonContext),
+                          );
+                        },
+                      ),
                     ],
+                    if (_isCollapsed)
+                      IconButton(
+                        tooltip: 'Create',
+                        icon: const Icon(Icons.add, color: Colors.white),
+                        onPressed: () => _showCreateMenu(context),
+                      ),
                   ],
                 ),
               ),
@@ -111,17 +155,140 @@ class _WispNavigationState extends State<WispNavigation> {
     );
   }
 
+  void _showCreateMenu(BuildContext buttonContext) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final box = buttonContext.findRenderObject() as RenderBox;
+    final position = overlay.globalToLocal(box.localToGlobal(Offset.zero));
+
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.transparent,
+      barrierDismissible: true,
+      useRootNavigator: true,
+      builder: (dialogContext) {
+        return Stack(
+          children: [
+            Positioned(
+              left: position.dx,
+              top: position.dy + box.size.height,
+              child: Material(
+                color: const Color(0xFF282828),
+                borderRadius: BorderRadius.circular(8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minWidth: 220,
+                    maxWidth: 280,
+                  ),
+                  child: IntrinsicWidth(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildCreateMenuItem(
+                            dialogContext,
+                            icon: Icons.create_new_folder_outlined,
+                            label: 'Create folder',
+                            onTap: () => PlaylistFolderModals.showCreateFolderDialog(context),
+                          ),
+                          _buildCreateMenuItem(
+                            dialogContext,
+                            icon: Icons.playlist_add,
+                            label: 'Create playlist',
+                            onTap: () {
+                              PlaylistFolderModals.showCreatePlaylistDialog(
+                                context,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildCreateMenuItem(
+    BuildContext dialogContext, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: () {
+        Navigator.of(dialogContext).pop();
+        onTap();
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.grey[300], size: 20),
+            const SizedBox(width: 12),
+            Text(label, style: const TextStyle(color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+
+
   Widget _buildExpandedViewSelector() {
+    final folderState = context.watch<LibraryFolderState>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'YOUR LIBRARY',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[600],
-            letterSpacing: 1.5,
+        SizedBox(
+          height: 20,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  'YOUR LIBRARY',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[600],
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+              if (widget.selectedView == LibraryView.playlists)
+                PopupMenuButton<LibrarySortMode>(
+                  tooltip: 'Sort',
+                  icon: Icon(Icons.sort, color: Colors.grey[500], size: 18),
+                  color: const Color(0xFF282828),
+                  onSelected: folderState.setSortMode,
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: LibrarySortMode.original,
+                      child: Text('Index', style: TextStyle(color: Colors.white)),
+                    ),
+                    PopupMenuItem(
+                      value: LibrarySortMode.recentlyPlayed,
+                      child: Text(
+                        'Recently played',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: LibrarySortMode.custom,
+                      child: Text(
+                        'Custom order',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
         ),
         SizedBox(height: 12),
@@ -187,27 +354,54 @@ class _WispNavigationState extends State<WispNavigation> {
   }
 
   Widget _buildLibraryItem(dynamic item, {required bool isCollapsed}) {
+    final entry = item is LibrarySidebarEntry
+        ? item
+        : LibrarySidebarEntry.item(item);
+    final folderState = context.watch<LibraryFolderState>();
+    final libraryState = context.watch<LibraryState>();
+    final allowDrag =
+      widget.selectedView == LibraryView.playlists && folderState.isCustomSort;
+
+    if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
+      return _SidebarUnassignedHeader(
+        enabled: allowDrag,
+        onDrop: (playlistId) {
+          folderState.movePlaylistIntoFolder(playlistId, null);
+        },
+      );
+    }
+
+    final resolvedItem = entry.item;
     String? imageUrl;
+    String? filePath;
     String title = '';
     String? subtitle;
 
-    // Extract data based on item type - handle different model types
-    if (item is GenericPlaylist) {
-      imageUrl = item.thumbnailUrl;
-      title = item.title;
-      subtitle = item.author.displayName;
-    } else if (item is GenericAlbum) {
-      imageUrl = item.thumbnailUrl;
-      title = item.title;
-      subtitle = item.artists.map((a) => a.name).join(', ');
-    } else if (item is GenericSimpleArtist) {
-      imageUrl = item.thumbnailUrl;
-      title = item.name;
+    final isLiked = resolvedItem is GenericPlaylist &&
+        isLikedSongsPlaylistId(resolvedItem.id);
+
+    if (resolvedItem is PlaylistFolder) {
+      filePath = resolvedItem.thumbnailPath;
+      title = resolvedItem.title;
+      final count = libraryState.playlists
+          .where((p) => folderState.folderIdForPlaylist(p.id) == resolvedItem.id)
+          .length;
+      subtitle = '$count playlist${count == 1 ? '' : 's'}';
+    } else if (resolvedItem is GenericPlaylist) {
+      imageUrl = resolvedItem.thumbnailUrl;
+      title = resolvedItem.title;
+      subtitle = resolvedItem.author.displayName;
+    } else if (resolvedItem is GenericAlbum) {
+      imageUrl = resolvedItem.thumbnailUrl;
+      title = resolvedItem.title;
+      subtitle = resolvedItem.artists.map((a) => a.name).join(', ');
+    } else if (resolvedItem is GenericSimpleArtist) {
+      imageUrl = resolvedItem.thumbnailUrl;
+      title = resolvedItem.name;
       subtitle = 'Artist';
     } else {
-      // Fallback: try to access properties dynamically
       try {
-        final dynamic obj = item;
+        final dynamic obj = resolvedItem;
         if (obj.thumbnailUrl != null) {
           imageUrl = obj.thumbnailUrl as String;
         }
@@ -221,64 +415,83 @@ class _WispNavigationState extends State<WispNavigation> {
       }
     }
 
-    return Material(
+    Widget tile = Material(
       color: Colors.transparent,
       child: InkWell(
         onSecondaryTapDown: (details) {
           LibraryItemContextMenu.show(
             context: context,
-            item: item,
+            item: resolvedItem,
             position: details.globalPosition,
-            playlists: widget.libraryItems
-                .whereType<GenericPlaylist>()
-                .toList(),
-            albums: widget.libraryItems.whereType<GenericAlbum>().toList(),
-            artists: widget.libraryItems
-                .whereType<GenericSimpleArtist>()
-                .toList(),
+            playlists: _extractItems<GenericPlaylist>(),
+            albums: _extractItems<GenericAlbum>(),
+            artists: _extractItems<GenericSimpleArtist>(),
             currentLibraryView: widget.selectedView,
             currentNavIndex: widget.selectedIndex,
           );
         },
         onTap: () {
-          widget.onLibraryItemSelected(item);
+          if (resolvedItem is PlaylistFolder) {
+            folderState.toggleFolderCollapsed(resolvedItem.id);
+            return;
+          }
+          widget.onLibraryItemSelected(resolvedItem);
         },
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: isCollapsed ? 8 : 12,
             vertical: 8,
+          ).add(
+            EdgeInsets.only(left: entry.folderId != null ? 12 : 0),
           ),
           child: Row(
-            mainAxisAlignment: isCollapsed
-                ? MainAxisAlignment.center
-                : MainAxisAlignment.start,
+            mainAxisAlignment:
+                isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
-              // Thumbnail
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: Container(
                   width: 48,
                   height: 48,
                   color: Colors.grey[900],
-                  child: imageUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: imageUrl,
+                  child: filePath != null
+                      ? Image.file(
+                          File(filePath),
                           fit: BoxFit.cover,
-                          errorWidget: (context, url, error) {
-                            return Icon(
-                              Icons.music_note,
-                              color: Colors.grey[700],
-                            );
-                          },
-                          placeholder: (context, url) =>
-                              Container(color: Colors.grey[800]),
+                          errorBuilder: (context, url, error) => Icon(
+                            Icons.folder,
+                            color: Colors.grey[700],
+                          ),
                         )
-                      : Icon(Icons.music_note, color: Colors.grey[700]),
+                      : (isLiked
+                          ? const LikedSongsArt()
+                          : (imageUrl != null
+                              ? (_isLocalPath(imageUrl)
+                                  ? Image.file(
+                                      File(imageUrl.replaceFirst('file://', '')),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, url, error) => Icon(
+                                        Icons.music_note,
+                                        color: Colors.grey[700],
+                                      ),
+                                    )
+                                  : CachedNetworkImage(
+                                      imageUrl: imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (context, url, error) {
+                                        return Icon(
+                                          Icons.music_note,
+                                          color: Colors.grey[700],
+                                        );
+                                      },
+                                      placeholder: (context, url) =>
+                                          Container(color: Colors.grey[800]),
+                                    ))
+                              : Icon(Icons.music_note, color: Colors.grey[700]))),
                 ),
               ),
               if (!isCollapsed) ...[
                 SizedBox(width: 12),
-                // Text info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,7 +501,9 @@ class _WispNavigationState extends State<WispNavigation> {
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: resolvedItem is PlaylistFolder
+                              ? FontWeight.w600
+                              : FontWeight.w500,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -308,12 +523,96 @@ class _WispNavigationState extends State<WispNavigation> {
                     ],
                   ),
                 ),
+                if (resolvedItem is PlaylistFolder)
+                  Icon(
+                    folderState.isFolderCollapsed(resolvedItem.id)
+                        ? Icons.chevron_right
+                        : Icons.expand_more,
+                    color: Colors.grey[500],
+                    size: 20,
+                  )
+                else if (!isCollapsed &&
+                  allowDrag &&
+                  !isLiked &&
+                  !(_isDesktop()) &&
+                  (resolvedItem is GenericPlaylist))
+                  Icon(Icons.drag_handle, color: Colors.grey[600], size: 18),
               ],
             ],
           ),
         ),
       ),
     );
+
+    if (allowDrag && resolvedItem is PlaylistFolder) {
+      final draggable = LongPressDraggable<_SidebarFolderDragData>(
+        delay: const Duration(milliseconds: 150),
+        data: _SidebarFolderDragData(resolvedItem.id),
+        feedback: _SidebarDragFeedback(title: resolvedItem.title, icon: Icons.folder),
+        childWhenDragging: Opacity(opacity: 0.4, child: tile),
+        child: tile,
+      );
+      final reorderTarget = DragTarget<_SidebarFolderDragData>(
+        onWillAccept: (data) => data != null && data.folderId != resolvedItem.id,
+        onAccept: (data) => folderState.moveFolderBefore(data.folderId, resolvedItem.id),
+        builder: (context, candidate, rejected) => Container(
+          decoration: candidate.isNotEmpty
+              ? BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                )
+              : null,
+          child: draggable,
+        ),
+      );
+      final playlistDropTarget = DragTarget<_SidebarPlaylistDragData>(
+        onWillAccept: (data) => data != null,
+        onAccept: (data) =>
+            folderState.movePlaylistIntoFolder(data.playlistId, resolvedItem.id),
+        builder: (context, candidate, rejected) => Container(
+          decoration: candidate.isNotEmpty
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white24),
+                )
+              : null,
+          child: reorderTarget,
+        ),
+      );
+      tile = playlistDropTarget;
+    }
+
+    if (allowDrag && resolvedItem is GenericPlaylist && !isLiked) {
+      final draggable = LongPressDraggable<_SidebarPlaylistDragData>(
+        delay: const Duration(milliseconds: 150),
+        data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
+        feedback: _SidebarDragFeedback(
+          title: resolvedItem.title,
+          icon: Icons.playlist_play,
+        ),
+        childWhenDragging: Opacity(opacity: 0.4, child: tile),
+        child: tile,
+      );
+      final reorderTarget = DragTarget<_SidebarPlaylistDragData>(
+        onWillAccept: (data) => data != null && data.playlistId != resolvedItem.id,
+        onAccept: (data) {
+          folderState.assignPlaylistToFolder(data.playlistId, entry.folderId);
+          folderState.movePlaylistBefore(data.playlistId, resolvedItem.id);
+        },
+        builder: (context, candidate, rejected) => Container(
+          decoration: candidate.isNotEmpty
+              ? BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                )
+              : null,
+          child: draggable,
+        ),
+      );
+      tile = reorderTarget;
+    }
+
+    return tile;
   }
 
   Widget _buildMobileBottomNav() {
@@ -346,6 +645,99 @@ class _WispNavigationState extends State<WispNavigation> {
         indicatorColor: colorScheme.primary.withOpacity(0.2),
         destinations: destinations,
       ),
+    );
+  }
+
+  List<T> _extractItems<T>() {
+    return widget.libraryItems
+        .map((item) => item is LibrarySidebarEntry ? item.item : item)
+        .whereType<T>()
+        .toList();
+  }
+}
+
+class _SidebarPlaylistDragData {
+  final String playlistId;
+  final String? folderId;
+
+  const _SidebarPlaylistDragData(this.playlistId, this.folderId);
+}
+
+class _SidebarFolderDragData {
+  final String folderId;
+
+  const _SidebarFolderDragData(this.folderId);
+}
+
+class _SidebarDragFeedback extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const _SidebarDragFeedback({required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarUnassignedHeader extends StatelessWidget {
+  final bool enabled;
+  final ValueChanged<String> onDrop;
+
+  const _SidebarUnassignedHeader({required this.enabled, required this.onDrop});
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Padding(
+      padding: const EdgeInsets.only(left: 12, top: 12, bottom: 6),
+      child: Text(
+        'Unassigned',
+        style: TextStyle(color: Colors.grey[500], fontSize: 11),
+      ),
+    );
+
+    if (!enabled) return child;
+
+    return DragTarget<_SidebarPlaylistDragData>(
+      onWillAccept: (data) => data != null,
+      onAccept: (data) => onDrop(data.playlistId),
+      builder: (context, candidate, rejected) {
+        return Container(
+          decoration: candidate.isNotEmpty
+              ? BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(6),
+                )
+              : null,
+          child: child,
+        );
+      },
     );
   }
 }

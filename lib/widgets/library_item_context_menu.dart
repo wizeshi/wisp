@@ -1,18 +1,22 @@
 /// Context menu for library items (playlist/album/artist)
 library;
 
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, File;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
+import '../models/library_folder.dart';
 import '../providers/metadata/spotify.dart';
 import '../services/metadata_cache.dart';
 import '../providers/library/library_state.dart';
+import '../providers/library/library_folders.dart';
+import '../providers/library/local_playlists.dart';
 import '../views/artist_detail.dart';
 import '../views/list_detail.dart';
 import 'navigation.dart';
+import 'playlist_folder_modals.dart';
 
 class LibraryItemContextMenu {
   static bool get _isDesktop => Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -65,6 +69,10 @@ class LibraryItemContextMenu {
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   }) {
+    final localState = context.read<LocalPlaylistState>();
+    final localPlaylist = item is GenericPlaylist
+        ? localState.getById(item.id)
+        : null;
     showDialog<void>(
       context: context,
       barrierColor: Colors.transparent,
@@ -88,32 +96,154 @@ class LibraryItemContextMenu {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _buildDesktopMenuButton(
-                            context: dialogContext,
-                            child: _buildDesktopMenuItem(Icons.open_in_new, 'Open'),
-                            onTap: () {
-                              _navigateToItem(
-                                context,
-                                item,
-                                playlists,
-                                albums,
-                                artists,
-                                currentLibraryView,
-                                currentNavIndex,
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 4),
-                          _buildDesktopMenuButton(
-                            context: dialogContext,
-                            child: _buildDesktopMenuItem(
-                              Icons.download_outlined,
-                              'Download Metadata',
+                          if (item is PlaylistFolder) ...[
+                            _buildDesktopMenuButton(
+                              context: dialogContext,
+                              child: _buildDesktopMenuItem(
+                                Icons.edit,
+                                'Rename',
+                              ),
+                              onTap: () {
+                                PlaylistFolderModals.showRenameFolderDialog(
+                                  context,
+                                  item,
+                                );
+                              },
                             ),
-                            onTap: () {
-                              _downloadMetadata(context, item);
-                            },
-                          ),
+                            _buildDesktopMenuButton(
+                              context: dialogContext,
+                              child: _buildDesktopMenuItem(
+                                Icons.image_outlined,
+                                'Change thumbnail',
+                              ),
+                              onTap: () {
+                                PlaylistFolderModals.showChangeThumbnailDialog(
+                                  context,
+                                  item,
+                                );
+                              },
+                            ),
+                            _buildDesktopMenuButton(
+                              context: dialogContext,
+                              child: _buildDesktopMenuItem(
+                                Icons.delete_outline,
+                                'Delete',
+                              ),
+                              onTap: () {
+                                context
+                                    .read<LibraryFolderState>()
+                                    .deleteFolder(item.id);
+                              },
+                            ),
+                          ] else ...[
+                            _buildDesktopMenuButton(
+                              context: dialogContext,
+                              child: _buildDesktopMenuItem(
+                                Icons.open_in_new,
+                                'Open',
+                              ),
+                              onTap: () {
+                                _navigateToItem(
+                                  context,
+                                  item,
+                                  playlists,
+                                  albums,
+                                  artists,
+                                  currentLibraryView,
+                                  currentNavIndex,
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 4),
+                            _buildDesktopMenuButton(
+                              context: dialogContext,
+                              child: _buildDesktopMenuItem(
+                                Icons.download_outlined,
+                                'Download Metadata',
+                              ),
+                              onTap: () {
+                                _downloadMetadata(context, item);
+                              },
+                            ),
+                            if (item is GenericPlaylist) ...[
+                              const SizedBox(height: 4),
+                              _buildDesktopMenuButton(
+                                context: dialogContext,
+                                closeMenu: false,
+                                child: _buildDesktopMenuItem(
+                                  Icons.folder,
+                                  'Add to folder',
+                                ),
+                                onTap: () {
+                                  PlaylistFolderModals.showAddToFolderSubmenu(
+                                    context,
+                                    playlist: item,
+                                    position: Offset(
+                                      position.dx + 230,
+                                      position.dy,
+                                    ),
+                                    parentMenuContext: dialogContext,
+                                  );
+                                },
+                              ),
+                              if (localPlaylist != null) ...[
+                                const SizedBox(height: 4),
+                                _buildDesktopMenuButton(
+                                  context: dialogContext,
+                                  child: _buildDesktopMenuItem(
+                                    Icons.edit,
+                                    'Rename',
+                                  ),
+                                  onTap: () {
+                                    PlaylistFolderModals.showRenamePlaylistDialog(
+                                      context,
+                                      item,
+                                    );
+                                  },
+                                ),
+                                _buildDesktopMenuButton(
+                                  context: dialogContext,
+                                  child: _buildDesktopMenuItem(
+                                    Icons.image_outlined,
+                                    'Change thumbnail',
+                                  ),
+                                  onTap: () {
+                                    PlaylistFolderModals
+                                        .showChangePlaylistThumbnailDialog(
+                                      context,
+                                      item,
+                                    );
+                                  },
+                                ),
+                                _buildDesktopMenuButton(
+                                  context: dialogContext,
+                                  child: _buildDesktopMenuItem(
+                                    Icons.delete_outline,
+                                    'Delete',
+                                  ),
+                                  onTap: () {
+                                    context
+                                        .read<LocalPlaylistState>()
+                                        .deletePlaylist(item.id);
+                                  },
+                                ),
+                                if (localPlaylist.isLinked) ...[
+                                  _buildDesktopMenuButton(
+                                    context: dialogContext,
+                                    child: _buildDesktopMenuItem(
+                                      Icons.link_off,
+                                      'Detach from provider',
+                                    ),
+                                    onTap: () {
+                                      context
+                                          .read<LocalPlaylistState>()
+                                          .detachFromProvider(item.id);
+                                    },
+                                  ),
+                                ],
+                              ],
+                            ],
+                          ],
                         ],
                       ),
                     ),
@@ -124,7 +254,7 @@ class LibraryItemContextMenu {
           ],
         );
       },
-    );
+    ).then((_) => PlaylistFolderModals.hideAddToFolderSubmenu());
   }
 
   static void _showMobileMenu({
@@ -136,6 +266,10 @@ class LibraryItemContextMenu {
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   }) {
+    final localState = context.read<LocalPlaylistState>();
+    final localPlaylist = item is GenericPlaylist
+        ? localState.getById(item.id)
+        : null;
     final title = _getItemTitle(item);
     final subtitle = _getItemSubtitle(item);
     final icon = _getItemIcon(item);
@@ -177,12 +311,27 @@ class LibraryItemContextMenu {
                           height: 52,
                           color: Colors.grey[900],
                           child: _getItemThumbnail(item) != null
-                              ? Image.network(
-                                  _getItemThumbnail(item)!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      Icon(icon, color: Colors.grey[700]),
-                                )
+                              ? (item is PlaylistFolder
+                                  ? Image.file(
+                                      File(_getItemThumbnail(item)!),
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              Icon(
+                                        icon,
+                                        color: Colors.grey[700],
+                                      ),
+                                    )
+                                  : Image.network(
+                                      _getItemThumbnail(item)!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              Icon(
+                                        icon,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ))
                               : Icon(icon, color: Colors.grey[700]),
                         ),
                       ),
@@ -225,30 +374,123 @@ class LibraryItemContextMenu {
                     controller: scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     children: [
-                      _buildMobileMenuItem(
-                        icon: Icons.open_in_new,
-                        label: 'Open',
-                        onTap: () {
-                          Navigator.pop(context);
-                          _navigateToItem(
-                            context,
-                            item,
-                            playlists,
-                            albums,
-                            artists,
-                            currentLibraryView,
-                            currentNavIndex,
-                          );
-                        },
-                      ),
-                      _buildMobileMenuItem(
-                        icon: Icons.download_outlined,
-                        label: 'Download Metadata',
-                        onTap: () {
-                          Navigator.pop(context);
-                          _downloadMetadata(context, item);
-                        },
-                      ),
+                      if (item is PlaylistFolder) ...[
+                        _buildMobileMenuItem(
+                          icon: Icons.edit,
+                          label: 'Rename',
+                          onTap: () {
+                            Navigator.pop(context);
+                            PlaylistFolderModals.showRenameFolderDialog(
+                              context,
+                              item,
+                            );
+                          },
+                        ),
+                        _buildMobileMenuItem(
+                          icon: Icons.image_outlined,
+                          label: 'Change thumbnail',
+                          onTap: () {
+                            Navigator.pop(context);
+                            PlaylistFolderModals.showChangeThumbnailDialog(
+                              context,
+                              item,
+                            );
+                          },
+                        ),
+                        _buildMobileMenuItem(
+                          icon: Icons.delete_outline,
+                          label: 'Delete',
+                          onTap: () {
+                            Navigator.pop(context);
+                            context
+                                .read<LibraryFolderState>()
+                                .deleteFolder(item.id);
+                          },
+                        ),
+                      ] else ...[
+                        _buildMobileMenuItem(
+                          icon: Icons.open_in_new,
+                          label: 'Open',
+                          onTap: () {
+                            Navigator.pop(context);
+                            _navigateToItem(
+                              context,
+                              item,
+                              playlists,
+                              albums,
+                              artists,
+                              currentLibraryView,
+                              currentNavIndex,
+                            );
+                          },
+                        ),
+                        _buildMobileMenuItem(
+                          icon: Icons.download_outlined,
+                          label: 'Download Metadata',
+                          onTap: () {
+                            Navigator.pop(context);
+                            _downloadMetadata(context, item);
+                          },
+                        ),
+                        if (item is GenericPlaylist)
+                          _buildMobileMenuItem(
+                            icon: Icons.folder,
+                            label: 'Add to folder',
+                            onTap: () {
+                              Navigator.pop(context);
+                              PlaylistFolderModals.showAddToFolderMenu(
+                                context,
+                                playlist: item,
+                              );
+                            },
+                          ),
+                        if (localPlaylist != null) ...[
+                          _buildMobileMenuItem(
+                            icon: Icons.edit,
+                            label: 'Rename',
+                            onTap: () {
+                              Navigator.pop(context);
+                              PlaylistFolderModals.showRenamePlaylistDialog(
+                                context,
+                                item,
+                              );
+                            },
+                          ),
+                          _buildMobileMenuItem(
+                            icon: Icons.image_outlined,
+                            label: 'Change thumbnail',
+                            onTap: () {
+                              Navigator.pop(context);
+                              PlaylistFolderModals
+                                  .showChangePlaylistThumbnailDialog(
+                                context,
+                                item,
+                              );
+                            },
+                          ),
+                          _buildMobileMenuItem(
+                            icon: Icons.delete_outline,
+                            label: 'Delete',
+                            onTap: () {
+                              Navigator.pop(context);
+                              context
+                                  .read<LocalPlaylistState>()
+                                  .deletePlaylist(item.id);
+                            },
+                          ),
+                          if (localPlaylist.isLinked)
+                            _buildMobileMenuItem(
+                              icon: Icons.link_off,
+                              label: 'Detach from provider',
+                              onTap: () {
+                                Navigator.pop(context);
+                                context
+                                    .read<LocalPlaylistState>()
+                                    .detachFromProvider(item.id);
+                              },
+                            ),
+                        ],
+                      ],
                     ],
                   ),
                 ),
@@ -288,6 +530,7 @@ class LibraryItemContextMenu {
   }
 
   static String _getItemTitle(dynamic item) {
+    if (item is PlaylistFolder) return item.title;
     if (item is GenericPlaylist) return item.title;
     if (item is GenericAlbum) return item.title;
     if (item is GenericSimpleAlbum) return item.title;
@@ -296,6 +539,7 @@ class LibraryItemContextMenu {
   }
 
   static String _getItemSubtitle(dynamic item) {
+    if (item is PlaylistFolder) return 'Folder';
     if (item is GenericPlaylist) return item.author.displayName;
     if (item is GenericAlbum) {
       return item.artists.map((a) => a.name).join(', ');
@@ -308,6 +552,9 @@ class LibraryItemContextMenu {
   }
 
   static String? _getItemThumbnail(dynamic item) {
+    if (item is PlaylistFolder && item.thumbnailPath != null) {
+      return item.thumbnailPath;
+    }
     if (item is GenericPlaylist && item.thumbnailUrl.isNotEmpty) {
       return item.thumbnailUrl;
     }
@@ -324,6 +571,7 @@ class LibraryItemContextMenu {
   }
 
   static IconData _getItemIcon(dynamic item) {
+    if (item is PlaylistFolder) return Icons.folder;
     if (item is GenericPlaylist) return Icons.playlist_play;
     if (item is GenericAlbum || item is GenericSimpleAlbum) return Icons.album;
     if (item is GenericSimpleArtist) return Icons.person;
@@ -344,10 +592,13 @@ class LibraryItemContextMenu {
     required BuildContext context,
     required Widget child,
     required VoidCallback onTap,
+    bool closeMenu = true,
   }) {
     return InkWell(
       onTap: () {
-        Navigator.of(context).pop();
+        if (closeMenu) {
+          Navigator.of(context).pop();
+        }
         onTap();
       },
       child: Padding(

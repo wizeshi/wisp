@@ -1,16 +1,63 @@
 /// Library view with paginated tabs for playlists, albums, and artists
 library;
 
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, File;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/metadata/spotify.dart';
 import '../models/metadata_models.dart';
+import '../models/library_folder.dart';
+import '../providers/library/library_state.dart';
 import '../widgets/navigation.dart';
 import '../widgets/library_item_context_menu.dart';
+import '../widgets/playlist_folder_modals.dart';
+import '../providers/library/library_folders.dart';
+import '../providers/library/local_playlists.dart';
+import '../utils/liked_songs.dart';
+import '../widgets/liked_songs_art.dart';
 import 'list_detail.dart';
 import 'artist_detail.dart';
+
+bool _isLocalThumbnailPath(String path) {
+  return path.startsWith('/') || path.startsWith('file://');
+}
+
+Widget _buildPlaylistThumbnail(GenericPlaylist playlist) {
+  if (isLikedSongsPlaylistId(playlist.id)) {
+    return const LikedSongsArt();
+  }
+
+  final url = playlist.thumbnailUrl;
+  if (url.isEmpty) {
+    return Container(
+      color: Colors.grey[800],
+      child: Icon(Icons.playlist_play, color: Colors.grey[600]),
+    );
+  }
+
+  if (_isLocalThumbnailPath(url)) {
+    final path = url.replaceFirst('file://', '');
+    return Image.file(
+      File(path),
+      fit: BoxFit.cover,
+      errorBuilder: (context, url, error) => Container(
+        color: Colors.grey[800],
+        child: Icon(Icons.playlist_play, color: Colors.grey[600]),
+      ),
+    );
+  }
+
+  return CachedNetworkImage(
+    imageUrl: url,
+    fit: BoxFit.cover,
+    placeholder: (context, url) => Container(color: Colors.grey[800]),
+    errorWidget: (context, url, error) => Container(
+      color: Colors.grey[800],
+      child: Icon(Icons.playlist_play, color: Colors.grey[600]),
+    ),
+  );
+}
 
 class LibraryTabView extends StatefulWidget {
   final List<GenericPlaylist> initialPlaylists;
@@ -35,7 +82,9 @@ class _LibraryTabViewState extends State<LibraryTabView> {
   final _albumScrollController = ScrollController();
   final _artistScrollController = ScrollController();
 
-  List<GenericPlaylist> _playlists = [];
+  List<GenericPlaylist> _remotePlaylists = [];
+  List<GenericPlaylist> _localPlaylists = [];
+  Set<String> _hiddenProviderIds = {};
   List<GenericAlbum> _albums = [];
   List<GenericSimpleArtist> _artists = [];
 
@@ -51,12 +100,61 @@ class _LibraryTabViewState extends State<LibraryTabView> {
   String? _albumError;
   String? _artistError;
 
+  bool _dragModeEnabled = false;
+  VoidCallback? _localPlaylistListener;
+
+  List<GenericPlaylist> get _displayPlaylists {
+    final localById = {for (final p in _localPlaylists) p.id: p};
+    final merged = <GenericPlaylist>[];
+    final seen = <String>{};
+
+    for (final playlist in _remotePlaylists) {
+      if (_hiddenProviderIds.contains(playlist.id)) {
+        continue;
+      }
+      merged.add(localById[playlist.id] ?? playlist);
+      seen.add(playlist.id);
+    }
+
+    for (final playlist in _localPlaylists) {
+      if (!seen.contains(playlist.id)) {
+        merged.add(playlist);
+      }
+    }
+
+    return merged;
+  }
+
   @override
   void initState() {
     super.initState();
-    _playlists = List.from(widget.initialPlaylists);
+    final localState = context.read<LocalPlaylistState>();
+    _localPlaylists = List.from(localState.genericPlaylists);
+    _hiddenProviderIds = Set.from(localState.hiddenProviderPlaylistIds);
+    _remotePlaylists = widget.initialPlaylists
+        .where((p) => !localState.isLocalPlaylistId(p.id))
+        .toList();
+
+    _localPlaylistListener = () {
+      if (!mounted) return;
+      setState(() {
+        _localPlaylists = List.from(localState.genericPlaylists);
+        _hiddenProviderIds = Set.from(localState.hiddenProviderPlaylistIds);
+      });
+      context
+          .read<LibraryFolderState>()
+          .syncPlaylists(context.read<LibraryState>().playlists);
+    };
+    localState.addListener(_localPlaylistListener!);
     _albums = List.from(widget.initialAlbums);
     _artists = List.from(widget.initialArtists);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context
+          .read<LibraryFolderState>()
+          .syncPlaylists(context.read<LibraryState>().playlists);
+    });
 
     _playlistScrollController.addListener(_onPlaylistScroll);
     _albumScrollController.addListener(_onAlbumScroll);
@@ -65,6 +163,9 @@ class _LibraryTabViewState extends State<LibraryTabView> {
 
   @override
   void dispose() {
+    if (_localPlaylistListener != null) {
+      context.read<LocalPlaylistState>().removeListener(_localPlaylistListener!);
+    }
     _playlistScrollController.dispose();
     _albumScrollController.dispose();
     _artistScrollController.dispose();
@@ -102,16 +203,24 @@ class _LibraryTabViewState extends State<LibraryTabView> {
     try {
       final morePlaylists = await spotify.getUserPlaylists(
         limit: 50,
-        offset: _playlists.length,
+        offset: _remotePlaylists.length,
       );
 
       if (mounted) {
         setState(() {
-          _playlists.addAll(morePlaylists);
+          _remotePlaylists.addAll(morePlaylists);
           _hasMorePlaylists = morePlaylists.length == 50;
           _isLoadingPlaylists = false;
           _playlistError = null;
         });
+        context.read<LibraryState>().setLibrary(
+              playlists: List<GenericPlaylist>.from(_remotePlaylists),
+              albums: _albums,
+              artists: _artists,
+            );
+        context
+            .read<LibraryFolderState>()
+            .syncPlaylists(context.read<LibraryState>().playlists);
       }
     } catch (e) {
       if (mounted) {
@@ -187,7 +296,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
 
   Future<void> _refreshPlaylists() async {
     setState(() {
-      _playlists = [];
+      _remotePlaylists = [];
       _hasMorePlaylists = true;
       _playlistError = null;
     });
@@ -216,6 +325,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
   Widget build(BuildContext context) {
     final isMobile = Platform.isAndroid || Platform.isIOS;
     final padding = isMobile ? 20.0 : 16.0;
+    final folderState = context.watch<LibraryFolderState>();
 
     return SafeArea(
       bottom: false,
@@ -229,13 +339,25 @@ class _LibraryTabViewState extends State<LibraryTabView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (isMobile)
-                  const Text(
-                    'Your Library',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Your Library',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      if (_selectedTab == LibraryView.playlists)
+                        _buildSortMenuButton(folderState, isMobile: true),
+                      if (_selectedTab == LibraryView.playlists &&
+                          folderState.isCustomSort)
+                        _buildDragToggleButton(),
+                      _buildCreateMenuButton(),
+                    ],
                   ),
                 const SizedBox(height: 16),
                 _buildTabChips(),
@@ -259,13 +381,111 @@ class _LibraryTabViewState extends State<LibraryTabView> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildTabChip(LibraryView.playlists, 'Playlists', _playlists.length),
+          _buildTabChip(
+            LibraryView.playlists,
+            'Playlists',
+            _displayPlaylists.length,
+          ),
           const SizedBox(width: 8),
           _buildTabChip(LibraryView.albums, 'Albums', _albums.length),
           const SizedBox(width: 8),
           _buildTabChip(LibraryView.artists, 'Artists', _artists.length),
         ],
       ),
+    );
+  }
+
+  Widget _buildSortMenuButton(
+    LibraryFolderState folderState, {
+    required bool isMobile,
+  }) {
+    return PopupMenuButton<LibrarySortMode>(
+      tooltip: 'Sort',
+      icon: Icon(
+        Icons.sort,
+        color: Colors.grey[400],
+        size: isMobile ? 22 : 18,
+      ),
+      color: const Color(0xFF282828),
+      onSelected: (mode) {
+        folderState.setSortMode(mode);
+        if (mode != LibrarySortMode.custom && isMobile) {
+          setState(() => _dragModeEnabled = false);
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: LibrarySortMode.original,
+          child: Text('Index', style: TextStyle(color: Colors.white)),
+        ),
+        const PopupMenuItem(
+          value: LibrarySortMode.recentlyPlayed,
+          child: Text('Recently played', style: TextStyle(color: Colors.white)),
+        ),
+        const PopupMenuItem(
+          value: LibrarySortMode.custom,
+          child: Text('Custom order', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDragToggleButton() {
+    return IconButton(
+      tooltip: _dragModeEnabled ? 'Disable drag' : 'Enable drag',
+      icon: Icon(
+        Icons.drag_handle,
+        color: _dragModeEnabled ? Colors.white : Colors.grey[500],
+      ),
+      onPressed: () {
+        setState(() => _dragModeEnabled = !_dragModeEnabled);
+      },
+    );
+  }
+
+  Widget _buildCreateMenuButton() {
+    return IconButton(
+      tooltip: 'Create',
+      icon: Icon(Icons.add, color: Colors.grey[300]),
+      onPressed: _showCreateMenu,
+    );
+  }
+
+  Future<void> _showCreateMenu() async {
+    await showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: const Color(0xFF1B1B1B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.create_new_folder_outlined, color: Colors.white),
+                title: const Text('Create folder', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await PlaylistFolderModals.showCreateFolderDialog(this.context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_add, color: Colors.white),
+                title: const Text('Create playlist', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await PlaylistFolderModals.showCreatePlaylistDialog(
+                    this.context,
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -285,7 +505,13 @@ class _LibraryTabViewState extends State<LibraryTabView> {
         ),
         selected: isSelected,
         onSelected: (selected) {
-          setState(() => _selectedTab = tab);
+          if (!selected) return;
+          setState(() {
+            _selectedTab = tab;
+            if (tab != LibraryView.playlists) {
+              _dragModeEnabled = false;
+            }
+          });
         },
         backgroundColor: const Color(0xFF282828),
         selectedColor: colorScheme.primary,
@@ -307,12 +533,58 @@ class _LibraryTabViewState extends State<LibraryTabView> {
   }
 
   Widget _buildPlaylistsContent(double padding) {
-    if (_playlistError != null && _playlists.isEmpty) {
+    final folderState = context.watch<LibraryFolderState>();
+    final isMobile = Platform.isAndroid || Platform.isIOS;
+    final allowDrag = folderState.isCustomSort && (!isMobile || _dragModeEnabled);
+
+    if (_playlistError != null && _displayPlaylists.isEmpty) {
       return _buildErrorWidget(_playlistError!, _refreshPlaylists);
     }
 
-    if (_playlists.isEmpty && !_isLoadingPlaylists) {
+    if (_displayPlaylists.isEmpty && !_isLoadingPlaylists) {
       return _buildEmptyState('No playlists in your library');
+    }
+
+    GenericPlaylist? likedPlaylist;
+    for (final playlist in _displayPlaylists) {
+      if (isLikedSongsPlaylistId(playlist.id)) {
+        likedPlaylist = playlist;
+        break;
+      }
+    }
+    final filteredPlaylists = _displayPlaylists
+        .where((playlist) => !isLikedSongsPlaylistId(playlist.id))
+        .toList();
+    final groups = folderState.buildPlaylistGroups(filteredPlaylists);
+    final entries = <_PlaylistListEntry>[];
+
+    if (likedPlaylist != null) {
+      entries.add(_PlaylistListEntry.playlist(likedPlaylist, folderId: null));
+    }
+    final folderCounts = <String, int>{
+      for (final group in groups.folders) group.folder.id: group.playlists.length,
+    };
+
+    for (final group in groups.folders) {
+      entries.add(_PlaylistListEntry.folder(group.folder));
+      if (!folderState.isFolderCollapsed(group.folder.id)) {
+        for (final playlist in group.playlists) {
+          entries.add(
+            _PlaylistListEntry.playlist(
+              playlist,
+              folderId: group.folder.id,
+            ),
+          );
+        }
+      }
+    }
+
+    if (groups.folders.isNotEmpty) {
+      entries.add(const _PlaylistListEntry.unassignedHeader());
+    }
+
+    for (final playlist in groups.unassigned) {
+      entries.add(_PlaylistListEntry.playlist(playlist, folderId: null));
     }
 
     return RefreshIndicator(
@@ -322,22 +594,71 @@ class _LibraryTabViewState extends State<LibraryTabView> {
         controller: _playlistScrollController,
         padding: EdgeInsets.all(padding),
         itemCount:
-            _playlists.length +
+            entries.length +
             (_hasMorePlaylists || _isLoadingPlaylists ? 1 : 0),
         itemBuilder: (context, index) {
-          if (index >= _playlists.length) {
+          if (index >= entries.length) {
             return _buildLoadingIndicator(_isLoadingPlaylists);
           }
 
-          final playlist = _playlists[index];
-          return _PlaylistListTile(
+          final entry = entries[index];
+          if (entry.type == _PlaylistListEntryType.unassignedHeader) {
+            return _UnassignedHeader(
+              enabled: allowDrag,
+              onDrop: (playlistId) {
+                folderState.movePlaylistIntoFolder(playlistId, null);
+              },
+            );
+          }
+
+          if (entry.type == _PlaylistListEntryType.folder && entry.folder != null) {
+            return _FolderListTile(
+              folder: entry.folder!,
+              playlists: _displayPlaylists,
+              albums: _albums,
+              artists: _artists,
+              currentLibraryView: _selectedTab,
+              currentNavIndex: 2,
+              playlistCount: folderCounts[entry.folder!.id] ?? 0,
+              enableDrag: allowDrag,
+              onFolderDrop: (playlistId) {
+                folderState.movePlaylistIntoFolder(playlistId, entry.folder!.id);
+              },
+              onFolderReorder: (folderId) {
+                if (folderId == entry.folder!.id) return;
+                folderState.moveFolderBefore(folderId, entry.folder!.id);
+              },
+            );
+          }
+
+          final playlist = entry.playlist!;
+          final isLiked = isLikedSongsPlaylistId(playlist.id);
+          final targetFolderId = entry.folderId;
+          if (isLiked) {
+            return _PlaylistListTile(
+              playlist: playlist,
+              onTap: () => _openPlaylist(playlist),
+              playlists: _displayPlaylists,
+              albums: _albums,
+              artists: _artists,
+              currentLibraryView: _selectedTab,
+              currentNavIndex: 2,
+            );
+          }
+          return _DraggablePlaylistTile(
             playlist: playlist,
-            onTap: () => _openPlaylist(playlist),
-            playlists: _playlists,
+            folderId: targetFolderId,
+            enableDrag: allowDrag,
+            playlists: _displayPlaylists,
             albums: _albums,
             artists: _artists,
             currentLibraryView: _selectedTab,
             currentNavIndex: 2,
+            onTap: () => _openPlaylist(playlist),
+            onPlaylistDrop: (draggedId) {
+              folderState.assignPlaylistToFolder(draggedId, targetFolderId);
+              folderState.movePlaylistBefore(draggedId, playlist.id);
+            },
           );
         },
       ),
@@ -370,7 +691,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
           return _AlbumListTile(
             album: album,
             onTap: () => _openAlbum(album),
-            playlists: _playlists,
+            playlists: _displayPlaylists,
             albums: _albums,
             artists: _artists,
             currentLibraryView: _selectedTab,
@@ -407,7 +728,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
           return _ArtistListTile(
             artist: artist,
             onTap: () => _openArtist(artist),
-            playlists: _playlists,
+            playlists: _displayPlaylists,
             albums: _albums,
             artists: _artists,
             currentLibraryView: _selectedTab,
@@ -487,7 +808,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
               type: SharedListType.playlist,
               initialTitle: playlist.title,
               initialThumbnailUrl: playlist.thumbnailUrl,
-              playlists: _playlists,
+              playlists: _displayPlaylists,
               albums: _albums,
               artists: _artists,
               initialLibraryView: LibraryView.playlists,
@@ -509,7 +830,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
               type: SharedListType.album,
               initialTitle: album.title,
               initialThumbnailUrl: album.thumbnailUrl,
-              playlists: _playlists,
+              playlists: _displayPlaylists,
               albums: _albums,
               artists: _artists,
               initialLibraryView: LibraryView.albums,
@@ -529,7 +850,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
             ArtistDetailView(
               artistId: artist.id,
               initialArtist: artist,
-              playlists: _playlists,
+              playlists: _displayPlaylists,
               albums: _albums,
               artists: _artists,
               initialLibraryView: LibraryView.artists,
@@ -548,6 +869,8 @@ class _PlaylistListTile extends StatelessWidget {
   final List<GenericSimpleArtist> artists;
   final LibraryView? currentLibraryView;
   final int? currentNavIndex;
+  final Widget? trailing;
+  final EdgeInsetsGeometry? contentPadding;
 
   const _PlaylistListTile({
     required this.playlist,
@@ -557,6 +880,8 @@ class _PlaylistListTile extends StatelessWidget {
     required this.artists,
     this.currentLibraryView,
     this.currentNavIndex,
+    this.trailing,
+    this.contentPadding,
   });
 
   @override
@@ -593,27 +918,15 @@ class _PlaylistListTile extends StatelessWidget {
             },
       child: ListTile(
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+        contentPadding:
+            contentPadding ?? const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+        trailing: trailing,
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: SizedBox(
             width: 56,
             height: 56,
-            child: playlist.thumbnailUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: playlist.thumbnailUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) =>
-                        Container(color: Colors.grey[800]),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[800],
-                      child: Icon(Icons.playlist_play, color: Colors.grey[600]),
-                    ),
-                  )
-                : Container(
-                    color: Colors.grey[800],
-                    child: Icon(Icons.playlist_play, color: Colors.grey[600]),
-                  ),
+            child: _buildPlaylistThumbnail(playlist),
           ),
         ),
         title: Text(
@@ -631,6 +944,382 @@ class _PlaylistListTile extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+      ),
+    );
+  }
+}
+
+enum _PlaylistListEntryType { folder, playlist, unassignedHeader }
+
+class _PlaylistListEntry {
+  final _PlaylistListEntryType type;
+  final PlaylistFolder? folder;
+  final GenericPlaylist? playlist;
+  final String? folderId;
+
+  const _PlaylistListEntry._({
+    required this.type,
+    this.folder,
+    this.playlist,
+    this.folderId,
+  });
+
+  const _PlaylistListEntry.folder(PlaylistFolder folder)
+      : this._(type: _PlaylistListEntryType.folder, folder: folder);
+
+  const _PlaylistListEntry.playlist(
+    GenericPlaylist playlist, {
+    required String? folderId,
+  }) : this._(
+          type: _PlaylistListEntryType.playlist,
+          playlist: playlist,
+          folderId: folderId,
+        );
+
+  const _PlaylistListEntry.unassignedHeader()
+      : this._(type: _PlaylistListEntryType.unassignedHeader);
+}
+
+class _PlaylistDragData {
+  final String playlistId;
+  final String? folderId;
+
+  const _PlaylistDragData(this.playlistId, this.folderId);
+}
+
+class _FolderDragData {
+  final String folderId;
+
+  const _FolderDragData(this.folderId);
+}
+
+class _UnassignedHeader extends StatelessWidget {
+  final bool enabled;
+  final ValueChanged<String> onDrop;
+
+  const _UnassignedHeader({required this.enabled, required this.onDrop});
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 6),
+      child: Text(
+        'Unassigned',
+        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+      ),
+    );
+
+    if (!enabled) return child;
+
+    return DragTarget<_PlaylistDragData>(
+      onWillAccept: (data) => data != null,
+      onAccept: (data) => onDrop(data.playlistId),
+      builder: (context, candidate, rejected) {
+        return Container(
+          decoration: candidate.isNotEmpty
+              ? BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(6),
+                )
+              : null,
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+class _FolderListTile extends StatefulWidget {
+  final PlaylistFolder folder;
+  final List<GenericPlaylist> playlists;
+  final List<GenericAlbum> albums;
+  final List<GenericSimpleArtist> artists;
+  final LibraryView? currentLibraryView;
+  final int? currentNavIndex;
+  final int playlistCount;
+  final bool enableDrag;
+  final ValueChanged<String> onFolderDrop;
+  final ValueChanged<String> onFolderReorder;
+
+  const _FolderListTile({
+    required this.folder,
+    required this.playlists,
+    required this.albums,
+    required this.artists,
+    required this.currentLibraryView,
+    required this.currentNavIndex,
+    required this.enableDrag,
+    required this.playlistCount,
+    required this.onFolderDrop,
+    required this.onFolderReorder,
+  });
+
+  @override
+  State<_FolderListTile> createState() => _FolderListTileState();
+}
+
+class _FolderListTileState extends State<_FolderListTile> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final folderState = context.watch<LibraryFolderState>();
+    final isCollapsed = folderState.isFolderCollapsed(widget.folder.id);
+    final tile = GestureDetector(
+      onSecondaryTapDown: isDesktop
+          ? (details) {
+              LibraryItemContextMenu.show(
+                context: context,
+                item: widget.folder,
+                position: details.globalPosition,
+                playlists: widget.playlists,
+                albums: widget.albums,
+                artists: widget.artists,
+                currentLibraryView: widget.currentLibraryView,
+                currentNavIndex: widget.currentNavIndex,
+              );
+            }
+          : null,
+      onLongPress: isDesktop
+          ? null
+          : () {
+              LibraryItemContextMenu.show(
+                context: context,
+                item: widget.folder,
+                playlists: widget.playlists,
+                albums: widget.albums,
+                artists: widget.artists,
+                currentLibraryView: widget.currentLibraryView,
+                currentNavIndex: widget.currentNavIndex,
+              );
+            },
+      child: ListTile(
+        onTap: () {
+          folderState.toggleFolderCollapsed(widget.folder.id);
+        },
+        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: 56,
+            height: 56,
+            child: widget.folder.thumbnailPath != null
+                ? Image.file(
+                    File(widget.folder.thumbnailPath!),
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    color: Colors.grey[800],
+                    child: Icon(Icons.folder, color: Colors.grey[600]),
+                  ),
+          ),
+        ),
+        title: Text(
+          widget.folder.title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          '${widget.playlistCount} playlist${widget.playlistCount == 1 ? '' : 's'}',
+          style: TextStyle(color: Colors.grey[400]),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.enableDrag && !isDesktop)
+              const Icon(Icons.drag_handle, color: Colors.grey),
+            Icon(
+              isCollapsed ? Icons.chevron_right : Icons.expand_more,
+              color: Colors.grey[500],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!widget.enableDrag) {
+      return tile;
+    }
+
+    final draggable = LongPressDraggable<_FolderDragData>(
+      delay: const Duration(milliseconds: 150),
+      data: _FolderDragData(widget.folder.id),
+      feedback: Material(
+        color: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 240),
+          child: _DragFeedback(title: widget.folder.title, icon: Icons.folder),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.4, child: tile),
+      child: tile,
+    );
+
+    final reorderTarget = DragTarget<_FolderDragData>(
+      onWillAccept: (data) {
+        final accept = data != null && data.folderId != widget.folder.id;
+        if (accept != _isHovered) {
+          setState(() => _isHovered = accept);
+        }
+        return accept;
+      },
+      onLeave: (_) => setState(() => _isHovered = false),
+      onAccept: (data) {
+        setState(() => _isHovered = false);
+        widget.onFolderReorder(data.folderId);
+      },
+      builder: (context, candidate, rejected) {
+        return Container(
+          decoration: _isHovered
+              ? BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                )
+              : null,
+          child: draggable,
+        );
+      },
+    );
+
+    final playlistDropTarget = DragTarget<_PlaylistDragData>(
+      onWillAccept: (data) => data != null,
+      onAccept: (data) => widget.onFolderDrop(data.playlistId),
+      builder: (context, candidate, rejected) {
+        return Container(
+          decoration: candidate.isNotEmpty
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white24),
+                )
+              : null,
+          child: reorderTarget,
+        );
+      },
+    );
+
+    return playlistDropTarget;
+  }
+}
+
+class _DraggablePlaylistTile extends StatelessWidget {
+  final GenericPlaylist playlist;
+  final String? folderId;
+  final bool enableDrag;
+  final List<GenericPlaylist> playlists;
+  final List<GenericAlbum> albums;
+  final List<GenericSimpleArtist> artists;
+  final LibraryView? currentLibraryView;
+  final int? currentNavIndex;
+  final VoidCallback onTap;
+  final ValueChanged<String> onPlaylistDrop;
+
+  const _DraggablePlaylistTile({
+    required this.playlist,
+    required this.folderId,
+    required this.enableDrag,
+    required this.playlists,
+    required this.albums,
+    required this.artists,
+    required this.currentLibraryView,
+    required this.currentNavIndex,
+    required this.onTap,
+    required this.onPlaylistDrop,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    Widget tile = _PlaylistListTile(
+      playlist: playlist,
+      onTap: onTap,
+      playlists: playlists,
+      albums: albums,
+      artists: artists,
+      currentLibraryView: currentLibraryView,
+      currentNavIndex: currentNavIndex,
+      trailing: enableDrag && !isDesktop
+          ? const Icon(Icons.drag_handle, color: Colors.grey)
+          : null,
+      contentPadding: EdgeInsets.only(
+        left: folderId != null ? 20 : 0,
+        right: 0,
+        top: 4,
+        bottom: 4,
+      ),
+    );
+
+    if (!enableDrag) {
+      return tile;
+    }
+
+    final draggable = LongPressDraggable<_PlaylistDragData>(
+      delay: const Duration(milliseconds: 150),
+      data: _PlaylistDragData(playlist.id, folderId),
+      feedback: Material(
+        color: Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 240),
+          child: _DragFeedback(title: playlist.title, icon: Icons.playlist_play),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.4, child: tile),
+      child: tile,
+    );
+
+    final reorderTarget = DragTarget<_PlaylistDragData>(
+      onWillAccept: (data) => data != null && data.playlistId != playlist.id,
+      onAccept: (data) => onPlaylistDrop(data.playlistId),
+      builder: (context, candidate, rejected) {
+        return Container(
+          decoration: candidate.isNotEmpty
+              ? BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                )
+              : null,
+          child: draggable,
+        );
+      },
+    );
+
+    return reorderTarget;
+  }
+}
+
+class _DragFeedback extends StatelessWidget {
+  final String title;
+  final IconData icon;
+
+  const _DragFeedback({required this.title, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              title,
+              style: const TextStyle(color: Colors.white),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

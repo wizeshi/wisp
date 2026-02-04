@@ -7,9 +7,12 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'providers/metadata/spotify.dart';
+import 'providers/metadata/youtube.dart';
 import 'providers/audio/player.dart';
 import 'providers/lyrics/provider.dart';
 import 'providers/library/library_state.dart';
+import 'providers/library/local_playlists.dart';
+import 'providers/library/library_folders.dart';
 import 'providers/search/search_state.dart';
 import 'providers/navigation_state.dart';
 import 'theme/app_theme.dart';
@@ -205,9 +208,20 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => SpotifyProvider()),
+        ChangeNotifierProvider(create: (_) => YouTubeMetadataProvider()),
         ChangeNotifierProvider(create: (_) => AudioPlayerProvider()),
         ChangeNotifierProvider(create: (_) => LyricsProvider()),
-        ChangeNotifierProvider(create: (_) => LibraryState()),
+        ChangeNotifierProvider(create: (_) => LocalPlaylistState()),
+        ChangeNotifierProxyProvider<LocalPlaylistState, LibraryState>(
+          create: (_) => LibraryState(),
+          update: (_, local, library) {
+            final state = library ?? LibraryState();
+            state.setLocalPlaylists(local.genericPlaylists);
+            state.setHiddenRemotePlaylistIds(local.hiddenProviderPlaylistIds);
+            return state;
+          },
+        ),
+        ChangeNotifierProvider(create: (_) => LibraryFolderState()),
         ChangeNotifierProvider(create: (_) => SearchState()),
         ChangeNotifierProvider(create: (_) => NavigationState()),
         ChangeNotifierProvider.value(value: DesktopNotificationCenter.instance),

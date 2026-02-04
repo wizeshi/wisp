@@ -194,6 +194,51 @@ PlaylistItem spotifyPlaylistTrackToPlaylistItem(
   );
 }
 
+/// Convert Spotify saved track item to PlaylistItem
+PlaylistItem spotifySavedTrackToPlaylistItem(
+  Map<String, dynamic> item,
+  int trackNumber,
+) {
+  final track = item['track'] as Map<String, dynamic>?;
+  if (track == null) {
+    return PlaylistItem(
+      id: '',
+      source: SongSource.spotify,
+      title: 'Unavailable Track',
+      artists: [],
+      thumbnailUrl: '',
+      explicit: false,
+      album: null,
+      durationSecs: 0,
+      addedAt: DateTime.tryParse(item['added_at'] as String? ?? '') ??
+          DateTime.now(),
+      trackNumber: trackNumber,
+    );
+  }
+
+  final artists = (track['artists'] as List?)
+          ?.map((a) => spotifyArtistToGeneric(a as Map<String, dynamic>))
+          .toList() ??
+      [];
+  final album = track['album'] != null
+      ? spotifySimplifiedAlbumToGeneric(track['album'] as Map<String, dynamic>)
+      : null;
+
+  return PlaylistItem(
+    id: track['id'] as String? ?? '',
+    source: SongSource.spotify,
+    title: track['name'] as String? ?? 'Unknown Track',
+    artists: artists,
+    thumbnailUrl: album?.thumbnailUrl ?? '',
+    explicit: track['explicit'] as bool? ?? false,
+    album: album,
+    durationSecs: ((track['duration_ms'] as int? ?? 0) / 1000).round(),
+    addedAt:
+        DateTime.tryParse(item['added_at'] as String? ?? '') ?? DateTime.now(),
+    trackNumber: trackNumber,
+  );
+}
+
 /// Convert Spotify full playlist JSON to GenericPlaylist with pagination support
 GenericPlaylist spotifyFullPlaylistToGeneric(
   Map<String, dynamic> playlist, {

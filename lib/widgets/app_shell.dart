@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 
 import '../providers/library/library_state.dart';
+import '../providers/library/library_folders.dart';
 import '../providers/navigation_state.dart';
 import '../providers/search/search_state.dart';
 import '../services/navigation_history.dart';
@@ -21,6 +22,7 @@ import '../views/search.dart';
 import '../views/settings.dart';
 import '../views/list_detail.dart';
 import '../views/artist_detail.dart';
+import '../utils/liked_songs.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -110,10 +112,48 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  List<dynamic> _getLibraryItems(LibraryState library, LibraryView view) {
+  List<dynamic> _getLibraryItems(
+    LibraryState library,
+    LibraryFolderState folderState,
+    LibraryView view,
+  ) {
     switch (view) {
       case LibraryView.playlists:
-        return library.playlists;
+        GenericPlaylist? likedPlaylist;
+        for (final playlist in library.playlists) {
+          if (isLikedSongsPlaylistId(playlist.id)) {
+            likedPlaylist = playlist;
+            break;
+          }
+        }
+        final filteredPlaylists = library.playlists
+            .where((p) => !isLikedSongsPlaylistId(p.id))
+            .toList();
+        final groups = folderState.buildPlaylistGroups(filteredPlaylists);
+        final entries = <LibrarySidebarEntry>[];
+        if (likedPlaylist != null) {
+          entries.add(LibrarySidebarEntry.item(likedPlaylist));
+        }
+        for (final group in groups.folders) {
+          entries.add(LibrarySidebarEntry.item(group.folder));
+          if (!folderState.isFolderCollapsed(group.folder.id)) {
+            for (final playlist in group.playlists) {
+              entries.add(
+                LibrarySidebarEntry.item(
+                  playlist,
+                  folderId: group.folder.id,
+                ),
+              );
+            }
+          }
+        }
+        if (groups.folders.isNotEmpty) {
+          entries.add(const LibrarySidebarEntry.unassigned());
+        }
+        for (final playlist in groups.unassigned) {
+          entries.add(LibrarySidebarEntry.item(playlist, folderId: null));
+        }
+        return entries;
       case LibraryView.albums:
         return library.albums;
       case LibraryView.artists:
@@ -125,11 +165,16 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final navState = context.watch<NavigationState>();
     final libraryState = context.watch<LibraryState>();
+    final folderState = context.watch<LibraryFolderState>();
     final searchState = context.read<SearchState>();
     final searchController = searchState.controller;
 
     final enableExitPrompt = !_isDesktop;
-    final libraryItems = _getLibraryItems(libraryState, navState.selectedLibraryView);
+    final libraryItems = _getLibraryItems(
+      libraryState,
+      folderState,
+      navState.selectedLibraryView,
+    );
 
     final shell = Material(
       color: const Color(0xFF121212),

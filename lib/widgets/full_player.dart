@@ -17,6 +17,7 @@ import '../views/queue.dart';
 import '../views/artist_detail.dart';
 import '../widgets/track_context_menu.dart';
 import '../widgets/animated_lyrics_preview.dart';
+import '../widgets/like_button.dart';
 
 class FullScreenPlayer extends StatelessWidget {
   const FullScreenPlayer({super.key});
@@ -344,51 +345,74 @@ class FullScreenPlayer extends StatelessWidget {
     final title = currentTrack?.title ?? 'No track playing';
     final artists = currentTrack?.artists ?? [];
 
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          onTap: () {
-            // TODO: Navigate to track
-          },
-          child: Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  // TODO: Navigate to track
+                },
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 2),
+              if (artists.isNotEmpty)
+                Wrap(
+                  children: [
+                    for (int i = 0; i < artists.length; i++) ...[
+                      GestureDetector(
+                        onTap: () {
+                          // TODO: Navigate to artist
+                        },
+                        child: Text(
+                          artists[i].name,
+                          style: TextStyle(
+                            color: Colors.grey[300],
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      if (i < artists.length - 1)
+                        Text(
+                          ', ',
+                          style: TextStyle(
+                            color: Colors.grey[300],
+                            fontSize: 16,
+                          ),
+                        ),
+                    ],
+                  ],
+                )
+              else
+                Text(
+                  'No Artist',
+                  style: TextStyle(color: Colors.grey[300], fontSize: 16),
+                ),
+            ],
           ),
         ),
-        const SizedBox(height: 2),
-        if (artists.isNotEmpty)
-          Wrap(
-            children: [
-              for (int i = 0; i < artists.length; i++) ...[
-                GestureDetector(
-                  onTap: () {
-                    // TODO: Navigate to artist
-                  },
-                  child: Text(
-                    artists[i].name,
-                    style: TextStyle(color: Colors.grey[300], fontSize: 16),
-                  ),
-                ),
-                if (i < artists.length - 1)
-                  Text(
-                    ', ',
-                    style: TextStyle(color: Colors.grey[300], fontSize: 16),
-                  ),
-              ],
-            ],
-          )
-        else
-          Text(
-            'No Artist',
-            style: TextStyle(color: Colors.grey[300], fontSize: 16),
+        const SizedBox(width: 8),
+        LikeButton(
+          track: currentTrack as GenericSong?,
+          iconSize: 22,
+          padding: const EdgeInsets.all(2),
+          constraints: const BoxConstraints(
+            minWidth: 32,
+            minHeight: 32,
           ),
+        ),
       ],
     );
   }

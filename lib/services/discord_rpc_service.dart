@@ -3,7 +3,6 @@ library;
 
 import 'dart:io' show Platform;
 import 'package:flutter_discord_rpc/flutter_discord_rpc.dart';
-import 'package:media_kit/generated/libmpv/bindings.dart';
 
 import '../models/metadata_models.dart';
 

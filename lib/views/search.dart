@@ -7,12 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/metadata/spotify.dart';
+import '../providers/metadata/youtube.dart';
+import '../providers/library/library_folders.dart';
 import '../providers/audio/player.dart';
 import '../models/metadata_models.dart';
 import '../widgets/navigation.dart';
 import '../widgets/track_context_menu.dart';
 import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
+import '../widgets/like_button.dart';
 import '../providers/search/search_state.dart';
 import 'list_detail.dart';
 import 'artist_detail.dart';
@@ -123,34 +126,59 @@ class _SearchViewState extends State<SearchView> {
     });
 
     final spotify = context.read<SpotifyProvider>();
+    final youtube = context.read<YouTubeMetadataProvider>();
 
-    try {
-      final results = await Future.wait([
-        spotify.search(query, type: 'track', limit: 20),
-        spotify.search(query, type: 'artist', limit: 20),
-        spotify.search(query, type: 'album', limit: 20),
-        spotify.search(query, type: 'playlist', limit: 20),
-      ]);
+    List<GenericSong> spotifyTracks = [];
+    List<GenericSimpleArtist> spotifyArtists = [];
+    List<GenericAlbum> spotifyAlbums = [];
+    List<GenericPlaylist> spotifyPlaylists = [];
+    List<GenericSong> youtubeTracks = [];
+    String? spotifyError;
 
-      if (mounted) {
-        setState(() {
-          _tracks = List<GenericSong>.from(results[0]);
-          _artists = List<GenericSimpleArtist>.from(results[1]);
-          _albums = List<GenericAlbum>.from(results[2]);
-          _playlists = List<GenericPlaylist>.from(results[3]);
-          _isLoading = false;
-        });
-        // Reset scroll position when results change
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(0);
-        }
+    if (_selectedSource == 'YouTube') {
+      try {
+        youtubeTracks = await youtube.searchTracks(query, limit: 10);
+      } catch (e) {
+        spotifyError = e.toString();
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _isLoading = false;
-        });
+    } else {
+      try {
+        final results = await Future.wait([
+          spotify.search(query, type: 'track', limit: 20),
+          spotify.search(query, type: 'artist', limit: 20),
+          spotify.search(query, type: 'album', limit: 20),
+          spotify.search(query, type: 'playlist', limit: 20),
+        ]);
+        spotifyTracks = List<GenericSong>.from(results[0]);
+        spotifyArtists = List<GenericSimpleArtist>.from(results[1]);
+        spotifyAlbums = List<GenericAlbum>.from(results[2]);
+        spotifyPlaylists = List<GenericPlaylist>.from(results[3]);
+      } catch (e) {
+        spotifyError = e.toString();
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _tracks = _selectedSource == 'YouTube'
+          ? youtubeTracks
+          : spotifyTracks;
+        _artists = _selectedSource == 'YouTube'
+          ? []
+          : spotifyArtists;
+        _albums = _selectedSource == 'YouTube'
+          ? []
+          : spotifyAlbums;
+        _playlists = _selectedSource == 'YouTube'
+          ? []
+          : spotifyPlaylists;
+        _error = spotifyError != null && _tracks.isEmpty
+            ? spotifyError
+            : null;
+        _isLoading = false;
+      });
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
       }
     }
   }
@@ -195,7 +223,13 @@ class _SearchViewState extends State<SearchView> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildSearchField(),
+                  Row(
+                    children: [
+                      Expanded(child: _buildSearchField()),
+                      const SizedBox(width: 12),
+                      _buildSourceSelector(),
+                    ],
+                  ),
                 ] else ...[
                   if (_lastQuery.isNotEmpty) ...[
                     Row(
@@ -229,7 +263,9 @@ class _SearchViewState extends State<SearchView> {
             ),
           ),
           // Tab chips (mobile only)
-          if (isMobile && _lastQuery.isNotEmpty)
+          if (isMobile &&
+              _lastQuery.isNotEmpty &&
+              _selectedSource != 'YouTube')
             Padding(
               padding: EdgeInsets.symmetric(horizontal: padding),
               child: _buildTabChips(),
@@ -259,10 +295,18 @@ class _SearchViewState extends State<SearchView> {
               value: 'Spotify',
               child: Text('Spotify', style: TextStyle(color: Colors.white)),
             ),
+            DropdownMenuItem(
+              value: 'YouTube',
+              child: Text('YouTube', style: TextStyle(color: Colors.white)),
+            ),
           ],
           onChanged: (value) {
             if (value == null) return;
             setState(() => _selectedSource = value);
+            final query = _searchController.text.trim();
+            if (query.isNotEmpty) {
+              _performSearch(query);
+            }
           },
         ),
       ),
@@ -416,6 +460,62 @@ class _SearchViewState extends State<SearchView> {
         _artists.isEmpty &&
         _playlists.isEmpty) {
       return _buildEmptyState('No results found');
+    }
+
+    if (_selectedSource == 'YouTube') {
+      final bestMatch = _tracks.isNotEmpty ? _tracks.first : null;
+      final songsToDisplay = _tracks.length > 1
+          ? _tracks.skip(1).take(8).toList()
+          : <GenericSong>[];
+      final songsListHeight = _calculateSongsListHeight(songsToDisplay.length);
+
+      return SingleChildScrollView(
+        controller: _scrollController,
+        padding: EdgeInsets.all(padding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final availableWidth = constraints.maxWidth - 16;
+                final flexBasedWidth = availableWidth * 4 / 11;
+                final bestMatchWidth = flexBasedWidth < songsListHeight
+                    ? flexBasedWidth
+                    : songsListHeight;
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: bestMatchWidth,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Best Match',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildBestMatchCard(
+                            bestMatch,
+                            maxWidth: songsListHeight,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildSongsCard(songsToDisplay)),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      );
     }
 
     final bestMatch = _tracks.isNotEmpty ? _tracks.first : null;
@@ -603,6 +703,7 @@ class _SearchViewState extends State<SearchView> {
 
   Widget _buildSongsCard(List<GenericSong> songs) {
     final player = context.watch<AudioPlayerProvider>();
+    final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -743,6 +844,25 @@ class _SearchViewState extends State<SearchView> {
                                   ),
                                 ),
                                 const SizedBox(width: 12),
+                                if (isDesktop) ...[
+                                  AnimatedOpacity(
+                                    opacity: isHovered ? 1 : 0,
+                                    duration: const Duration(milliseconds: 120),
+                                    child: IgnorePointer(
+                                      ignoring: !isHovered,
+                                      child: LikeButton(
+                                        track: song,
+                                        iconSize: 16,
+                                        padding: const EdgeInsets.all(2),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 24,
+                                          minHeight: 24,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
                                 Text(
                                   _formatDuration(song.durationSecs),
                                   style: TextStyle(
@@ -923,6 +1043,7 @@ class _SearchViewState extends State<SearchView> {
         contextType: 'playlist',
         contextName: playlist.title,
       );
+      context.read<LibraryFolderState>().markPlaylistPlayed(playlistId);
     } catch (_) {}
   }
 
@@ -1015,6 +1136,10 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildResultsList(double padding) {
+    if (_selectedSource == 'YouTube') {
+      return _buildTracksList(padding);
+    }
+
     switch (_selectedTab) {
       case SearchTab.tracks:
         return _buildTracksList(padding);
@@ -1208,7 +1333,7 @@ class _SearchViewState extends State<SearchView> {
   }
 }
 
-class _TrackTile extends StatelessWidget {
+class _TrackTile extends StatefulWidget {
   final GenericSong track;
   final VoidCallback onTap;
   final List<GenericPlaylist> playlists;
@@ -1227,164 +1352,216 @@ class _TrackTile extends StatelessWidget {
     this.currentNavIndex,
   });
 
-  bool get _isDesktop =>
-      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  @override
+  State<_TrackTile> createState() => _TrackTileState();
+}
+
+class _TrackTileState extends State<_TrackTile> {
+  bool _isHovering = false;
+
+  String _formatDuration(int seconds) {
+    final minutes = seconds ~/ 60;
+    final remainingSeconds = seconds % 60;
+    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final track = widget.track;
     final album = track.album;
     final primaryArtist = track.artists.isNotEmpty ? track.artists.first : null;
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     return GestureDetector(
-      onSecondaryTapDown: _isDesktop
+      onSecondaryTapDown: isDesktop
           ? (details) {
               TrackContextMenu.show(
                 context: context,
                 track: track,
                 position: details.globalPosition,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: currentLibraryView,
-                currentNavIndex: currentNavIndex,
+                playlists: widget.playlists,
+                albums: widget.albums,
+                artists: widget.artists,
+                currentLibraryView: widget.currentLibraryView,
+                currentNavIndex: widget.currentNavIndex,
               );
             }
           : null,
-      onLongPress: _isDesktop
+      onLongPress: isDesktop
           ? null
           : () {
               TrackContextMenu.show(
                 context: context,
                 track: track,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: currentLibraryView,
-                currentNavIndex: currentNavIndex,
+                playlists: widget.playlists,
+                albums: widget.albums,
+                artists: widget.artists,
+                currentLibraryView: widget.currentLibraryView,
+                currentNavIndex: widget.currentNavIndex,
               );
             },
-      child: ListTile(
-        onTap: onTap,
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: SizedBox(
-            width: 52,
-            height: 52,
-            child: track.thumbnailUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: track.thumbnailUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) =>
-                        Container(color: Colors.grey[800]),
-                    errorWidget: (context, url, error) => Container(
+      child: MouseRegion(
+        onEnter: (_) {
+          if (!isDesktop) return;
+          setState(() => _isHovering = true);
+        },
+        onExit: (_) {
+          if (!isDesktop) return;
+          setState(() => _isHovering = false);
+        },
+        child: ListTile(
+          onTap: widget.onTap,
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              width: 52,
+              height: 52,
+              child: track.thumbnailUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: track.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) =>
+                          Container(color: Colors.grey[800]),
+                      errorWidget: (context, url, error) => Container(
+                        color: Colors.grey[800],
+                        child: Icon(Icons.music_note, color: Colors.grey[600]),
+                      ),
+                    )
+                  : Container(
                       color: Colors.grey[800],
                       child: Icon(Icons.music_note, color: Colors.grey[600]),
                     ),
-                  )
-                : Container(
-                    color: Colors.grey[800],
-                    child: Icon(Icons.music_note, color: Colors.grey[600]),
-                  ),
+            ),
           ),
-        ),
-        title: (_isDesktop && album != null && album.id.isNotEmpty)
-            ? HoverUnderline(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      transitionDuration: Duration.zero,
-                      reverseTransitionDuration: Duration.zero,
-                      pageBuilder: (context, animation, secondaryAnimation) =>
-                          SharedListDetailView(
-                            id: album.id,
-                            type: SharedListType.album,
-                            initialTitle: album.title,
-                            initialThumbnailUrl: album.thumbnailUrl,
-                            playlists: playlists,
-                            albums: albums,
-                            artists: artists,
-                            initialLibraryView:
-                                currentLibraryView ?? LibraryView.albums,
-                            initialNavIndex: currentNavIndex ?? 1,
-                          ),
+          title: (isDesktop && album != null && album.id.isNotEmpty)
+              ? HoverUnderline(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        transitionDuration: Duration.zero,
+                        reverseTransitionDuration: Duration.zero,
+                        pageBuilder:
+                            (context, animation, secondaryAnimation) =>
+                                SharedListDetailView(
+                          id: album.id,
+                          type: SharedListType.album,
+                          initialTitle: album.title,
+                          initialThumbnailUrl: album.thumbnailUrl,
+                          playlists: widget.playlists,
+                          albums: widget.albums,
+                          artists: widget.artists,
+                          initialLibraryView:
+                              widget.currentLibraryView ?? LibraryView.albums,
+                          initialNavIndex: widget.currentNavIndex ?? 1,
+                        ),
+                      ),
+                    );
+                  },
+                  builder: (isHovering) => Text(
+                    track.title,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                      decoration: isHovering
+                          ? TextDecoration.underline
+                          : TextDecoration.none,
                     ),
-                  );
-                },
-                builder: (isHovering) => Text(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+              : Text(
                   track.title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
-                    decoration: isHovering
-                        ? TextDecoration.underline
-                        : TextDecoration.none,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              )
-            : Text(
-                track.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-        subtitle: (_isDesktop && primaryArtist != null)
-            ? HoverUnderline(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      transitionDuration: Duration.zero,
-                      reverseTransitionDuration: Duration.zero,
-                      pageBuilder: (context, animation, secondaryAnimation) =>
-                          ArtistDetailView(
-                            artistId: primaryArtist.id,
-                            initialArtist: primaryArtist,
-                            playlists: playlists,
-                            albums: albums,
-                            artists: artists,
-                            initialLibraryView:
-                                currentLibraryView ?? LibraryView.artists,
-                            initialNavIndex: currentNavIndex ?? 1,
-                          ),
+          subtitle: (isDesktop && primaryArtist != null)
+              ? HoverUnderline(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        transitionDuration: Duration.zero,
+                        reverseTransitionDuration: Duration.zero,
+                        pageBuilder:
+                            (context, animation, secondaryAnimation) =>
+                                ArtistDetailView(
+                          artistId: primaryArtist.id,
+                          initialArtist: primaryArtist,
+                          playlists: widget.playlists,
+                          albums: widget.albums,
+                          artists: widget.artists,
+                          initialLibraryView:
+                              widget.currentLibraryView ?? LibraryView.artists,
+                          initialNavIndex: widget.currentNavIndex ?? 1,
+                        ),
+                      ),
+                    );
+                  },
+                  onSecondaryTapDown: (details) {
+                    LibraryItemContextMenu.show(
+                      context: context,
+                      item: primaryArtist,
+                      position: details.globalPosition,
+                      playlists: widget.playlists,
+                      albums: widget.albums,
+                      artists: widget.artists,
+                      currentLibraryView: widget.currentLibraryView,
+                      currentNavIndex: widget.currentNavIndex,
+                    );
+                  },
+                  builder: (isHovering) => Text(
+                    track.artists.map((a) => a.name).join(', '),
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      decoration: isHovering
+                          ? TextDecoration.underline
+                          : TextDecoration.none,
                     ),
-                  );
-                },
-                onSecondaryTapDown: (details) {
-                  LibraryItemContextMenu.show(
-                    context: context,
-                    item: primaryArtist,
-                    position: details.globalPosition,
-                    playlists: playlists,
-                    albums: albums,
-                    artists: artists,
-                    currentLibraryView: currentLibraryView,
-                    currentNavIndex: currentNavIndex,
-                  );
-                },
-                builder: (isHovering) => Text(
-                  track.artists.map((a) => a.name).join(', '),
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    decoration: isHovering
-                        ? TextDecoration.underline
-                        : TextDecoration.none,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
+                )
+              : Text(
+                  track.artists.map((a) => a.name).join(', '),
+                  style: TextStyle(color: Colors.grey[400]),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              )
-            : Text(
-                track.artists.map((a) => a.name).join(', '),
-                style: TextStyle(color: Colors.grey[400]),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isDesktop) ...[
+                AnimatedOpacity(
+                  opacity: _isHovering ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  child: IgnorePointer(
+                    ignoring: !_isHovering,
+                    child: LikeButton(
+                      track: track,
+                      iconSize: 16,
+                      padding: const EdgeInsets.all(2),
+                      constraints: const BoxConstraints(
+                        minWidth: 24,
+                        minHeight: 24,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                _formatDuration(track.durationSecs),
+                style: TextStyle(color: Colors.grey[400], fontSize: 12),
               ),
-        trailing: null,
+            ],
+          ),
+        ),
       ),
     );
   }

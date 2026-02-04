@@ -1,9 +1,10 @@
 /// Shared playlist/album detail view
 library;
 
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, File;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -11,15 +12,21 @@ import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
 import '../providers/audio/player.dart';
+import '../providers/library/library_folders.dart';
 import '../providers/metadata/spotify.dart';
+import '../providers/library/local_playlists.dart';
 import '../widgets/track_context_menu.dart';
 import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
+import '../widgets/playlist_folder_modals.dart';
+import '../widgets/like_button.dart';
 import '../services/cache_manager.dart';
 import '../services/metadata_cache.dart';
 import 'artist_detail.dart';
 import '../providers/navigation_state.dart';
+import '../utils/liked_songs.dart';
+import '../widgets/liked_songs_art.dart';
 
 enum SharedListType { playlist, album }
 
@@ -64,6 +71,17 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   bool _ascending = true;
   bool _showSearch = false;
   String _searchQuery = '';
+  static const double _rowHeightDesktop = 64;
+  static const double _rowHeightMobile = 72;
+  static const int _windowBuffer = 6;
+  double _songListTopOffset = 0;
+  final ScrollController _desktopScrollController = ScrollController();
+  final ScrollController _mobileScrollController = ScrollController();
+  final GlobalKey _songListKey = GlobalKey();
+
+  bool _isLocalImagePath(String path) {
+    return path.startsWith('/') || path.startsWith('file://');
+  }
   NavigationState get _navState => context.read<NavigationState>();
   LibraryView get _currentLibraryView => _navState.selectedLibraryView;
   int get _currentNavIndex => _navState.selectedNavIndex;
@@ -74,15 +92,178 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   @override
   void initState() {
     super.initState();
+    _desktopScrollController.addListener(
+      () => _handleScroll(_desktopScrollController),
+    );
+    _mobileScrollController.addListener(
+      () => _handleScroll(_mobileScrollController),
+    );
     _loadListDetails();
+  }
+
+  Future<void> _saveLocalPlaylistToSpotify() async {
+    final localState = context.read<LocalPlaylistState>();
+    final localPlaylist = localState.getById(widget.id);
+    if (localPlaylist == null) return;
+
+    final spotifyTrackIds = localPlaylist.tracks
+        .where((item) => item.source == SongSource.spotify)
+        .map((item) => item.id)
+        .toList();
+    if (spotifyTrackIds.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No Spotify tracks to save.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    final spotify = context.read<SpotifyProvider>();
+    String? targetId = localPlaylist.linkedSource == SongSource.spotify
+        ? localPlaylist.linkedId
+        : null;
+
+    try {
+      if (targetId == null || targetId.isEmpty) {
+        targetId = await spotify.createPlaylist(name: localPlaylist.title);
+        await localState.linkToProvider(
+          id: localPlaylist.id,
+          provider: SongSource.spotify,
+          providerId: targetId,
+        );
+      }
+
+      await spotify.addTracksToPlaylist(targetId, spotifyTrackIds);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Saved Spotify tracks to playlist.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save playlist: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  void _detachLocalPlaylist() {
+    final localState = context.read<LocalPlaylistState>();
+    localState.detachFromProvider(widget.id);
+  }
+
+  @override
+  void dispose() {
+    _desktopScrollController.dispose();
+    _mobileScrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleScroll(ScrollController controller) {
+    if (widget.type != SharedListType.playlist ||
+        !isLikedSongsPlaylistId(widget.id)) {
+      return;
+    }
+    if (!controller.hasClients) return;
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _scheduleSongListOffsetUpdate(ScrollController controller) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final listContext = _songListKey.currentContext;
+      if (listContext == null) return;
+      final scrollable = Scrollable.of(listContext);
+      final listBox = listContext.findRenderObject() as RenderBox?;
+      final scrollBox =
+          scrollable.context.findRenderObject() as RenderBox?;
+      if (listBox == null || scrollBox == null) return;
+      final listTop =
+          listBox.localToGlobal(Offset.zero, ancestor: scrollBox).dy;
+      final listStartOffset = controller.offset + listTop;
+      if ((listStartOffset - _songListTopOffset).abs() > 1) {
+        setState(() {
+          _songListTopOffset = listStartOffset;
+        });
+      }
+    });
   }
 
   Future<void> _loadListDetails() async {
     final spotify = context.read<SpotifyProvider>();
+    final localPlaylists = context.read<LocalPlaylistState>();
     setState(() => _isLoading = true);
 
     try {
       if (widget.type == SharedListType.playlist) {
+        if (!isLikedSongsPlaylistId(widget.id) &&
+            localPlaylists.isLocalPlaylistId(widget.id)) {
+          final localPlaylist = localPlaylists.getGenericPlaylist(widget.id);
+          if (localPlaylist != null) {
+            _playlist = localPlaylist;
+            _rebuildIndices();
+            setState(() => _isLoading = false);
+          }
+
+          final localEntry = localPlaylists.getById(widget.id);
+          if (localEntry?.isLinked == true &&
+              localEntry?.linkedSource == SongSource.spotify &&
+              localEntry?.linkedId != null) {
+            final providerPlaylist = await _fetchSpotifyPlaylistWithTracks(
+              spotify,
+              localEntry!.linkedId!,
+            );
+            await localPlaylists.syncFromProvider(
+              id: widget.id,
+              providerTracks: providerPlaylist.songs ?? const [],
+            );
+            if (mounted) {
+              final updated = localPlaylists.getGenericPlaylist(widget.id);
+              if (updated != null) {
+                _playlist = updated;
+                _rebuildIndices();
+                setState(() => _isLoading = false);
+              }
+            }
+          }
+          return;
+        }
+        if (isLikedSongsPlaylistId(widget.id)) {
+          final cachedItems = await spotify.getCachedSavedTracksAll();
+          if (cachedItems != null && mounted) {
+            spotify.setLikedTracksFromItems(cachedItems);
+            _playlist = _buildLikedSongsPlaylist(
+              cachedItems,
+              spotify.userDisplayName,
+            );
+            _rebuildIndices();
+            setState(() => _isLoading = false);
+            unawaited(spotify.refreshSavedTracksAll());
+            return;
+          }
+
+          final freshItems = await spotify.getUserSavedTracksAll(
+            policy: MetadataFetchPolicy.refreshAlways,
+          );
+          spotify.setLikedTracksFromItems(freshItems);
+          _playlist = _buildLikedSongsPlaylist(
+            freshItems,
+            spotify.userDisplayName,
+          );
+          return;
+        }
         final cachedPlaylist = await spotify.getCachedPlaylistInfo(widget.id);
         if (cachedPlaylist != null && mounted) {
           _playlist = cachedPlaylist;
@@ -90,35 +271,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           setState(() => _isLoading = false);
         }
 
-        final playlist = await spotify.getPlaylistInfo(
-          widget.id,
-          policy: MetadataFetchPolicy.refreshAlways,
-        );
-        final items = <PlaylistItem>[...?(playlist.songs)];
-
-        int offset = items.length;
-        while (playlist.hasMore == true && offset < (playlist.total ?? 0)) {
-          final more = await spotify.getMorePlaylistTracks(
-            widget.id,
-            offset: offset,
-          );
-          if (more.isEmpty) break;
-          items.addAll(more);
-          offset = items.length;
-          if (more.length < 50) break;
-        }
-
-        _playlist = GenericPlaylist(
-          id: playlist.id,
-          source: playlist.source,
-          title: playlist.title,
-          thumbnailUrl: playlist.thumbnailUrl,
-          author: playlist.author,
-          songs: items,
-          durationSecs: playlist.durationSecs,
-          total: playlist.total ?? items.length,
-          hasMore: false,
-        );
+        _playlist = await _fetchSpotifyPlaylistWithTracks(spotify, widget.id);
       } else {
         final cachedAlbum = await spotify.getCachedAlbumInfo(widget.id);
         if (cachedAlbum != null && mounted) {
@@ -172,6 +325,66 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<GenericPlaylist> _fetchSpotifyPlaylistWithTracks(
+    SpotifyProvider spotify,
+    String playlistId,
+  ) async {
+    final playlist = await spotify.getPlaylistInfo(
+      playlistId,
+      policy: MetadataFetchPolicy.refreshAlways,
+    );
+    final items = <PlaylistItem>[...?(playlist.songs)];
+
+    int offset = items.length;
+    while (playlist.hasMore == true && offset < (playlist.total ?? 0)) {
+      final more = await spotify.getMorePlaylistTracks(
+        playlistId,
+        offset: offset,
+      );
+      if (more.isEmpty) break;
+      items.addAll(more);
+      offset = items.length;
+      if (more.length < 50) break;
+    }
+
+    return GenericPlaylist(
+      id: playlist.id,
+      source: playlist.source,
+      title: playlist.title,
+      thumbnailUrl: playlist.thumbnailUrl,
+      author: playlist.author,
+      songs: items,
+      durationSecs: playlist.durationSecs,
+      total: playlist.total ?? items.length,
+      hasMore: false,
+    );
+  }
+
+  GenericPlaylist _buildLikedSongsPlaylist(
+    List<PlaylistItem> items,
+    String? displayName,
+  ) {
+    final durationSecs = items.fold<int>(
+      0,
+      (sum, item) => sum + item.durationSecs,
+    );
+    return GenericPlaylist(
+      id: likedSongsPlaylistId,
+      source: SongSource.spotify,
+      title: likedSongsTitle,
+      thumbnailUrl: '',
+      author: GenericSimpleUser(
+        id: 'liked_songs_user',
+        source: SongSource.spotify,
+        displayName: displayName ?? 'You',
+      ),
+      songs: items,
+      durationSecs: durationSecs,
+      total: items.length,
+      hasMore: false,
+    );
   }
 
   List<_ListItem> get _items {
@@ -330,6 +543,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   Future<void> _playQueueAt(int index) async {
     final player = context.read<AudioPlayerProvider>();
+    if (widget.type == SharedListType.playlist) {
+      context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
+    }
     final queue = _buildQueueSongs();
     if (queue.isEmpty || index < 0 || index >= queue.length) return;
 
@@ -347,6 +563,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       contextType: contextType,
       contextName: contextName,
     );
+    if (widget.type == SharedListType.playlist) {
+      context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
+    }
     if (_preShuffleEnabled) {
       setState(() {
         _preShuffleEnabled = false;
@@ -357,6 +576,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   Future<void> _playFromStart({bool shuffle = false}) async {
     final player = context.read<AudioPlayerProvider>();
+    if (widget.type == SharedListType.playlist) {
+      context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
+    }
     final originalQueue = _buildQueueSongs();
     final queue = _preShuffleEnabled
         ? List<GenericSong>.from(_preShuffledQueue)
@@ -383,6 +605,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       shuffleEnabled: _preShuffleEnabled || shuffle,
       originalQueue: (_preShuffleEnabled || shuffle) ? originalQueue : null,
     );
+    if (widget.type == SharedListType.playlist) {
+      context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
+    }
     if (_preShuffleEnabled) {
       setState(() {
         _preShuffleEnabled = false;
@@ -525,6 +750,90 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 // TODO: Implement share
               },
             ),
+            if (widget.type == SharedListType.playlist)
+              Builder(
+                builder: (context) {
+                  final localState = context.read<LocalPlaylistState>();
+                  final localPlaylist = localState.getById(widget.id);
+                  if (localPlaylist == null) return const SizedBox.shrink();
+                  return Column(
+                    children: [
+                      ListTile(
+                        leading:
+                            const Icon(Icons.cloud_upload, color: Colors.white),
+                        title: const Text(
+                          'Save to Spotify',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _saveLocalPlaylistToSpotify();
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.edit, color: Colors.white),
+                        title: const Text(
+                          'Rename',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          PlaylistFolderModals.showRenamePlaylistDialog(
+                            context,
+                            _playlist!,
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading:
+                            const Icon(Icons.image_outlined, color: Colors.white),
+                        title: const Text(
+                          'Change thumbnail',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          PlaylistFolderModals
+                              .showChangePlaylistThumbnailDialog(
+                            context,
+                            _playlist!,
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading:
+                            const Icon(Icons.delete_outline, color: Colors.white),
+                        title: const Text(
+                          'Delete',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          context
+                              .read<LocalPlaylistState>()
+                              .deletePlaylist(widget.id);
+                          if (mounted) {
+                            Navigator.of(context).maybePop();
+                          }
+                        },
+                      ),
+                      if (localPlaylist.isLinked)
+                        ListTile(
+                          leading:
+                              const Icon(Icons.link_off, color: Colors.white),
+                          title: const Text(
+                            'Detach from provider',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _detachLocalPlaylist();
+                          },
+                        ),
+                    ],
+                  );
+                },
+              ),
             const SizedBox(height: 8),
           ],
         ),
@@ -565,6 +874,75 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           label: 'Download All',
                           onTap: _downloadAll,
                         ),
+                        if (widget.type == SharedListType.playlist) ...[
+                          Builder(
+                            builder: (context) {
+                              final localState =
+                                  context.read<LocalPlaylistState>();
+                              final localPlaylist =
+                                  localState.getById(widget.id);
+                              if (localPlaylist == null) {
+                                return const SizedBox.shrink();
+                              }
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: 4),
+                                  _buildDesktopMenuButton(
+                                    dialogContext,
+                                    icon: Icons.cloud_upload,
+                                    label: 'Save to Spotify',
+                                    onTap: _saveLocalPlaylistToSpotify,
+                                  ),
+                                  _buildDesktopMenuButton(
+                                    dialogContext,
+                                    icon: Icons.edit,
+                                    label: 'Rename',
+                                    onTap: () {
+                                      PlaylistFolderModals
+                                          .showRenamePlaylistDialog(
+                                        context,
+                                        _playlist!,
+                                      );
+                                    },
+                                  ),
+                                  _buildDesktopMenuButton(
+                                    dialogContext,
+                                    icon: Icons.image_outlined,
+                                    label: 'Change thumbnail',
+                                    onTap: () {
+                                      PlaylistFolderModals
+                                          .showChangePlaylistThumbnailDialog(
+                                        context,
+                                        _playlist!,
+                                      );
+                                    },
+                                  ),
+                                  _buildDesktopMenuButton(
+                                    dialogContext,
+                                    icon: Icons.delete_outline,
+                                    label: 'Delete',
+                                    onTap: () {
+                                      context
+                                          .read<LocalPlaylistState>()
+                                          .deletePlaylist(widget.id);
+                                      if (mounted) {
+                                        Navigator.of(context).maybePop();
+                                      }
+                                    },
+                                  ),
+                                  if (localPlaylist.isLinked)
+                                    _buildDesktopMenuButton(
+                                      dialogContext,
+                                      icon: Icons.link_off,
+                                      label: 'Detach from provider',
+                                      onTap: _detachLocalPlaylist,
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
                         const SizedBox(height: 4),
                         _buildDesktopMenuButton(
                           dialogContext,
@@ -766,7 +1144,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         _buildSortMenuItem(_SortMethod.author, 'Artist'),
         if (widget.type == SharedListType.playlist)
           _buildSortMenuItem(_SortMethod.album, 'Album'),
-        _buildSortMenuItem(_SortMethod.duration, 'Duration'),
       ],
     );
   }
@@ -775,29 +1152,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     _SortMethod method,
     String label,
   ) {
-    final isSelected = _sortMethod == method;
-    final colorScheme = Theme.of(context).colorScheme;
-    return PopupMenuItem(
+    return PopupMenuItem<_SortMethod>(
       value: method,
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? colorScheme.primary : Colors.white,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-          if (isSelected) ...[
-            const Spacer(),
-            Icon(
-              _ascending ? Icons.arrow_upward : Icons.arrow_downward,
-              size: 16,
-              color: colorScheme.primary,
-            ),
-          ],
-        ],
-      ),
+      child: Text(label),
     );
   }
 
@@ -817,6 +1174,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         children: [
           Expanded(
             child: CustomScrollView(
+              controller: _mobileScrollController,
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
@@ -865,12 +1223,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Opacity(
                 opacity: 0.35,
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.cover,
-                  errorWidget: (context, url, error) =>
-                      Container(color: Colors.grey[900]),
-                ),
+                child: _isLocalImagePath(imageUrl)
+                    ? Image.file(
+                        File(imageUrl.replaceFirst('file://', '')),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, url, error) =>
+                            Container(color: Colors.grey[900]),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) =>
+                            Container(color: Colors.grey[900]),
+                      ),
               ),
             ),
           ),
@@ -894,6 +1259,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             children: [
               Expanded(
                 child: ListView(
+                  controller: _desktopScrollController,
                   padding: EdgeInsets.all(padding),
                   children: [
                     _buildHeader(title, subtitle, imageUrl, total),
@@ -935,6 +1301,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     String imageUrl,
     int total,
   ) {
+    final isLiked =
+        widget.type == SharedListType.playlist && isLikedSongsPlaylistId(widget.id);
     return Column(
       children: [
         // Album art - 70% width as per old design
@@ -947,31 +1315,47 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   color: Colors.grey[900],
-                  child: imageUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            color: Colors.grey[800],
-                            child: const Center(
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Icon(
-                            widget.type == SharedListType.playlist
-                                ? Icons.playlist_play
-                                : Icons.album,
-                            color: Colors.grey[600],
-                            size: 64,
-                          ),
-                        )
-                      : Icon(
-                          widget.type == SharedListType.playlist
-                              ? Icons.playlist_play
-                              : Icons.album,
-                          color: Colors.grey[600],
-                          size: 64,
-                        ),
+                  child: isLiked
+                      ? const LikedSongsArt()
+                      : (imageUrl.isNotEmpty
+                          ? (_isLocalImagePath(imageUrl)
+                              ? Image.file(
+                                  File(imageUrl.replaceFirst('file://', '')),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, url, error) => Icon(
+                                    widget.type == SharedListType.playlist
+                                        ? Icons.playlist_play
+                                        : Icons.album,
+                                    color: Colors.grey[600],
+                                    size: 64,
+                                  ),
+                                )
+                              : CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => Container(
+                                    color: Colors.grey[800],
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) => Icon(
+                                    widget.type == SharedListType.playlist
+                                        ? Icons.playlist_play
+                                        : Icons.album,
+                                    color: Colors.grey[600],
+                                    size: 64,
+                                  ),
+                                ))
+                          : Icon(
+                              widget.type == SharedListType.playlist
+                                  ? Icons.playlist_play
+                                  : Icons.album,
+                              color: Colors.grey[600],
+                              size: 64,
+                            )),
                 ),
               ),
             ),
@@ -1084,6 +1468,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     String imageUrl,
     int total,
   ) {
+    final isLiked =
+        widget.type == SharedListType.playlist && isLikedSongsPlaylistId(widget.id);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1100,20 +1486,29 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               width: 140,
               height: 140,
               color: Colors.grey[900],
-              child: imageUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) =>
+              child: isLiked
+                  ? const LikedSongsArt()
+                  : (imageUrl.isNotEmpty
+                    ? (_isLocalImagePath(imageUrl)
+                      ? Image.file(
+                        File(imageUrl.replaceFirst('file://', '')),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, url, error) =>
                           Container(color: Colors.grey[800]),
-                    )
-                  : Icon(
-                      widget.type == SharedListType.playlist
-                          ? Icons.playlist_play
-                          : Icons.album,
-                      color: Colors.grey[600],
-                      size: 48,
-                    ),
+                      )
+                      : CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) =>
+                          Container(color: Colors.grey[800]),
+                      ))
+                      : Icon(
+                          widget.type == SharedListType.playlist
+                              ? Icons.playlist_play
+                              : Icons.album,
+                          color: Colors.grey[600],
+                          size: 48,
+                        )),
             ),
           ),
           const SizedBox(width: 16),
@@ -1440,11 +1835,368 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final isLiked =
+        widget.type == SharedListType.playlist &&
+            isLikedSongsPlaylistId(widget.id);
+    final totalCount = _sortedIndices.length;
+    final controller =
+        isMobile ? _mobileScrollController : _desktopScrollController;
+
+    if (isLiked) {
+      _scheduleSongListOffsetUpdate(controller);
+      final rowHeight = isMobile ? _rowHeightMobile : _rowHeightDesktop;
+      final viewport = controller.hasClients
+          ? controller.position.viewportDimension
+          : 0;
+      final scrollOffset = controller.hasClients ? controller.offset : 0;
+      final effectiveOffset =
+          (scrollOffset - _songListTopOffset).clamp(0.0, double.infinity);
+      final initialWindowSize =
+          ((viewport / rowHeight).ceil() + _windowBuffer * 2).clamp(0, totalCount);
+
+      int startIndex;
+      int endIndex;
+      if (!controller.hasClients || viewport == 0) {
+        startIndex = 0;
+        endIndex = totalCount == 0 ? 0 : (initialWindowSize - 1).clamp(0, totalCount - 1);
+      } else {
+        final first = (effectiveOffset / rowHeight).floor() - _windowBuffer;
+        final last =
+            ((effectiveOffset + viewport) / rowHeight).ceil() + _windowBuffer;
+        startIndex = first.clamp(0, totalCount - 1);
+        endIndex = last.clamp(0, totalCount - 1);
+      }
+
+      final visibleCount = totalCount == 0 ? 0 : (endIndex - startIndex + 1);
+      final topSpacer = startIndex * rowHeight;
+      final bottomSpacer = (totalCount - endIndex - 1) * rowHeight;
+
+      return Column(
+        children: [
+            SizedBox(key: _songListKey, height: 0),
+            if (topSpacer > 0) SizedBox(height: topSpacer),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: visibleCount,
+              itemBuilder: (context, idx) {
+                final player = context.watch<AudioPlayerProvider>();
+                final rowIndex = startIndex + idx;
+                final index = _sortedIndices[rowIndex];
+                final item = _items[index];
+                final isEven = rowIndex % 2 == 0;
+                final song = _toGenericSong(item);
+                final isCurrentTrack = player.currentTrack?.id == song.id;
+                final album = _getAlbum(item);
+                final artists = _getArtists(item);
+                final primaryArtist = artists.isNotEmpty ? artists.first : null;
+
+                final isHovering = _hoveredSongIds.contains(song.id);
+                return MouseRegion(
+                  onEnter: (_) {
+                    if (!isDesktop) return;
+                    setState(() => _hoveredSongIds.add(song.id));
+                  },
+                  onExit: (_) {
+                    if (!isDesktop) return;
+                    setState(() => _hoveredSongIds.remove(song.id));
+                  },
+                  child: GestureDetector(
+                    onSecondaryTapDown: isDesktop
+                        ? (details) {
+                            TrackContextMenu.show(
+                              context: context,
+                              track: song,
+                              position: details.globalPosition,
+                              playlistId: widget.type == SharedListType.playlist
+                                  ? widget.id
+                                  : null,
+                              playlistName:
+                                  widget.type == SharedListType.playlist
+                                      ? _playlist?.title
+                                      : null,
+                              playlists: widget.playlists,
+                              albums: widget.albums,
+                              artists: widget.artists,
+                              currentLibraryView: _currentLibraryView,
+                              currentNavIndex: _currentNavIndex,
+                            );
+                          }
+                        : null,
+                    onLongPress: isDesktop
+                        ? null
+                        : () {
+                            TrackContextMenu.show(
+                              context: context,
+                              track: song,
+                              playlistId: widget.type == SharedListType.playlist
+                                  ? widget.id
+                                  : null,
+                              playlistName:
+                                  widget.type == SharedListType.playlist
+                                      ? _playlist?.title
+                                      : null,
+                              playlists: widget.playlists,
+                              albums: widget.albums,
+                              artists: widget.artists,
+                              currentLibraryView: _currentLibraryView,
+                              currentNavIndex: _currentNavIndex,
+                            );
+                          },
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: isDesktop ? null : () => _playQueueAt(rowIndex),
+                        onDoubleTap:
+                            isDesktop ? () => _playQueueAt(rowIndex) : null,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isEven
+                                ? Colors.transparent
+                                : Colors.black.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              if (isDesktop) ...[
+                                SizedBox(
+                                  width: 40,
+                                  child: isHovering
+                                      ? IconButton(
+                                          icon: Icon(
+                                            isCurrentTrack && player.isPlaying
+                                                ? Icons.pause
+                                                : Icons.play_arrow,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
+                                          onPressed: () {
+                                            if (isCurrentTrack) {
+                                              if (player.isPlaying) {
+                                                player.pause();
+                                              } else {
+                                                player.play();
+                                              }
+                                            } else {
+                                              _playQueueAt(rowIndex);
+                                            }
+                                          },
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(
+                                            minWidth: 32,
+                                            minHeight: 32,
+                                          ),
+                                        )
+                                      : Text(
+                                          '${rowIndex + 1}',
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  color: Colors.grey[900],
+                                  child: CachedNetworkImage(
+                                    imageUrl: _getThumbnail(item),
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, error) => Icon(
+                                      Icons.music_note,
+                                      color: Colors.grey[700],
+                                    ),
+                                    placeholder: (context, url) => Container(
+                                      color: Colors.grey[800],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 3,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _getTitle(item),
+                                      style: TextStyle(
+                                        color: isCurrentTrack
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .primary
+                                            : Colors.white,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    (isDesktop && primaryArtist != null)
+                                        ? HoverUnderline(
+                                            onTap: () =>
+                                                _openArtist(primaryArtist),
+                                            onSecondaryTapDown: (details) {
+                                              LibraryItemContextMenu.show(
+                                                context: context,
+                                                item: primaryArtist,
+                                                position: details.globalPosition,
+                                                playlists: widget.playlists,
+                                                albums: widget.albums,
+                                                artists: widget.artists,
+                                                currentLibraryView:
+                                                    _currentLibraryView,
+                                                currentNavIndex:
+                                                    _currentNavIndex,
+                                              );
+                                            },
+                                            builder: (isHovering) => Text(
+                                              artists
+                                                  .map((a) => a.name)
+                                                  .join(', '),
+                                              style: TextStyle(
+                                                color: Colors.grey[500],
+                                                fontSize: 12,
+                                                decoration: isHovering
+                                                    ? TextDecoration.underline
+                                                    : TextDecoration.none,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          )
+                                        : Text(
+                                            artists
+                                                .map((a) => a.name)
+                                                .join(', '),
+                                            style: TextStyle(
+                                              color: Colors.grey[500],
+                                              fontSize: 12,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                  ],
+                                ),
+                              ),
+                              if (!isMobile &&
+                                  widget.type == SharedListType.playlist)
+                                Expanded(
+                                  flex: 2,
+                                  child: (isDesktop &&
+                                          album != null &&
+                                          album.id.isNotEmpty)
+                                      ? HoverUnderline(
+                                          onTap: () {
+                                            _openSharedList(
+                                              SharedListType.album,
+                                              album.id,
+                                              title: album.title,
+                                              thumbnailUrl: album.thumbnailUrl,
+                                            );
+                                          },
+                                          onSecondaryTapDown: (details) {
+                                            LibraryItemContextMenu.show(
+                                              context: context,
+                                              item: album,
+                                              position: details.globalPosition,
+                                              playlists: widget.playlists,
+                                              albums: widget.albums,
+                                              artists: widget.artists,
+                                              currentLibraryView:
+                                                  _currentLibraryView,
+                                              currentNavIndex: _currentNavIndex,
+                                            );
+                                          },
+                                          builder: (isHovering) => Text(
+                                            _getAlbumTitle(item),
+                                            style: TextStyle(
+                                              color: Colors.grey[500],
+                                              fontSize: 12,
+                                              decoration: isHovering
+                                                  ? TextDecoration.underline
+                                                  : TextDecoration.none,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        )
+                                      : Text(
+                                          _getAlbumTitle(item),
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                )
+                              else if (!isMobile)
+                                const SizedBox(width: 80),
+                              _buildCacheIndicator(song.id),
+                              if (isDesktop) ...[
+                                AnimatedOpacity(
+                                  opacity: isHovering ? 1 : 0,
+                                  duration: const Duration(milliseconds: 120),
+                                  child: IgnorePointer(
+                                    ignoring: !isHovering,
+                                    child: LikeButton(
+                                      track: song,
+                                      iconSize: 16,
+                                      padding: const EdgeInsets.all(2),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 24,
+                                        minHeight: 24,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              SizedBox(
+                                width: isMobile ? 40 : 70,
+                                child: Text(
+                                  _formatDuration(_getDuration(item)),
+                                  style: TextStyle(
+                                    color: Colors.grey[400],
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ),
+                              SizedBox(width: isMobile ? 12 : 16),
+                              Icon(
+                                Icons.graphic_eq,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: isMobile ? 16 : 18,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (bottomSpacer > 0) SizedBox(height: bottomSpacer),
+        ],
+      );
+    }
 
     return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _sortedIndices.length,
+      itemCount: totalCount,
       itemBuilder: (context, idx) {
         final player = context.watch<AudioPlayerProvider>();
         final index = _sortedIndices[idx];
@@ -1691,6 +2443,25 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         const SizedBox(width: 80),
                       // Cache indicator
                       _buildCacheIndicator(song.id),
+                      if (isDesktop) ...[
+                        AnimatedOpacity(
+                          opacity: isHovering ? 1 : 0,
+                          duration: const Duration(milliseconds: 120),
+                          child: IgnorePointer(
+                            ignoring: !isHovering,
+                            child: LikeButton(
+                              track: song,
+                              iconSize: 16,
+                              padding: const EdgeInsets.all(2),
+                              constraints: const BoxConstraints(
+                                minWidth: 24,
+                                minHeight: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       SizedBox(
                         width: isMobile ? 40 : 70,
                         child: Text(

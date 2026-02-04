@@ -69,13 +69,14 @@ Here's the TODO list (24/50)
     - [x] Add a single lyrics line in between the song cover and the title in the full player (mobile) 
     - [x] Add lyrics caching
     - [x] Add Discord RPC support (the "Listening to" messages and whatever)
-    - [ ] Add YouTube metadata sourcing (only searching for tracks, since youtube doesn't label things as albums and whatever)
-    - [ ] Add playlist source mixing:
-        - [ ] Support for multiple metadata providers
-        - [ ] Add ability to create playlists and save them to a provider, but only that provider's tracks
-        - [ ] Add playlist/library caching (with the ability to sync or unlink from the original provider)
-    - [ ] Add ability to like songs, and see the Liked Songs playlist in the playlists tab. 
-    - [ ] Add playlist folders (unfortunately unable to sync with spotify :/)
+    - [x] Add playlist folders (unfortunately unable to sync with spotify :/)
+    - [x] Add ability to like songs, and see the Liked Songs playlist in the playlists tab. 
+    - [x] Add YouTube metadata sourcing (only searching for tracks, since youtube doesn't label things as albums and whatever)
+    - [x] Add playlist source mixing:
+        - [x] Add playlist creation, deletion and renaming
+        - [x] Add ability to add songs to playlists
+        - [x] Add ability save mixed playlists to a provider, but only save that provider's tracks (e.g. in a PL with both YT & Spotify, if the provider is Spotify, only save Spotify songs on Spotify)
+        - [x] Add ability to sync and detach from the original provider (trying to keep songs intact)
     - [ ] Add the Connect capability (being able to control devices remotely, probably with bluetooth/nearby devices for now)
     - [ ] Add a fullscreen player (desktop)
     - [ ] Add minimizing to the tray area (desktop)

@@ -19,6 +19,7 @@ import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../providers/navigation_state.dart';
 import '../services/navigation_history.dart';
+import '../widgets/like_button.dart';
 
 class WispPlayerBar extends StatelessWidget {
   const WispPlayerBar({super.key});
@@ -121,6 +122,16 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                         ),
                       ),
                     ),
+                    LikeButton(
+                      track: widget.currentTrack as GenericSong?,
+                      iconSize: 20,
+                      padding: const EdgeInsets.all(2),
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
                     // Play/Pause button
                     _buildMobilePlayPauseButton(),
                   ],
@@ -600,6 +611,16 @@ class _DesktopTrackInfo extends StatelessWidget {
               ],
             ),
           ),
+              const SizedBox(width: 6),
+              LikeButton(
+                track: currentTrack,
+                iconSize: 18,
+                padding: const EdgeInsets.all(2),
+                constraints: const BoxConstraints(
+                  minWidth: 28,
+                  minHeight: 28,
+                ),
+              ),
         ],
       ),
     );

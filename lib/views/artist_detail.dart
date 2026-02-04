@@ -17,6 +17,7 @@ import '../widgets/track_context_menu.dart';
 import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
+import '../widgets/like_button.dart';
 import 'list_detail.dart';
 import '../providers/navigation_state.dart';
 
@@ -47,6 +48,7 @@ class ArtistDetailView extends StatefulWidget {
 class _ArtistDetailViewState extends State<ArtistDetailView> {
   bool _isLoading = true;
   GenericArtist? _artist;
+  String? _hoveredTrackId;
   NavigationState get _navState => context.read<NavigationState>();
   LibraryView get _currentLibraryView => _navState.selectedLibraryView;
   int get _currentNavIndex => _navState.selectedNavIndex;
@@ -585,6 +587,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               final isEven = index % 2 == 0;
               final isCurrentTrack = player.currentTrack?.id == track.id;
               final album = track.album;
+              final isHovering = _hoveredTrackId == track.id;
               return GestureDetector(
                 onSecondaryTapDown: isDesktop
                     ? (details) {
@@ -613,204 +616,233 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                           currentNavIndex: _currentNavIndex,
                         );
                       },
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => _playTopTracks(index),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isEven
-                            ? Colors.transparent
-                            : Colors.black.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          if (isDesktop) ...[
-                            SizedBox(
-                              width: 40,
-                              child: Text(
-                                '${index + 1}',
-                                style: TextStyle(color: Colors.grey[400]),
-                                textAlign: TextAlign.center,
+                child: MouseRegion(
+                  onEnter: (_) {
+                    if (!isDesktop) return;
+                    setState(() => _hoveredTrackId = track.id);
+                  },
+                  onExit: (_) {
+                    if (!isDesktop) return;
+                    setState(() => _hoveredTrackId = null);
+                  },
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => _playTopTracks(index),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isEven
+                              ? Colors.transparent
+                              : Colors.black.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            if (isDesktop) ...[
+                              SizedBox(
+                                width: 40,
+                                child: Text(
+                                  '${index + 1}',
+                                  style: TextStyle(color: Colors.grey[400]),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                width: 40,
+                                height: 40,
+                                color: Colors.grey[900],
+                                child: track.thumbnailUrl.isNotEmpty
+                                    ? CachedNetworkImage(
+                                        imageUrl: track.thumbnailUrl,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Icon(
+                                        Icons.music_note,
+                                        color: Colors.grey[700],
+                                      ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                          ],
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: Container(
-                              width: 40,
-                              height: 40,
-                              color: Colors.grey[900],
-                              child: track.thumbnailUrl.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: track.thumbnailUrl,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Icon(
-                                      Icons.music_note,
-                                      color: Colors.grey[700],
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                (isDesktop &&
-                                        album != null &&
-                                        album.id.isNotEmpty)
-                                    ? HoverUnderline(
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            PageRouteBuilder(
-                                              transitionDuration: Duration.zero,
-                                              reverseTransitionDuration:
-                                                  Duration.zero,
-                                              pageBuilder:
-                                                  (
-                                                    context,
-                                                    animation,
-                                                    secondaryAnimation,
-                                                  ) => SharedListDetailView(
-                                                    id: album.id,
-                                                    type: SharedListType.album,
-                                                    initialTitle: album.title,
-                                                    initialThumbnailUrl:
-                                                        album.thumbnailUrl,
-                                                    playlists: widget.playlists,
-                                                    albums: widget.albums,
-                                                    artists: widget.artists,
-                                                    initialLibraryView:
-                                                        _currentLibraryView,
-                                                    initialNavIndex:
-                                                        _currentNavIndex,
-                                                  ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  (isDesktop &&
+                                          album != null &&
+                                          album.id.isNotEmpty)
+                                      ? HoverUnderline(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              PageRouteBuilder(
+                                                transitionDuration: Duration.zero,
+                                                reverseTransitionDuration:
+                                                    Duration.zero,
+                                                pageBuilder:
+                                                    (
+                                                      context,
+                                                      animation,
+                                                      secondaryAnimation,
+                                                    ) => SharedListDetailView(
+                                                      id: album.id,
+                                                      type: SharedListType.album,
+                                                      initialTitle: album.title,
+                                                      initialThumbnailUrl:
+                                                          album.thumbnailUrl,
+                                                      playlists: widget.playlists,
+                                                      albums: widget.albums,
+                                                      artists: widget.artists,
+                                                      initialLibraryView:
+                                                          _currentLibraryView,
+                                                      initialNavIndex:
+                                                          _currentNavIndex,
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          builder: (isHovering) => Text(
+                                            track.title,
+                                            style: TextStyle(
+                                              color: isCurrentTrack
+                                                  ? colorScheme.primary
+                                                  : Colors.white,
+                                              decoration: isHovering
+                                                  ? TextDecoration.underline
+                                                  : TextDecoration.none,
                                             ),
-                                          );
-                                        },
-                                        builder: (isHovering) => Text(
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        )
+                                      : Text(
                                           track.title,
                                           style: TextStyle(
                                             color: isCurrentTrack
                                                 ? colorScheme.primary
                                                 : Colors.white,
-                                            decoration: isHovering
-                                                ? TextDecoration.underline
-                                                : TextDecoration.none,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                      )
-                                    : Text(
-                                        track.title,
-                                        style: TextStyle(
-                                          color: isCurrentTrack
-                                              ? colorScheme.primary
-                                              : Colors.white,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                const SizedBox(height: 2),
-                                (isDesktop &&
-                                        album != null &&
-                                        album.id.isNotEmpty)
-                                    ? HoverUnderline(
-                                        onTap: () {
-                                          Navigator.push(
-                                            context,
-                                            PageRouteBuilder(
-                                              transitionDuration: Duration.zero,
-                                              reverseTransitionDuration:
-                                                  Duration.zero,
-                                              pageBuilder:
-                                                  (
-                                                    context,
-                                                    animation,
-                                                    secondaryAnimation,
-                                                  ) => SharedListDetailView(
-                                                    id: album.id,
-                                                    type: SharedListType.album,
-                                                    initialTitle: album.title,
-                                                    initialThumbnailUrl:
-                                                        album.thumbnailUrl,
-                                                    playlists: widget.playlists,
-                                                    albums: widget.albums,
-                                                    artists: widget.artists,
-                                                    initialLibraryView:
-                                                        _currentLibraryView,
-                                                    initialNavIndex:
-                                                        _currentNavIndex,
-                                                  ),
+                                  const SizedBox(height: 2),
+                                  (isDesktop &&
+                                          album != null &&
+                                          album.id.isNotEmpty)
+                                      ? HoverUnderline(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              PageRouteBuilder(
+                                                transitionDuration: Duration.zero,
+                                                reverseTransitionDuration:
+                                                    Duration.zero,
+                                                pageBuilder:
+                                                    (
+                                                      context,
+                                                      animation,
+                                                      secondaryAnimation,
+                                                    ) => SharedListDetailView(
+                                                      id: album.id,
+                                                      type: SharedListType.album,
+                                                      initialTitle: album.title,
+                                                      initialThumbnailUrl:
+                                                          album.thumbnailUrl,
+                                                      playlists: widget.playlists,
+                                                      albums: widget.albums,
+                                                      artists: widget.artists,
+                                                      initialLibraryView:
+                                                          _currentLibraryView,
+                                                      initialNavIndex:
+                                                          _currentNavIndex,
+                                                    ),
+                                              ),
+                                            );
+                                          },
+                                          onSecondaryTapDown: (details) {
+                                            LibraryItemContextMenu.show(
+                                              context: context,
+                                              item: album,
+                                              position: details.globalPosition,
+                                              playlists: widget.playlists,
+                                              albums: widget.albums,
+                                              artists: widget.artists,
+                                              currentLibraryView:
+                                                  _currentLibraryView,
+                                              currentNavIndex: _currentNavIndex,
+                                            );
+                                          },
+                                          builder: (isHovering) => Text(
+                                            album.title,
+                                            style: TextStyle(
+                                              color: Colors.grey[500],
+                                              fontSize: 12,
+                                              decoration: isHovering
+                                                  ? TextDecoration.underline
+                                                  : TextDecoration.none,
                                             ),
-                                          );
-                                        },
-                                        onSecondaryTapDown: (details) {
-                                          LibraryItemContextMenu.show(
-                                            context: context,
-                                            item: album,
-                                            position: details.globalPosition,
-                                            playlists: widget.playlists,
-                                            albums: widget.albums,
-                                            artists: widget.artists,
-                                            currentLibraryView:
-                                                _currentLibraryView,
-                                            currentNavIndex: _currentNavIndex,
-                                          );
-                                        },
-                                        builder: (isHovering) => Text(
-                                          album.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        )
+                                      : Text(
+                                          track.album?.title ?? '',
                                           style: TextStyle(
                                             color: Colors.grey[500],
                                             fontSize: 12,
-                                            decoration: isHovering
-                                                ? TextDecoration.underline
-                                                : TextDecoration.none,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                      )
-                                    : Text(
-                                        track.album?.title ?? '',
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 12,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(
-                            width: 80,
-                            child: Text(
-                              _formatDuration(track.durationSecs),
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 12,
+                                ],
                               ),
-                              textAlign: TextAlign.right,
                             ),
-                          ),
-                          SizedBox(width: isDesktop ? 16 : 12),
-                          Icon(
-                            Icons.graphic_eq,
-                            color: colorScheme.primary,
-                            size: 18,
-                          ),
-                        ],
+                            if (isDesktop) ...[
+                              AnimatedOpacity(
+                                opacity: isHovering ? 1 : 0,
+                                duration: const Duration(milliseconds: 120),
+                                child: IgnorePointer(
+                                  ignoring: !isHovering,
+                                  child: LikeButton(
+                                    track: track,
+                                    iconSize: 16,
+                                    padding: const EdgeInsets.all(2),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 24,
+                                      minHeight: 24,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            SizedBox(
+                              width: 80,
+                              child: Text(
+                                _formatDuration(track.durationSecs),
+                                style: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 12,
+                                ),
+                                textAlign: TextAlign.right,
+                              ),
+                            ),
+                            SizedBox(width: isDesktop ? 16 : 12),
+                            Icon(
+                              Icons.graphic_eq,
+                              color: colorScheme.primary,
+                              size: 18,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

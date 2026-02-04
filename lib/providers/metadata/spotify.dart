@@ -48,6 +48,7 @@ class SpotifyProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   String? _userDisplayName;
+  String? _userId;
 
   // Spotify API constants
   static const String _baseUrl = 'https://api.spotify.com/v1';
@@ -76,6 +77,7 @@ class SpotifyProvider extends ChangeNotifier {
   
   static const List<String> _scopes = [
     'user-library-read',
+    'user-library-modify',
     'playlist-read-private',
     'user-follow-read',
     'user-top-read',
@@ -86,6 +88,119 @@ class SpotifyProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get userDisplayName => _userDisplayName;
+  String? get userId => _userId;
+
+  final Set<String> _likedTrackIds = {};
+  bool _likedTracksLoaded = false;
+
+  bool isTrackLiked(String trackId) => _likedTrackIds.contains(trackId);
+
+  Future<void> ensureLikedTracksLoaded() async {
+    if (_likedTracksLoaded) return;
+    final cached = await getCachedSavedTracksAll();
+    if (cached != null) {
+      _setLikedTracksFromItems(cached);
+      return;
+    }
+    _likedTracksLoaded = true;
+    notifyListeners();
+  }
+
+  void setLikedTracksFromItems(List<PlaylistItem> items) {
+    _setLikedTracksFromItems(items);
+  }
+
+  void _setLikedTracksFromItems(List<PlaylistItem> items) {
+    _likedTrackIds
+      ..clear()
+      ..addAll(items.map((item) => item.id));
+    _likedTracksLoaded = true;
+    notifyListeners();
+  }
+
+  Future<void> toggleTrackLike(GenericSong track) async {
+    if (track.source != SongSource.spotify) return;
+    if (isTrackLiked(track.id)) {
+      await unlikeTrack(track);
+    } else {
+      await likeTrack(track);
+    }
+  }
+
+  Future<void> likeTrack(GenericSong track) async {
+    if (track.source != SongSource.spotify) return;
+    await _makeApiRequestWithBody(
+      '/me/tracks?ids=${Uri.encodeQueryComponent(track.id)}',
+      method: 'PUT',
+    );
+    _likedTrackIds.add(track.id);
+    await _updateSavedTracksCacheOnLike(track);
+    notifyListeners();
+  }
+
+  Future<void> unlikeTrack(GenericSong track) async {
+    if (track.source != SongSource.spotify) return;
+    await _makeApiRequestWithBody(
+      '/me/tracks?ids=${Uri.encodeQueryComponent(track.id)}',
+      method: 'DELETE',
+    );
+    _likedTrackIds.remove(track.id);
+    await _updateSavedTracksCacheOnUnlike(track.id);
+    notifyListeners();
+  }
+
+  PlaylistItem _playlistItemFromSong(GenericSong song) {
+    return PlaylistItem(
+      id: song.id,
+      source: song.source,
+      title: song.title,
+      artists: song.artists,
+      thumbnailUrl: song.thumbnailUrl,
+      explicit: song.explicit,
+      album: song.album,
+      durationSecs: song.durationSecs,
+      addedAt: DateTime.now(),
+      trackNumber: 1,
+    );
+  }
+
+  Future<void> _updateSavedTracksCacheOnLike(GenericSong song) async {
+    final entry =
+        await _readCacheEntry(type: 'saved_tracks_all', id: 'all');
+    if (entry == null) return;
+    final items = entry.payload['items'] as List?;
+    if (items == null) return;
+    final parsed = items
+        .whereType<Map<String, dynamic>>()
+        .map(PlaylistItem.fromJson)
+        .toList();
+    if (parsed.any((item) => item.id == song.id)) return;
+    parsed.insert(0, _playlistItemFromSong(song));
+    await _writeCacheEntry(
+      type: 'saved_tracks_all',
+      id: 'all',
+      payload: {'items': parsed.map((item) => item.toJson()).toList()},
+    );
+  }
+
+  Future<void> _updateSavedTracksCacheOnUnlike(String trackId) async {
+    final entry =
+        await _readCacheEntry(type: 'saved_tracks_all', id: 'all');
+    if (entry == null) return;
+    final items = entry.payload['items'] as List?;
+    if (items == null) return;
+    final parsed = items
+        .whereType<Map<String, dynamic>>()
+        .map(PlaylistItem.fromJson)
+        .toList();
+    final next = parsed.where((item) => item.id != trackId).toList();
+    if (next.length == parsed.length) return;
+    await _writeCacheEntry(
+      type: 'saved_tracks_all',
+      id: 'all',
+      payload: {'items': next.map((item) => item.toJson()).toList()},
+    );
+  }
 
   Future<MetadataCacheEntry?> _readCacheEntry({
     required String type,
@@ -561,6 +676,72 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> _makeApiRequestWithBody(
+    String endpoint, {
+    required String method,
+    Map<String, dynamic>? body,
+  }) async {
+    try {
+      logger.d('Spotify: Making API request to: $endpoint ($method)');
+      final accessToken = await _ensureValidToken();
+
+      Future<http.Response> send(String token) {
+        final uri = Uri.parse('$_baseUrl$endpoint');
+        final headers = {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        };
+        final payload = body != null ? jsonEncode(body) : null;
+        switch (method) {
+          case 'POST':
+            return http.post(uri, headers: headers, body: payload);
+          case 'PUT':
+            return http.put(uri, headers: headers, body: payload);
+          case 'DELETE':
+            return http.delete(uri, headers: headers, body: payload);
+          default:
+            return http.get(uri, headers: headers);
+        }
+      }
+
+      var response = await send(accessToken);
+      logger.d('Spotify: Response status: ${response.statusCode}');
+
+      if (response.statusCode == 401) {
+        logger.d('Spotify: Got 401, refreshing token...');
+        await _refreshToken();
+        final newAccessToken = await _ensureValidToken();
+        response = await send(newAccessToken);
+        logger.d('Spotify: Retry response status: ${response.statusCode}');
+      }
+
+      if (response.statusCode != 200 &&
+          response.statusCode != 201 &&
+          response.statusCode != 204) {
+        logger.e(
+          'Spotify: Request failed with ${response.statusCode}: ${response.body}',
+        );
+        throw SpotifyNetworkException(
+          'API request failed: ${response.statusCode} - ${response.body}',
+        );
+      }
+
+      if (response.statusCode == 204 || response.body.isEmpty) {
+        return <String, dynamic>{};
+      }
+
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      logger.e('Spotify: Exception in _makeApiRequestWithBody', error: e);
+      if (e is SpotifyAuthException ||
+          e is SpotifyNetworkException ||
+          e is SpotifyCredentialsException) {
+        rethrow;
+      }
+      throw SpotifyNetworkException('Network request failed: $e');
+    }
+  }
+
   /// Get track information by ID
   Future<GenericSong> getTrackInfo(
     String trackId, {
@@ -859,6 +1040,279 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  /// Get user's saved tracks (liked songs)
+  Future<List<PlaylistItem>> getUserSavedTracks({
+    int limit = 50,
+    int offset = 0,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    try {
+      final pageKey = 'offset_${offset}_limit_$limit';
+      return _getListWithCache(
+        type: 'saved_tracks',
+        id: 'saved_tracks',
+        pageKey: pageKey,
+        policy: policy,
+        fetcher: () async {
+          final data = await _makeApiRequest(
+            '/me/tracks?limit=$limit&offset=$offset',
+          );
+          final items = data['items'] as List;
+          return items.asMap().entries.map((entry) {
+            return spotifySavedTrackToPlaylistItem(
+              entry.value as Map<String, dynamic>,
+              offset + entry.key + 1,
+            );
+          }).where((item) => item.id.isNotEmpty).toList();
+        },
+        itemToJson: (item) => item.toJson(),
+        itemFromJson: PlaylistItem.fromJson,
+      );
+    } catch (e) {
+      _errorMessage = 'Failed to fetch saved tracks: $e';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<List<PlaylistItem>> getUserSavedTracksAll({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    try {
+      final items = await _getListWithCache(
+        type: 'saved_tracks_all',
+        id: 'all',
+        policy: policy,
+        fetcher: () async {
+          const limit = 50;
+          var offset = 0;
+          final all = <PlaylistItem>[];
+          while (true) {
+            final data = await _makeApiRequest(
+              '/me/tracks?limit=$limit&offset=$offset',
+            );
+            final items = data['items'] as List;
+            if (items.isEmpty) break;
+            all.addAll(
+              items.asMap().entries.map((entry) {
+                return spotifySavedTrackToPlaylistItem(
+                  entry.value as Map<String, dynamic>,
+                  offset + entry.key + 1,
+                );
+              }).where((item) => item.id.isNotEmpty),
+            );
+            if (items.length < limit) break;
+            offset += items.length;
+          }
+          return all;
+        },
+        itemToJson: (item) => item.toJson(),
+        itemFromJson: PlaylistItem.fromJson,
+      );
+      _likedTrackIds
+        ..clear()
+        ..addAll(items.map((item) => item.id));
+      _likedTracksLoaded = true;
+      notifyListeners();
+      return items;
+    } catch (e) {
+      _errorMessage = 'Failed to fetch saved tracks: $e';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<List<PlaylistItem>?> getCachedSavedTracksAll() async {
+    final entry = await _readCacheEntry(type: 'saved_tracks_all', id: 'all');
+    if (entry == null) return null;
+    final items = entry.payload['items'] as List?;
+    if (items == null) return null;
+    try {
+      return items
+          .whereType<Map<String, dynamic>>()
+          .map(PlaylistItem.fromJson)
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<PlaylistItem>?> _getCachedSavedTracksPage({
+    required int limit,
+    required int offset,
+  }) async {
+    final pageKey = 'offset_${offset}_limit_$limit';
+    final entry = await _readCacheEntry(
+      type: 'saved_tracks',
+      id: 'saved_tracks',
+      pageKey: pageKey,
+    );
+    if (entry == null) return null;
+    final items = entry.payload['items'] as List?;
+    if (items == null) return null;
+    try {
+      return items
+          .whereType<Map<String, dynamic>>()
+          .map(PlaylistItem.fromJson)
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _savedTracksPageMatches(
+    List<PlaylistItem> fresh,
+    List<PlaylistItem>? cached,
+  ) {
+    if (cached == null) return false;
+    if (fresh.length != cached.length) return false;
+    for (var i = 0; i < fresh.length; i++) {
+      if (fresh[i].id != cached[i].id) return false;
+    }
+    return true;
+  }
+
+  Future<void> refreshSavedTracksAll() async {
+    try {
+      const limit = 100;
+      var offset = 0;
+      final cachedAll = await getCachedSavedTracksAll() ?? <PlaylistItem>[];
+      final merged = <PlaylistItem>[];
+
+      while (true) {
+        final data = await _makeApiRequest(
+          '/me/tracks?limit=$limit&offset=$offset',
+        );
+        final items = data['items'] as List;
+        if (items.isEmpty) break;
+
+        final pageItems = items.asMap().entries.map((entry) {
+          return spotifySavedTrackToPlaylistItem(
+            entry.value as Map<String, dynamic>,
+            offset + entry.key + 1,
+          );
+        }).where((item) => item.id.isNotEmpty).toList();
+
+        final cachedPage =
+            await _getCachedSavedTracksPage(limit: limit, offset: offset);
+        final pageMatches = _savedTracksPageMatches(pageItems, cachedPage);
+
+        await _writeCacheEntry(
+          type: 'saved_tracks',
+          id: 'saved_tracks',
+          pageKey: 'offset_${offset}_limit_$limit',
+          payload: {'items': pageItems.map((item) => item.toJson()).toList()},
+        );
+
+        merged.addAll(pageItems);
+
+        if (pageMatches) {
+          final tailStart = offset + pageItems.length;
+          if (tailStart < cachedAll.length) {
+            merged.addAll(cachedAll.sublist(tailStart));
+          }
+          break;
+        }
+
+        if (items.length < limit) break;
+        offset += items.length;
+      }
+
+      if (merged.isNotEmpty) {
+        await _writeCacheEntry(
+          type: 'saved_tracks_all',
+          id: 'all',
+          payload: {'items': merged.map((item) => item.toJson()).toList()},
+        );
+        _likedTrackIds
+          ..clear()
+          ..addAll(merged.map((item) => item.id));
+        _likedTracksLoaded = true;
+        notifyListeners();
+      }
+    } catch (_) {
+      // silent refresh
+    }
+  }
+
+  Future<String> createPlaylist({
+    required String name,
+    String? description,
+    bool isPublic = false,
+  }) async {
+    try {
+      final id = _userId;
+      if (id == null || id.isEmpty) {
+        await fetchUserProfile();
+      }
+      final userId = _userId;
+      if (userId == null || userId.isEmpty) {
+        throw SpotifyNetworkException('Missing Spotify user ID');
+      }
+      final payload = {
+        'name': name,
+        'public': isPublic,
+        if (description != null) 'description': description,
+      };
+      final data = await _makeApiRequestWithBody(
+        '/users/$userId/playlists',
+        method: 'POST',
+        body: payload,
+      );
+      return data['id'] as String;
+    } catch (e) {
+      _errorMessage = 'Failed to create playlist: $e';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> renamePlaylist(String playlistId, String name) async {
+    try {
+      await _makeApiRequestWithBody(
+        '/playlists/$playlistId',
+        method: 'PUT',
+        body: {'name': name},
+      );
+    } catch (e) {
+      _errorMessage = 'Failed to rename playlist: $e';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> deletePlaylist(String playlistId) async {
+    try {
+      await _makeApiRequestWithBody(
+        '/playlists/$playlistId/followers',
+        method: 'DELETE',
+      );
+    } catch (e) {
+      _errorMessage = 'Failed to delete playlist: $e';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> addTracksToPlaylist(
+    String playlistId,
+    List<String> trackIds,
+  ) async {
+    if (trackIds.isEmpty) return;
+    try {
+      final uris = trackIds.map((id) => 'spotify:track:$id').toList();
+      await _makeApiRequestWithBody(
+        '/playlists/$playlistId/tracks',
+        method: 'POST',
+        body: {'uris': uris},
+      );
+    } catch (e) {
+      _errorMessage = 'Failed to add tracks: $e';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   /// Get user's saved albums
   Future<List<GenericAlbum>> getUserAlbums({
     int limit = 20,
@@ -977,6 +1431,7 @@ class SpotifyProvider extends ChangeNotifier {
       final data = await _makeApiRequest('/me');
       logger.d('Spotify: User profile response received');
       _userDisplayName = data['display_name'] as String?;
+      _userId = data['id'] as String?;
       logger.d('Spotify: User display name: $_userDisplayName');
       notifyListeners();
     } catch (e) {

@@ -19,6 +19,7 @@ import '../views/queue.dart';
 import 'animated_lyrics_preview.dart';
 import 'hover_underline.dart';
 import 'library_item_context_menu.dart';
+import 'like_button.dart';
 
 class RightSidebar extends StatelessWidget {
   final double width;
@@ -178,24 +179,42 @@ class _NowPlayingCard extends StatelessWidget {
                       child: _TrackArtwork(url: track.thumbnailUrl),
                     ),
                     const SizedBox(height: 12),
-                    HoverUnderline(
-                      cursor: album != null && album.id.isNotEmpty
-                          ? SystemMouseCursors.click
-                          : SystemMouseCursors.basic,
-                      onTap: album != null && album.id.isNotEmpty
-                          ? () => _openAlbum(album, libraryState, navState)
-                          : null,
-                      builder: (isHovering) => _MarqueeText(
-                        text: track.title,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          decoration: isHovering && album != null
-                              ? TextDecoration.underline
-                              : TextDecoration.none,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: HoverUnderline(
+                            cursor: album != null && album.id.isNotEmpty
+                                ? SystemMouseCursors.click
+                                : SystemMouseCursors.basic,
+                            onTap: album != null && album.id.isNotEmpty
+                                ? () =>
+                                    _openAlbum(album, libraryState, navState)
+                                : null,
+                            builder: (isHovering) => _MarqueeText(
+                              text: track.title,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                decoration: isHovering && album != null
+                                    ? TextDecoration.underline
+                                    : TextDecoration.none,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        LikeButton(
+                          track: track,
+                          iconSize: 20,
+                          padding: const EdgeInsets.all(2),
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     HoverUnderline(

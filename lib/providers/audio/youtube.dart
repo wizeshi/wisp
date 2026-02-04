@@ -37,6 +37,7 @@ class YouTubeResult {
   final String channelName;
   final Duration duration;
   final String thumbnailUrl;
+  final double score;
   
   YouTubeResult({
     required this.videoId,
@@ -44,6 +45,7 @@ class YouTubeResult {
     required this.channelName,
     required this.duration,
     required this.thumbnailUrl,
+    this.score = 0,
   });
 }
 
@@ -138,32 +140,11 @@ class YouTubeProvider {
       
       for (final result in searchResults) {
         final video = result;
-        double score = 0.0;
-        
-        final titleLower = video.title.toLowerCase();
-        final channelLower = video.author.toLowerCase();
-        
-        // Exclude unwanted content
-        if (_containsExcludedTerms(titleLower)) {
+        final score = _scoreVideo(video, artist: artist, title: title);
+        if (score == null) {
           logger.d('[YouTube] Excluded: ${video.title} (unwanted terms)');
           continue;
         }
-        
-        // Prefer audio/official content
-        if (titleLower.contains('audio')) score += 5.0;
-        if (titleLower.contains('official audio')) score += 10.0;
-        if (titleLower.contains('official')) score += 3.0;
-        if (channelLower.contains('topic') || channelLower.contains('vevo')) {
-          score += 7.0;
-        }
-        
-        // Check if title matches search terms
-        if (titleLower.contains(title.toLowerCase())) score += 5.0;
-        if (titleLower.contains(artist.toLowerCase())) score += 5.0;
-        
-        // Prefer videos with hyphen format (Artist - Title)
-        if (titleLower.contains(' - ')) score += 3.0;
-        
         scoredResults.add(MapEntry(video, score));
       }
       
@@ -176,7 +157,8 @@ class YouTubeProvider {
       scoredResults.sort((a, b) => b.value.compareTo(a.value));
       
       final bestMatch = scoredResults.first.key;
-      logger.i('[YouTube] Best match: ${bestMatch.title} (score: ${scoredResults.first.value})');
+      final bestScore = scoredResults.first.value;
+      logger.i('[YouTube] Best match: ${bestMatch.title} (score: $bestScore)');
       
       return YouTubeResult(
         videoId: bestMatch.id.value,
@@ -184,12 +166,60 @@ class YouTubeProvider {
         channelName: bestMatch.author,
         duration: bestMatch.duration ?? Duration.zero,
         thumbnailUrl: bestMatch.thumbnails.highResUrl,
+        score: bestScore,
       );
     } catch (e) {
       if (e is YouTubeException) rethrow;
       
       logger.e('[YouTube] Search error', error: e);
       if (e.toString().contains('network') || e.toString().contains('connection')) {
+        throw NetworkException('Network error during search', e);
+      }
+      throw SearchFailedException('Failed to search YouTube', e);
+    }
+  }
+
+  /// Search YouTube for tracks using a raw query
+  /// Returns sorted results using the same scoring rules
+  Future<List<YouTubeResult>> searchYouTubeTracks(
+    String query, {
+    int limit = 10,
+  }) async {
+    try {
+      logger.d('[YouTube] Searching tracks for: $query');
+
+      final searchResults = await _youtube.search.search(query);
+      if (searchResults.isEmpty) return [];
+
+      final scoredResults = <MapEntry<Video, double>>[];
+      for (final result in searchResults) {
+        final video = result;
+        final score = _scoreVideo(video, artist: '', title: query);
+        if (score == null) {
+          continue;
+        }
+        scoredResults.add(MapEntry(video, score));
+      }
+
+      if (scoredResults.isEmpty) return [];
+
+      scoredResults.sort((a, b) => b.value.compareTo(a.value));
+      return scoredResults.take(limit).map((entry) {
+        final video = entry.key;
+        return YouTubeResult(
+          videoId: video.id.value,
+          title: video.title,
+          channelName: video.author,
+          duration: video.duration ?? Duration.zero,
+          thumbnailUrl: video.thumbnails.highResUrl,
+          score: entry.value,
+        );
+      }).toList();
+    } catch (e) {
+      if (e is YouTubeException) rethrow;
+      logger.e('[YouTube] Search error', error: e);
+      if (e.toString().contains('network') ||
+          e.toString().contains('connection')) {
         throw NetworkException('Network error during search', e);
       }
       throw SearchFailedException('Failed to search YouTube', e);
@@ -349,6 +379,41 @@ class YouTubeProvider {
     ];
     
     return excludedTerms.any((term) => title.contains(term));
+  }
+
+  double? _scoreVideo(
+    Video video, {
+    required String artist,
+    required String title,
+  }) {
+    double score = 0.0;
+
+    final titleLower = video.title.toLowerCase();
+    final channelLower = video.author.toLowerCase();
+    final artistLower = artist.trim().toLowerCase();
+    final titleQueryLower = title.trim().toLowerCase();
+
+    if (_containsExcludedTerms(titleLower)) {
+      return null;
+    }
+
+    if (titleLower.contains('audio')) score += 5.0;
+    if (titleLower.contains('official audio')) score += 10.0;
+    if (titleLower.contains('official')) score += 3.0;
+    if (channelLower.contains('topic') || channelLower.contains('vevo')) {
+      score += 7.0;
+    }
+
+    if (titleQueryLower.isNotEmpty && titleLower.contains(titleQueryLower)) {
+      score += 5.0;
+    }
+    if (artistLower.isNotEmpty && titleLower.contains(artistLower)) {
+      score += 5.0;
+    }
+
+    if (titleLower.contains(' - ')) score += 3.0;
+
+    return score;
   }
   
   /// Dispose resources
