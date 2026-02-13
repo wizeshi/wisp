@@ -65,7 +65,7 @@ class CredentialsService {
   // Storage keys
   static const _keySpotifyCredentials = 'spotify_credentials';
   static const _keySpotifyToken = 'spotify_token';
-  // static const _keySpotifyLyricsCookie = 'spotify_lyrics_cookie';
+  static const _keySpotifyLyricsCookie = 'spotify_lyrics_cookie';
 
   /// Save Spotify Client ID and Secret
   Future<void> saveSpotifyCredentials(SpotifyCredentials credentials) async {
@@ -126,16 +126,33 @@ class CredentialsService {
     await _storage.delete(key: _keySpotifyToken);
   }
 
-  // Spotify lyrics cookie (sp_dc) is disabled for now.
-  // Future<void> saveSpotifyLyricsCookie(String cookie) async {}
-  // Future<String?> getSpotifyLyricsCookie() async => null;
-  // Future<bool> hasSpotifyLyricsCookie() async => false;
-  // Future<void> clearSpotifyLyricsCookie() async {}
+  /// Save Spotify lyrics cookie (sp_dc)
+  Future<void> saveSpotifyLyricsCookie(String cookie) async {
+    await _storage.write(key: _keySpotifyLyricsCookie, value: cookie.trim());
+  }
+
+  /// Retrieve Spotify lyrics cookie (sp_dc)
+  Future<String?> getSpotifyLyricsCookie() async {
+    final value = await _storage.read(key: _keySpotifyLyricsCookie);
+    if (value == null || value.trim().isEmpty) return null;
+    return value.trim();
+  }
+
+  /// Check if Spotify lyrics cookie exists
+  Future<bool> hasSpotifyLyricsCookie() async {
+    final cookie = await getSpotifyLyricsCookie();
+    return cookie != null && cookie.isNotEmpty;
+  }
+
+  /// Clear Spotify lyrics cookie
+  Future<void> clearSpotifyLyricsCookie() async {
+    await _storage.delete(key: _keySpotifyLyricsCookie);
+  }
 
   /// Clear all Spotify data (credentials + token)
   Future<void> clearAllSpotifyData() async {
     await _storage.delete(key: _keySpotifyCredentials);
     await _storage.delete(key: _keySpotifyToken);
-    // await _storage.delete(key: _keySpotifyLyricsCookie);
+    await _storage.delete(key: _keySpotifyLyricsCookie);
   }
 }

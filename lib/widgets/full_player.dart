@@ -287,12 +287,18 @@ class FullScreenPlayer extends StatelessWidget {
       });
     }
 
+    lyricsProvider.ensureDelayLoaded(currentTrack.id);
+
     final lyrics = state.lyrics;
     if (lyrics == null || lyrics.lines.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final line = _getSingleLine(lyrics, player.position.inMilliseconds);
+    final delayMs =
+        (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
+    final adjustedPosition = player.throttledPosition.inMilliseconds - delayMs;
+    final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
+    final line = _getSingleLine(lyrics, effectivePosition);
     if (line == null || line.content.trim().isEmpty) {
       return const SizedBox.shrink();
     }
@@ -434,10 +440,16 @@ class FullScreenPlayer extends StatelessWidget {
       });
     }
 
+    lyricsProvider.ensureDelayLoaded(currentTrack.id);
+
     final lyrics = state.lyrics;
+    final delayMs =
+        (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
+    final adjustedPosition = player.throttledPosition.inMilliseconds - delayMs;
+    final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
     final previewLines = lyrics == null
         ? const <LyricsLine>[]
-        : _getPreviewLines(lyrics, player.position.inMilliseconds);
+        : _getPreviewLines(lyrics, effectivePosition);
 
     return Container(
       decoration: BoxDecoration(
@@ -595,51 +607,61 @@ class FullScreenPlayer extends StatelessWidget {
 
   Widget _buildProgressBar(BuildContext context, AudioPlayerProvider player) {
     final colorScheme = Theme.of(context).colorScheme;
-    final position = player.position;
+    final position = player.throttledPosition;
     final duration = player.duration;
     final progress = duration.inMilliseconds > 0
         ? position.inMilliseconds / duration.inMilliseconds
         : 0.0;
 
-    return Column(
-      children: [
-        SliderTheme(
-          data: SliderThemeData(
-            trackHeight: 4,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-            activeTrackColor: colorScheme.primary,
-            inactiveTrackColor: Colors.grey[800],
-            thumbColor: Colors.white,
-            overlayColor: colorScheme.primary.withOpacity(0.2),
-          ),
-          child: Slider(
-            value: progress.clamp(0.0, 1.0),
-            onChanged: (value) {
-              final newPosition = Duration(
-                milliseconds: (value * duration.inMilliseconds).toInt(),
-              );
-              player.seek(newPosition);
-            },
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _formatDuration(position),
-                style: TextStyle(color: Colors.grey[400], fontSize: 11),
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+      duration: const Duration(milliseconds: 200),
+      builder: (context, animatedProgress, child) {
+        final animatedPosition = Duration(
+          milliseconds: (animatedProgress * duration.inMilliseconds).round(),
+        );
+
+        return Column(
+          children: [
+            SliderTheme(
+              data: SliderThemeData(
+                trackHeight: 4,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                activeTrackColor: colorScheme.primary,
+                inactiveTrackColor: Colors.grey[800],
+                thumbColor: Colors.white,
+                overlayColor: colorScheme.primary.withOpacity(0.2),
               ),
-              Text(
-                _formatDuration(duration),
-                style: TextStyle(color: Colors.grey[400], fontSize: 11),
+              child: Slider(
+                value: animatedProgress,
+                onChanged: (value) {
+                  final newPosition = Duration(
+                    milliseconds: (value * duration.inMilliseconds).toInt(),
+                  );
+                  player.seek(newPosition);
+                },
               ),
-            ],
-          ),
-        ),
-      ],
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _formatDuration(animatedPosition),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                  ),
+                  Text(
+                    _formatDuration(duration),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

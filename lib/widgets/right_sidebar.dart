@@ -721,6 +721,8 @@ class _LyricsPreviewCard extends StatelessWidget {
           });
         }
 
+        lyricsProvider.ensureDelayLoaded(track.id);
+
         final lyrics = state.lyrics;
 
         return _SectionCard(
@@ -928,9 +930,15 @@ class _LyricsPreviewLines extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Selector<AudioPlayerProvider, int>(
-      selector: (context, player) => player.position.inMilliseconds,
+      selector: (context, player) => player.throttledPosition.inMilliseconds,
       builder: (context, positionMs, child) {
-        final previewLines = _getPreviewLines(lyrics, positionMs);
+        final delaySeconds = context.select<LyricsProvider, double>(
+          (provider) => provider.getDelaySecondsCached(resetKey),
+        );
+        final delayMs = (delaySeconds * 1000).round();
+        final adjustedPosition = positionMs - delayMs;
+        final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
+        final previewLines = _getPreviewLines(lyrics, effectivePosition);
         if (previewLines.isEmpty) {
           return const Text(
             'No lyrics found',

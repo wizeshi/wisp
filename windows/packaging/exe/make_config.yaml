@@ -1,0 +1,8 @@
+app_id: 2392F881-6D55-450B-A639-F7757BBCB3EA
+publisher: wizeshi
+publisher_url: https://github.com/wizeshi/wisp
+display_name: wisp
+create_desktop_icon: true
+install_dir_name: wisp
+locales:
+  - en

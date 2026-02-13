@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../models/metadata_models.dart';
 import '../../services/metadata_cache.dart';
 import 'lrclib.dart';
+import 'spotify.dart';
 
 class LyricsFetchState {
   final bool isLoading;
@@ -34,10 +35,14 @@ class LyricsFetchState {
 
 class LyricsProvider extends ChangeNotifier {
   final LrcLibLyricsProvider _lrcLibProvider = LrcLibLyricsProvider();
+  final SpotifyLyricsProvider _spotifyProvider = SpotifyLyricsProvider();
   final MetadataCacheStore _cacheStore = MetadataCacheStore.instance;
   static const String _cacheProvider = 'lyrics';
+  static const String _delayCacheType = 'delay';
 
   final Map<String, LyricsFetchState> _cache = {};
+  final Map<String, double> _delayCache = {};
+  final Set<String> _delayLoading = {};
 
   LyricsFetchState getState(GenericSong track, LyricsSyncMode mode) {
     return _cache[_key(track.id, mode)] ?? const LyricsFetchState.idle();
@@ -80,7 +85,44 @@ class LyricsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  double getDelaySecondsCached(String trackId) {
+    return _delayCache[trackId] ?? 0;
+  }
+
+  Future<double> getDelaySeconds(String trackId) async {
+    if (_delayCache.containsKey(trackId)) {
+      return _delayCache[trackId] ?? 0;
+    }
+    final delay = await _readCachedDelay(trackId);
+    _delayCache[trackId] = delay;
+    return delay;
+  }
+
+  Future<void> ensureDelayLoaded(String trackId) async {
+    if (_delayCache.containsKey(trackId) || _delayLoading.contains(trackId)) {
+      return;
+    }
+    _delayLoading.add(trackId);
+    final delay = await _readCachedDelay(trackId);
+    _delayCache[trackId] = delay;
+    _delayLoading.remove(trackId);
+    notifyListeners();
+  }
+
+  Future<void> setDelaySeconds(String trackId, double seconds) async {
+    _delayCache[trackId] = seconds;
+    notifyListeners();
+    await _writeCachedDelay(trackId, seconds);
+  }
+
   Future<LyricsResult?> _fetchLyrics(GenericSong track, LyricsSyncMode mode) async {
+    if (track.source == SongSource.spotify) {
+      final spotifyResult = await _spotifyProvider.getLyrics(track.id);
+      if (spotifyResult != null) {
+        return _normalizeResult(spotifyResult, mode);
+      }
+    }
+
     final result = await _lrcLibProvider.getLyrics(track, mode);
     if (result == null) return null;
     return _normalizeResult(result, mode);
@@ -168,6 +210,28 @@ class LyricsProvider extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<double> _readCachedDelay(String trackId) async {
+    final entry = await _cacheStore.readEntry(
+      provider: _cacheProvider,
+      type: _delayCacheType,
+      id: trackId,
+    );
+    if (entry == null) return 0;
+    final payload = entry.payload;
+    final value = payload['delaySeconds'];
+    if (value is num) return value.toDouble();
+    return 0;
+  }
+
+  Future<void> _writeCachedDelay(String trackId, double seconds) async {
+    await _cacheStore.writeEntry(
+      provider: _cacheProvider,
+      type: _delayCacheType,
+      id: trackId,
+      payload: {'delaySeconds': seconds},
+    );
   }
 }
 

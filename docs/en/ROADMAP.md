@@ -1,0 +1,45 @@
+Here's the TODOs for version v26.03.xx (0/38):
+
+- Bugs:
+    - [ ] On mobile, clicking on a list view's shuffle/repeat button on the header does nothing.
+    - [ ] Fix the three dot menu's position in the desktop list view
+    - [ ] The song name on the mobile full player isn't a marquee
+    - [ ] Synced Lyrics view sometimes displays non-synced lyrics (it should toggle to unsynced, and disable the synced tab)
+    - [ ] When there is no next or last page, the corresponding desktop nav buttons are still enabled.
+    - [ ] Lyrics screen doesn't occupy the full width (so things like the scrollbar appear in the middle)
+    - [ ] Re-clicking the view buttons in the player bar (desktop) doesn't return to the previous view
+- Future changes:
+    - [ ] Make the right sidebar's title clickable when it is a Playlist/Album/Artist
+    - [ ] On the right sidebar, reduce the space between the song title and artist list.
+    - [ ] Make the like button be centered relative to both the song title and artist list (right sidebar)
+    - [ ] Make the heart icon on the playerbar (desktop) stick to the right of the Song/Artist box (right now it just has constant spacing)
+    - [ ] Make shuffling persist between playlists (e.g., I have shuffle on when hearing PL1, I switch to PL2 and it should automatically shuffle itself)
+    - [ ] Remove the unassigned text from the sidebar
+    - [ ] Add download tracks button on album/playlist right-click context menu
+    - [ ] Revamp the list view grid pattern to account for the downloading/cached icon and also center the duration in it's column 
+    - [ ] Make every list-ish view virtualized
+    - [ ] Remove the "Likes" text in the context menu (keep the add to likes row though.)
+    - [ ] Increase max cache size (2GB -> 4GB). Also, make it permanent, not temporary.
+    - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
+    - [ ] Add a "Go to Folder" on the cache section.
+    - [ ] Make song cover art bigger in the player bar (desktop)
+    - [ ] Change default font to Circular
+    - [ ] Make the player bar's progress bar smaller (desktop)
+    - [ ] Change the lyrics icon to a song note icon
+    - [ ] Make the lyrics preview's background color the song cover's main color
+    - [ ] Add padding at the top/bottom of the lyrics screen to ensure the focused line is centered
+    - [ ] Reduce loading spinner size on the player bar (mobile & desktop) and full screen player (mobile)
+    - [ ] Move "Provided by {lyrics_provider}" text to the bottom-left corner (lyrics screen, desktop)
+    - [ ] Increase header size (list & artist views)
+    - [ ] "Add to Playlist" button should be the first in the right-click context menu
+- Planned features: 
+    - [ ] Add the Connect capability (being able to control devices remotely, probably with bluetooth/nearby devices for now)
+    - [ ] Add a fullscreen player (desktop)
+    - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
+    - [ ] Add ability to play local songs (should be a toggle in the settings)
+    - [ ] Add a setting for write permissions: when off, should block all tries to remotely change things on other providers (e.g. add a song to a playlist on Spotify. Note: it should still add the song locally.)
+    - [ ] Add ability to follow/unfollow artists and save/remove albums.
+    - [ ] Add a next up preview to the top left of the player bar (desktop)
+    - [ ] Add a semi-player bar to the bottom of the lyrics screen (just a seekable progress bar, and a play/pause button) (mobile)
+    - [ ] Add a "Recommended" list of ~10 songs with "Add" buttons at the bottom of a playlist (not albums, not artists, not likes view)
+    - [ ] Change the App to use Spotify's closed API instead of the official one (very future change)

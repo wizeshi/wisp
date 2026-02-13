@@ -3,6 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import 'dart:io' show Platform, File;
 import 'dart:math';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -188,6 +189,11 @@ class HomePageState extends State<HomePage> {
 
       final playlists = await _fetchAllPlaylists(spotify);
       final cachedLiked = await spotify.getCachedSavedTracksAll();
+      if (cachedLiked != null) {
+        spotify.setLikedTracksFromItems(cachedLiked);
+      } else {
+        unawaited(spotify.refreshSavedTracksAll());
+      }
       final likedPlaylist = buildLikedSongsPlaylist(
         userDisplayName: spotify.userDisplayName,
         total: cachedLiked?.length,

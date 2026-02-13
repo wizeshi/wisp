@@ -378,6 +378,10 @@ class SpotifyProvider extends ChangeNotifier {
       }
       _isAuthenticated = await _credentialsService.hasValidSpotifyToken();
       logger.d('Spotify: Initial auth state: $_isAuthenticated');
+      if (_isAuthenticated) {
+        await ensureLikedTracksLoaded();
+        unawaited(refreshSavedTracksAll());
+      }
       notifyListeners();
     } catch (e) {
       logger.e('Spotify: Failed to initialize auth state', error: e);
@@ -1174,7 +1178,7 @@ class SpotifyProvider extends ChangeNotifier {
 
   Future<void> refreshSavedTracksAll() async {
     try {
-      const limit = 100;
+      const limit = 50;
       var offset = 0;
       final cachedAll = await getCachedSavedTracksAll() ?? <PlaylistItem>[];
       final merged = <PlaylistItem>[];

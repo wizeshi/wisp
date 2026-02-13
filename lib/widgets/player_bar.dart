@@ -20,6 +20,7 @@ import '../widgets/hover_underline.dart';
 import '../providers/navigation_state.dart';
 import '../services/navigation_history.dart';
 import '../widgets/like_button.dart';
+import '../services/app_focus_service.dart';
 
 class WispPlayerBar extends StatelessWidget {
   const WispPlayerBar({super.key});
@@ -260,7 +261,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
     return Selector<AudioPlayerProvider, _PositionData>(
       selector: (context, player) => _PositionData(
-        position: player.position,
+        position: player.throttledPosition,
         duration: player.duration,
       ),
       builder: (context, data, child) {
@@ -268,15 +269,21 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             ? data.position.inMilliseconds / data.duration.inMilliseconds
             : 0.0;
 
-        return SizedBox(
-          height: 3,
-          child: LinearProgressIndicator(
-            value: progress.clamp(0.0, 1.0),
-            backgroundColor: Colors.grey[850],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              Theme.of(context).colorScheme.primary,
-            ),
-          ),
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+          duration: const Duration(milliseconds: 200),
+          builder: (context, animatedProgress, child) {
+            return SizedBox(
+              height: 3,
+              child: LinearProgressIndicator(
+                value: animatedProgress,
+                backgroundColor: Colors.grey[850],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -335,66 +342,76 @@ class _DesktopProgressBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Selector<AudioPlayerProvider, _PositionData>(
       selector: (context, player) => _PositionData(
-        position: player.position,
+        position: player.throttledPosition,
         duration: player.duration,
       ),
       builder: (context, data, child) {
         final duration = data.duration;
-        final position = data.position;
         final progress = duration.inMilliseconds > 0
-            ? position.inMilliseconds / duration.inMilliseconds
+            ? data.position.inMilliseconds / duration.inMilliseconds
             : 0.0;
 
-        return Row(
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 16.0, right: 8.0),
-              child: SizedBox(
-                width: 64,
-                child: Text(
-                  _formatDuration(position),
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                  textAlign: TextAlign.right,
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+          duration: const Duration(milliseconds: 200),
+          builder: (context, animatedProgress, child) {
+            final animatedPosition = Duration(
+              milliseconds:
+                  (animatedProgress * duration.inMilliseconds).round(),
+            );
+
+            return Row(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 16.0, right: 8.0),
+                  child: SizedBox(
+                    width: 64,
+                    child: Text(
+                      _formatDuration(animatedPosition),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Expanded(
-              child: SliderTheme(
-                data: SliderThemeData(
-                  trackHeight: 4,
-                  thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
-                  overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
-                  activeTrackColor: Theme.of(context).colorScheme.primary,
-                  inactiveTrackColor: Colors.grey[800],
-                  thumbColor: Colors.white,
-                  overlayColor: Theme.of(
-                    context,
-                  ).colorScheme.primary.withOpacity(0.2),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 4,
+                      thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
+                      overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
+                      activeTrackColor: Theme.of(context).colorScheme.primary,
+                      inactiveTrackColor: Colors.grey[800],
+                      thumbColor: Colors.white,
+                      overlayColor: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.2),
+                    ),
+                    child: Slider(
+                      value: animatedProgress,
+                      onChanged: (value) {
+                        final newPosition = Duration(
+                          milliseconds:
+                              (value * duration.inMilliseconds).toInt(),
+                        );
+                        context.read<AudioPlayerProvider>().seek(newPosition);
+                      },
+                    ),
+                  ),
                 ),
-                child: Slider(
-                  value: progress.clamp(0.0, 1.0),
-                  onChanged: (value) {
-                    final newPosition = Duration(
-                      milliseconds:
-                          (value * duration.inMilliseconds).toInt(),
-                    );
-                    context.read<AudioPlayerProvider>().seek(newPosition);
-                  },
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0, right: 16.0),
+                  child: SizedBox(
+                    width: 64,
+                    child: Text(
+                      _formatDuration(duration),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 8.0, right: 16.0),
-              child: SizedBox(
-                width: 64,
-                child: Text(
-                  _formatDuration(duration),
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                  textAlign: TextAlign.left,
-                ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         );
       },
     );
@@ -1016,6 +1033,16 @@ class _MarqueeTextState extends State<_MarqueeText>
   double _scrollDistance = 0;
   bool _needsMarquee = false;
   Timer? _pauseTimer;
+  late final AppFocusService _focusService;
+  bool _isFocused = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusService = AppFocusService.instance;
+    _isFocused = _focusService.isFocused.value;
+    _focusService.isFocused.addListener(_handleFocusChange);
+  }
 
   @override
   void didUpdateWidget(covariant _MarqueeText oldWidget) {
@@ -1027,20 +1054,33 @@ class _MarqueeTextState extends State<_MarqueeText>
 
   @override
   void dispose() {
+    _focusService.isFocused.removeListener(_handleFocusChange);
     _pauseTimer?.cancel();
     _controller?.dispose();
     super.dispose();
   }
 
+  void _handleFocusChange() {
+    final focused = _focusService.isFocused.value;
+    if (focused == _isFocused) return;
+    _isFocused = focused;
+    if (!_isFocused) {
+      _pauseTimer?.cancel();
+      _controller?.stop();
+      return;
+    }
+    _configureController();
+  }
+
   void _configureController({bool forceStop = false}) {
-    if (!_needsMarquee || forceStop) {
+    if (!_needsMarquee || forceStop || !_isFocused) {
       _pauseTimer?.cancel();
       _controller?.stop();
       if (_controller != null) {
         _controller!.value = 0;
       }
     }
-    if (!_needsMarquee) return;
+    if (!_needsMarquee || !_isFocused) return;
 
     _controller ??= AnimationController(vsync: this)
       ..addStatusListener(_handleStatusChange);
@@ -1061,7 +1101,7 @@ class _MarqueeTextState extends State<_MarqueeText>
   void _pauseThen(VoidCallback action) {
     _pauseTimer?.cancel();
     _pauseTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (!mounted || !_needsMarquee) return;
+      if (!mounted || !_needsMarquee || !_isFocused) return;
       action();
     });
   }

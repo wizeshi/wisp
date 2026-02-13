@@ -532,6 +532,13 @@ class _LibraryTabViewState extends State<LibraryTabView> {
     }
   }
 
+  EdgeInsets _contentPadding(double padding) {
+    final isMobile = Platform.isAndroid || Platform.isIOS;
+    return isMobile
+        ? EdgeInsets.fromLTRB(padding, 8, padding, padding)
+        : EdgeInsets.all(padding);
+  }
+
   Widget _buildPlaylistsContent(double padding) {
     final folderState = context.watch<LibraryFolderState>();
     final isMobile = Platform.isAndroid || Platform.isIOS;
@@ -592,7 +599,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
       child: ListView.builder(
         key: const ValueKey('playlists'),
         controller: _playlistScrollController,
-        padding: EdgeInsets.all(padding),
+          padding: _contentPadding(padding),
         itemCount:
             entries.length +
             (_hasMorePlaylists || _isLoadingPlaylists ? 1 : 0),
@@ -679,7 +686,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
       child: ListView.builder(
         key: const ValueKey('albums'),
         controller: _albumScrollController,
-        padding: EdgeInsets.all(padding),
+          padding: _contentPadding(padding),
         itemCount:
             _albums.length + (_hasMoreAlbums || _isLoadingAlbums ? 1 : 0),
         itemBuilder: (context, index) {
@@ -716,7 +723,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
       child: ListView.builder(
         key: const ValueKey('artists'),
         controller: _artistScrollController,
-        padding: EdgeInsets.all(padding),
+          padding: _contentPadding(padding),
         itemCount:
             _artists.length + (_hasMoreArtists || _isLoadingArtists ? 1 : 0),
         itemBuilder: (context, index) {

@@ -173,8 +173,9 @@ class AudioCacheManager extends ChangeNotifier {
       _isOnWifi = result.contains(ConnectivityResult.wifi);
 
       _initialized = true;
+      logger.i("[CacheManager] Initilizing at ${_cacheDirectory!.path}");
       logger.i(
-        '[CacheManager] Initialized: ${_cacheEntries.length} entries, ${currentCacheSizeMB}MB used',
+        '[CacheManager] Initialization complete: ${_cacheEntries.length} entries, ${currentCacheSizeMB}MB used',
       );
     } catch (e) {
       logger.e('[CacheManager] Initialization error', error: e);

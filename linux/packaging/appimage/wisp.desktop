@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=wisp
+GenericName=Music Player
+Icon=wisp
+Exec=wisp %U
+Categories=AudioVideo;Audio;Music;Player;
+Keywords=song;music;player;audio;
+StartupNotify=true
+StartupWMClass=com.wizeshi.wisp

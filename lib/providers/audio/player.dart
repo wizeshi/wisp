@@ -51,6 +51,15 @@ class AudioPlayerProvider extends ChangeNotifier {
   StreamSubscription? _connectivitySubscription;
   Timer? _rpcTimer;
   int _rpcLastSecond = -1;
+  Timer? _mprisTimer;
+
+  static const Duration _positionNotifyInterval = Duration(milliseconds: 200);
+  Duration _lastRawPosition = Duration.zero;
+  Duration _lastNotifiedPosition = Duration.zero;
+  int _lastPositionNotifyMs = 0;
+  int _lastPositionUpdateMs = 0;
+  int _lastMediaPositionMs = -1;
+  int _lastMediaUpdateMs = 0;
 
   int _trackChangeToken = 0;
   bool _isHandlingCompletion = false;
@@ -66,6 +75,8 @@ class AudioPlayerProvider extends ChangeNotifier {
   bool get isLoading => _state == PlaybackState.loading;
   bool get isBuffering => _state == PlaybackState.loading; // Simplified
   Duration get position => _player.position;
+  Duration get throttledPosition => _lastNotifiedPosition;
+  Duration get interpolatedPosition => _getInterpolatedPosition();
   Duration get duration => _player.duration ?? Duration.zero;
   double get volume => _player.volume;
   bool get isOnline => _isOnline;
@@ -112,8 +123,8 @@ class AudioPlayerProvider extends ChangeNotifier {
     });
 
     // Position updates for UI + Discord RPC throttling
-    _positionSubscription = _player.positionStream.listen((_) {
-      notifyListeners();
+    _positionSubscription = _player.positionStream.listen((position) {
+      _handlePositionUpdate(position);
       _handleRpcPositionTick();
     });
 
@@ -164,6 +175,79 @@ class AudioPlayerProvider extends ChangeNotifier {
     }
   }
 
+  void _handlePositionUpdate(Duration position) {
+    _lastRawPosition = position;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    _updateMediaSessionPosition(position, nowMs);
+    if (nowMs - _lastPositionNotifyMs <
+        _positionNotifyInterval.inMilliseconds) {
+      return;
+    }
+    _lastNotifiedPosition = position;
+    _lastPositionNotifyMs = nowMs;
+    _lastPositionUpdateMs = nowMs;
+    notifyListeners();
+  }
+
+  void _forcePositionUpdate(Duration position) {
+    _lastRawPosition = position;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    _updateMediaSessionPosition(position, nowMs, force: true);
+    _lastNotifiedPosition = position;
+    _lastPositionNotifyMs = nowMs;
+    _lastPositionUpdateMs = nowMs;
+    notifyListeners();
+  }
+
+  void _updateMediaSessionPosition(
+    Duration position,
+    int nowMs, {
+    bool force = false,
+  }) {
+    if (_currentTrack == null) return;
+    if (!force && nowMs - _lastMediaUpdateMs < 1000) return;
+    final posMs = position.inMilliseconds;
+    if (!force && posMs == _lastMediaPositionMs) return;
+    _lastMediaPositionMs = posMs;
+    _lastMediaUpdateMs = nowMs;
+
+    try {
+      final handler = AudioPlayerHandler.instance;
+      handler.playbackState.add(
+        handler.playbackState.value.copyWith(
+          playing: isPlaying,
+          processingState: isLoading
+              ? audio_service.AudioProcessingState.loading
+              : audio_service.AudioProcessingState.ready,
+          updatePosition: position,
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Duration _getInterpolatedPosition() {
+    if (_lastPositionUpdateMs == 0) return _lastNotifiedPosition;
+    if (!isPlaying || isBuffering) return _lastNotifiedPosition;
+
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final elapsedMs = nowMs - _lastPositionUpdateMs;
+    if (elapsedMs <= 0) return _lastNotifiedPosition;
+
+    var predicted =
+        _lastNotifiedPosition + Duration(milliseconds: elapsedMs);
+
+    if (_lastRawPosition > Duration.zero && predicted > _lastRawPosition) {
+      predicted = _lastRawPosition;
+    }
+
+    final trackDuration = duration;
+    if (trackDuration > Duration.zero && predicted > trackDuration) {
+      predicted = trackDuration;
+    }
+
+    return predicted;
+  }
+
   void _ensureRpcTimer() {
     if (!isPlaying || _currentTrack == null || _rpcTimer != null) return;
     _rpcTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -173,6 +257,30 @@ class AudioPlayerProvider extends ChangeNotifier {
       }
       _handleRpcPositionTick();
     });
+  }
+
+  void _handleMprisTick() {
+    if (_currentTrack == null) return;
+    if (!isPlaying) return;
+    final position = _player.position;
+    _updateMediaSessionPosition(
+      position,
+      DateTime.now().millisecondsSinceEpoch,
+      force: true,
+    );
+  }
+
+  void _ensureMprisTimer() {
+    if (!isPlaying || _currentTrack == null || _mprisTimer != null) return;
+    _mprisTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_currentTrack == null) return;
+      _handleMprisTick();
+    });
+  }
+
+  void _stopMprisTimer() {
+    _mprisTimer?.cancel();
+    _mprisTimer = null;
   }
 
   void _stopRpcTimer() {
@@ -187,11 +295,14 @@ class AudioPlayerProvider extends ChangeNotifier {
       _updateMediaControls();
       if (_currentTrack == null || newState == PlaybackState.idle) {
         _clearDiscordPresence();
+        _stopMprisTimer();
       } else {
         if (isPlaying) {
           _ensureRpcTimer();
+          _ensureMprisTimer();
         } else {
           _stopRpcTimer();
+          _stopMprisTimer();
         }
         _updateDiscordPresence(force: true);
       }
@@ -278,6 +389,7 @@ class AudioPlayerProvider extends ChangeNotifier {
       
       // Ensure position is at start (prevents skip issues)
       await _player.seek(Duration.zero);
+      _forcePositionUpdate(Duration.zero);
       if (requestToken != _trackChangeToken) return;
       
       // Start playback
@@ -576,17 +688,21 @@ class AudioPlayerProvider extends ChangeNotifier {
     }
     await _player.play();
     _ensureRpcTimer();
+    _ensureMprisTimer();
     _updateDiscordPresence(force: true);
   }
   Future<void> pause() async {
     await _player.pause();
     _ensureRpcTimer();
+    _stopMprisTimer();
     _updateDiscordPresence(force: true);
   }
   Future<void> togglePlayPause() async => isPlaying ? pause() : play();
   Future<void> seek(Duration position) async {
     await _player.seek(position);
+    _forcePositionUpdate(position);
     _ensureRpcTimer();
+    _ensureMprisTimer();
     _updateDiscordPresence(force: true);
   }
   Future<void> setVolume(double volume) async {

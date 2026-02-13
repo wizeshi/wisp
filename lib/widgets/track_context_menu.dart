@@ -177,6 +177,14 @@ class TrackContextMenu {
                       controller: scrollController,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       children: [
+                        _buildMobileSectionHeader('Likes'),
+                        _buildLikeMobileMenuItem(context, track),
+                        _buildDownloadMenuItem(context, track, isMobile: true),
+                        _buildChangeVideoIdMenuItem(
+                          context,
+                          track,
+                          isMobile: true,
+                        ),
                         _buildMobileMenuItem(
                           icon: Icons.share,
                           label: 'Share',
@@ -184,12 +192,6 @@ class TrackContextMenu {
                             Navigator.pop(context);
                             _handleShare(track);
                           },
-                        ),
-                        _buildDownloadMenuItem(context, track, isMobile: true),
-                        _buildChangeVideoIdMenuItem(
-                          context,
-                          track,
-                          isMobile: true,
                         ),
                         _buildMobileMenuItem(
                           icon: Icons.playlist_add,
@@ -199,8 +201,6 @@ class TrackContextMenu {
                             _showAddToPlaylistDialog(context, track);
                           },
                         ),
-                        _buildMobileSectionHeader('Likes'),
-                        _buildLikeMobileMenuItem(context, track),
                         if (track.album != null)
                           _buildMobileMenuItem(
                             icon: Icons.album,
@@ -409,10 +409,19 @@ class TrackContextMenu {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          const SizedBox(height: 6),
+                          _buildDesktopMenuSectionHeader('Likes'),
+                          const SizedBox(height: 2),
                           _buildDesktopMenuButton(
                             context: dialogContext,
-                            child: _buildDesktopMenuItem(Icons.share, 'Share'),
-                            onTap: () => _handleShare(track),
+                            child: _buildLikeDesktopMenuItem(
+                              dialogContext,
+                              track,
+                            ),
+                            onTap: track.source == SongSource.spotify
+                                ? () =>
+                                    context.read<SpotifyProvider>().toggleTrackLike(track)
+                                : null,
                           ),
                           const SizedBox(height: 4),
                           _buildDesktopMenuButton(
@@ -438,6 +447,12 @@ class TrackContextMenu {
                           const SizedBox(height: 4),
                           _buildDesktopMenuButton(
                             context: dialogContext,
+                            child: _buildDesktopMenuItem(Icons.share, 'Share'),
+                            onTap: () => _handleShare(track),
+                          ),
+                          const SizedBox(height: 4),
+                          _buildDesktopMenuButton(
+                            context: dialogContext,
                             child: _buildDesktopMenuItem(
                               Icons.playlist_add,
                               'Add to Playlist',
@@ -446,20 +461,6 @@ class TrackContextMenu {
                               context,
                               track,
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          _buildDesktopMenuSectionHeader('Likes'),
-                          const SizedBox(height: 2),
-                          _buildDesktopMenuButton(
-                            context: dialogContext,
-                            child: _buildLikeDesktopMenuItem(
-                              dialogContext,
-                              track,
-                            ),
-                            onTap: track.source == SongSource.spotify
-                                ? () =>
-                                    context.read<SpotifyProvider>().toggleTrackLike(track)
-                                : null,
                           ),
                           if (track.album != null) ...[
                             const SizedBox(height: 4),

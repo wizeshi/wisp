@@ -1,12 +1,11 @@
 /// Full-screen lyrics view
 library;
 
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/metadata_models.dart';
 import '../providers/audio/player.dart';
 import '../providers/lyrics/provider.dart';
@@ -31,6 +30,9 @@ class _LyricsViewState extends State<LyricsView> {
     text: '0',
   );
   double _lyricsDelaySeconds = 0;
+  Timer? _positionTimer;
+  LyricsResult? _activeLyrics;
+  AudioPlayerProvider? _playerRef;
 
   bool get _isMobile => Platform.isAndroid || Platform.isIOS;
   bool get _isDesktop =>
@@ -44,6 +46,7 @@ class _LyricsViewState extends State<LyricsView> {
 
   @override
   void dispose() {
+    _positionTimer?.cancel();
     _scrollController.dispose();
     _delayController.dispose();
     super.dispose();
@@ -84,11 +87,29 @@ class _LyricsViewState extends State<LyricsView> {
     final newIndex = _findCurrentLineIndex(lyrics, effectivePosition);
     if (newIndex != _currentLineIndex) {
       setState(() => _currentLineIndex = newIndex);
+      if (_autoScrollEnabled) {
+        _scrollToLine(newIndex);
+      }
     }
+  }
 
-    if (_autoScrollEnabled) {
-      _scrollToLine(newIndex);
-    }
+  void _ensurePositionTimer() {
+    if (_positionTimer != null) return;
+    _positionTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (!mounted) return;
+      final player = _playerRef;
+      final lyrics = _activeLyrics;
+      if (player == null || lyrics == null) return;
+      final positionMs = player.interpolatedPosition.inMilliseconds;
+      _updateCurrentLine(lyrics, positionMs);
+    });
+  }
+
+  void _stopPositionTimer() {
+    _positionTimer?.cancel();
+    _positionTimer = null;
+    _activeLyrics = null;
+    _playerRef = null;
   }
 
   int _findCurrentLineIndex(LyricsResult lyrics, int positionMs) {
@@ -153,33 +174,19 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   /// Load lyrics delay for current track from persistence
-  Future<void> _loadLyricsDelay(String trackId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final delaysJson = prefs.getString('lyrics_delays');
-    if (delaysJson != null) {
-      try {
-        final delays = json.decode(delaysJson) as Map<String, dynamic>;
-        final delay = delays[trackId];
-        if (delay != null && mounted) {
-          setState(() {
-            _lyricsDelaySeconds = (delay as num).toDouble();
-            _delayController.text = _lyricsDelaySeconds.toStringAsFixed(1);
-          });
-        } else if (mounted) {
-          // Reset to 0 for tracks without saved delay
-          setState(() {
-            _lyricsDelaySeconds = 0;
-            _delayController.text = '0';
-          });
-        }
-      } catch (e) {
-        logger.e('Error loading lyrics delay', error: e);
-      }
-    } else if (mounted) {
+  Future<void> _loadLyricsDelay(
+    LyricsProvider lyricsProvider,
+    String trackId,
+  ) async {
+    try {
+      final delay = await lyricsProvider.getDelaySeconds(trackId);
+      if (!mounted) return;
       setState(() {
-        _lyricsDelaySeconds = 0;
-        _delayController.text = '0';
+        _lyricsDelaySeconds = delay;
+        _delayController.text = delay.toStringAsFixed(1);
       });
+    } catch (e) {
+      logger.e('Error loading lyrics delay', error: e);
     }
   }
 
@@ -187,27 +194,8 @@ class _LyricsViewState extends State<LyricsView> {
   Future<void> _saveLyricsDelay() async {
     final trackId = _trackId;
     if (trackId == null) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    Map<String, dynamic> delays = {};
-
-    final existingJson = prefs.getString('lyrics_delays');
-    if (existingJson != null) {
-      try {
-        delays = json.decode(existingJson) as Map<String, dynamic>;
-      } catch (e) {
-        logger.e('Error parsing existing lyrics delays', error: e);
-      }
-    }
-
-    // Only save non-zero delays to save space
-    if (_lyricsDelaySeconds == 0) {
-      delays.remove(trackId);
-    } else {
-      delays[trackId] = _lyricsDelaySeconds;
-    }
-
-    await prefs.setString('lyrics_delays', json.encode(delays));
+    final provider = context.read<LyricsProvider>();
+    await provider.setDelaySeconds(trackId, _lyricsDelaySeconds);
   }
 
   @override
@@ -232,6 +220,7 @@ class _LyricsViewState extends State<LyricsView> {
       builder: (context, player, lyricsProvider, child) {
         final track = player.currentTrack;
         if (track == null) {
+          _stopPositionTimer();
           return const Center(
             child: Text(
               'No track playing',
@@ -244,7 +233,8 @@ class _LyricsViewState extends State<LyricsView> {
           _trackId = track.id;
           _currentLineIndex = 0;
           _autoScrollEnabled = true;
-          _loadLyricsDelay(track.id);
+          lyricsProvider.ensureDelayLoaded(track.id);
+          _loadLyricsDelay(lyricsProvider, track.id);
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_scrollController.hasClients) {
               _scrollController.jumpTo(0);
@@ -260,11 +250,13 @@ class _LyricsViewState extends State<LyricsView> {
         }
 
         if (state.isLoading && state.lyrics == null) {
+          _stopPositionTimer();
           return const Center(child: CircularProgressIndicator());
         }
 
         final lyrics = state.lyrics;
         if (lyrics == null || lyrics.lines.isEmpty) {
+          _stopPositionTimer();
           return const Center(
             child: Text(
               'No lyrics found',
@@ -277,9 +269,9 @@ class _LyricsViewState extends State<LyricsView> {
           _lineKeys = List.generate(lyrics.lines.length, (_) => GlobalKey());
         }
 
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _updateCurrentLine(lyrics, player.position.inMilliseconds);
-        });
+        _activeLyrics = lyrics;
+        _playerRef = player;
+        _ensurePositionTimer();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.center,

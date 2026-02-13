@@ -38,7 +38,7 @@ dependencies:
   # Spotify OAuth and API integration
   flutter_web_auth_2: ^3.1.1
   http: ^1.2.0
-  flutter_secure_storage: ^9.2.2
+  flutter_secure_storage: ^10.0.0
   file_picker: ^8.1.4
   provider: ^6.1.1
   crypto: ^3.0.3
@@ -54,7 +54,7 @@ dependencies:
   just_audio: ^0.10.5
   just_audio_media_kit: ^2.1.0
   media_kit: ^1.2.6
-  media_kit_libs_linux: any
+  media_kit_libs_audio: any
   audio_service: ^0.18.18
   audio_service_mpris: ^0.2.0
   
@@ -80,6 +80,7 @@ dependencies:
 
   logger: ^2.6.2
   flutter_discord_rpc: ^1.1.0
+  audio_service_win: ^0.0.2
 
 dev_dependencies:
   flutter_test:
@@ -118,7 +119,7 @@ flutter:
   # To add custom fonts to your application, add a fonts section here,
   # in this "flutter" section. Each entry in this list should have a
   # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
+  # list givinc5a951e5fa16465bb9c3d37432e5ac0fg the asset and other descriptors for the font. For
   # example:
   # fonts:
   #   - family: Schyler

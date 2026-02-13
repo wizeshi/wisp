@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../providers/metadata/spotify.dart';
 import '../services/credentials.dart';
 import '../services/cache_manager.dart';
+import '../services/navigation_history.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -18,6 +19,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _clientIdController = TextEditingController();
   final _clientSecretController = TextEditingController();
+  final _lyricsCookieController = TextEditingController();
   final _credentialsService = CredentialsService();
   bool _hasCredentials = false;
 
@@ -29,11 +31,17 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadCredentials() async {
     final credentials = await _credentialsService.getSpotifyCredentials();
+    final lyricsCookie = await _credentialsService.getSpotifyLyricsCookie();
     if (credentials != null && mounted) {
       setState(() {
         _clientIdController.text = credentials.clientId;
         _clientSecretController.text = credentials.clientSecret;
         _hasCredentials = true;
+      });
+    }
+    if (lyricsCookie != null && mounted) {
+      setState(() {
+        _lyricsCookieController.text = lyricsCookie;
       });
     }
   }
@@ -55,9 +63,23 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _hasCredentials = true;
       });
+      await _saveLyricsCookie();
       _showSnackBar('Credentials saved successfully');
     } catch (e) {
       _showSnackBar('Failed to save credentials: $e');
+    }
+  }
+
+  Future<void> _saveLyricsCookie() async {
+    final cookie = _lyricsCookieController.text.trim();
+    try {
+      if (cookie.isEmpty) {
+        await _credentialsService.clearSpotifyLyricsCookie();
+        return;
+      }
+      await _credentialsService.saveSpotifyLyricsCookie(cookie);
+    } catch (e) {
+      _showSnackBar('Failed to save lyrics cookie: $e');
     }
   }
 
@@ -88,17 +110,26 @@ class _SettingsPageState extends State<SettingsPage> {
   // Spotify lyrics cookie (sp_dc) is disabled for now.
 
   void _showSnackBar(String message) {
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+    if (!mounted) return;
+    final localMessenger = ScaffoldMessenger.maybeOf(context);
+    if (localMessenger != null) {
+      localMessenger.showSnackBar(SnackBar(content: Text(message)));
+      return;
     }
+
+    final rootContext =
+        NavigationHistory.instance.navigatorKey.currentContext;
+    final rootMessenger = rootContext == null
+        ? null
+        : ScaffoldMessenger.maybeOf(rootContext);
+    rootMessenger?.showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   void dispose() {
     _clientIdController.dispose();
     _clientSecretController.dispose();
+    _lyricsCookieController.dispose();
     super.dispose();
   }
 
@@ -570,6 +601,26 @@ class _SettingsPageState extends State<SettingsPage> {
               decoration: InputDecoration(
                 labelText: 'Client Secret',
                 labelStyle: TextStyle(color: Colors.grey[400]),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: _lyricsCookieController,
+              style: TextStyle(color: Colors.white),
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'Lyrics Cookie (sp_dc)',
+                labelStyle: TextStyle(color: Colors.grey[400]),
+                helperText: 'Used for Spotify lyrics extraction',
+                helperStyle: TextStyle(color: Colors.grey[500]),
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: Colors.grey[700]!),
                 ),
