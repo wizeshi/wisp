@@ -144,6 +144,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
         onTap: onPressed,
         borderRadius: BorderRadius.circular(20),
         child: Container(
@@ -163,6 +164,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
         onTap: onPressed,
         borderRadius: BorderRadius.circular(20),
         child: SizedBox(
@@ -182,6 +184,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
             return Material(
               color: Colors.transparent,
               child: InkWell(
+                mouseCursor: SystemMouseCursors.click,
                 onTap: () => _showNotificationMenu(buttonContext),
                 borderRadius: BorderRadius.circular(20),
                 child: SizedBox(
@@ -263,6 +266,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
         onTap: onPressed,
         hoverColor: isClose ? Colors.red.withOpacity(0.8) : Colors.grey[800],
         child: SizedBox(

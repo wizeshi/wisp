@@ -268,8 +268,8 @@ class _SettingsPageState extends State<SettingsPage> {
               SizedBox(height: 12),
 
               _buildToggleSetting(
-                'WiFi-only downloads',
-                'Only download when connected to WiFi',
+                'WiFi/Ethernet-only downloads',
+                'Only download when connected to WiFi or Ethernet',
                 cacheManager.wifiOnlyDownloads,
                 (value) {
                   cacheManager.setWifiOnlyDownloads(value);

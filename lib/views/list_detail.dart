@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
-import '../providers/audio/player.dart';
+import '../providers/audio/player.dart' as global_audio_player;
 import '../providers/library/library_folders.dart';
 import '../providers/metadata/spotify.dart';
 import '../providers/library/local_playlists.dart';
@@ -542,7 +542,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Future<void> _playQueueAt(int index) async {
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<global_audio_player.AudioPlayerProvider>();
     if (widget.type == SharedListType.playlist) {
       context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
     }
@@ -575,7 +575,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Future<void> _playFromStart({bool shuffle = false}) async {
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<global_audio_player.AudioPlayerProvider>();
     if (widget.type == SharedListType.playlist) {
       context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
     }
@@ -616,7 +616,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
   }
 
-  bool _isCurrentListPlaying(AudioPlayerProvider player) {
+  bool _isCurrentListPlaying(global_audio_player.AudioPlayerProvider player) {
     final contextType = widget.type == SharedListType.playlist
         ? 'playlist'
         : 'album';
@@ -628,7 +628,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         player.currentTrack != null;
   }
 
-  void _toggleListShuffle(AudioPlayerProvider player) {
+  void _toggleListShuffle(global_audio_player.AudioPlayerProvider player) {
     if (_isCurrentListPlaying(player)) {
       player.toggleShuffle();
       return;
@@ -707,7 +707,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
 
     if (confirm == true) {
-      final player = context.read<AudioPlayerProvider>();
+      final player = context.read<global_audio_player.AudioPlayerProvider>();
       await player.downloadTracks(tracks);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1584,7 +1584,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Widget _buildActionsRow(bool isDesktop) {
-    return Consumer<AudioPlayerProvider>(
+    return Consumer<global_audio_player.AudioPlayerProvider>(
       builder: (context, player, child) {
         final colorScheme = Theme.of(context).colorScheme;
         return Container(
@@ -1601,17 +1601,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 SizedBox(
                   width: 44,
                   height: 44,
-                  child: FilledButton(
-                    onPressed: _isLoading ? null : () => _playFromStart(),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.primary,
-                      foregroundColor: colorScheme.onPrimary,
-                      padding: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: FilledButton(
+                      onPressed: _isLoading ? null : () => _playFromStart(),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
+                      child: const Icon(Icons.play_arrow),
                     ),
-                    child: const Icon(Icons.play_arrow),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1632,10 +1635,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 IconButton(
                   onPressed: player.toggleRepeat,
                   icon: Icon(
-                    player.repeatMode == RepeatMode.one
+                    player.repeatMode == global_audio_player.RepeatMode.one
                         ? Icons.repeat_one
                         : Icons.repeat,
-                    color: player.repeatMode == RepeatMode.off
+                    color: player.repeatMode == global_audio_player.RepeatMode.off
                         ? Colors.grey[300]
                         : colorScheme.primary,
                   ),
@@ -1880,7 +1883,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               physics: const NeverScrollableScrollPhysics(),
               itemCount: visibleCount,
               itemBuilder: (context, idx) {
-                final player = context.watch<AudioPlayerProvider>();
+                final player = context.watch<global_audio_player.AudioPlayerProvider>();
                 final rowIndex = startIndex + idx;
                 final index = _sortedIndices[rowIndex];
                 final item = _items[index];
@@ -1893,6 +1896,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
                 final isHovering = _hoveredSongIds.contains(song.id);
                 return MouseRegion(
+                  cursor: SystemMouseCursors.click,
                   onEnter: (_) {
                     if (!isDesktop) return;
                     setState(() => _hoveredSongIds.add(song.id));
@@ -1902,6 +1906,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     setState(() => _hoveredSongIds.remove(song.id));
                   },
                   child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onSecondaryTapDown: isDesktop
                         ? (details) {
                             TrackContextMenu.show(
@@ -1946,6 +1951,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     child: Material(
                       color: Colors.transparent,
                       child: InkWell(
+                        mouseCursor: SystemMouseCursors.click,
                         onTap: isDesktop ? null : () => _playQueueAt(rowIndex),
                         onDoubleTap:
                             isDesktop ? () => _playQueueAt(rowIndex) : null,
@@ -2198,7 +2204,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       physics: const NeverScrollableScrollPhysics(),
       itemCount: totalCount,
       itemBuilder: (context, idx) {
-        final player = context.watch<AudioPlayerProvider>();
+        final player = context.watch<global_audio_player.AudioPlayerProvider>();
         final index = _sortedIndices[idx];
         final item = _items[index];
         final isEven = idx % 2 == 0;
@@ -2210,6 +2216,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
         final isHovering = _hoveredSongIds.contains(song.id);
         return MouseRegion(
+          cursor: SystemMouseCursors.click,
           onEnter: (_) {
             if (!isDesktop) return;
             setState(() => _hoveredSongIds.add(song.id));
@@ -2219,6 +2226,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             setState(() => _hoveredSongIds.remove(song.id));
           },
           child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onSecondaryTapDown: isDesktop
                 ? (details) {
                     TrackContextMenu.show(
@@ -2261,6 +2269,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
+                mouseCursor: SystemMouseCursors.click,
                 onTap: isDesktop ? null : () => _playQueueAt(idx),
                 onDoubleTap: isDesktop ? () => _playQueueAt(idx) : null,
                 child: Container(

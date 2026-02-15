@@ -509,6 +509,7 @@ class LibraryItemContextMenu {
     required VoidCallback onTap,
   }) {
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -595,6 +596,7 @@ class LibraryItemContextMenu {
     bool closeMenu = true,
   }) {
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       onTap: () {
         if (closeMenu) {
           Navigator.of(context).pop();

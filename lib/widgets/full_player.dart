@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:palette_generator/palette_generator.dart';
-import '../providers/audio/player.dart';
+import '../providers/audio/player.dart' as global_audio_player;
 import '../providers/lyrics/provider.dart';
 import '../providers/metadata/spotify.dart';
 import '../providers/library/library_state.dart';
@@ -40,7 +40,7 @@ class FullScreenPlayer extends StatelessWidget {
       snap: true,
       snapSizes: const [0.5, 1.0],
       builder: (context, scrollController) {
-        return Consumer2<AudioPlayerProvider, LyricsProvider>(
+        return Consumer2<global_audio_player.AudioPlayerProvider, LyricsProvider>(
           builder: (context, player, lyricsProvider, child) {
             final currentTrack = player.currentTrack;
             final imageUrl = currentTrack?.thumbnailUrl ?? '';
@@ -135,7 +135,7 @@ class FullScreenPlayer extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Consumer<AudioPlayerProvider>(
+    return Consumer<global_audio_player.AudioPlayerProvider>(
       builder: (context, player, child) {
         final contextType = player.playbackContextType;
         final contextName = player.playbackContextName;
@@ -205,7 +205,7 @@ class FullScreenPlayer extends StatelessWidget {
                 color: Colors.white,
                 padding: EdgeInsets.zero,
                 onPressed: () {
-                  final player = context.read<AudioPlayerProvider>();
+                  final player = context.read<global_audio_player.AudioPlayerProvider>();
                   final currentTrack = player.currentTrack;
                   if (currentTrack == null) return;
                   final libraryState = context.read<LibraryState>();
@@ -272,7 +272,7 @@ class FullScreenPlayer extends StatelessWidget {
   }
 
   Widget _buildSingleLyricsLine(
-    AudioPlayerProvider player,
+    global_audio_player.AudioPlayerProvider player,
     LyricsProvider lyricsProvider,
   ) {
     final currentTrack = player.currentTrack;
@@ -425,7 +425,7 @@ class FullScreenPlayer extends StatelessWidget {
 
   Widget _buildLyricsPreview(
     BuildContext context,
-    AudioPlayerProvider player,
+    global_audio_player.AudioPlayerProvider player,
     LyricsProvider lyricsProvider,
   ) {
     final currentTrack = player.currentTrack;
@@ -567,7 +567,7 @@ class FullScreenPlayer extends StatelessWidget {
 
   Widget _buildPlayerControls(
     BuildContext context,
-    AudioPlayerProvider player,
+    global_audio_player.AudioPlayerProvider player,
   ) {
     return Column(
       children: [
@@ -605,7 +605,7 @@ class FullScreenPlayer extends StatelessWidget {
     );
   }
 
-  Widget _buildProgressBar(BuildContext context, AudioPlayerProvider player) {
+  Widget _buildProgressBar(BuildContext context, global_audio_player.AudioPlayerProvider player) {
     final colorScheme = Theme.of(context).colorScheme;
     final position = player.throttledPosition;
     final duration = player.duration;
@@ -667,7 +667,7 @@ class FullScreenPlayer extends StatelessWidget {
 
   Widget _buildPlaybackControls(
     BuildContext context,
-    AudioPlayerProvider player,
+    global_audio_player.AudioPlayerProvider player,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
     return Row(
@@ -702,12 +702,12 @@ class FullScreenPlayer extends StatelessWidget {
         // Repeat
         IconButton(
           icon: Icon(
-            player.repeatMode == RepeatMode.one
+            player.repeatMode == global_audio_player.RepeatMode.one
                 ? Icons.repeat_one
                 : Icons.repeat,
           ),
           iconSize: 28,
-          color: player.repeatMode != RepeatMode.off
+          color: player.repeatMode != global_audio_player.RepeatMode.off
               ? colorScheme.primary
               : Colors.white,
           padding: const EdgeInsets.all(8),
@@ -719,7 +719,7 @@ class FullScreenPlayer extends StatelessWidget {
 
   Widget _buildPlayPauseButton(
     BuildContext context,
-    AudioPlayerProvider player,
+    global_audio_player.AudioPlayerProvider player,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
     if (player.isLoading || player.isBuffering) {

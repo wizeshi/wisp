@@ -290,6 +290,7 @@ class TrackContextMenu {
     Color? iconColor,
   }) {
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -599,6 +600,7 @@ class TrackContextMenu {
     VoidCallback? onTap,
   }) {
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       onTap: onTap == null
           ? null
           : () {
@@ -684,6 +686,7 @@ class TrackContextMenu {
               itemBuilder: (context, index) {
                 final playlist = playlists[index];
                 return ListTile(
+                  mouseCursor: SystemMouseCursors.click,
                   title: Text(
                     playlist.title,
                     style: const TextStyle(color: Colors.white),

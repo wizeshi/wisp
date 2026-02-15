@@ -1,14 +1,18 @@
-Here's the TODOs for version v26.03.xx (0/38):
+Here's the TODOs for version v26.03.xx (1/56):
 
 - Bugs:
     - [ ] On mobile, clicking on a list view's shuffle/repeat button on the header does nothing.
     - [ ] Fix the three dot menu's position in the desktop list view
-    - [ ] The song name on the mobile full player isn't a marquee
+    - [ ] The song name on the mobile full player isn't a marquee (it also wraps to a new line)
     - [ ] Synced Lyrics view sometimes displays non-synced lyrics (it should toggle to unsynced, and disable the synced tab)
     - [ ] When there is no next or last page, the corresponding desktop nav buttons are still enabled.
     - [ ] Lyrics screen doesn't occupy the full width (so things like the scrollbar appear in the middle)
     - [ ] Re-clicking the view buttons in the player bar (desktop) doesn't return to the previous view
+    - [ ] Fix select menus' cursor not being responsive (should change to pointer on hover)
+    - [ ] On sidebar collapse, the create button remains visible
+    - [ ] Space bar pause only works on the home screen, should be global
 - Future changes:
+    - [x] Change default font to Spotify's
     - [ ] Make the right sidebar's title clickable when it is a Playlist/Album/Artist
     - [ ] On the right sidebar, reduce the space between the song title and artist list.
     - [ ] Make the like button be centered relative to both the song title and artist list (right sidebar)
@@ -23,7 +27,6 @@ Here's the TODOs for version v26.03.xx (0/38):
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
     - [ ] Add a "Go to Folder" on the cache section.
     - [ ] Make song cover art bigger in the player bar (desktop)
-    - [ ] Change default font to Circular
     - [ ] Make the player bar's progress bar smaller (desktop)
     - [ ] Change the lyrics icon to a song note icon
     - [ ] Make the lyrics preview's background color the song cover's main color
@@ -32,6 +35,14 @@ Here's the TODOs for version v26.03.xx (0/38):
     - [ ] Move "Provided by {lyrics_provider}" text to the bottom-left corner (lyrics screen, desktop)
     - [ ] Increase header size (list & artist views)
     - [ ] "Add to Playlist" button should be the first in the right-click context menu
+    - [ ] Change YT-DLP download/check logic. Right now, it pauses the whole app at startup. Should make it a notification warning it is loading/downloading
+    - [ ] Make individual artists clickable (right now, hovering underlines the whole artist list, and clicking opens the first artist)
+    - [ ] Make a playlist remember it's last play's player options (whether it was shuffled & the repeat mode)
+    - [ ] Remove the semi-transparent white borders on the list views
+    - [ ] Merge the list controls area with the list songs area on the desktop list view 
+    - [ ] Animate the transition from search icon to box on the list view
+    - [ ] Make the type text capitalized on the detail views (the "Playlist"/"Album"/"Artist" text)
+    - [ ] Change the player bar's volume icon to be a proper button (also make the cursor change on hover)
 - Planned features: 
     - [ ] Add the Connect capability (being able to control devices remotely, probably with bluetooth/nearby devices for now)
     - [ ] Add a fullscreen player (desktop)
@@ -42,4 +53,9 @@ Here's the TODOs for version v26.03.xx (0/38):
     - [ ] Add a next up preview to the top left of the player bar (desktop)
     - [ ] Add a semi-player bar to the bottom of the lyrics screen (just a seekable progress bar, and a play/pause button) (mobile)
     - [ ] Add a "Recommended" list of ~10 songs with "Add" buttons at the bottom of a playlist (not albums, not artists, not likes view)
+    - [ ] Add author name to the home view's playlist cards.
+    - [ ] Improve lyrics preview animation
+    - [ ] Add a preview of the next/previous song's metadata to the player bar's swiping animation
+    - [ ] Change custom window controls to fit the OS (keep current appearance for windows)
+    - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
     - [ ] Change the App to use Spotify's closed API instead of the official one (very future change)

@@ -125,6 +125,11 @@ class AudioCacheManager extends ChangeNotifier {
   final Connectivity _connectivity = Connectivity();
   bool _isOnWifi = false;
 
+  bool _isWifiOrEthernet(List<ConnectivityResult> results) {
+    return results.contains(ConnectivityResult.wifi) ||
+        results.contains(ConnectivityResult.ethernet);
+  }
+
   // Callbacks
   DownloadProgressCallback? onDownloadProgress;
   DownloadCompleteCallback? onDownloadComplete;
@@ -170,7 +175,7 @@ class AudioCacheManager extends ChangeNotifier {
       // Setup connectivity monitoring
       _connectivity.onConnectivityChanged.listen(_handleConnectivityChange);
       final result = await _connectivity.checkConnectivity();
-      _isOnWifi = result.contains(ConnectivityResult.wifi);
+      _isOnWifi = _isWifiOrEthernet(result);
 
       _initialized = true;
       logger.i("[CacheManager] Initilizing at ${_cacheDirectory!.path}");
@@ -184,14 +189,14 @@ class AudioCacheManager extends ChangeNotifier {
 
   void _handleConnectivityChange(List<ConnectivityResult> result) {
     final wasWifi = _isOnWifi;
-    _isOnWifi = result.contains(ConnectivityResult.wifi);
+    _isOnWifi = _isWifiOrEthernet(result);
     if (wasWifi != _isOnWifi) {
       logger.d(
-        '[CacheManager] WiFi connectivity changed: ${_isOnWifi ? 'connected' : 'disconnected'}',
+        '[CacheManager] Preferred network connectivity changed (WiFi/Ethernet): ${_isOnWifi ? 'connected' : 'disconnected'}',
       );
     }
     notifyListeners();
-    // Process queue if we're on WiFi now
+    // Process queue if we're on WiFi/Ethernet now
     if (_isOnWifi) {
       _processDownloadQueue();
     }
@@ -284,7 +289,7 @@ class AudioCacheManager extends ChangeNotifier {
   /// Process the download queue
   void _processDownloadQueue() {
     if (_wifiOnlyDownloads && !_isOnWifi) {
-      logger.d('[CacheManager] Skipping downloads - not on WiFi');
+      logger.d('[CacheManager] Skipping downloads - not on WiFi/Ethernet');
       return;
     }
 
@@ -749,7 +754,7 @@ class AudioCacheManager extends ChangeNotifier {
 
   Future<void> setWifiOnlyDownloads(bool value) async {
     logger.d(
-      '[CacheManager] WiFi-only downloads: ${value ? "enabled" : "disabled"}',
+      '[CacheManager] WiFi/Ethernet-only downloads: ${value ? "enabled" : "disabled"}',
     );
     _wifiOnlyDownloads = value;
     await _saveSettings();

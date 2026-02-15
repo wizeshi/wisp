@@ -278,36 +278,39 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildSourceSelector() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF181818),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedSource,
-          dropdownColor: const Color(0xFF181818),
-          iconEnabledColor: Colors.grey[400],
-          items: const [
-            DropdownMenuItem(
-              value: 'Spotify',
-              child: Text('Spotify', style: TextStyle(color: Colors.white)),
-            ),
-            DropdownMenuItem(
-              value: 'YouTube',
-              child: Text('YouTube', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-          onChanged: (value) {
-            if (value == null) return;
-            setState(() => _selectedSource = value);
-            final query = _searchController.text.trim();
-            if (query.isNotEmpty) {
-              _performSearch(query);
-            }
-          },
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF181818),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _selectedSource,
+            dropdownColor: const Color(0xFF181818),
+            iconEnabledColor: Colors.grey[400],
+            items: const [
+              DropdownMenuItem(
+                value: 'Spotify',
+                child: Text('Spotify', style: TextStyle(color: Colors.white)),
+              ),
+              DropdownMenuItem(
+                value: 'YouTube',
+                child: Text('YouTube', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _selectedSource = value);
+              final query = _searchController.text.trim();
+              if (query.isNotEmpty) {
+                _performSearch(query);
+              }
+            },
+          ),
         ),
       ),
     );
@@ -682,14 +685,18 @@ class _SearchViewState extends State<SearchView> {
                   Positioned(
                     right: 8,
                     bottom: 8,
-                    child: FloatingActionButton(
-                      heroTag: 'bestMatchPlay',
-                      mini: true,
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      onPressed: () => _toggleTrackPlayback(track, 0),
-                      child: Icon(
-                        isCurrentPlaying ? Icons.pause : Icons.play_arrow,
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: FloatingActionButton(
+                        heroTag: 'bestMatchPlay',
+                        mini: true,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onPrimary,
+                        onPressed: () => _toggleTrackPlayback(track, 0),
+                        child: Icon(
+                          isCurrentPlaying ? Icons.pause : Icons.play_arrow,
+                        ),
                       ),
                     ),
                   ),
@@ -747,6 +754,7 @@ class _SearchViewState extends State<SearchView> {
                         onExit: (_) => setState(() => _hoveredSongIndex = -1),
                         cursor: SystemMouseCursors.click,
                         child: InkWell(
+                          mouseCursor: SystemMouseCursors.click,
                           onTap: () => _playSearchQueue(displayIndex),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
@@ -792,6 +800,8 @@ class _SearchViewState extends State<SearchView> {
                                         if (isHovered)
                                           Positioned.fill(
                                             child: InkWell(
+                                              mouseCursor:
+                                                  SystemMouseCursors.click,
                                               onTap: () => _toggleTrackPlayback(
                                                 song,
                                                 displayIndex,
@@ -1373,6 +1383,7 @@ class _TrackTileState extends State<_TrackTile> {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onSecondaryTapDown: isDesktop
           ? (details) {
               TrackContextMenu.show(
@@ -1401,6 +1412,7 @@ class _TrackTileState extends State<_TrackTile> {
               );
             },
       child: MouseRegion(
+        cursor: SystemMouseCursors.click,
         onEnter: (_) {
           if (!isDesktop) return;
           setState(() => _isHovering = true);
@@ -1410,6 +1422,7 @@ class _TrackTileState extends State<_TrackTile> {
           setState(() => _isHovering = false);
         },
         child: ListTile(
+          mouseCursor: SystemMouseCursors.click,
           onTap: widget.onTap,
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -1923,6 +1936,7 @@ class _MiniAlbumCard extends StatelessWidget {
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final hover = ValueNotifier(false);
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       onLongPress: isDesktop
           ? null
           : () {
@@ -1958,6 +1972,7 @@ class _MiniAlbumCard extends StatelessWidget {
         );
       },
       child: MouseRegion(
+        cursor: SystemMouseCursors.click,
         onEnter: (_) => hover.value = true,
         onExit: (_) => hover.value = false,
         child: ValueListenableBuilder<bool>(
@@ -2031,28 +2046,32 @@ class _MiniAlbumCard extends StatelessWidget {
                   Positioned(
                     right: 8,
                     bottom: 8,
-                    child: FloatingActionButton(
-                      heroTag: 'albumPlay_${album.id}',
-                      mini: true,
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      onPressed: () {
-                        if (isActiveContext) {
-                          if (isPlaying) {
-                            context.read<AudioPlayerProvider>().pause();
-                            return;
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: FloatingActionButton(
+                        heroTag: 'albumPlay_${album.id}',
+                        mini: true,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onPrimary,
+                        onPressed: () {
+                          if (isActiveContext) {
+                            if (isPlaying) {
+                              context.read<AudioPlayerProvider>().pause();
+                              return;
+                            }
+                            if (isPaused) {
+                              context.read<AudioPlayerProvider>().play();
+                              return;
+                            }
                           }
-                          if (isPaused) {
-                            context.read<AudioPlayerProvider>().play();
-                            return;
-                          }
-                        }
-                        onPlay();
-                      },
-                      child: Icon(
-                        isActiveContext && isPlaying
-                            ? Icons.pause
-                            : Icons.play_arrow,
+                          onPlay();
+                        },
+                        child: Icon(
+                          isActiveContext && isPlaying
+                              ? Icons.pause
+                              : Icons.play_arrow,
+                        ),
                       ),
                     ),
                   ),
@@ -2094,6 +2113,7 @@ class _MiniPlaylistCard extends StatelessWidget {
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final hover = ValueNotifier(false);
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       onLongPress: isDesktop
           ? null
           : () {
@@ -2129,6 +2149,7 @@ class _MiniPlaylistCard extends StatelessWidget {
         );
       },
       child: MouseRegion(
+        cursor: SystemMouseCursors.click,
         onEnter: (_) => hover.value = true,
         onExit: (_) => hover.value = false,
         child: ValueListenableBuilder<bool>(
@@ -2202,28 +2223,32 @@ class _MiniPlaylistCard extends StatelessWidget {
                   Positioned(
                     right: 8,
                     bottom: 8,
-                    child: FloatingActionButton(
-                      heroTag: 'playlistPlay_${playlist.id}',
-                      mini: true,
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      onPressed: () {
-                        if (isActiveContext) {
-                          if (isPlaying) {
-                            context.read<AudioPlayerProvider>().pause();
-                            return;
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: FloatingActionButton(
+                        heroTag: 'playlistPlay_${playlist.id}',
+                        mini: true,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onPrimary,
+                        onPressed: () {
+                          if (isActiveContext) {
+                            if (isPlaying) {
+                              context.read<AudioPlayerProvider>().pause();
+                              return;
+                            }
+                            if (isPaused) {
+                              context.read<AudioPlayerProvider>().play();
+                              return;
+                            }
                           }
-                          if (isPaused) {
-                            context.read<AudioPlayerProvider>().play();
-                            return;
-                          }
-                        }
-                        onPlay();
-                      },
-                      child: Icon(
-                        isActiveContext && isPlaying
-                            ? Icons.pause
-                            : Icons.play_arrow,
+                          onPlay();
+                        },
+                        child: Icon(
+                          isActiveContext && isPlaying
+                              ? Icons.pause
+                              : Icons.play_arrow,
+                        ),
                       ),
                     ),
                   ),
@@ -2265,6 +2290,7 @@ class _MiniArtistCard extends StatelessWidget {
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final hover = ValueNotifier(false);
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       onLongPress: isDesktop
           ? null
           : () {
@@ -2298,6 +2324,7 @@ class _MiniArtistCard extends StatelessWidget {
         );
       },
       child: MouseRegion(
+        cursor: SystemMouseCursors.click,
         onEnter: (_) => hover.value = true,
         onExit: (_) => hover.value = false,
         child: ValueListenableBuilder<bool>(
@@ -2370,28 +2397,32 @@ class _MiniArtistCard extends StatelessWidget {
                   Positioned(
                     right: 8,
                     bottom: 8,
-                    child: FloatingActionButton(
-                      heroTag: 'artistPlay_${artist.id}',
-                      mini: true,
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      onPressed: () {
-                        if (isActiveContext) {
-                          if (isPlaying) {
-                            context.read<AudioPlayerProvider>().pause();
-                            return;
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: FloatingActionButton(
+                        heroTag: 'artistPlay_${artist.id}',
+                        mini: true,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onPrimary,
+                        onPressed: () {
+                          if (isActiveContext) {
+                            if (isPlaying) {
+                              context.read<AudioPlayerProvider>().pause();
+                              return;
+                            }
+                            if (isPaused) {
+                              context.read<AudioPlayerProvider>().play();
+                              return;
+                            }
                           }
-                          if (isPaused) {
-                            context.read<AudioPlayerProvider>().play();
-                            return;
-                          }
-                        }
-                        onPlay();
-                      },
-                      child: Icon(
-                        isActiveContext && isPlaying
-                            ? Icons.pause
-                            : Icons.play_arrow,
+                          onPlay();
+                        },
+                        child: Icon(
+                          isActiveContext && isPlaying
+                              ? Icons.pause
+                              : Icons.play_arrow,
+                        ),
                       ),
                     ),
                   ),

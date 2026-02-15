@@ -6,7 +6,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../providers/audio/player.dart';
+import '../providers/audio/player.dart' as global_audio_player;
 import '../providers/library/library_state.dart';
 import '../models/metadata_models.dart';
 import 'full_player.dart';
@@ -29,7 +29,7 @@ class WispPlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentTrack = context.select<AudioPlayerProvider, GenericSong?>(
+    final currentTrack = context.select<global_audio_player.AudioPlayerProvider, GenericSong?>(
       (player) => player.currentTrack,
     );
 
@@ -65,7 +65,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
   void _onHorizontalDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<global_audio_player.AudioPlayerProvider>();
 
     if (velocity.abs() > 200 || _dragOffset.abs() > 50) {
       if (_dragOffset < 0 || velocity < -200) {
@@ -198,7 +198,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   }
 
   Widget _buildMobilePlayPauseButton() {
-    return Selector<AudioPlayerProvider, _PlayPauseData>(
+    return Selector<global_audio_player.AudioPlayerProvider, _PlayPauseData>(
       selector: (context, player) {
         final track = player.currentTrack;
         final queueFirst = player.queue.isNotEmpty ? player.queue.first : null;
@@ -228,7 +228,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           );
         }
 
-        final player = context.read<AudioPlayerProvider>();
+        final player = context.read<global_audio_player.AudioPlayerProvider>();
         final isOfflineBlocked =
             !data.isOnline && data.currentTrackId != null && !data.currentTrackCached;
         final IconData icon =
@@ -254,12 +254,12 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
   Widget _buildMiniProgressBar() {
     final trackId =
-        context.select<AudioPlayerProvider, String?>((p) => p.currentTrack?.id);
+        context.select<global_audio_player.AudioPlayerProvider, String?>((p) => p.currentTrack?.id);
     if (trackId == null) {
       return const SizedBox.shrink();
     }
 
-    return Selector<AudioPlayerProvider, _PositionData>(
+    return Selector<global_audio_player.AudioPlayerProvider, _PositionData>(
       selector: (context, player) => _PositionData(
         position: player.throttledPosition,
         duration: player.duration,
@@ -340,7 +340,7 @@ class _DesktopProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<AudioPlayerProvider, _PositionData>(
+    return Selector<global_audio_player.AudioPlayerProvider, _PositionData>(
       selector: (context, player) => _PositionData(
         position: player.throttledPosition,
         duration: player.duration,
@@ -393,7 +393,7 @@ class _DesktopProgressBar extends StatelessWidget {
                           milliseconds:
                               (value * duration.inMilliseconds).toInt(),
                         );
-                        context.read<AudioPlayerProvider>().seek(newPosition);
+                        context.read<global_audio_player.AudioPlayerProvider>().seek(newPosition);
                       },
                     ),
                   ),
@@ -649,7 +649,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<AudioPlayerProvider, _PlayPauseData>(
+    return Selector<global_audio_player.AudioPlayerProvider, _PlayPauseData>(
       selector: (context, player) {
         final track = player.currentTrack;
         final queueFirst = player.queue.isNotEmpty ? player.queue.first : null;
@@ -668,7 +668,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
         );
       },
       builder: (context, data, child) {
-        final player = context.read<AudioPlayerProvider>();
+        final player = context.read<global_audio_player.AudioPlayerProvider>();
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -719,10 +719,10 @@ class _DesktopPlaybackControls extends StatelessWidget {
               padding: EdgeInsets.all(4),
               constraints: BoxConstraints(),
               icon: Icon(
-                data.repeatMode == RepeatMode.one
+                data.repeatMode == global_audio_player.RepeatMode.one
                     ? Icons.repeat_one
                     : Icons.repeat,
-                color: data.repeatMode != RepeatMode.off
+                color: data.repeatMode != global_audio_player.RepeatMode.off
                     ? Theme.of(context).colorScheme.primary
                     : Colors.grey[400],
                 size: 20,
@@ -756,7 +756,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       );
     }
 
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<global_audio_player.AudioPlayerProvider>();
     final isOfflineBlocked =
         !data.isOnline && data.currentTrackId != null && !data.currentTrackCached;
     IconData icon = data.isPlaying
@@ -854,14 +854,15 @@ class _DesktopRightControls extends StatelessWidget {
             SizedBox(width: 8),
 
             // Volume control
-            Selector<AudioPlayerProvider, double>(
+            Selector<global_audio_player.AudioPlayerProvider, double>(
               selector: (context, player) => player.volume,
               builder: (context, volume, child) {
-                final player = context.read<AudioPlayerProvider>();
+                final player = context.read<global_audio_player.AudioPlayerProvider>();
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     InkWell(
+                      mouseCursor: SystemMouseCursors.click,
                       onTap: player.toggleMute,
                       borderRadius: BorderRadius.circular(16),
                       child: Padding(
@@ -973,7 +974,7 @@ class _PlayPauseData {
   final bool queueNotEmpty;
   final String? queueFirstId;
   final bool shuffleEnabled;
-  final RepeatMode? repeatMode;
+  final global_audio_player.RepeatMode? repeatMode;
 
   const _PlayPauseData({
     required this.isPlaying,

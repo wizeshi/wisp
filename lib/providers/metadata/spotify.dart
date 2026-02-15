@@ -1180,6 +1180,7 @@ class SpotifyProvider extends ChangeNotifier {
     try {
       const limit = 50;
       var offset = 0;
+      int? expectedTotal;
       final cachedAll = await getCachedSavedTracksAll() ?? <PlaylistItem>[];
       final merged = <PlaylistItem>[];
 
@@ -1188,6 +1189,10 @@ class SpotifyProvider extends ChangeNotifier {
           '/me/tracks?limit=$limit&offset=$offset',
         );
         final items = data['items'] as List;
+        final total = data['total'];
+        if (total is int) {
+          expectedTotal = total;
+        }
         if (items.isEmpty) break;
 
         final pageItems = items.asMap().entries.map((entry) {
@@ -1212,9 +1217,15 @@ class SpotifyProvider extends ChangeNotifier {
 
         if (pageMatches) {
           final tailStart = offset + pageItems.length;
-          if (tailStart < cachedAll.length) {
+          final canUseCachedTail =
+              expectedTotal != null && cachedAll.length >= expectedTotal;
+          if (canUseCachedTail && tailStart < cachedAll.length) {
             merged.addAll(cachedAll.sublist(tailStart));
+            break;
           }
+        }
+
+        if (expectedTotal != null && merged.length >= expectedTotal) {
           break;
         }
 

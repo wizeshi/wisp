@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
-import '../providers/audio/player.dart';
+import '../providers/audio/player.dart' as global_audio_player;
 import '../providers/metadata/spotify.dart';
 import '../services/metadata_cache.dart';
 import '../widgets/track_context_menu.dart';
@@ -108,7 +108,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Future<void> _playTopTracks(int index) async {
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<global_audio_player.AudioPlayerProvider>();
     final tracks = _artist?.topSongs ?? [];
     if (tracks.isEmpty) return;
     await player.setQueue(
@@ -432,7 +432,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Widget _buildActionsRow() {
-    return Consumer<AudioPlayerProvider>(
+    return Consumer<global_audio_player.AudioPlayerProvider>(
       builder: (context, player, child) {
         final colorScheme = Theme.of(context).colorScheme;
         return Container(
@@ -446,17 +446,20 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                FilledButton(
-                  onPressed: _isLoading ? null : () => _playTopTracks(0),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
-                    foregroundColor: colorScheme.onPrimary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 12,
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: FilledButton(
+                    onPressed: _isLoading ? null : () => _playTopTracks(0),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
                     ),
+                    child: const Icon(Icons.play_arrow),
                   ),
-                  child: const Icon(Icons.play_arrow),
                 ),
                 const SizedBox(width: 12),
                 IconButton(
@@ -471,10 +474,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 IconButton(
                   onPressed: player.toggleRepeat,
                   icon: Icon(
-                    player.repeatMode == RepeatMode.one
+                    player.repeatMode == global_audio_player.RepeatMode.one
                         ? Icons.repeat_one
                         : Icons.repeat,
-                    color: player.repeatMode == RepeatMode.off
+                    color: player.repeatMode == global_audio_player.RepeatMode.off
                         ? Colors.grey[300]
                         : colorScheme.primary,
                   ),
@@ -548,7 +551,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
 
   Widget _buildTopTracksSection() {
     final tracks = _artist?.topSongs ?? [];
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<global_audio_player.AudioPlayerProvider>();
     final colorScheme = Theme.of(context).colorScheme;
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -589,6 +592,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               final album = track.album;
               final isHovering = _hoveredTrackId == track.id;
               return GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onSecondaryTapDown: isDesktop
                     ? (details) {
                         TrackContextMenu.show(
@@ -617,6 +621,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                         );
                       },
                 child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
                   onEnter: (_) {
                     if (!isDesktop) return;
                     setState(() => _hoveredTrackId = track.id);
@@ -628,6 +633,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(
+                      mouseCursor: SystemMouseCursors.click,
                       onTap: () => _playTopTracks(index),
                       child: Container(
                         padding: const EdgeInsets.symmetric(

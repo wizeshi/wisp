@@ -1035,6 +1035,7 @@ class HomePageState extends State<HomePage> {
     final isHovering = _hoveredTrackId == track.id;
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) {
         if (!isDesktop) return;
         setState(() => _hoveredTrackId = track.id);
@@ -1044,6 +1045,7 @@ class HomePageState extends State<HomePage> {
         setState(() => _hoveredTrackId = null);
       },
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onSecondaryTapDown: isDesktop
             ? (details) {
                 TrackContextMenu.show(
@@ -1074,6 +1076,7 @@ class HomePageState extends State<HomePage> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
+            mouseCursor: SystemMouseCursors.click,
             onTap: () async {
               final player = context.read<AudioPlayerProvider>();
 
@@ -1354,6 +1357,7 @@ class HomePageState extends State<HomePage> {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
+                mouseCursor: SystemMouseCursors.click,
                 onTap: () {
                   _openArtist(artist);
                 },
@@ -1528,6 +1532,7 @@ class _ArtistCard extends StatelessWidget {
                     );
                   },
             child: InkWell(
+              mouseCursor: SystemMouseCursors.click,
               onTap: () {
                 onTap();
               },
@@ -1650,6 +1655,7 @@ class _AlbumCard extends StatelessWidget {
                     );
                   },
             child: InkWell(
+              mouseCursor: SystemMouseCursors.click,
               onTap: () {
                 onTap();
               },
@@ -1775,6 +1781,7 @@ class _PlaylistCard extends StatelessWidget {
                     );
                   },
             child: InkWell(
+              mouseCursor: SystemMouseCursors.click,
               onTap: () {
                 onTap();
               },

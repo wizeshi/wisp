@@ -88,6 +88,7 @@ class _WispNavigationState extends State<WispNavigation> {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
+                mouseCursor: SystemMouseCursors.click,
                 onTap: () {
                   setState(() => _isCollapsed = !_isCollapsed);
                 },
@@ -222,6 +223,7 @@ class _WispNavigationState extends State<WispNavigation> {
     required VoidCallback onTap,
   }) {
     return InkWell(
+      mouseCursor: SystemMouseCursors.click,
       onTap: () {
         Navigator.of(dialogContext).pop();
         onTap();
@@ -339,6 +341,7 @@ class _WispNavigationState extends State<WispNavigation> {
       color: isSelected ? Color(0xFF282828) : Colors.transparent,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
         onTap: () => widget.onViewChanged(view),
         borderRadius: BorderRadius.circular(8),
         child: Container(
@@ -418,6 +421,7 @@ class _WispNavigationState extends State<WispNavigation> {
     Widget tile = Material(
       color: Colors.transparent,
       child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
         onSecondaryTapDown: (details) {
           LibraryItemContextMenu.show(
             context: context,

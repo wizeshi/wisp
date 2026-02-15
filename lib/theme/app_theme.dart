@@ -21,11 +21,30 @@ class AppTheme {
       onSecondary: Colors.white,
       onSurface: Colors.white,
     );
+    const clickableCursor = WidgetStatePropertyAll<MouseCursor>(
+      SystemMouseCursors.click,
+    );
 
     return ThemeData(
+      fontFamily: "SpotifyMixUI",
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _scaffoldBackground,
       cardColor: _surface,
+      textButtonTheme: const TextButtonThemeData(
+        style: ButtonStyle(mouseCursor: clickableCursor),
+      ),
+      elevatedButtonTheme: const ElevatedButtonThemeData(
+        style: ButtonStyle(mouseCursor: clickableCursor),
+      ),
+      outlinedButtonTheme: const OutlinedButtonThemeData(
+        style: ButtonStyle(mouseCursor: clickableCursor),
+      ),
+      iconButtonTheme: const IconButtonThemeData(
+        style: ButtonStyle(mouseCursor: clickableCursor),
+      ),
+      listTileTheme: const ListTileThemeData(
+        mouseCursor: clickableCursor,
+      ),
       useMaterial3: true,
     );
   }
