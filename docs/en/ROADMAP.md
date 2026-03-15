@@ -1,43 +1,13 @@
 Here's the TODOs for version v26.03.xx (3/59):
 
 - Bugs:
-    - [x] Lyrics screen doesn't occupy the full width (so things like the scrollbar appear in the middle)
-    - [x] Re-clicking the view buttons in the player bar (desktop) doesn't return to the previous view
-    - [x] When collapsing the sidebar, the items get centered before the animation ends.
-    - [x] Fix the three dot menu's position in the desktop list view
-    - [x] Synced Lyrics view sometimes displays non-synced lyrics (it should toggle to unsynced, and disable the synced tab)
-    - [x] On sidebar collapse, the create button remains visible
-    - [x] Space bar pause only works on the home screen, should be global
-    - [x] Switching to the synced lyrics view (from another view or the unsynced variant) doesn't automatically center the current line
-    - [x] Sometimes after failing to fetch lyrics, the UI loops and rapid-fires lyrics requests non-stop.
-    - [x] When there is no next or last page, the corresponding desktop nav buttons are still enabled.
-    - [x] Fix player bar sliding animation text showing up above the song thumbnail
-    - [x] Queue name doesn't persist between app restarts
-    - [x] On mobile, clicking on a list view's shuffle button on the header doesn't pre-shuffle the list. 
-    - [ ] The song name on the mobile full player isn't a marquee (it also wraps to a new line)
-    - [ ] Fix select menus' cursor not being responsive (should change to pointer on hover)
-    - [ ] Back button doesn't close bottom sheets or some UIs like the queue and lyrics views. It also only works on the full player when there is nothing else to return to. Further, for some reason, they start working if you use the back button to close the full screen player, but then using it to return to any other views (like going to the settings view and using the back button to go to the home screen) removes the app shell. 
-    - [ ] Clicking on the "Go to" buttons in the context menu sends the user to UIs that don't use the app shell (doesn't show the nav and player bar)
+    - [x] The song name on the mobile full player isn't a marquee (it also wraps to a new line)
+    - [x] Back button doesn't close bottom sheets or some UIs like the queue and lyrics views. It also only works on the full player when there is nothing else to return to. Further, for some reason, they start working if you use the back button to close the full screen player, but then using it to return to any other views (like going to the settings view and using the back button to go to the home screen) removes the app shell. 
+    - [x] Clicking on the "Go to" buttons in the context menu sends the user to UIs that don't use the app shell (doesn't show the nav and player bar)
 - Future changes:
-    - [x] Change default font to Spotify's
-    - [x] Increase heart icon size in the mobile player bar
-    - [x] In the full player, move the queue and lyrics icons to the right and group then together
-    - [x] Add "Lyrics Preview" text to the top of the lyrics preview (like the "Artist Profile")
-    - [x] Decrease space between the last lyrics line and the show lyrics button in the preview 
-    - [x] Make the full player progress bar full sized (right now it stops at half of the start and end times)
-    - [x] Make artist name slightly more grey in the full player
-    - [x] Increase lyrics preview size and font sizes
-    - [x] Make the like button be centered relative to both the song title and artist list (right sidebar)
-    - [x] On the right sidebar, reduce the space between the song title and artist list.
-    - [x] Make song cover art bigger in the player bar (desktop)
-    - [x] Make the type text capitalized on the detail views (the "Playlist"/"Album"/"Artist" text)
-    - [x] For the mobile navbar decrease all round padding, make icons more spaced out, and make it semi-transparent (gradient)
-    - [x] Make playlist header play button be dynamic (change to a pause button when that playlist is playing)
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)
-    - [ ] Change "logged in" text in the settings to a checkmark next to the provider name
     - [ ] Increase heart icon size in the mobile likes view
     - [ ] Padding between elements (top and bottom) is part of the elements themselves (in the library view)
-    - [ ] Change provider names to icons in the search screen
     - [ ] Switch from a velocity based sliding mechanism to a position threshold one
     - [ ] Switch desktop context submenus to use prediction cones
     - [ ] Make the right sidebar's title clickable when it is a Playlist/Album/Artist
@@ -46,8 +16,6 @@ Here's the TODOs for version v26.03.xx (3/59):
     - [ ] Remove the unassigned text from the sidebar. Also make playlists/folders be ordered with each other (e.g. have Folder1, then PL1, then Folder2, then PL2, and so on and so forth)
     - [ ] Add download tracks button on album/playlist right-click context menu
     - [ ] Revamp the list view grid pattern to account for the downloading/cached icon and also center the duration in it's column 
-    - [ ] Make every list-ish view virtualized
-    - [ ] Remove the "Likes" text in the context menu (keep the add to likes row though.)
     - [ ] Increase max cache size (2GB -> 4GB). Also, make it permanent, not temporary.
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
     - [ ] Add a "Go to Folder" on the cache section.
@@ -57,16 +25,14 @@ Here's the TODOs for version v26.03.xx (3/59):
     - [ ] Add padding at the top/bottom of the lyrics screen to ensure the focused line is centered
     - [ ] Reduce loading spinner size on the player bar (mobile & desktop) and full screen player (mobile)
     - [ ] Move "Provided by {lyrics_provider}" text to the bottom-left corner (lyrics screen, desktop)
-    - [ ] Increase header size (list & artist views)
     - [ ] "Add to Playlist" button should be the first in the right-click context menu
     - [ ] Change YT-DLP download/check logic. Right now, it pauses the whole app at startup. Should make it a notification warning it is loading/downloading
-    - [ ] Make individual artists clickable (right now, hovering underlines the whole artist list, and clicking opens the first artist)
     - [ ] Make a playlist remember it's last play's player options (whether it was shuffled & the repeat mode)
-    - [ ] Remove the semi-transparent white borders on the list views
+    - [x] Remove the semi-transparent white borders on the list views
     - [ ] Merge the list controls area with the list songs area on the desktop list view 
     - [ ] Animate the transition from search icon to box on the list view
-    - [ ] Change the player bar's volume icon to be a proper button (also make the cursor change on hover)
-    - [ ] Highlight the current view's element in the sidebar, if applicable 
+    - [x] Change the player bar's volume icon to be a proper button (also make the cursor change on hover)
+    - [x] Highlight the current view's element in the sidebar, if applicable 
     - [ ] Add a next up preview to the top left of the player bar (desktop)
 - Planned features: 
     - [ ] Add the Connect capability (being able to control devices remotely, probably with bluetooth/nearby devices for now)

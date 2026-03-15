@@ -9,6 +9,7 @@ import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/navigation_state.dart';
 import '../providers/search/search_state.dart';
+import '../services/app_navigation.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/navigation_history.dart';
 import '../services/tab_routes.dart';
@@ -22,8 +23,6 @@ import '../views/home.dart';
 import '../views/library.dart';
 import '../views/search.dart';
 import '../views/settings.dart';
-import '../views/list_detail.dart';
-import '../views/artist_detail.dart';
 import '../utils/liked_songs.dart';
 
 class RefreshIntent extends Intent {
@@ -43,6 +42,14 @@ class _AppShellState extends State<AppShell> {
   final ValueNotifier<int> _homeRefreshTick = ValueNotifier<int>(0);
   final ValueNotifier<int> _libraryRefreshTick = ValueNotifier<int>(0);
   Timer? _searchAutoSwitchTimer;
+  bool _isHandlingPop = false;
+
+  void _debugNav(String message) {
+    assert(() {
+      debugPrint('[Nav/AppShell] $message');
+      return true;
+    }());
+  }
 
   @override
   void initState() {
@@ -64,8 +71,20 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) return;
     final routeName = NavigationHistory.instance.currentRouteName;
     final navState = context.read<NavigationState>();
+    _debugNav(
+      'routeChange route=$routeName selected=${navState.selectedNavIndex} lastNonSettings=${navState.lastNonSettingsNavIndex}',
+    );
     if (TabRoutes.isTabRoute(routeName)) {
       navState.setNavIndex(TabRoutes.indexForRoute(routeName));
+      _debugNav('setNavIndex from tab route -> ${TabRoutes.indexForRoute(routeName)}');
+      return;
+    }
+
+    if (navState.selectedNavIndex == 3) {
+      navState.setNavIndex(navState.lastNonSettingsNavIndex);
+      _debugNav(
+        'left settings via non-tab route, restoring index=${navState.lastNonSettingsNavIndex}',
+      );
     }
   }
 
@@ -103,9 +122,16 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _pushTab(int index) {
-    final routeName = TabRoutes.routeForIndex(index);
-    if (NavigationHistory.instance.currentRouteName == routeName) return;
-    NavigationHistory.instance.navigatorKey.currentState?.pushNamed(routeName);
+    AppNavigation.instance.pushTab(index);
+  }
+
+  void _syncNavIndexFromCurrentRoute(NavigationState navState) {
+    final routeName = NavigationHistory.instance.currentRouteName;
+    if (TabRoutes.isTabRoute(routeName)) {
+      final index = TabRoutes.indexForRoute(routeName);
+      navState.setNavIndex(index);
+      _debugNav('syncNavIndex route=$routeName -> $index');
+    }
   }
 
   void _scheduleSearchAutoSwitch(String value) {
@@ -125,33 +151,59 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handlePop(BuildContext context, bool enableExitPrompt) async {
-    final navigator = NavigationHistory.instance.navigatorKey.currentState;
-    if (navigator?.canPop() == true) {
-      navigator?.maybePop();
+    if (_isHandlingPop) {
+      _debugNav('back ignored because a previous pop is still processing');
       return;
     }
-    if (!enableExitPrompt) return;
+    _isHandlingPop = true;
 
-    final shouldExit = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Exit App'),
-        content: const Text('Do you want to exit wisp?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Exit'),
-          ),
-        ],
-      ),
+    final navState = context.read<NavigationState>();
+    final wasInSettings = navState.selectedNavIndex == 3;
+    _debugNav(
+      'back start route=${NavigationHistory.instance.currentRouteName} selected=${navState.selectedNavIndex} wasInSettings=$wasInSettings',
     );
+    try {
+      if (await AppNavigation.instance.maybePopOverlay(context)) {
+        _debugNav('back consumed by root overlay pop');
+        return;
+      }
 
-    if (shouldExit == true && mounted) {
-      SystemNavigator.pop();
+      if (await AppNavigation.instance.maybePopShell()) {
+        _debugNav('back consumed by shell route pop');
+        if (wasInSettings) {
+          navState.setNavIndex(navState.lastNonSettingsNavIndex);
+          _debugNav('restored index after settings pop -> ${navState.lastNonSettingsNavIndex}');
+        }
+        _syncNavIndexFromCurrentRoute(navState);
+        return;
+      }
+
+      if (!enableExitPrompt) return;
+
+      final shouldExit = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Exit App'),
+          content: const Text('Do you want to exit wisp?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Exit'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldExit == true && mounted) {
+        _debugNav('exit confirmed by user');
+        SystemNavigator.pop();
+      }
+    } finally {
+      _isHandlingPop = false;
     }
   }
 
@@ -484,71 +536,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _handleLibraryItemSelected(dynamic item) {
-    final libraryState = context.read<LibraryState>();
-    final navState = context.read<NavigationState>();
-
-    if (item is GenericPlaylist) {
-      NavigationHistory.instance.navigatorKey.currentState?.push(
-        PageRouteBuilder(
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              SharedListDetailView(
-            id: item.id,
-            type: SharedListType.playlist,
-            initialTitle: item.title,
-            initialThumbnailUrl: item.thumbnailUrl,
-            playlists: libraryState.playlists,
-            albums: libraryState.albums,
-            artists: libraryState.artists,
-            initialLibraryView: navState.selectedLibraryView,
-            initialNavIndex: navState.selectedNavIndex,
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (item is GenericAlbum) {
-      NavigationHistory.instance.navigatorKey.currentState?.push(
-        PageRouteBuilder(
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              SharedListDetailView(
-            id: item.id,
-            type: SharedListType.album,
-            initialTitle: item.title,
-            initialThumbnailUrl: item.thumbnailUrl,
-            playlists: libraryState.playlists,
-            albums: libraryState.albums,
-            artists: libraryState.artists,
-            initialLibraryView: navState.selectedLibraryView,
-            initialNavIndex: navState.selectedNavIndex,
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (item is GenericSimpleArtist) {
-      NavigationHistory.instance.navigatorKey.currentState?.push(
-        PageRouteBuilder(
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              ArtistDetailView(
-            artistId: item.id,
-            initialArtist: item,
-            playlists: libraryState.playlists,
-            albums: libraryState.albums,
-            artists: libraryState.artists,
-            initialLibraryView: navState.selectedLibraryView,
-            initialNavIndex: navState.selectedNavIndex,
-          ),
-        ),
-      );
-    }
+    AppNavigation.instance.openLibraryItem(context, item);
   }
 }
 

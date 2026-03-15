@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import '../models/metadata_models.dart';
 import '../utils/logger.dart';
 import '../views/list_detail.dart';
-import '../views/artist_detail.dart';
 import '../widgets/navigation.dart';
 import '../services/wisp_audio_handler.dart';
 import '../providers/audio/youtube.dart';
@@ -17,6 +16,7 @@ import '../providers/library/library_state.dart';
 import '../providers/library/local_playlists.dart';
 import '../utils/liked_songs.dart';
 import '../providers/metadata/spotify_internal.dart';
+import '../services/app_navigation.dart';
 
 /// Shows a context menu for a track
 /// On mobile: bottom sheet drawer
@@ -336,21 +336,6 @@ class TrackContextMenu {
     );
   }
 
-  static Widget _buildMobileSectionHeader(String label) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
-      child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          color: Colors.grey[500],
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.1,
-        ),
-      ),
-    );
-  }
-
   static Widget _buildLikeMobileMenuItem(
     BuildContext context,
     GenericSong track,
@@ -444,8 +429,6 @@ class TrackContextMenu {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const SizedBox(height: 6),
-                          _buildDesktopMenuSectionHeader('Likes'),
-                          const SizedBox(height: 2),
                           _buildDesktopMenuButton(
                             context: dialogContext,
                             child: _buildLikeDesktopMenuItem(
@@ -1062,24 +1045,12 @@ class TrackContextMenu {
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   ) {
-    Navigator.push(
+    AppNavigation.instance.openSharedList(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-              id: albumId,
-              type: SharedListType.album,
-              initialTitle: title,
-              initialThumbnailUrl: thumbnailUrl,
-              playlists: playlists,
-              albums: albums,
-              artists: artists,
-              initialLibraryView: currentLibraryView ?? LibraryView.albums,
-              initialNavIndex: currentNavIndex ?? 0,
-            ),
-      ),
+      id: albumId,
+      type: SharedListType.album,
+      initialTitle: title,
+      initialThumbnailUrl: thumbnailUrl,
     );
   }
 
@@ -1094,24 +1065,12 @@ class TrackContextMenu {
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   ) {
-    Navigator.push(
+    AppNavigation.instance.openSharedList(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-              id: playlistId,
-              type: SharedListType.playlist,
-              initialTitle: title,
-              initialThumbnailUrl: thumbnailUrl,
-              playlists: playlists,
-              albums: albums,
-              artists: artists,
-              initialLibraryView: currentLibraryView ?? LibraryView.playlists,
-              initialNavIndex: currentNavIndex ?? 0,
-            ),
-      ),
+      id: playlistId,
+      type: SharedListType.playlist,
+      initialTitle: title,
+      initialThumbnailUrl: thumbnailUrl,
     );
   }
 
@@ -1124,22 +1083,10 @@ class TrackContextMenu {
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   ) {
-    Navigator.push(
+    AppNavigation.instance.openArtist(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ArtistDetailView(
-              artistId: artist.id,
-              initialArtist: artist,
-              playlists: playlists,
-              albums: albums,
-              artists: artists,
-              initialLibraryView: currentLibraryView ?? LibraryView.artists,
-              initialNavIndex: currentNavIndex ?? 0,
-            ),
-      ),
+      artistId: artist.id,
+      initialArtist: artist,
     );
   }
 }

@@ -618,6 +618,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 cursor: SystemMouseCursors.click,
                 child: DropdownButton<String>(
                   value: selectedStyle,
+                  mouseCursor: SystemMouseCursors.click,
                   items: options
                       .map((style) => DropdownMenuItem(
                             value: style,

@@ -14,11 +14,9 @@ import '../providers/library/library_state.dart';
 import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../providers/theme/cover_art_palette_provider.dart';
+import '../services/app_navigation.dart';
 import '../services/navigation_history.dart';
-import '../views/artist_detail.dart';
 import '../views/list_detail.dart';
-import '../views/lyrics.dart';
-import '../views/queue.dart';
 import 'animated_lyrics_preview.dart';
 import 'hover_underline.dart';
 import 'library_item_context_menu.dart';
@@ -171,10 +169,11 @@ class _NowPlayingCard extends StatelessWidget {
         final libraryState = context.read<LibraryState>();
         final navState = context.read<NavigationState>();
         final track = data.track;
-        final headerText =
-            (data.playbackContextName?.trim().isNotEmpty ?? false)
-            ? data.playbackContextName!.trim()
-            : 'Now Playing';
+        final resolvedContextName = _resolvePlaybackContextName(
+          data,
+          libraryState,
+        );
+        final headerText = resolvedContextName ?? 'Now Playing';
         final canOpenContext =
             data.playbackContextID != null &&
             data.playbackContextID!.isNotEmpty &&
@@ -199,11 +198,10 @@ class _NowPlayingCard extends StatelessWidget {
                       : SystemMouseCursors.basic,
                   onTap: canOpenContext
                       ? () => _openPlaybackContext(
+                          context,
                           data.playbackContextType!,
                           data.playbackContextID!,
-                          data.playbackContextName,
-                          libraryState,
-                          navState,
+                          resolvedContextName,
                         )
                       : null,
                   builder: (isHovering) => Text(
@@ -247,9 +245,8 @@ class _NowPlayingCard extends StatelessWidget {
                                     : SystemMouseCursors.basic,
                                 onTap: album != null && album.id.isNotEmpty
                                     ? () => _openAlbum(
+                                        context,
                                         album,
-                                        libraryState,
-                                        navState,
                                       )
                                     : null,
                                 builder: (isHovering) => _MarqueeText(
@@ -269,7 +266,7 @@ class _NowPlayingCard extends StatelessWidget {
                                   HoverUnderline(
                                     cursor: SystemMouseCursors.click,
                                     onTap: () =>
-                                        _openArtist(artist, libraryState, navState),
+                                        _openArtist(context, artist),
                                     onSecondaryTapDown: (details) {
                                       LibraryItemContextMenu.show(
                                         context: context,
@@ -334,95 +331,101 @@ class _NowPlayingCard extends StatelessWidget {
     );
   }
 
-  void _openAlbum(
-    GenericSimpleAlbum album,
+  String? _resolvePlaybackContextName(
+    _NowPlayingData data,
     LibraryState libraryState,
-    NavigationState navState,
   ) {
-    NavigationHistory.instance.navigatorKey.currentState?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-          id: album.id,
-          type: SharedListType.album,
-          initialTitle: album.title,
-          initialThumbnailUrl: album.thumbnailUrl,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: navState.selectedLibraryView,
-          initialNavIndex: navState.selectedNavIndex,
-        ),
-      ),
+    final contextName = data.playbackContextName?.trim();
+    if (_isUsableContextName(contextName)) {
+      return contextName;
+    }
+
+    final contextType = data.playbackContextType;
+    final contextId = data.playbackContextID;
+    if (contextType == null || contextId == null || contextId.isEmpty) {
+      return null;
+    }
+
+    switch (contextType) {
+      case 'playlist':
+        final playlist = libraryState.playlists
+            .cast<GenericPlaylist?>()
+            .firstWhere(
+              (item) => item?.id == contextId,
+              orElse: () => null,
+            );
+        final title = playlist?.title.trim();
+        return _isUsableContextName(title) ? title : null;
+      case 'album':
+        final album = libraryState.albums
+            .cast<GenericAlbum?>()
+            .firstWhere(
+              (item) => item?.id == contextId,
+              orElse: () => null,
+            );
+        final title = album?.title.trim();
+        return _isUsableContextName(title) ? title : null;
+      case 'artist':
+        final artist = libraryState.artists
+            .cast<GenericSimpleArtist?>()
+            .firstWhere(
+              (item) => item?.id == contextId,
+              orElse: () => null,
+            );
+        final name = artist?.name.trim();
+        return _isUsableContextName(name) ? name : null;
+      default:
+        return null;
+    }
+  }
+
+  bool _isUsableContextName(String? value) {
+    if (value == null || value.isEmpty) {
+      return false;
+    }
+
+    final normalized = value.toLowerCase();
+    return normalized != 'unknown' &&
+        normalized != 'unknown playlist' &&
+        normalized != 'unknown album' &&
+        normalized != 'unknown artist';
+  }
+
+  void _openAlbum(
+    BuildContext context,
+    GenericSimpleAlbum album,
+  ) {
+    AppNavigation.instance.openSharedList(
+      context,
+      id: album.id,
+      type: SharedListType.album,
+      initialTitle: album.title,
+      initialThumbnailUrl: album.thumbnailUrl,
     );
   }
 
   void _openArtist(
+    BuildContext context,
     GenericSimpleArtist artist,
-    LibraryState libraryState,
-    NavigationState navState,
   ) {
-    NavigationHistory.instance.navigatorKey.currentState?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ArtistDetailView(
-          artistId: artist.id,
-          initialArtist: artist,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: navState.selectedLibraryView,
-          initialNavIndex: navState.selectedNavIndex,
-        ),
-      ),
+    AppNavigation.instance.openArtist(
+      context,
+      artistId: artist.id,
+      initialArtist: artist,
     );
   }
 
   void _openPlaybackContext(
+    BuildContext context,
     String contextType,
     String contextId,
     String? contextName,
-    LibraryState libraryState,
-    NavigationState navState,
   ) {
-    if (contextType == 'artist') {
-      _openArtist(
-        GenericSimpleArtist(
-          id: contextId,
-          source: SongSource.spotifyInternal,
-          name: contextName ?? 'Artist',
-          thumbnailUrl: '',
-        ),
-        libraryState,
-        navState,
-      );
-      return;
-    }
-
-    final type = contextType == 'album'
-        ? SharedListType.album
-        : SharedListType.playlist;
-
-    NavigationHistory.instance.navigatorKey.currentState?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-          id: contextId,
-          type: type,
-          initialTitle: contextName,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: navState.selectedLibraryView,
-          initialNavIndex: navState.selectedNavIndex,
-        ),
-      ),
+    AppNavigation.instance.openPlaybackContext(
+      context,
+      contextType: contextType,
+      contextId: contextId,
+      contextName: contextName,
     );
   }
 }
@@ -997,8 +1000,6 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
   }
 
   void _openArtist(GenericArtist? data, GenericSimpleArtist fallback) {
-    final libraryState = context.read<LibraryState>();
-    final navState = context.read<NavigationState>();
     final artist = data == null
         ? fallback
         : GenericSimpleArtist(
@@ -1008,21 +1009,10 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
             thumbnailUrl: data.thumbnailUrl,
           );
 
-    NavigationHistory.instance.navigatorKey.currentState?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ArtistDetailView(
-              artistId: artist.id,
-              initialArtist: artist,
-              playlists: libraryState.playlists,
-              albums: libraryState.albums,
-              artists: libraryState.artists,
-              initialLibraryView: navState.selectedLibraryView,
-              initialNavIndex: navState.selectedNavIndex,
-            ),
-      ),
+    AppNavigation.instance.openArtist(
+      context,
+      artistId: artist.id,
+      initialArtist: artist,
     );
   }
 }
@@ -1170,18 +1160,7 @@ class _LyricsPreviewCard extends StatelessWidget {
   }
 
   void _openLyrics(BuildContext context) {
-    if (NavigationHistory.instance.currentRouteName == '/lyrics') {
-      return;
-    }
-    NavigationHistory.instance.navigatorKey.currentState?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: const RouteSettings(name: '/lyrics'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const LyricsView(),
-      ),
-    );
+    AppNavigation.instance.openLyrics();
   }
 }
 
@@ -1291,18 +1270,7 @@ class _QueuePreviewCard extends StatelessWidget {
   }
 
   void _openQueue() {
-    if (NavigationHistory.instance.currentRouteName == '/queue') {
-      return;
-    }
-    NavigationHistory.instance.navigatorKey.currentState?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: const RouteSettings(name: '/queue'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const QueueView(),
-      ),
-    );
+    AppNavigation.instance.openQueue();
   }
 }
 

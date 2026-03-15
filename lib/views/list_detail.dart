@@ -23,9 +23,9 @@ import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
 import '../widgets/playlist_folder_modals.dart';
 import '../widgets/like_button.dart';
+import '../services/app_navigation.dart';
 import '../services/cache_manager.dart';
 import '../services/metadata_cache.dart';
-import 'artist_detail.dart';
 import '../providers/navigation_state.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
@@ -82,6 +82,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   final ScrollController _mobileScrollController = ScrollController();
   final GlobalKey _songListKey = GlobalKey();
   VoidCallback? _likedTracksListener;
+  late final SpotifyInternalProvider _spotifyInternal;
 
   bool _isLocalImagePath(String path) {
     return path.startsWith('/') || path.startsWith('file://');
@@ -96,6 +97,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   @override
   void initState() {
     super.initState();
+    _spotifyInternal = context.read<SpotifyInternalProvider>();
     _desktopScrollController.addListener(
       () => _handleScroll(_desktopScrollController),
     );
@@ -104,12 +106,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
     if (widget.type == SharedListType.playlist &&
         isLikedSongsPlaylistId(widget.id)) {
-      final spotifyInternal = context.read<SpotifyInternalProvider>();
       _likedTracksListener = () {
         if (!mounted) return;
         setState(_rebuildIndices);
       };
-      spotifyInternal.addListener(_likedTracksListener!);
+      _spotifyInternal.addListener(_likedTracksListener!);
     }
     _loadListDetails();
   }
@@ -253,9 +254,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   @override
   void dispose() {
     if (_likedTracksListener != null) {
-      context
-          .read<SpotifyInternalProvider>()
-          .removeListener(_likedTracksListener!);
+      _spotifyInternal.removeListener(_likedTracksListener!);
     }
     _desktopScrollController.dispose();
     _mobileScrollController.dispose();
@@ -263,10 +262,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   void _handleScroll(ScrollController controller) {
-    if (widget.type != SharedListType.playlist ||
-        !isLikedSongsPlaylistId(widget.id)) {
-      return;
-    }
     if (!controller.hasClients) return;
     if (mounted) {
       setState(() {});
@@ -754,6 +749,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final contextName = widget.type == SharedListType.playlist
         ? (_playlist?.title ?? '')
         : (_album?.title ?? '');
+    final contextID = widget.id;
+    final contextSource = widget.type == SharedListType.playlist
+        ? _playlist?.source
+        : _album?.source;
 
     await player.setQueue(
       queue,
@@ -761,6 +760,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       play: true,
       contextType: contextType,
       contextName: contextName,
+      contextID: contextID,
+      contextSource: contextSource,
       shuffleEnabled: _preShuffleEnabled || shouldShuffle,
       originalQueue: (_preShuffleEnabled || shouldShuffle) ? originalQueue : null,
     );
@@ -782,9 +783,23 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final contextName = widget.type == SharedListType.playlist
         ? (_playlist?.title ?? '')
         : (_album?.title ?? '');
-    return player.playbackContextType == contextType &&
-        player.playbackContextName == contextName &&
-        player.currentTrack != null;
+    final contextId = widget.id;
+
+    if (player.currentTrack == null || player.playbackContextType != contextType) {
+      return false;
+    }
+
+    final playerContextId = player.playbackContextID;
+    if (playerContextId != null && playerContextId.isNotEmpty) {
+      return playerContextId == contextId;
+    }
+
+    final playerContextName = player.playbackContextName;
+    if (playerContextName == null || playerContextName.isEmpty) {
+      return false;
+    }
+
+    return playerContextName == contextName;
   }
 
   void _toggleListShuffle(global_audio_player.WispAudioHandler player) {
@@ -1247,44 +1262,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     String? title,
     String? thumbnailUrl,
   }) {
-    Navigator.push(
+    AppNavigation.instance.openSharedList(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-              id: id,
-              type: type,
-              initialTitle: title,
-              initialThumbnailUrl: thumbnailUrl,
-              playlists: widget.playlists,
-              albums: widget.albums,
-              artists: widget.artists,
-              initialLibraryView: _currentLibraryView,
-              initialNavIndex: _currentNavIndex,
-            ),
-      ),
+      id: id,
+      type: type,
+      initialTitle: title,
+      initialThumbnailUrl: thumbnailUrl,
     );
   }
 
   void _openArtist(GenericSimpleArtist artist) {
-    Navigator.push(
+    AppNavigation.instance.openArtist(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ArtistDetailView(
-              artistId: artist.id,
-              initialArtist: artist,
-              playlists: widget.playlists,
-              albums: widget.albums,
-              artists: widget.artists,
-              initialLibraryView: _currentLibraryView,
-              initialNavIndex: _currentNavIndex,
-            ),
-      ),
+      artistId: artist.id,
+      initialArtist: artist,
     );
   }
 
@@ -1329,7 +1320,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         ),
         title: Text(
           title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
         actions: [_buildSortButton()],
       ),
@@ -1396,12 +1387,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         horizontal: padding / 2,
                         vertical: padding / 2,
                       ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF121212),
-                        border: Border(
-                          bottom: BorderSide(color: Colors.white10),
-                        ),
-                      ),
+                      color: const Color(0xFF121212),
                       child: _buildMobileActionsRow(),
                     ),
                   ),
@@ -1682,7 +1668,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   color: colorScheme.onPrimary,
                   onPressed: () {
                     if (_items.isNotEmpty) {
-                      _playQueueAt(0);
+                      _playFromStart();
                     }
                   },
                 ),
@@ -1761,7 +1747,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   title,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 32,
+                    fontSize: 38,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1949,6 +1935,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   cursor: SystemMouseCursors.click,
                   child: DropdownButton<_SortMethod>(
                     value: _sortMethod,
+                    mouseCursor: SystemMouseCursors.click,
                     dropdownColor: Colors.grey[900],
                     underline: const SizedBox.shrink(),
                     items: const [
@@ -2102,14 +2089,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    final isLiked =
-        widget.type == SharedListType.playlist &&
-            isLikedSongsPlaylistId(widget.id);
     final totalCount = _sortedIndices.length;
     final controller =
         isMobile ? _mobileScrollController : _desktopScrollController;
+    final useVirtualizedWindow = controller.hasClients || _songListTopOffset >= 0;
 
-    if (isLiked) {
+    if (useVirtualizedWindow) {
       _scheduleSongListOffsetUpdate(controller);
       final rowHeight = isMobile ? _rowHeightMobile : _rowHeightDesktop;
       final viewport = controller.hasClients
@@ -2157,7 +2142,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 final isCurrentTrack = player.currentTrack?.id == song.id;
                 final album = _getAlbum(item);
                 final artists = _getArtists(item);
-                final primaryArtist = artists.isNotEmpty ? artists.first : null;
 
                 final isHovering = _hoveredSongIds.contains(song.id);
                 return MouseRegion(
@@ -2312,50 +2296,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 2),
-                                    (isDesktop && primaryArtist != null)
-                                        ? HoverUnderline(
-                                            onTap: () =>
-                                                _openArtist(primaryArtist),
-                                            onSecondaryTapDown: (details) {
-                                              LibraryItemContextMenu.show(
-                                                context: context,
-                                                item: primaryArtist,
-                                                position: details.globalPosition,
-                                                playlists: widget.playlists,
-                                                albums: widget.albums,
-                                                artists: widget.artists,
-                                                currentLibraryView:
-                                                    _currentLibraryView,
-                                                currentNavIndex:
-                                                    _currentNavIndex,
-                                              );
-                                            },
-                                            builder: (isHovering) => Text(
-                                              artists
-                                                  .map((a) => a.name)
-                                                  .join(', '),
-                                              style: TextStyle(
-                                                color: Colors.grey[500],
-                                                fontSize: 12,
-                                                decoration: isHovering
-                                                    ? TextDecoration.underline
-                                                    : TextDecoration.none,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          )
-                                        : Text(
-                                            artists
-                                                .map((a) => a.name)
-                                                .join(', '),
-                                            style: TextStyle(
-                                              color: Colors.grey[500],
-                                              fontSize: 12,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
+                                    _buildArtistLine(
+                                      artists,
+                                      isDesktop: isDesktop,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -2504,7 +2448,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         final isCurrentTrack = player.currentTrack?.id == song.id;
         final album = _getAlbum(item);
         final artists = _getArtists(item);
-        final primaryArtist = artists.isNotEmpty ? artists.first : null;
 
         final isHovering = _hoveredSongIds.contains(song.id);
         return MouseRegion(
@@ -2649,43 +2592,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
-                            (isDesktop && primaryArtist != null)
-                                ? HoverUnderline(
-                                    onTap: () => _openArtist(primaryArtist),
-                                    onSecondaryTapDown: (details) {
-                                      LibraryItemContextMenu.show(
-                                        context: context,
-                                        item: primaryArtist,
-                                        position: details.globalPosition,
-                                        playlists: widget.playlists,
-                                        albums: widget.albums,
-                                        artists: widget.artists,
-                                        currentLibraryView: _currentLibraryView,
-                                        currentNavIndex: _currentNavIndex,
-                                      );
-                                    },
-                                    builder: (isHovering) => Text(
-                                      artists.map((a) => a.name).join(', '),
-                                      style: TextStyle(
-                                        color: Colors.grey[500],
-                                        fontSize: 12,
-                                        decoration: isHovering
-                                            ? TextDecoration.underline
-                                            : TextDecoration.none,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  )
-                                : Text(
-                                    artists.map((a) => a.name).join(', '),
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 12,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                            _buildArtistLine(
+                              artists,
+                              isDesktop: isDesktop,
+                            ),
                           ],
                         ),
                       ),
@@ -2820,6 +2730,68 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (item is GenericSong) return item.thumbnailUrl;
     if (item is PlaylistItem) return item.thumbnailUrl;
     return '';
+  }
+
+  Widget _buildArtistLine(
+    List<GenericSimpleArtist> artists, {
+    required bool isDesktop,
+  }) {
+    if (artists.isEmpty) {
+      return Text(
+        'Unknown artist',
+        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    if (!isDesktop) {
+      return Text(
+        artists.map((a) => a.name).join(', '),
+        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+
+    return Wrap(
+      children: [
+        for (int i = 0; i < artists.length; i++) ...[
+          HoverUnderline(
+            onTap: () => _openArtist(artists[i]),
+            onSecondaryTapDown: (details) {
+              LibraryItemContextMenu.show(
+                context: context,
+                item: artists[i],
+                position: details.globalPosition,
+                playlists: widget.playlists,
+                albums: widget.albums,
+                artists: widget.artists,
+                currentLibraryView: _currentLibraryView,
+                currentNavIndex: _currentNavIndex,
+              );
+            },
+            builder: (isHovering) => Text(
+              artists[i].name,
+              style: TextStyle(
+                color: Colors.grey[500],
+                fontSize: 12,
+                decoration: isHovering
+                    ? TextDecoration.underline
+                    : TextDecoration.none,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (i < artists.length - 1)
+            Text(
+              ', ',
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
+        ],
+      ],
+    );
   }
 }
 

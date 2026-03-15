@@ -20,6 +20,7 @@ import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
 import '../widgets/like_button.dart';
+import '../services/app_navigation.dart';
 import '../widgets/provider_disabled_state.dart';
 import 'list_detail.dart';
 import '../providers/navigation_state.dart';
@@ -172,7 +173,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         ),
         title: Text(
           name,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
         ),
       ),
       body: content,
@@ -209,13 +210,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                         horizontal: padding / 2,
                         vertical: padding / 2,
                       ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF121212),
-                        border: Border(
-                          top: BorderSide(color: Colors.white10),
-                          bottom: BorderSide(color: Colors.white10),
-                        ),
-                      ),
+                      color: const Color(0xFF121212),
                       child: _buildMobileActionsRow(),
                     ),
                   ),
@@ -348,7 +343,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 name,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 20,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -450,7 +445,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   name,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 32,
+                    fontSize: 38,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -803,32 +798,13 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                                           album.id.isNotEmpty)
                                       ? HoverUnderline(
                                           onTap: () {
-                                            Navigator.push(
+                                            AppNavigation.instance.openSharedList(
                                               context,
-                                              PageRouteBuilder(
-                                                transitionDuration: Duration.zero,
-                                                reverseTransitionDuration:
-                                                    Duration.zero,
-                                                pageBuilder:
-                                                    (
-                                                      context,
-                                                      animation,
-                                                      secondaryAnimation,
-                                                    ) => SharedListDetailView(
-                                                      id: album.id,
-                                                      type: SharedListType.album,
-                                                      initialTitle: album.title,
-                                                      initialThumbnailUrl:
-                                                          album.thumbnailUrl,
-                                                      playlists: widget.playlists,
-                                                      albums: widget.albums,
-                                                      artists: widget.artists,
-                                                      initialLibraryView:
-                                                          _currentLibraryView,
-                                                      initialNavIndex:
-                                                          _currentNavIndex,
-                                                    ),
-                                              ),
+                                              id: album.id,
+                                              type: SharedListType.album,
+                                              initialTitle: album.title,
+                                              initialThumbnailUrl:
+                                                  album.thumbnailUrl,
                                             );
                                           },
                                           builder: (isHovering) => Text(
@@ -975,25 +951,12 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap: () {
-                      Navigator.push(
+                      AppNavigation.instance.openSharedList(
                         context,
-                        PageRouteBuilder(
-                          transitionDuration: Duration.zero,
-                          reverseTransitionDuration: Duration.zero,
-                          pageBuilder:
-                              (context, animation, secondaryAnimation) =>
-                                  SharedListDetailView(
-                                    id: album.id,
-                                    type: SharedListType.album,
-                                    initialTitle: album.title,
-                                    initialThumbnailUrl: album.thumbnailUrl,
-                                    playlists: widget.playlists,
-                                    albums: widget.albums,
-                                    artists: widget.artists,
-                                    initialLibraryView: _currentLibraryView,
-                                    initialNavIndex: _currentNavIndex,
-                                  ),
-                        ),
+                        id: album.id,
+                        type: SharedListType.album,
+                        initialTitle: album.title,
+                        initialThumbnailUrl: album.thumbnailUrl,
                       );
                     },
                     child: MouseRegion(

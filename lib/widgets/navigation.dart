@@ -6,6 +6,8 @@ import '../models/metadata_models.dart';
 import '../models/library_folder.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/library_state.dart';
+import '../services/wisp_audio_handler.dart';
+import '../services/navigation_history.dart';
 import 'library_item_context_menu.dart';
 import 'playlist_folder_modals.dart';
 import '../utils/liked_songs.dart';
@@ -143,11 +145,16 @@ class _WispNavigationState extends State<WispNavigation> {
 
           // Library items list
           Expanded(
-            child: ListView.builder(
-              itemCount: widget.libraryItems.length,
-              itemBuilder: (context, index) {
-                final item = widget.libraryItems[index];
-                return _buildLibraryItem(item, isCollapsed: _layoutCollapsed);
+            child: ValueListenableBuilder<Route<dynamic>?>(
+              valueListenable: NavigationHistory.instance.currentRoute,
+              builder: (context, route, child) {
+                return ListView.builder(
+                  itemCount: widget.libraryItems.length,
+                  itemBuilder: (context, index) {
+                    final item = widget.libraryItems[index];
+                    return _buildLibraryItem(item, isCollapsed: _layoutCollapsed);
+                  },
+                );
               },
             ),
           ),
@@ -370,6 +377,7 @@ class _WispNavigationState extends State<WispNavigation> {
     final libraryState = context.watch<LibraryState>();
     final isDesktop = _isDesktop();
     final allowDrag = widget.selectedView == LibraryView.playlists;
+    final player = context.watch<WispAudioHandler>();
 
     if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
       return _SidebarUnassignedHeader(
@@ -381,6 +389,36 @@ class _WispNavigationState extends State<WispNavigation> {
     }
 
     final resolvedItem = entry.item;
+    final routeName = NavigationHistory.instance.currentRoute.value?.settings.name;
+    final isCurrentRouteItem = switch (resolvedItem) {
+      GenericPlaylist playlist => routeName == '/playlist/${playlist.id}',
+      GenericAlbum album => routeName == '/album/${album.id}',
+      GenericSimpleAlbum album => routeName == '/album/${album.id}',
+      GenericSimpleArtist artist => routeName == '/artist/${artist.id}',
+      _ => false,
+    };
+    final playbackType = player.playbackContextType;
+    final playbackId = player.playbackContextID;
+    final playbackName = player.playbackContextName?.trim();
+    final isCurrentPlaybackItem = switch (resolvedItem) {
+      GenericPlaylist playlist =>
+        playbackType == 'playlist' &&
+        (playbackId == playlist.id || playbackName == playlist.title.trim()),
+      GenericAlbum album =>
+        playbackType == 'album' &&
+        (playbackId == album.id || playbackName == album.title.trim()),
+      GenericSimpleAlbum album =>
+        playbackType == 'album' &&
+        (playbackId == album.id || playbackName == album.title.trim()),
+      GenericSimpleArtist artist =>
+        (playbackType == 'artist' &&
+          (playbackId == artist.id || playbackName == artist.name.trim())) ||
+        (player.currentTrack?.artists.any((a) => a.id == artist.id) ?? false),
+      _ => false,
+    };
+    final titleColor = isCurrentPlaybackItem
+        ? Theme.of(context).colorScheme.primary
+        : Colors.white;
     String? imageUrl;
     String? filePath;
     String title = '';
@@ -448,6 +486,12 @@ class _WispNavigationState extends State<WispNavigation> {
           widget.onLibraryItemSelected(resolvedItem);
         },
         child: Container(
+          decoration: BoxDecoration(
+            color: isCurrentRouteItem
+                ? const Color(0xFF282828)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
           padding: EdgeInsets.symmetric(
             horizontal: isCollapsed ? 8 : 12,
             vertical: 8,
@@ -509,7 +553,7 @@ class _WispNavigationState extends State<WispNavigation> {
                       Text(
                         title,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: titleColor,
                           fontSize: 14,
                           fontWeight: resolvedItem is PlaylistFolder
                               ? FontWeight.w600

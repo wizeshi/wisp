@@ -531,6 +531,7 @@ class _LyricsViewState extends State<LyricsView> {
           cursor: SystemMouseCursors.click,
           child: DropdownButton<LyricsSyncMode>(
             value: _syncMode,
+            mouseCursor: SystemMouseCursors.click,
             dropdownColor: const Color(0xFF181818),
             iconEnabledColor: Colors.white,
             items: LyricsSyncMode.values

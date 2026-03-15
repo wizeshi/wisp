@@ -18,9 +18,9 @@ import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/like_button.dart';
 import '../providers/search/search_state.dart';
+import '../services/app_navigation.dart';
 import '../widgets/provider_disabled_state.dart';
 import 'list_detail.dart';
-import 'artist_detail.dart';
 
 enum SearchTab { tracks, artists, albums, playlists }
 
@@ -127,6 +127,16 @@ class _SearchViewState extends State<SearchView> {
       sources.add('YouTube');
     }
     return sources;
+  }
+
+  IconData _sourceIcon(String source) {
+    switch (source) {
+      case 'YouTube':
+        return Icons.ondemand_video;
+      case 'Spotify':
+      default:
+        return Icons.music_note;
+    }
   }
 
   Future<void> _performSearch(String query) async {
@@ -340,15 +350,30 @@ class _SearchViewState extends State<SearchView> {
             opaque: true,
             child: DropdownButton<String>(
               value: selectedSource,
+              mouseCursor: SystemMouseCursors.click,
               dropdownColor: const Color(0xFF181818),
               iconEnabledColor: Colors.grey[400],
+              selectedItemBuilder: (context) => availableSources
+                  .map(
+                    (source) => Icon(
+                      _sourceIcon(source),
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                  )
+                  .toList(),
               items: availableSources
                   .map(
                     (source) => DropdownMenuItem(
                       value: source,
-                      child: Text(
-                        source,
-                        style: const TextStyle(color: Colors.white),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _sourceIcon(source),
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ],
                       ),
                     ),
                   )
@@ -1143,25 +1168,12 @@ class _SearchViewState extends State<SearchView> {
   void _openAlbumFromTrack(GenericSong track) {
     final album = track.album;
     if (album == null) return;
-    Navigator.push(
+    AppNavigation.instance.openSharedList(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-              id: album.id,
-              type: SharedListType.album,
-              initialTitle: album.title,
-              initialThumbnailUrl: album.thumbnailUrl,
-              playlists: widget.playlists,
-              albums: widget.albums,
-              artists: widget.artists,
-              initialLibraryView:
-                  widget.initialLibraryView ?? LibraryView.albums,
-              initialNavIndex: 1,
-            ),
-      ),
+      id: album.id,
+      type: SharedListType.album,
+      initialTitle: album.title,
+      initialThumbnailUrl: album.thumbnailUrl,
     );
   }
 
@@ -1268,23 +1280,10 @@ class _SearchViewState extends State<SearchView> {
           currentLibraryView: widget.initialLibraryView,
           currentNavIndex: widget.currentNavIndex,
           onTap: () {
-            Navigator.push(
+            AppNavigation.instance.openArtist(
               context,
-              PageRouteBuilder(
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: Duration.zero,
-                pageBuilder: (context, animation, secondaryAnimation) =>
-                    ArtistDetailView(
-                      artistId: artist.id,
-                      initialArtist: artist,
-                      playlists: widget.playlists,
-                      albums: widget.albums,
-                      artists: widget.artists,
-                      initialLibraryView:
-                          widget.initialLibraryView ?? LibraryView.artists,
-                      initialNavIndex: 1,
-                    ),
-              ),
+              artistId: artist.id,
+              initialArtist: artist,
             );
           },
         );
@@ -1312,25 +1311,12 @@ class _SearchViewState extends State<SearchView> {
           currentLibraryView: widget.initialLibraryView,
           currentNavIndex: widget.currentNavIndex,
           onTap: () {
-            Navigator.push(
+            AppNavigation.instance.openSharedList(
               context,
-              PageRouteBuilder(
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: Duration.zero,
-                pageBuilder: (context, animation, secondaryAnimation) =>
-                    SharedListDetailView(
-                      id: album.id,
-                      type: SharedListType.album,
-                      initialTitle: album.title,
-                      initialThumbnailUrl: album.thumbnailUrl,
-                      playlists: widget.playlists,
-                      albums: widget.albums,
-                      artists: widget.artists,
-                      initialLibraryView:
-                          widget.initialLibraryView ?? LibraryView.albums,
-                      initialNavIndex: 1,
-                    ),
-              ),
+              id: album.id,
+              type: SharedListType.album,
+              initialTitle: album.title,
+              initialThumbnailUrl: album.thumbnailUrl,
             );
           },
         );
@@ -1358,25 +1344,12 @@ class _SearchViewState extends State<SearchView> {
           currentLibraryView: widget.initialLibraryView,
           currentNavIndex: widget.currentNavIndex,
           onTap: () {
-            Navigator.push(
+            AppNavigation.instance.openSharedList(
               context,
-              PageRouteBuilder(
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: Duration.zero,
-                pageBuilder: (context, animation, secondaryAnimation) =>
-                    SharedListDetailView(
-                      id: playlist.id,
-                      type: SharedListType.playlist,
-                      initialTitle: playlist.title,
-                      initialThumbnailUrl: playlist.thumbnailUrl,
-                      playlists: widget.playlists,
-                      albums: widget.albums,
-                      artists: widget.artists,
-                      initialLibraryView:
-                          widget.initialLibraryView ?? LibraryView.playlists,
-                      initialNavIndex: 1,
-                    ),
-              ),
+              id: playlist.id,
+              type: SharedListType.playlist,
+              initialTitle: playlist.title,
+              initialThumbnailUrl: playlist.thumbnailUrl,
             );
           },
         );
@@ -1507,26 +1480,12 @@ class _TrackTileState extends State<_TrackTile> {
           title: (isDesktop && album != null && album.id.isNotEmpty)
               ? HoverUnderline(
                   onTap: () {
-                    Navigator.push(
+                    AppNavigation.instance.openSharedList(
                       context,
-                      PageRouteBuilder(
-                        transitionDuration: Duration.zero,
-                        reverseTransitionDuration: Duration.zero,
-                        pageBuilder:
-                            (context, animation, secondaryAnimation) =>
-                                SharedListDetailView(
-                          id: album.id,
-                          type: SharedListType.album,
-                          initialTitle: album.title,
-                          initialThumbnailUrl: album.thumbnailUrl,
-                          playlists: widget.playlists,
-                          albums: widget.albums,
-                          artists: widget.artists,
-                          initialLibraryView:
-                              widget.currentLibraryView ?? LibraryView.albums,
-                          initialNavIndex: widget.currentNavIndex ?? 1,
-                        ),
-                      ),
+                      id: album.id,
+                      type: SharedListType.album,
+                      initialTitle: album.title,
+                      initialThumbnailUrl: album.thumbnailUrl,
                     );
                   },
                   builder: (isHovering) => Text(
@@ -1554,24 +1513,10 @@ class _TrackTileState extends State<_TrackTile> {
           subtitle: (isDesktop && primaryArtist != null)
               ? HoverUnderline(
                   onTap: () {
-                    Navigator.push(
+                    AppNavigation.instance.openArtist(
                       context,
-                      PageRouteBuilder(
-                        transitionDuration: Duration.zero,
-                        reverseTransitionDuration: Duration.zero,
-                        pageBuilder:
-                            (context, animation, secondaryAnimation) =>
-                                ArtistDetailView(
-                          artistId: primaryArtist.id,
-                          initialArtist: primaryArtist,
-                          playlists: widget.playlists,
-                          albums: widget.albums,
-                          artists: widget.artists,
-                          initialLibraryView:
-                              widget.currentLibraryView ?? LibraryView.artists,
-                          initialNavIndex: widget.currentNavIndex ?? 1,
-                        ),
-                      ),
+                      artistId: primaryArtist.id,
+                      initialArtist: primaryArtist,
                     );
                   },
                   onSecondaryTapDown: (details) {
@@ -2009,24 +1954,12 @@ class _MiniAlbumCard extends StatelessWidget {
               );
             },
       onTap: () {
-        Navigator.push(
+        AppNavigation.instance.openSharedList(
           context,
-          PageRouteBuilder(
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                SharedListDetailView(
-                  id: album.id,
-                  type: SharedListType.album,
-                  initialTitle: album.title,
-                  initialThumbnailUrl: album.thumbnailUrl,
-                  playlists: playlists,
-                  albums: albums,
-                  artists: artists,
-                  initialLibraryView: initialLibraryView,
-                  initialNavIndex: 1,
-                ),
-          ),
+          id: album.id,
+          type: SharedListType.album,
+          initialTitle: album.title,
+          initialThumbnailUrl: album.thumbnailUrl,
         );
       },
       child: MouseRegion(
@@ -2186,24 +2119,12 @@ class _MiniPlaylistCard extends StatelessWidget {
               );
             },
       onTap: () {
-        Navigator.push(
+        AppNavigation.instance.openSharedList(
           context,
-          PageRouteBuilder(
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                SharedListDetailView(
-                  id: playlist.id,
-                  type: SharedListType.playlist,
-                  initialTitle: playlist.title,
-                  initialThumbnailUrl: playlist.thumbnailUrl,
-                  playlists: playlists,
-                  albums: albums,
-                  artists: artists,
-                  initialLibraryView: initialLibraryView,
-                  initialNavIndex: 1,
-                ),
-          ),
+          id: playlist.id,
+          type: SharedListType.playlist,
+          initialTitle: playlist.title,
+          initialThumbnailUrl: playlist.thumbnailUrl,
         );
       },
       child: MouseRegion(
@@ -2363,22 +2284,10 @@ class _MiniArtistCard extends StatelessWidget {
               );
             },
       onTap: () {
-        Navigator.push(
+        AppNavigation.instance.openArtist(
           context,
-          PageRouteBuilder(
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                ArtistDetailView(
-                  artistId: artist.id,
-                  initialArtist: artist,
-                  playlists: playlists,
-                  albums: albums,
-                  artists: artists,
-                  initialLibraryView: initialLibraryView,
-                  initialNavIndex: 1,
-                ),
-          ),
+          artistId: artist.id,
+          initialArtist: artist,
         );
       },
       child: MouseRegion(

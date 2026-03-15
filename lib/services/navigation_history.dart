@@ -52,11 +52,28 @@ class NavigationHistory {
     currentRoute.value = route;
   }
 
-  void _handlePop(Route<dynamic> route) {
-    if (_index > 0) {
-      _index--;
+  void _handlePop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    final poppedIndex = _history.indexOf(route);
+    if (poppedIndex != -1) {
+      _history.removeAt(poppedIndex);
     }
-    currentRoute.value = _index >= 0 ? _history[_index] : null;
+
+    if (previousRoute == null) {
+      _index = -1;
+      currentRoute.value = null;
+      return;
+    }
+
+    final previousIndex = _history.indexOf(previousRoute);
+    if (previousIndex != -1) {
+      _index = previousIndex;
+      currentRoute.value = _history[_index];
+      return;
+    }
+
+    _history.add(previousRoute);
+    _index = _history.length - 1;
+    currentRoute.value = previousRoute;
   }
 
   void _handleRemove(Route<dynamic> route) {
@@ -112,7 +129,7 @@ class NavigationHistoryObserver extends NavigatorObserver {
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _history._handlePop(route);
+    _history._handlePop(route, previousRoute);
     super.didPop(route, previousRoute);
   }
 

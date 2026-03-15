@@ -11,8 +11,8 @@ import '../widgets/track_context_menu.dart';
 import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../models/metadata_models.dart';
+import '../services/app_navigation.dart';
 import 'list_detail.dart';
-import 'artist_detail.dart';
 import '../providers/navigation_state.dart';
 import '../widgets/navigation.dart';
 
@@ -454,44 +454,20 @@ class _QueueViewState extends State<QueueView> {
   }
 
   void _openAlbum(GenericSimpleAlbum album, LibraryState libraryState) {
-    Navigator.push(
+    AppNavigation.instance.openSharedList(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-              id: album.id,
-              type: SharedListType.album,
-              initialTitle: album.title,
-              initialThumbnailUrl: album.thumbnailUrl,
-              playlists: libraryState.playlists,
-              albums: libraryState.albums,
-              artists: libraryState.artists,
-              initialLibraryView: _currentLibraryView,
-              initialNavIndex: _currentNavIndex,
-            ),
-      ),
+      id: album.id,
+      type: SharedListType.album,
+      initialTitle: album.title,
+      initialThumbnailUrl: album.thumbnailUrl,
     );
   }
 
   void _openArtist(GenericSimpleArtist artist, LibraryState libraryState) {
-    Navigator.push(
+    AppNavigation.instance.openArtist(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ArtistDetailView(
-              artistId: artist.id,
-              initialArtist: artist,
-              playlists: libraryState.playlists,
-              albums: libraryState.albums,
-              artists: libraryState.artists,
-              initialLibraryView: _currentLibraryView,
-              initialNavIndex: _currentNavIndex,
-            ),
-      ),
+      artistId: artist.id,
+      initialArtist: artist,
     );
   }
 

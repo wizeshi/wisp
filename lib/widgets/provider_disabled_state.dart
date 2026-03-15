@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/navigation_history.dart';
-import '../services/tab_routes.dart';
+import '../services/app_navigation.dart';
 
 class ProviderDisabledState extends StatelessWidget {
   final String message;
@@ -30,12 +29,7 @@ class ProviderDisabledState extends StatelessWidget {
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
-                final routeName = NavigationHistory.instance.currentRouteName;
-                if (routeName == TabRoutes.settings) {
-                  return;
-                }
-                NavigationHistory.instance.navigatorKey.currentState
-                    ?.pushNamed(TabRoutes.settings);
+                AppNavigation.instance.openSettings();
               },
               icon: const Icon(Icons.settings),
               label: const Text('Go to Settings'),

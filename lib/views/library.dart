@@ -19,9 +19,9 @@ import '../providers/preferences/preferences_provider.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
 import '../services/metadata_cache.dart';
+import '../services/app_navigation.dart';
 import '../widgets/provider_disabled_state.dart';
 import 'list_detail.dart';
-import 'artist_detail.dart';
 
 bool _isLocalThumbnailPath(String path) {
   return path.startsWith('/') || path.startsWith('file://');
@@ -865,66 +865,30 @@ class LibraryTabViewState extends State<LibraryTabView> {
   }
 
   void _openPlaylist(GenericPlaylist playlist) {
-    Navigator.push(
+    AppNavigation.instance.openSharedList(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-              id: playlist.id,
-              type: SharedListType.playlist,
-              initialTitle: playlist.title,
-              initialThumbnailUrl: playlist.thumbnailUrl,
-              playlists: _displayPlaylists,
-              albums: _albums,
-              artists: _artists,
-              initialLibraryView: LibraryView.playlists,
-              initialNavIndex: 2,
-            ),
-      ),
+      id: playlist.id,
+      type: SharedListType.playlist,
+      initialTitle: playlist.title,
+      initialThumbnailUrl: playlist.thumbnailUrl,
     );
   }
 
   void _openAlbum(GenericAlbum album) {
-    Navigator.push(
+    AppNavigation.instance.openSharedList(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-              id: album.id,
-              type: SharedListType.album,
-              initialTitle: album.title,
-              initialThumbnailUrl: album.thumbnailUrl,
-              playlists: _displayPlaylists,
-              albums: _albums,
-              artists: _artists,
-              initialLibraryView: LibraryView.albums,
-              initialNavIndex: 2,
-            ),
-      ),
+      id: album.id,
+      type: SharedListType.album,
+      initialTitle: album.title,
+      initialThumbnailUrl: album.thumbnailUrl,
     );
   }
 
   void _openArtist(GenericSimpleArtist artist) {
-    Navigator.push(
+    AppNavigation.instance.openArtist(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ArtistDetailView(
-              artistId: artist.id,
-              initialArtist: artist,
-              playlists: _displayPlaylists,
-              albums: _albums,
-              artists: _artists,
-              initialLibraryView: LibraryView.artists,
-              initialNavIndex: 2,
-            ),
-      ),
+      artistId: artist.id,
+      initialArtist: artist,
     );
   }
 }

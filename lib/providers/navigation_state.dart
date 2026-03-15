@@ -4,6 +4,7 @@ import '../widgets/navigation.dart';
 
 class NavigationState extends ChangeNotifier {
   int _selectedNavIndex = 0;
+  int _lastNonSettingsNavIndex = 0;
   LibraryView _selectedLibraryView = LibraryView.playlists;
   bool _rightSidebarVisible = true;
   double _rightSidebarWidth = 320;
@@ -14,6 +15,7 @@ class NavigationState extends ChangeNotifier {
   }
 
   int get selectedNavIndex => _selectedNavIndex;
+  int get lastNonSettingsNavIndex => _lastNonSettingsNavIndex;
   LibraryView get selectedLibraryView => _selectedLibraryView;
   bool get rightSidebarVisible => _rightSidebarVisible;
   double get rightSidebarWidth => _rightSidebarWidth;
@@ -21,6 +23,9 @@ class NavigationState extends ChangeNotifier {
 
   void setNavIndex(int index) {
     if (index == _selectedNavIndex) return;
+    if (index != 3) {
+      _lastNonSettingsNavIndex = index;
+    }
     _selectedNavIndex = index;
     notifyListeners();
   }

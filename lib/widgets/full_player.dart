@@ -313,12 +313,15 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 onTap: () {
                   // TODO: Navigate to track
                 },
-                child: _MarqueeText(
-                  text: title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: _MarqueeText(
+                    text: title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -1167,12 +1170,15 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 onTap: () {
                   // TODO: Navigate to track
                 },
-                child: _MarqueeText(
-                  text: title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: _MarqueeText(
+                    text: title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),

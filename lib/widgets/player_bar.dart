@@ -11,10 +11,8 @@ import '../providers/theme/cover_art_palette_provider.dart';
 import '../providers/library/library_state.dart';
 import '../models/metadata_models.dart';
 import 'full_player.dart';
-import '../views/lyrics.dart';
-import '../views/queue.dart';
+import '../services/app_navigation.dart';
 import '../views/list_detail.dart';
-import '../views/artist_detail.dart';
 import '../widgets/track_context_menu.dart';
 import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
@@ -589,30 +587,12 @@ class _DesktopTrackInfo extends StatelessWidget {
                             : SystemMouseCursors.basic,
                         onTap: album != null && album.id.isNotEmpty
                             ? () {
-                                Navigator.push(
+                                AppNavigation.instance.openSharedList(
                                   context,
-                                  PageRouteBuilder(
-                                    transitionDuration: Duration.zero,
-                                    reverseTransitionDuration: Duration.zero,
-                                    pageBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                        ) => SharedListDetailView(
-                                          id: album.id,
-                                          type: SharedListType.album,
-                                          initialTitle: album.title,
-                                          initialThumbnailUrl:
-                                              album.thumbnailUrl,
-                                          playlists: libraryState.playlists,
-                                          albums: libraryState.albums,
-                                          artists: libraryState.artists,
-                                          initialLibraryView:
-                                              currentLibraryView,
-                                          initialNavIndex: currentNavIndex,
-                                        ),
-                                  ),
+                                  id: album.id,
+                                  type: SharedListType.album,
+                                  initialTitle: album.title,
+                                  initialThumbnailUrl: album.thumbnailUrl,
                                 );
                               }
                             : null,
@@ -652,23 +632,10 @@ class _DesktopTrackInfo extends StatelessWidget {
                 (primaryArtist != null)
                     ? HoverUnderline(
                         onTap: () {
-                          Navigator.push(
+                          AppNavigation.instance.openArtist(
                             context,
-                            PageRouteBuilder(
-                              transitionDuration: Duration.zero,
-                              reverseTransitionDuration: Duration.zero,
-                              pageBuilder:
-                                  (context, animation, secondaryAnimation) =>
-                                      ArtistDetailView(
-                                        artistId: primaryArtist.id,
-                                        initialArtist: primaryArtist,
-                                        playlists: libraryState.playlists,
-                                        albums: libraryState.albums,
-                                        artists: libraryState.artists,
-                                        initialLibraryView: currentLibraryView,
-                                        initialNavIndex: currentNavIndex,
-                                      ),
-                            ),
+                            artistId: primaryArtist.id,
+                            initialArtist: primaryArtist,
                           );
                         },
                         onSecondaryTapDown: (details) {
@@ -1101,24 +1068,21 @@ class _DesktopRightControls extends StatelessWidget {
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    InkWell(
+                    IconButton(
                       mouseCursor: SystemMouseCursors.click,
-                      onTap: player.toggleMute,
-                      borderRadius: BorderRadius.circular(16),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          volume == 0
-                              ? Icons.volume_off
-                              : volume < 0.5
-                              ? Icons.volume_down
-                              : Icons.volume_up,
-                          color: Colors.grey[400],
-                          size: 20,
-                        ),
+                      tooltip: volume == 0 ? 'Unmute' : 'Mute',
+                      onPressed: player.toggleMute,
+                      icon: Icon(
+                        volume == 0
+                            ? Icons.volume_off
+                            : volume < 0.5
+                            ? Icons.volume_down
+                            : Icons.volume_up,
+                        color: Colors.grey[400],
+                        size: 20,
                       ),
                     ),
-                    SizedBox(width: 8),
+                    SizedBox(width: 4),
                     SizedBox(
                       width: 100,
                       child: SliderTheme(
@@ -1179,15 +1143,7 @@ void _openFullPlayer(BuildContext context) {
   if (currentRoute?.settings.name == '/fullplayer') {
     return;
   }
-  NavigationHistory.instance.navigatorKey.currentState?.push(
-    PageRouteBuilder(
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-      settings: const RouteSettings(name: '/fullplayer'),
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          const FullScreenPlayer(),
-    ),
-  );
+  AppNavigation.instance.openFullPlayer();
 }
 
 void _openLyrics(BuildContext context) {
@@ -1195,15 +1151,7 @@ void _openLyrics(BuildContext context) {
   if (currentRoute?.settings.name == '/lyrics') {
     return;
   }
-  NavigationHistory.instance.navigatorKey.currentState?.push(
-    PageRouteBuilder(
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-      settings: const RouteSettings(name: '/lyrics'),
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          const LyricsView(),
-    ),
-  );
+  AppNavigation.instance.openLyrics();
 }
 
 void _openQueue(BuildContext context) {
@@ -1211,15 +1159,7 @@ void _openQueue(BuildContext context) {
   if (currentRoute?.settings.name == '/queue') {
     return;
   }
-  NavigationHistory.instance.navigatorKey.currentState?.push(
-    PageRouteBuilder(
-      transitionDuration: Duration.zero,
-      reverseTransitionDuration: Duration.zero,
-      settings: const RouteSettings(name: '/queue'),
-      pageBuilder: (context, animation, secondaryAnimation) =>
-          const QueueView(),
-    ),
-  );
+  AppNavigation.instance.openQueue();
 }
 
 class _PositionData {

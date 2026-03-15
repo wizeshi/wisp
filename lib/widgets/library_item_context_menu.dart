@@ -10,10 +10,9 @@ import '../models/metadata_models.dart';
 import '../models/library_folder.dart';
 import '../providers/metadata/spotify_internal.dart';
 import '../services/metadata_cache.dart';
-import '../providers/library/library_state.dart';
+import '../services/app_navigation.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
-import '../views/artist_detail.dart';
 import '../views/list_detail.dart';
 import 'navigation.dart';
 import 'playlist_folder_modals.dart';
@@ -622,103 +621,44 @@ class LibraryItemContextMenu {
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   ) {
-    final libraryState = context.read<LibraryState>();
-    final resolvedPlaylists = playlists.isNotEmpty
-        ? playlists
-        : libraryState.playlists;
-    final resolvedAlbums = albums.isNotEmpty
-        ? albums
-        : libraryState.albums;
-    final resolvedArtists = artists.isNotEmpty
-        ? artists
-        : libraryState.artists;
-
     if (item is GenericPlaylist) {
-      Navigator.push(
+      AppNavigation.instance.openSharedList(
         context,
-        PageRouteBuilder(
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              SharedListDetailView(
-            id: item.id,
-            type: SharedListType.playlist,
-            initialTitle: item.title,
-            initialThumbnailUrl: item.thumbnailUrl,
-            playlists: resolvedPlaylists,
-            albums: resolvedAlbums,
-            artists: resolvedArtists,
-            initialLibraryView: currentLibraryView ?? LibraryView.playlists,
-            initialNavIndex: currentNavIndex ?? 0,
-          ),
-        ),
+        id: item.id,
+        type: SharedListType.playlist,
+        initialTitle: item.title,
+        initialThumbnailUrl: item.thumbnailUrl,
       );
       return;
     }
 
     if (item is GenericAlbum) {
-      Navigator.push(
+      AppNavigation.instance.openSharedList(
         context,
-        PageRouteBuilder(
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              SharedListDetailView(
-            id: item.id,
-            type: SharedListType.album,
-            initialTitle: item.title,
-            initialThumbnailUrl: item.thumbnailUrl,
-            playlists: resolvedPlaylists,
-            albums: resolvedAlbums,
-            artists: resolvedArtists,
-            initialLibraryView: currentLibraryView ?? LibraryView.albums,
-            initialNavIndex: currentNavIndex ?? 0,
-          ),
-        ),
+        id: item.id,
+        type: SharedListType.album,
+        initialTitle: item.title,
+        initialThumbnailUrl: item.thumbnailUrl,
       );
       return;
     }
 
     if (item is GenericSimpleAlbum) {
-      Navigator.push(
+      AppNavigation.instance.openSharedList(
         context,
-        PageRouteBuilder(
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              SharedListDetailView(
-            id: item.id,
-            type: SharedListType.album,
-            initialTitle: item.title,
-            initialThumbnailUrl: item.thumbnailUrl,
-            playlists: resolvedPlaylists,
-            albums: resolvedAlbums,
-            artists: resolvedArtists,
-            initialLibraryView: currentLibraryView ?? LibraryView.albums,
-            initialNavIndex: currentNavIndex ?? 0,
-          ),
-        ),
+        id: item.id,
+        type: SharedListType.album,
+        initialTitle: item.title,
+        initialThumbnailUrl: item.thumbnailUrl,
       );
       return;
     }
 
     if (item is GenericSimpleArtist) {
-      Navigator.push(
+      AppNavigation.instance.openArtist(
         context,
-        PageRouteBuilder(
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              ArtistDetailView(
-            artistId: item.id,
-            initialArtist: item,
-            playlists: resolvedPlaylists,
-            albums: resolvedAlbums,
-            artists: resolvedArtists,
-            initialLibraryView: currentLibraryView ?? LibraryView.artists,
-            initialNavIndex: currentNavIndex ?? 0,
-          ),
-        ),
+        artistId: item.id,
+        initialArtist: item,
       );
     }
   }

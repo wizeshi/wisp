@@ -20,13 +20,12 @@ import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
 import '../widgets/like_button.dart';
 import 'list_detail.dart';
-import 'artist_detail.dart';
 import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
-import '../services/tab_routes.dart';
+import '../services/app_navigation.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
 import '../widgets/provider_disabled_state.dart';
@@ -60,6 +59,7 @@ class HomePageState extends State<HomePage> {
   String? _hoveredTrackId;
 
   late final SpotifyInternalProvider _spotifyProvider;
+  late final LocalPlaylistState _localPlaylistState;
   bool _wasAuthenticated = false;
   VoidCallback? _localPlaylistListener;
   VoidCallback? _refreshListener;
@@ -73,22 +73,21 @@ class HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _spotifyProvider = context.read<SpotifyInternalProvider>();
+    _localPlaylistState = context.read<LocalPlaylistState>();
     _wasAuthenticated = _spotifyProvider.isAuthenticated;
     _spotifyProvider.addListener(_handleAuthChange);
 
-    final localState = context.read<LocalPlaylistState>();
     _localPlaylistListener = () {
       if (!mounted) return;
-      final localState = context.read<LocalPlaylistState>();
       setState(() {
         _savedPlaylists = _mergeLocalPlaylists(
           _remotePlaylists,
-          localState.genericPlaylists,
-          localState.hiddenProviderPlaylistIds,
+          _localPlaylistState.genericPlaylists,
+          _localPlaylistState.hiddenProviderPlaylistIds,
         );
       });
     };
-    localState.addListener(_localPlaylistListener!);
+    _localPlaylistState.addListener(_localPlaylistListener!);
 
     final refreshSignal = widget.refreshSignal;
     if (refreshSignal != null) {
@@ -117,9 +116,7 @@ class HomePageState extends State<HomePage> {
       widget.refreshSignal?.removeListener(_refreshListener!);
     }
     if (_localPlaylistListener != null) {
-      context
-          .read<LocalPlaylistState>()
-          .removeListener(_localPlaylistListener!);
+      _localPlaylistState.removeListener(_localPlaylistListener!);
     }
     super.dispose();
   }
@@ -378,7 +375,7 @@ class HomePageState extends State<HomePage> {
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.of(context).pushNamed(TabRoutes.settings);
+              AppNavigation.instance.openSettings();
             },
             icon: const Icon(Icons.settings),
             label: const Text('Go to Settings'),
@@ -476,7 +473,7 @@ class HomePageState extends State<HomePage> {
                       minHeight: 40,
                     ),
                     onPressed: () {
-                      Navigator.of(context).pushNamed(TabRoutes.settings);
+                      AppNavigation.instance.openSettings();
                     },
                   ),
                 ],
@@ -891,46 +888,20 @@ class HomePageState extends State<HomePage> {
     String? title,
     String? thumbnailUrl,
   }) {
-    final navState = context.read<NavigationState>();
-    Navigator.push(
+    AppNavigation.instance.openSharedList(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-              id: id,
-              type: type,
-              initialTitle: title,
-              initialThumbnailUrl: thumbnailUrl,
-              playlists: _savedPlaylists,
-              albums: _savedAlbums,
-              artists: _followedArtists,
-              initialLibraryView: navState.selectedLibraryView,
-              initialNavIndex: navState.selectedNavIndex,
-            ),
-      ),
+      id: id,
+      type: type,
+      initialTitle: title,
+      initialThumbnailUrl: thumbnailUrl,
     );
   }
 
   void _openArtist(GenericSimpleArtist artist) {
-    final navState = context.read<NavigationState>();
-    Navigator.push(
+    AppNavigation.instance.openArtist(
       context,
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ArtistDetailView(
-              artistId: artist.id,
-              initialArtist: artist,
-              playlists: _savedPlaylists,
-              albums: _savedAlbums,
-              artists: _followedArtists,
-              initialLibraryView: navState.selectedLibraryView,
-              initialNavIndex: navState.selectedNavIndex,
-            ),
-      ),
+      artistId: artist.id,
+      initialArtist: artist,
     );
   }
 
