@@ -6,15 +6,166 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/models/local_playlist.dart';
 
 import '../models/library_folder.dart';
 import '../models/metadata_models.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
+import '../providers/metadata/spotify.dart';
+import '../providers/metadata/spotify_internal.dart';
+import '../providers/preferences/preferences_provider.dart';
+import '../services/navigation_history.dart';
 
 class PlaylistFolderModals {
   static OverlayEntry? _activeSubmenu;
   static BuildContext? _submenuParentContext;
+
+  static void _showSnack(BuildContext context, SnackBar snackBar) {
+    if (!context.mounted) return;
+    final localMessenger = ScaffoldMessenger.maybeOf(context);
+    if (localMessenger != null) {
+      try {
+        localMessenger.showSnackBar(snackBar);
+        return;
+      } catch (_) {
+        // Fall through to root messenger.
+      }
+    }
+
+    final rootContext = NavigationHistory.instance.navigatorKey.currentContext;
+    final rootMessenger = rootContext == null
+        ? null
+        : ScaffoldMessenger.maybeOf(rootContext);
+    if (rootMessenger == null) return;
+    try {
+      rootMessenger.showSnackBar(snackBar);
+    } catch (_) {
+      // No scaffold available, ignore.
+    }
+  }
+
+  static void _showWriteBlockedSnack(BuildContext context) {
+    _showSnack(
+      context,
+      const SnackBar(
+        content: Text('Spotify writing is disabled in Preferences.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  static void _showSyncErrorSnack(BuildContext context, String message) {
+    _showSnack(
+      context,
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  static Future<void> _syncRenameToProvider(
+    BuildContext context,
+    LocalPlaylist localPlaylist,
+    String name,
+  ) async {
+    if (!localPlaylist.isLinked) return;
+    if (!context.read<PreferencesProvider>().allowWriting) {
+      _showWriteBlockedSnack(context);
+      return;
+    }
+    final linkedId = localPlaylist.linkedId;
+    if (linkedId == null || linkedId.isEmpty) return;
+    if (localPlaylist.linkedSource != SongSource.spotifyInternal) {
+      _showSyncErrorSnack(
+        context,
+        'Playlist is not linked to Spotify (Internal).',
+      );
+      return;
+    }
+    try {
+      await context.read<SpotifyInternalProvider>().renamePlaylist(
+            linkedId,
+            name,
+          );
+    } catch (e) {
+      _showSyncErrorSnack(context, 'Failed to rename on Spotify: $e');
+    }
+  }
+
+  static Future<void> _syncDeleteToProvider(
+    BuildContext context,
+    LocalPlaylist localPlaylist,
+  ) async {
+    if (!localPlaylist.isLinked) return;
+    if (!context.read<PreferencesProvider>().allowWriting) {
+      _showWriteBlockedSnack(context);
+      return;
+    }
+    final linkedId = localPlaylist.linkedId;
+    if (linkedId == null || linkedId.isEmpty) return;
+    if (localPlaylist.linkedSource != SongSource.spotifyInternal) {
+      _showSyncErrorSnack(
+        context,
+        'Playlist is not linked to Spotify (Internal).',
+      );
+      return;
+    }
+    try {
+      await context.read<SpotifyInternalProvider>().deletePlaylist(linkedId);
+    } catch (e) {
+      _showSyncErrorSnack(context, 'Failed to delete on Spotify: $e');
+    }
+  }
+
+  static Future<void> _syncCreateToProvider(
+    BuildContext context,
+    LocalPlaylist localPlaylist,
+  ) async {
+    if (!context.read<PreferencesProvider>().allowWriting) {
+      _showWriteBlockedSnack(context);
+      return;
+    }
+    final spotifyInternal = context.read<SpotifyInternalProvider>();
+    if (!spotifyInternal.isAuthenticated) {
+      _showSyncErrorSnack(
+        context,
+        'Spotify (Internal) is not connected.',
+      );
+      return;
+    }
+    String? linkedId;
+    try {
+      linkedId = await spotifyInternal.createPlaylist(
+        name: localPlaylist.title,
+      );
+    } catch (e) {
+      _showSyncErrorSnack(context, 'Failed to create on Spotify: $e');
+      return;
+    }
+    if (linkedId == null || linkedId.isEmpty) {
+      _showSyncErrorSnack(context, 'Failed to create Spotify playlist.');
+      return;
+    }
+    await context.read<LocalPlaylistState>().linkToProvider(
+          id: localPlaylist.id,
+          provider: SongSource.spotifyInternal,
+          providerId: linkedId,
+        );
+  }
+
+  static Future<void> deletePlaylistWithSync(
+    BuildContext context,
+    String playlistId,
+  ) async {
+    final localState = context.read<LocalPlaylistState>();
+    final localPlaylist = localState.getById(playlistId);
+    await localState.deletePlaylist(playlistId);
+    if (localPlaylist != null) {
+      await _syncDeleteToProvider(context, localPlaylist);
+    }
+  }
 
   static void hideAddToFolderSubmenu() {
     _activeSubmenu?.remove();
@@ -309,9 +460,10 @@ class PlaylistFolderModals {
     Future<void> save(BuildContext modalContext) async {
       final name = controller.text.trim();
       if (name.isEmpty) return;
-      await modalContext
+      final localPlaylist = await modalContext
           .read<LocalPlaylistState>()
           .createPlaylist(title: name, thumbnailFile: selectedFile);
+      await _syncCreateToProvider(modalContext, localPlaylist);
       if (modalContext.mounted) {
         Navigator.of(modalContext).pop();
       }
@@ -519,9 +671,12 @@ class PlaylistFolderModals {
               onPressed: () async {
                 final name = controller.text.trim();
                 if (name.isEmpty) return;
-                await context
-                    .read<LocalPlaylistState>()
-                    .renamePlaylist(playlist.id, name);
+                final localState = context.read<LocalPlaylistState>();
+                final localPlaylist = localState.getById(playlist.id);
+                await localState.renamePlaylist(playlist.id, name);
+                if (localPlaylist != null) {
+                  await _syncRenameToProvider(context, localPlaylist, name);
+                }
                 if (dialogContext.mounted) {
                   Navigator.of(dialogContext).pop();
                 }

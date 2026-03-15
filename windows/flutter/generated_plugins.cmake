@@ -5,10 +5,14 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   audio_service_win
   connectivity_plus
+  desktop_webview_window
+  flutter_inappwebview_windows
   flutter_secure_storage_windows
+  fvp
   media_kit_libs_windows_audio
   screen_retriever_windows
   url_launcher_windows
+  video_player_win
   window_manager
   window_to_front
 )

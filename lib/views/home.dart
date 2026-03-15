@@ -1,17 +1,19 @@
 /// Home page with user's Spotify library
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:io' show Platform, File;
 import 'dart:math';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/services.dart';
-import '../providers/metadata/spotify.dart';
+import 'package:wisp/providers/metadata/spotify_internal.dart';
+import '../models/library_folder.dart';
 import '../utils/logger.dart';
-import '../providers/audio/player.dart';
+import '../services/wisp_audio_handler.dart';
 import '../models/metadata_models.dart';
+import '../services/metadata_cache.dart';
 import '../widgets/track_context_menu.dart';
 import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
@@ -23,54 +25,23 @@ import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/navigation_state.dart';
+import '../providers/preferences/preferences_provider.dart';
 import '../services/tab_routes.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
+import '../widgets/provider_disabled_state.dart';
 
 bool _isLocalThumbnailPath(String path) {
   return path.startsWith('/') || path.startsWith('file://');
 }
 
-Widget _buildPlaylistArtForCard(GenericPlaylist playlist) {
-  if (isLikedSongsPlaylistId(playlist.id)) {
-    return const LikedSongsArt();
-  }
-  final url = playlist.thumbnailUrl;
-  if (url.isEmpty) {
-    return const Center(
-      child: Icon(
-        Icons.playlist_play,
-        size: 48,
-        color: Colors.grey,
-      ),
-    );
-  }
-  if (_isLocalThumbnailPath(url)) {
-    final path = url.replaceFirst('file://', '');
-    return Image.file(
-      File(path),
-      fit: BoxFit.cover,
-      errorBuilder: (context, url, error) => const Icon(
-        Icons.playlist_play,
-        size: 48,
-        color: Colors.grey,
-      ),
-    );
-  }
-  return CachedNetworkImage(
-    imageUrl: url,
-    fit: BoxFit.cover,
-    placeholder: (context, url) => Container(color: Colors.grey[800]),
-    errorWidget: (context, url, error) => const Icon(
-      Icons.playlist_play,
-      size: 48,
-      color: Colors.grey,
-    ),
-  );
-}
-
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  final ValueListenable<int>? refreshSignal;
+
+  const HomePage({
+    super.key,
+    this.refreshSignal,
+  });
 
   @override
   State<HomePage> createState() => HomePageState();
@@ -78,17 +49,21 @@ class HomePage extends StatefulWidget {
 
 class HomePageState extends State<HomePage> {
   bool _isLoading = true;
+  bool _isFetchingData = false;
   List<GenericSong> _topTracks = [];
   List<GenericSimpleArtist> _topArtists = [];
   List<GenericAlbum> _savedAlbums = [];
   List<GenericPlaylist> _savedPlaylists = [];
   List<GenericPlaylist> _remotePlaylists = [];
   List<GenericSimpleArtist> _followedArtists = [];
+  Map<String, List<dynamic>> _homeSections = {};
   String? _hoveredTrackId;
 
-  late final SpotifyProvider _spotifyProvider;
+  late final SpotifyInternalProvider _spotifyProvider;
   bool _wasAuthenticated = false;
   VoidCallback? _localPlaylistListener;
+  VoidCallback? _refreshListener;
+  int _lastRefreshTick = 0;
 
   NavigationState get _navState => context.read<NavigationState>();
   LibraryView get _currentLibraryView => _navState.selectedLibraryView;
@@ -97,7 +72,7 @@ class HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _spotifyProvider = context.read<SpotifyProvider>();
+    _spotifyProvider = context.read<SpotifyInternalProvider>();
     _wasAuthenticated = _spotifyProvider.isAuthenticated;
     _spotifyProvider.addListener(_handleAuthChange);
 
@@ -115,6 +90,18 @@ class HomePageState extends State<HomePage> {
     };
     localState.addListener(_localPlaylistListener!);
 
+    final refreshSignal = widget.refreshSignal;
+    if (refreshSignal != null) {
+      _lastRefreshTick = refreshSignal.value;
+      _refreshListener = () {
+        if (!mounted) return;
+        if (refreshSignal.value == _lastRefreshTick) return;
+        _lastRefreshTick = refreshSignal.value;
+        refresh();
+      };
+      refreshSignal.addListener(_refreshListener!);
+    }
+
     // Delay loading to allow provider to initialize
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) {
@@ -126,20 +113,15 @@ class HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _spotifyProvider.removeListener(_handleAuthChange);
+    if (_refreshListener != null) {
+      widget.refreshSignal?.removeListener(_refreshListener!);
+    }
     if (_localPlaylistListener != null) {
       context
           .read<LocalPlaylistState>()
           .removeListener(_localPlaylistListener!);
     }
     super.dispose();
-  }
-
-  bool _isTextInputFocused() {
-    final focus = FocusManager.instance.primaryFocus;
-    if (focus == null) return false;
-    final context = focus.context;
-    if (context == null) return false;
-    return context.widget is EditableText;
   }
 
   void _handleAuthChange() {
@@ -155,52 +137,107 @@ class HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _loadData() async {
-    final spotify = context.read<SpotifyProvider>();
-    final libraryState = context.read<LibraryState>();
-
-    setState(() => _isLoading = true);
-
-    // Re-check auth state from storage
-    await spotify.checkAuthState();
-
-    logger.d('Loading home page data...');
-    logger.d('Is authenticated: ${spotify.isAuthenticated}');
-
-    if (!spotify.isAuthenticated) {
-      logger.d('Not authenticated, skipping data load');
-      libraryState.clear();
-      setState(() => _isLoading = false);
-      return;
-    }
+  Future<void> _loadData({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    if (_isFetchingData) return;
+    _isFetchingData = true;
 
     try {
-      logger.d('Starting API calls...');
+      final preferences = context.read<PreferencesProvider>();
+      if (!preferences.metadataSpotifyEnabled) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      final spotifyInternal = context.read<SpotifyInternalProvider>();
+      final libraryState = context.read<LibraryState>();
+
+      if (mounted) {
+        setState(() => _isLoading = true);
+      }
+
+      // Re-check auth state from storage
+      await spotifyInternal.checkAuthState();
+
+      logger.d('[Views/Home] Loading home page data...');
+      logger.d('[Views/Home] Auth Status: ');
+      logger.d('\t Spotify-Internal: ${spotifyInternal.isAuthenticated}');
+
+      if (!spotifyInternal.isAuthenticated) {
+        logger.d('[Views/Home] Not authenticated, skipping data load');
+        libraryState.clear();
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      logger.d('[Views/Home] Starting API calls...');
 
       // Fetch user profile first (doesn't need to be in Future.wait)
-      await spotify.fetchUserProfile();
+      await spotifyInternal.fetchUserProfile();
 
-      final results = await Future.wait([
-        spotify.getUserTopTracks(limit: 10),
-        spotify.getUserTopArtists(limit: 10),
-        spotify.getUserAlbums(limit: 20),
-        spotify.getUserFollowedArtists(limit: 20),
-      ]);
-
-      final playlists = await _fetchAllPlaylists(spotify);
-      final cachedLiked = await spotify.getCachedSavedTracksAll();
-      if (cachedLiked != null) {
-        spotify.setLikedTracksFromItems(cachedLiked);
+      // Use internal provider for liked tracks; avoid full saved-tracks fetch.
+      List<PlaylistItem> cachedLiked = const [];
+      if (policy == MetadataFetchPolicy.refreshAlways) {
+        cachedLiked = await spotifyInternal.getUserSavedTracks(
+          limit: 50,
+          offset: 0,
+          policy: policy,
+        );
+        spotifyInternal.setLikedTracksFromItems(cachedLiked);
       } else {
-        unawaited(spotify.refreshSavedTracksAll());
+        cachedLiked = await spotifyInternal.getUserSavedTracks(
+          limit: 50,
+          offset: 0,
+          policy: MetadataFetchPolicy.refreshIfExpired,
+        );
+        if (cachedLiked.isNotEmpty) {
+          spotifyInternal.setLikedTracksFromItems(cachedLiked);
+        }
       }
       final likedPlaylist = buildLikedSongsPlaylist(
-        userDisplayName: spotify.userDisplayName,
-        total: cachedLiked?.length,
+        userDisplayName: _spotifyProvider.userDisplayName,
+        total: spotifyInternal.likedTracksTotalCount ?? cachedLiked.length,
       );
+          
+      var userLibrary = await spotifyInternal.getUserLibrary();
+      final userHome = await spotifyInternal.getUserHome(policy: policy);
+
+      // Import remote folders
+      try {
+        final folderState = context.read<LibraryFolderState>();
+        final all = userLibrary.all_organized;
+        if (all != null && all.isNotEmpty) {
+          final remoteFolders = <PlaylistFolder>[];
+          for (final e in all) {
+            if (e is Map<String, dynamic>) {
+              final t = e['__typename'] as String? ?? e['type'] as String?;
+              if (t == 'Folder' || t == 'folder') {
+                final uri = e['uri'] as String? ?? e['id'] as String? ?? '';
+                final id = uri.isNotEmpty ? uri : (e['id'] as String? ?? '');
+                final name = e['name'] as String? ?? '';
+                remoteFolders.add(PlaylistFolder(id: id, title: name, createdAt: DateTime.now()));
+              }
+            }
+          }
+          if (remoteFolders.isNotEmpty) {
+            await folderState.importRemoteFolders(remoteFolders);
+          }
+        }
+
+        if (userLibrary.folderAssignments != null) {
+          await folderState.batchAssignPlaylistsToFolders(userLibrary.folderAssignments!);
+        }
+      } catch (e) {
+        logger.w('[Views/Home] Failed to process remote folders: $e');
+      }
+
+      final internalPlaylists = userLibrary.saved_playlists;
       final playlistsWithLiked = [
         likedPlaylist,
-        ...playlists.where((p) => p.id != likedSongsPlaylistId),
+        ...internalPlaylists.where((p) => p.id != likedSongsPlaylistId),
       ];
       final localState = context.read<LocalPlaylistState>();
       final localPlaylists = localState.genericPlaylists;
@@ -211,61 +248,64 @@ class HomePageState extends State<HomePage> {
         localState.hiddenProviderPlaylistIds,
       );
 
-      logger.d('API calls completed');
-      logger.d('Top tracks: ${results[0].length}');
-      logger.d('Top artists: ${results[1].length}');
-      logger.d('Albums: ${results[2].length}');
-      logger.d('Playlists: ${playlists.length}');
-      logger.d('Followed artists: ${results[3].length}');
+      final allWithLiked = [
+        likedPlaylist,
+        ...userLibrary.all_organized?.where((item) => true) ?? [],
+      ];
 
-      setState(() {
-        _topTracks = results[0] as List<GenericSong>;
-        _topArtists = results[1] as List<GenericSimpleArtist>;
-        _savedAlbums = results[2] as List<GenericAlbum>;
-        _savedPlaylists = mergedPlaylists;
-        _followedArtists = results[3] as List<GenericSimpleArtist>;
-        _isLoading = false;
-      });
+      logger.d('[Views/Home] API calls completed');
+      logger.d('\t Albums: ${userLibrary.saved_albums.length}');
+      logger.d('\t Playlists: ${playlistsWithLiked.length}');
+      logger.d('\t Followed artists: ${userLibrary.saved_artists.length}');
+
+      if (mounted) {
+        setState(() {
+          // Use internal provider results for saved albums and followed artists
+          _savedAlbums = userLibrary.saved_albums;
+          _savedPlaylists = mergedPlaylists;
+          _followedArtists = userLibrary.saved_artists
+            .map((a) => GenericSimpleArtist(
+                id: a.id,
+                source: a.source,
+                name: a.name,
+                thumbnailUrl: a.thumbnailUrl,
+              ))
+            .toList();
+          _homeSections = userHome.sections;
+          _isLoading = false;
+        });
+      }
 
       libraryState.setLibrary(
         playlists: _savedPlaylists,
         albums: _savedAlbums,
         artists: _followedArtists,
+        allOrganized: allWithLiked,
       );
-      context
-          .read<LibraryFolderState>()
-          .syncPlaylists(libraryState.playlists);
-
-      logger.d('State updated successfully');
-    } catch (e) {
-      logger.e('Failed to load data', error: e);
-      setState(() => _isLoading = false);
       if (mounted) {
+        context
+            .read<LibraryFolderState>()
+            .syncPlaylists(libraryState.playlists);
+      }
+
+      logger.d('[Views/Home] Library state updated successfully');
+    } catch (e) {
+      logger.e('[Views/Home] Failed to load data', error: e);
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to load data: $e')));
       }
+    } finally {
+      _isFetchingData = false;
     }
   }
 
-  Future<List<GenericPlaylist>> _fetchAllPlaylists(
-    SpotifyProvider spotify,
-  ) async {
-    const limit = 50;
-    var offset = 0;
-    final all = <GenericPlaylist>[];
-    while (true) {
-      final batch = await spotify.getUserPlaylists(
-        limit: limit,
-        offset: offset,
-      );
-      all.addAll(batch);
-      if (batch.length < limit) {
-        break;
-      }
-      offset += batch.length;
-    }
-    return all;
+  Future<void> refresh({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
+  }) {
+    return _loadData(policy: policy);
   }
 
   List<GenericPlaylist> _mergeLocalPlaylists(
@@ -302,46 +342,25 @@ class HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final preferences = context.watch<PreferencesProvider>();
+    if (!preferences.metadataSpotifyEnabled) {
+      return const ProviderDisabledState();
+    }
+
     final bool isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    return Consumer<SpotifyInternalProvider>(
+      builder: (context, spotify, child) {
+        if (!spotify.isAuthenticated) {
+          return _buildUnauthenticatedView();
+        }
 
-    return Shortcuts(
-      shortcuts: {
-        LogicalKeySet(LogicalKeyboardKey.space): const ActivateIntent(),
+        if (_isLoading) {
+          return _buildLoadingView();
+        }
+
+        return _buildMainContent(isDesktop);
       },
-      child: Actions(
-        actions: {
-          ActivateIntent: CallbackAction<ActivateIntent>(
-            onInvoke: (intent) {
-              if (_isTextInputFocused()) return null;
-              final player = context.read<AudioPlayerProvider>();
-              if (player.isPlaying) {
-                player.pause();
-              } else if (player.currentTrack != null ||
-                  player.queue.isNotEmpty) {
-                player.play();
-              }
-              return null;
-            },
-          ),
-        },
-        child: Focus(
-          autofocus: true,
-          child: Consumer<SpotifyProvider>(
-            builder: (context, spotify, child) {
-              if (!spotify.isAuthenticated) {
-                return _buildUnauthenticatedView();
-              }
-
-              if (_isLoading) {
-                return _buildLoadingView();
-              }
-
-              return _buildMainContent(isDesktop);
-            },
-          ),
-        ),
-      ),
     );
   }
 
@@ -375,16 +394,19 @@ class HomePageState extends State<HomePage> {
 
   Widget _buildMainContent(bool isDesktop) {
     if (isDesktop) {
-      return RefreshIndicator(onRefresh: _loadData, child: _buildContentArea());
+      return RefreshIndicator(
+        onRefresh: () => _loadData(policy: MetadataFetchPolicy.refreshAlways),
+        child: _buildContentArea(),
+      );
     }
 
     return RefreshIndicator(
-      onRefresh: _loadData,
+      onRefresh: () => _loadData(policy: MetadataFetchPolicy.refreshAlways),
       child: _buildMobileHomeContent(),
     );
   }
 
-  String _getRandomGreeting(SpotifyProvider spotify) {
+  String _getRandomGreeting(SpotifyInternalProvider spotify) {
     final userName = spotify.userDisplayName ?? 'user';
     final hour = DateTime.now().hour;
 
@@ -419,7 +441,7 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildMobileHomeContent() {
-    final spotify = context.read<SpotifyProvider>();
+    final spotify = context.read<SpotifyInternalProvider>();
     final greeting = _getRandomGreeting(spotify);
 
     return SafeArea(
@@ -549,19 +571,20 @@ class HomePageState extends State<HomePage> {
           ),
 
           // "this past month" section
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-              child: Text(
-                'this past month',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+          if (_topTracks.isNotEmpty || _topArtists.isNotEmpty) 
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                child: Text(
+                  'this past month',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
-          ),
 
           // Top Tracks horizontal scroll
           if (_topTracks.isNotEmpty)
@@ -595,7 +618,7 @@ class HomePageState extends State<HomePage> {
                           title: track.title,
                           subtitle: track.artists.map((a) => a.name).join(', '),
                           onTap: () async {
-                            final player = context.read<AudioPlayerProvider>();
+                            final player = context.read<WispAudioHandler>();
                             player.clearQueue();
                             await player.playTrack(track);
                           },
@@ -691,9 +714,11 @@ class HomePageState extends State<HomePage> {
     Widget? customArt,
   }) {
     final isLocalThumb = imageUrl.isNotEmpty && _isLocalThumbnailPath(imageUrl);
+    final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        mouseCursor: isDesktop ? SystemMouseCursors.click : null,
         onTap: onTap,
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(8),
@@ -910,71 +935,22 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildContentArea() {
+    final quickRows = _buildDesktopQuickRows();
+    final dynamicSections = _buildDynamicHomeSections(skipFirst: quickRows != null);
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        // Horizontal scrolling sections
-        if (_savedPlaylists.isNotEmpty)
-          _buildSection(
-            'Playlists',
-            _savedPlaylists
-                .map(
-                  (playlist) => _PlaylistCard(
-                    playlist: playlist,
-                    onTap: () => _openSharedList(
-                      SharedListType.playlist,
-                      playlist.id,
-                      title: playlist.title,
-                      thumbnailUrl: playlist.thumbnailUrl,
-                    ),
-                    playlists: _savedPlaylists,
-                    albums: _savedAlbums,
-                    artists: _followedArtists,
-                    currentLibraryView: _currentLibraryView,
-                    currentNavIndex: _currentNavIndex,
-                  ),
-                )
-                .toList(),
+        Text(
+          _getRandomGreeting(context.read<SpotifyInternalProvider>()),
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
-        if (_savedAlbums.isNotEmpty)
-          _buildSection(
-            'Albums',
-            _savedAlbums
-                .map(
-                  (album) => _AlbumCard(
-                    album: album,
-                    onTap: () => _openSharedList(
-                      SharedListType.album,
-                      album.id,
-                      title: album.title,
-                      thumbnailUrl: album.thumbnailUrl,
-                    ),
-                    playlists: _savedPlaylists,
-                    albums: _savedAlbums,
-                    artists: _followedArtists,
-                    currentLibraryView: _currentLibraryView,
-                    currentNavIndex: _currentNavIndex,
-                  ),
-                )
-                .toList(),
-          ),
-        if (_followedArtists.isNotEmpty)
-          _buildSection(
-            'Following',
-            _followedArtists
-                .map(
-                  (artist) => _ArtistCard(
-                    artist: artist,
-                    onTap: () => _openArtist(artist),
-                    playlists: _savedPlaylists,
-                    albums: _savedAlbums,
-                    artists: _followedArtists,
-                    currentLibraryView: _currentLibraryView,
-                    currentNavIndex: _currentNavIndex,
-                  ),
-                )
-                .toList(),
-          ),
+        ),
+        const SizedBox(height: 16),
+        if (quickRows != null) quickRows,
+        ...dynamicSections,
 
         // Top Tracks as a table/list
         if (_topTracks.isNotEmpty) ...[
@@ -1009,6 +985,295 @@ class HomePageState extends State<HomePage> {
     );
   }
 
+  Widget? _buildDesktopQuickRows() {
+    if (_homeSections.isEmpty) return null;
+    final firstSection = _homeSections.entries.first;
+    final player = context.watch<WispAudioHandler>();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final itemsPerRow = (maxWidth / 220).floor().clamp(1, 5);
+        final maxItems = itemsPerRow * 2;
+        final cards = firstSection.value
+            .map<Widget?>((item) => _buildHomeQuickTile(item, player))
+            .whereType<Widget>()
+            .take(maxItems)
+            .toList();
+        if (cards.isEmpty) return const SizedBox.shrink();
+
+        final rowCount = ((cards.length + itemsPerRow - 1) / itemsPerRow).floor();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int row = 0; row < rowCount; row++)
+              Padding(
+                padding: EdgeInsets.only(bottom: row == rowCount - 1 ? 24 : 16),
+                child: Row(
+                  children: List.generate(itemsPerRow, (col) {
+                    final index = row * itemsPerRow + col;
+                    final item = index < cards.length
+                        ? cards[index]
+                        : const SizedBox.shrink();
+                    if (col == itemsPerRow - 1) {
+                      return Expanded(child: item);
+                    }
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: item,
+                      ),
+                    );
+                  }),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  bool _isActivePlaylist(WispAudioHandler player, GenericPlaylist item) {
+    if (player.playbackContextType != 'playlist') return false;
+    if (player.playbackContextID == item.id) return true;
+    final contextName = player.playbackContextName?.trim();
+    return contextName != null && contextName.isNotEmpty && contextName == item.title.trim();
+  }
+
+  bool _isActiveAlbum(WispAudioHandler player, GenericAlbum item) {
+    if (player.playbackContextType == 'album') {
+      if (player.playbackContextID == item.id) return true;
+      final contextName = player.playbackContextName?.trim();
+      return contextName != null && contextName.isNotEmpty && contextName == item.title.trim();
+    }
+    return player.currentTrack?.album?.id == item.id;
+  }
+
+  bool _isActiveArtist(WispAudioHandler player, GenericSimpleArtist item) {
+    if (player.playbackContextType == 'artist') {
+      if (player.playbackContextID == item.id) return true;
+      final contextName = player.playbackContextName?.trim();
+      return contextName != null && contextName.isNotEmpty && contextName == item.name.trim();
+    }
+    final currentTrack = player.currentTrack;
+    if (currentTrack == null) return false;
+    return currentTrack.artists.any((a) => a.id == item.id);
+  }
+
+  Widget? _buildHomeQuickTile(dynamic item, WispAudioHandler player) {
+    final isPlaying = player.isPlaying;
+    if (item is GenericPlaylist) {
+      final isActive = _isActivePlaylist(player, item);
+      return _HomeQuickTile(
+        imageUrl: item.thumbnailUrl,
+        title: item.title,
+        subtitle: item.author.displayName,
+        isActive: isActive,
+        isPlaying: isPlaying,
+        customArt: isLikedSongsPlaylistId(item.id)
+            ? const LikedSongsArt()
+            : null,
+        onTap: () => _openSharedList(
+          SharedListType.playlist,
+          item.id,
+          title: item.title,
+          thumbnailUrl: item.thumbnailUrl,
+        ),
+        onPlay: () => _playPlaylist(item.id, contextNameOverride: item.title),
+        onSecondaryTapDown: (details) {
+          final navState = context.read<NavigationState>();
+          LibraryItemContextMenu.show(
+            context: context,
+            position: details.globalPosition,
+            item: item,
+            playlists: _savedPlaylists,
+            albums: _savedAlbums,
+            artists: _followedArtists,
+            currentLibraryView: navState.selectedLibraryView,
+            currentNavIndex: navState.selectedNavIndex,
+          );
+        },
+      );
+    }
+
+    if (item is GenericAlbum) {
+      final isActive = _isActiveAlbum(player, item);
+      return _HomeQuickTile(
+        imageUrl: item.thumbnailUrl,
+        title: item.title,
+        subtitle: item.artists.map((a) => a.name).join(', '),
+        isActive: isActive,
+        isPlaying: isPlaying,
+        onTap: () => _openSharedList(
+          SharedListType.album,
+          item.id,
+          title: item.title,
+          thumbnailUrl: item.thumbnailUrl,
+        ),
+        onPlay: () => _playAlbum(item.id),
+        onSecondaryTapDown: (details) {
+          final navState = context.read<NavigationState>();
+          LibraryItemContextMenu.show(
+            context: context,
+            position: details.globalPosition,
+            item: item,
+            playlists: _savedPlaylists,
+            albums: _savedAlbums,
+            artists: _followedArtists,
+            currentLibraryView: navState.selectedLibraryView,
+            currentNavIndex: navState.selectedNavIndex,
+          );
+        },
+      );
+    }
+
+    if (item is GenericSimpleArtist) {
+      final isActive = _isActiveArtist(player, item);
+      return _HomeQuickTile(
+        imageUrl: item.thumbnailUrl,
+        title: item.name,
+        subtitle: 'Artist',
+        isActive: isActive,
+        isPlaying: isPlaying,
+        onTap: () => _openArtist(item),
+        onPlay: () => _playArtist(item.id),
+        onSecondaryTapDown: (details) {
+          final navState = context.read<NavigationState>();
+          LibraryItemContextMenu.show(
+            context: context,
+            position: details.globalPosition,
+            item: item,
+            playlists: _savedPlaylists,
+            albums: _savedAlbums,
+            artists: _followedArtists,
+            currentLibraryView: navState.selectedLibraryView,
+            currentNavIndex: navState.selectedNavIndex,
+          );
+        },
+      );
+    }
+
+    if (item is GenericSong) {
+      final isActive = player.currentTrack?.id == item.id;
+      return _HomeQuickTile(
+        imageUrl: item.thumbnailUrl,
+        title: item.title,
+        subtitle: item.artists.map((a) => a.name).join(', '),
+        isActive: isActive,
+        isPlaying: isPlaying,
+        onTap: () async {
+          final player = context.read<WispAudioHandler>();
+          player.clearQueue();
+          await player.playTrack(item);
+        },
+        onPlay: () async {
+          final player = context.read<WispAudioHandler>();
+          player.clearQueue();
+          await player.playTrack(item);
+        },
+        onSecondaryTapDown: (details) {
+          final navState = context.read<NavigationState>();
+          TrackContextMenu.show(
+            context: context,
+            position: details.globalPosition,
+            track: item,
+            playlists: _savedPlaylists,
+            albums: _savedAlbums,
+            artists: _followedArtists,
+            currentLibraryView: navState.selectedLibraryView,
+            currentNavIndex: navState.selectedNavIndex,
+          );
+        },
+      );
+    }
+
+    return null;
+  }
+
+  List<Widget> _buildDynamicHomeSections({bool skipFirst = false}) {
+    if (_homeSections.isEmpty) return const [];
+    final widgets = <Widget>[];
+
+    final entries = skipFirst
+        ? _homeSections.entries.skip(1)
+        : _homeSections.entries;
+
+    for (final entry in entries) {
+      final cards = entry.value
+          .map<Widget?>(_buildHomeCard)
+          .whereType<Widget>()
+          .toList();
+      if (cards.isEmpty) continue;
+      widgets.add(_buildSection(entry.key, cards));
+    }
+
+    return widgets;
+  }
+
+  Widget? _buildHomeCard(dynamic item) {
+    final player = context.watch<WispAudioHandler>();
+    final isPlaying = player.isPlaying;
+    if (item is GenericPlaylist) {
+      final isActive = _isActivePlaylist(player, item);
+      return _PlaylistCard(
+        playlist: item,
+        onTap: () => _openSharedList(
+          SharedListType.playlist,
+          item.id,
+          title: item.title,
+          thumbnailUrl: item.thumbnailUrl,
+        ),
+        onPlay: () => _playPlaylist(item.id, contextNameOverride: item.title),
+        isActive: isActive,
+        isPlaying: isPlaying,
+        playlists: _savedPlaylists,
+        albums: _savedAlbums,
+        artists: _followedArtists,
+        currentLibraryView: _currentLibraryView,
+        currentNavIndex: _currentNavIndex,
+      );
+    }
+
+    if (item is GenericAlbum) {
+      final isActive = _isActiveAlbum(player, item);
+      return _AlbumCard(
+        album: item,
+        onTap: () => _openSharedList(
+          SharedListType.album,
+          item.id,
+          title: item.title,
+          thumbnailUrl: item.thumbnailUrl,
+        ),
+        onPlay: () => _playAlbum(item.id),
+        isActive: isActive,
+        isPlaying: isPlaying,
+        playlists: _savedPlaylists,
+        albums: _savedAlbums,
+        artists: _followedArtists,
+        currentLibraryView: _currentLibraryView,
+        currentNavIndex: _currentNavIndex,
+      );
+    }
+
+    if (item is GenericSimpleArtist) {
+      final isActive = _isActiveArtist(player, item);
+      return _ArtistCard(
+        artist: item,
+        onTap: () => _openArtist(item),
+        onPlay: () => _playArtist(item.id),
+        isActive: isActive,
+        isPlaying: isPlaying,
+        playlists: _savedPlaylists,
+        albums: _savedAlbums,
+        artists: _followedArtists,
+        currentLibraryView: _currentLibraryView,
+        currentNavIndex: _currentNavIndex,
+      );
+    }
+
+    return null;
+  }
+
   Widget _buildTopTracksTable() {
     return Container(
       decoration: BoxDecoration(
@@ -1027,7 +1292,7 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildTrackRow(GenericSong track, int index, bool isEven) {
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<WispAudioHandler>();
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final album = track.album;
@@ -1078,7 +1343,7 @@ class HomePageState extends State<HomePage> {
           child: InkWell(
             mouseCursor: SystemMouseCursors.click,
             onTap: () async {
-              final player = context.read<AudioPlayerProvider>();
+              final player = context.read<WispAudioHandler>();
 
               // Clear queue and play just this track
               player.clearQueue();
@@ -1447,36 +1712,90 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildSection(String title, List<Widget> cards) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 220,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: cards.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 16),
-            itemBuilder: (context, index) => cards[index],
-          ),
-        ),
-        const SizedBox(height: 24),
-      ],
-    );
+    return _ScrollableCardSection(title: title, cards: cards);
+  }
+
+  Future<void> _playAlbum(String albumId) async {
+    final spotify = context.read<SpotifyInternalProvider>();
+    final player = context.read<WispAudioHandler>();
+    try {
+      final album = await spotify.getAlbumInfo(albumId);
+      final tracks = album.songs ?? [];
+      if (tracks.isEmpty) return;
+      await player.setQueue(
+        tracks,
+        startIndex: 0,
+        play: true,
+        contextType: 'album',
+        contextName: album.title,
+        contextID: album.id,
+        contextSource: album.source,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _playPlaylist(String playlistId, {String? contextNameOverride}) async {
+    final spotify = context.read<SpotifyInternalProvider>();
+    final player = context.read<WispAudioHandler>();
+    try {
+      final playlist = await spotify.getPlaylistInfo(playlistId);
+      final items = playlist.songs ?? [];
+      if (items.isEmpty) return;
+      final tracks = items
+          .map(
+            (item) => GenericSong(
+              id: item.id,
+              source: item.source,
+              title: item.title,
+              artists: item.artists,
+              thumbnailUrl: item.thumbnailUrl,
+              explicit: item.explicit,
+              album: item.album,
+              durationSecs: item.durationSecs,
+            ),
+          )
+          .toList();
+      await player.setQueue(
+        tracks,
+        startIndex: 0,
+        play: true,
+        contextType: 'playlist',
+        contextName: (contextNameOverride != null && contextNameOverride.isNotEmpty)
+            ? contextNameOverride
+            : playlist.title,
+        contextID: playlist.id,
+        contextSource: playlist.source,
+      );
+      context.read<LibraryFolderState>().markPlaylistPlayed(playlistId);
+    } catch (_) {}
+  }
+
+  Future<void> _playArtist(String artistId) async {
+    final spotify = context.read<SpotifyInternalProvider>();
+    final player = context.read<WispAudioHandler>();
+    try {
+      final artist = await spotify.getArtistInfo(artistId);
+      final tracks = artist.topSongs;
+      if (tracks.isEmpty) return;
+      await player.setQueue(
+        tracks,
+        startIndex: 0,
+        play: true,
+        contextType: 'artist',
+        contextName: artist.name,
+        contextID: artist.id,
+        contextSource: artist.source,
+      );
+    } catch (_) {}
   }
 }
 
 class _ArtistCard extends StatelessWidget {
   final GenericSimpleArtist artist;
   final VoidCallback onTap;
+  final VoidCallback onPlay;
+  final bool isActive;
+  final bool isPlaying;
   final List<GenericPlaylist> playlists;
   final List<GenericAlbum> albums;
   final List<GenericSimpleArtist> artists;
@@ -1486,6 +1805,9 @@ class _ArtistCard extends StatelessWidget {
   const _ArtistCard({
     required this.artist,
     required this.onTap,
+    required this.onPlay,
+    required this.isActive,
+    required this.isPlaying,
     required this.playlists,
     required this.albums,
     required this.artists,
@@ -1503,7 +1825,11 @@ class _ArtistCard extends StatelessWidget {
         child: Material(
           color: Color(0xFF181818),
           borderRadius: BorderRadius.circular(8),
-          child: GestureDetector(
+          child: _HoverPlayCard(
+            onTap: onTap,
+            onPlay: onPlay,
+            isActive: isActive,
+            isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
                     LibraryItemContextMenu.show(
@@ -1531,63 +1857,58 @@ class _ArtistCard extends StatelessWidget {
                       currentNavIndex: currentNavIndex,
                     );
                   },
-            child: InkWell(
-              mouseCursor: SystemMouseCursors.click,
-              onTap: () {
-                onTap();
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.all(11.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    ClipOval(
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        color: Colors.grey[900],
-                        child: artist.thumbnailUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: artist.thumbnailUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) =>
-                                    Container(color: Colors.grey[800]),
-                                errorWidget: (context, url, error) =>
-                                    const Icon(
-                                      Icons.person,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                              )
-                            : const Center(
-                                child: Icon(
-                                  Icons.person,
-                                  size: 48,
-                                  color: Colors.grey,
-                                ),
+            child: Padding(
+              padding: const EdgeInsets.all(11.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ClipOval(
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      color: Colors.grey[900],
+                      child: artist.thumbnailUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: artist.thumbnailUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) =>
+                                  Container(color: Colors.grey[800]),
+                              errorWidget: (context, url, error) =>
+                                  const Icon(
+                                Icons.person,
+                                size: 48,
+                                color: Colors.grey,
                               ),
-                      ),
+                            )
+                          : const Icon(
+                              Icons.person,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
                     ),
-                    SizedBox(height: 9),
-                    Text(
-                      artist.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    artist.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      'Artist',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Artist',
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 12,
                     ),
-                  ],
-                ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
           ),
@@ -1600,6 +1921,9 @@ class _ArtistCard extends StatelessWidget {
 class _AlbumCard extends StatelessWidget {
   final GenericAlbum album;
   final VoidCallback onTap;
+  final VoidCallback onPlay;
+  final bool isActive;
+  final bool isPlaying;
   final List<GenericPlaylist> playlists;
   final List<GenericAlbum> albums;
   final List<GenericSimpleArtist> artists;
@@ -1609,6 +1933,9 @@ class _AlbumCard extends StatelessWidget {
   const _AlbumCard({
     required this.album,
     required this.onTap,
+    required this.onPlay,
+    required this.isActive,
+    required this.isPlaying,
     required this.playlists,
     required this.albums,
     required this.artists,
@@ -1626,7 +1953,11 @@ class _AlbumCard extends StatelessWidget {
         child: Material(
           color: Color(0xFF181818),
           borderRadius: BorderRadius.circular(8),
-          child: GestureDetector(
+          child: _HoverPlayCard(
+            onTap: onTap,
+            onPlay: onPlay,
+            isActive: isActive,
+            isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
                     LibraryItemContextMenu.show(
@@ -1654,66 +1985,59 @@ class _AlbumCard extends StatelessWidget {
                       currentNavIndex: currentNavIndex,
                     );
                   },
-            child: InkWell(
-              mouseCursor: SystemMouseCursors.click,
-              onTap: () {
-                onTap();
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.all(11.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        width: double.infinity,
-                        height: 148,
-                        color: Colors.grey[900],
-                        child: album.thumbnailUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: album.thumbnailUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) =>
-                                    Container(color: Colors.grey[800]),
-                                errorWidget: (context, url, error) =>
-                                    const Icon(
-                                      Icons.album,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                              )
-                            : const Center(
-                                child: Icon(
-                                  Icons.album,
-                                  size: 48,
-                                  color: Colors.grey,
-                                ),
+            child: Padding(
+              padding: const EdgeInsets.all(11.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      color: Colors.grey[900],
+                      child: album.thumbnailUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: album.thumbnailUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) =>
+                                  Container(color: Colors.grey[800]),
+                              errorWidget: (context, url, error) =>
+                                  const Icon(
+                                Icons.album,
+                                size: 48,
+                                color: Colors.grey,
                               ),
-                      ),
+                            )
+                          : const Icon(
+                              Icons.album,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
                     ),
-                    SizedBox(height: 9),
-                    Text(
-                      album.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    album.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      album.artists.map((a) => a.name).join(', '),
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    album.artists.map((a) => a.name).join(', '),
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 12,
                     ),
-                  ],
-                ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
           ),
@@ -1726,6 +2050,9 @@ class _AlbumCard extends StatelessWidget {
 class _PlaylistCard extends StatelessWidget {
   final GenericPlaylist playlist;
   final VoidCallback onTap;
+  final VoidCallback onPlay;
+  final bool isActive;
+  final bool isPlaying;
   final List<GenericPlaylist> playlists;
   final List<GenericAlbum> albums;
   final List<GenericSimpleArtist> artists;
@@ -1735,6 +2062,9 @@ class _PlaylistCard extends StatelessWidget {
   const _PlaylistCard({
     required this.playlist,
     required this.onTap,
+    required this.onPlay,
+    required this.isActive,
+    required this.isPlaying,
     required this.playlists,
     required this.albums,
     required this.artists,
@@ -1746,13 +2076,18 @@ class _PlaylistCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final isLiked = isLikedSongsPlaylistId(playlist.id);
     return SizedBox(
       width: 180,
       child: ClipRect(
         child: Material(
           color: Color(0xFF181818),
           borderRadius: BorderRadius.circular(8),
-          child: GestureDetector(
+          child: _HoverPlayCard(
+            onTap: onTap,
+            onPlay: onPlay,
+            isActive: isActive,
+            isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
                     LibraryItemContextMenu.show(
@@ -1780,50 +2115,463 @@ class _PlaylistCard extends StatelessWidget {
                       currentNavIndex: currentNavIndex,
                     );
                   },
-            child: InkWell(
-              mouseCursor: SystemMouseCursors.click,
-              onTap: () {
-                onTap();
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.all(11.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        width: double.infinity,
-                        height: 148,
-                        color: Colors.grey[900],
-                        child: _buildPlaylistArtForCard(playlist),
-                      ),
+            child: Padding(
+              padding: const EdgeInsets.all(11.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      color: Colors.grey[900],
+                      child: isLiked
+                          ? const LikedSongsArt()
+                          : (playlist.thumbnailUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: playlist.thumbnailUrl,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) =>
+                                      Container(color: Colors.grey[800]),
+                                  errorWidget: (context, url, error) =>
+                                      const Icon(
+                                    Icons.playlist_play,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.playlist_play,
+                                  size: 48,
+                                  color: Colors.grey,
+                                )),
                     ),
-                    SizedBox(height: 9),
-                    Text(
-                      playlist.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    playlist.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 14,
                     ),
-                    SizedBox(height: 2),
-                    Text(
-                      '${playlist.total ?? 0} tracks',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    playlist.author.displayName,
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 12,
                     ),
-                  ],
-                ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HomeQuickTile extends StatefulWidget {
+  final String imageUrl;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final VoidCallback onPlay;
+  final bool isActive;
+  final bool isPlaying;
+  final GestureTapDownCallback? onSecondaryTapDown;
+  final Widget? customArt;
+
+  const _HomeQuickTile({
+    required this.imageUrl,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    required this.onPlay,
+    required this.isActive,
+    required this.isPlaying,
+    this.onSecondaryTapDown,
+    this.customArt,
+  });
+
+  @override
+  State<_HomeQuickTile> createState() => _HomeQuickTileState();
+}
+
+class _HomeQuickTileState extends State<_HomeQuickTile> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final isLocalThumb =
+        widget.imageUrl.isNotEmpty && _isLocalThumbnailPath(widget.imageUrl);
+
+    return MouseRegion(
+      cursor: isDesktop ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: Material(
+        color: Colors.transparent,
+        child: GestureDetector(
+          onSecondaryTapDown: widget.onSecondaryTapDown,
+          behavior: HitTestBehavior.opaque,
+          child: InkWell(
+            mouseCursor: isDesktop ? SystemMouseCursors.click : null,
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      color: Colors.grey[900],
+                      child: widget.customArt ??
+                          (widget.imageUrl.isNotEmpty
+                              ? (isLocalThumb
+                                  ? Image.file(
+                                      File(widget.imageUrl.replaceFirst('file://', '')),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, url, error) => Icon(
+                                        Icons.music_note,
+                                        color: Colors.grey[700],
+                                      ),
+                                    )
+                                  : CachedNetworkImage(
+                                      imageUrl: widget.imageUrl,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) =>
+                                          Container(color: Colors.grey[800]),
+                                      errorWidget: (context, url, error) => Icon(
+                                        Icons.music_note,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ))
+                              : Icon(Icons.music_note, color: Colors.grey[700])),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.subtitle,
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  AnimatedOpacity(
+                    opacity: _isHovering ? 1 : 0,
+                    duration: const Duration(milliseconds: 120),
+                    child: IgnorePointer(
+                      ignoring: !_isHovering,
+                      child: IconButton(
+                        icon: Icon(
+                          widget.isActive && widget.isPlaying
+                              ? Icons.pause
+                              : Icons.play_arrow,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          final player = context.read<WispAudioHandler>();
+                          if (widget.isActive) {
+                            if (player.isPlaying) {
+                              player.pause();
+                            } else {
+                              player.play();
+                            }
+                            return;
+                          }
+                          widget.onPlay();
+                        },
+                        splashRadius: 18,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HoverPlayCard extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  final VoidCallback onPlay;
+  final bool isActive;
+  final bool isPlaying;
+  final GestureTapDownCallback? onSecondaryTapDown;
+  final VoidCallback? onLongPress;
+
+  const _HoverPlayCard({
+    required this.child,
+    required this.onTap,
+    required this.onPlay,
+    required this.isActive,
+    required this.isPlaying,
+    this.onSecondaryTapDown,
+    this.onLongPress,
+  });
+
+  @override
+  State<_HoverPlayCard> createState() => _HoverPlayCardState();
+}
+
+class _HoverPlayCardState extends State<_HoverPlayCard> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    return MouseRegion(
+      cursor: isDesktop ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: GestureDetector(
+        onSecondaryTapDown: widget.onSecondaryTapDown,
+        onLongPress: widget.onLongPress,
+        child: InkWell(
+          mouseCursor: isDesktop ? SystemMouseCursors.click : null,
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(
+              clipBehavior: Clip.hardEdge,
+            children: [
+              widget.child,
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: AnimatedOpacity(
+                  opacity: _isHovering ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  child: IgnorePointer(
+                    ignoring: !_isHovering,
+                    child: Material(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(16),
+                      child: IconButton(
+                        icon: Icon(
+                          widget.isActive && widget.isPlaying
+                              ? Icons.pause
+                              : Icons.play_arrow,
+                          color: Colors.white,
+                        ),
+                        onPressed: () {
+                          final player = context.read<WispAudioHandler>();
+                          if (widget.isActive) {
+                            if (player.isPlaying) {
+                              player.pause();
+                            } else {
+                              player.play();
+                            }
+                            return;
+                          }
+                          widget.onPlay();
+                        },
+                        splashRadius: 18,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScrollableCardSection extends StatefulWidget {
+  final String title;
+  final List<Widget> cards;
+
+  const _ScrollableCardSection({
+    required this.title,
+    required this.cards,
+  });
+
+  @override
+  State<_ScrollableCardSection> createState() => _ScrollableCardSectionState();
+}
+
+class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
+  final ScrollController _controller = ScrollController();
+  bool _canScrollLeft = false;
+  bool _canScrollRight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_updateArrows);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_updateArrows);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _updateArrows() {
+    if (!_controller.hasClients) return;
+    final maxExtent = _controller.position.maxScrollExtent;
+    final offset = _controller.offset;
+    final canLeft = offset > 4;
+    final canRight = offset < (maxExtent - 4);
+    if (canLeft == _canScrollLeft && canRight == _canScrollRight) return;
+    setState(() {
+      _canScrollLeft = canLeft;
+      _canScrollRight = canRight;
+    });
+  }
+
+  void _scrollBy(double delta) {
+    if (!_controller.hasClients) return;
+    final target = (_controller.offset + delta)
+        .clamp(0.0, _controller.position.maxScrollExtent);
+    _controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.cards.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.title,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 230,
+          child: Stack(
+            children: [
+              ListView.separated(
+                controller: _controller,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(bottom: 4),
+                itemCount: widget.cards.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 16),
+                itemBuilder: (context, index) => widget.cards[index],
+              ),
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: AnimatedOpacity(
+                  opacity: _canScrollLeft ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  child: IgnorePointer(
+                    ignoring: !_canScrollLeft,
+                    child: Center(
+                      child: _ScrollArrowButton(
+                        icon: Icons.chevron_left,
+                        onPressed: () => _scrollBy(-240),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: AnimatedOpacity(
+                  opacity: _canScrollRight ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  child: IgnorePointer(
+                    ignoring: !_canScrollRight,
+                    child: Center(
+                      child: _ScrollArrowButton(
+                        icon: Icons.chevron_right,
+                        onPressed: () => _scrollBy(240),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+class _ScrollArrowButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _ScrollArrowButton({
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withOpacity(0.5),
+      shape: const CircleBorder(),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white),
+        onPressed: onPressed,
+        splashRadius: 18,
       ),
     );
   }

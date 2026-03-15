@@ -11,7 +11,7 @@ import 'playlist_folder_modals.dart';
 import '../utils/liked_songs.dart';
 import 'liked_songs_art.dart';
 
-enum LibraryView { playlists, albums, artists }
+enum LibraryView { all, playlists, albums, artists }
 
 enum LibrarySidebarEntryType { item, unassignedHeader }
 
@@ -57,6 +57,7 @@ class WispNavigation extends StatefulWidget {
 
 class _WispNavigationState extends State<WispNavigation> {
   bool _isCollapsed = false;
+  bool _layoutCollapsed = false;
 
   bool _isLocalPath(String? path) {
     if (path == null || path.isEmpty) return false;
@@ -77,8 +78,13 @@ class _WispNavigationState extends State<WispNavigation> {
       duration: const Duration(milliseconds: 200),
       width: _isCollapsed ? widget.collapsedWidth : widget.expandedWidth,
       color: const Color(0xFF000000),
+      onEnd: () {
+        if (_layoutCollapsed != _isCollapsed) {
+          setState(() => _layoutCollapsed = _isCollapsed);
+        }
+      },
       child: Column(
-        crossAxisAlignment: _isCollapsed
+        crossAxisAlignment: _layoutCollapsed
             ? CrossAxisAlignment.center
             : CrossAxisAlignment.start,
         children: [
@@ -94,7 +100,7 @@ class _WispNavigationState extends State<WispNavigation> {
                 },
                 borderRadius: BorderRadius.circular(8),
                 child: Row(
-                  mainAxisAlignment: _isCollapsed
+                  mainAxisAlignment: _layoutCollapsed
                       ? MainAxisAlignment.center
                       : MainAxisAlignment.start,
                   children: [
@@ -120,12 +126,6 @@ class _WispNavigationState extends State<WispNavigation> {
                         },
                       ),
                     ],
-                    if (_isCollapsed)
-                      IconButton(
-                        tooltip: 'Create',
-                        icon: const Icon(Icons.add, color: Colors.white),
-                        onPressed: () => _showCreateMenu(context),
-                      ),
                   ],
                 ),
               ),
@@ -136,7 +136,7 @@ class _WispNavigationState extends State<WispNavigation> {
           // Library view selector
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: _isCollapsed
+            child: _layoutCollapsed
                 ? _buildCollapsedViewSelector()
                 : _buildExpandedViewSelector(),
           ),
@@ -147,7 +147,7 @@ class _WispNavigationState extends State<WispNavigation> {
               itemCount: widget.libraryItems.length,
               itemBuilder: (context, index) {
                 final item = widget.libraryItems[index];
-                return _buildLibraryItem(item, isCollapsed: _isCollapsed);
+                return _buildLibraryItem(item, isCollapsed: _layoutCollapsed);
               },
             ),
           ),
@@ -264,32 +264,35 @@ class _WispNavigationState extends State<WispNavigation> {
                 ),
               ),
               if (widget.selectedView == LibraryView.playlists)
-                PopupMenuButton<LibrarySortMode>(
-                  tooltip: 'Sort',
-                  icon: Icon(Icons.sort, color: Colors.grey[500], size: 18),
-                  color: const Color(0xFF282828),
-                  onSelected: folderState.setSortMode,
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: LibrarySortMode.original,
-                      child: Text('Index', style: TextStyle(color: Colors.white)),
-                    ),
-                    PopupMenuItem(
-                      value: LibrarySortMode.recentlyPlayed,
-                      child: Text(
-                        'Recently played',
-                        style: TextStyle(color: Colors.white),
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: PopupMenuButton<LibrarySortMode>(
+                        tooltip: 'Sort',
+                        icon: Icon(Icons.sort, color: Colors.grey[500], size: 18),
+                        color: const Color(0xFF282828),
+                        onSelected: folderState.setSortMode,
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(
+                            value: LibrarySortMode.original,
+                            child: Text('Index', style: TextStyle(color: Colors.white)),
+                          ),
+                          PopupMenuItem(
+                            value: LibrarySortMode.recentlyPlayed,
+                            child: Text(
+                              'Recently played',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: LibrarySortMode.custom,
+                            child: Text(
+                              'Custom order',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    PopupMenuItem(
-                      value: LibrarySortMode.custom,
-                      child: Text(
-                        'Custom order',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
-                ),
             ],
           ),
         ),
@@ -297,6 +300,7 @@ class _WispNavigationState extends State<WispNavigation> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
+            _buildViewButton(Icons.view_list, LibraryView.all),
             _buildViewButton(Icons.playlist_play, LibraryView.playlists),
             _buildViewButton(Icons.album, LibraryView.albums),
             _buildViewButton(Icons.person, LibraryView.artists),
@@ -325,6 +329,8 @@ class _WispNavigationState extends State<WispNavigation> {
 
   IconData _iconForLibraryView(LibraryView view) {
     switch (view) {
+      case LibraryView.all:
+        return Icons.view_list;
       case LibraryView.playlists:
         return Icons.playlist_play;
       case LibraryView.albums:
@@ -362,8 +368,8 @@ class _WispNavigationState extends State<WispNavigation> {
         : LibrarySidebarEntry.item(item);
     final folderState = context.watch<LibraryFolderState>();
     final libraryState = context.watch<LibraryState>();
-    final allowDrag =
-      widget.selectedView == LibraryView.playlists && folderState.isCustomSort;
+    final isDesktop = _isDesktop();
+    final allowDrag = widget.selectedView == LibraryView.playlists;
 
     if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
       return _SidebarUnassignedHeader(
@@ -535,12 +541,11 @@ class _WispNavigationState extends State<WispNavigation> {
                     color: Colors.grey[500],
                     size: 20,
                   )
-                else if (!isCollapsed &&
-                  allowDrag &&
-                  !isLiked &&
-                  !(_isDesktop()) &&
-                  (resolvedItem is GenericPlaylist))
-                  Icon(Icons.drag_handle, color: Colors.grey[600], size: 18),
+                /* else if (!isCollapsed &&
+                    allowDrag &&
+                    !isLiked &&
+                    (resolvedItem is GenericPlaylist))
+                  Icon(Icons.drag_handle, color: Colors.grey[600], size: 18), */
               ],
             ],
           ),
@@ -548,14 +553,35 @@ class _WispNavigationState extends State<WispNavigation> {
       ),
     );
 
+    void ensureCustomSort() {
+      if (!folderState.isCustomSort) {
+        folderState.setSortMode(LibrarySortMode.custom);
+      }
+    }
+
     if (allowDrag && resolvedItem is PlaylistFolder) {
-      final draggable = LongPressDraggable<_SidebarFolderDragData>(
-        delay: const Duration(milliseconds: 150),
-        data: _SidebarFolderDragData(resolvedItem.id),
-        feedback: _SidebarDragFeedback(title: resolvedItem.title, icon: Icons.folder),
-        childWhenDragging: Opacity(opacity: 0.4, child: tile),
-        child: tile,
-      );
+      final draggable = isDesktop
+          ? Draggable<_SidebarFolderDragData>(
+              data: _SidebarFolderDragData(resolvedItem.id),
+              feedback: _SidebarDragFeedback(
+                title: resolvedItem.title,
+                icon: Icons.folder,
+              ),
+              childWhenDragging: Opacity(opacity: 0.4, child: tile),
+              onDragStarted: ensureCustomSort,
+              child: tile,
+            )
+          : LongPressDraggable<_SidebarFolderDragData>(
+              delay: const Duration(milliseconds: 150),
+              data: _SidebarFolderDragData(resolvedItem.id),
+              feedback: _SidebarDragFeedback(
+                title: resolvedItem.title,
+                icon: Icons.folder,
+              ),
+              childWhenDragging: Opacity(opacity: 0.4, child: tile),
+              onDragStarted: ensureCustomSort,
+              child: tile,
+            );
       final reorderTarget = DragTarget<_SidebarFolderDragData>(
         onWillAccept: (data) => data != null && data.folderId != resolvedItem.id,
         onAccept: (data) => folderState.moveFolderBefore(data.folderId, resolvedItem.id),
@@ -587,16 +613,28 @@ class _WispNavigationState extends State<WispNavigation> {
     }
 
     if (allowDrag && resolvedItem is GenericPlaylist && !isLiked) {
-      final draggable = LongPressDraggable<_SidebarPlaylistDragData>(
-        delay: const Duration(milliseconds: 150),
-        data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
-        feedback: _SidebarDragFeedback(
-          title: resolvedItem.title,
-          icon: Icons.playlist_play,
-        ),
-        childWhenDragging: Opacity(opacity: 0.4, child: tile),
-        child: tile,
-      );
+      final draggable = isDesktop
+          ? Draggable<_SidebarPlaylistDragData>(
+              data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
+              feedback: _SidebarDragFeedback(
+                title: resolvedItem.title,
+                icon: Icons.playlist_play,
+              ),
+              childWhenDragging: Opacity(opacity: 0.4, child: tile),
+              onDragStarted: ensureCustomSort,
+              child: tile,
+            )
+          : LongPressDraggable<_SidebarPlaylistDragData>(
+              delay: const Duration(milliseconds: 150),
+              data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
+              feedback: _SidebarDragFeedback(
+                title: resolvedItem.title,
+                icon: Icons.playlist_play,
+              ),
+              childWhenDragging: Opacity(opacity: 0.4, child: tile),
+              onDragStarted: ensureCustomSort,
+              child: tile,
+            );
       final reorderTarget = DragTarget<_SidebarPlaylistDragData>(
         onWillAccept: (data) => data != null && data.playlistId != resolvedItem.id,
         onAccept: (data) {
@@ -613,7 +651,21 @@ class _WispNavigationState extends State<WispNavigation> {
           child: draggable,
         ),
       );
-      tile = reorderTarget;
+      final folderDropTarget = DragTarget<_SidebarFolderDragData>(
+        onWillAccept: (data) => data != null,
+        onAccept: (data) =>
+            folderState.moveFolderBeforePlaylist(data.folderId, resolvedItem.id),
+        builder: (context, candidate, rejected) => Container(
+          decoration: candidate.isNotEmpty
+              ? BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.circular(8),
+                )
+              : null,
+          child: reorderTarget,
+        ),
+      );
+      tile = folderDropTarget;
     }
 
     return tile;
@@ -645,9 +697,18 @@ class _WispNavigationState extends State<WispNavigation> {
         maintainBottomViewPadding: true,
         selectedIndex: safeIndex,
         onDestinationSelected: widget.onDestinationSelected,
-        backgroundColor: Color(0xFF000000),
+        backgroundColor: Colors.black,
         indicatorColor: colorScheme.primary.withOpacity(0.2),
         destinations: destinations,
+        height: 56,
+        indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        labelPadding: EdgeInsets.all(0),
+        labelTextStyle: WidgetStateProperty.all(
+          TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600
+          ),
+        ),
       ),
     );
   }

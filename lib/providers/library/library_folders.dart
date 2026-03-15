@@ -61,6 +61,14 @@ class LibraryFolderState extends ChangeNotifier {
 
   bool get isCustomSort => _sortMode == LibrarySortMode.custom;
 
+  List<GenericPlaylist> sortPlaylists(List<GenericPlaylist> playlists) {
+    return _orderPlaylists(playlists);
+  }
+
+  List<PlaylistFolder> sortFolders(Map<String, List<GenericPlaylist>> assigned) {
+    return _orderFolders(assigned);
+  }
+
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -302,6 +310,21 @@ class LibraryFolderState extends ChangeNotifier {
     await _savePrefs();
   }
 
+  Future<void> batchAssignPlaylistsToFolders(Map<String, String> assignments) async {
+    var changed = false;
+    for (final entry in assignments.entries) {
+      if (isLikedSongsPlaylistId(entry.key)) continue;
+      if (_playlistFolderIds[entry.key] != entry.value) {
+        _playlistFolderIds[entry.key] = entry.value;
+        changed = true;
+      }
+    }
+    if (changed) {
+      notifyListeners();
+      await _savePrefs();
+    }
+  }
+
   Future<void> markPlaylistPlayed(String playlistId) async {
     _playlistLastPlayed[playlistId] = DateTime.now();
     notifyListeners();
@@ -340,8 +363,64 @@ class LibraryFolderState extends ChangeNotifier {
     } else {
       _customFolderOrder.add(draggedId);
     }
+
+    final draggedPlaylists = _customPlaylistOrder
+        .where((id) => _playlistFolderIds[id] == draggedId)
+        .toList();
+    if (draggedPlaylists.isNotEmpty) {
+      _customPlaylistOrder.removeWhere(draggedPlaylists.contains);
+      final targetPlaylistIndex = _customPlaylistOrder.indexWhere(
+        (id) => _playlistFolderIds[id] == targetId,
+      );
+      final insertIndex = targetPlaylistIndex >= 0
+          ? targetPlaylistIndex
+          : _customPlaylistOrder.length;
+      _customPlaylistOrder.insertAll(insertIndex, draggedPlaylists);
+    }
     notifyListeners();
     await _savePrefs();
+  }
+
+  Future<void> moveFolderBeforePlaylist(
+    String folderId,
+    String targetPlaylistId,
+  ) async {
+    if (isLikedSongsPlaylistId(targetPlaylistId)) return;
+    if (_playlistFolderIds[targetPlaylistId] == folderId) return;
+
+    final folderPlaylists = _customPlaylistOrder
+        .where((id) => _playlistFolderIds[id] == folderId)
+        .toList();
+    if (folderPlaylists.isEmpty) return;
+
+    _customPlaylistOrder.removeWhere(folderPlaylists.contains);
+    final targetIndex = _customPlaylistOrder.indexOf(targetPlaylistId);
+    final insertIndex = targetIndex >= 0
+        ? targetIndex
+        : _customPlaylistOrder.length;
+    _customPlaylistOrder.insertAll(insertIndex, folderPlaylists);
+    notifyListeners();
+    await _savePrefs();
+  }
+
+  /// Import remote folders (e.g. from Spotify). Adds any folders that don't
+  /// yet exist locally. Uses the remote id as the local `PlaylistFolder.id`.
+  Future<void> importRemoteFolders(List<PlaylistFolder> remoteFolders) async {
+    var changed = false;
+    for (final folder in remoteFolders) {
+      final exists = _folders.any((f) => f.id == folder.id);
+      if (!exists) {
+        _folders.add(folder);
+        if (!_customFolderOrder.contains(folder.id)) {
+          _customFolderOrder.add(folder.id);
+        }
+        changed = true;
+      }
+    }
+    if (changed) {
+      notifyListeners();
+      await _savePrefs();
+    }
   }
 
   Future<void> movePlaylistIntoFolder(

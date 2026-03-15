@@ -38,85 +38,90 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
       return SizedBox.shrink();
     }
 
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: Color(0xFF000000),
-        border: Border(bottom: BorderSide(color: Colors.grey[900]!, width: 1)),
-      ),
-      child: Row(
-        children: [
-          // Back/Forward/Home buttons
-          SizedBox(width: 16),
-          _buildNavButton(Icons.chevron_left, () {
-            if (NavigationHistory.instance.canGoBack) {
-              NavigationHistory.instance.goBack();
-            }
-          }),
-          SizedBox(width: 8),
-          _buildNavButton(Icons.chevron_right, () {
-            if (NavigationHistory.instance.canGoForward) {
-              NavigationHistory.instance.goForward();
-            }
-          }),
-          SizedBox(width: 8),
-          _buildNavButton(Icons.home, () {
-            if (onHomeTap != null) {
-              onHomeTap!();
-            }
-          }),
-          SizedBox(width: 16),
-
-          // Draggable area (left side)
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (_) => windowManager.startDragging(),
-              onPanStart: (_) => windowManager.startDragging(),
-              onDoubleTap: () async {
-                bool isMaximized = await windowManager.isMaximized();
-                if (isMaximized) {
-                  await windowManager.unmaximize();
-                } else {
-                  await windowManager.maximize();
-                }
-              },
-              child: Container(),
-            ),
+    return ValueListenableBuilder<Route<dynamic>?> (
+      valueListenable: NavigationHistory.instance.currentRoute,
+      builder: (context, route, child) {
+        final canGoBack = NavigationHistory.instance.canGoBack;
+        final canGoForward = NavigationHistory.instance.canGoForward;
+        return Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: Color(0xFF000000),
+            border: Border(bottom: BorderSide(color: Colors.grey[900]!, width: 1)),
           ),
-
-          // Search bar (not draggable)
-          _buildSearchField(),
-
-          // Draggable area (right side)
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (_) => windowManager.startDragging(),
-              onPanStart: (_) => windowManager.startDragging(),
-              onDoubleTap: () async {
-                bool isMaximized = await windowManager.isMaximized();
-                if (isMaximized) {
-                  await windowManager.unmaximize();
-                } else {
-                  await windowManager.maximize();
+          child: Row(
+            children: [
+              // Back/Forward/Home buttons
+              SizedBox(width: 16),
+              _buildNavButton(
+                Icons.chevron_left,
+                canGoBack ? () => NavigationHistory.instance.goBack() : null,
+                enabled: canGoBack,
+              ),
+              SizedBox(width: 8),
+              _buildNavButton(
+                Icons.chevron_right,
+                canGoForward ? () => NavigationHistory.instance.goForward() : null,
+                enabled: canGoForward,
+              ),
+              SizedBox(width: 8),
+              _buildNavButton(route?.settings.name == "/home" ? Icons.home : Icons.home_outlined, () {
+                if (onHomeTap != null) {
+                  onHomeTap!();
                 }
-              },
-              child: Container(),
-            ),
-          ),
+              }),
+              SizedBox(width: 16),
 
-          // Notifications button
-          _buildNotificationButton(context),
+              // Draggable area (left side)
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (_) => windowManager.startDragging(),
+                  onPanStart: (_) => windowManager.startDragging(),
+                  onDoubleTap: () async {
+                    bool isMaximized = await windowManager.isMaximized();
+                    if (isMaximized) {
+                      await windowManager.unmaximize();
+                    } else {
+                      await windowManager.maximize();
+                    }
+                  },
+                  child: Container(),
+                ),
+              ),
 
-          const SizedBox(width: 8),
+              // Search bar (not draggable)
+              _buildSearchField(),
 
-          // Settings button
-          _buildActionButton(Icons.settings_outlined, () {
-            if (onSettingsTap != null) {
-              onSettingsTap!();
-            }
-          }),
+              // Draggable area (right side)
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (_) => windowManager.startDragging(),
+                  onPanStart: (_) => windowManager.startDragging(),
+                  onDoubleTap: () async {
+                    bool isMaximized = await windowManager.isMaximized();
+                    if (isMaximized) {
+                      await windowManager.unmaximize();
+                    } else {
+                      await windowManager.maximize();
+                    }
+                  },
+                  child: Container(),
+                ),
+              ),
+
+              // Notifications button
+              _buildNotificationButton(context),
+
+              const SizedBox(width: 8),
+
+              // Settings button
+              _buildActionButton(Icons.settings_outlined, () {
+                if (onSettingsTap != null) {
+                  onSettingsTap!();
+                }
+              }),
 
           const SizedBox(width: 8),
 
@@ -135,26 +140,39 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
           _buildWindowButton(Icons.close, () async {
             await windowManager.close();
           }, isClose: true),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildNavButton(IconData icon, VoidCallback onPressed) {
+  Widget _buildNavButton(
+    IconData icon,
+    VoidCallback? onPressed, {
+    bool enabled = true,
+  }) {
+    final isEnabled = enabled && onPressed != null;
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        mouseCursor: SystemMouseCursors.click,
-        onTap: onPressed,
+        mouseCursor: isEnabled
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        onTap: isEnabled ? onPressed : null,
         borderRadius: BorderRadius.circular(20),
         child: Container(
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: Color(0xFF0A0A0A),
+            color: isEnabled ? Color(0xFF0A0A0A) : Color(0xFF0A0A0A),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
+          child: Icon(
+            icon,
+            color: isEnabled ? Colors.white : Colors.grey[600],
+            size: 20,
+          ),
         ),
       ),
     );

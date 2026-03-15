@@ -10,13 +10,13 @@ import '../utils/logger.dart';
 import '../views/list_detail.dart';
 import '../views/artist_detail.dart';
 import '../widgets/navigation.dart';
-import '../providers/audio/player.dart';
+import '../services/wisp_audio_handler.dart';
 import '../providers/audio/youtube.dart';
 import '../services/cache_manager.dart';
 import '../providers/library/library_state.dart';
 import '../providers/library/local_playlists.dart';
 import '../utils/liked_songs.dart';
-import '../providers/metadata/spotify.dart';
+import '../providers/metadata/spotify_internal.dart';
 
 /// Shows a context menu for a track
 /// On mobile: bottom sheet drawer
@@ -39,6 +39,7 @@ class TrackContextMenu {
     Offset? position,
     String? playlistId,
     String? playlistName,
+    String? playlistTrackUid,
     List<GenericPlaylist> playlists = const [],
     List<GenericAlbum> albums = const [],
     List<GenericSimpleArtist> artists = const [],
@@ -51,6 +52,7 @@ class TrackContextMenu {
         track: track,
         playlistId: playlistId,
         playlistName: playlistName,
+        playlistTrackUid: playlistTrackUid,
         playlists: playlists,
         albums: albums,
         artists: artists,
@@ -64,6 +66,7 @@ class TrackContextMenu {
         position: position ?? Offset.zero,
         playlistId: playlistId,
         playlistName: playlistName,
+        playlistTrackUid: playlistTrackUid,
         playlists: playlists,
         albums: albums,
         artists: artists,
@@ -78,13 +81,17 @@ class TrackContextMenu {
     required GenericSong track,
     String? playlistId,
     String? playlistName,
+    String? playlistTrackUid,
     required List<GenericPlaylist> playlists,
     required List<GenericAlbum> albums,
     required List<GenericSimpleArtist> artists,
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   }) {
-    context.read<SpotifyProvider>().ensureLikedTracksLoaded();
+    if (track.source == SongSource.spotifyInternal ||
+        track.source == SongSource.spotify) {
+      context.read<SpotifyInternalProvider>().ensureLikedTracksLoaded();
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -177,8 +184,15 @@ class TrackContextMenu {
                       controller: scrollController,
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       children: [
-                        _buildMobileSectionHeader('Likes'),
                         _buildLikeMobileMenuItem(context, track),
+                        _buildMobileMenuItem(
+                          icon: Icons.playlist_add,
+                          label: 'Add to Playlist',
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showAddToPlaylistDialog(context, track);
+                          },
+                        ),
                         _buildDownloadMenuItem(context, track, isMobile: true),
                         _buildChangeVideoIdMenuItem(
                           context,
@@ -191,14 +205,6 @@ class TrackContextMenu {
                           onTap: () {
                             Navigator.pop(context);
                             _handleShare(track);
-                          },
-                        ),
-                        _buildMobileMenuItem(
-                          icon: Icons.playlist_add,
-                          label: 'Add to Playlist',
-                          onTap: () {
-                            Navigator.pop(context);
-                            _showAddToPlaylistDialog(context, track);
                           },
                         ),
                         if (track.album != null)
@@ -220,7 +226,21 @@ class TrackContextMenu {
                               );
                             },
                           ),
-                        if (playlistId != null && playlistName != null)
+                        if (playlistId != null && playlistName != null) ...[
+                          if (!isLikedSongsPlaylistId(playlistId) &&
+                              playlistTrackUid != null)
+                            _buildMobileMenuItem(
+                              icon: Icons.remove_circle_outline,
+                              label: 'Remove from Playlist',
+                              onTap: () {
+                                Navigator.pop(context);
+                                _removeFromPlaylist(
+                                  context,
+                                  playlistId,
+                                  playlistTrackUid,
+                                );
+                              },
+                            ),
                           _buildMobileMenuItem(
                             icon: Icons.playlist_play,
                             label: 'Go to Playlist',
@@ -239,6 +259,7 @@ class TrackContextMenu {
                               );
                             },
                           ),
+                        ],
                         // Artists section
                         if (track.artists.isNotEmpty) ...[
                           Padding(
@@ -334,21 +355,26 @@ class TrackContextMenu {
     BuildContext context,
     GenericSong track,
   ) {
-    final spotify = context.watch<SpotifyProvider>();
     final isSpotify = track.source == SongSource.spotify;
-    final isLiked = isSpotify ? spotify.isTrackLiked(track.id) : false;
+    final isSpotifyInternal = track.source == SongSource.spotifyInternal;
+    final spotifyInternal = context.watch<SpotifyInternalProvider>();
+    final isLiked = (isSpotify || isSpotifyInternal)
+      ? spotifyInternal.isTrackLiked(track.id)
+      : false;
     final label = isLiked ? 'Remove from Likes' : 'Add to Likes';
     final icon = isLiked ? Icons.favorite : Icons.favorite_border;
     return _buildMobileMenuItem(
       icon: icon,
       label: label,
-      iconColor: isSpotify
+      iconColor: (isSpotify || isSpotifyInternal)
           ? Theme.of(context).colorScheme.primary
           : Colors.grey[600],
-      onTap: isSpotify
+      onTap: (isSpotify || isSpotifyInternal)
           ? () async {
               Navigator.pop(context);
-              await context.read<SpotifyProvider>().toggleTrackLike(track);
+              await context
+                  .read<SpotifyInternalProvider>()
+                  .toggleTrackLike(track);
             }
           : null,
     );
@@ -360,13 +386,17 @@ class TrackContextMenu {
     required Offset position,
     String? playlistId,
     String? playlistName,
+    String? playlistTrackUid,
     required List<GenericPlaylist> playlists,
     required List<GenericAlbum> albums,
     required List<GenericSimpleArtist> artists,
     LibraryView? currentLibraryView,
     int? currentNavIndex,
   }) {
-    context.read<SpotifyProvider>().ensureLikedTracksLoaded();
+    if (track.source == SongSource.spotifyInternal ||
+        track.source == SongSource.spotify) {
+      context.read<SpotifyInternalProvider>().ensureLikedTracksLoaded();
+    }
     final overlay =
         Overlay.of(context, rootOverlay: true).context.findRenderObject()
             as RenderBox;
@@ -386,6 +416,9 @@ class TrackContextMenu {
 
     final dx = localPosition.dx.clamp(edgePadding, maxDx);
     final dy = localPosition.dy.clamp(edgePadding, maxDy);
+
+    final isSpotifyTrack =
+      track.source == SongSource.spotify || track.source == SongSource.spotifyInternal;
 
     showDialog<void>(
       context: context,
@@ -419,9 +452,12 @@ class TrackContextMenu {
                               dialogContext,
                               track,
                             ),
-                            onTap: track.source == SongSource.spotify
-                                ? () =>
-                                    context.read<SpotifyProvider>().toggleTrackLike(track)
+                            onTap: isSpotifyTrack
+                                ? () {
+                                    context
+                                        .read<SpotifyInternalProvider>()
+                                        .toggleTrackLike(track);
+                                  }
                                 : null,
                           ),
                           const SizedBox(height: 4),
@@ -487,6 +523,22 @@ class TrackContextMenu {
                             ),
                           ],
                           if (playlistId != null && playlistName != null) ...[
+                            if (!isLikedSongsPlaylistId(playlistId) &&
+                                playlistTrackUid != null) ...[
+                              const SizedBox(height: 4),
+                              _buildDesktopMenuButton(
+                                context: dialogContext,
+                                child: _buildDesktopMenuItem(
+                                  Icons.remove_circle_outline,
+                                  'Remove from Playlist',
+                                ),
+                                onTap: () => _removeFromPlaylist(
+                                  context,
+                                  playlistId,
+                                  playlistTrackUid,
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 4),
                             _buildDesktopMenuButton(
                               context: dialogContext,
@@ -509,8 +561,7 @@ class TrackContextMenu {
                               },
                             ),
                           ],
-                          if (track.source == SongSource.spotify &&
-                              track.artists.length == 1) ...[
+                            if (isSpotifyTrack && track.artists.length == 1) ...[
                             const SizedBox(height: 4),
                             _buildDesktopMenuButton(
                               context: dialogContext,
@@ -531,8 +582,7 @@ class TrackContextMenu {
                               },
                             ),
                           ],
-                          if (track.source == SongSource.spotify &&
-                              track.artists.length > 1) ...[
+                            if (isSpotifyTrack && track.artists.length > 1) ...[
                             const SizedBox(height: 6),
                             _buildDesktopMenuSectionHeader('Artists'),
                             const SizedBox(height: 2),
@@ -618,18 +668,21 @@ class TrackContextMenu {
     BuildContext context,
     GenericSong track,
   ) {
-    final spotify = context.watch<SpotifyProvider>();
     final isSpotify = track.source == SongSource.spotify;
-    final isLiked = isSpotify ? spotify.isTrackLiked(track.id) : false;
+    final isSpotifyInternal = track.source == SongSource.spotifyInternal;
+    final spotifyInternal = context.watch<SpotifyInternalProvider>();
+    final isLiked = (isSpotify || isSpotifyInternal)
+      ? spotifyInternal.isTrackLiked(track.id)
+      : false;
     final label = isLiked ? 'Remove from Likes' : 'Add to Likes';
     final icon = isLiked ? Icons.favorite : Icons.favorite_border;
     return _buildDesktopMenuItem(
       icon,
       label,
-      iconColor: isSpotify
+      iconColor: (isSpotify || isSpotifyInternal)
           ? Theme.of(context).colorScheme.primary
           : Colors.grey[600],
-      textColor: isSpotify ? Colors.white : Colors.grey[500],
+      textColor: (isSpotify || isSpotifyInternal) ? Colors.white : Colors.grey[500],
     );
   }
 
@@ -733,12 +786,41 @@ class TrackContextMenu {
     logger.d('Track ID: ${track.id}');
   }
 
+  static Future<void> _removeFromPlaylist(
+    BuildContext context,
+    String playlistId,
+    String trackUid,
+  ) async {
+    try {
+      await context
+          .read<SpotifyInternalProvider>()
+          .removeTracksFromPlaylist(playlistId, [trackUid]);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Removed from playlist'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to remove track: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   static Future<void> _handleDownload(
     BuildContext context,
     GenericSong track,
   ) async {
     final cacheManager = AudioCacheManager.instance;
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<WispAudioHandler>();
 
     // Check if already cached
     if (cacheManager.isTrackCached(track.id)) {

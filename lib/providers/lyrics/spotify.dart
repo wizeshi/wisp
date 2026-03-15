@@ -18,8 +18,8 @@ const _spotifyLyricsBaseUrl =
     'https://spclient.wg.spotify.com/color-lyrics/v2/track';
 const _spotifyUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
-const _spotifyAppVersion = '1.2.83.373.ge7c77344';
+  '(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
+const _spotifyAppVersion = '1.2.85.300.gd6e199b8';
 const _allowInsecureSpotifyTls = bool.fromEnvironment(
   'WISP_ALLOW_INSECURE_SPOTIFY_TLS',
   defaultValue: true,
@@ -268,7 +268,11 @@ Future<Map<String, dynamic>> _requestAccessToken(String cookie) async {
     return await fetchWithTotp(firstTotp);
   } catch (e) {
     final message = e.toString();
-    if (!message.contains('400')) rethrow;
+    if (!message.contains('400') &&
+        !message.contains('401') &&
+        !message.contains('403')) {
+      rethrow;
+    }
   }
 
   final retryTotp = await _generateTotp();
@@ -425,6 +429,19 @@ String _normalizeTrackId(String trackId) {
 
 String _normalizeCookie(String cookie) {
   final trimmed = cookie.trim();
+  if (trimmed.contains(';') || trimmed.contains('=')) {
+    final segments = trimmed.split(';');
+    for (final segment in segments) {
+      final entry = segment.trim();
+      if (entry.toLowerCase().startsWith('sp_dc=')) {
+        final value = entry.substring('sp_dc='.length).trim();
+        if (value.isNotEmpty) {
+          return 'sp_dc=$value';
+        }
+      }
+    }
+  }
+
   if (trimmed.startsWith('sp_dc=')) return trimmed;
   return 'sp_dc=$trimmed';
 }

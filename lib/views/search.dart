@@ -6,10 +6,11 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../providers/metadata/spotify.dart';
+import '../providers/metadata/spotify_internal.dart';
 import '../providers/metadata/youtube.dart';
 import '../providers/library/library_folders.dart';
-import '../providers/audio/player.dart';
+import '../providers/preferences/preferences_provider.dart';
+import '../services/wisp_audio_handler.dart';
 import '../models/metadata_models.dart';
 import '../widgets/navigation.dart';
 import '../widgets/track_context_menu.dart';
@@ -17,6 +18,7 @@ import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/like_button.dart';
 import '../providers/search/search_state.dart';
+import '../widgets/provider_disabled_state.dart';
 import 'list_detail.dart';
 import 'artist_detail.dart';
 
@@ -116,16 +118,46 @@ class _SearchViewState extends State<SearchView> {
     }
   }
 
+  List<String> _availableSources(PreferencesProvider preferences) {
+    final sources = <String>[];
+    if (preferences.metadataSpotifyEnabled) {
+      sources.add('Spotify');
+    }
+    if (preferences.metadataYouTubeEnabled) {
+      sources.add('YouTube');
+    }
+    return sources;
+  }
+
   Future<void> _performSearch(String query) async {
     if (!mounted) return;
+
+    final preferences = context.read<PreferencesProvider>();
+    final availableSources = _availableSources(preferences);
+    if (availableSources.isEmpty) {
+      setState(() {
+        _isLoading = false;
+        _tracks = [];
+        _artists = [];
+        _albums = [];
+        _playlists = [];
+        _error = 'All metadata providers are disabled in Preferences.';
+      });
+      return;
+    }
+
+    final selectedSource = availableSources.contains(_selectedSource)
+        ? _selectedSource
+        : availableSources.first;
 
     setState(() {
       _isLoading = true;
       _error = null;
       _lastQuery = query;
+      _selectedSource = selectedSource;
     });
 
-    final spotify = context.read<SpotifyProvider>();
+    final spotify = context.read<SpotifyInternalProvider>();
     final youtube = context.read<YouTubeMetadataProvider>();
 
     List<GenericSong> spotifyTracks = [];
@@ -135,7 +167,7 @@ class _SearchViewState extends State<SearchView> {
     List<GenericSong> youtubeTracks = [];
     String? spotifyError;
 
-    if (_selectedSource == 'YouTube') {
+    if (selectedSource == 'YouTube') {
       try {
         youtubeTracks = await youtube.searchTracks(query, limit: 10);
       } catch (e) {
@@ -143,16 +175,11 @@ class _SearchViewState extends State<SearchView> {
       }
     } else {
       try {
-        final results = await Future.wait([
-          spotify.search(query, type: 'track', limit: 20),
-          spotify.search(query, type: 'artist', limit: 20),
-          spotify.search(query, type: 'album', limit: 20),
-          spotify.search(query, type: 'playlist', limit: 20),
-        ]);
-        spotifyTracks = List<GenericSong>.from(results[0]);
-        spotifyArtists = List<GenericSimpleArtist>.from(results[1]);
-        spotifyAlbums = List<GenericAlbum>.from(results[2]);
-        spotifyPlaylists = List<GenericPlaylist>.from(results[3]);
+        final results = await spotify.search(query, limit: 20);
+        spotifyTracks = results.tracks;
+        spotifyArtists = results.artists;
+        spotifyAlbums = results.albums;
+        spotifyPlaylists = results.playlists;
       } catch (e) {
         spotifyError = e.toString();
       }
@@ -160,16 +187,16 @@ class _SearchViewState extends State<SearchView> {
 
     if (mounted) {
       setState(() {
-        _tracks = _selectedSource == 'YouTube'
+        _tracks = selectedSource == 'YouTube'
           ? youtubeTracks
           : spotifyTracks;
-        _artists = _selectedSource == 'YouTube'
+        _artists = selectedSource == 'YouTube'
           ? []
           : spotifyArtists;
-        _albums = _selectedSource == 'YouTube'
+        _albums = selectedSource == 'YouTube'
           ? []
           : spotifyAlbums;
-        _playlists = _selectedSource == 'YouTube'
+        _playlists = selectedSource == 'YouTube'
           ? []
           : spotifyPlaylists;
         _error = spotifyError != null && _tracks.isEmpty
@@ -200,6 +227,22 @@ class _SearchViewState extends State<SearchView> {
 
   @override
   Widget build(BuildContext context) {
+    final preferences = context.watch<PreferencesProvider>();
+    final availableSources = _availableSources(preferences);
+    if (availableSources.isEmpty) {
+      return const ProviderDisabledState();
+    }
+
+    final effectiveSource = availableSources.contains(_selectedSource)
+        ? _selectedSource
+        : availableSources.first;
+    if (effectiveSource != _selectedSource) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _selectedSource == effectiveSource) return;
+        setState(() => _selectedSource = effectiveSource);
+      });
+    }
+
     final isMobile = Platform.isAndroid || Platform.isIOS;
     final padding = isMobile ? 20.0 : 16.0;
 
@@ -227,7 +270,7 @@ class _SearchViewState extends State<SearchView> {
                     children: [
                       Expanded(child: _buildSearchField()),
                       const SizedBox(width: 12),
-                      _buildSourceSelector(),
+                      _buildSourceSelector(availableSources, effectiveSource),
                     ],
                   ),
                 ] else ...[
@@ -244,7 +287,7 @@ class _SearchViewState extends State<SearchView> {
                           ),
                         ),
                         const Spacer(),
-                        _buildSourceSelector(),
+                        _buildSourceSelector(availableSources, effectiveSource),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -265,7 +308,7 @@ class _SearchViewState extends State<SearchView> {
           // Tab chips (mobile only)
           if (isMobile &&
               _lastQuery.isNotEmpty &&
-              _selectedSource != 'YouTube')
+              effectiveSource != 'YouTube')
             Padding(
               padding: EdgeInsets.symmetric(horizontal: padding),
               child: _buildTabChips(),
@@ -277,9 +320,13 @@ class _SearchViewState extends State<SearchView> {
     );
   }
 
-  Widget _buildSourceSelector() {
+  Widget _buildSourceSelector(
+    List<String> availableSources,
+    String selectedSource,
+  ) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
+      opaque: true,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
@@ -288,28 +335,33 @@ class _SearchViewState extends State<SearchView> {
           border: Border.all(color: Colors.white10),
         ),
         child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: _selectedSource,
-            dropdownColor: const Color(0xFF181818),
-            iconEnabledColor: Colors.grey[400],
-            items: const [
-              DropdownMenuItem(
-                value: 'Spotify',
-                child: Text('Spotify', style: TextStyle(color: Colors.white)),
-              ),
-              DropdownMenuItem(
-                value: 'YouTube',
-                child: Text('YouTube', style: TextStyle(color: Colors.white)),
-              ),
-            ],
-            onChanged: (value) {
-              if (value == null) return;
-              setState(() => _selectedSource = value);
-              final query = _searchController.text.trim();
-              if (query.isNotEmpty) {
-                _performSearch(query);
-              }
-            },
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            opaque: true,
+            child: DropdownButton<String>(
+              value: selectedSource,
+              dropdownColor: const Color(0xFF181818),
+              iconEnabledColor: Colors.grey[400],
+              items: availableSources
+                  .map(
+                    (source) => DropdownMenuItem(
+                      value: source,
+                      child: Text(
+                        source,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _selectedSource = value);
+                final query = _searchController.text.trim();
+                if (query.isNotEmpty) {
+                  _performSearch(query);
+                }
+              },
+            ),
           ),
         ),
       ),
@@ -589,7 +641,7 @@ class _SearchViewState extends State<SearchView> {
       return _buildEmptyState('No best match');
     }
 
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<WispAudioHandler>();
     final isCurrentPlaying =
         player.isPlaying && player.currentTrack?.id == track.id;
 
@@ -709,7 +761,7 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildSongsCard(List<GenericSong> songs) {
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<WispAudioHandler>();
     final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -894,7 +946,7 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildHorizontalSection(String title, List<dynamic> items) {
-    final player = context.watch<AudioPlayerProvider>();
+    final player = context.watch<WispAudioHandler>();
     final isPaused = player.state == PlaybackState.paused;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -973,7 +1025,7 @@ class _SearchViewState extends State<SearchView> {
   }
 
   void _playSearchQueue(int index) {
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<WispAudioHandler>();
     if (_tracks.isEmpty) return;
     setState(() {
       _activePlayContext = 'song:${_tracks[index].id}';
@@ -988,7 +1040,7 @@ class _SearchViewState extends State<SearchView> {
   }
 
   void _toggleTrackPlayback(GenericSong track, int index) {
-    final player = context.read<AudioPlayerProvider>();
+    final player = context.read<WispAudioHandler>();
     if (player.currentTrack?.id == track.id) {
       if (player.isPlaying) {
         player.pause();
@@ -1003,8 +1055,8 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Future<void> _playAlbum(BuildContext context, String albumId) async {
-    final spotify = context.read<SpotifyProvider>();
-    final player = context.read<AudioPlayerProvider>();
+    final spotify = context.read<SpotifyInternalProvider>();
+    final player = context.read<WispAudioHandler>();
     try {
       final album = await spotify.getAlbumInfo(albumId);
       final tracks = album.songs ?? [];
@@ -1018,13 +1070,15 @@ class _SearchViewState extends State<SearchView> {
         play: true,
         contextType: 'album',
         contextName: album.title,
+        contextID: album.id,
+        contextSource: album.source,
       );
     } catch (_) {}
   }
 
   Future<void> _playPlaylist(BuildContext context, String playlistId) async {
-    final spotify = context.read<SpotifyProvider>();
-    final player = context.read<AudioPlayerProvider>();
+    final spotify = context.read<SpotifyInternalProvider>();
+    final player = context.read<WispAudioHandler>();
     try {
       final playlist = await spotify.getPlaylistInfo(playlistId);
       final items = playlist.songs ?? [];
@@ -1052,14 +1106,16 @@ class _SearchViewState extends State<SearchView> {
         play: true,
         contextType: 'playlist',
         contextName: playlist.title,
+        contextID: playlist.id,
+        contextSource: playlist.source,
       );
       context.read<LibraryFolderState>().markPlaylistPlayed(playlistId);
     } catch (_) {}
   }
 
   Future<void> _playArtist(BuildContext context, String artistId) async {
-    final spotify = context.read<SpotifyProvider>();
-    final player = context.read<AudioPlayerProvider>();
+    final spotify = context.read<SpotifyInternalProvider>();
+    final player = context.read<WispAudioHandler>();
     try {
       final artist = await spotify.getArtistInfo(artistId);
       final tracks = artist.topSongs;
@@ -1073,6 +1129,8 @@ class _SearchViewState extends State<SearchView> {
         play: true,
         contextType: 'artist',
         contextName: artist.name,
+        contextID: artist.id,
+        contextSource: artist.source,
       );
     } catch (_) {}
   }
@@ -1177,7 +1235,7 @@ class _SearchViewState extends State<SearchView> {
         return _TrackTile(
           track: track,
           onTap: () async {
-            final player = context.read<AudioPlayerProvider>();
+            final player = context.read<WispAudioHandler>();
             await player.playTrack(track);
           },
           playlists: widget.playlists,
@@ -2057,11 +2115,11 @@ class _MiniAlbumCard extends StatelessWidget {
                         onPressed: () {
                           if (isActiveContext) {
                             if (isPlaying) {
-                              context.read<AudioPlayerProvider>().pause();
+                              context.read<WispAudioHandler>().pause();
                               return;
                             }
                             if (isPaused) {
-                              context.read<AudioPlayerProvider>().play();
+                              context.read<WispAudioHandler>().play();
                               return;
                             }
                           }
@@ -2234,11 +2292,11 @@ class _MiniPlaylistCard extends StatelessWidget {
                         onPressed: () {
                           if (isActiveContext) {
                             if (isPlaying) {
-                              context.read<AudioPlayerProvider>().pause();
+                              context.read<WispAudioHandler>().pause();
                               return;
                             }
                             if (isPaused) {
-                              context.read<AudioPlayerProvider>().play();
+                              context.read<WispAudioHandler>().play();
                               return;
                             }
                           }
@@ -2408,11 +2466,11 @@ class _MiniArtistCard extends StatelessWidget {
                         onPressed: () {
                           if (isActiveContext) {
                             if (isPlaying) {
-                              context.read<AudioPlayerProvider>().pause();
+                              context.read<WispAudioHandler>().pause();
                               return;
                             }
                             if (isPaused) {
-                              context.read<AudioPlayerProvider>().play();
+                              context.read<WispAudioHandler>().play();
                               return;
                             }
                           }

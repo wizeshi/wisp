@@ -66,6 +66,7 @@ class CredentialsService {
   static const _keySpotifyCredentials = 'spotify_credentials';
   static const _keySpotifyToken = 'spotify_token';
   static const _keySpotifyLyricsCookie = 'spotify_lyrics_cookie';
+  static const _keySpotifyCookies = 'spotify_cookies';
 
   /// Save Spotify Client ID and Secret
   Future<void> saveSpotifyCredentials(SpotifyCredentials credentials) async {
@@ -131,11 +132,28 @@ class CredentialsService {
     await _storage.write(key: _keySpotifyLyricsCookie, value: cookie.trim());
   }
 
+  /// Save all Spotify cookies as a JSON map of name -> value
+  Future<void> saveSpotifyCookies(Map<String, String> cookies) async {
+    await _storage.write(key: _keySpotifyCookies, value: jsonEncode(cookies));
+  }
+
   /// Retrieve Spotify lyrics cookie (sp_dc)
   Future<String?> getSpotifyLyricsCookie() async {
     final value = await _storage.read(key: _keySpotifyLyricsCookie);
     if (value == null || value.trim().isEmpty) return null;
     return value.trim();
+  }
+
+  /// Retrieve all saved Spotify cookies
+  Future<Map<String, String>?> getSpotifyCookies() async {
+    final jsonStr = await _storage.read(key: _keySpotifyCookies);
+    if (jsonStr == null || jsonStr.isEmpty) return null;
+    try {
+      final Map<String, dynamic> parsed = jsonDecode(jsonStr);
+      return parsed.map((k, v) => MapEntry(k, v as String));
+    } catch (e) {
+      return null;
+    }
   }
 
   /// Check if Spotify lyrics cookie exists
@@ -144,9 +162,20 @@ class CredentialsService {
     return cookie != null && cookie.isNotEmpty;
   }
 
+  /// Check if any Spotify cookies are saved
+  Future<bool> hasSpotifyCookies() async {
+    final cookies = await getSpotifyCookies();
+    return cookies != null && cookies.isNotEmpty;
+  }
+
   /// Clear Spotify lyrics cookie
   Future<void> clearSpotifyLyricsCookie() async {
     await _storage.delete(key: _keySpotifyLyricsCookie);
+  }
+
+  /// Clear saved Spotify cookies
+  Future<void> clearSpotifyCookies() async {
+    await _storage.delete(key: _keySpotifyCookies);
   }
 
   /// Clear all Spotify data (credentials + token)
@@ -154,5 +183,6 @@ class CredentialsService {
     await _storage.delete(key: _keySpotifyCredentials);
     await _storage.delete(key: _keySpotifyToken);
     await _storage.delete(key: _keySpotifyLyricsCookie);
+    await _storage.delete(key: _keySpotifyCookies);
   }
 }

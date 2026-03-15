@@ -12,10 +12,11 @@ class AppTheme {
   static const Color _scaffoldBackground = Color(0xFF121212);
   static const Color _surface = Color(0xFF181818);
 
-  static ThemeData dark() {
-    final colorScheme = const ColorScheme.dark(
-      primary: brandColor,
-      secondary: brandColor,
+  static ThemeData dark({Color? primaryOverride}) {
+    final primary = primaryOverride ?? brandColor;
+    final colorScheme = ColorScheme.dark(
+      primary: primary,
+      secondary: primary,
       surface: _surface,
       onPrimary: Colors.white,
       onSecondary: Colors.white,

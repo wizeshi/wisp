@@ -299,7 +299,7 @@ GenericArtist spotifyFullArtistToGeneric(
     source: SongSource.spotify,
     name: artist['name'] as String? ?? 'Unknown Artist',
     thumbnailUrl: _getLargestImage(artist['images'] as List?),
-    monthlyListeners: artist['followers']?['total'] as int? ?? 0,
+    followers: artist['followers']?['total'] as int? ?? 0,
     topSongs: topTracks,
     albums: albums,
   );

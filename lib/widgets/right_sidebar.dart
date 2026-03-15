@@ -4,13 +4,16 @@ import 'dart:io' show Platform;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
+import 'package:wisp/providers/metadata/spotify_internal.dart';
 
 import '../models/metadata_models.dart';
-import '../providers/audio/player.dart';
+import '../services/wisp_audio_handler.dart';
 import '../providers/lyrics/provider.dart';
 import '../providers/library/library_state.dart';
-import '../providers/metadata/spotify.dart';
 import '../providers/navigation_state.dart';
+import '../providers/preferences/preferences_provider.dart';
+import '../providers/theme/cover_art_palette_provider.dart';
 import '../services/navigation_history.dart';
 import '../views/artist_detail.dart';
 import '../views/list_detail.dart';
@@ -62,9 +65,9 @@ class RightSidebar extends StatelessWidget {
                       children: const [
                         _NowPlayingCard(),
                         SizedBox(height: 16),
-                        _ArtistInfoCard(),
-                        SizedBox(height: 16),
                         _LyricsPreviewCard(),
+                        SizedBox(height: 16),
+                        _ArtistInfoCard(),
                         SizedBox(height: 16),
                         _QueuePreviewCard(),
                       ],
@@ -113,19 +116,38 @@ class _ResizeHandle extends StatelessWidget {
 
 class _SectionCard extends StatelessWidget {
   final Widget child;
+  final Color? backgroundColor;
+  final Widget? background;
+  final EdgeInsetsGeometry padding;
 
-  const _SectionCard({required this.child});
+  const _SectionCard({
+    required this.child,
+    this.backgroundColor,
+    this.background,
+    this.padding = const EdgeInsets.all(14),
+  });
 
   @override
   Widget build(BuildContext context) {
+    final baseColor = backgroundColor ?? const Color(0xFF1A1A1A);
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white10),
       ),
-      padding: const EdgeInsets.all(14),
-      child: child,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            if (background != null) Positioned.fill(child: background!),
+            Container(
+              color: background == null ? baseColor : Colors.transparent,
+              padding: padding,
+              child: child,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -135,131 +157,178 @@ class _NowPlayingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<AudioPlayerProvider, _NowPlayingData>(
+    return Selector<WispAudioHandler, _NowPlayingData>(
       selector: (context, player) => _NowPlayingData(
         track: player.currentTrack,
         playbackContextName: player.playbackContextName,
+        playbackContextType: player.playbackContextType,
+        playbackContextID: player.playbackContextID,
       ),
       builder: (context, data, child) {
+        final useCanvas = context.select<PreferencesProvider, bool>(
+          (prefs) => prefs.animatedCanvasEnabled,
+        );
         final libraryState = context.read<LibraryState>();
         final navState = context.read<NavigationState>();
         final track = data.track;
         final headerText =
             (data.playbackContextName?.trim().isNotEmpty ?? false)
             ? data.playbackContextName!.trim()
-            : 'Now playing';
+            : 'Now Playing';
+        final canOpenContext =
+            data.playbackContextID != null &&
+            data.playbackContextID!.isNotEmpty &&
+            (data.playbackContextType == 'playlist' ||
+                data.playbackContextType == 'album' ||
+                data.playbackContextType == 'artist');
         final album = track?.album;
-        final primaryArtist = track?.artists.isNotEmpty == true
-            ? track!.artists.first
-            : null;
-        return _SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                headerText,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (track == null)
-                const Text(
-                  'Nothing playing',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                )
-              else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AspectRatio(
-                      aspectRatio: 1,
-                      child: _TrackArtwork(url: track.thumbnailUrl),
+        final canUseCanvas = useCanvas &&
+            (track?.source == SongSource.spotifyInternal ||
+                track?.source == SongSource.spotify);
+
+        Widget buildCard({String? canvasUrl}) {
+          final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
+          return _SectionCard(
+            background: hasCanvas ? _CanvasBackground(url: canvasUrl) : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                HoverUnderline(
+                  cursor: canOpenContext
+                      ? SystemMouseCursors.click
+                      : SystemMouseCursors.basic,
+                  onTap: canOpenContext
+                      ? () => _openPlaybackContext(
+                          data.playbackContextType!,
+                          data.playbackContextID!,
+                          data.playbackContextName,
+                          libraryState,
+                          navState,
+                        )
+                      : null,
+                  builder: (isHovering) => Text(
+                    headerText,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      decoration: isHovering
+                          ? TextDecoration.underline
+                          : TextDecoration.none,
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: HoverUnderline(
-                            cursor: album != null && album.id.isNotEmpty
-                                ? SystemMouseCursors.click
-                                : SystemMouseCursors.basic,
-                            onTap: album != null && album.id.isNotEmpty
-                                ? () =>
-                                    _openAlbum(album, libraryState, navState)
-                                : null,
-                            builder: (isHovering) => _MarqueeText(
-                              text: track.title,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                decoration: isHovering && album != null
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (track == null)
+                  const Text(
+                    'Nothing playing',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  )
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 1,
+                        child: hasCanvas
+                            ? const _BlankArtwork()
+                            : _TrackArtwork(url: track.thumbnailUrl),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              HoverUnderline(
+                                cursor: album != null && album.id.isNotEmpty
+                                    ? SystemMouseCursors.click
+                                    : SystemMouseCursors.basic,
+                                onTap: album != null && album.id.isNotEmpty
+                                    ? () => _openAlbum(
+                                        album,
+                                        libraryState,
+                                        navState,
+                                      )
+                                    : null,
+                                builder: (isHovering) => _MarqueeText(
+                                  text: track.title,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    decoration: isHovering && album != null
+                                        ? TextDecoration.underline
+                                        : TextDecoration.none,
+                                  ),
+                                ),
                               ),
+                              Row(
+                                children: track.artists.map((artist) =>
+                                  HoverUnderline(
+                                    cursor: SystemMouseCursors.click,
+                                    onTap: () =>
+                                        _openArtist(artist, libraryState, navState),
+                                    onSecondaryTapDown: (details) {
+                                      LibraryItemContextMenu.show(
+                                        context: context,
+                                        item: artist,
+                                        position: details.globalPosition,
+                                        playlists: libraryState.playlists,
+                                        albums: libraryState.albums,
+                                        artists: libraryState.artists,
+                                        currentLibraryView:
+                                            navState.selectedLibraryView,
+                                        currentNavIndex: navState.selectedNavIndex,
+                                      );
+                                    },
+                                    builder: (isHovering) => Text(
+                                      artist.name +
+                                          (track.artists.last != artist ? ', ' : ''),
+                                      style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        decoration: isHovering
+                                            ? TextDecoration.underline
+                                            : TextDecoration.none,
+                                      ),
+                                    ),
+                                  )
+                                ).toList(),
+                              )
+                            ],
+                          ),
+                          LikeButton(
+                            track: track,
+                            iconSize: 20,
+                            padding: const EdgeInsets.all(2),
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        LikeButton(
-                          track: track,
-                          iconSize: 20,
-                          padding: const EdgeInsets.all(2),
-                          constraints: const BoxConstraints(
-                            minWidth: 28,
-                            minHeight: 28,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    HoverUnderline(
-                      cursor: primaryArtist != null
-                          ? SystemMouseCursors.click
-                          : SystemMouseCursors.basic,
-                      onTap: primaryArtist != null
-                          ? () => _openArtist(
-                              primaryArtist,
-                              libraryState,
-                              navState,
-                            )
-                          : null,
-                      onSecondaryTapDown: primaryArtist != null
-                          ? (details) {
-                              LibraryItemContextMenu.show(
-                                context: context,
-                                item: primaryArtist,
-                                position: details.globalPosition,
-                                playlists: libraryState.playlists,
-                                albums: libraryState.albums,
-                                artists: libraryState.artists,
-                                currentLibraryView:
-                                    navState.selectedLibraryView,
-                                currentNavIndex: navState.selectedNavIndex,
-                              );
-                            }
-                          : null,
-                      builder: (isHovering) => _MarqueeText(
-                        text: track.artists.map((a) => a.name).join(', '),
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          decoration: isHovering
-                              ? TextDecoration.underline
-                              : TextDecoration.none,
-                        ),
-                      ),
-                    ),
-                    // Removed origin text under artist
-                  ],
-                ),
-            ],
-          ),
+                        ],
+                      )
+                    ],
+                  ),
+              ],
+            ),
+          );
+        }
+
+        if (track == null || !canUseCanvas) {
+          return buildCard();
+        }
+
+        final spotifyInternal = context.read<SpotifyInternalProvider>();
+        return FutureBuilder<String?>(
+          future: spotifyInternal.getCanvasUrl(track.id),
+          builder: (context, snapshot) {
+            final canvasUrl = snapshot.data ?? '';
+            return buildCard(canvasUrl: canvasUrl);
+          },
         );
       },
     );
@@ -276,16 +345,16 @@ class _NowPlayingCard extends StatelessWidget {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             SharedListDetailView(
-              id: album.id,
-              type: SharedListType.album,
-              initialTitle: album.title,
-              initialThumbnailUrl: album.thumbnailUrl,
-              playlists: libraryState.playlists,
-              albums: libraryState.albums,
-              artists: libraryState.artists,
-              initialLibraryView: navState.selectedLibraryView,
-              initialNavIndex: navState.selectedNavIndex,
-            ),
+          id: album.id,
+          type: SharedListType.album,
+          initialTitle: album.title,
+          initialThumbnailUrl: album.thumbnailUrl,
+          playlists: libraryState.playlists,
+          albums: libraryState.albums,
+          artists: libraryState.artists,
+          initialLibraryView: navState.selectedLibraryView,
+          initialNavIndex: navState.selectedNavIndex,
+        ),
       ),
     );
   }
@@ -301,14 +370,58 @@ class _NowPlayingCard extends StatelessWidget {
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (context, animation, secondaryAnimation) =>
             ArtistDetailView(
-              artistId: artist.id,
-              initialArtist: artist,
-              playlists: libraryState.playlists,
-              albums: libraryState.albums,
-              artists: libraryState.artists,
-              initialLibraryView: navState.selectedLibraryView,
-              initialNavIndex: navState.selectedNavIndex,
-            ),
+          artistId: artist.id,
+          initialArtist: artist,
+          playlists: libraryState.playlists,
+          albums: libraryState.albums,
+          artists: libraryState.artists,
+          initialLibraryView: navState.selectedLibraryView,
+          initialNavIndex: navState.selectedNavIndex,
+        ),
+      ),
+    );
+  }
+
+  void _openPlaybackContext(
+    String contextType,
+    String contextId,
+    String? contextName,
+    LibraryState libraryState,
+    NavigationState navState,
+  ) {
+    if (contextType == 'artist') {
+      _openArtist(
+        GenericSimpleArtist(
+          id: contextId,
+          source: SongSource.spotifyInternal,
+          name: contextName ?? 'Artist',
+          thumbnailUrl: '',
+        ),
+        libraryState,
+        navState,
+      );
+      return;
+    }
+
+    final type = contextType == 'album'
+        ? SharedListType.album
+        : SharedListType.playlist;
+
+    NavigationHistory.instance.navigatorKey.currentState?.push(
+      PageRouteBuilder(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            SharedListDetailView(
+          id: contextId,
+          type: type,
+          initialTitle: contextName,
+          playlists: libraryState.playlists,
+          albums: libraryState.albums,
+          artists: libraryState.artists,
+          initialLibraryView: navState.selectedLibraryView,
+          initialNavIndex: navState.selectedNavIndex,
+        ),
       ),
     );
   }
@@ -350,6 +463,236 @@ class _TrackArtwork extends StatelessWidget {
               child: const Icon(Icons.music_note),
             ),
           );
+  }
+}
+
+class _TrackArtworkWithCanvas extends StatelessWidget {
+  final GenericSong track;
+  final double? width;
+  final double? height;
+
+  const _TrackArtworkWithCanvas({
+    required this.track,
+    this.width,
+    this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final useCanvas = context.select<PreferencesProvider, bool>(
+      (prefs) => prefs.animatedCanvasEnabled,
+    );
+    final canUseCanvas = useCanvas &&
+        (track.source == SongSource.spotifyInternal ||
+            track.source == SongSource.spotify);
+
+    if (!canUseCanvas) {
+      return _TrackArtwork(url: track.thumbnailUrl, width: width, height: height);
+    }
+
+    final spotifyInternal = context.read<SpotifyInternalProvider>();
+    return FutureBuilder<String?>(
+      future: spotifyInternal.getCanvasUrl(track.id),
+      builder: (context, snapshot) {
+        final canvasUrl = snapshot.data ?? '';
+        if (canvasUrl.isNotEmpty) {
+          return _CanvasVideo(
+            url: canvasUrl,
+            width: width,
+            height: height,
+            fallbackUrl: track.thumbnailUrl,
+          );
+        }
+        return _TrackArtwork(
+          url: track.thumbnailUrl,
+          width: width,
+          height: height,
+        );
+      },
+    );
+  }
+}
+
+class _CanvasVideo extends StatefulWidget {
+  final String url;
+  final double? width;
+  final double? height;
+  final String fallbackUrl;
+
+  const _CanvasVideo({
+    required this.url,
+    this.width,
+    this.height,
+    required this.fallbackUrl,
+  });
+
+  @override
+  State<_CanvasVideo> createState() => _CanvasVideoState();
+}
+
+class _CanvasVideoState extends State<_CanvasVideo> {
+  VideoPlayerController? _controller;
+  bool _initFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CanvasVideo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _disposeController();
+      _initialize();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeController();
+    super.dispose();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      _controller = controller;
+      await controller.initialize();
+      await controller.setLooping(true);
+      await controller.setVolume(0);
+      await controller.play();
+      if (mounted) setState(() {});
+    } catch (_) {
+      _initFailed = true;
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _disposeController() {
+    _controller?.dispose();
+    _controller = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    final hasSize = widget.width != null || widget.height != null;
+    if (_initFailed || controller == null || !controller.value.isInitialized) {
+      return _TrackArtwork(
+        url: widget.fallbackUrl,
+        width: widget.width,
+        height: widget.height,
+      );
+    }
+
+    final video = FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: controller.value.size.width,
+        height: controller.value.size.height,
+        child: VideoPlayer(controller),
+      ),
+    );
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: hasSize
+          ? SizedBox(
+              width: widget.width ?? widget.height,
+              height: widget.height ?? widget.width,
+              child: video,
+            )
+          : SizedBox.expand(child: video),
+    );
+  }
+}
+
+class _CanvasBackground extends StatefulWidget {
+  final String url;
+
+  const _CanvasBackground({required this.url});
+
+  @override
+  State<_CanvasBackground> createState() => _CanvasBackgroundState();
+}
+
+class _CanvasBackgroundState extends State<_CanvasBackground> {
+  VideoPlayerController? _controller;
+  bool _initFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CanvasBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _disposeController();
+      _initialize();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeController();
+    super.dispose();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      _controller = controller;
+      await controller.initialize();
+      await controller.setLooping(true);
+      await controller.setVolume(0);
+      await controller.play();
+      if (mounted) setState(() {});
+    } catch (_) {
+      _initFailed = true;
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _disposeController() {
+    _controller?.dispose();
+    _controller = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (_initFailed || controller == null || !controller.value.isInitialized) {
+      return const SizedBox.shrink();
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: controller.value.size.width,
+            height: controller.value.size.height,
+            child: VideoPlayer(controller),
+          ),
+        ),
+        Container(color: Colors.black.withOpacity(0.35)),
+      ],
+    );
+  }
+}
+
+class _BlankArtwork extends StatelessWidget {
+  const _BlankArtwork();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox.expand();
   }
 }
 
@@ -495,7 +838,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<AudioPlayerProvider, GenericSimpleArtist?>(
+    return Selector<WispAudioHandler, GenericSimpleArtist?>(
       selector: (context, player) {
         final track = player.currentTrack;
         return track?.artists.isNotEmpty == true
@@ -505,8 +848,8 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
       builder: (context, artist, child) {
         if (artist != null && artist.id != _artistId) {
           _artistId = artist.id;
-          final spotify = context.read<SpotifyProvider>();
-          _artistFuture = _loadArtist(spotify, artist);
+          final spotifyInternal = context.read<SpotifyInternalProvider>();
+          _artistFuture = _loadArtist(spotifyInternal, artist);
         }
 
         if (artist == null) {
@@ -541,26 +884,16 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                 : artist.thumbnailUrl;
 
             return _SectionCard(
+              padding: EdgeInsets.zero,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'About the artist',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Stack(
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: SizedBox(
-                          width: 72,
-                          height: 72,
+                        borderRadius: BorderRadius.circular(8),
+                        child: AspectRatio(
+                          aspectRatio: 1,
                           child: imageUrl.isEmpty
                               ? Container(color: Colors.grey[850])
                               : CachedNetworkImage(
@@ -571,51 +904,63 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                                 ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            HoverUnderline(
-                              onTap: () => _openArtist(data, artist),
-                              builder: (isHovering) => Text(
-                                data?.name ?? artist.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  decoration: isHovering
-                                      ? TextDecoration.underline
-                                      : TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              data == null
-                                  ? 'Loading artist info…'
-                                  : '${_formatNumber(data.monthlyListeners)} monthly listeners',
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                      Positioned(
+                        left: 12,
+                        top: 12,
+                        child: Text(
+                          'About the artist',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                  if (data != null) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      'Top tracks: ${data.topSongs.take(2).map((s) => s.title).join(' • ')}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        HoverUnderline(
+                          onTap: () => _openArtist(data, artist),
+                          builder: (isHovering) => Text(
+                            data?.name ?? artist.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              decoration: isHovering
+                                  ? TextDecoration.underline
+                                  : TextDecoration.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          data == null
+                              ? 'Loading artist info…'
+                              : '${_formatNumber(data.followers)} followers',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 13,
+                          ),
+                        ),
+                        if (data != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            'Top tracks: ${data.topSongs.take(2).map((s) => s.title).join(' • ')}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
             );
@@ -626,15 +971,15 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
   }
 
   Future<GenericArtist?> _loadArtist(
-    SpotifyProvider spotify,
+    SpotifyInternalProvider spotifyInternal,
     GenericSimpleArtist artist,
   ) async {
-    final cached = await spotify.getCachedArtistInfo(artist.id);
-    if (cached != null) return cached;
+    /* final cached = await spotifyInternal.getCachedArtistInfo(artist.id);
+    if (cached != null) return cached; */
     try {
-      return await spotify.getArtistInfo(artist.id);
+      return await spotifyInternal.getArtistInfo(artist.id);
     } catch (_) {
-      return cached;
+      /* return cached; */
     }
   }
 
@@ -688,14 +1033,15 @@ class _LyricsPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final track =
-        context.select<AudioPlayerProvider, GenericSong?>((p) => p.currentTrack);
+      context.select<WispAudioHandler, GenericSong?>((p) => p.currentTrack);
+
     if (track == null) {
       return _SectionCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
             Text(
-              'Lyrics preview',
+              'Lyrics Preview',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 14,
@@ -712,6 +1058,16 @@ class _LyricsPreviewCard extends StatelessWidget {
       );
     }
 
+    final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
+      (provider) => provider.palette,
+    );
+    final bgColor = HSLColor.fromColor(
+      palette?.onSecondaryContainer ?? const Color(0xFF1A1A1A),
+    ).withLightness(0.6).withSaturation(0.65).toColor();
+    final btnColor = HSLColor.fromColor(
+      palette?.onPrimaryContainer ?? const Color(0xFF1A1A1A),
+    ).withLightness(0.7).withSaturation(1).toColor();
+
     return Consumer<LyricsProvider>(
       builder: (context, lyricsProvider, child) {
         final state = lyricsProvider.getState(track, LyricsSyncMode.synced);
@@ -725,65 +1081,95 @@ class _LyricsPreviewCard extends StatelessWidget {
 
         final lyrics = state.lyrics;
 
-        return _SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Lyrics preview',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (state.isLoading && lyrics == null)
-                const Text(
-                  'Loading lyrics…',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                )
-              else if (lyrics == null)
-                const Text(
-                  'No lyrics found',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                )
-              else
-                _LyricsPreviewLines(lyrics: lyrics, resetKey: track.id),
-              const SizedBox(height: 8),
-              Row(
+        return ValueListenableBuilder<Route<dynamic>?>(
+          valueListenable: NavigationHistory.instance.currentRoute,
+          builder: (context, route, child) {
+            return _SectionCard(
+              backgroundColor: bgColor,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      lyrics == null
-                          ? ''
-                          : 'Provided by ${lyrics.provider.label}',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  const Text(
+                    'Lyrics Preview',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  TextButton(
-                    onPressed: lyrics == null ? null : () => _openLyrics(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.primary,
-                      textStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  const SizedBox(height: 10),
+                  if (state.isLoading && lyrics == null)
+                    const Text(
+                      'Loading lyrics…',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    )
+                  else if (lyrics == null)
+                    const Text(
+                      'No lyrics found',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    )
+                  else
+                    Selector<WispAudioHandler, int>(
+                      selector: (context, player) =>
+                          player.throttledPosition.inMilliseconds,
+                      builder: (context, positionMs, child) {
+                        return AnimatedLyricsPreviewList(
+                          lines: _getPreviewLines(
+                            lyrics,
+                            positionMs,
+                          ),
+                          resetKey: track.id,
+                          textStyle: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        );
+                      },
                     ),
-                    child: const Text('Open'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          lyrics == null
+                              ? ''
+                              : 'Lyrics provided by ${lyrics.provider.label}',
+                          style: TextStyle(color: Colors.grey[200], fontSize: 11),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: lyrics == null
+                            ? null
+                            : () {
+                                _openLyrics(context);
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: btnColor,
+                          foregroundColor:
+                              Theme.of(context).colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        child: const Text('Show lyrics'),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  void _openLyrics() {
+  void _openLyrics(BuildContext context) {
     if (NavigationHistory.instance.currentRouteName == '/lyrics') {
       return;
     }
@@ -797,7 +1183,6 @@ class _LyricsPreviewCard extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _QueuePreviewCard extends StatelessWidget {
@@ -805,15 +1190,15 @@ class _QueuePreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<AudioPlayerProvider, _QueuePreviewData>(
+    return Selector<WispAudioHandler, _QueuePreviewData>(
       selector: (context, player) => _QueuePreviewData(
-        queueLength: player.queue.length,
+        queueLength: player.queueTracks.length,
         currentIndex: player.currentIndex,
         currentTrackId: player.currentTrack?.id,
       ),
       builder: (context, data, child) {
-        final player = context.read<AudioPlayerProvider>();
-        final queue = player.queue;
+        final player = context.read<WispAudioHandler>();
+        final queue = player.queueTracks;
         final currentIndex = data.currentIndex;
         final upcoming = currentIndex + 1 < queue.length
             ? queue.sublist(currentIndex + 1)
@@ -929,7 +1314,7 @@ class _LyricsPreviewLines extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<AudioPlayerProvider, int>(
+    return Selector<WispAudioHandler, int>(
       selector: (context, player) => player.throttledPosition.inMilliseconds,
       builder: (context, positionMs, child) {
         final delaySeconds = context.select<LyricsProvider, double>(
@@ -985,17 +1370,27 @@ int _findCurrentLineIndex(List<LyricsLine> lines, int positionMs) {
 class _NowPlayingData {
   final GenericSong? track;
   final String? playbackContextName;
+  final String? playbackContextType;
+  final String? playbackContextID;
 
-  const _NowPlayingData({required this.track, required this.playbackContextName});
+  const _NowPlayingData({
+    required this.track,
+    required this.playbackContextName,
+    required this.playbackContextType,
+    required this.playbackContextID,
+  });
 
   @override
   bool operator ==(Object other) =>
       other is _NowPlayingData &&
       other.track?.id == track?.id &&
-      other.playbackContextName == playbackContextName;
+        other.playbackContextName == playbackContextName &&
+        other.playbackContextType == playbackContextType &&
+        other.playbackContextID == playbackContextID;
 
   @override
-  int get hashCode => Object.hash(track?.id, playbackContextName);
+      int get hashCode =>
+        Object.hash(track?.id, playbackContextName, playbackContextType, playbackContextID);
 }
 
 class _QueuePreviewData {

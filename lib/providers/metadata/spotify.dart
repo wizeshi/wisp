@@ -1,13 +1,15 @@
 /// Spotify authentication and metadata provider
 /// Implements OAuth 2.0 Authorization Code flow with auto-refresh
 /// Provides methods to fetch track, album, and playlist metadata
-library;
+/** library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:http/http.dart' as http;
+import 'package:wisp/models/metadata_provider.dart';
+import 'package:wisp/providers/preferences/preferences_provider.dart';
 import '../../services/credentials.dart';
 import '../../services/metadata_cache.dart';
 import '../../models/metadata_models.dart';
@@ -37,7 +39,10 @@ class SpotifyCredentialsException implements Exception {
   String toString() => 'Spotify Credentials Error: $message';
 }
 
-class SpotifyProvider extends ChangeNotifier {
+class SpotifyProvider extends MetadataProvider {
+  @override
+  String get name => 'Spotify';
+
   final CredentialsService _credentialsService = CredentialsService();
   Timer? _tokenRefreshTimer;
   final MetadataCacheStore _metadataCache = MetadataCacheStore.instance;
@@ -79,22 +84,35 @@ class SpotifyProvider extends ChangeNotifier {
     'user-library-read',
     'user-library-modify',
     'playlist-read-private',
+    'playlist-modify-private',
+    'playlist-modify-public',
     'user-follow-read',
     'user-top-read',
   ];
 
   // Getters
+  @override
   bool get isAuthenticated => _isAuthenticated;
+  
+  @override
   bool get isLoading => _isLoading;
+
+  @override
   String? get errorMessage => _errorMessage;
+  
+  @override
   String? get userDisplayName => _userDisplayName;
+  
+  @override
   String? get userId => _userId;
 
   final Set<String> _likedTrackIds = {};
   bool _likedTracksLoaded = false;
 
+  @override
   bool isTrackLiked(String trackId) => _likedTrackIds.contains(trackId);
 
+  @override
   Future<void> ensureLikedTracksLoaded() async {
     if (_likedTracksLoaded) return;
     final cached = await getCachedSavedTracksAll();
@@ -106,6 +124,7 @@ class SpotifyProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void setLikedTracksFromItems(List<PlaylistItem> items) {
     _setLikedTracksFromItems(items);
   }
@@ -118,8 +137,20 @@ class SpotifyProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _ensureWritingAllowed() async {
+    if (!await PreferencesProvider.isWritingAllowed()) {
+      throw StateError('Spotify writing is disabled in Preferences.');
+    }
+  }
+
+  Future<bool> _isWritingAllowed() async {
+    return PreferencesProvider.isWritingAllowed();
+  }
+
+  @override
   Future<void> toggleTrackLike(GenericSong track) async {
     if (track.source != SongSource.spotify) return;
+    if (!await _isWritingAllowed()) return;
     if (isTrackLiked(track.id)) {
       await unlikeTrack(track);
     } else {
@@ -127,8 +158,10 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<void> likeTrack(GenericSong track) async {
     if (track.source != SongSource.spotify) return;
+    if (!await _isWritingAllowed()) return;
     await _makeApiRequestWithBody(
       '/me/tracks?ids=${Uri.encodeQueryComponent(track.id)}',
       method: 'PUT',
@@ -138,8 +171,10 @@ class SpotifyProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   Future<void> unlikeTrack(GenericSong track) async {
     if (track.source != SongSource.spotify) return;
+    if (!await _isWritingAllowed()) return;
     await _makeApiRequestWithBody(
       '/me/tracks?ids=${Uri.encodeQueryComponent(track.id)}',
       method: 'DELETE',
@@ -396,6 +431,7 @@ class SpotifyProvider extends ChangeNotifier {
     await _initializeAuthState();
   }
 
+  @override
   /// Clear error message
   void clearError() {
     _errorMessage = null;
@@ -403,7 +439,8 @@ class SpotifyProvider extends ChangeNotifier {
   }
 
   /// Start OAuth login flow
-  Future<void> login() async {
+  @override
+  Future<void> login(BuildContext context) async {
     _setLoading(true);
     clearError();
 
@@ -437,6 +474,9 @@ class SpotifyProvider extends ChangeNotifier {
       final result = await FlutterWebAuth2.authenticate(
         url: authUri.toString(),
         callbackUrlScheme: _callbackScheme,
+        options: FlutterWebAuth2Options(
+          useWebview: false,
+        )
       );
 
       // Extract authorization code from callback
@@ -581,6 +621,7 @@ class SpotifyProvider extends ChangeNotifier {
     return token.accessToken;
   }
 
+  @override
   /// Logout and clear token
   Future<void> logout() async {
     try {
@@ -746,6 +787,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get track information by ID
   Future<GenericSong> getTrackInfo(
     String trackId, {
@@ -770,6 +812,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<GenericSong?> getCachedTrackInfo(String trackId) async {
     final entry = await _readCacheEntry(type: 'track', id: trackId);
     if (entry == null) return null;
@@ -780,6 +823,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get album information with pagination support
   Future<GenericAlbum> getAlbumInfo(
     String albumId, {
@@ -810,6 +854,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<GenericAlbum?> getCachedAlbumInfo(
     String albumId, {
     int offset = 0,
@@ -829,6 +874,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get playlist information with pagination support
   Future<GenericPlaylist> getPlaylistInfo(
     String playlistId, {
@@ -859,6 +905,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<GenericPlaylist?> getCachedPlaylistInfo(
     String playlistId, {
     int offset = 0,
@@ -878,6 +925,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get full artist information (top tracks + albums)
   Future<GenericArtist> getArtistInfo(
     String artistId, {
@@ -928,7 +976,8 @@ class SpotifyProvider extends ChangeNotifier {
       rethrow;
     }
   }
-
+  
+  @override
   Future<GenericArtist?> getCachedArtistInfo(String artistId) async {
     final entry = await _readCacheEntry(type: 'artist', id: artistId);
     if (entry == null) return null;
@@ -939,6 +988,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Fetch additional tracks for an album (for pagination)
   Future<List<GenericSong>> getMoreAlbumTracks(
     String albumId, {
@@ -972,6 +1022,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Fetch additional tracks for a playlist (for pagination)
   Future<List<PlaylistItem>> getMorePlaylistTracks(
     String playlistId, {
@@ -1008,6 +1059,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get user's saved playlists
   Future<List<GenericPlaylist>> getUserPlaylists({
     int limit = 20,
@@ -1044,6 +1096,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get user's saved tracks (liked songs)
   Future<List<PlaylistItem>> getUserSavedTracks({
     int limit = 50,
@@ -1079,6 +1132,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<List<PlaylistItem>> getUserSavedTracksAll({
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
@@ -1126,6 +1180,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<List<PlaylistItem>?> getCachedSavedTracksAll() async {
     final entry = await _readCacheEntry(type: 'saved_tracks_all', id: 'all');
     if (entry == null) return null;
@@ -1176,6 +1231,7 @@ class SpotifyProvider extends ChangeNotifier {
     return true;
   }
 
+  @override
   Future<void> refreshSavedTracksAll() async {
     try {
       const limit = 50;
@@ -1250,12 +1306,14 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<String> createPlaylist({
     required String name,
     String? description,
     bool isPublic = false,
   }) async {
     try {
+      await _ensureWritingAllowed();
       final id = _userId;
       if (id == null || id.isEmpty) {
         await fetchUserProfile();
@@ -1282,8 +1340,10 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<void> renamePlaylist(String playlistId, String name) async {
     try {
+      await _ensureWritingAllowed();
       await _makeApiRequestWithBody(
         '/playlists/$playlistId',
         method: 'PUT',
@@ -1296,8 +1356,10 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<void> deletePlaylist(String playlistId) async {
     try {
+      await _ensureWritingAllowed();
       await _makeApiRequestWithBody(
         '/playlists/$playlistId/followers',
         method: 'DELETE',
@@ -1309,12 +1371,14 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<void> addTracksToPlaylist(
     String playlistId,
     List<String> trackIds,
   ) async {
     if (trackIds.isEmpty) return;
     try {
+      await _ensureWritingAllowed();
       final uris = trackIds.map((id) => 'spotify:track:$id').toList();
       await _makeApiRequestWithBody(
         '/playlists/$playlistId/tracks',
@@ -1328,6 +1392,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get user's saved albums
   Future<List<GenericAlbum>> getUserAlbums({
     int limit = 20,
@@ -1365,6 +1430,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get user's followed artists
   Future<List<GenericSimpleArtist>> getUserFollowedArtists({
     int limit = 20,
@@ -1403,6 +1469,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get user's top tracks
   Future<List<GenericSong>> getUserTopTracks({
     int limit = 20,
@@ -1439,6 +1506,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get current user's profile
   Future<void> fetchUserProfile() async {
     try {
@@ -1456,6 +1524,7 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
+  @override
   /// Get user's top artists
   Future<List<GenericSimpleArtist>> getUserTopArtists({
     int limit = 20,
@@ -1492,103 +1561,57 @@ class SpotifyProvider extends ChangeNotifier {
     }
   }
 
-  /// Search for tracks, artists, albums, or playlists
-  Future<List<dynamic>> search(
+  /// Search for tracks, artists, albums, and playlists
+  @override
+  Future<SearchResults> search(
     String query, {
-    required String type, // track, artist, album, playlist
     int limit = 20,
     int offset = 0,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     try {
-      final cacheId = 'query_${query}_limit_${limit}_offset_${offset}';
-      final cacheType = 'search_$type';
-      switch (type) {
-        case 'track':
-          return _getListWithCache<GenericSong>(
-            type: cacheType,
-            id: cacheId,
-            policy: policy,
-            fetcher: () async {
-              final encodedQuery = Uri.encodeQueryComponent(query);
-              final data = await _makeApiRequest(
-                '/search?q=$encodedQuery&type=$type&limit=$limit&offset=$offset',
-              );
-              final items = data['tracks']?['items'] as List? ?? [];
-              return items
-                  .where((track) => track != null)
-                  .map((track) {
-                return spotifyTrackToGeneric(track as Map<String, dynamic>);
-              }).toList();
-            },
-            itemToJson: (item) => item.toJson(),
-            itemFromJson: GenericSong.fromJson,
+      final cacheId = 'query_${query}_limit_${limit}_offset_$offset';
+      return _getWithCache<SearchResults>(
+        type: 'search_all',
+        id: cacheId,
+        policy: policy,
+        fetcher: () async {
+          final encodedQuery = Uri.encodeQueryComponent(query);
+          final data = await _makeApiRequest(
+            '/search?q=$encodedQuery&type=track,artist,album,playlist&limit=$limit&offset=$offset',
           );
-        case 'artist':
-          return _getListWithCache<GenericSimpleArtist>(
-            type: cacheType,
-            id: cacheId,
-            policy: policy,
-            fetcher: () async {
-              final encodedQuery = Uri.encodeQueryComponent(query);
-              final data = await _makeApiRequest(
-                '/search?q=$encodedQuery&type=$type&limit=$limit&offset=$offset',
-              );
-              final items = data['artists']?['items'] as List? ?? [];
-              return items
-                  .where((artist) => artist != null)
-                  .map((artist) {
-                return spotifyArtistToGeneric(artist as Map<String, dynamic>);
-              }).toList();
-            },
-            itemToJson: (item) => item.toJson(),
-            itemFromJson: GenericSimpleArtist.fromJson,
+          final trackItems = data['tracks']?['items'] as List? ?? [];
+          final artistItems = data['artists']?['items'] as List? ?? [];
+          final albumItems = data['albums']?['items'] as List? ?? [];
+          final playlistItems = data['playlists']?['items'] as List? ?? [];
+
+          return SearchResults(
+            tracks: trackItems
+                .where((track) => track != null)
+                .map((track) =>
+                    spotifyTrackToGeneric(track as Map<String, dynamic>))
+                .toList(),
+            artists: artistItems
+                .where((artist) => artist != null)
+                .map((artist) =>
+                    spotifyArtistToGeneric(artist as Map<String, dynamic>))
+                .toList(),
+            albums: albumItems
+                .where((album) => album != null)
+                .map((album) =>
+                    spotifyFullAlbumToGeneric(album as Map<String, dynamic>))
+                .toList(),
+            playlists: playlistItems
+                .where((playlist) => playlist != null)
+                .map((playlist) => spotifyFullPlaylistToGeneric(
+                      playlist as Map<String, dynamic>,
+                    ))
+                .toList(),
           );
-        case 'album':
-          return _getListWithCache<GenericAlbum>(
-            type: cacheType,
-            id: cacheId,
-            policy: policy,
-            fetcher: () async {
-              final encodedQuery = Uri.encodeQueryComponent(query);
-              final data = await _makeApiRequest(
-                '/search?q=$encodedQuery&type=$type&limit=$limit&offset=$offset',
-              );
-              final items = data['albums']?['items'] as List? ?? [];
-              return items
-                  .where((album) => album != null)
-                  .map((album) {
-                return spotifyFullAlbumToGeneric(album as Map<String, dynamic>);
-              }).toList();
-            },
-            itemToJson: (item) => item.toJson(),
-            itemFromJson: GenericAlbum.fromJson,
-          );
-        case 'playlist':
-          return _getListWithCache<GenericPlaylist>(
-            type: cacheType,
-            id: cacheId,
-            policy: policy,
-            fetcher: () async {
-              final encodedQuery = Uri.encodeQueryComponent(query);
-              final data = await _makeApiRequest(
-                '/search?q=$encodedQuery&type=$type&limit=$limit&offset=$offset',
-              );
-              final items = data['playlists']?['items'] as List? ?? [];
-              return items
-                  .where((playlist) => playlist != null)
-                  .map((playlist) {
-                return spotifyFullPlaylistToGeneric(
-                  playlist as Map<String, dynamic>,
-                );
-              }).toList();
-            },
-            itemToJson: (item) => item.toJson(),
-            itemFromJson: GenericPlaylist.fromJson,
-          );
-        default:
-          return [];
-      }
+        },
+        toJson: (results) => results.toJson(),
+        fromJson: SearchResults.fromJson,
+      );
     } catch (e) {
       _errorMessage = 'Search failed: $e';
       notifyListeners();
@@ -1601,5 +1624,4 @@ class SpotifyProvider extends ChangeNotifier {
     _isLoading = loading;
     notifyListeners();
   }
-}
-
+} **/

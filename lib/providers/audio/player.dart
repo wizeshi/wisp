@@ -7,11 +7,9 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:audio_service/audio_service.dart' as audio_service;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../models/metadata_models.dart';
-import '../../main.dart';
 import '../../services/cache_manager.dart';
 import '../../services/discord_rpc_service.dart';
 import '../../utils/logger.dart';
@@ -43,6 +41,8 @@ class AudioPlayerProvider extends ChangeNotifier {
   // Playback context
   String? _playbackContextType;
   String? _playbackContextName;
+  String? _playbackContextID;
+  SongSource? _playbackContextSource;
 
   // Subscriptions
   StreamSubscription? _positionSubscription;
@@ -58,8 +58,6 @@ class AudioPlayerProvider extends ChangeNotifier {
   Duration _lastNotifiedPosition = Duration.zero;
   int _lastPositionNotifyMs = 0;
   int _lastPositionUpdateMs = 0;
-  int _lastMediaPositionMs = -1;
-  int _lastMediaUpdateMs = 0;
 
   int _trackChangeToken = 0;
   bool _isHandlingCompletion = false;
@@ -83,6 +81,8 @@ class AudioPlayerProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get playbackContextType => _playbackContextType;
   String? get playbackContextName => _playbackContextName;
+  String? get playbackContextID => _playbackContextID;
+  SongSource? get playbackContextSource => _playbackContextSource;
 
   bool isTrackCached(String trackId) =>
       AudioCacheManager.instance.isTrackCached(trackId);
@@ -148,21 +148,6 @@ class AudioPlayerProvider extends ChangeNotifier {
 
     await _prepareCurrentTrackOnStartup();
 
-    // MPRIS
-    try {
-      final handler = AudioPlayerHandler.instance;
-      handler.onPlay = play;
-      handler.onPause = pause;
-      handler.onSkipNext = skipNext;
-      handler.onSkipPrevious = skipPrevious;
-      handler.onSeek = seek;
-      handler.onSetShuffleMode = _applyShuffleModeFromSession;
-      handler.onSetRepeatMode = _applyRepeatModeFromSession;
-      handler.onToggleShuffle = toggleShuffle;
-      handler.onToggleRepeat = toggleRepeat;
-    } catch (e) {
-      logger.e('[Player] MPRIS init failed', error: e);
-    }
   }
 
   void _handleRpcPositionTick() {
@@ -178,7 +163,6 @@ class AudioPlayerProvider extends ChangeNotifier {
   void _handlePositionUpdate(Duration position) {
     _lastRawPosition = position;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
-    _updateMediaSessionPosition(position, nowMs);
     if (nowMs - _lastPositionNotifyMs <
         _positionNotifyInterval.inMilliseconds) {
       return;
@@ -192,37 +176,10 @@ class AudioPlayerProvider extends ChangeNotifier {
   void _forcePositionUpdate(Duration position) {
     _lastRawPosition = position;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
-    _updateMediaSessionPosition(position, nowMs, force: true);
     _lastNotifiedPosition = position;
     _lastPositionNotifyMs = nowMs;
     _lastPositionUpdateMs = nowMs;
     notifyListeners();
-  }
-
-  void _updateMediaSessionPosition(
-    Duration position,
-    int nowMs, {
-    bool force = false,
-  }) {
-    if (_currentTrack == null) return;
-    if (!force && nowMs - _lastMediaUpdateMs < 1000) return;
-    final posMs = position.inMilliseconds;
-    if (!force && posMs == _lastMediaPositionMs) return;
-    _lastMediaPositionMs = posMs;
-    _lastMediaUpdateMs = nowMs;
-
-    try {
-      final handler = AudioPlayerHandler.instance;
-      handler.playbackState.add(
-        handler.playbackState.value.copyWith(
-          playing: isPlaying,
-          processingState: isLoading
-              ? audio_service.AudioProcessingState.loading
-              : audio_service.AudioProcessingState.ready,
-          updatePosition: position,
-        ),
-      );
-    } catch (_) {}
   }
 
   Duration _getInterpolatedPosition() {
@@ -263,11 +220,6 @@ class AudioPlayerProvider extends ChangeNotifier {
     if (_currentTrack == null) return;
     if (!isPlaying) return;
     final position = _player.position;
-    _updateMediaSessionPosition(
-      position,
-      DateTime.now().millisecondsSinceEpoch,
-      force: true,
-    );
   }
 
   void _ensureMprisTimer() {
@@ -292,7 +244,6 @@ class AudioPlayerProvider extends ChangeNotifier {
     if (_state != newState) {
       _state = newState;
       notifyListeners();
-      _updateMediaControls();
       if (_currentTrack == null || newState == PlaybackState.idle) {
         _clearDiscordPresence();
         _stopMprisTimer();
@@ -396,7 +347,6 @@ class AudioPlayerProvider extends ChangeNotifier {
       await _player.play();
       if (requestToken != _trackChangeToken) return;
 
-      _updateMediaControls();
       _ensureRpcTimer();
       _updateDiscordPresence(force: true);
       _saveQueue();
@@ -513,63 +463,6 @@ class AudioPlayerProvider extends ChangeNotifier {
     );
   }
 
-  // MPRIS
-  Future<void> _updateMediaControls() async {
-    if (_currentTrack == null) return;
-    try {
-      final handler = AudioPlayerHandler.instance;
-      handler.mediaItem.add(
-        audio_service.MediaItem(
-          id: _currentTrack!.id,
-          title: _currentTrack!.title,
-          artist: _currentTrack!.artists.map((a) => a.name).join(', '),
-          album: _currentTrack!.album?.title ?? '',
-          artUri: Uri.parse(_currentTrack!.thumbnailUrl),
-          duration: duration,
-        ),
-      );
-      handler.playbackState.add(
-        audio_service.PlaybackState(
-          playing: isPlaying,
-          processingState: isLoading
-              ? audio_service.AudioProcessingState.loading
-              : audio_service.AudioProcessingState.ready,
-          controls: [
-            AudioPlayerHandler.shuffleControl(_shuffleEnabled),
-            audio_service.MediaControl.skipToPrevious,
-            if (isPlaying)
-              audio_service.MediaControl.pause
-            else
-              audio_service.MediaControl.play,
-            audio_service.MediaControl.skipToNext,
-            AudioPlayerHandler.repeatControl(
-              _repeatMode == RepeatMode.one
-                  ? audio_service.AudioServiceRepeatMode.one
-                  : _repeatMode == RepeatMode.all
-                      ? audio_service.AudioServiceRepeatMode.all
-                      : audio_service.AudioServiceRepeatMode.none,
-            ),
-          ],
-          systemActions: const {
-            audio_service.MediaAction.seek,
-            audio_service.MediaAction.seekForward,
-            audio_service.MediaAction.seekBackward,
-            audio_service.MediaAction.setShuffleMode,
-            audio_service.MediaAction.setRepeatMode,
-          },
-          shuffleMode: _shuffleEnabled
-              ? audio_service.AudioServiceShuffleMode.all
-              : audio_service.AudioServiceShuffleMode.none,
-          repeatMode: _repeatMode == RepeatMode.one
-              ? audio_service.AudioServiceRepeatMode.one
-              : _repeatMode == RepeatMode.all
-                  ? audio_service.AudioServiceRepeatMode.all
-                  : audio_service.AudioServiceRepeatMode.none,
-          updatePosition: position,
-        ),
-      );
-    } catch (_) {}
-  }
 
   Future<void> _updateDiscordPresence({bool force = false}) async {
     final track = _currentTrack;
@@ -596,29 +489,6 @@ class AudioPlayerProvider extends ChangeNotifier {
     _stopRpcTimer();
   }
 
-  void _applyShuffleModeFromSession(
-    audio_service.AudioServiceShuffleMode mode,
-  ) {
-    final shouldEnable = mode == audio_service.AudioServiceShuffleMode.all;
-    setShuffleEnabled(shouldEnable);
-  }
-
-  void _applyRepeatModeFromSession(
-    audio_service.AudioServiceRepeatMode mode,
-  ) {
-    switch (mode) {
-      case audio_service.AudioServiceRepeatMode.one:
-        setRepeatMode(RepeatMode.one);
-        break;
-      case audio_service.AudioServiceRepeatMode.all:
-        setRepeatMode(RepeatMode.all);
-        break;
-      case audio_service.AudioServiceRepeatMode.none:
-      default:
-        setRepeatMode(RepeatMode.off);
-        break;
-    }
-  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PUBLIC API
@@ -646,6 +516,8 @@ class AudioPlayerProvider extends ChangeNotifier {
     bool play = true,
     String? contextType,
     String? contextName,
+    String? contextID,
+    SongSource? contextSource,
     bool shuffleEnabled = false,
     List<GenericSong>? originalQueue,
   }) async {
@@ -655,6 +527,8 @@ class AudioPlayerProvider extends ChangeNotifier {
     _shuffleEnabled = shuffleEnabled;
     _playbackContextType = contextType;
     _playbackContextName = contextName;
+    _playbackContextID = contextID;
+    _playbackContextSource = contextSource;
 
     if (_queue.isEmpty) {
       _currentIndex = -1;
@@ -801,7 +675,6 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   void setShuffleEnabled(bool enabled) {
     if (_shuffleEnabled == enabled) {
-      _updateMediaControls();
       return;
     }
 
@@ -825,7 +698,6 @@ class AudioPlayerProvider extends ChangeNotifier {
     }
     _saveQueue();
     notifyListeners();
-    _updateMediaControls();
   }
 
   void toggleRepeat() {
@@ -836,13 +708,11 @@ class AudioPlayerProvider extends ChangeNotifier {
 
   void setRepeatMode(RepeatMode mode) {
     if (_repeatMode == mode) {
-      _updateMediaControls();
       return;
     }
     _repeatMode = mode;
     _saveQueue();
     notifyListeners();
-    _updateMediaControls();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

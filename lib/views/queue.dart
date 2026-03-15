@@ -5,7 +5,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../providers/audio/player.dart';
+import '../services/wisp_audio_handler.dart';
 import '../providers/library/library_state.dart';
 import '../widgets/track_context_menu.dart';
 import '../widgets/library_item_context_menu.dart';
@@ -58,9 +58,9 @@ class _QueueViewState extends State<QueueView> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
-          Consumer<AudioPlayerProvider>(
+          Consumer<WispAudioHandler>(
             builder: (context, player, child) {
-              if (player.queue.isEmpty) return const SizedBox.shrink();
+              if (player.queueTracks.isEmpty) return const SizedBox.shrink();
               return TextButton(
                 onPressed: () {
                   player.clearQueue();
@@ -81,10 +81,10 @@ class _QueueViewState extends State<QueueView> {
   }
 
   Widget _buildQueueContent() {
-    return Consumer<AudioPlayerProvider>(
+    return Consumer<WispAudioHandler>(
       builder: (context, player, child) {
         final contextName = player.playbackContextName;
-        final queue = player.queue;
+        final queue = player.queueTracks;
         final currentIndex = player.currentIndex;
 
         return Container(
@@ -110,7 +110,7 @@ class _QueueViewState extends State<QueueView> {
   Widget _buildHeader(
     String? contextName,
     int queueLength,
-    AudioPlayerProvider player,
+    WispAudioHandler player,
   ) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -195,7 +195,7 @@ class _QueueViewState extends State<QueueView> {
   }
 
   Widget _buildQueueList(
-    AudioPlayerProvider player,
+    WispAudioHandler player,
     List<GenericSong> queue,
     int currentIndex,
   ) {
@@ -241,7 +241,7 @@ class _QueueViewState extends State<QueueView> {
     required int index,
     required bool isCurrentTrack,
     required bool isEven,
-    required AudioPlayerProvider player,
+    required WispAudioHandler player,
     required LibraryState libraryState,
   }) {
     final album = track.album;
@@ -546,9 +546,9 @@ void showMobileQueueSheet(BuildContext context) {
                       ),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    Consumer<AudioPlayerProvider>(
+                    Consumer<WispAudioHandler>(
                       builder: (context, player, child) {
-                        if (player.queue.isEmpty)
+                        if (player.queueTracks.isEmpty)
                           return const SizedBox.shrink();
                         return TextButton(
                           onPressed: () {

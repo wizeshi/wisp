@@ -13,10 +13,13 @@ import '../../services/folder_thumbnail_store.dart';
 
 class LocalPlaylistState extends ChangeNotifier {
   static const String _prefsKey = 'local_playlists';
+  static const String _prefsTrashKey = 'local_playlists_trash';
   static const String _prefsHiddenKey = 'local_hidden_provider_playlists';
 
   final List<LocalPlaylist> _playlists = [];
+  final List<LocalPlaylist> _trashed = [];
   final Set<String> _hiddenProviderPlaylistIds = {};
+  LocalPlaylist? _lastDeleted;
   bool _initialized = false;
 
   LocalPlaylistState() {
@@ -57,6 +60,15 @@ class LocalPlaylistState extends ChangeNotifier {
           list.map((e) => LocalPlaylist.fromJson(e as Map<String, dynamic>)),
         );
     }
+    final trashRaw = prefs.getString(_prefsTrashKey);
+    if (trashRaw != null) {
+      final list = json.decode(trashRaw) as List;
+      _trashed
+        ..clear()
+        ..addAll(
+          list.map((e) => LocalPlaylist.fromJson(e as Map<String, dynamic>)),
+        );
+    }
     final hiddenRaw = prefs.getString(_prefsHiddenKey);
     if (hiddenRaw != null) {
       final list = json.decode(hiddenRaw) as List;
@@ -74,6 +86,10 @@ class LocalPlaylistState extends ChangeNotifier {
     await prefs.setString(
       _prefsKey,
       json.encode(_playlists.map((p) => p.toJson()).toList()),
+    );
+    await prefs.setString(
+      _prefsTrashKey,
+      json.encode(_trashed.map((p) => p.toJson()).toList()),
     );
     await prefs.setString(
       _prefsHiddenKey,
@@ -154,11 +170,71 @@ class LocalPlaylistState extends ChangeNotifier {
     if (playlist.linkedId != null && playlist.linkedId!.isNotEmpty) {
       _hiddenProviderPlaylistIds.add(playlist.linkedId!);
     }
-    await FolderThumbnailStore.instance.deleteThumbnail(playlist.thumbnailPath);
+    // Soft-delete: move to trash so it can be restored.
+    _lastDeleted = playlist;
+    _trashed.add(playlist);
     _playlists.removeAt(index);
     await _savePrefs();
     notifyListeners();
   }
+
+  /// Permanently delete a playlist that is currently in the trash.
+  Future<void> permanentlyDeletePlaylist(String id) async {
+    final index = _trashed.indexWhere((p) => p.id == id);
+    if (index < 0) return;
+    final playlist = _trashed[index];
+    await FolderThumbnailStore.instance.deleteThumbnail(playlist.thumbnailPath);
+    _trashed.removeAt(index);
+    await _savePrefs();
+    notifyListeners();
+  }
+
+  /// Restore a trashed playlist back into the active playlists.
+  Future<void> restorePlaylist(String id) async {
+    final index = _trashed.indexWhere((p) => p.id == id);
+    if (index < 0) return;
+    final playlist = _trashed.removeAt(index);
+    // If it was linked to a provider, make sure it's not hidden anymore.
+    if (playlist.linkedId != null && playlist.linkedId!.isNotEmpty) {
+      _hiddenProviderPlaylistIds.remove(playlist.linkedId!);
+    }
+    _playlists.add(playlist);
+    // If the restored playlist was the last deleted, clear the marker.
+    if (_lastDeleted?.id == id) _lastDeleted = null;
+    await _savePrefs();
+    notifyListeners();
+  }
+
+  /// Undo the most recent delete operation (if available).
+  Future<void> undoLastDelete() async {
+    final playlist = _lastDeleted;
+    if (playlist == null) return;
+    final index = _trashed.indexWhere((p) => p.id == playlist.id);
+    if (index < 0) {
+      _lastDeleted = null;
+      return;
+    }
+    _trashed.removeAt(index);
+    if (playlist.linkedId != null && playlist.linkedId!.isNotEmpty) {
+      _hiddenProviderPlaylistIds.remove(playlist.linkedId!);
+    }
+    _playlists.add(playlist);
+    _lastDeleted = null;
+    await _savePrefs();
+    notifyListeners();
+  }
+
+  /// Un-hide a provider playlist id that was previously hidden when deleting.
+  /// Call this with the provider's playlist id (e.g. a Spotify playlist id).
+  Future<void> unhideProviderPlaylist(String providerId) async {
+    if (providerId.isEmpty) return;
+    final removed = _hiddenProviderPlaylistIds.remove(providerId);
+    if (!removed) return;
+    await _savePrefs();
+    notifyListeners();
+  }
+
+  List<LocalPlaylist> get trashedPlaylists => List.unmodifiable(_trashed);
 
   Future<LocalPlaylist> ensureLinkedFromProvider(GenericPlaylist playlist) async {
     final existing = getById(playlist.id);

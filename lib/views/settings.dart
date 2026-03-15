@@ -1,11 +1,13 @@
 /// Settings page with Spotify authentication
 library;
 
-import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/metadata/spotify.dart';
-import '../services/credentials.dart';
+import 'package:wisp/models/metadata_provider.dart';
+import 'package:wisp/providers/metadata/spotify_internal.dart';
+import '../providers/library/local_playlists.dart';
+import '../providers/preferences/preferences_provider.dart';
 import '../services/cache_manager.dart';
 import '../services/navigation_history.dart';
 
@@ -17,97 +19,196 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  final _clientIdController = TextEditingController();
-  final _clientSecretController = TextEditingController();
-  final _lyricsCookieController = TextEditingController();
-  final _credentialsService = CredentialsService();
-  bool _hasCredentials = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCredentials();
+  Future<void> _showProviderPreferencesDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF282828),
+          title: const Text(
+            'Provider Preferences',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SizedBox(
+            width: 520,
+            child: Consumer<PreferencesProvider>(
+              builder: (context, prefs, child) {
+                return SingleChildScrollView(
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ExpansionTile(
+                          initiallyExpanded: true,
+                          title: const Text(
+                            'Metadata',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          children: [
+                            SwitchListTile.adaptive(
+                              title: const Text(
+                                'Spotify',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              value: prefs.metadataSpotifyEnabled,
+                              activeThumbColor:
+                                  Theme.of(context).colorScheme.primary,
+                              onChanged: (enabled) async {
+                                final hasAny = enabled || prefs.metadataYouTubeEnabled;
+                                await prefs.setMetadataSpotifyEnabled(enabled);
+                                if (!hasAny) {
+                                  _showSnackBar(
+                                    'Warning: all Metadata providers are disabled.',
+                                  );
+                                }
+                              },
+                            ),
+                            SwitchListTile.adaptive(
+                              title: const Text(
+                                'YouTube',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              value: prefs.metadataYouTubeEnabled,
+                              activeThumbColor:
+                                  Theme.of(context).colorScheme.primary,
+                              onChanged: (enabled) async {
+                                final hasAny = enabled || prefs.metadataSpotifyEnabled;
+                                await prefs.setMetadataYouTubeEnabled(enabled);
+                                if (!hasAny) {
+                                  _showSnackBar(
+                                    'Warning: all Metadata providers are disabled.',
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        ExpansionTile(
+                          title: const Text(
+                            'Audio',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          children: [
+                            SwitchListTile.adaptive(
+                              title: const Text(
+                                'YouTube',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              value: prefs.audioYouTubeEnabled,
+                              activeThumbColor:
+                                  Theme.of(context).colorScheme.primary,
+                              onChanged: (enabled) async {
+                                final hasAny = enabled || prefs.audioSpotifyEnabled;
+                                await prefs.setAudioYouTubeEnabled(enabled);
+                                if (!hasAny) {
+                                  _showSnackBar(
+                                    'Warning: all Audio providers are disabled.',
+                                  );
+                                }
+                              },
+                            ),
+                            SwitchListTile.adaptive(
+                              title: const Text(
+                                'Spotify (EXPERIMENTAL)',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              value: prefs.audioSpotifyEnabled,
+                              activeThumbColor:
+                                  Theme.of(context).colorScheme.primary,
+                              onChanged: (enabled) async {
+                                final hasAny = enabled || prefs.audioYouTubeEnabled;
+                                await prefs.setAudioSpotifyEnabled(enabled);
+                                if (!hasAny) {
+                                  _showSnackBar(
+                                    'Warning: all Audio providers are disabled.',
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        ExpansionTile(
+                          title: const Text(
+                            'Lyrics',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          children: [
+                            SwitchListTile.adaptive(
+                              title: const Text(
+                                'Lrclib',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              value: prefs.lyricsLrclibEnabled,
+                              activeThumbColor:
+                                  Theme.of(context).colorScheme.primary,
+                              onChanged: (enabled) async {
+                                final hasAny = enabled || prefs.lyricsSpotifyEnabled;
+                                await prefs.setLyricsLrclibEnabled(enabled);
+                                if (!hasAny) {
+                                  _showSnackBar(
+                                    'Warning: all Lyrics providers are disabled.',
+                                  );
+                                }
+                              },
+                            ),
+                            SwitchListTile.adaptive(
+                              title: const Text(
+                                'Spotify',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                              value: prefs.lyricsSpotifyEnabled,
+                              activeThumbColor:
+                                  Theme.of(context).colorScheme.primary,
+                              onChanged: (enabled) async {
+                                final hasAny = enabled || prefs.lyricsLrclibEnabled;
+                                await prefs.setLyricsSpotifyEnabled(enabled);
+                                if (!hasAny) {
+                                  _showSnackBar(
+                                    'Warning: all Lyrics providers are disabled.',
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
-  Future<void> _loadCredentials() async {
-    final credentials = await _credentialsService.getSpotifyCredentials();
-    final lyricsCookie = await _credentialsService.getSpotifyLyricsCookie();
-    if (credentials != null && mounted) {
-      setState(() {
-        _clientIdController.text = credentials.clientId;
-        _clientSecretController.text = credentials.clientSecret;
-        _hasCredentials = true;
-      });
-    }
-    if (lyricsCookie != null && mounted) {
-      setState(() {
-        _lyricsCookieController.text = lyricsCookie;
-      });
-    }
-  }
-
-  Future<void> _saveCredentials() async {
-    if (_clientIdController.text.isEmpty ||
-        _clientSecretController.text.isEmpty) {
-      _showSnackBar('Please enter both Client ID and Client Secret');
-      return;
-    }
-
+  Future<void> _handleProviderLogin(MetadataProvider provider) async {
     try {
-      await _credentialsService.saveSpotifyCredentials(
-        SpotifyCredentials(
-          clientId: _clientIdController.text.trim(),
-          clientSecret: _clientSecretController.text.trim(),
-        ),
-      );
-      setState(() {
-        _hasCredentials = true;
-      });
-      await _saveLyricsCookie();
-      _showSnackBar('Credentials saved successfully');
-    } catch (e) {
-      _showSnackBar('Failed to save credentials: $e');
-    }
-  }
-
-  Future<void> _saveLyricsCookie() async {
-    final cookie = _lyricsCookieController.text.trim();
-    try {
-      if (cookie.isEmpty) {
-        await _credentialsService.clearSpotifyLyricsCookie();
-        return;
-      }
-      await _credentialsService.saveSpotifyLyricsCookie(cookie);
-    } catch (e) {
-      _showSnackBar('Failed to save lyrics cookie: $e');
-    }
-  }
-
-  Future<void> _handleLogin() async {
-    final provider = context.read<SpotifyProvider>();
-    try {
-      await provider.login();
+      await provider.login(context);
       if (mounted) {
-        _showSnackBar('Successfully authenticated with Spotify!');
+        _showSnackBar('Successfully authenticated with ${provider.name}!');
       }
-    } on SpotifyCredentialsException catch (e) {
-      _showSnackBar(e.message);
-    } on SpotifyAuthException catch (e) {
-      _showSnackBar(e.message);
     } catch (e) {
       _showSnackBar('Login failed: $e');
     }
   }
 
-  Future<void> _handleLogout() async {
-    final provider = context.read<SpotifyProvider>();
+  Future<void> _handleProviderLogout(MetadataProvider provider) async {
     await provider.logout();
     if (mounted) {
       _showSnackBar('Logged out successfully');
     }
   }
-
-  // Spotify lyrics cookie (sp_dc) is disabled for now.
 
   void _showSnackBar(String message) {
     if (!mounted) return;
@@ -117,20 +218,10 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
-    final rootContext =
-        NavigationHistory.instance.navigatorKey.currentContext;
-    final rootMessenger = rootContext == null
-        ? null
-        : ScaffoldMessenger.maybeOf(rootContext);
+    final rootContext = NavigationHistory.instance.navigatorKey.currentContext;
+    final rootMessenger =
+        rootContext == null ? null : ScaffoldMessenger.maybeOf(rootContext);
     rootMessenger?.showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  @override
-  void dispose() {
-    _clientIdController.dispose();
-    _clientSecretController.dispose();
-    _lyricsCookieController.dispose();
-    super.dispose();
   }
 
   @override
@@ -138,12 +229,18 @@ class _SettingsPageState extends State<SettingsPage> {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
+    final content = SettingsContent(
+      buildProviderCard: _buildProviderCard,
+      buildCacheSettingsCard: _buildCacheSettingsCard,
+      buildStylePreferenceRow: _buildStylePreferenceRow,
+      buildAnimatedCanvasRow: _buildAnimatedCanvasPreferenceRow,
+      buildAllowWritingRow: _buildAllowWritingPreferenceRow,
+      showSnackBar: _showSnackBar,
+      onEditProviderPreferences: _showProviderPreferencesDialog,
+    );
+
     if (isDesktop) {
-      return SettingsContent(
-        buildProviderCard: _buildProviderCard,
-        buildCacheSettingsCard: _buildCacheSettingsCard,
-        buildPreferenceRow: _buildPreferenceRow,
-      );
+      return content;
     }
 
     return Scaffold(
@@ -152,11 +249,7 @@ class _SettingsPageState extends State<SettingsPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: SettingsContent(
-        buildProviderCard: _buildProviderCard,
-        buildCacheSettingsCard: _buildCacheSettingsCard,
-        buildPreferenceRow: _buildPreferenceRow,
-      ),
+      body: content,
     );
   }
 
@@ -168,10 +261,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
         return Container(
           decoration: BoxDecoration(
-            color: Color(0xFF181818),
+            color: const Color(0xFF181818),
             borderRadius: BorderRadius.circular(8),
           ),
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -182,12 +275,12 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: Theme.of(context).colorScheme.primary,
                     size: 28,
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'Audio Cache',
                           style: TextStyle(
                             fontSize: 16,
@@ -195,9 +288,11 @@ class _SettingsPageState extends State<SettingsPage> {
                             color: Colors.white,
                           ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          '${cacheManager.currentCacheSizeMB} MB / ${cacheManager.maxCacheSizeMB} MB used • ${cacheManager.cachedTrackCount} tracks',
+                          '${cacheManager.currentCacheSizeMB} MB / '
+                          '${cacheManager.maxCacheSizeMB} MB used '
+                          '• ${cacheManager.cachedTrackCount} tracks',
                           style: TextStyle(
                             color: Colors.grey[500],
                             fontSize: 12,
@@ -208,9 +303,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ),
-              SizedBox(height: 20),
-
-              // Cache size slider
+              const SizedBox(height: 20),
               _buildSliderSetting(
                 'Maximum Cache Size',
                 '${cacheManager.maxCacheSizeMB} MB',
@@ -222,10 +315,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
                 divisions: 19,
               ),
-
-              SizedBox(height: 16),
-
-              // Pre-download count slider
+              const SizedBox(height: 16),
               _buildSliderSetting(
                 'Pre-download Next Tracks',
                 '${cacheManager.preDownloadCount} tracks',
@@ -237,10 +327,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
                 divisions: 5,
               ),
-
-              SizedBox(height: 16),
-
-              // Concurrent downloads slider
+              const SizedBox(height: 16),
               _buildSliderSetting(
                 'Concurrent Downloads',
                 '${cacheManager.maxConcurrentDownloads}',
@@ -252,10 +339,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
                 divisions: 4,
               ),
-
               Divider(color: Colors.grey[800], height: 32),
-
-              // Toggle settings
               _buildToggleSetting(
                 'Auto-cache while playing',
                 'Download tracks as you play them',
@@ -264,9 +348,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   cacheManager.setAutoCacheEnabled(value);
                 },
               ),
-
-              SizedBox(height: 12),
-
+              const SizedBox(height: 12),
               _buildToggleSetting(
                 'WiFi/Ethernet-only downloads',
                 'Only download when connected to WiFi or Ethernet',
@@ -275,9 +357,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   cacheManager.setWifiOnlyDownloads(value);
                 },
               ),
-
-              SizedBox(height: 12),
-
+              const SizedBox(height: 12),
               _buildToggleSetting(
                 'Network-only mode',
                 'Only play cached tracks (offline mode)',
@@ -286,10 +366,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   cacheManager.setNetworkOnlyMode(value);
                 },
               ),
-
               Divider(color: Colors.grey[800], height: 32),
-
-              // Cache management buttons
               Row(
                 children: [
                   Expanded(
@@ -300,25 +377,25 @@ class _SettingsPageState extends State<SettingsPage> {
                           _showSnackBar('Removed $count expired tracks');
                         }
                       },
-                      icon: Icon(Icons.auto_delete_outlined, size: 18),
-                      label: Text('Remove Expired'),
+                      icon: const Icon(Icons.auto_delete_outlined, size: 18),
+                      label: const Text('Remove Expired'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.grey[400],
                         side: BorderSide(color: Colors.grey[700]!),
-                        padding: EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _showClearCacheDialog(context),
-                      icon: Icon(Icons.delete_outline, size: 18),
-                      label: Text('Clear All'),
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Clear All'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.red[400],
                         side: BorderSide(color: Colors.red[700]!),
-                        padding: EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
@@ -346,7 +423,7 @@ class _SettingsPageState extends State<SettingsPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: TextStyle(color: Colors.white, fontSize: 14)),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
             Text(
               valueLabel,
               style: TextStyle(
@@ -357,15 +434,14 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ],
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor: Colors.grey[800],
             thumbColor: Theme.of(context).colorScheme.primary,
-            overlayColor: Theme.of(
-              context,
-            ).colorScheme.primary.withValues(alpha: 0.2),
+            overlayColor:
+                Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
             trackHeight: 4,
           ),
           child: Slider(
@@ -392,8 +468,8 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(color: Colors.white, fontSize: 14)),
-              SizedBox(height: 2),
+              Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+              const SizedBox(height: 2),
               Text(
                 description,
                 style: TextStyle(color: Colors.grey[500], fontSize: 12),
@@ -414,10 +490,11 @@ class _SettingsPageState extends State<SettingsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Color(0xFF282828),
-        title: Text('Clear Cache', style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF282828),
+        title: const Text('Clear Cache', style: TextStyle(color: Colors.white)),
         content: Text(
-          'This will delete all cached audio files. You\'ll need to re-download tracks for offline playback.',
+          'This will delete all cached audio files. You\'ll need to re-download '
+          'tracks for offline playback.',
           style: TextStyle(color: Colors.grey[400]),
         ),
         actions: [
@@ -434,18 +511,16 @@ class _SettingsPageState extends State<SettingsPage> {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red[700]),
-            child: Text('Clear'),
+            child: const Text('Clear'),
           ),
         ],
       ),
     );
   }
 
-  // Spotify lyrics cookie UI removed for now.
-
   Widget _buildProviderCard(
     BuildContext context,
-    SpotifyProvider provider,
+    MetadataProvider provider,
     String name,
     IconData icon,
     Color accentColor,
@@ -454,50 +529,40 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Color(0xFF181818),
+        color: const Color(0xFF181818),
         borderRadius: BorderRadius.circular(8),
       ),
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Icon(icon, color: accentColor, size: 32),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isConnected
-                            ? Colors.green.withValues(alpha: 0.2)
-                            : Colors.red.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: isConnected ? Colors.green : Colors.red,
-                          width: 1,
+                    Row(
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        isConnected ? 'Logged In' : 'Not Logged In',
-                        style: TextStyle(
-                          color: isConnected ? Colors.green : Colors.red,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                        if (isConnected) ...[
+                          const SizedBox(width: 8),
+                          const Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                            size: 16,
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -507,26 +572,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   if (isConnected) ...[
                     IconButton(
-                      icon: Icon(Icons.edit_outlined, color: Colors.grey[400]),
-                      onPressed: () => _showCredentialsDialog(context),
-                      tooltip: 'Edit credentials',
-                    ),
-                    IconButton(
                       icon: Icon(Icons.logout, color: Colors.grey[400]),
-                      onPressed: _handleLogout,
+                      onPressed: () => _handleProviderLogout(provider),
                       tooltip: 'Logout',
                     ),
                   ] else ...[
                     IconButton(
-                      icon: Icon(Icons.edit_outlined, color: Colors.grey[400]),
-                      onPressed: () => _showCredentialsDialog(context),
-                      tooltip: 'Edit credentials',
-                    ),
-                    IconButton(
                       icon: Icon(Icons.login, color: accentColor),
-                      onPressed: _hasCredentials
-                          ? _handleLogin
-                          : () => _showCredentialsDialog(context),
+                      onPressed: () => _handleProviderLogin(provider),
                       tooltip: 'Login',
                     ),
                   ],
@@ -534,10 +587,10 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-          if (!isConnected && !_hasCredentials) ...[
-            SizedBox(height: 12),
+          if (!isConnected) ...[
+            const SizedBox(height: 12),
             Text(
-              'Add your Spotify API credentials to get started',
+              'Log in to sync your library and lyrics',
               style: TextStyle(color: Colors.grey[500], fontSize: 13),
             ),
           ],
@@ -546,138 +599,176 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildPreferenceRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.white, fontSize: 14)),
-        Row(
-          children: [
-            Text(
-              value,
-              style: TextStyle(color: Colors.grey[400], fontSize: 14),
-            ),
-            SizedBox(width: 8),
-            Icon(Icons.arrow_drop_down, color: Colors.grey[400]),
-          ],
-        ),
-      ],
-    );
-  }
-
-  void _showCredentialsDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Color(0xFF282828),
-        title: Text(
-          'Spotify Credentials',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _clientIdController,
-              style: TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Client ID',
-                labelStyle: TextStyle(color: Colors.grey[400]),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.grey[700]!),
+  Widget _buildStylePreferenceRow() {
+    final options = ['Spotify', 'Apple Music', 'YouTube Music'];
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF181818),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('Style', style: TextStyle(color: Colors.white, fontSize: 14)),
+          Selector<PreferencesProvider, String>(
+            selector: (context, prefs) => prefs.style,
+            builder: (context, selectedStyle, child) {
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: DropdownButton<String>(
+                  value: selectedStyle,
+                  items: options
+                      .map((style) => DropdownMenuItem(
+                            value: style,
+                            child: Text(
+                              style,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    context.read<PreferencesProvider>().setStyle(value);
+                  },
+                  dropdownColor: const Color(0xFF282828),
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: _clientSecretController,
-              style: TextStyle(color: Colors.white),
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Client Secret',
-                labelStyle: TextStyle(color: Colors.grey[400]),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.grey[700]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: _lyricsCookieController,
-              style: TextStyle(color: Colors.white),
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: 'Lyrics Cookie (sp_dc)',
-                labelStyle: TextStyle(color: Colors.grey[400]),
-                helperText: 'Used for Spotify lyrics extraction',
-                helperStyle: TextStyle(color: Colors.grey[500]),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.grey[700]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _saveCredentials();
-              Navigator.pop(context);
+              );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            ),
-            child: Text('Save'),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildAnimatedCanvasPreferenceRow() {
+    return Selector<PreferencesProvider, bool>(
+      selector: (context, prefs) => prefs.animatedCanvasEnabled,
+      builder: (context, enabled, child) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF181818),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Animated Canvas',
+                  style: TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              ),
+              Switch(
+                value: enabled,
+                onChanged: (value) {
+                  context
+                      .read<PreferencesProvider>()
+                      .setAnimatedCanvasEnabled(value);
+                },
+                activeThumbColor: Theme.of(context).colorScheme.primary,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAllowWritingPreferenceRow() {
+    return Selector<PreferencesProvider, bool>(
+      selector: (context, prefs) => prefs.allowWriting,
+      builder: (context, enabled, child) {
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF181818),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Allow Writing',
+                  style: TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              ),
+              Switch(
+                value: enabled,
+                onChanged: (value) {
+                  context.read<PreferencesProvider>().setAllowWriting(value);
+                },
+                activeThumbColor: Theme.of(context).colorScheme.primary,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class SettingsContent extends StatelessWidget {
-  final Widget Function(BuildContext, SpotifyProvider, String, IconData, Color)
-  buildProviderCard;
+  final Widget Function(BuildContext, MetadataProvider, String, IconData, Color)
+      buildProviderCard;
   final Widget Function(BuildContext) buildCacheSettingsCard;
-  final Widget Function(String, String) buildPreferenceRow;
+  final Widget Function() buildStylePreferenceRow;
+  final Widget Function() buildAnimatedCanvasRow;
+  final Widget Function() buildAllowWritingRow;
+  final void Function(String) showSnackBar;
+  final VoidCallback onEditProviderPreferences;
 
   const SettingsContent({
     super.key,
     required this.buildProviderCard,
     required this.buildCacheSettingsCard,
-    required this.buildPreferenceRow,
+    required this.buildStylePreferenceRow,
+    required this.buildAnimatedCanvasRow,
+    required this.buildAllowWritingRow,
+    required this.showSnackBar,
+    required this.onEditProviderPreferences,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SpotifyProvider>(
-      builder: (context, spotifyProvider, child) {
-        return ListView(
-          padding: const EdgeInsets.all(24.0),
+    final List<Widget Function()> providerConsumers = [
+      () => Consumer<SpotifyInternalProvider>(
+            builder: (context, providerInstance, child) {
+              return buildProviderCard(
+                context,
+                providerInstance,
+                providerInstance.name,
+                Icons.library_music,
+                Theme.of(context).colorScheme.primary,
+              );
+            },
+          ),
+    ];
+
+    final providerCards = providerConsumers
+        .map((builder) => builder())
+        .expand((w) => [w, const SizedBox(height: 16)])
+        .toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(24.0),
+      children: [
+        Text(
+          'PROVIDERS',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[600],
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...providerCards,
+        Row(
           children: [
-            // Providers section
             Text(
-              'PROVIDERS',
+              'PREFERENCES',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -685,38 +776,211 @@ class SettingsContent extends StatelessWidget {
                 letterSpacing: 1.5,
               ),
             ),
-            SizedBox(height: 16),
-
-            // Spotify provider card
-            buildProviderCard(
-              context,
-              spotifyProvider,
-              'Spotify',
-              Icons.graphic_eq,
-              Theme.of(context).colorScheme.primary,
-            ),
-
-            SizedBox(height: 16),
-
-            SizedBox(height: 32),
-
-            // Cache section
-            Text(
-              'CACHE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[600],
-                letterSpacing: 1.5,
+            const Spacer(),
+            IconButton(
+              tooltip: 'Edit providers',
+              onPressed: onEditProviderPreferences,
+              icon: Icon(
+                Icons.edit_outlined,
+                size: 18,
+                color: Colors.grey[500],
               ),
             ),
-            SizedBox(height: 16),
-
-            // Cache settings card
-            buildCacheSettingsCard(context),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 16),
+        buildStylePreferenceRow(),
+        const SizedBox(height: 16),
+        buildAnimatedCanvasRow(),
+        const SizedBox(height: 16),
+        buildAllowWritingRow(),
+        const SizedBox(height: 16),
+        Text(
+          'CACHE',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[600],
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 16),
+        buildCacheSettingsCard(context),
+        const SizedBox(height: 16),
+        Text(
+          'TRASH',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[600],
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Consumer<LocalPlaylistState>(
+          builder: (context, trashState, child) {
+            final trashed = trashState.trashedPlaylists;
+            if (trashed.isEmpty) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF181818),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(16),
+                child:
+                    Text('No trashed playlists', style: TextStyle(color: Colors.grey[500])),
+              );
+            }
+            return Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF181818),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: trashed.map((p) {
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(p.title, style: const TextStyle(color: Colors.white)),
+                    subtitle: Text(
+                      p.authorName,
+                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Restore',
+                          icon: Icon(
+                            Icons.restore_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          onPressed: () async {
+                            await context
+                                .read<LocalPlaylistState>()
+                                .restorePlaylist(p.id);
+                            showSnackBar('Playlist restored');
+                          },
+                        ),
+                        IconButton(
+                          tooltip: 'Delete permanently',
+                          icon: Icon(Icons.delete_outline, color: Colors.red[400]),
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: const Color(0xFF282828),
+                                title: const Text(
+                                  'Delete permanently',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                                content: Text(
+                                  'This will permanently delete the playlist and its thumbnail. '
+                                  'This cannot be undone.',
+                                  style: TextStyle(color: Colors.grey[400]),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: Text(
+                                      'Cancel',
+                                      style: TextStyle(color: Colors.grey[400]),
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red[700],
+                                    ),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              await context
+                                  .read<LocalPlaylistState>()
+                                  .permanentlyDeletePlaylist(p.id);
+                              showSnackBar('Playlist deleted');
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF181818),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Recover a provider playlist by ID',
+                  style: TextStyle(color: Colors.grey[300]),
+                ),
+              ),
+              OutlinedButton(
+                onPressed: () async {
+                  final idController = TextEditingController();
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: const Color(0xFF282828),
+                      title: const Text(
+                        'Unhide Provider Playlist',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      content: TextField(
+                        controller: idController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: 'Provider playlist id',
+                          labelStyle: TextStyle(color: Colors.grey[400]),
+                          hintText: 'e.g. spotify:playlist:... or playlist id',
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(color: Colors.grey[400]),
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Unhide'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok == true) {
+                    final providerId = idController.text.trim();
+                    if (providerId.isEmpty) {
+                      showSnackBar('No id entered');
+                      return;
+                    }
+                    await context
+                        .read<LocalPlaylistState>()
+                        .unhideProviderPlaylist(providerId);
+                    showSnackBar('Provider id unhidden — open provider playlist to restore');
+                  }
+                },
+                child: const Text('Unhide'),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

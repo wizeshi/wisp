@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
-import '../providers/metadata/spotify.dart';
+import '../providers/metadata/spotify_internal.dart';
 
 class LikeButton extends StatefulWidget {
   final GenericSong? track;
@@ -13,6 +13,9 @@ class LikeButton extends StatefulWidget {
   final EdgeInsets padding;
   final BoxConstraints constraints;
   final bool showTooltip;
+  final Color color;
+  final IconData? likedIcon;
+  final IconData? notLikedIcon;
 
   const LikeButton({
     super.key,
@@ -21,6 +24,9 @@ class LikeButton extends StatefulWidget {
     this.padding = const EdgeInsets.all(4),
     this.constraints = const BoxConstraints(minWidth: 28, minHeight: 28),
     this.showTooltip = true,
+    this.color = Colors.white,
+    this.likedIcon = Icons.favorite,
+    this.notLikedIcon = Icons.favorite_border,
   });
 
   @override
@@ -32,10 +38,12 @@ class _LikeButtonState extends State<LikeButton> {
   void initState() {
     super.initState();
     final track = widget.track;
-    if (track != null && track.source == SongSource.spotify) {
+    if (track != null &&
+        (track.source == SongSource.spotify ||
+            track.source == SongSource.spotifyInternal)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        context.read<SpotifyProvider>().ensureLikedTracksLoaded();
+        context.read<SpotifyInternalProvider>().ensureLikedTracksLoaded();
       });
     }
   }
@@ -47,28 +55,28 @@ class _LikeButtonState extends State<LikeButton> {
       return const SizedBox.shrink();
     }
 
-    final isSpotify = track.source == SongSource.spotify;
+    final isSpotifyTrack = track.source == SongSource.spotify ||
+        track.source == SongSource.spotifyInternal;
 
-    return Selector<SpotifyProvider, bool>(
+    return Selector<SpotifyInternalProvider, bool>(
       selector: (context, spotify) =>
-          isSpotify ? spotify.isTrackLiked(track.id) : false,
+          isSpotifyTrack ? spotify.isTrackLiked(track.id) : false,
       builder: (context, isLiked, child) {
-        final icon = isLiked ? Icons.favorite : Icons.favorite_border;
-        final colorScheme = Theme.of(context).colorScheme;
-        final color = !isSpotify
-            ? Colors.grey[600]
+        final icon = isLiked ? widget.likedIcon : widget.notLikedIcon;
+        final color = !isSpotifyTrack
+            ? Colors.white
             : isLiked
-                ? colorScheme.primary
-                : Colors.grey[400];
+                ? widget.color
+                : Colors.white;
 
         final button = IconButton(
           padding: widget.padding,
           constraints: widget.constraints,
           icon: Icon(icon, size: widget.iconSize, color: color),
-          onPressed: isSpotify
+          onPressed: isSpotifyTrack
               ? () async {
                   await context
-                      .read<SpotifyProvider>()
+                      .read<SpotifyInternalProvider>()
                       .toggleTrackLike(track);
                 }
               : null,
@@ -79,7 +87,7 @@ class _LikeButtonState extends State<LikeButton> {
         }
 
         return Tooltip(
-          message: isSpotify
+          message: isSpotifyTrack
               ? (isLiked ? 'Remove from Likes' : 'Add to Likes')
               : 'Spotify only',
           child: button,

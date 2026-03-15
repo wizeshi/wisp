@@ -8,12 +8,18 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
+import 'package:crypto/crypto.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'notification_service.dart';
 import 'download_foreground_service.dart';
 import '../utils/logger.dart';
 
 /// Metadata for a cached audio file
+  String _buildSafeCacheFileName(String trackId, String videoId) {
+    final input = '$trackId|$videoId';
+    final digest = sha1.convert(utf8.encode(input)).toString();
+    return 'track_$digest.m4a';
+  }
 class CacheEntry {
   final String trackId;
   final String videoId;
@@ -94,6 +100,13 @@ class AudioCacheManager extends ChangeNotifier {
   static AudioCacheManager get instance => _instance ??= AudioCacheManager._();
 
   AudioCacheManager._();
+
+  String _normalizeTrackId(String trackId) {
+    final trimmed = trackId.trim();
+    if (!trimmed.contains(':')) return trimmed;
+    final parts = trimmed.split(':');
+    return parts.isNotEmpty ? parts.last : trimmed;
+  }
 
   // Settings
   int _maxCacheSizeBytes = 750 * 1024 * 1024; // 750MB default
@@ -203,7 +216,10 @@ class AudioCacheManager extends ChangeNotifier {
   }
 
   /// Check if a track is cached
-  bool isTrackCached(String trackId) => _cacheEntries.containsKey(trackId);
+  bool isTrackCached(String trackId) {
+    final key = _normalizeTrackId(trackId);
+    return _cacheEntries.containsKey(key);
+  }
 
   /// Get the cached file path for a track
   String? getCachedPath(String trackId) {
@@ -212,7 +228,8 @@ class AudioCacheManager extends ChangeNotifier {
       return null;
     }
 
-    final entry = _cacheEntries[trackId];
+    final key = _normalizeTrackId(trackId);
+    final entry = _cacheEntries[key];
     if (entry == null) {
       logger.d('[CacheManager] Cache miss: $trackId');
       return null;
@@ -223,7 +240,7 @@ class AudioCacheManager extends ChangeNotifier {
     if (!file.existsSync()) {
       // File missing, remove entry
       logger.w('[CacheManager] Cache entry missing file: $trackId');
-      _cacheEntries.remove(trackId);
+      _cacheEntries.remove(key);
       _saveCacheEntries();
       return null;
     }
@@ -234,7 +251,8 @@ class AudioCacheManager extends ChangeNotifier {
 
   /// Mark a track as played (updates lastPlayedDate for LRU)
   Future<void> markAsPlayed(String trackId) async {
-    final entry = _cacheEntries[trackId];
+    final key = _normalizeTrackId(trackId);
+    final entry = _cacheEntries[key];
     if (entry != null) {
       entry.lastPlayedDate = DateTime.now();
       await _saveCacheEntries();
@@ -252,24 +270,26 @@ class AudioCacheManager extends ChangeNotifier {
     required String artistName,
     required Future<(String videoId, String streamUrl)> Function()
     resolveAndGetStream,
+    Map<String, String>? requestHeaders,
   }) async {
+    final key = _normalizeTrackId(trackId);
     if (!_initialized) await initialize();
     if (_networkOnlyMode) {
       logger.d('[CacheManager] Download skipped (network-only mode): $trackTitle');
       return;
     }
-    if (isTrackCached(trackId)) {
+    if (isTrackCached(key)) {
       logger.d('[CacheManager] Download skipped (already cached): $trackTitle');
       return;
     }
-    if (_downloadQueue.containsKey(trackId)) {
+    if (_downloadQueue.containsKey(key)) {
       logger.d('[CacheManager] Download skipped (already queued): $trackTitle');
       return;
     }
 
     logger.i('[CacheManager] Queued download: $trackTitle - $artistName');
-    _downloadQueue[trackId] = DownloadTask(
-      trackId: trackId,
+    _downloadQueue[key] = DownloadTask(
+      trackId: key,
       trackTitle: trackTitle,
       artistName: artistName,
     );
@@ -277,8 +297,9 @@ class AudioCacheManager extends ChangeNotifier {
     _updateForegroundServiceProgress(force: true);
 
     // Store the resolve callback for later (YouTube search happens when download starts)
-    _pendingDownloads[trackId] = _PendingDownload(
+    _pendingDownloads[key] = _PendingDownload(
       resolveAndGetStream: resolveAndGetStream,
+      requestHeaders: requestHeaders,
     );
 
     _processDownloadQueue();
@@ -320,6 +341,32 @@ class AudioCacheManager extends ChangeNotifier {
     }
   }
 
+  Future<bool> _hasPreferredNetwork() async {
+    try {
+      logger.d('[CacheManager] Checking network connectivity for download...');
+      final result = await _connectivity.checkConnectivity();
+      if (result.contains(ConnectivityResult.none)) {
+        if (_wifiOnlyDownloads) {
+          logger.w(
+            '[CacheManager] Connectivity unknown; using last known WiFi state: $_isOnWifi',
+          );
+          return _isOnWifi;
+        }
+        logger.w('[CacheManager] Connectivity unknown; allowing download.');
+        return true;
+      }
+      if (_wifiOnlyDownloads && !_isWifiOrEthernet(result)) {
+        logger.w(
+          '[CacheManager] Not on WiFi/Ethernet. Skipping download due to settings.',
+        );
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Start downloading a track
   Future<void> _startDownload(String trackId) async {
     final task = _downloadQueue[trackId];
@@ -347,16 +394,37 @@ class AudioCacheManager extends ChangeNotifier {
       text: _formatOverallProgressText(),
     );
 
+    if (!await _hasPreferredNetwork()) {
+      task.status = DownloadStatus.queued;
+      task.progress = 0;
+      final delay = const Duration(seconds: 10);
+      _retryAfter[trackId] = DateTime.now().add(delay);
+      logger.w(
+        '[CacheManager] Network unavailable for ${task.trackTitle}; retrying in ${delay.inSeconds}s',
+      );
+      _activeDownloads.remove(trackId);
+      notifyListeners();
+      Future.delayed(delay, () {
+        _retryAfter.remove(trackId);
+        _processDownloadQueue();
+      });
+      await _updateForegroundService();
+      return;
+    }
+
     try {
       // Ensure space is available
       await _ensureSpace(50 * 1024 * 1024); // Assume 50MB per track max
 
       // Resolve video ID and get stream URL (YouTube search happens HERE, not at queue time)
       logger.d('[CacheManager] Resolving video for: ${task.trackTitle}');
-      final (videoId, streamUrl) = await pending.resolveAndGetStream();
+      final (resolvedId, streamUrl) = await pending.resolveAndGetStream();
 
-      // Download to file
-      final fileName = '${trackId}_$videoId.m4a';
+      // Download to file (sanitize for Windows/Unix)
+      final fileName = _buildSafeCacheFileName(
+        _normalizeTrackId(trackId),
+        resolvedId,
+      );
       final filePath = '${_cacheDirectory!.path}/$fileName';
 
       // Show initial notification
@@ -372,38 +440,62 @@ class AudioCacheManager extends ChangeNotifier {
         maxProgress: 100,
       );
 
-      await _dio.download(
-        streamUrl,
-        filePath,
-        cancelToken: task.cancelToken,
-        options: Options(
-          headers: {
-            'User-Agent': Platform.isAndroid
-                ? 'com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip'
-                : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-        ),
-        onReceiveProgress: (received, total) {
-          if (total > 0) {
-            task.progress = received / total;
-            onDownloadProgress?.call(trackId, task.progress);
-            notifyListeners();
+      final sourceUri = Uri.tryParse(streamUrl);
+      final isLocalSource = sourceUri != null && sourceUri.scheme == 'file';
 
-            // Update notification every 5%
-            final progressPercent = (task.progress * 100).toInt();
-            if (progressPercent % 5 == 0) {
-              NotificationService.instance.showDownloadProgress(
-                id: notificationId,
-                title: task.trackTitle,
-                body: '${task.artistName} • $progressPercent%',
-                progress: progressPercent,
-                maxProgress: 100,
-              );
-              _updateForegroundServiceProgress();
+      if (isLocalSource) {
+        final localPath = sourceUri.toFilePath();
+        final sourceFile = File(localPath);
+        if (!await sourceFile.exists()) {
+          throw Exception('Resolved local source file not found');
+        }
+        await sourceFile.copy(filePath);
+        task.progress = 1.0;
+        onDownloadProgress?.call(trackId, task.progress);
+        notifyListeners();
+        await NotificationService.instance.showDownloadProgress(
+          id: notificationId,
+          title: task.trackTitle,
+          body: '${task.artistName} • 100%',
+          progress: 100,
+          maxProgress: 100,
+        );
+        _updateForegroundServiceProgress(force: true);
+      } else {
+        await _dio.download(
+          streamUrl,
+          filePath,
+          cancelToken: task.cancelToken,
+          options: Options(
+            headers: {
+              ...?pending.requestHeaders,
+              'User-Agent': Platform.isAndroid
+                  ? 'com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip'
+                  : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+          ),
+          onReceiveProgress: (received, total) {
+            if (total > 0) {
+              task.progress = received / total;
+              onDownloadProgress?.call(trackId, task.progress);
+              notifyListeners();
+
+              // Update notification every 5%
+              final progressPercent = (task.progress * 100).toInt();
+              if (progressPercent % 5 == 0) {
+                NotificationService.instance.showDownloadProgress(
+                  id: notificationId,
+                  title: task.trackTitle,
+                  body: '${task.artistName} • $progressPercent%',
+                  progress: progressPercent,
+                  maxProgress: 100,
+                );
+                _updateForegroundServiceProgress();
+              }
             }
-          }
-        },
-      );
+          },
+        );
+      }
 
       // Verify file exists and get size
       final file = File(filePath);
@@ -415,7 +507,7 @@ class AudioCacheManager extends ChangeNotifier {
       // Create cache entry
       final entry = CacheEntry(
         trackId: trackId,
-        videoId: videoId,
+        videoId: resolvedId,
         filePath: filePath,
         fileSize: fileSize,
         downloadDate: DateTime.now(),
@@ -580,18 +672,21 @@ class AudioCacheManager extends ChangeNotifier {
 
   /// Check if a track is currently downloading
   bool isDownloading(String trackId) {
-    return _downloadQueue.containsKey(trackId);
+    final key = _normalizeTrackId(trackId);
+    return _downloadQueue.containsKey(key);
   }
 
   /// Get download progress for a track (0.0 to 1.0, null if not downloading)
   double? getDownloadProgress(String trackId) {
-    final task = _downloadQueue[trackId];
+    final key = _normalizeTrackId(trackId);
+    final task = _downloadQueue[key];
     return task?.progress;
   }
 
   /// Get download status for a track
   DownloadStatus? getDownloadStatus(String trackId) {
-    return _downloadQueue[trackId]?.status;
+    final key = _normalizeTrackId(trackId);
+    return _downloadQueue[key]?.status;
   }
 
   /// Remove a track from cache
@@ -651,7 +746,8 @@ class AudioCacheManager extends ChangeNotifier {
 
   /// Remove a cache entry
   Future<void> _removeEntry(String trackId) async {
-    final entry = _cacheEntries[trackId];
+    final key = _normalizeTrackId(trackId);
+    final entry = _cacheEntries[key];
     if (entry == null) return;
 
     // Delete file
@@ -665,7 +761,7 @@ class AudioCacheManager extends ChangeNotifier {
     }
 
     _currentCacheSize -= entry.fileSize;
-    _cacheEntries.remove(trackId);
+    _cacheEntries.remove(key);
     await _saveCacheEntries();
     onCacheChanged?.call();
     notifyListeners();
@@ -864,6 +960,10 @@ class _PendingDownload {
   /// Returns (videoId, streamUrl) - does YouTube search + stream resolution lazily
   final Future<(String videoId, String streamUrl)> Function()
   resolveAndGetStream;
+  final Map<String, String>? requestHeaders;
 
-  _PendingDownload({required this.resolveAndGetStream});
+  _PendingDownload({
+    required this.resolveAndGetStream,
+    this.requestHeaders,
+  });
 }

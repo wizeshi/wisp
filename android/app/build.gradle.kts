@@ -37,6 +37,7 @@ android {
     packagingOptions {
         jniLibs {
             useLegacyPackaging = true
+            pickFirsts.add("**/libffmpeg.so")
         }
     }
 

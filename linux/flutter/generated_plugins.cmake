@@ -3,7 +3,10 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  desktop_webview_window
+  flutter_inappwebview_linux
   flutter_secure_storage_linux
+  fvp
   media_kit_libs_linux
   screen_retriever_linux
   url_launcher_linux

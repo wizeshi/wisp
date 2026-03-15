@@ -8,16 +8,19 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/providers/metadata/spotify_internal.dart';
 
 import '../models/metadata_models.dart';
-import '../providers/audio/player.dart' as global_audio_player;
-import '../providers/metadata/spotify.dart';
+import '../services/wisp_audio_handler.dart' as global_audio_player;
+import '../providers/library/library_state.dart';
+import '../providers/preferences/preferences_provider.dart';
 import '../services/metadata_cache.dart';
 import '../widgets/track_context_menu.dart';
 import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
 import '../widgets/like_button.dart';
+import '../widgets/provider_disabled_state.dart';
 import 'list_detail.dart';
 import '../providers/navigation_state.dart';
 
@@ -60,16 +63,23 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Future<void> _loadArtist() async {
-    final spotify = context.read<SpotifyProvider>();
+    if (!context.read<PreferencesProvider>().metadataSpotifyEnabled) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    final spotify = context.read<SpotifyInternalProvider>();
     setState(() => _isLoading = true);
     try {
-      final cachedArtist = await spotify.getCachedArtistInfo(widget.artistId);
+      /* final cachedArtist = await spotify.getCachedArtistInfo(widget.artistId);
       if (cachedArtist != null && mounted) {
         setState(() {
           _artist = cachedArtist;
           _isLoading = false;
         });
-      }
+      } */
 
       final artist = await spotify.getArtistInfo(
         widget.artistId,
@@ -108,7 +118,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Future<void> _playTopTracks(int index) async {
-    final player = context.read<global_audio_player.AudioPlayerProvider>();
+    final player = context.read<global_audio_player.WispAudioHandler>();
     final tracks = _artist?.topSongs ?? [];
     if (tracks.isEmpty) return;
     await player.setQueue(
@@ -117,11 +127,26 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       play: true,
       contextType: 'artist',
       contextName: _artist?.name ?? '',
+      contextID: _artist?.id ?? '',
+      contextSource: _artist?.source ?? SongSource.spotify,
     );
+  }
+
+  bool _isCurrentArtistPlaying(global_audio_player.WispAudioHandler player) {
+    final contextType = 'artist';
+    final contextName = _artist?.name ?? '';
+    return player.playbackContextType == contextType &&
+        player.playbackContextName == contextName &&
+        player.currentTrack != null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final preferences = context.watch<PreferencesProvider>();
+    if (!preferences.metadataSpotifyEnabled) {
+      return const ProviderDisabledState();
+    }
+
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final imageUrl =
@@ -173,7 +198,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(padding),
-                    child: _buildMobileHeader(name, imageUrl, followers),
+                    child: _buildMobileHeader(name, imageUrl, followers, _artist?.monthlyListeners),
                   ),
                 ),
                 SliverPersistentHeader(
@@ -253,9 +278,19 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
           child: ListView(
             padding: EdgeInsets.all(padding),
             children: [
-              _buildHeader(name, imageUrl, followers),
-              const SizedBox(height: 16),
-              _buildActionsRow(),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    _buildHeader(name, imageUrl, followers, _artist?.monthlyListeners),
+                    const SizedBox(height: 16),
+                    _buildActionsRow(),
+                  ],)
+              ),
               const SizedBox(height: 24),
               _buildTopTracksSection(),
               const SizedBox(height: 24),
@@ -267,7 +302,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     );
   }
 
-  Widget _buildMobileHeader(String name, String imageUrl, int followers) {
+  Widget _buildMobileHeader(String name, String imageUrl, int followers, int? monthlyListeners) {
     return Column(
       children: [
         // Avatar - 70% width as per old design
@@ -318,7 +353,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
+              (monthlyListeners != null && monthlyListeners > 0) ? Text(
+                '${_formatNumber(monthlyListeners)} monthly listeners',
+                style: TextStyle(color: Colors.grey[500], fontSize: 14),
+              ) : Text(
                 '${_formatNumber(followers)} followers',
                 style: TextStyle(color: Colors.grey[500], fontSize: 14),
               ),
@@ -336,16 +374,21 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       child: Row(
         children: [
           // Left side: Follow + More
-          OutlinedButton(
-            onPressed: _showArtistOptions,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: BorderSide(color: Colors.grey[700]!),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('Follow'),
+          Consumer<LibraryState>(
+            builder: (context, library, child) {
+              final isFollowed = library.isArtistFollowed(widget.artistId);
+              return OutlinedButton(
+                onPressed: () => _toggleFollowArtist(isFollowed),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: Colors.grey[700]! ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(isFollowed ? 'Following' : 'Follow'),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.more_horiz),
@@ -374,16 +417,9 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     );
   }
 
-  Widget _buildHeader(String name, String imageUrl, int followers) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+  Widget _buildHeader(String name, String imageUrl, int followers, int? monthlyListeners) {
+    return Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           ClipOval(
             child: Container(
@@ -401,11 +437,11 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Artist',
+                  'ARTIST',
                   style: TextStyle(
-                    color: Colors.grey[400],
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[600],
                     letterSpacing: 1.5,
                   ),
                 ),
@@ -419,7 +455,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                (monthlyListeners != null && monthlyListeners > 0) ? Text(
+                  '${_formatNumber(monthlyListeners)} monthly listeners',
+                  style: TextStyle(color: Colors.grey[300], fontSize: 14),
+                ) : Text(
                   '${_formatNumber(followers)} followers',
                   style: TextStyle(color: Colors.grey[300], fontSize: 14),
                 ),
@@ -427,38 +466,50 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             ),
           ),
         ],
-      ),
-    );
+      );
   }
 
   Widget _buildActionsRow() {
-    return Consumer<global_audio_player.AudioPlayerProvider>(
+    return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
         final colorScheme = Theme.of(context).colorScheme;
         return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.35),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white10),
-          ),
+          alignment: Alignment.bottomLeft,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: FilledButton(
-                    onPressed: _isLoading ? null : () => _playTopTracks(0),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.primary,
-                      foregroundColor: colorScheme.onPrimary,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 12,
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: FilledButton(
+                      onPressed: () {
+                        if (!_isLoading) {
+                          if (_isCurrentArtistPlaying(player)) {
+                            player.togglePlayPause();
+                          } else {
+                            _playTopTracks(0);
+                          }
+                        }
+                      },
+                      style: FilledButton.styleFrom(
+                        enabledMouseCursor: SystemMouseCursors.click,
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
+                      child: Icon(
+                        _isCurrentArtistPlaying(player) && player.isPlaying
+                            ? Icons.pause
+                            : Icons.play_arrow,
+                        size: 24,
+                      )
                     ),
-                    child: const Icon(Icons.play_arrow),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -549,9 +600,74 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     );
   }
 
+  Future<void> _toggleFollowArtist(bool isFollowed) async {
+    final spotifyInternal = context.read<SpotifyInternalProvider>();
+    if (!spotifyInternal.isAuthenticated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Spotify (Internal) is not connected.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    final artistId = widget.artistId;
+    final artist = _artist;
+    final fallback = widget.initialArtist;
+    final simpleArtist = artist != null
+        ? GenericSimpleArtist(
+            id: artist.id,
+            source: SongSource.spotifyInternal,
+            name: artist.name,
+            thumbnailUrl: artist.thumbnailUrl,
+          )
+        : fallback != null
+            ? GenericSimpleArtist(
+                id: fallback.id,
+                source: SongSource.spotifyInternal,
+                name: fallback.name,
+                thumbnailUrl: fallback.thumbnailUrl,
+              )
+            : null;
+
+    try {
+      if (isFollowed) {
+        await spotifyInternal.unfollowArtist(artistId);
+        context.read<LibraryState>().removeArtist(artistId);
+      } else {
+        await spotifyInternal.followArtist(artistId);
+        if (simpleArtist != null) {
+          context.read<LibraryState>().addArtist(simpleArtist);
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isFollowed ? 'Artist unfollowed' : 'Artist followed',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update follow: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildTopTracksSection() {
     final tracks = _artist?.topSongs ?? [];
-    final player = context.watch<global_audio_player.AudioPlayerProvider>();
+    final player = context.watch<global_audio_player.WispAudioHandler>();
     final colorScheme = Theme.of(context).colorScheme;
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -740,74 +856,15 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                   const SizedBox(height: 2),
-                                  (isDesktop &&
-                                          album != null &&
-                                          album.id.isNotEmpty)
-                                      ? HoverUnderline(
-                                          onTap: () {
-                                            Navigator.push(
-                                              context,
-                                              PageRouteBuilder(
-                                                transitionDuration: Duration.zero,
-                                                reverseTransitionDuration:
-                                                    Duration.zero,
-                                                pageBuilder:
-                                                    (
-                                                      context,
-                                                      animation,
-                                                      secondaryAnimation,
-                                                    ) => SharedListDetailView(
-                                                      id: album.id,
-                                                      type: SharedListType.album,
-                                                      initialTitle: album.title,
-                                                      initialThumbnailUrl:
-                                                          album.thumbnailUrl,
-                                                      playlists: widget.playlists,
-                                                      albums: widget.albums,
-                                                      artists: widget.artists,
-                                                      initialLibraryView:
-                                                          _currentLibraryView,
-                                                      initialNavIndex:
-                                                          _currentNavIndex,
-                                                    ),
-                                              ),
-                                            );
-                                          },
-                                          onSecondaryTapDown: (details) {
-                                            LibraryItemContextMenu.show(
-                                              context: context,
-                                              item: album,
-                                              position: details.globalPosition,
-                                              playlists: widget.playlists,
-                                              albums: widget.albums,
-                                              artists: widget.artists,
-                                              currentLibraryView:
-                                                  _currentLibraryView,
-                                              currentNavIndex: _currentNavIndex,
-                                            );
-                                          },
-                                          builder: (isHovering) => Text(
-                                            album.title,
-                                            style: TextStyle(
-                                              color: Colors.grey[500],
-                                              fontSize: 12,
-                                              decoration: isHovering
-                                                  ? TextDecoration.underline
-                                                  : TextDecoration.none,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        )
-                                      : Text(
-                                          track.album?.title ?? '',
-                                          style: TextStyle(
-                                            color: Colors.grey[500],
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                  Text(
+                                    track.artists.map((a) => a.name).join(', '),
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ],
                               ),
                             ),
@@ -893,7 +950,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               crossAxisCount: columns,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              childAspectRatio: 0.75,
+              childAspectRatio: 0.885,
             ),
             itemCount: albums.length,
             itemBuilder: (context, index) {
@@ -939,57 +996,61 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                         ),
                       );
                     },
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white10),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                width: double.infinity,
-                                color: Colors.grey[900],
-                                child: album.thumbnailUrl.isNotEmpty
-                                    ? CachedNetworkImage(
-                                        imageUrl: album.thumbnailUrl,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : Icon(
-                                        Icons.album,
-                                        color: Colors.grey[700],
-                                      ),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.35),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  width: double.infinity,
+                                  color: Colors.grey[900],
+                                  child: album.thumbnailUrl.isNotEmpty
+                                      ? CachedNetworkImage(
+                                          imageUrl: album.thumbnailUrl,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Icon(
+                                          Icons.album,
+                                          color: Colors.grey[700],
+                                        ),
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            album.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            album.artists.map((a) => a.name).join(', '),
-                            style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 11,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    album.title,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.visible,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${album.releaseDate.year}',
+                                  style: TextStyle(color: Colors.grey[500]),
+                                ),
+                              ]
+                            )
+                          ],
+                        ),
                       ),
-                    ),
+                    ) 
                   ),
                 ),
               );

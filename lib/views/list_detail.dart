@@ -11,10 +11,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
-import '../providers/audio/player.dart' as global_audio_player;
+import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../providers/library/library_folders.dart';
-import '../providers/metadata/spotify.dart';
+import '../providers/metadata/spotify_internal.dart';
 import '../providers/library/local_playlists.dart';
+import '../providers/preferences/preferences_provider.dart';
+import '../providers/library/library_state.dart';
 import '../widgets/track_context_menu.dart';
 import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
@@ -27,6 +29,7 @@ import 'artist_detail.dart';
 import '../providers/navigation_state.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
+import '../widgets/provider_disabled_state.dart';
 
 enum SharedListType { playlist, album }
 
@@ -78,6 +81,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   final ScrollController _desktopScrollController = ScrollController();
   final ScrollController _mobileScrollController = ScrollController();
   final GlobalKey _songListKey = GlobalKey();
+  VoidCallback? _likedTracksListener;
 
   bool _isLocalImagePath(String path) {
     return path.startsWith('/') || path.startsWith('file://');
@@ -98,6 +102,15 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     _mobileScrollController.addListener(
       () => _handleScroll(_mobileScrollController),
     );
+    if (widget.type == SharedListType.playlist &&
+        isLikedSongsPlaylistId(widget.id)) {
+      final spotifyInternal = context.read<SpotifyInternalProvider>();
+      _likedTracksListener = () {
+        if (!mounted) return;
+        setState(_rebuildIndices);
+      };
+      spotifyInternal.addListener(_likedTracksListener!);
+    }
     _loadListDetails();
   }
 
@@ -105,11 +118,24 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final localState = context.read<LocalPlaylistState>();
     final localPlaylist = localState.getById(widget.id);
     if (localPlaylist == null) return;
+    if (!context.read<PreferencesProvider>().allowWriting) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Spotify writing is disabled in Preferences.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
 
     final spotifyTrackIds = localPlaylist.tracks
-        .where((item) => item.source == SongSource.spotify)
-        .map((item) => item.id)
-        .toList();
+      .where((item) =>
+        item.source == SongSource.spotify ||
+        item.source == SongSource.spotifyInternal)
+      .map((item) => item.id)
+      .toList();
     if (spotifyTrackIds.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -122,22 +148,37 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       return;
     }
 
-    final spotify = context.read<SpotifyProvider>();
-    String? targetId = localPlaylist.linkedSource == SongSource.spotify
-        ? localPlaylist.linkedId
-        : null;
+    final spotifyInternal = context.read<SpotifyInternalProvider>();
+    if (!spotifyInternal.isAuthenticated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Spotify (Internal) is not connected.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    String? targetId =
+        localPlaylist.linkedSource == SongSource.spotifyInternal
+            ? localPlaylist.linkedId
+            : null;
 
     try {
       if (targetId == null || targetId.isEmpty) {
-        targetId = await spotify.createPlaylist(name: localPlaylist.title);
+        targetId = await spotifyInternal.createPlaylist(
+          name: localPlaylist.title,
+        );
         await localState.linkToProvider(
           id: localPlaylist.id,
-          provider: SongSource.spotify,
+          provider: SongSource.spotifyInternal,
           providerId: targetId,
         );
       }
 
-      await spotify.addTracksToPlaylist(targetId, spotifyTrackIds);
+      await spotifyInternal.addTracksToPlaylist(targetId, spotifyTrackIds);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -163,8 +204,59 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     localState.detachFromProvider(widget.id);
   }
 
+  Future<void> _toggleSaveAlbum(bool isSaved) async {
+    final album = _album;
+    if (album == null) return;
+    final spotifyInternal = context.read<SpotifyInternalProvider>();
+    if (!spotifyInternal.isAuthenticated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Spotify (Internal) is not connected.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      if (isSaved) {
+        await spotifyInternal.unsaveAlbum(album.id);
+        context.read<LibraryState>().removeAlbum(album.id);
+      } else {
+        await spotifyInternal.saveAlbum(album.id);
+        context.read<LibraryState>().addAlbum(album);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isSaved ? 'Album removed from library' : 'Album saved',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update album: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
+    if (_likedTracksListener != null) {
+      context
+          .read<SpotifyInternalProvider>()
+          .removeListener(_likedTracksListener!);
+    }
     _desktopScrollController.dispose();
     _mobileScrollController.dispose();
     super.dispose();
@@ -202,7 +294,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Future<void> _loadListDetails() async {
-    final spotify = context.read<SpotifyProvider>();
+    if (!context.read<PreferencesProvider>().metadataSpotifyEnabled) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    final spotifyInternal = context.read<SpotifyInternalProvider>();
     final localPlaylists = context.read<LocalPlaylistState>();
     setState(() => _isLoading = true);
 
@@ -219,10 +318,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
           final localEntry = localPlaylists.getById(widget.id);
           if (localEntry?.isLinked == true &&
-              localEntry?.linkedSource == SongSource.spotify &&
+              localEntry?.linkedSource == SongSource.spotifyInternal &&
               localEntry?.linkedId != null) {
             final providerPlaylist = await _fetchSpotifyPlaylistWithTracks(
-              spotify,
+              spotifyInternal,
               localEntry!.linkedId!,
             );
             await localPlaylists.syncFromProvider(
@@ -241,57 +340,56 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           return;
         }
         if (isLikedSongsPlaylistId(widget.id)) {
-          final cachedItems = await spotify.getCachedSavedTracksAll();
-          if (cachedItems != null && mounted) {
-            spotify.setLikedTracksFromItems(cachedItems);
-            _playlist = _buildLikedSongsPlaylist(
-              cachedItems,
-              spotify.userDisplayName,
-            );
-            _rebuildIndices();
-            setState(() => _isLoading = false);
-            unawaited(spotify.refreshSavedTracksAll());
-            return;
-          }
+          const limit = 50;
+          final items = <PlaylistItem>[];
 
-          final freshItems = await spotify.getUserSavedTracksAll(
+          final freshFirst = await spotifyInternal.getUserSavedTracks(
+            limit: limit,
+            offset: 0,
             policy: MetadataFetchPolicy.refreshAlways,
           );
-          spotify.setLikedTracksFromItems(freshItems);
+          items.addAll(freshFirst);
+
+          var offset = items.length;
+          while (true) {
+            final page = await spotifyInternal.getUserSavedTracks(
+              limit: limit,
+              offset: offset,
+              policy: MetadataFetchPolicy.refreshIfExpired,
+            );
+            if (page.isEmpty) break;
+            items.addAll(page);
+            offset = items.length;
+            if (page.length < limit) break;
+          }
+
+          spotifyInternal.setLikedTracksFromItems(items);
           _playlist = _buildLikedSongsPlaylist(
-            freshItems,
-            spotify.userDisplayName,
+            items,
+            spotifyInternal.userDisplayName,
           );
           return;
         }
-        final cachedPlaylist = await spotify.getCachedPlaylistInfo(widget.id);
-        if (cachedPlaylist != null && mounted) {
-          _playlist = cachedPlaylist;
-          _rebuildIndices();
-          setState(() => _isLoading = false);
-        }
-
-        _playlist = await _fetchSpotifyPlaylistWithTracks(spotify, widget.id);
+        _playlist =
+            await _fetchSpotifyPlaylistWithTracks(spotifyInternal, widget.id);
       } else {
-        final cachedAlbum = await spotify.getCachedAlbumInfo(widget.id);
-        if (cachedAlbum != null && mounted) {
-          _album = cachedAlbum;
-          _rebuildIndices();
-          setState(() => _isLoading = false);
-        }
-
-        final album = await spotify.getAlbumInfo(
+        final album = await spotifyInternal.getAlbumInfo(
           widget.id,
+          offset: 0,
+          limit: 50,
           policy: MetadataFetchPolicy.refreshAlways,
         );
         final items = <GenericSong>[...?(album.songs)];
 
         int offset = items.length;
         while (album.hasMore == true && offset < (album.total ?? 0)) {
-          final more = await spotify.getMoreAlbumTracks(
+          final moreAlbum = await spotifyInternal.getAlbumInfo(
             widget.id,
             offset: offset,
+            limit: 50,
+            policy: MetadataFetchPolicy.refreshIfExpired,
           );
+          final more = moreAlbum.songs ?? const <GenericSong>[];
           if (more.isEmpty) break;
           items.addAll(more);
           offset = items.length;
@@ -328,21 +426,26 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Future<GenericPlaylist> _fetchSpotifyPlaylistWithTracks(
-    SpotifyProvider spotify,
+    SpotifyInternalProvider spotify,
     String playlistId,
   ) async {
     final playlist = await spotify.getPlaylistInfo(
       playlistId,
+      offset: 0,
+      limit: 50,
       policy: MetadataFetchPolicy.refreshAlways,
     );
     final items = <PlaylistItem>[...?(playlist.songs)];
 
     int offset = items.length;
     while (playlist.hasMore == true && offset < (playlist.total ?? 0)) {
-      final more = await spotify.getMorePlaylistTracks(
+      final morePlaylist = await spotify.getPlaylistInfo(
         playlistId,
         offset: offset,
+        limit: 50,
+        policy: MetadataFetchPolicy.refreshIfExpired,
       );
+      final more = morePlaylist.songs ?? const <PlaylistItem>[];
       if (more.isEmpty) break;
       items.addAll(more);
       offset = items.length;
@@ -372,12 +475,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
     return GenericPlaylist(
       id: likedSongsPlaylistId,
-      source: SongSource.spotify,
+      source: SongSource.spotifyInternal,
       title: likedSongsTitle,
       thumbnailUrl: '',
       author: GenericSimpleUser(
         id: 'liked_songs_user',
-        source: SongSource.spotify,
+        source: SongSource.spotifyInternal,
         displayName: displayName ?? 'You',
       ),
       songs: items,
@@ -389,6 +492,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   List<_ListItem> get _items {
     if (widget.type == SharedListType.playlist) {
+      if (isLikedSongsPlaylistId(widget.id)) {
+        final items = _playlist?.songs ?? [];
+        final spotifyInternal = context.read<SpotifyInternalProvider>();
+        return items
+            .where((item) => spotifyInternal.isTrackLiked(item.id))
+            .toList();
+      }
       return _playlist?.songs ?? [];
     }
     return _album?.songs ?? [];
@@ -498,6 +608,36 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     return 0;
   }
 
+  DateTime? _getAddedAt(_ListItem item) {
+    if (item is PlaylistItem) return item.addedAt;
+    return null;
+  }
+
+  String? _getUid(_ListItem item) {
+    if (item is PlaylistItem) return item.uid;
+    return null;
+  }
+
+  String _formatAddedAt(DateTime? date) {
+    if (date == null) return '';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final month = months[(date.month - 1).clamp(0, 11)];
+    return '$month ${date.day}, ${date.year}';
+  }
+
   String _getSource(_ListItem item) {
     if (item is GenericSong) return item.source.name;
     if (item is PlaylistItem) return item.source.name;
@@ -542,11 +682,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Future<void> _playQueueAt(int index) async {
-    final player = context.read<global_audio_player.AudioPlayerProvider>();
+    final player = context.read<global_audio_player.WispAudioHandler>();
     if (widget.type == SharedListType.playlist) {
       context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
     }
-    final queue = _buildQueueSongs();
+    final originalQueue = _buildQueueSongs();
+    final queue = List<GenericSong>.from(originalQueue);
     if (queue.isEmpty || index < 0 || index >= queue.length) return;
 
     final contextType = widget.type == SharedListType.playlist
@@ -555,13 +696,30 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final contextName = widget.type == SharedListType.playlist
         ? (_playlist?.title ?? '')
         : (_album?.title ?? '');
+    final contextID = widget.id;
+    final contextSource = widget.type == SharedListType.playlist
+        ? _playlist?.source
+        : _album?.source;
+
+    var startIndex = index;
+    if (player.shuffleEnabled && queue.length > 1) {
+      final current = queue[index];
+      queue.removeAt(index);
+      queue.shuffle(Random());
+      queue.insert(0, current);
+      startIndex = 0;
+    }
 
     await player.setQueue(
       queue,
-      startIndex: index,
+      startIndex: startIndex,
       play: true,
       contextType: contextType,
       contextName: contextName,
+      contextID: contextID,
+      contextSource: contextSource,
+      shuffleEnabled: player.shuffleEnabled,
+      originalQueue: player.shuffleEnabled ? originalQueue : null,
     );
     if (widget.type == SharedListType.playlist) {
       context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
@@ -575,17 +733,18 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Future<void> _playFromStart({bool shuffle = false}) async {
-    final player = context.read<global_audio_player.AudioPlayerProvider>();
+    final player = context.read<global_audio_player.WispAudioHandler>();
     if (widget.type == SharedListType.playlist) {
       context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
     }
     final originalQueue = _buildQueueSongs();
     final queue = _preShuffleEnabled
-        ? List<GenericSong>.from(_preShuffledQueue)
-        : List<GenericSong>.from(originalQueue);
+      ? List<GenericSong>.from(_preShuffledQueue)
+      : List<GenericSong>.from(originalQueue);
     if (queue.isEmpty) return;
 
-    if (!_preShuffleEnabled && shuffle) {
+    final shouldShuffle = shuffle || player.shuffleEnabled;
+    if (!_preShuffleEnabled && shouldShuffle) {
       queue.shuffle(Random());
     }
 
@@ -602,8 +761,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       play: true,
       contextType: contextType,
       contextName: contextName,
-      shuffleEnabled: _preShuffleEnabled || shuffle,
-      originalQueue: (_preShuffleEnabled || shuffle) ? originalQueue : null,
+      shuffleEnabled: _preShuffleEnabled || shouldShuffle,
+      originalQueue: (_preShuffleEnabled || shouldShuffle) ? originalQueue : null,
     );
     if (widget.type == SharedListType.playlist) {
       context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
@@ -616,7 +775,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
   }
 
-  bool _isCurrentListPlaying(global_audio_player.AudioPlayerProvider player) {
+  bool _isCurrentListPlaying(global_audio_player.WispAudioHandler player) {
     final contextType = widget.type == SharedListType.playlist
         ? 'playlist'
         : 'album';
@@ -628,7 +787,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         player.currentTrack != null;
   }
 
-  void _toggleListShuffle(global_audio_player.AudioPlayerProvider player) {
+  void _toggleListShuffle(global_audio_player.WispAudioHandler player) {
     if (_isCurrentListPlaying(player)) {
       player.toggleShuffle();
       return;
@@ -707,7 +866,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
 
     if (confirm == true) {
-      final player = context.read<global_audio_player.AudioPlayerProvider>();
+      final player = context.read<global_audio_player.WispAudioHandler>();
       await player.downloadTracks(tracks);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -750,6 +909,35 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 // TODO: Implement share
               },
             ),
+            if (widget.type == SharedListType.album)
+              Builder(
+                builder: (context) {
+                  final album = _album;
+                  if (album == null) return const SizedBox.shrink();
+                  final libraryState = context.watch<LibraryState>();
+                  final isSaved = libraryState.isAlbumSaved(album.id);
+                  return Column(
+                    children: [
+                      ListTile(
+                        leading: Icon(
+                          isSaved
+                              ? Icons.bookmark_remove
+                              : Icons.bookmark_add,
+                          color: Colors.white,
+                        ),
+                        title: Text(
+                          isSaved ? 'Remove from Library' : 'Save to Library',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _toggleSaveAlbum(isSaved);
+                        },
+                      ),
+                    ],
+                  );
+                },
+              ),
             if (widget.type == SharedListType.playlist)
               Builder(
                 builder: (context) {
@@ -809,9 +997,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         ),
                         onTap: () {
                           Navigator.pop(context);
-                          context
-                              .read<LocalPlaylistState>()
-                              .deletePlaylist(widget.id);
+                          PlaylistFolderModals.deletePlaylistWithSync(
+                            context,
+                            widget.id,
+                          );
                           if (mounted) {
                             Navigator.of(context).maybePop();
                           }
@@ -842,9 +1031,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   void _showDesktopListMenu(BuildContext buttonContext) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlay =
+        Overlay.of(context, rootOverlay: true).context.findRenderObject()
+            as RenderBox;
     final box = buttonContext.findRenderObject() as RenderBox;
-    final position = overlay.globalToLocal(box.localToGlobal(Offset.zero));
+    final position = box.localToGlobal(Offset.zero, ancestor: overlay);
+    const menuWidth = 220.0;
+    var left = position.dx;
+    final maxLeft = overlay.size.width - menuWidth - 8;
+    if (left > maxLeft) left = maxLeft;
+    if (left < 8) left = 8;
 
     showDialog<void>(
       context: context,
@@ -855,13 +1051,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         return Stack(
           children: [
             Positioned(
-              left: position.dx,
+              left: left,
               top: position.dy + box.size.height,
               child: Material(
                 color: const Color(0xFF282828),
                 borderRadius: BorderRadius.circular(8),
                 child: SizedBox(
-                  width: 220,
+                  width: menuWidth,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Column(
@@ -923,9 +1119,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     icon: Icons.delete_outline,
                                     label: 'Delete',
                                     onTap: () {
-                                      context
-                                          .read<LocalPlaylistState>()
-                                          .deletePlaylist(widget.id);
+                                      PlaylistFolderModals
+                                          .deletePlaylistWithSync(
+                                        context,
+                                        widget.id,
+                                      );
                                       if (mounted) {
                                         Navigator.of(context).maybePop();
                                       }
@@ -1092,6 +1290,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   @override
   Widget build(BuildContext context) {
+    final preferences = context.watch<PreferencesProvider>();
+    if (!preferences.metadataSpotifyEnabled) {
+      return const ProviderDisabledState();
+    }
+
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final title =
@@ -1135,16 +1338,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Widget _buildSortButton() {
-    return PopupMenuButton<_SortMethod>(
-      icon: const Icon(Icons.sort),
-      onSelected: (method) => _sortBy(method),
-      itemBuilder: (context) => [
-        _buildSortMenuItem(_SortMethod.position, 'Original Order'),
-        _buildSortMenuItem(_SortMethod.title, 'Title'),
-        _buildSortMenuItem(_SortMethod.author, 'Artist'),
-        if (widget.type == SharedListType.playlist)
-          _buildSortMenuItem(_SortMethod.album, 'Album'),
-      ],
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: PopupMenuButton<_SortMethod>(
+        icon: const Icon(Icons.sort),
+        onSelected: (method) => _sortBy(method),
+        itemBuilder: (context) => [
+          _buildSortMenuItem(_SortMethod.position, 'Original Order'),
+          _buildSortMenuItem(_SortMethod.title, 'Title'),
+          _buildSortMenuItem(_SortMethod.author, 'Artist'),
+          if (widget.type == SharedListType.playlist)
+            _buildSortMenuItem(_SortMethod.album, 'Album'),
+        ],
+      ),
     );
   }
 
@@ -1178,7 +1384,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.all(padding),
+                    padding: EdgeInsets.fromLTRB(padding, padding, padding, 0),
                     child: _buildMobileHeader(title, subtitle, imageUrl, total),
                   ),
                 ),
@@ -1193,7 +1399,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF121212),
                         border: Border(
-                          top: BorderSide(color: Colors.white10),
                           bottom: BorderSide(color: Colors.white10),
                         ),
                       ),
@@ -1262,15 +1467,23 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   controller: _desktopScrollController,
                   padding: EdgeInsets.all(padding),
                   children: [
-                    _buildHeader(title, subtitle, imageUrl, total),
-                    const SizedBox(height: 16),
-                    _buildActionsRow(isDesktop),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildHeader(title, subtitle, imageUrl, total),
+                          _buildActionsRow(isDesktop),
+                        ],
+                      )
+                    ),
                     const SizedBox(height: 16),
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.35),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white10),
                       ),
                       child: Column(
                         children: [
@@ -1308,7 +1521,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         // Album art - 70% width as per old design
         Center(
           child: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.7,
+            width: MediaQuery.of(context).size.width * 0.8,
             child: AspectRatio(
               aspectRatio: 1,
               child: ClipRRect(
@@ -1372,9 +1585,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 children: [
                   Text(
                     widget.type == SharedListType.playlist
-                        ? 'Playlist'
-                        : 'Album',
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ? 'PLAYLIST'
+                        : 'ALBUM',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[600],
+                      letterSpacing: 1.5,
+                    ),
                   ),
                   if (subtitle != null && subtitle.isNotEmpty) ...[
                     Text(' • ', style: TextStyle(color: Colors.grey[500])),
@@ -1412,53 +1630,67 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Widget _buildMobileActionsRow() {
-    return SizedBox(
-      height: 56,
-      child: Row(
-        children: [
-          // Left side: Download + More
-          IconButton(
-            icon: const Icon(Icons.download_outlined),
-            color: Colors.white,
-            onPressed: () => _downloadAll(),
+    return Consumer<global_audio_player.WispAudioHandler>(
+      builder: (context, player, child) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final shuffleActive = (_isCurrentListPlaying(player)
+            ? player.shuffleEnabled
+            : _preShuffleEnabled);
+        final repeatActive =
+            player.repeatMode != global_audio_player.RepeatMode.off;
+        return SizedBox(
+          height: 56,
+          child: Row(
+            children: [
+              // Left side: Download + More
+              IconButton(
+                icon: const Icon(Icons.download_outlined),
+                color: Colors.white,
+                onPressed: () => _downloadAll(),
+              ),
+              IconButton(
+                icon: const Icon(Icons.more_horiz),
+                color: Colors.white,
+                onPressed: () => _showMoreOptions(),
+              ),
+              const Spacer(),
+              // Right side: Loop + Shuffle + Play
+              IconButton(
+                icon: Icon(
+                    player.repeatMode == global_audio_player.RepeatMode.one
+                      ? Icons.repeat_one
+                      : Icons.repeat,
+                ),
+                color: repeatActive ? colorScheme.primary : Colors.white,
+                onPressed: player.toggleRepeat,
+              ),
+              IconButton(
+                icon: const Icon(Icons.shuffle),
+                color: shuffleActive ? colorScheme.primary : Colors.white,
+                onPressed: () => _toggleListShuffle(player),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.play_arrow, size: 32),
+                  color: colorScheme.onPrimary,
+                  onPressed: () {
+                    if (_items.isNotEmpty) {
+                      _playQueueAt(0);
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.more_horiz),
-            color: Colors.white,
-            onPressed: () => _showMoreOptions(),
-          ),
-          const Spacer(),
-          // Right side: Loop + Shuffle + Play
-          IconButton(
-            icon: const Icon(Icons.repeat),
-            color: Colors.white,
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.shuffle),
-            color: Colors.white,
-            onPressed: () {},
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.play_arrow, size: 32),
-              color: Theme.of(context).colorScheme.onPrimary,
-              onPressed: () {
-                if (_items.isNotEmpty) {
-                  _playQueueAt(0);
-                }
-              },
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1471,11 +1703,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final isLiked =
         widget.type == SharedListType.playlist && isLikedSongsPlaylistId(widget.id);
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.35),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -1518,11 +1748,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  widget.type == SharedListType.playlist ? 'Playlist' : 'Album',
+                  widget.type == SharedListType.playlist ? 'PLAYLIST' : 'ALBUM',
                   style: TextStyle(
-                    color: Colors.grey[400],
+                    color: Colors.grey[600],
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                     letterSpacing: 1.5,
                   ),
                 ),
@@ -1584,16 +1814,15 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Widget _buildActionsRow(bool isDesktop) {
-    return Consumer<global_audio_player.AudioPlayerProvider>(
+    return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
         final colorScheme = Theme.of(context).colorScheme;
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.35),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white10),
           ),
+          alignment: Alignment.bottomLeft,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -1604,8 +1833,17 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: FilledButton(
-                      onPressed: _isLoading ? null : () => _playFromStart(),
+                      onPressed: () {
+                        if (!_isLoading) {
+                          if (_isCurrentListPlaying(player)) {
+                            player.togglePlayPause();
+                          } else {
+                            _playFromStart();
+                          }
+                        }
+                      },
                       style: FilledButton.styleFrom(
+                        enabledMouseCursor: SystemMouseCursors.click,
                         backgroundColor: colorScheme.primary,
                         foregroundColor: colorScheme.onPrimary,
                         padding: EdgeInsets.zero,
@@ -1613,7 +1851,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Icon(Icons.play_arrow),
+                      child: Icon(
+                        _isCurrentListPlaying(player) && player.isPlaying
+                            ? Icons.pause
+                            : Icons.play_arrow,
+                        size: 24,
+                      )
                     ),
                   ),
                 ),
@@ -1702,41 +1945,44 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                DropdownButton<_SortMethod>(
-                  value: _sortMethod,
-                  dropdownColor: Colors.grey[900],
-                  underline: const SizedBox.shrink(),
-                  items: const [
-                    DropdownMenuItem(
-                      value: _SortMethod.position,
-                      child: Text('Index'),
-                    ),
-                    DropdownMenuItem(
-                      value: _SortMethod.title,
-                      child: Text('Title'),
-                    ),
-                    DropdownMenuItem(
-                      value: _SortMethod.author,
-                      child: Text('Author'),
-                    ),
-                    DropdownMenuItem(
-                      value: _SortMethod.album,
-                      child: Text('Album'),
-                    ),
-                    DropdownMenuItem(
-                      value: _SortMethod.duration,
-                      child: Text('Duration'),
-                    ),
-                    DropdownMenuItem(
-                      value: _SortMethod.source,
-                      child: Text('Source'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      _sortBy(value);
-                    }
-                  },
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: DropdownButton<_SortMethod>(
+                    value: _sortMethod,
+                    dropdownColor: Colors.grey[900],
+                    underline: const SizedBox.shrink(),
+                    items: const [
+                      DropdownMenuItem(
+                        value: _SortMethod.position,
+                        child: Text('Index'),
+                      ),
+                      DropdownMenuItem(
+                        value: _SortMethod.title,
+                        child: Text('Title'),
+                      ),
+                      DropdownMenuItem(
+                        value: _SortMethod.author,
+                        child: Text('Author'),
+                      ),
+                      DropdownMenuItem(
+                        value: _SortMethod.album,
+                        child: Text('Album'),
+                      ),
+                      DropdownMenuItem(
+                        value: _SortMethod.duration,
+                        child: Text('Duration'),
+                      ),
+                      DropdownMenuItem(
+                        value: _SortMethod.source,
+                        child: Text('Source'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        _sortBy(value);
+                      }
+                    },
+                  ),
                 ),
                 IconButton(
                   onPressed: () => _sortBy(_sortMethod),
@@ -1768,7 +2014,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           ),
         ),
         const SizedBox(width: 8),
-        const SizedBox(width: 40),
+        const SizedBox(width: 44),
+        const SizedBox(width: 12),
         Expanded(
           flex: 3,
           child: InkWell(
@@ -1793,6 +2040,23 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           )
         else
           const SizedBox(width: 80),
+        if (widget.type == SharedListType.playlist)
+          SizedBox(
+            width: 120,
+            child: Text(
+              'Added',
+              style: headerStyle,
+              textAlign: TextAlign.center,
+            ),
+          )
+        else
+          const SizedBox(width: 120),
+        const SizedBox(
+          width: 24,
+          child: Icon(Icons.download_done, size: 14, color: Colors.grey),
+        ),
+        const SizedBox(width: 28),
+        const SizedBox(width: 8),
         SizedBox(
           width: 80,
           child: InkWell(
@@ -1883,7 +2147,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               physics: const NeverScrollableScrollPhysics(),
               itemCount: visibleCount,
               itemBuilder: (context, idx) {
-                final player = context.watch<global_audio_player.AudioPlayerProvider>();
+                final player =
+                  context.watch<global_audio_player.WispAudioHandler>();
                 final rowIndex = startIndex + idx;
                 final index = _sortedIndices[rowIndex];
                 final item = _items[index];
@@ -1920,6 +2185,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   widget.type == SharedListType.playlist
                                       ? _playlist?.title
                                       : null,
+                              playlistTrackUid: _getUid(item),
                               playlists: widget.playlists,
                               albums: widget.albums,
                               artists: widget.artists,
@@ -1941,6 +2207,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   widget.type == SharedListType.playlist
                                       ? _playlist?.title
                                       : null,
+                              playlistTrackUid: _getUid(item),
                               playlists: widget.playlists,
                               albums: widget.albums,
                               artists: widget.artists,
@@ -2148,20 +2415,43 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 )
                               else if (!isMobile)
                                 const SizedBox(width: 80),
-                              _buildCacheIndicator(song.id),
+                              if (!isMobile &&
+                                  widget.type == SharedListType.playlist)
+                                SizedBox(
+                                  width: 120,
+                                  child: Text(
+                                    _formatAddedAt(_getAddedAt(item)),
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                )
+                              else if (!isMobile)
+                                const SizedBox(width: 120),
+                              SizedBox(
+                                width: 24,
+                                child: _buildCacheIndicator(song.id),
+                              ),
                               if (isDesktop) ...[
                                 AnimatedOpacity(
                                   opacity: isHovering ? 1 : 0,
                                   duration: const Duration(milliseconds: 120),
                                   child: IgnorePointer(
                                     ignoring: !isHovering,
-                                    child: LikeButton(
-                                      track: song,
-                                      iconSize: 16,
-                                      padding: const EdgeInsets.all(2),
-                                      constraints: const BoxConstraints(
-                                        minWidth: 24,
-                                        minHeight: 24,
+                                    child: SizedBox(
+                                      width: 28,
+                                      child: LikeButton(
+                                        track: song,
+                                        iconSize: 16,
+                                        padding: const EdgeInsets.all(2),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 24,
+                                          minHeight: 24,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -2179,12 +2469,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   textAlign: TextAlign.right,
                                 ),
                               ),
-                              SizedBox(width: isMobile ? 12 : 16),
-                              Icon(
+                              SizedBox(width: isMobile ? 0 : 16),
+                              
+                              !isMobile ? Icon(
                                 Icons.graphic_eq,
                                 color: Theme.of(context).colorScheme.primary,
                                 size: isMobile ? 16 : 18,
-                              ),
+                              ) : const SizedBox.shrink(),
                             ],
                           ),
                         ),
@@ -2204,7 +2495,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       physics: const NeverScrollableScrollPhysics(),
       itemCount: totalCount,
       itemBuilder: (context, idx) {
-        final player = context.watch<global_audio_player.AudioPlayerProvider>();
+        final player =
+          context.watch<global_audio_player.WispAudioHandler>();
         final index = _sortedIndices[idx];
         final item = _items[index];
         final isEven = idx % 2 == 0;
@@ -2239,6 +2531,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       playlistName: widget.type == SharedListType.playlist
                           ? _playlist?.title
                           : null,
+                      playlistTrackUid: _getUid(item),
                       playlists: widget.playlists,
                       albums: widget.albums,
                       artists: widget.artists,
@@ -2259,6 +2552,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       playlistName: widget.type == SharedListType.playlist
                           ? _playlist?.title
                           : null,
+                      playlistTrackUid: _getUid(item),
                       playlists: widget.playlists,
                       albums: widget.albums,
                       artists: widget.artists,
@@ -2325,8 +2619,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(6),
                         child: Container(
-                          width: 40,
-                          height: 40,
+                          width: 44,
+                          height: 44,
                           color: Colors.grey[900],
                           child: CachedNetworkImage(
                             imageUrl: _getThumbnail(item),
@@ -2450,21 +2744,44 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         )
                       else if (!isMobile)
                         const SizedBox(width: 80),
+                      if (!isMobile &&
+                          widget.type == SharedListType.playlist)
+                        SizedBox(
+                          width: 120,
+                          child: Text(
+                            _formatAddedAt(_getAddedAt(item)),
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 12,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )
+                      else if (!isMobile)
+                        const SizedBox(width: 120),
                       // Cache indicator
-                      _buildCacheIndicator(song.id),
+                      SizedBox(
+                        width: 24,
+                        child: _buildCacheIndicator(song.id),
+                      ),
                       if (isDesktop) ...[
                         AnimatedOpacity(
                           opacity: isHovering ? 1 : 0,
                           duration: const Duration(milliseconds: 120),
                           child: IgnorePointer(
                             ignoring: !isHovering,
-                            child: LikeButton(
-                              track: song,
-                              iconSize: 16,
-                              padding: const EdgeInsets.all(2),
-                              constraints: const BoxConstraints(
-                                minWidth: 24,
-                                minHeight: 24,
+                            child: SizedBox(
+                              width: 28,
+                              child: LikeButton(
+                                track: song,
+                                iconSize: 16,
+                                padding: const EdgeInsets.all(2),
+                                constraints: const BoxConstraints(
+                                  minWidth: 24,
+                                  minHeight: 24,
+                                ),
                               ),
                             ),
                           ),
@@ -2482,12 +2799,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           textAlign: TextAlign.right,
                         ),
                       ),
-                      SizedBox(width: isMobile ? 12 : 16),
-                      Icon(
+                      SizedBox(width: isMobile ? 0 : 16),
+                      !isMobile ? Icon(
                         Icons.graphic_eq,
                         color: Theme.of(context).colorScheme.primary,
                         size: isMobile ? 16 : 18,
-                      ),
+                      ) : const SizedBox.shrink(),
                     ],
                   ),
                 ),

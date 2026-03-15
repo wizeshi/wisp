@@ -7,7 +7,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/metadata_models.dart';
-import '../providers/audio/player.dart';
+import '../services/wisp_audio_handler.dart';
 import '../providers/lyrics/provider.dart';
 import '../utils/logger.dart';
 
@@ -32,7 +32,9 @@ class _LyricsViewState extends State<LyricsView> {
   double _lyricsDelaySeconds = 0;
   Timer? _positionTimer;
   LyricsResult? _activeLyrics;
-  AudioPlayerProvider? _playerRef;
+  WispAudioHandler? _playerRef;
+  bool _textCentered = true;
+  bool _syncedLyricsAvailable = true;
 
   bool get _isMobile => Platform.isAndroid || Platform.isIOS;
   bool get _isDesktop =>
@@ -154,6 +156,38 @@ class _LyricsViewState extends State<LyricsView> {
         }
       });
     }
+    if (mode == LyricsSyncMode.synced) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final player = context.read<WispAudioHandler>();
+        final provider = context.read<LyricsProvider>();
+        final track = player.currentTrack;
+        if (track == null) return;
+        final syncedState = provider.getState(track, LyricsSyncMode.synced);
+        final syncedLyrics = syncedState.lyrics;
+        if (syncedLyrics == null || !syncedLyrics.synced) return;
+        final positionMs = player.interpolatedPosition.inMilliseconds;
+        final index = _findCurrentLineIndex(syncedLyrics, positionMs);
+        setState(() => _currentLineIndex = index);
+        _scrollToLine(index);
+      });
+    }
+  }
+
+  void _handleSyncedUnavailable() {
+    if (!_syncedLyricsAvailable) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _syncedLyricsAvailable = false;
+        _syncMode = LyricsSyncMode.unsynced;
+        _currentLineIndex = 0;
+        _autoScrollEnabled = true;
+      });
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
   }
 
   void _handleDelayChanged(String value) {
@@ -216,7 +250,7 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildLyricsContent() {
-    return Consumer2<AudioPlayerProvider, LyricsProvider>(
+    return Consumer2<WispAudioHandler, LyricsProvider>(
       builder: (context, player, lyricsProvider, child) {
         final track = player.currentTrack;
         if (track == null) {
@@ -233,6 +267,7 @@ class _LyricsViewState extends State<LyricsView> {
           _trackId = track.id;
           _currentLineIndex = 0;
           _autoScrollEnabled = true;
+          _syncedLyricsAvailable = true;
           lyricsProvider.ensureDelayLoaded(track.id);
           _loadLyricsDelay(lyricsProvider, track.id);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -265,6 +300,10 @@ class _LyricsViewState extends State<LyricsView> {
           );
         }
 
+        if (_syncMode == LyricsSyncMode.synced && !lyrics.synced) {
+          _handleSyncedUnavailable();
+        }
+
         if (_lineKeys.length != lyrics.lines.length) {
           _lineKeys = List.generate(lyrics.lines.length, (_) => GlobalKey());
         }
@@ -276,37 +315,36 @@ class _LyricsViewState extends State<LyricsView> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (_isDesktop)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Lyrics',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+            if (_isDesktop) Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Lyrics',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
                     ),
-                    _buildLyricsControls(),
-                  ],
-                ),
+                  ),
+                  _buildLyricsControls(),
+                ],
               ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: Text(
                 'Lyrics provided by ${lyrics.provider.label}',
                 style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                textAlign: TextAlign.center,
+                textAlign: TextAlign.left,
               ),
             ),
             Expanded(
               child: Align(
-                alignment: Alignment.topCenter,
+                alignment: _textCentered ? Alignment.topCenter : Alignment.topLeft,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
+                  constraints: const BoxConstraints(),
                   child: ListView.builder(
                     key: _listKey,
                     controller: _scrollController,
@@ -342,7 +380,7 @@ class _LyricsViewState extends State<LyricsView> {
                         key: _lineKeys[index],
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Align(
-                          alignment: Alignment.center,
+                          alignment: _textCentered ? Alignment.center : Alignment.centerLeft,
                           child: MouseRegion(
                             cursor: canSeek
                                 ? SystemMouseCursors.click
@@ -404,56 +442,83 @@ class _LyricsViewState extends State<LyricsView> {
   Widget _buildLyricsControls() {
     return Material(
       color: Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 96,
-              child: TextField(
-                controller: _delayController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  signed: true,
-                  decimal: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 96,
+            child: TextField(
+              controller: _delayController,
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: true,
+                decimal: true,
+              ),
+              onChanged: _handleDelayChanged,
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+              decoration: InputDecoration(
+                hintText: 'Delay (s)',
+                hintStyle: TextStyle(color: Colors.grey[500], fontSize: 12),
+                isDense: true,
+                filled: true,
+                fillColor: const Color(0xFF1A1A1A),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
                 ),
-                onChanged: _handleDelayChanged,
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-                decoration: InputDecoration(
-                  hintText: 'Delay (s)',
-                  hintStyle: TextStyle(color: Colors.grey[500], fontSize: 12),
-                  isDense: true,
-                  filled: true,
-                  fillColor: const Color(0xFF1A1A1A),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[700]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey[700]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh, size: 18),
-              color: Colors.grey[400],
-              tooltip: 'Reset delay',
-              onPressed: _resetDelay,
-            ),
-            const SizedBox(width: 4),
-            _isMobile
-                ? _buildMobileSyncSelector()
-                : _buildDesktopSyncSelector(),
-          ],
-        ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 18),
+            color: Colors.grey[400],
+            tooltip: 'Reset Delay',
+            onPressed: _resetDelay,
+          ),
+          const SizedBox(width: 4),
+          _isMobile
+              ? _buildMobileSyncSelector()
+              : _buildDesktopSyncSelector(),
+          const SizedBox(width: 12),
+          ToggleButtons(
+            isSelected: [
+              _textCentered == false,
+              _textCentered == true,
+            ],
+            onPressed: (index) {
+              switch (index) {
+                case 0:
+                  setState(() => _textCentered = false);
+                case 1:
+                  setState(() => _textCentered = true);
+              }
+            },
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.grey[400],
+            selectedColor: Theme.of(context).colorScheme.onPrimary,
+            fillColor: Theme.of(context).colorScheme.primary,
+            constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+            children: const [
+              Icon(
+                Icons.format_align_left,
+                size: 16,
+              ),
+              Icon(
+                Icons.format_align_center,
+                size: 16,
+              )
+            ],
+          )
+        ],
       ),
     );
   }
@@ -462,24 +527,36 @@ class _LyricsViewState extends State<LyricsView> {
     return Padding(
       padding: const EdgeInsets.only(right: 12),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<LyricsSyncMode>(
-          value: _syncMode,
-          dropdownColor: const Color(0xFF181818),
-          iconEnabledColor: Colors.white,
-          items: LyricsSyncMode.values
-              .map(
-                (mode) => DropdownMenuItem(
-                  value: mode,
-                  child: Text(
-                    mode.label,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: DropdownButton<LyricsSyncMode>(
+            value: _syncMode,
+            dropdownColor: const Color(0xFF181818),
+            iconEnabledColor: Colors.white,
+            items: LyricsSyncMode.values
+                .map(
+                  (mode) => DropdownMenuItem(
+                    value: mode,
+                    enabled: mode == LyricsSyncMode.synced
+                        ? _syncedLyricsAvailable
+                        : true,
+                    child: Text(
+                      mode.label,
+                      style: TextStyle(
+                        color: mode == LyricsSyncMode.synced &&
+                                !_syncedLyricsAvailable
+                            ? Colors.grey[600]
+                            : Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
-                ),
-              )
-              .toList(),
-          onChanged: (mode) {
-            if (mode != null) _onSyncModeChanged(mode);
-          },
+                )
+                .toList(),
+            onChanged: (mode) {
+              if (mode != null) _onSyncModeChanged(mode);
+            },
+          ),
         ),
       ),
     );
@@ -487,25 +564,35 @@ class _LyricsViewState extends State<LyricsView> {
 
   Widget _buildDesktopSyncSelector() {
     final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
-      child: ToggleButtons(
-        isSelected: [
-          _syncMode == LyricsSyncMode.synced,
-          _syncMode == LyricsSyncMode.unsynced,
-        ],
-        onPressed: (index) {
-          _onSyncModeChanged(
-            index == 0 ? LyricsSyncMode.synced : LyricsSyncMode.unsynced,
-          );
-        },
-        borderRadius: BorderRadius.circular(8),
-        color: Colors.grey[400],
-        selectedColor: colorScheme.onPrimary,
-        fillColor: colorScheme.primary,
-        constraints: const BoxConstraints(minHeight: 32, minWidth: 72),
-        children: const [Text('Synced'), Text('Unsynced')],
-      ),
+    return ToggleButtons(
+      isSelected: [
+        _syncMode == LyricsSyncMode.synced,
+        _syncMode == LyricsSyncMode.unsynced,
+      ],
+      onPressed: (index) {
+        if (index == 0 && !_syncedLyricsAvailable) return;
+        _onSyncModeChanged(
+          index == 0 ? LyricsSyncMode.synced : LyricsSyncMode.unsynced,
+        );
+      },
+      borderRadius: BorderRadius.circular(8),
+      color: Colors.grey[400],
+      disabledColor: Colors.grey[600],
+      disabledBorderColor: Colors.grey[700],
+      selectedColor: colorScheme.onPrimary,
+      fillColor: colorScheme.primary,
+      constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
+      children: [
+        Icon(
+          Icons.sync,
+          size: 16,
+          color: _syncedLyricsAvailable ? null : Colors.grey[600],
+        ),
+        const Icon(
+          Icons.sync_disabled,
+          size: 16,
+        )
+      ],
     );
   }
 }

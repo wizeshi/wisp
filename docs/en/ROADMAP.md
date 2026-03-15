@@ -1,24 +1,49 @@
-Here's the TODOs for version v26.03.xx (1/56):
+Here's the TODOs for version v26.03.xx (3/59):
 
 - Bugs:
-    - [ ] On mobile, clicking on a list view's shuffle/repeat button on the header does nothing.
-    - [ ] Fix the three dot menu's position in the desktop list view
+    - [x] Lyrics screen doesn't occupy the full width (so things like the scrollbar appear in the middle)
+    - [x] Re-clicking the view buttons in the player bar (desktop) doesn't return to the previous view
+    - [x] When collapsing the sidebar, the items get centered before the animation ends.
+    - [x] Fix the three dot menu's position in the desktop list view
+    - [x] Synced Lyrics view sometimes displays non-synced lyrics (it should toggle to unsynced, and disable the synced tab)
+    - [x] On sidebar collapse, the create button remains visible
+    - [x] Space bar pause only works on the home screen, should be global
+    - [x] Switching to the synced lyrics view (from another view or the unsynced variant) doesn't automatically center the current line
+    - [x] Sometimes after failing to fetch lyrics, the UI loops and rapid-fires lyrics requests non-stop.
+    - [x] When there is no next or last page, the corresponding desktop nav buttons are still enabled.
+    - [x] Fix player bar sliding animation text showing up above the song thumbnail
+    - [x] Queue name doesn't persist between app restarts
+    - [x] On mobile, clicking on a list view's shuffle button on the header doesn't pre-shuffle the list. 
     - [ ] The song name on the mobile full player isn't a marquee (it also wraps to a new line)
-    - [ ] Synced Lyrics view sometimes displays non-synced lyrics (it should toggle to unsynced, and disable the synced tab)
-    - [ ] When there is no next or last page, the corresponding desktop nav buttons are still enabled.
-    - [ ] Lyrics screen doesn't occupy the full width (so things like the scrollbar appear in the middle)
-    - [ ] Re-clicking the view buttons in the player bar (desktop) doesn't return to the previous view
     - [ ] Fix select menus' cursor not being responsive (should change to pointer on hover)
-    - [ ] On sidebar collapse, the create button remains visible
-    - [ ] Space bar pause only works on the home screen, should be global
+    - [ ] Back button doesn't close bottom sheets or some UIs like the queue and lyrics views. It also only works on the full player when there is nothing else to return to. Further, for some reason, they start working if you use the back button to close the full screen player, but then using it to return to any other views (like going to the settings view and using the back button to go to the home screen) removes the app shell. 
+    - [ ] Clicking on the "Go to" buttons in the context menu sends the user to UIs that don't use the app shell (doesn't show the nav and player bar)
 - Future changes:
     - [x] Change default font to Spotify's
+    - [x] Increase heart icon size in the mobile player bar
+    - [x] In the full player, move the queue and lyrics icons to the right and group then together
+    - [x] Add "Lyrics Preview" text to the top of the lyrics preview (like the "Artist Profile")
+    - [x] Decrease space between the last lyrics line and the show lyrics button in the preview 
+    - [x] Make the full player progress bar full sized (right now it stops at half of the start and end times)
+    - [x] Make artist name slightly more grey in the full player
+    - [x] Increase lyrics preview size and font sizes
+    - [x] Make the like button be centered relative to both the song title and artist list (right sidebar)
+    - [x] On the right sidebar, reduce the space between the song title and artist list.
+    - [x] Make song cover art bigger in the player bar (desktop)
+    - [x] Make the type text capitalized on the detail views (the "Playlist"/"Album"/"Artist" text)
+    - [x] For the mobile navbar decrease all round padding, make icons more spaced out, and make it semi-transparent (gradient)
+    - [x] Make playlist header play button be dynamic (change to a pause button when that playlist is playing)
+    - [ ] Show source in the mobile context menu (remove it from mobile song rows)
+    - [ ] Change "logged in" text in the settings to a checkmark next to the provider name
+    - [ ] Increase heart icon size in the mobile likes view
+    - [ ] Padding between elements (top and bottom) is part of the elements themselves (in the library view)
+    - [ ] Change provider names to icons in the search screen
+    - [ ] Switch from a velocity based sliding mechanism to a position threshold one
+    - [ ] Switch desktop context submenus to use prediction cones
     - [ ] Make the right sidebar's title clickable when it is a Playlist/Album/Artist
-    - [ ] On the right sidebar, reduce the space between the song title and artist list.
-    - [ ] Make the like button be centered relative to both the song title and artist list (right sidebar)
     - [ ] Make the heart icon on the playerbar (desktop) stick to the right of the Song/Artist box (right now it just has constant spacing)
     - [ ] Make shuffling persist between playlists (e.g., I have shuffle on when hearing PL1, I switch to PL2 and it should automatically shuffle itself)
-    - [ ] Remove the unassigned text from the sidebar
+    - [ ] Remove the unassigned text from the sidebar. Also make playlists/folders be ordered with each other (e.g. have Folder1, then PL1, then Folder2, then PL2, and so on and so forth)
     - [ ] Add download tracks button on album/playlist right-click context menu
     - [ ] Revamp the list view grid pattern to account for the downloading/cached icon and also center the duration in it's column 
     - [ ] Make every list-ish view virtualized
@@ -26,8 +51,7 @@ Here's the TODOs for version v26.03.xx (1/56):
     - [ ] Increase max cache size (2GB -> 4GB). Also, make it permanent, not temporary.
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
     - [ ] Add a "Go to Folder" on the cache section.
-    - [ ] Make song cover art bigger in the player bar (desktop)
-    - [ ] Make the player bar's progress bar smaller (desktop)
+    - [ ] Make the player bar's progress bar smaller and truly centered (desktop)
     - [ ] Change the lyrics icon to a song note icon
     - [ ] Make the lyrics preview's background color the song cover's main color
     - [ ] Add padding at the top/bottom of the lyrics screen to ensure the focused line is centered
@@ -41,8 +65,9 @@ Here's the TODOs for version v26.03.xx (1/56):
     - [ ] Remove the semi-transparent white borders on the list views
     - [ ] Merge the list controls area with the list songs area on the desktop list view 
     - [ ] Animate the transition from search icon to box on the list view
-    - [ ] Make the type text capitalized on the detail views (the "Playlist"/"Album"/"Artist" text)
     - [ ] Change the player bar's volume icon to be a proper button (also make the cursor change on hover)
+    - [ ] Highlight the current view's element in the sidebar, if applicable 
+    - [ ] Add a next up preview to the top left of the player bar (desktop)
 - Planned features: 
     - [ ] Add the Connect capability (being able to control devices remotely, probably with bluetooth/nearby devices for now)
     - [ ] Add a fullscreen player (desktop)
@@ -50,12 +75,12 @@ Here's the TODOs for version v26.03.xx (1/56):
     - [ ] Add ability to play local songs (should be a toggle in the settings)
     - [ ] Add a setting for write permissions: when off, should block all tries to remotely change things on other providers (e.g. add a song to a playlist on Spotify. Note: it should still add the song locally.)
     - [ ] Add ability to follow/unfollow artists and save/remove albums.
-    - [ ] Add a next up preview to the top left of the player bar (desktop)
     - [ ] Add a semi-player bar to the bottom of the lyrics screen (just a seekable progress bar, and a play/pause button) (mobile)
     - [ ] Add a "Recommended" list of ~10 songs with "Add" buttons at the bottom of a playlist (not albums, not artists, not likes view)
     - [ ] Add author name to the home view's playlist cards.
     - [ ] Improve lyrics preview animation
     - [ ] Add a preview of the next/previous song's metadata to the player bar's swiping animation
     - [ ] Change custom window controls to fit the OS (keep current appearance for windows)
+    - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
     - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
     - [ ] Change the App to use Spotify's closed API instead of the official one (very future change)

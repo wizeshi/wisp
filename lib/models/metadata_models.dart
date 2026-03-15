@@ -6,7 +6,8 @@ enum SongSource {
   local,
   spotify,
   youtube,
-  soundcloud;
+  soundcloud,
+  spotifyInternal;
 
   String toJson() => name;
 
@@ -14,6 +15,48 @@ enum SongSource {
     return SongSource.values.firstWhere(
       (e) => e.name == json,
       orElse: () => SongSource.spotify,
+    );
+  }
+}
+
+class SearchResults {
+  final List<GenericSong> tracks;
+  final List<GenericSimpleArtist> artists;
+  final List<GenericAlbum> albums;
+  final List<GenericPlaylist> playlists;
+
+  SearchResults({
+    required this.tracks,
+    required this.artists,
+    required this.albums,
+    required this.playlists,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'tracks': tracks.map((t) => t.toJson()).toList(),
+        'artists': artists.map((a) => a.toJson()).toList(),
+        'albums': albums.map((a) => a.toJson()).toList(),
+        'playlists': playlists.map((p) => p.toJson()).toList(),
+      };
+
+  factory SearchResults.fromJson(Map<String, dynamic> json) {
+    return SearchResults(
+      tracks: (json['tracks'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(GenericSong.fromJson)
+          .toList(),
+      artists: (json['artists'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(GenericSimpleArtist.fromJson)
+          .toList(),
+      albums: (json['albums'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(GenericAlbum.fromJson)
+          .toList(),
+      playlists: (json['playlists'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(GenericPlaylist.fromJson)
+          .toList(),
     );
   }
 }
@@ -286,6 +329,7 @@ class GenericSimpleUser {
 
 class PlaylistItem {
   final String id;
+  final String? uid;
   final SongSource source;
   final String title;
   final List<GenericSimpleArtist> artists;
@@ -298,6 +342,7 @@ class PlaylistItem {
 
   PlaylistItem({
     required this.id,
+    this.uid,
     required this.source,
     required this.title,
     required this.artists,
@@ -311,6 +356,7 @@ class PlaylistItem {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+      'uid': uid,
         'source': source.toJson(),
         'title': title,
         'artists': artists.map((a) => a.toJson()).toList(),
@@ -325,6 +371,7 @@ class PlaylistItem {
   factory PlaylistItem.fromJson(Map<String, dynamic> json) {
     return PlaylistItem(
       id: json['id'] as String,
+      uid: json['uid'] as String?,
       source: SongSource.fromJson(json['source'] as String),
       title: json['title'] as String,
       artists: (json['artists'] as List)
@@ -401,8 +448,10 @@ class GenericArtist {
   final String id;
   final SongSource source;
   final String name;
+  final String? description;
   final String thumbnailUrl;
-  final int monthlyListeners;
+  final int followers;
+  final int? monthlyListeners;
   final List<GenericSong> topSongs;
   final List<GenericSimpleAlbum> albums;
 
@@ -411,9 +460,11 @@ class GenericArtist {
     required this.source,
     required this.name,
     required this.thumbnailUrl,
-    required this.monthlyListeners,
+    required this.followers,
     required this.topSongs,
     required this.albums,
+    this.description,
+    this.monthlyListeners,
   });
 
   Map<String, dynamic> toJson() => {
@@ -424,6 +475,8 @@ class GenericArtist {
         'monthly_listeners': monthlyListeners,
         'top_songs': topSongs.map((s) => s.toJson()).toList(),
         'albums': albums.map((a) => a.toJson()).toList(),
+        'description': description,
+        'followers': followers,
       };
 
   factory GenericArtist.fromJson(Map<String, dynamic> json) {
@@ -432,13 +485,15 @@ class GenericArtist {
       source: SongSource.fromJson(json['source'] as String),
       name: json['name'] as String,
       thumbnailUrl: json['thumbnail_url'] as String,
-      monthlyListeners: json['monthly_listeners'] as int,
+      monthlyListeners: json['monthly_listeners'] as int?,
+      followers: json['followers'] as int,
       topSongs: (json['top_songs'] as List)
           .map((s) => GenericSong.fromJson(s as Map<String, dynamic>))
           .toList(),
       albums: (json['albums'] as List)
           .map((a) => GenericSimpleAlbum.fromJson(a as Map<String, dynamic>))
           .toList(),
+      description: json['description'] as String?,
     );
   }
 }
@@ -477,4 +532,114 @@ class LyricsResult {
     required this.synced,
     required this.lines,
   });
+}
+
+class GenericLibrary {
+  final List<GenericAlbum> saved_albums;
+  final List<GenericPlaylist> saved_playlists;
+  final List<GenericArtist> saved_artists;
+  
+  final List<dynamic>? all_organized;
+  final Map<String, String>? folderAssignments;
+
+  const GenericLibrary({
+    required this.saved_albums,
+    required this.saved_playlists,
+    required this.saved_artists,
+    this.all_organized,
+    this.folderAssignments,
+   });
+
+  Map<String, dynamic> toJson() => {
+    'saved_albums': saved_albums.map((a) => a.toJson()).toList(),
+    'saved_playlists': saved_playlists.map((p) => p.toJson()).toList(),
+    'saved_artists': saved_artists.map((a) => a.toJson()).toList(),
+    'all_organized': all_organized
+        ?.map(_serializeLibraryItem)
+        .toList(),
+    'folderAssignments': folderAssignments,
+  };
+
+  static dynamic _serializeLibraryItem(dynamic item) {
+    if (item is GenericAlbum) {
+      return {'__wispType': 'GenericAlbum', 'data': item.toJson()};
+    }
+    if (item is GenericPlaylist) {
+      return {'__wispType': 'GenericPlaylist', 'data': item.toJson()};
+    }
+    if (item is GenericArtist) {
+      return {'__wispType': 'GenericArtist', 'data': item.toJson()};
+    }
+    if (item is GenericSimpleAlbum) {
+      return {'__wispType': 'GenericSimpleAlbum', 'data': item.toJson()};
+    }
+    if (item is GenericSimpleArtist) {
+      return {'__wispType': 'GenericSimpleArtist', 'data': item.toJson()};
+    }
+    if (item is GenericSong) {
+      return {'__wispType': 'GenericSong', 'data': item.toJson()};
+    }
+    return item;
+  }
+
+  static dynamic _deserializeLibraryItem(dynamic item) {
+    if (item is! Map<String, dynamic>) return item;
+    final type = item['__wispType'] as String?;
+    final data = item['data'] as Map<String, dynamic>?;
+    if (type == null || data == null) return item;
+    switch (type) {
+      case 'GenericAlbum':
+        return GenericAlbum.fromJson(data);
+      case 'GenericPlaylist':
+        return GenericPlaylist.fromJson(data);
+      case 'GenericArtist':
+        return GenericArtist.fromJson(data);
+      case 'GenericSimpleAlbum':
+        return GenericSimpleAlbum.fromJson(data);
+      case 'GenericSimpleArtist':
+        return GenericSimpleArtist.fromJson(data);
+      case 'GenericSong':
+        return GenericSong.fromJson(data);
+      default:
+        return item;
+    }
+  }
+
+  factory GenericLibrary.fromJson(Map<String, dynamic> json) {
+    return GenericLibrary(
+      saved_albums: (json['saved_albums'] as List)
+          .map((a) => GenericAlbum.fromJson(a as Map<String, dynamic>))
+          .toList(),
+      saved_playlists: (json['saved_playlists'] as List)
+          .map((p) => GenericPlaylist.fromJson(p as Map<String, dynamic>))
+          .toList(),
+      saved_artists: (json['saved_artists'] as List)
+          .map((a) => GenericArtist.fromJson(a as Map<String, dynamic>))
+          .toList(),
+      all_organized: (json['all_organized'] as List?)
+          ?.map(_deserializeLibraryItem)
+          .toList(),
+      folderAssignments: json['folderAssignments'] != null 
+          ? Map<String, String>.from(json['folderAssignments'] as Map)
+          : null,
+    );
+  }
+}
+
+class GenericHome {
+  final Map<String, List<dynamic>> sections;
+
+  const GenericHome({
+    required this.sections,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'sections': sections.map((key, value) => MapEntry(key, value)),
+  };
+
+  factory GenericHome.fromJson(Map<String, dynamic> json) {
+    return GenericHome(
+      sections: (json['sections'] as Map<String, dynamic>).map((key, value) => MapEntry(key, value as List<dynamic>)),
+    );
+  }
 }

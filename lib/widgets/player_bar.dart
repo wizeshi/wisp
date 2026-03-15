@@ -6,7 +6,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../providers/audio/player.dart' as global_audio_player;
+import '../services/wisp_audio_handler.dart' as global_audio_player;
+import '../providers/theme/cover_art_palette_provider.dart';
 import '../providers/library/library_state.dart';
 import '../models/metadata_models.dart';
 import 'full_player.dart';
@@ -29,7 +30,8 @@ class WispPlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentTrack = context.select<global_audio_player.AudioPlayerProvider, GenericSong?>(
+    final currentTrack =
+        context.select<global_audio_player.WispAudioHandler, GenericSong?>(
       (player) => player.currentTrack,
     );
 
@@ -65,7 +67,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
   void _onHorizontalDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
-    final player = context.read<global_audio_player.AudioPlayerProvider>();
+    final player = context.read<global_audio_player.WispAudioHandler>();
 
     if (velocity.abs() > 200 || _dragOffset.abs() > 50) {
       if (_dragOffset < 0 || velocity < -200) {
@@ -85,61 +87,111 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   @override
   Widget build(BuildContext context) {
     final offset = Offset(_dragOffset / 300, 0);
+    final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
+      (provider) => provider.palette,
+    );
 
-    return GestureDetector(
-      onHorizontalDragUpdate: _onHorizontalDragUpdate,
-      onHorizontalDragEnd: _onHorizontalDragEnd,
-      child: InkWell(
-        onTap: () => FullScreenPlayer.show(context),
-        child: Container(
-          height: 76,
-          decoration: BoxDecoration(
-            color: const Color(0xFF181818),
-            border: Border(top: BorderSide(color: Colors.grey[900]!, width: 1)),
-          ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 8.0,
-                ),
-                child: Row(
-                  children: [
-                    // Album art
-                    _buildMobileAlbumArt(widget.currentTrack),
-                    const SizedBox(width: 12),
-                    // Track info with animation
-                    Expanded(
-                      child: AnimatedSlide(
-                        offset: offset,
-                        duration: Duration.zero,
-                        child: Opacity(
-                          opacity: (1.0 - (_dragOffset.abs() / 100)).clamp(
-                            0.3,
-                            1.0,
+    const colorFallback = Color(0xFF1A1A1A);
+    var bgColor = HSLColor.fromColor(palette?.primary ?? colorFallback).toColor();
+
+    if (bgColor.computeLuminance() < 0.11) {
+      bgColor = HSLColor.fromColor(palette?.onPrimary ?? colorFallback)
+          .withLightness(0.5)
+          .toColor();
+    }
+
+    var btnColor = HSLColor.fromColor(
+      palette?.onPrimaryContainer ?? colorFallback,
+    ).withLightness(0.7).withSaturation(1).toColor();
+
+    // Test Results:
+    //  Nights - Frank Ocean
+    //    Native - White-ish
+    //    Flutter -
+    //       onPrimary - White as hell
+    //       primary - Dark Orange
+    //       primaryContainer - Very Light Orange
+    //       onPrimaryContainer - Darker Orange
+    //       onSecondary - Pure White
+    //       secondary - Dead Brown
+    //       secondaryContainer - Very Light Orange (again)
+    //       onSecondaryContainer - Pretty Brown
+    //  Airplane Mode - Limbo
+    //    Native - Blue
+    //    Flutter -
+    //       onPrimary - White as hell
+    //       primary - Dark Blue (pretty close to native)
+    //       primaryContainer - Baby Blue
+    //       onPrimaryContainer - Same as primary
+    //       onSecondary - Pure White
+    //       secondary - Grey
+    //       secondaryContainer - Light Grey (blueish)
+    //       onSecondaryContainer - Dead Cyan
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: GestureDetector(
+        onHorizontalDragUpdate: _onHorizontalDragUpdate,
+        onHorizontalDragEnd: _onHorizontalDragEnd,
+        child: InkWell(
+          onTap: () => FullScreenPlayer.show(context),
+          child: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: bgColor,
+              border: Border.all(color: Colors.grey[900]!, width: 1)
+                  .add(Border(bottom: BorderSide())),
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(8),
+                bottom: Radius.zero,
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 3, 8, 0),
+                  child: Row(
+                    children: [
+                      // Album art
+                      _buildMobileAlbumArt(widget.currentTrack),
+                      const SizedBox(width: 12),
+                      // Track info with animation
+                      Expanded(
+                        child: ClipRect(
+                          clipBehavior: Clip.hardEdge,
+                          child: AnimatedSlide(
+                            offset: offset,
+                            duration: Duration.zero,
+                            child: Opacity(
+                              opacity: (1.0 - (_dragOffset.abs() / 100)).clamp(
+                                0.3,
+                                1.0,
+                              ),
+                              child: _buildMobileTrackInfo(widget.currentTrack),
+                            ),
                           ),
-                          child: _buildMobileTrackInfo(widget.currentTrack),
                         ),
                       ),
-                    ),
-                    LikeButton(
-                      track: widget.currentTrack as GenericSong?,
-                      iconSize: 20,
-                      padding: const EdgeInsets.all(2),
-                      constraints: const BoxConstraints(
-                        minWidth: 28,
-                        minHeight: 28,
+                      LikeButton(
+                        track: widget.currentTrack as GenericSong?,
+                        iconSize: 24,
+                        padding: const EdgeInsets.all(2),
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
+                        color: btnColor,
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    // Play/Pause button
-                    _buildMobilePlayPauseButton(),
-                  ],
+                      const SizedBox(width: 4),
+                      // Play/Pause button
+                      _buildMobilePlayPauseButton(),
+                    ],
+                  ),
                 ),
-              ),
-              _buildMiniProgressBar(),
-            ],
+                _buildMiniProgressBar(),
+              ],
+            ),
           ),
         ),
       ),
@@ -151,12 +203,13 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
       child: Container(
-        width: 52,
-        height: 52,
+        width: 44,
+        height: 44,
         color: Colors.grey[900],
         child: imageUrl.isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: imageUrl,
+                filterQuality: FilterQuality.high,
                 fit: BoxFit.cover,
                 placeholder: (context, url) =>
                     Container(color: Colors.grey[800]),
@@ -185,23 +238,23 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           style: const TextStyle(
             color: Colors.white,
             fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 2),
         _MarqueeText(
           text: currentTrack.artists.map((a) => a.name).join(', '),
-          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+          style: TextStyle(color: Colors.grey[250], fontSize: 12, fontWeight: FontWeight.w500),
         ),
       ],
     );
   }
 
   Widget _buildMobilePlayPauseButton() {
-    return Selector<global_audio_player.AudioPlayerProvider, _PlayPauseData>(
+    return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
       selector: (context, player) {
         final track = player.currentTrack;
-        final queueFirst = player.queue.isNotEmpty ? player.queue.first : null;
+        final queueFirst =
+          player.queueTracks.isNotEmpty ? player.queueTracks.first : null;
         return _PlayPauseData(
           isPlaying: player.isPlaying,
           isLoading: player.isLoading,
@@ -210,7 +263,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           currentTrackId: track?.id,
           currentTrackCached:
               track == null ? true : player.isTrackCached(track.id),
-          queueNotEmpty: player.queue.isNotEmpty,
+          queueNotEmpty: player.queueTracks.isNotEmpty,
           queueFirstId: queueFirst?.id,
         );
       },
@@ -228,7 +281,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           );
         }
 
-        final player = context.read<global_audio_player.AudioPlayerProvider>();
+        final player = context.read<global_audio_player.WispAudioHandler>();
         final isOfflineBlocked =
             !data.isOnline && data.currentTrackId != null && !data.currentTrackCached;
         final IconData icon =
@@ -240,12 +293,12 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           } else if (data.currentTrackId != null) {
             onPressed = player.play;
           } else if (data.queueNotEmpty) {
-            onPressed = () => player.playTrack(player.queue.first);
+            onPressed = () => player.playTrack(player.queueTracks.first);
           }
         }
 
         return IconButton(
-          icon: Icon(icon, size: 40, color: Colors.white),
+          icon: Icon(icon, size: 32, color: Colors.white),
           onPressed: onPressed,
         );
       },
@@ -253,35 +306,37 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   }
 
   Widget _buildMiniProgressBar() {
-    final trackId =
-        context.select<global_audio_player.AudioPlayerProvider, String?>((p) => p.currentTrack?.id);
-    if (trackId == null) {
-      return const SizedBox.shrink();
-    }
+    // Use a Selector to read the current track id (safe inside builder)
+    return Selector<global_audio_player.WispAudioHandler, String?>(
+      selector: (context, player) => player.currentTrack?.id,
+      builder: (context, trackId, child) {
+        if (trackId == null) return const SizedBox.shrink();
 
-    return Selector<global_audio_player.AudioPlayerProvider, _PositionData>(
-      selector: (context, player) => _PositionData(
-        position: player.throttledPosition,
-        duration: player.duration,
-      ),
-      builder: (context, data, child) {
-        final progress = data.duration.inMilliseconds > 0
-            ? data.position.inMilliseconds / data.duration.inMilliseconds
-            : 0.0;
+        return Selector<global_audio_player.WispAudioHandler, _PositionData>(
+          selector: (context, player) => _PositionData(
+            position: player.throttledPosition,
+            duration: player.duration,
+          ),
+          builder: (context, data, child) {
+            final progress = data.duration.inMilliseconds > 0
+                ? data.position.inMilliseconds / data.duration.inMilliseconds
+                : 0.0;
 
-        return TweenAnimationBuilder<double>(
-          tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-          duration: const Duration(milliseconds: 200),
-          builder: (context, animatedProgress, child) {
-            return SizedBox(
-              height: 3,
-              child: LinearProgressIndicator(
-                value: animatedProgress,
-                backgroundColor: Colors.grey[850],
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Theme.of(context).colorScheme.primary,
-                ),
-              ),
+            return TweenAnimationBuilder<double>(
+              tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+              duration: const Duration(milliseconds: 200),
+              builder: (context, animatedProgress, child) {
+                return SizedBox(
+                  height: 3,
+                  child: LinearProgressIndicator(
+                    value: animatedProgress,
+                    backgroundColor: Colors.grey[850]?.withOpacity(0.4),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.white
+                    ),
+                  ),
+                );
+              },
             );
           },
         );
@@ -297,6 +352,17 @@ class _DesktopPlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
+      (provider) => provider.palette,
+    );
+    var buttonColor = HSLColor.fromColor(
+      palette?.onSecondaryContainer ?? const Color(0xFF1A1A1A),
+    ).withLightness(0.6).withSaturation(0.65).toColor();
+
+    if (buttonColor.computeLuminance() > 0.5) {
+      buttonColor = buttonColor.withOpacity(0.65);
+    }
+
     return Container(
       height: 90,
       decoration: BoxDecoration(
@@ -308,18 +374,19 @@ class _DesktopPlayerBar extends StatelessWidget {
         child: Row(
           children: [
             // Left: Album art + track info
-            _DesktopTrackInfo(currentTrack: currentTrack),
+            _DesktopTrackInfo(currentTrack: currentTrack, btnColor: buttonColor),
 
             const SizedBox(width: 24),
 
             // Center: Playback controls + progress
-            const Expanded(
+            Expanded(
+              flex: 1,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _DesktopPlaybackControls(),
-                  _DesktopProgressBar(),
+                  _DesktopPlaybackControls(btnColor: buttonColor),
+                  _DesktopProgressBar(btnColor: buttonColor),
                 ],
               ),
             ),
@@ -327,7 +394,7 @@ class _DesktopPlayerBar extends StatelessWidget {
             const SizedBox(width: 24),
 
             // Right: Volume + queue
-            _DesktopRightControls(currentTrack: currentTrack),
+            _DesktopRightControls(currentTrack: currentTrack, btnColor: buttonColor),
           ],
         ),
       ),
@@ -336,11 +403,13 @@ class _DesktopPlayerBar extends StatelessWidget {
 }
 
 class _DesktopProgressBar extends StatelessWidget {
-  const _DesktopProgressBar();
+  final Color? btnColor;
+
+  const _DesktopProgressBar({this.btnColor});
 
   @override
   Widget build(BuildContext context) {
-    return Selector<global_audio_player.AudioPlayerProvider, _PositionData>(
+    return Selector<global_audio_player.WispAudioHandler, _PositionData>(
       selector: (context, player) => _PositionData(
         position: player.throttledPosition,
         duration: player.duration,
@@ -360,56 +429,61 @@ class _DesktopProgressBar extends StatelessWidget {
                   (animatedProgress * duration.inMilliseconds).round(),
             );
 
-            return Row(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 16.0, right: 8.0),
-                  child: SizedBox(
-                    width: 64,
-                    child: Text(
-                      _formatDuration(animatedPosition),
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                      textAlign: TextAlign.right,
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: SizedBox(
+                        width: 56,
+                        child: Text(
+                          _formatDuration(animatedPosition),
+                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 4,
+                          thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
+                          overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
+                          activeTrackColor: btnColor ?? Theme.of(context).colorScheme.primary,
+                          inactiveTrackColor: Colors.grey[800],
+                          thumbColor: Colors.white,
+                          overlayColor: (btnColor ?? Theme.of(context).colorScheme.primary).withOpacity(0.2),
+                        ),
+                        child: Slider(
+                          value: animatedProgress,
+                          onChanged: (value) {
+                            final newPosition = Duration(
+                              milliseconds:
+                                  (value * duration.inMilliseconds).toInt(),
+                            );
+                            context
+                              .read<global_audio_player.WispAudioHandler>()
+                              .seek(newPosition);
+                          },
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: SizedBox(
+                        width: 56,
+                        child: Text(
+                          _formatDuration(duration),
+                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                          textAlign: TextAlign.left,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: SliderTheme(
-                    data: SliderThemeData(
-                      trackHeight: 4,
-                      thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
-                      overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
-                      activeTrackColor: Theme.of(context).colorScheme.primary,
-                      inactiveTrackColor: Colors.grey[800],
-                      thumbColor: Colors.white,
-                      overlayColor: Theme.of(
-                        context,
-                      ).colorScheme.primary.withOpacity(0.2),
-                    ),
-                    child: Slider(
-                      value: animatedProgress,
-                      onChanged: (value) {
-                        final newPosition = Duration(
-                          milliseconds:
-                              (value * duration.inMilliseconds).toInt(),
-                        );
-                        context.read<global_audio_player.AudioPlayerProvider>().seek(newPosition);
-                      },
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 8.0, right: 16.0),
-                  child: SizedBox(
-                    width: 64,
-                    child: Text(
-                      _formatDuration(duration),
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                      textAlign: TextAlign.left,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             );
           },
         );
@@ -432,8 +506,9 @@ String _formatDuration(Duration duration) {
 
 class _DesktopTrackInfo extends StatelessWidget {
   final GenericSong? currentTrack;
+  final Color? btnColor;
 
-  const _DesktopTrackInfo({required this.currentTrack});
+  const _DesktopTrackInfo({required this.currentTrack, this.btnColor});
 
   @override
   Widget build(BuildContext context) {
@@ -477,32 +552,32 @@ class _DesktopTrackInfo extends StatelessWidget {
       );
     }
 
-    return SizedBox(
-      width: 220,
-      child: Row(
-        children: [
-          // Album art
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Container(
-              width: 48,
-              height: 48,
-              color: Colors.grey[900],
-              child: currentTrack!.thumbnailUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: currentTrack!.thumbnailUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) =>
-                          Container(color: Colors.grey[800]),
-                      errorWidget: (context, url, error) =>
-                          Icon(Icons.music_note, color: Colors.grey[700]),
-                    )
-                  : Icon(Icons.music_note, color: Colors.grey[700]),
-            ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Container(
+            width: 56,
+            height: 56,
+            color: Colors.grey[900],
+            child: currentTrack!.thumbnailUrl.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: currentTrack!.thumbnailUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) =>
+                        Container(color: Colors.grey[800]),
+                    errorWidget: (context, url, error) =>
+                        Icon(Icons.music_note, color: Colors.grey[700]),
+                  )
+                : Icon(Icons.music_note, color: Colors.grey[700]),
           ),
-          SizedBox(width: 12),
-          // Track info
-          Expanded(
+        ),
+        SizedBox(width: 12),
+        Flexible(
+          fit: FlexFit.loose,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 200),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -628,31 +703,176 @@ class _DesktopTrackInfo extends StatelessWidget {
               ],
             ),
           ),
-              const SizedBox(width: 6),
-              LikeButton(
-                track: currentTrack,
-                iconSize: 18,
-                padding: const EdgeInsets.all(2),
-                constraints: const BoxConstraints(
-                  minWidth: 28,
-                  minHeight: 28,
-                ),
+        ),
+        const SizedBox(width: 8),
+        LikeButton(
+          track: currentTrack,
+          iconSize: 18,
+          padding: const EdgeInsets.all(2),
+          constraints: const BoxConstraints(
+            minWidth: 28,
+            minHeight: 28,
+          ),
+          color: btnColor ?? Theme.of(context).colorScheme.primary,
+        ),
+      ],
+    );
+  }
+}
+
+class DesktopNextUpPreviewOverlay extends StatelessWidget {
+  const DesktopNextUpPreviewOverlay({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final nextUp = context.select<global_audio_player.WispAudioHandler, GenericSong?>(
+      (player) {
+        final index = player.currentIndex;
+        final queue = player.queueTracks;
+        if (index >= 0 && index + 1 < queue.length) {
+          return queue[index + 1];
+        }
+        return null;
+      },
+    );
+
+    if (nextUp == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF121212),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.35),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'NEXT UP',
+              style: TextStyle(color: Colors.grey, fontSize: 8, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.left,
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    color: Colors.grey[900],
+                    child: nextUp.thumbnailUrl.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: nextUp.thumbnailUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) =>
+                                Container(color: Colors.grey[800]),
+                            errorWidget: (context, url, error) =>
+                                Icon(Icons.music_note, color: Colors.grey[700], size: 16),
+                          )
+                        : Icon(Icons.music_note, color: Colors.grey[700], size: 16),
+                    )
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        nextUp.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                      Text(
+                        nextUp.artists.map((a) => a.name).join(', '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      ),
+                    ],
+                  )
+              ]
+            )
+          ]
+        )
+         /* Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Container(
+                width: 32,
+                height: 32,
+                color: Colors.grey[900],
+                child: nextUp.thumbnailUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: nextUp.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) =>
+                            Container(color: Colors.grey[800]),
+                        errorWidget: (context, url, error) =>
+                            Icon(Icons.music_note, color: Colors.grey[700], size: 16),
+                      )
+                    : Icon(Icons.music_note, color: Colors.grey[700], size: 16),
               ),
-        ],
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 190,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Next up',
+                    style: TextStyle(color: Colors.grey, fontSize: 10),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    nextUp.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                  Text(
+                    nextUp.artists.map((a) => a.name).join(', '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ), */
       ),
     );
   }
 }
 
 class _DesktopPlaybackControls extends StatelessWidget {
-  const _DesktopPlaybackControls();
+  final Color? btnColor;
+
+  const _DesktopPlaybackControls({this.btnColor});
 
   @override
   Widget build(BuildContext context) {
-    return Selector<global_audio_player.AudioPlayerProvider, _PlayPauseData>(
+    return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
       selector: (context, player) {
         final track = player.currentTrack;
-        final queueFirst = player.queue.isNotEmpty ? player.queue.first : null;
+        final queueFirst =
+          player.queueTracks.isNotEmpty ? player.queueTracks.first : null;
         return _PlayPauseData(
           isPlaying: player.isPlaying,
           isLoading: player.isLoading,
@@ -661,14 +881,14 @@ class _DesktopPlaybackControls extends StatelessWidget {
           currentTrackId: track?.id,
           currentTrackCached:
               track == null ? true : player.isTrackCached(track.id),
-          queueNotEmpty: player.queue.isNotEmpty,
+          queueNotEmpty: player.queueTracks.isNotEmpty,
           queueFirstId: queueFirst?.id,
           shuffleEnabled: player.shuffleEnabled,
           repeatMode: player.repeatMode,
         );
       },
       builder: (context, data, child) {
-        final player = context.read<global_audio_player.AudioPlayerProvider>();
+        final player = context.read<global_audio_player.WispAudioHandler>();
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -680,7 +900,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               icon: Icon(
                 Icons.shuffle,
                 color: data.shuffleEnabled
-                    ? Theme.of(context).colorScheme.primary
+                    ? btnColor
                     : Colors.grey[400],
                 size: 20,
               ),
@@ -700,7 +920,8 @@ class _DesktopPlaybackControls extends StatelessWidget {
             SizedBox(width: 4),
 
             // Play/Pause
-            _DesktopPlayPauseButton(data: data),
+            _DesktopPlayPauseButton(data: data, btnColor: btnColor),
+
 
             SizedBox(width: 4),
 
@@ -723,7 +944,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
                     ? Icons.repeat_one
                     : Icons.repeat,
                 color: data.repeatMode != global_audio_player.RepeatMode.off
-                    ? Theme.of(context).colorScheme.primary
+                    ? btnColor
                     : Colors.grey[400],
                 size: 20,
               ),
@@ -738,25 +959,29 @@ class _DesktopPlaybackControls extends StatelessWidget {
 
 class _DesktopPlayPauseButton extends StatelessWidget {
   final _PlayPauseData data;
+  final Color? btnColor;
 
-  const _DesktopPlayPauseButton({required this.data});
+  const _DesktopPlayPauseButton({required this.data, this.btnColor});
 
   @override
   Widget build(BuildContext context) {
     if (data.isLoading || data.isBuffering) {
-      return SizedBox(
-        width: 40,
-        height: 40,
-        child: CircularProgressIndicator(
-          strokeWidth: 2.5,
-          valueColor: AlwaysStoppedAnimation<Color>(
-            Theme.of(context).colorScheme.primary,
+      return Padding(
+        padding: EdgeInsets.all(8),
+        child: SizedBox(
+          width: 32,
+          height: 32,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              btnColor ?? Theme.of(context).colorScheme.primary,
+            ),
           ),
-        ),
+        )
       );
     }
 
-    final player = context.read<global_audio_player.AudioPlayerProvider>();
+    final player = context.read<global_audio_player.WispAudioHandler>();
     final isOfflineBlocked =
         !data.isOnline && data.currentTrackId != null && !data.currentTrackCached;
     IconData icon = data.isPlaying
@@ -770,7 +995,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       } else if (data.currentTrackId != null) {
         onPressed = player.play;
       } else if (data.queueNotEmpty) {
-        onPressed = () => player.playTrack(player.queue.first);
+        onPressed = () => player.playTrack(player.queueTracks.first);
       }
     }
 
@@ -786,7 +1011,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
     return IconButton(
       padding: EdgeInsets.all(4),
       constraints: BoxConstraints(),
-      icon: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 40),
+      icon: Icon(icon, color: btnColor ?? Theme.of(context).colorScheme.primary, size: 40),
       onPressed: onPressed,
     );
   }
@@ -794,8 +1019,9 @@ class _DesktopPlayPauseButton extends StatelessWidget {
 
 class _DesktopRightControls extends StatelessWidget {
   final GenericSong? currentTrack;
+  final Color? btnColor;
 
-  const _DesktopRightControls({required this.currentTrack});
+  const _DesktopRightControls({required this.currentTrack, this.btnColor});
 
   @override
   Widget build(BuildContext context) {
@@ -806,8 +1032,9 @@ class _DesktopRightControls extends StatelessWidget {
         final routeName = route?.settings.name;
         final isLyricsOpen = routeName == '/lyrics';
         final isQueueOpen = routeName == '/queue';
+        final isFullScreenOpen = routeName == '/fullplayer';
         final isSidebarOpen = navState.rightSidebarVisible;
-        final activeColor = Theme.of(context).colorScheme.primary;
+        final activeColor = btnColor ?? Theme.of(context).colorScheme.primary;
         final inactiveColor = Colors.grey[400];
 
         return Row(
@@ -828,14 +1055,19 @@ class _DesktopRightControls extends StatelessWidget {
             // Lyrics button
             IconButton(
               icon: Icon(
-                Icons.lyrics,
+                Icons.music_note,
                 color: isLyricsOpen ? activeColor : inactiveColor,
                 size: 20,
               ),
               onPressed: currentTrack == null
                   ? null
                   : () {
-                      _openLyrics(context);
+                      final currentScreen = NavigationHistory.instance.currentRoute.value?.settings.name;
+                      if (currentScreen == '/lyrics') {
+                        NavigationHistory.instance.goBack();
+                      } else {
+                        _openLyrics(context);
+                      }
                     },
             ),
 
@@ -848,16 +1080,24 @@ class _DesktopRightControls extends StatelessWidget {
                 color: isQueueOpen ? activeColor : inactiveColor,
                 size: 20,
               ),
-              onPressed: () => _openQueue(context),
+              onPressed: () {
+                final currentScreen = NavigationHistory.instance.currentRoute.value?.settings.name;
+                if (currentScreen == '/queue') {
+                  NavigationHistory.instance.goBack();
+                } else {
+                  _openQueue(context);
+                }
+              },
             ),
 
             SizedBox(width: 8),
 
             // Volume control
-            Selector<global_audio_player.AudioPlayerProvider, double>(
+            Selector<global_audio_player.WispAudioHandler, double>(
               selector: (context, player) => player.volume,
               builder: (context, volume, child) {
-                final player = context.read<global_audio_player.AudioPlayerProvider>();
+                final player =
+                    context.read<global_audio_player.WispAudioHandler>();
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -889,7 +1129,7 @@ class _DesktopRightControls extends StatelessWidget {
                           overlayShape:
                               RoundSliderOverlayShape(overlayRadius: 12),
                           activeTrackColor:
-                              Theme.of(context).colorScheme.primary,
+                              btnColor ?? Theme.of(context).colorScheme.primary,
                           inactiveTrackColor: Colors.grey[800],
                           thumbColor: Colors.white,
                           overlayColor: Theme.of(
@@ -906,11 +1146,48 @@ class _DesktopRightControls extends StatelessWidget {
                 );
               },
             ),
+
+            SizedBox(width: 8),
+
+            // Full Screen button
+            IconButton(
+              icon: Icon(
+                Icons.fullscreen,
+                color: isFullScreenOpen ? activeColor : inactiveColor,
+                size: 20,
+              ),
+              onPressed: () {
+                final currentScreen = NavigationHistory.instance.currentRoute.value?.settings.name;
+                if (currentScreen == '/fullplayer') {
+                  NavigationHistory.instance.goBack();
+                  navState.rightSidebarVisible ? null : navState.toggleRightSidebar();
+                } else {
+                  _openFullPlayer(context);
+                  navState.rightSidebarVisible ? navState.toggleRightSidebar() : null;
+                }
+              },
+            )
           ],
         );
       },
     );
   }
+}
+
+void _openFullPlayer(BuildContext context) {
+  final currentRoute = ModalRoute.of(context);
+  if (currentRoute?.settings.name == '/fullplayer') {
+    return;
+  }
+  NavigationHistory.instance.navigatorKey.currentState?.push(
+    PageRouteBuilder(
+      transitionDuration: Duration.zero,
+      reverseTransitionDuration: Duration.zero,
+      settings: const RouteSettings(name: '/fullplayer'),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          const FullScreenPlayer(),
+    ),
+  );
 }
 
 void _openLyrics(BuildContext context) {

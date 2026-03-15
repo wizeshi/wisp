@@ -2,10 +2,11 @@
 library;
 
 import 'dart:io' show Platform, File;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../providers/metadata/spotify.dart';
+import '../providers/metadata/spotify_internal.dart';
 import '../models/metadata_models.dart';
 import '../models/library_folder.dart';
 import '../providers/library/library_state.dart';
@@ -14,8 +15,11 @@ import '../widgets/library_item_context_menu.dart';
 import '../widgets/playlist_folder_modals.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
+import '../providers/preferences/preferences_provider.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
+import '../services/metadata_cache.dart';
+import '../widgets/provider_disabled_state.dart';
 import 'list_detail.dart';
 import 'artist_detail.dart';
 
@@ -63,19 +67,21 @@ class LibraryTabView extends StatefulWidget {
   final List<GenericPlaylist> initialPlaylists;
   final List<GenericAlbum> initialAlbums;
   final List<GenericSimpleArtist> initialArtists;
+  final ValueListenable<int>? refreshSignal;
 
   const LibraryTabView({
     super.key,
     required this.initialPlaylists,
     required this.initialAlbums,
     required this.initialArtists,
+    this.refreshSignal,
   });
 
   @override
-  State<LibraryTabView> createState() => _LibraryTabViewState();
+  State<LibraryTabView> createState() => LibraryTabViewState();
 }
 
-class _LibraryTabViewState extends State<LibraryTabView> {
+class LibraryTabViewState extends State<LibraryTabView> {
   LibraryView _selectedTab = LibraryView.playlists;
 
   final _playlistScrollController = ScrollController();
@@ -102,6 +108,8 @@ class _LibraryTabViewState extends State<LibraryTabView> {
 
   bool _dragModeEnabled = false;
   VoidCallback? _localPlaylistListener;
+  VoidCallback? _refreshListener;
+  int _lastRefreshTick = 0;
 
   List<GenericPlaylist> get _displayPlaylists {
     final localById = {for (final p in _localPlaylists) p.id: p};
@@ -159,10 +167,25 @@ class _LibraryTabViewState extends State<LibraryTabView> {
     _playlistScrollController.addListener(_onPlaylistScroll);
     _albumScrollController.addListener(_onAlbumScroll);
     _artistScrollController.addListener(_onArtistScroll);
+
+    final refreshSignal = widget.refreshSignal;
+    if (refreshSignal != null) {
+      _lastRefreshTick = refreshSignal.value;
+      _refreshListener = () {
+        if (!mounted) return;
+        if (refreshSignal.value == _lastRefreshTick) return;
+        _lastRefreshTick = refreshSignal.value;
+        forceRefresh();
+      };
+      refreshSignal.addListener(_refreshListener!);
+    }
   }
 
   @override
   void dispose() {
+    if (_refreshListener != null) {
+      widget.refreshSignal?.removeListener(_refreshListener!);
+    }
     if (_localPlaylistListener != null) {
       context.read<LocalPlaylistState>().removeListener(_localPlaylistListener!);
     }
@@ -193,17 +216,20 @@ class _LibraryTabViewState extends State<LibraryTabView> {
     }
   }
 
-  Future<void> _loadMorePlaylists() async {
+  Future<void> _loadMorePlaylists({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
     if (_isLoadingPlaylists || !_hasMorePlaylists) return;
 
     setState(() => _isLoadingPlaylists = true);
 
-    final spotify = context.read<SpotifyProvider>();
+    final spotify = context.read<SpotifyInternalProvider>();
 
     try {
       final morePlaylists = await spotify.getUserPlaylists(
         limit: 50,
         offset: _remotePlaylists.length,
+        policy: policy,
       );
 
       if (mounted) {
@@ -232,17 +258,20 @@ class _LibraryTabViewState extends State<LibraryTabView> {
     }
   }
 
-  Future<void> _loadMoreAlbums() async {
+  Future<void> _loadMoreAlbums({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
     if (_isLoadingAlbums || !_hasMoreAlbums) return;
 
     setState(() => _isLoadingAlbums = true);
 
-    final spotify = context.read<SpotifyProvider>();
+    final spotify = context.read<SpotifyInternalProvider>();
 
     try {
       final moreAlbums = await spotify.getUserAlbums(
         limit: 50,
         offset: _albums.length,
+        policy: policy,
       );
 
       if (mounted) {
@@ -263,17 +292,20 @@ class _LibraryTabViewState extends State<LibraryTabView> {
     }
   }
 
-  Future<void> _loadMoreArtists() async {
+  Future<void> _loadMoreArtists({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
     if (_isLoadingArtists || !_hasMoreArtists) return;
 
     setState(() => _isLoadingArtists = true);
 
-    final spotify = context.read<SpotifyProvider>();
+    final spotify = context.read<SpotifyInternalProvider>();
 
     try {
       final moreArtists = await spotify.getUserFollowedArtists(
         limit: 50,
         after: _artists.isNotEmpty ? _artists.last.id : null,
+        policy: policy,
       );
 
       if (mounted) {
@@ -294,35 +326,63 @@ class _LibraryTabViewState extends State<LibraryTabView> {
     }
   }
 
-  Future<void> _refreshPlaylists() async {
+  Future<void> _refreshPlaylists({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
     setState(() {
       _remotePlaylists = [];
       _hasMorePlaylists = true;
       _playlistError = null;
     });
-    await _loadMorePlaylists();
+    await _loadMorePlaylists(policy: policy);
   }
 
-  Future<void> _refreshAlbums() async {
+  Future<void> _refreshAlbums({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
     setState(() {
       _albums = [];
       _hasMoreAlbums = true;
       _albumError = null;
     });
-    await _loadMoreAlbums();
+    await _loadMoreAlbums(policy: policy);
   }
 
-  Future<void> _refreshArtists() async {
+  Future<void> _refreshArtists({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
     setState(() {
       _artists = [];
       _hasMoreArtists = true;
       _artistError = null;
     });
-    await _loadMoreArtists();
+    await _loadMoreArtists(policy: policy);
+  }
+
+  Future<void> forceRefresh({
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
+  }) async {
+    switch (_selectedTab) {
+      case LibraryView.playlists:
+      case LibraryView.all:
+        await _refreshPlaylists(policy: policy);
+        break;
+      case LibraryView.albums:
+        await _refreshAlbums(policy: policy);
+        break;
+      case LibraryView.artists:
+        await _refreshArtists(policy: policy);
+        break;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final preferences = context.watch<PreferencesProvider>();
+    if (!preferences.metadataSpotifyEnabled) {
+      return const ProviderDisabledState();
+    }
+
     final isMobile = Platform.isAndroid || Platform.isIOS;
     final padding = isMobile ? 20.0 : 16.0;
     final folderState = context.watch<LibraryFolderState>();
@@ -381,11 +441,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildTabChip(
-            LibraryView.playlists,
-            'Playlists',
-            _displayPlaylists.length,
-          ),
+          _buildTabChip(LibraryView.playlists, 'Playlists', _displayPlaylists.length),
           const SizedBox(width: 8),
           _buildTabChip(LibraryView.albums, 'Albums', _albums.length),
           const SizedBox(width: 8),
@@ -399,34 +455,37 @@ class _LibraryTabViewState extends State<LibraryTabView> {
     LibraryFolderState folderState, {
     required bool isMobile,
   }) {
-    return PopupMenuButton<LibrarySortMode>(
-      tooltip: 'Sort',
-      icon: Icon(
-        Icons.sort,
-        color: Colors.grey[400],
-        size: isMobile ? 22 : 18,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: PopupMenuButton<LibrarySortMode>(
+        tooltip: 'Sort',
+        icon: Icon(
+          Icons.sort,
+          color: Colors.grey[400],
+          size: isMobile ? 22 : 18,
+        ),
+        color: const Color(0xFF282828),
+        onSelected: (mode) {
+          folderState.setSortMode(mode);
+          if (mode != LibrarySortMode.custom && isMobile) {
+            setState(() => _dragModeEnabled = false);
+          }
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: LibrarySortMode.original,
+            child: Text('Index', style: TextStyle(color: Colors.white)),
+          ),
+          const PopupMenuItem(
+            value: LibrarySortMode.recentlyPlayed,
+            child: Text('Recently played', style: TextStyle(color: Colors.white)),
+          ),
+          const PopupMenuItem(
+            value: LibrarySortMode.custom,
+            child: Text('Custom order', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
-      color: const Color(0xFF282828),
-      onSelected: (mode) {
-        folderState.setSortMode(mode);
-        if (mode != LibrarySortMode.custom && isMobile) {
-          setState(() => _dragModeEnabled = false);
-        }
-      },
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: LibrarySortMode.original,
-          child: Text('Index', style: TextStyle(color: Colors.white)),
-        ),
-        const PopupMenuItem(
-          value: LibrarySortMode.recentlyPlayed,
-          child: Text('Recently played', style: TextStyle(color: Colors.white)),
-        ),
-        const PopupMenuItem(
-          value: LibrarySortMode.custom,
-          child: Text('Custom order', style: TextStyle(color: Colors.white)),
-        ),
-      ],
     );
   }
 
@@ -495,7 +554,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
-      child: FilterChip(
+      child: ChoiceChip(
         label: Text(
           '$label ($count)',
           style: TextStyle(
@@ -525,6 +584,8 @@ class _LibraryTabViewState extends State<LibraryTabView> {
     switch (_selectedTab) {
       case LibraryView.playlists:
         return _buildPlaylistsContent(padding);
+      case LibraryView.all:
+        return _buildPlaylistsContent(padding);
       case LibraryView.albums:
         return _buildAlbumsContent(padding);
       case LibraryView.artists:
@@ -535,7 +596,7 @@ class _LibraryTabViewState extends State<LibraryTabView> {
   EdgeInsets _contentPadding(double padding) {
     final isMobile = Platform.isAndroid || Platform.isIOS;
     return isMobile
-        ? EdgeInsets.fromLTRB(padding, 8, padding, padding)
+        ? EdgeInsets.fromLTRB(padding, 0, padding, padding)
         : EdgeInsets.all(padding);
   }
 
@@ -1009,10 +1070,10 @@ class _UnassignedHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final child = Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 6),
+      padding: const EdgeInsets.only(top: 6, bottom: 6),
       child: Text(
-        'Unassigned',
-        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+        'UNASSIGNED',
+        style: TextStyle(color: Colors.grey[500], fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
 

@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
 import '../models/library_folder.dart';
-import '../providers/metadata/spotify.dart';
+import '../providers/metadata/spotify_internal.dart';
 import '../services/metadata_cache.dart';
 import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
@@ -222,9 +222,11 @@ class LibraryItemContextMenu {
                                     'Delete',
                                   ),
                                   onTap: () {
-                                    context
-                                        .read<LocalPlaylistState>()
-                                        .deletePlaylist(item.id);
+                                    PlaylistFolderModals
+                                        .deletePlaylistWithSync(
+                                      context,
+                                      item.id,
+                                    );
                                   },
                                 ),
                                 if (localPlaylist.isLinked) ...[
@@ -473,9 +475,10 @@ class LibraryItemContextMenu {
                             label: 'Delete',
                             onTap: () {
                               Navigator.pop(context);
-                              context
-                                  .read<LocalPlaylistState>()
-                                  .deletePlaylist(item.id);
+                              PlaylistFolderModals.deletePlaylistWithSync(
+                                context,
+                                item.id,
+                              );
                             },
                           ),
                           if (localPlaylist.isLinked)
@@ -721,7 +724,7 @@ class LibraryItemContextMenu {
   }
 
   static Future<void> _downloadMetadata(BuildContext context, dynamic item) async {
-    final spotify = context.read<SpotifyProvider>();
+    final spotify = context.read<SpotifyInternalProvider>();
     try {
       if (item is GenericPlaylist) {
         if (context.mounted) {

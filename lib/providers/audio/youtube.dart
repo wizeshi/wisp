@@ -52,7 +52,6 @@ class YouTubeResult {
 class YouTubeProvider {
   final YoutubeExplode _youtube = YoutubeExplode();
   static const _platform = MethodChannel('com.wizeshi.wisp/ytdlp');
-  static bool _ytdlpUpdated = false;
   
   /// Cache for track ID -> YouTube video ID mapping
   static Map<String, String> _videoIdCache = {};
@@ -113,7 +112,6 @@ class YouTubeProvider {
     try {
       logger.i('[YouTube] Updating yt-dlp to latest version...');
       await _platform.invokeMethod('updateYtDlp');
-      _ytdlpUpdated = true;
       logger.i('[YouTube] ✓ yt-dlp updated successfully');
     } catch (e) {
       logger.w('[YouTube] Failed to update yt-dlp', error: e);
@@ -287,25 +285,31 @@ class YouTubeProvider {
     // On Android: Use youtubedl-android via platform channel
     if (Platform.isAndroid) {
       try {
-        // Update yt-dlp on first use
-        if (!_ytdlpUpdated) {
-          await updateYtDlp();
-        }
-        
         logger.d('[YouTube] Using youtubedl-android for video: $videoId');
-        final String url = await _platform.invokeMethod('getStreamUrl', {'videoId': videoId});
+        final String url =
+            await _platform.invokeMethod('getStreamUrl', {'videoId': videoId});
         logger.d('[YouTube] Dart side URL length: ${url.length}');
-        
+
         // Print URL in chunks to avoid truncation
         const chunkSize = 200;
         for (int i = 0; i < url.length; i += chunkSize) {
           final end = (i + chunkSize < url.length) ? i + chunkSize : url.length;
-          logger.d('[YouTube] URL part ${(i ~/ chunkSize) + 1}: ${url.substring(i, end)}');
+          logger.d(
+            '[YouTube] URL part ${(i ~/ chunkSize) + 1}: ${url.substring(i, end)}',
+          );
         }
-        
+
         return url;
+      } on MissingPluginException catch (e) {
+        logger.w(
+          '[YouTube] ytdlp channel unavailable, falling back to youtube_explode_dart',
+          error: e,
+        );
       } catch (e) {
-        logger.w('[YouTube] Android yt-dlp failed, falling back to youtube_explode_dart', error: e);
+        logger.w(
+          '[YouTube] Android yt-dlp failed, falling back to youtube_explode_dart',
+          error: e,
+        );
       }
     }
     

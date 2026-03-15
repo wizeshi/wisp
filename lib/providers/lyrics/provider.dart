@@ -4,6 +4,7 @@ library;
 import 'package:flutter/foundation.dart';
 import '../../models/metadata_models.dart';
 import '../../services/metadata_cache.dart';
+import '../preferences/preferences_provider.dart';
 import 'lrclib.dart';
 import 'spotify.dart';
 
@@ -39,8 +40,10 @@ class LyricsProvider extends ChangeNotifier {
   final MetadataCacheStore _cacheStore = MetadataCacheStore.instance;
   static const String _cacheProvider = 'lyrics';
   static const String _delayCacheType = 'delay';
+  static const Duration _errorRetryCooldown = Duration(seconds: 30);
 
   final Map<String, LyricsFetchState> _cache = {};
+  final Map<String, DateTime> _lastErrorAt = {};
   final Map<String, double> _delayCache = {};
   final Set<String> _delayLoading = {};
 
@@ -57,6 +60,14 @@ class LyricsProvider extends ChangeNotifier {
     final current = _cache[key];
     if (current?.isLoading == true) return;
 
+    final lastErrorAt = _lastErrorAt[key];
+    if (lastErrorAt != null) {
+      final sinceError = DateTime.now().difference(lastErrorAt);
+      if (sinceError < _errorRetryCooldown) {
+        return;
+      }
+    }
+
     final cached = await _readCachedLyrics(track.id, mode);
     if (cached != null) {
       _cache[key] = LyricsFetchState(isLoading: false, lyrics: cached.lyrics);
@@ -72,6 +83,7 @@ class LyricsProvider extends ChangeNotifier {
     try {
       final result = await _fetchLyrics(track, mode);
       _cache[key] = LyricsFetchState(isLoading: false, lyrics: result);
+      _lastErrorAt.remove(key);
       if (result != null) {
         await _writeCachedLyrics(track.id, mode, result);
       }
@@ -80,6 +92,7 @@ class LyricsProvider extends ChangeNotifier {
         isLoading: false,
         error: e.toString(),
       );
+      _lastErrorAt[key] = DateTime.now();
     }
 
     notifyListeners();
@@ -116,11 +129,24 @@ class LyricsProvider extends ChangeNotifier {
   }
 
   Future<LyricsResult?> _fetchLyrics(GenericSong track, LyricsSyncMode mode) async {
-    if (track.source == SongSource.spotify) {
+    final spotifyEnabled = await PreferencesProvider.isLyricsSpotifyEnabled();
+    final lrclibEnabled = await PreferencesProvider.isLyricsLrclibEnabled();
+
+    if (!spotifyEnabled && !lrclibEnabled) {
+      throw Exception('All lyrics providers are disabled in Preferences.');
+    }
+
+    if (spotifyEnabled &&
+        (track.source == SongSource.spotify ||
+            track.source == SongSource.spotifyInternal)) {
       final spotifyResult = await _spotifyProvider.getLyrics(track.id);
       if (spotifyResult != null) {
         return _normalizeResult(spotifyResult, mode);
       }
+    }
+
+    if (!lrclibEnabled) {
+      return null;
     }
 
     final result = await _lrcLibProvider.getLyrics(track, mode);

@@ -1,15 +1,15 @@
-# wisp - A unified music player
+# wisp - The open, fast & unified music player
 
-wisp is a Flutter-based song player, with (pretty much) modular support for multiple extractors from services such as Spotify and Youtube.
+wisp is a Flutter-based music player, with (pretty much) modular support for multiple extractors from services such as Spotify and Youtube.
 
 ## Features
 
 * Familiar, easy to use UI
 * Great, almost-native, performance
 * Extractors from services such as:
-    * Youtube (Innertube, metadata (WIP) & audio)
-    * Spotify (official API, metadata)
-* Song & Search caching
+    * Youtube (Innertube, metadata & audio)
+    * Spotify (official API, metadata, note: this may change in the future due to Spotify's recent API restrictions)
+* Everything caching (support for audio, and metadata caches for everything, playlists, songs, you name it)
 * Lyrics (synced & unsynced) from the following services:
     * Spotify (unofficial, removed temporarily)
     * LrcLib
@@ -35,7 +35,7 @@ It originally stood for "wizeshi's interfaceable song provider", since everythin
 So, that was the best I could do, but these days nothing on the app itself reflects the original name (since it has been reworked so many times).
 
 #### Why does this exist? Aren't there already services like Spotube?
-I mean yeah, they do. I did this because for some reason, apps like Spotube frequently don't work (and I also usually don't like the UI)
+I mean yeah, they do. I did this because for some reason, apps like Spotube frequently don't work (and I just don't like their UI, sorry)
 
 #### Is this ready?
 Mostly. Right now, it's mostly missing (some) writing to spotify, source mixing (not finished as well) and controlling playback from other devices. Everything else is on the Roadmap.
@@ -59,4 +59,4 @@ If you wanna contribute (no idea why), check out [contributing.md](https://githu
 
 ## License
 
-This project is currently licensed under the [MIT License](https://github.com/wizeshi/wisp/blob/main/LICENSE)
+This project is currently licensed under the [MIT License](https://github.com/wizeshi/wisp/blob/main/LICENSE) but, since the project is at an early stage, that may change in the future.

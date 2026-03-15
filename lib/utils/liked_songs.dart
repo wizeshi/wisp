@@ -14,12 +14,12 @@ GenericPlaylist buildLikedSongsPlaylist({
 }) {
   return GenericPlaylist(
     id: likedSongsPlaylistId,
-    source: SongSource.spotify,
+    source: SongSource.spotifyInternal,
     title: likedSongsTitle,
     thumbnailUrl: '',
     author: GenericSimpleUser(
       id: 'liked_songs_user',
-      source: SongSource.spotify,
+      source: SongSource.spotifyInternal,
       displayName: userDisplayName ?? 'You',
     ),
     songs: null,
