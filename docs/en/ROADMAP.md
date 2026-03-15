@@ -2,7 +2,6 @@ Here's the TODOs for version v26.03.xx (3/59):
 
 - Bugs:
     - [x] The song name on the mobile full player isn't a marquee (it also wraps to a new line)
-    - [x] Back button doesn't close bottom sheets or some UIs like the queue and lyrics views. It also only works on the full player when there is nothing else to return to. Further, for some reason, they start working if you use the back button to close the full screen player, but then using it to return to any other views (like going to the settings view and using the back button to go to the home screen) removes the app shell. 
     - [x] Clicking on the "Go to" buttons in the context menu sends the user to UIs that don't use the app shell (doesn't show the nav and player bar)
 - Future changes:
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)
@@ -28,11 +27,8 @@ Here's the TODOs for version v26.03.xx (3/59):
     - [ ] "Add to Playlist" button should be the first in the right-click context menu
     - [ ] Change YT-DLP download/check logic. Right now, it pauses the whole app at startup. Should make it a notification warning it is loading/downloading
     - [ ] Make a playlist remember it's last play's player options (whether it was shuffled & the repeat mode)
-    - [x] Remove the semi-transparent white borders on the list views
     - [ ] Merge the list controls area with the list songs area on the desktop list view 
     - [ ] Animate the transition from search icon to box on the list view
-    - [x] Change the player bar's volume icon to be a proper button (also make the cursor change on hover)
-    - [x] Highlight the current view's element in the sidebar, if applicable 
     - [ ] Add a next up preview to the top left of the player bar (desktop)
 - Planned features: 
     - [ ] Add the Connect capability (being able to control devices remotely, probably with bluetooth/nearby devices for now)

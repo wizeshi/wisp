@@ -28,10 +28,10 @@ class WispPlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentTrack =
-        context.select<global_audio_player.WispAudioHandler, GenericSong?>(
-      (player) => player.currentTrack,
-    );
+    final currentTrack = context
+        .select<global_audio_player.WispAudioHandler, GenericSong?>(
+          (player) => player.currentTrack,
+        );
 
     if (_isMobile) {
       return _MobilePlayerBarAnimated(currentTrack: currentTrack);
@@ -44,9 +44,7 @@ class WispPlayerBar extends StatelessWidget {
 class _MobilePlayerBarAnimated extends StatefulWidget {
   final dynamic currentTrack;
 
-  const _MobilePlayerBarAnimated({
-    required this.currentTrack,
-  });
+  const _MobilePlayerBarAnimated({required this.currentTrack});
 
   @override
   State<_MobilePlayerBarAnimated> createState() =>
@@ -90,12 +88,14 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     );
 
     const colorFallback = Color(0xFF1A1A1A);
-    var bgColor = HSLColor.fromColor(palette?.primary ?? colorFallback).toColor();
+    var bgColor = HSLColor.fromColor(
+      palette?.primary ?? colorFallback,
+    ).toColor();
 
     if (bgColor.computeLuminance() < 0.11) {
-      bgColor = HSLColor.fromColor(palette?.onPrimary ?? colorFallback)
-          .withLightness(0.5)
-          .toColor();
+      bgColor = HSLColor.fromColor(
+        palette?.onPrimary ?? colorFallback,
+      ).withLightness(0.5).toColor();
     }
 
     var btnColor = HSLColor.fromColor(
@@ -137,8 +137,10 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             height: 56,
             decoration: BoxDecoration(
               color: bgColor,
-              border: Border.all(color: Colors.grey[900]!, width: 1)
-                  .add(Border(bottom: BorderSide())),
+              border: Border.all(
+                color: Colors.grey[900]!,
+                width: 1,
+              ).add(Border(bottom: BorderSide())),
               borderRadius: BorderRadius.vertical(
                 top: Radius.circular(8),
                 bottom: Radius.zero,
@@ -241,7 +243,11 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         ),
         _MarqueeText(
           text: currentTrack.artists.map((a) => a.name).join(', '),
-          style: TextStyle(color: Colors.grey[250], fontSize: 12, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            color: Colors.grey[250],
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
@@ -251,16 +257,18 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
       selector: (context, player) {
         final track = player.currentTrack;
-        final queueFirst =
-          player.queueTracks.isNotEmpty ? player.queueTracks.first : null;
+        final queueFirst = player.queueTracks.isNotEmpty
+            ? player.queueTracks.first
+            : null;
         return _PlayPauseData(
           isPlaying: player.isPlaying,
           isLoading: player.isLoading,
           isBuffering: player.isBuffering,
           isOnline: player.isOnline,
           currentTrackId: track?.id,
-          currentTrackCached:
-              track == null ? true : player.isTrackCached(track.id),
+          currentTrackCached: track == null
+              ? true
+              : player.isTrackCached(track.id),
           queueNotEmpty: player.queueTracks.isNotEmpty,
           queueFirstId: queueFirst?.id,
         );
@@ -281,9 +289,10 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
         final player = context.read<global_audio_player.WispAudioHandler>();
         final isOfflineBlocked =
-            !data.isOnline && data.currentTrackId != null && !data.currentTrackCached;
-        final IconData icon =
-            data.isPlaying ? Icons.pause : Icons.play_arrow;
+            !data.isOnline &&
+            data.currentTrackId != null &&
+            !data.currentTrackCached;
+        final IconData icon = data.isPlaying ? Icons.pause : Icons.play_arrow;
         VoidCallback? onPressed;
         if (!isOfflineBlocked) {
           if (data.isPlaying) {
@@ -329,9 +338,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                   child: LinearProgressIndicator(
                     value: animatedProgress,
                     backgroundColor: Colors.grey[850]?.withOpacity(0.4),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.white
-                    ),
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 );
               },
@@ -372,27 +379,50 @@ class _DesktopPlayerBar extends StatelessWidget {
         child: Row(
           children: [
             // Left: Album art + track info
-            _DesktopTrackInfo(currentTrack: currentTrack, btnColor: buttonColor),
-
-            const SizedBox(width: 24),
-
-            // Center: Playback controls + progress
             Expanded(
-              flex: 1,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _DesktopPlaybackControls(btnColor: buttonColor),
-                  _DesktopProgressBar(btnColor: buttonColor),
-                ],
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 24),
+                  child: _DesktopTrackInfo(
+                    currentTrack: currentTrack,
+                    btnColor: buttonColor,
+                  ),
+                ),
               ),
             ),
 
-            const SizedBox(width: 24),
+            // Center: Playback controls + progress
+            Expanded(
+              flex: 2,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 860),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _DesktopPlaybackControls(btnColor: buttonColor),
+                      _DesktopProgressBar(btnColor: buttonColor),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
             // Right: Volume + queue
-            _DesktopRightControls(currentTrack: currentTrack, btnColor: buttonColor),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 24),
+                  child: _DesktopRightControls(
+                    currentTrack: currentTrack,
+                    btnColor: buttonColor,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -423,8 +453,8 @@ class _DesktopProgressBar extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           builder: (context, animatedProgress, child) {
             final animatedPosition = Duration(
-              milliseconds:
-                  (animatedProgress * duration.inMilliseconds).round(),
+              milliseconds: (animatedProgress * duration.inMilliseconds)
+                  .round(),
             );
 
             return Center(
@@ -438,7 +468,10 @@ class _DesktopProgressBar extends StatelessWidget {
                         width: 56,
                         child: Text(
                           _formatDuration(animatedPosition),
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
                           textAlign: TextAlign.right,
                         ),
                       ),
@@ -447,23 +480,31 @@ class _DesktopProgressBar extends StatelessWidget {
                       child: SliderTheme(
                         data: SliderThemeData(
                           trackHeight: 4,
-                          thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
-                          overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
-                          activeTrackColor: btnColor ?? Theme.of(context).colorScheme.primary,
+                          thumbShape: RoundSliderThumbShape(
+                            enabledThumbRadius: 6,
+                          ),
+                          overlayShape: RoundSliderOverlayShape(
+                            overlayRadius: 12,
+                          ),
+                          activeTrackColor:
+                              btnColor ?? Theme.of(context).colorScheme.primary,
                           inactiveTrackColor: Colors.grey[800],
                           thumbColor: Colors.white,
-                          overlayColor: (btnColor ?? Theme.of(context).colorScheme.primary).withOpacity(0.2),
+                          overlayColor:
+                              (btnColor ??
+                                      Theme.of(context).colorScheme.primary)
+                                  .withOpacity(0.2),
                         ),
                         child: Slider(
                           value: animatedProgress,
                           onChanged: (value) {
                             final newPosition = Duration(
-                              milliseconds:
-                                  (value * duration.inMilliseconds).toInt(),
+                              milliseconds: (value * duration.inMilliseconds)
+                                  .toInt(),
                             );
                             context
-                              .read<global_audio_player.WispAudioHandler>()
-                              .seek(newPosition);
+                                .read<global_audio_player.WispAudioHandler>()
+                                .seek(newPosition);
                           },
                         ),
                       ),
@@ -474,7 +515,10 @@ class _DesktopProgressBar extends StatelessWidget {
                         width: 56,
                         child: Text(
                           _formatDuration(duration),
-                          style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
                           textAlign: TextAlign.left,
                         ),
                       ),
@@ -676,10 +720,7 @@ class _DesktopTrackInfo extends StatelessWidget {
           track: currentTrack,
           iconSize: 18,
           padding: const EdgeInsets.all(2),
-          constraints: const BoxConstraints(
-            minWidth: 28,
-            minHeight: 28,
-          ),
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           color: btnColor ?? Theme.of(context).colorScheme.primary,
         ),
       ],
@@ -692,16 +733,15 @@ class DesktopNextUpPreviewOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nextUp = context.select<global_audio_player.WispAudioHandler, GenericSong?>(
-      (player) {
-        final index = player.currentIndex;
-        final queue = player.queueTracks;
-        if (index >= 0 && index + 1 < queue.length) {
-          return queue[index + 1];
-        }
-        return null;
-      },
-    );
+    final nextUp = context
+        .select<global_audio_player.WispAudioHandler, GenericSong?>((player) {
+          final index = player.currentIndex;
+          final queue = player.queueTracks;
+          if (index >= 0 && index + 1 < queue.length) {
+            return queue[index + 1];
+          }
+          return null;
+        });
 
     if (nextUp == null) {
       return const SizedBox.shrink();
@@ -728,7 +768,11 @@ class DesktopNextUpPreviewOverlay extends StatelessWidget {
           children: [
             const Text(
               'NEXT UP',
-              style: TextStyle(color: Colors.grey, fontSize: 8, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 8,
+                fontWeight: FontWeight.bold,
+              ),
               textAlign: TextAlign.left,
             ),
             const SizedBox(height: 6),
@@ -746,35 +790,42 @@ class DesktopNextUpPreviewOverlay extends StatelessWidget {
                             fit: BoxFit.cover,
                             placeholder: (context, url) =>
                                 Container(color: Colors.grey[800]),
-                            errorWidget: (context, url, error) =>
-                                Icon(Icons.music_note, color: Colors.grey[700], size: 16),
+                            errorWidget: (context, url, error) => Icon(
+                              Icons.music_note,
+                              color: Colors.grey[700],
+                              size: 16,
+                            ),
                           )
-                        : Icon(Icons.music_note, color: Colors.grey[700], size: 16),
-                    )
+                        : Icon(
+                            Icons.music_note,
+                            color: Colors.grey[700],
+                            size: 16,
+                          ),
                   ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        nextUp.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.white, fontSize: 12),
-                      ),
-                      Text(
-                        nextUp.artists.map((a) => a.name).join(', '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey[500], fontSize: 11),
-                      ),
-                    ],
-                  )
-              ]
-            )
-          ]
-        )
-         /* Row(
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nextUp.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                    Text(
+                      nextUp.artists.map((a) => a.name).join(', '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+        /* Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             ClipRRect(
@@ -838,16 +889,18 @@ class _DesktopPlaybackControls extends StatelessWidget {
     return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
       selector: (context, player) {
         final track = player.currentTrack;
-        final queueFirst =
-          player.queueTracks.isNotEmpty ? player.queueTracks.first : null;
+        final queueFirst = player.queueTracks.isNotEmpty
+            ? player.queueTracks.first
+            : null;
         return _PlayPauseData(
           isPlaying: player.isPlaying,
           isLoading: player.isLoading,
           isBuffering: player.isBuffering,
           isOnline: player.isOnline,
           currentTrackId: track?.id,
-          currentTrackCached:
-              track == null ? true : player.isTrackCached(track.id),
+          currentTrackCached: track == null
+              ? true
+              : player.isTrackCached(track.id),
           queueNotEmpty: player.queueTracks.isNotEmpty,
           queueFirstId: queueFirst?.id,
           shuffleEnabled: player.shuffleEnabled,
@@ -866,9 +919,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               constraints: BoxConstraints(),
               icon: Icon(
                 Icons.shuffle,
-                color: data.shuffleEnabled
-                    ? btnColor
-                    : Colors.grey[400],
+                color: data.shuffleEnabled ? btnColor : Colors.grey[400],
                 size: 20,
               ),
               onPressed: player.toggleShuffle,
@@ -888,7 +939,6 @@ class _DesktopPlaybackControls extends StatelessWidget {
 
             // Play/Pause
             _DesktopPlayPauseButton(data: data, btnColor: btnColor),
-
 
             SizedBox(width: 4),
 
@@ -944,13 +994,15 @@ class _DesktopPlayPauseButton extends StatelessWidget {
               btnColor ?? Theme.of(context).colorScheme.primary,
             ),
           ),
-        )
+        ),
       );
     }
 
     final player = context.read<global_audio_player.WispAudioHandler>();
     final isOfflineBlocked =
-        !data.isOnline && data.currentTrackId != null && !data.currentTrackCached;
+        !data.isOnline &&
+        data.currentTrackId != null &&
+        !data.currentTrackCached;
     IconData icon = data.isPlaying
         ? Icons.pause_circle_filled
         : Icons.play_circle_filled;
@@ -978,7 +1030,11 @@ class _DesktopPlayPauseButton extends StatelessWidget {
     return IconButton(
       padding: EdgeInsets.all(4),
       constraints: BoxConstraints(),
-      icon: Icon(icon, color: btnColor ?? Theme.of(context).colorScheme.primary, size: 40),
+      icon: Icon(
+        icon,
+        color: btnColor ?? Theme.of(context).colorScheme.primary,
+        size: 40,
+      ),
       onPressed: onPressed,
     );
   }
@@ -1029,7 +1085,12 @@ class _DesktopRightControls extends StatelessWidget {
               onPressed: currentTrack == null
                   ? null
                   : () {
-                      final currentScreen = NavigationHistory.instance.currentRoute.value?.settings.name;
+                      final currentScreen = NavigationHistory
+                          .instance
+                          .currentRoute
+                          .value
+                          ?.settings
+                          .name;
                       if (currentScreen == '/lyrics') {
                         NavigationHistory.instance.goBack();
                       } else {
@@ -1048,7 +1109,12 @@ class _DesktopRightControls extends StatelessWidget {
                 size: 20,
               ),
               onPressed: () {
-                final currentScreen = NavigationHistory.instance.currentRoute.value?.settings.name;
+                final currentScreen = NavigationHistory
+                    .instance
+                    .currentRoute
+                    .value
+                    ?.settings
+                    .name;
                 if (currentScreen == '/queue') {
                   NavigationHistory.instance.goBack();
                 } else {
@@ -1063,8 +1129,8 @@ class _DesktopRightControls extends StatelessWidget {
             Selector<global_audio_player.WispAudioHandler, double>(
               selector: (context, player) => player.volume,
               builder: (context, volume, child) {
-                final player =
-                    context.read<global_audio_player.WispAudioHandler>();
+                final player = context
+                    .read<global_audio_player.WispAudioHandler>();
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1088,10 +1154,12 @@ class _DesktopRightControls extends StatelessWidget {
                       child: SliderTheme(
                         data: SliderThemeData(
                           trackHeight: 4,
-                          thumbShape:
-                              RoundSliderThumbShape(enabledThumbRadius: 6),
-                          overlayShape:
-                              RoundSliderOverlayShape(overlayRadius: 12),
+                          thumbShape: RoundSliderThumbShape(
+                            enabledThumbRadius: 6,
+                          ),
+                          overlayShape: RoundSliderOverlayShape(
+                            overlayRadius: 12,
+                          ),
                           activeTrackColor:
                               btnColor ?? Theme.of(context).colorScheme.primary,
                           inactiveTrackColor: Colors.grey[800],
@@ -1121,16 +1189,25 @@ class _DesktopRightControls extends StatelessWidget {
                 size: 20,
               ),
               onPressed: () {
-                final currentScreen = NavigationHistory.instance.currentRoute.value?.settings.name;
+                final currentScreen = NavigationHistory
+                    .instance
+                    .currentRoute
+                    .value
+                    ?.settings
+                    .name;
                 if (currentScreen == '/fullplayer') {
                   NavigationHistory.instance.goBack();
-                  navState.rightSidebarVisible ? null : navState.toggleRightSidebar();
+                  navState.rightSidebarVisible
+                      ? null
+                      : navState.toggleRightSidebar();
                 } else {
                   _openFullPlayer(context);
-                  navState.rightSidebarVisible ? navState.toggleRightSidebar() : null;
+                  navState.rightSidebarVisible
+                      ? navState.toggleRightSidebar()
+                      : null;
                 }
               },
-            )
+            ),
           ],
         );
       },
@@ -1175,10 +1252,8 @@ class _PositionData {
       other.duration.inMilliseconds == duration.inMilliseconds;
 
   @override
-  int get hashCode => Object.hash(
-    position.inMilliseconds,
-    duration.inMilliseconds,
-  );
+  int get hashCode =>
+      Object.hash(position.inMilliseconds, duration.inMilliseconds);
 }
 
 class _PlayPauseData {
