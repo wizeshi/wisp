@@ -18,6 +18,7 @@ import '../utils/logger.dart';
 import '../providers/audio/youtube.dart';
 import '../providers/audio/spotify_audio.dart';
 import '../providers/preferences/preferences_provider.dart';
+import '../services/connect/connect_models.dart';
 import '../services/spotify/spotify_audio_decryptor.dart';
 import '../services/spotify/spotify_decrypt_streaming_proxy.dart';
 
@@ -88,6 +89,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   PlaybackState get state => _state;
   GenericSong? get currentTrack => _currentTrack;
   List<GenericSong> get queueTracks => List.unmodifiable(_queue);
+  List<GenericSong> get originalQueueTracks =>
+      List.unmodifiable(_originalQueue);
   int get currentIndex => _currentIndex;
   bool get shuffleEnabled => _shuffleEnabled;
   RepeatMode get repeatMode => _repeatMode;
@@ -105,6 +108,72 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   String? get playbackContextName => _playbackContextName;
   String? get playbackContextID => _playbackContextID;
   SongSource? get playbackContextSource => _playbackContextSource;
+
+  ConnectPlaybackSnapshot buildConnectSnapshot() {
+    return ConnectPlaybackSnapshot(
+      queue: List<GenericSong>.from(_queue),
+      originalQueue: List<GenericSong>.from(_originalQueue),
+      currentIndex: _currentIndex,
+      positionMs: _player.position.inMilliseconds,
+      isPlaying: isPlaying,
+      shuffleEnabled: _shuffleEnabled,
+      repeatMode: _repeatMode.toString(),
+      contextType: _playbackContextType,
+      contextName: _playbackContextName,
+      contextId: _playbackContextID,
+      contextSource: _playbackContextSource,
+      volume: _player.volume,
+      resolvedYoutubeIds: getResolvedYoutubeIdsForTracks(_queue),
+    );
+  }
+
+  Map<String, String> getResolvedYoutubeIdsForTracks(List<GenericSong> tracks) {
+    final ids = <String, String>{};
+    for (final track in tracks) {
+      final resolved = YouTubeProvider.getCachedVideoId(track.id);
+      if (resolved != null && resolved.isNotEmpty) {
+        ids[track.id] = resolved;
+      }
+    }
+    return ids;
+  }
+
+  Future<void> applyConnectSnapshot(
+    ConnectPlaybackSnapshot snapshot, {
+    bool autoPlay = true,
+    bool preserveVolume = false,
+  }) async {
+    await YouTubeProvider.mergeVideoIdCache(snapshot.resolvedYoutubeIds);
+
+    await setQueue(
+      snapshot.queue,
+      startIndex: snapshot.currentIndex < 0 ? 0 : snapshot.currentIndex,
+      play: autoPlay,
+      contextType: snapshot.contextType,
+      contextName: snapshot.contextName,
+      contextID: snapshot.contextId,
+      contextSource: snapshot.contextSource,
+      shuffleEnabled: snapshot.shuffleEnabled,
+      originalQueue: snapshot.originalQueue,
+    );
+
+    await setRepeatMode(_repeatModeFromString(snapshot.repeatMode));
+
+    if (!preserveVolume && snapshot.volume != null) {
+      await setVolume(snapshot.volume!.clamp(0.0, 1.0));
+    }
+
+    final targetPosition = Duration(milliseconds: snapshot.positionMs);
+    if (targetPosition > Duration.zero) {
+      await seek(targetPosition);
+    }
+
+    if (!snapshot.isPlaying) {
+      await pause();
+    } else if (autoPlay) {
+      await play();
+    }
+  }
 
   bool isTrackCached(String trackId) =>
       AudioCacheManager.instance.isTrackCached(trackId);
@@ -232,8 +301,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final elapsedMs = nowMs - _lastPositionUpdateMs;
     if (elapsedMs <= 0) return _lastNotifiedPosition;
 
-    var predicted =
-        _lastNotifiedPosition + Duration(milliseconds: elapsedMs);
+    var predicted = _lastNotifiedPosition + Duration(milliseconds: elapsedMs);
 
     if (_lastRawPosition > Duration.zero && predicted > _lastRawPosition) {
       predicted = _lastRawPosition;
@@ -322,11 +390,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
             else
               audio_service.MediaControl.play,
             audio_service.MediaControl.skipToNext,
-            _repeatControl(_repeatMode == RepeatMode.one
-                ? audio_service.AudioServiceRepeatMode.one
-                : _repeatMode == RepeatMode.all
-                    ? audio_service.AudioServiceRepeatMode.all
-                    : audio_service.AudioServiceRepeatMode.none),
+            _repeatControl(
+              _repeatMode == RepeatMode.one
+                  ? audio_service.AudioServiceRepeatMode.one
+                  : _repeatMode == RepeatMode.all
+                  ? audio_service.AudioServiceRepeatMode.all
+                  : audio_service.AudioServiceRepeatMode.none,
+            ),
           ],
           systemActions: const {
             audio_service.MediaAction.seek,
@@ -341,8 +411,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           repeatMode: _repeatMode == RepeatMode.one
               ? audio_service.AudioServiceRepeatMode.one
               : _repeatMode == RepeatMode.all
-                  ? audio_service.AudioServiceRepeatMode.all
-                  : audio_service.AudioServiceRepeatMode.none,
+              ? audio_service.AudioServiceRepeatMode.all
+              : audio_service.AudioServiceRepeatMode.none,
           updatePosition: position,
         ),
       );
@@ -441,7 +511,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final requestToken = token ?? ++_trackChangeToken;
 
     final track = _queue[index];
-    logger.i('[Player] Playing [${index + 1}/${_queue.length}]: ${track.title}');
+    logger.i(
+      '[Player] Playing [${index + 1}/${_queue.length}]: ${track.title}',
+    );
 
     _currentIndex = index;
     _currentTrack = track;
@@ -490,8 +562,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   Future<AudioSource?> _getAudioSource(GenericSong track) async {
     final cacheManager = AudioCacheManager.instance;
-    final audioSpotifyEnabled = await PreferencesProvider.isAudioSpotifyEnabled();
-    final audioYouTubeEnabled = await PreferencesProvider.isAudioYouTubeEnabled();
+    final audioSpotifyEnabled =
+        await PreferencesProvider.isAudioSpotifyEnabled();
+    final audioYouTubeEnabled =
+        await PreferencesProvider.isAudioYouTubeEnabled();
 
     if (!audioSpotifyEnabled && !audioYouTubeEnabled) {
       throw Exception('All audio providers are disabled in Preferences.');
@@ -516,25 +590,30 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         if (spotify != null && spotify.streamUrl.isNotEmpty) {
           if (spotify.mayRequireDecryption && spotify.audioKey != null) {
             try {
-              final proxyUri = await SpotifyDecryptStreamingProxy.instance.registerStream(
-                cacheKey: spotify.resolvedId,
-                streamUrl: spotify.streamUrl,
-                audioKey: spotify.audioKey!,
-                fallbackStreamUrls: spotify.fallbackStreamUrls,
-                headers: spotify.requestHeaders,
-              );
+              final proxyUri = await SpotifyDecryptStreamingProxy.instance
+                  .registerStream(
+                    cacheKey: spotify.resolvedId,
+                    streamUrl: spotify.streamUrl,
+                    audioKey: spotify.audioKey!,
+                    fallbackStreamUrls: spotify.fallbackStreamUrls,
+                    headers: spotify.requestHeaders,
+                  );
               logger.d('[Player] Streaming decrypted Spotify via local proxy');
               return AudioSource.uri(proxyUri);
             } catch (error) {
-              logger.w('[Player] Spotify decrypt proxy unavailable, falling back', error: error);
+              logger.w(
+                '[Player] Spotify decrypt proxy unavailable, falling back',
+                error: error,
+              );
             }
 
-            final decryptedPath = await _spotifyDecryptor.downloadAndDecryptToTemp(
-              cacheKey: spotify.resolvedId,
-              url: spotify.streamUrl,
-              audioKey: spotify.audioKey!,
-              headers: spotify.requestHeaders,
-            );
+            final decryptedPath = await _spotifyDecryptor
+                .downloadAndDecryptToTemp(
+                  cacheKey: spotify.resolvedId,
+                  url: spotify.streamUrl,
+                  audioKey: spotify.audioKey!,
+                  headers: spotify.requestHeaders,
+                );
             if (decryptedPath != null && File(decryptedPath).existsSync()) {
               logger.d('[Player] Playing decrypted Spotify temp file');
               return AudioSource.file(decryptedPath);
@@ -554,9 +633,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
             },
           );
         }
-        logger.d('[Player] Spotify stream unavailable, falling back to YouTube');
+        logger.d(
+          '[Player] Spotify stream unavailable, falling back to YouTube',
+        );
       } catch (e) {
-        logger.w('[Player] Spotify stream failed, falling back to YouTube', error: e);
+        logger.w(
+          '[Player] Spotify stream failed, falling back to YouTube',
+          error: e,
+        );
       }
     }
 
@@ -600,8 +684,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> _preResolveNextTrack(GenericSong track) async {
     if (!_isOnline) return;
 
-    final audioSpotifyEnabled = await PreferencesProvider.isAudioSpotifyEnabled();
-    final audioYouTubeEnabled = await PreferencesProvider.isAudioYouTubeEnabled();
+    final audioSpotifyEnabled =
+        await PreferencesProvider.isAudioSpotifyEnabled();
+    final audioYouTubeEnabled =
+        await PreferencesProvider.isAudioYouTubeEnabled();
     if (!audioSpotifyEnabled && !audioYouTubeEnabled) return;
 
     final cacheManager = AudioCacheManager.instance;
@@ -674,14 +760,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           final spotify = await _spotifyAudio.resolveStream(track);
           if (spotify != null) {
             if (spotify.mayRequireDecryption && spotify.audioKey != null) {
-              final decryptedPath = await _spotifyDecryptor.downloadAndDecryptToTemp(
-                cacheKey: spotify.resolvedId,
-                url: spotify.streamUrl,
-                audioKey: spotify.audioKey!,
-                headers: spotify.requestHeaders,
-              );
+              final decryptedPath = await _spotifyDecryptor
+                  .downloadAndDecryptToTemp(
+                    cacheKey: spotify.resolvedId,
+                    url: spotify.streamUrl,
+                    audioKey: spotify.audioKey!,
+                    headers: spotify.requestHeaders,
+                  );
               if (decryptedPath != null) {
-                return ('dec_${spotify.resolvedId}', Uri.file(decryptedPath).toString());
+                return (
+                  'dec_${spotify.resolvedId}',
+                  Uri.file(decryptedPath).toString(),
+                );
               }
             }
             return (spotify.resolvedId, spotify.streamUrl);
@@ -754,8 +844,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   static audio_service.MediaControl _shuffleControl(bool enabled) =>
       audio_service.MediaControl.custom(
-        androidIcon:
-            enabled ? 'drawable/ic_shuffle_on' : 'drawable/ic_shuffle_off',
+        androidIcon: enabled
+            ? 'drawable/ic_shuffle_on'
+            : 'drawable/ic_shuffle_off',
         label: 'Shuffle',
         name: 'toggleShuffle',
       );
@@ -766,8 +857,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final icon = mode == audio_service.AudioServiceRepeatMode.one
         ? 'drawable/ic_repeat_one'
         : mode == audio_service.AudioServiceRepeatMode.all
-            ? 'drawable/ic_repeat_on'
-            : 'drawable/ic_repeat_off';
+        ? 'drawable/ic_repeat_on'
+        : 'drawable/ic_repeat_off';
     return audio_service.MediaControl.custom(
       androidIcon: icon,
       label: 'Repeat',
@@ -779,6 +870,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   @override
   Future<void> play() async {
     if (_player.audioSource == null && _currentTrack != null) {
+      _errorMessage = null;
+      _setState(PlaybackState.loading);
       try {
         final source = await _getAudioSource(_currentTrack!);
         if (source == null) return;
@@ -889,10 +982,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   @override
-  Future<void> customAction(
-    String name,
-    [Map<String, dynamic>? extras]
-  ) async {
+  Future<void> customAction(String name, [Map<String, dynamic>? extras]) async {
     switch (name) {
       case 'toggleShuffle':
         toggleShuffle();
@@ -1089,14 +1179,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           final spotify = await _spotifyAudio.resolveStream(track);
           if (spotify != null) {
             if (spotify.mayRequireDecryption && spotify.audioKey != null) {
-              final decryptedPath = await _spotifyDecryptor.downloadAndDecryptToTemp(
-                cacheKey: spotify.resolvedId,
-                url: spotify.streamUrl,
-                audioKey: spotify.audioKey!,
-                headers: spotify.requestHeaders,
-              );
+              final decryptedPath = await _spotifyDecryptor
+                  .downloadAndDecryptToTemp(
+                    cacheKey: spotify.resolvedId,
+                    url: spotify.streamUrl,
+                    audioKey: spotify.audioKey!,
+                    headers: spotify.requestHeaders,
+                  );
               if (decryptedPath != null) {
-                return ('dec_${spotify.resolvedId}', Uri.file(decryptedPath).toString());
+                return (
+                  'dec_${spotify.resolvedId}',
+                  Uri.file(decryptedPath).toString(),
+                );
               }
             }
             return (spotify.resolvedId, spotify.streamUrl);
@@ -1152,7 +1246,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       final originalQueueJson = prefs.getString('audio_original_queue');
       if (originalQueueJson != null) {
         final list = json.decode(originalQueueJson) as List;
-        _originalQueue = list.map((item) => GenericSong.fromJson(item)).toList();
+        _originalQueue = list
+            .map((item) => GenericSong.fromJson(item))
+            .toList();
       }
       _currentIndex = prefs.getInt('current_index') ?? -1;
       _shuffleEnabled = prefs.getBool('shuffle_enabled') ?? false;
@@ -1166,8 +1262,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       final contextType = prefs.getString('playback_context_type');
       final contextName = prefs.getString('playback_context_name');
       final contextId = prefs.getString('playback_context_id');
-      _playbackContextType = contextType?.isNotEmpty == true ? contextType : null;
-      _playbackContextName = contextName?.isNotEmpty == true ? contextName : null;
+      _playbackContextType = contextType?.isNotEmpty == true
+          ? contextType
+          : null;
+      _playbackContextName = contextName?.isNotEmpty == true
+          ? contextName
+          : null;
       _playbackContextID = contextId?.isNotEmpty == true ? contextId : null;
       final contextSourceRaw = prefs.getString('playback_context_source');
       if (contextSourceRaw != null && contextSourceRaw.isNotEmpty) {
@@ -1206,8 +1306,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await prefs.setInt('current_index', _currentIndex);
       await prefs.setBool('shuffle_enabled', _shuffleEnabled);
       await prefs.setString('repeat_mode', _repeatMode.toString());
-      await prefs.setString('playback_context_type', _playbackContextType ?? '');
-      await prefs.setString('playback_context_name', _playbackContextName ?? '');
+      await prefs.setString(
+        'playback_context_type',
+        _playbackContextType ?? '',
+      );
+      await prefs.setString(
+        'playback_context_name',
+        _playbackContextName ?? '',
+      );
       await prefs.setString('playback_context_id', _playbackContextID ?? '');
       await prefs.setString(
         'playback_context_source',
@@ -1225,6 +1331,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await prefs.setDouble('player_last_volume', _lastVolume);
     } catch (e) {
       logger.e('[Player] Save volume error', error: e);
+    }
+  }
+
+  audio_service.AudioServiceRepeatMode _repeatModeFromString(String value) {
+    switch (value) {
+      case 'RepeatMode.one':
+        return audio_service.AudioServiceRepeatMode.one;
+      case 'RepeatMode.all':
+        return audio_service.AudioServiceRepeatMode.all;
+      case 'RepeatMode.off':
+      default:
+        return audio_service.AudioServiceRepeatMode.none;
     }
   }
 

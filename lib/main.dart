@@ -16,6 +16,7 @@ import 'providers/lyrics/provider.dart';
 import 'providers/library/library_state.dart';
 import 'providers/library/local_playlists.dart';
 import 'providers/library/library_folders.dart';
+import 'providers/connect/connect_session_provider.dart';
 import 'providers/search/search_state.dart';
 import 'providers/navigation_state.dart';
 import 'providers/theme/cover_art_palette_provider.dart';
@@ -48,7 +49,12 @@ void main() async {
   }
 
   try {
-    await SpotifyAudioKeySessionManager.instance.initializeOnStartup();
+    final spotifyAudioEnabled = await PreferencesProvider.isAudioSpotifyEnabled();
+    if (spotifyAudioEnabled) {
+      await SpotifyAudioKeySessionManager.instance.initializeOnStartup();
+    } else {
+      await SpotifyAudioKeySessionManager.instance.clear();
+    }
   } catch (error) {
     logger.w('[Main] Spotify AP key session startup initialization failed', error: error);
   }
@@ -150,6 +156,14 @@ class MyApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider(create: (_) => LibraryFolderState()),
+        ChangeNotifierProxyProvider<WispAudioHandler, ConnectSessionProvider>(
+          create: (_) => ConnectSessionProvider(),
+          update: (_, audio, connect) {
+            final provider = connect ?? ConnectSessionProvider();
+            provider.bindAudioHandler(audio);
+            return provider;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => SearchState()),
         ChangeNotifierProvider(create: (_) => NavigationState()),
         ChangeNotifierProvider.value(value: DesktopNotificationCenter.instance),

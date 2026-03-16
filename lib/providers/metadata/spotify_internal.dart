@@ -46,6 +46,17 @@ class SpotifyInternalProvider extends MetadataProvider {
   bool _isAuthenticated = false;
   bool _isLoading = false;
   String? _errorMessage;
+  Future<void>? _authInitInFlight;
+  DateTime? _lastAuthInitAttemptAt;
+  bool _lastAuthInitFailed = false;
+  int _startupAuthRetryCount = 0;
+  bool _startupAuthRetryScheduled = false;
+
+  static const Duration _authInitCooldown = Duration(seconds: 45);
+  static const Duration _authInitFailureCooldown = Duration(seconds: 4);
+  static const Duration _tokenRequestTimeout = Duration(seconds: 12);
+  static const int _tokenRequestMaxAttempts = 2;
+  static const int _maxStartupAuthRetries = 2;
 
   @override
   bool get isAuthenticated => _isAuthenticated;
@@ -156,11 +167,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         if (cookie != null && cookie.isNotEmpty) {
           try {
             await _acquireTokensFromCookie(cookie);
-            await SpotifyAudioKeySessionManager.instance.updateAuthContext(
-              bearerToken: _bearerToken,
-              clientToken: _clientToken,
-              cookie: cookie,
-            );
+            await _syncAudioSessionContext(cookie: cookie);
           } catch (e) {
             logger.w('[Metadata/Spotify-Internal] Token exchange failed: $e');
           }
@@ -190,6 +197,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       await _credentialsService.clearSpotifyCookies();
       await SpotifyAudioKeySessionManager.instance.clear();
       _isAuthenticated = false;
+      _bearerToken = null;
+      _clientToken = null;
     } catch (e) {
       _errorMessage = '[Metadata/Spotify-Internal] Logout failed: $e';
       logger.d(_errorMessage);
@@ -200,7 +209,47 @@ class SpotifyInternalProvider extends MetadataProvider {
   }
 
   /// Initialize authentication state on startup
-  Future<void> _initializeAuthState() async {
+  Future<void> _initializeAuthState({bool force = false}) async {
+    if (!force &&
+        _isAuthenticated &&
+        _bearerToken != null &&
+        _clientToken != null) {
+      return;
+    }
+
+    final inflight = _authInitInFlight;
+    if (inflight != null) {
+      await inflight;
+      return;
+    }
+
+    final now = DateTime.now();
+    if (!force && _lastAuthInitAttemptAt != null) {
+      final sinceLastAttempt = now.difference(_lastAuthInitAttemptAt!);
+      final cooldown = _lastAuthInitFailed
+          ? _authInitFailureCooldown
+          : _authInitCooldown;
+      if (sinceLastAttempt < cooldown) {
+        logger.d(
+          '[Metadata/Spotify-Internal] Skipping auth re-init (cooldown: ${cooldown.inSeconds}s).',
+        );
+        return;
+      }
+    }
+
+    _lastAuthInitAttemptAt = now;
+    final future = _initializeAuthStateInternal();
+    _authInitInFlight = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_authInitInFlight, future)) {
+        _authInitInFlight = null;
+      }
+    }
+  }
+
+  Future<void> _initializeAuthStateInternal() async {
     try {
       logger.d('[Metadata/Spotify-Internal] Initializing auth state...');
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
@@ -208,22 +257,26 @@ class SpotifyInternalProvider extends MetadataProvider {
       if (cookie != null && cookie.isNotEmpty) {
         try {
           await _acquireTokensFromCookie(cookie);
-          await SpotifyAudioKeySessionManager.instance.updateAuthContext(
-            bearerToken: _bearerToken,
-            clientToken: _clientToken,
-            cookie: cookie,
-          );
+          await _syncAudioSessionContext(cookie: cookie);
           logger.d('[Metadata/Spotify-Internal] Token exchange successful, user is authenticated.');
           _isAuthenticated = true;
+          _lastAuthInitFailed = false;
+          _startupAuthRetryCount = 0;
+          _startupAuthRetryScheduled = false;
         } catch (e) {
           logger.w(
             '[Metadata/Spotify-Internal] Token refresh failed on startup',
             error: e,
           );
           _isAuthenticated = false;
+          _bearerToken = null;
+          _clientToken = null;
+          _lastAuthInitFailed = true;
+          _scheduleStartupAuthRetry(e);
         }
       } else {
         _isAuthenticated = false;
+        _lastAuthInitFailed = true;
       }
 
       logger.d('[Metadata/Spotify-Internal] Initial auth state: $_isAuthenticated');
@@ -234,14 +287,60 @@ class SpotifyInternalProvider extends MetadataProvider {
     } catch (e) {
       logger.e('[Metadata/Spotify-Internal] Failed to initialize auth state', error: e);
       _errorMessage = '[Metadata/Spotify-Internal] Failed to initialize auth state: $e';
+      _lastAuthInitFailed = true;
       notifyListeners();
     }
+  }
+
+  bool _isTransientAuthError(Object error) {
+    if (error is TimeoutException ||
+        error is SocketException ||
+        error is http.ClientException) {
+      return true;
+    }
+
+    final message = error.toString().toLowerCase();
+    return message.contains('timeoutexception') ||
+        message.contains('future not completed') ||
+        message.contains('socketexception') ||
+        message.contains('client token request failed');
+  }
+
+  void _scheduleStartupAuthRetry(Object error) {
+    if (!_isTransientAuthError(error)) {
+      return;
+    }
+
+    if (_startupAuthRetryScheduled ||
+        _startupAuthRetryCount >= _maxStartupAuthRetries ||
+        _isAuthenticated) {
+      return;
+    }
+
+    _startupAuthRetryScheduled = true;
+    final attemptNumber = _startupAuthRetryCount + 1;
+    final retryDelay = Duration(seconds: 2 * attemptNumber);
+
+    logger.d(
+      '[Metadata/Spotify-Internal] Scheduling startup auth retry $attemptNumber/$_maxStartupAuthRetries in ${retryDelay.inSeconds}s.',
+    );
+
+    unawaited(
+      Future<void>.delayed(retryDelay, () async {
+        _startupAuthRetryScheduled = false;
+        if (_isAuthenticated) {
+          return;
+        }
+        _startupAuthRetryCount = attemptNumber;
+        await _initializeAuthState(force: true);
+      }),
+    );
   }
 
   /// Publicly accessible method to re-check auth state
   Future<void> checkAuthState() async {
     logger.d('[Metadata/Spotify-Internal] Re-checking auth state...');
-    await _initializeAuthState();
+    await _initializeAuthState(force: false);
   }
 
   Future<void> _acquireTokensFromCookie(String cookie) async {
@@ -279,19 +378,42 @@ class SpotifyInternalProvider extends MetadataProvider {
       },
     };
 
-    final client = _createSpotifyHttpClient();
-    http.Response clientTokenResponse;
-    try {
-      clientTokenResponse = await client.post(
-        Uri.parse(_spotifyClientTokenUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode(clientTokenPayload),
+    http.Response? clientTokenResponse;
+    Object? lastClientTokenError;
+
+    for (var attempt = 1; attempt <= _tokenRequestMaxAttempts; attempt++) {
+      final client = _createSpotifyHttpClient();
+      try {
+        clientTokenResponse = await client
+            .post(
+              Uri.parse(_spotifyClientTokenUrl),
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonEncode(clientTokenPayload),
+            )
+            .timeout(_tokenRequestTimeout);
+        break;
+      } on TimeoutException catch (error) {
+        lastClientTokenError = error;
+      } on SocketException catch (error) {
+        lastClientTokenError = error;
+      } on http.ClientException catch (error) {
+        lastClientTokenError = error;
+      } finally {
+        client.close();
+      }
+
+      if (attempt < _tokenRequestMaxAttempts) {
+        await Future.delayed(const Duration(milliseconds: 350));
+      }
+    }
+
+    if (clientTokenResponse == null) {
+      throw StateError(
+        '[Metadata/Spotify-Internal] Spotify client token request failed after $_tokenRequestMaxAttempts attempts: $lastClientTokenError',
       );
-    } finally {
-      client.close();
     }
 
     if (clientTokenResponse.statusCode != 200) {
@@ -305,11 +427,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       _clientToken = grantedToken;
     }
 
-    await SpotifyAudioKeySessionManager.instance.updateAuthContext(
-      bearerToken: _bearerToken,
-      clientToken: _clientToken,
-      cookie: cookie,
-    );
+    await _syncAudioSessionContext(cookie: cookie);
 
     final token = SpotifyToken(
       accessToken: _bearerToken ?? '',
@@ -326,6 +444,20 @@ class SpotifyInternalProvider extends MetadataProvider {
       throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
     }
     await _acquireTokensFromCookie(cookie);
+  }
+
+  Future<void> _syncAudioSessionContext({required String cookie}) async {
+    final spotifyAudioEnabled = await PreferencesProvider.isAudioSpotifyEnabled();
+    if (!spotifyAudioEnabled) {
+      await SpotifyAudioKeySessionManager.instance.clear();
+      return;
+    }
+
+    await SpotifyAudioKeySessionManager.instance.updateAuthContext(
+      bearerToken: _bearerToken,
+      clientToken: _clientToken,
+      cookie: cookie,
+    );
   }
 
   Map<String, String> _buildInternalHeaders({String? cookieHeader}) {
@@ -2537,6 +2669,7 @@ const _allowInsecureSpotifySecretsTls = bool.fromEnvironment(
   defaultValue: true,
 );
 const _secretsUrl = 'https://git.gay/thereallo/totp-secrets/raw/branch/main/secrets/secrets.json';
+const _spotifyNetworkTimeout = Duration(seconds: 12);
 
 Future<Map<String, dynamic>> _requestAccessToken(String cookie) async {
   Future<Map<String, dynamic>> fetchWithTotp(_TotpPayload totpPayload) async {
@@ -2553,16 +2686,18 @@ Future<Map<String, dynamic>> _requestAccessToken(String cookie) async {
     final client = _createSpotifyHttpClient();
     http.Response accessTokenResponse;
     try {
-      accessTokenResponse = await client.get(
-        accessTokenUrl,
-        headers: {
-          'Cookie': cookie,
-          'User-Agent': _spotifyUserAgent,
-          'Accept': 'application/json',
-          'Origin': 'https://open.spotify.com',
-          'Referer': 'https://open.spotify.com/',
-        },
-      );
+      accessTokenResponse = await client
+          .get(
+            accessTokenUrl,
+            headers: {
+              'Cookie': cookie,
+              'User-Agent': _spotifyUserAgent,
+              'Accept': 'application/json',
+              'Origin': 'https://open.spotify.com',
+              'Referer': 'https://open.spotify.com/',
+            },
+          )
+          .timeout(_spotifyNetworkTimeout);
     } finally {
       client.close();
     }
@@ -2597,7 +2732,9 @@ Future<_TotpPayload> _generateTotp() async {
   final client = _createHttpClient(allowInsecureSpotifySecretsTls: _allowInsecureSpotifySecretsTls);
   http.Response response;
   try {
-    response = await client.get(Uri.parse(_secretsUrl));
+    response = await client
+        .get(Uri.parse(_secretsUrl))
+        .timeout(_spotifyNetworkTimeout);
   } finally {
     client.close();
   }

@@ -156,8 +156,10 @@ class HomePageState extends State<HomePage> {
         setState(() => _isLoading = true);
       }
 
-      // Re-check auth state from storage
-      await spotifyInternal.checkAuthState();
+      // Re-check auth state from storage only when currently unauthenticated.
+      if (!spotifyInternal.isAuthenticated) {
+        await spotifyInternal.checkAuthState();
+      }
 
       logger.d('[Views/Home] Loading home page data...');
       logger.d('[Views/Home] Auth Status: ');
@@ -440,6 +442,17 @@ class HomePageState extends State<HomePage> {
   Widget _buildMobileHomeContent() {
     final spotify = context.read<SpotifyInternalProvider>();
     final greeting = _getRandomGreeting(spotify);
+    final dynamicSections = _buildDynamicHomeSections(skipFirst: true);
+    final quickTiles = _buildMobileQuickGridTiles();
+    final leftQuickTiles = <Widget>[];
+    final rightQuickTiles = <Widget>[];
+    for (var i = 0; i < quickTiles.length; i++) {
+      if (i.isEven) {
+        leftQuickTiles.add(quickTiles[i]);
+      } else {
+        rightQuickTiles.add(quickTiles[i]);
+      }
+    }
 
     return SafeArea(
       bottom: false,
@@ -488,81 +501,30 @@ class HomePageState extends State<HomePage> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Left column - Playlists
+                  // Left column - mixed quick tiles
                   Expanded(
                     child: Column(
-                      children: _savedPlaylists.take(4).map((playlist) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _buildMobileGridItem(
-                            imageUrl: playlist.thumbnailUrl,
-                            title: playlist.title,
-                            subtitle: playlist.author.displayName,
-                            customArt: isLikedSongsPlaylistId(playlist.id)
-                                ? const LikedSongsArt()
-                                : null,
-                            onTap: () => _openSharedList(
-                              SharedListType.playlist,
-                              playlist.id,
-                              title: playlist.title,
-                              thumbnailUrl: playlist.thumbnailUrl,
-                            ),
-                            onLongPress: () {
-                              final navState = context.read<NavigationState>();
-                              LibraryItemContextMenu.show(
-                                context: context,
-                                item: playlist,
-                                playlists: _savedPlaylists,
-                                albums: _savedAlbums,
-                                artists: _followedArtists,
-                                currentLibraryView:
-                                    navState.selectedLibraryView,
-                                currentNavIndex: navState.selectedNavIndex,
-                              );
-                            },
-                          ),
-                        );
-                      }).toList(),
+                      children: leftQuickTiles,
                     ),
                   ),
                   const SizedBox(width: 12),
-                  // Right column - Albums
+                  // Right column - mixed quick tiles
                   Expanded(
                     child: Column(
-                      children: _savedAlbums.take(4).map((album) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _buildMobileGridItem(
-                            imageUrl: album.thumbnailUrl,
-                            title: album.title,
-                            subtitle: album.artists
-                                .map((a) => a.name)
-                                .join(', '),
-                            onTap: () => _openSharedList(
-                              SharedListType.album,
-                              album.id,
-                              title: album.title,
-                              thumbnailUrl: album.thumbnailUrl,
-                            ),
-                            onLongPress: () {
-                              final navState = context.read<NavigationState>();
-                              LibraryItemContextMenu.show(
-                                context: context,
-                                item: album,
-                                playlists: _savedPlaylists,
-                                albums: _savedAlbums,
-                                artists: _followedArtists,
-                                currentLibraryView:
-                                    navState.selectedLibraryView,
-                                currentNavIndex: navState.selectedNavIndex,
-                              );
-                            },
-                          ),
-                        );
-                      }).toList(),
+                      children: rightQuickTiles,
                     ),
                   ),
                 ],
+              ),
+            ),
+          ),
+
+          // "this past month" section
+          ...dynamicSections.map(
+            (section) => SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: section,
               ),
             ),
           ),
@@ -791,6 +753,178 @@ class HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildMobileQuickGridTiles() {
+    final sourceItems = <dynamic>[];
+
+    GenericPlaylist? likedPlaylist;
+    for (final playlist in _savedPlaylists) {
+      if (isLikedSongsPlaylistId(playlist.id)) {
+        likedPlaylist = playlist;
+        break;
+      }
+    }
+    if (likedPlaylist != null) {
+      sourceItems.add(likedPlaylist);
+    }
+
+    if (_homeSections.isNotEmpty) {
+      sourceItems.addAll(_homeSections.entries.first.value);
+    }
+
+    final seen = <String>{};
+    final tiles = <Widget>[];
+    for (final item in sourceItems) {
+      final key = _mobileQuickItemKey(item);
+      if (key == null || seen.contains(key)) continue;
+      seen.add(key);
+
+      final tile = _buildMobileQuickTile(item);
+      if (tile != null) {
+        tiles.add(Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: tile,
+        ));
+      }
+      if (tiles.length >= 8) break;
+    }
+
+    if (tiles.isNotEmpty) {
+      return tiles;
+    }
+
+    final fallback = <Widget>[];
+    for (final playlist in _savedPlaylists.take(4)) {
+      fallback.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _buildMobileQuickTile(playlist) ?? const SizedBox.shrink(),
+        ),
+      );
+    }
+    for (final album in _savedAlbums.take(4)) {
+      fallback.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _buildMobileQuickTile(album) ?? const SizedBox.shrink(),
+        ),
+      );
+    }
+    return fallback;
+  }
+
+  String? _mobileQuickItemKey(dynamic item) {
+    if (item is GenericPlaylist) return 'playlist:${item.id}';
+    if (item is GenericAlbum) return 'album:${item.id}';
+    if (item is GenericSimpleArtist) return 'artist:${item.id}';
+    if (item is GenericSong) return 'song:${item.id}';
+    return null;
+  }
+
+  Widget? _buildMobileQuickTile(dynamic item) {
+    if (item is GenericPlaylist) {
+      return _buildMobileGridItem(
+        imageUrl: item.thumbnailUrl,
+        title: item.title,
+        subtitle: item.author.displayName,
+        customArt: isLikedSongsPlaylistId(item.id)
+            ? const LikedSongsArt()
+            : null,
+        onTap: () => _openSharedList(
+          SharedListType.playlist,
+          item.id,
+          title: item.title,
+          thumbnailUrl: item.thumbnailUrl,
+        ),
+        onLongPress: () {
+          final navState = context.read<NavigationState>();
+          LibraryItemContextMenu.show(
+            context: context,
+            item: item,
+            playlists: _savedPlaylists,
+            albums: _savedAlbums,
+            artists: _followedArtists,
+            currentLibraryView: navState.selectedLibraryView,
+            currentNavIndex: navState.selectedNavIndex,
+          );
+        },
+      );
+    }
+
+    if (item is GenericAlbum) {
+      return _buildMobileGridItem(
+        imageUrl: item.thumbnailUrl,
+        title: item.title,
+        subtitle: item.artists.map((a) => a.name).join(', '),
+        onTap: () => _openSharedList(
+          SharedListType.album,
+          item.id,
+          title: item.title,
+          thumbnailUrl: item.thumbnailUrl,
+        ),
+        onLongPress: () {
+          final navState = context.read<NavigationState>();
+          LibraryItemContextMenu.show(
+            context: context,
+            item: item,
+            playlists: _savedPlaylists,
+            albums: _savedAlbums,
+            artists: _followedArtists,
+            currentLibraryView: navState.selectedLibraryView,
+            currentNavIndex: navState.selectedNavIndex,
+          );
+        },
+      );
+    }
+
+    if (item is GenericSimpleArtist) {
+      return _buildMobileGridItem(
+        imageUrl: item.thumbnailUrl,
+        title: item.name,
+        subtitle: 'Artist',
+        onTap: () => _openArtist(item),
+        onLongPress: () {
+          final navState = context.read<NavigationState>();
+          LibraryItemContextMenu.show(
+            context: context,
+            item: item,
+            playlists: _savedPlaylists,
+            albums: _savedAlbums,
+            artists: _followedArtists,
+            currentLibraryView: navState.selectedLibraryView,
+            currentNavIndex: navState.selectedNavIndex,
+          );
+        },
+      );
+    }
+
+    if (item is GenericSong) {
+      return _buildMobileGridItem(
+        imageUrl: item.thumbnailUrl,
+        title: item.title,
+        subtitle: item.artists.map((a) => a.name).join(', '),
+        onTap: () async {
+          final player = context.read<WispAudioHandler>();
+          player.clearQueue();
+          await player.playTrack(item);
+        },
+        onLongPress: () {
+          final navState = context.read<NavigationState>();
+          TrackContextMenu.show(
+            context: context,
+            track: item,
+            playlists: _savedPlaylists,
+            albums: _savedAlbums,
+            artists: _followedArtists,
+            currentLibraryView: navState.selectedLibraryView,
+            currentNavIndex: navState.selectedNavIndex,
+          );
+        },
+      );
+    }
+
+    return null;
   }
 
   Widget _buildMobileHorizontalCard({

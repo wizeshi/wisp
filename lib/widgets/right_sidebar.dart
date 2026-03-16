@@ -10,6 +10,7 @@ import 'package:wisp/providers/metadata/spotify_internal.dart';
 import '../models/metadata_models.dart';
 import '../services/wisp_audio_handler.dart';
 import '../providers/lyrics/provider.dart';
+import '../providers/connect/connect_session_provider.dart';
 import '../providers/library/library_state.dart';
 import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
@@ -181,7 +182,8 @@ class _NowPlayingCard extends StatelessWidget {
                 data.playbackContextType == 'album' ||
                 data.playbackContextType == 'artist');
         final album = track?.album;
-        final canUseCanvas = useCanvas &&
+        final canUseCanvas =
+            useCanvas &&
             (track?.source == SongSource.spotifyInternal ||
                 track?.source == SongSource.spotify);
 
@@ -244,10 +246,7 @@ class _NowPlayingCard extends StatelessWidget {
                                     ? SystemMouseCursors.click
                                     : SystemMouseCursors.basic,
                                 onTap: album != null && album.id.isNotEmpty
-                                    ? () => _openAlbum(
-                                        context,
-                                        album,
-                                      )
+                                    ? () => _openAlbum(context, album)
                                     : null,
                                 builder: (isHovering) => _MarqueeText(
                                   text: track.title,
@@ -262,39 +261,44 @@ class _NowPlayingCard extends StatelessWidget {
                                 ),
                               ),
                               Row(
-                                children: track.artists.map((artist) =>
-                                  HoverUnderline(
-                                    cursor: SystemMouseCursors.click,
-                                    onTap: () =>
-                                        _openArtist(context, artist),
-                                    onSecondaryTapDown: (details) {
-                                      LibraryItemContextMenu.show(
-                                        context: context,
-                                        item: artist,
-                                        position: details.globalPosition,
-                                        playlists: libraryState.playlists,
-                                        albums: libraryState.albums,
-                                        artists: libraryState.artists,
-                                        currentLibraryView:
-                                            navState.selectedLibraryView,
-                                        currentNavIndex: navState.selectedNavIndex,
-                                      );
-                                    },
-                                    builder: (isHovering) => Text(
-                                      artist.name +
-                                          (track.artists.last != artist ? ', ' : ''),
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        decoration: isHovering
-                                            ? TextDecoration.underline
-                                            : TextDecoration.none,
+                                children: track.artists
+                                    .map(
+                                      (artist) => HoverUnderline(
+                                        cursor: SystemMouseCursors.click,
+                                        onTap: () =>
+                                            _openArtist(context, artist),
+                                        onSecondaryTapDown: (details) {
+                                          LibraryItemContextMenu.show(
+                                            context: context,
+                                            item: artist,
+                                            position: details.globalPosition,
+                                            playlists: libraryState.playlists,
+                                            albums: libraryState.albums,
+                                            artists: libraryState.artists,
+                                            currentLibraryView:
+                                                navState.selectedLibraryView,
+                                            currentNavIndex:
+                                                navState.selectedNavIndex,
+                                          );
+                                        },
+                                        builder: (isHovering) => Text(
+                                          artist.name +
+                                              (track.artists.last != artist
+                                                  ? ', '
+                                                  : ''),
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                            decoration: isHovering
+                                                ? TextDecoration.underline
+                                                : TextDecoration.none,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  )
-                                ).toList(),
-                              )
+                                    )
+                                    .toList(),
+                              ),
                             ],
                           ),
                           LikeButton(
@@ -307,7 +311,7 @@ class _NowPlayingCard extends StatelessWidget {
                             ),
                           ),
                         ],
-                      )
+                      ),
                     ],
                   ),
               ],
@@ -350,28 +354,20 @@ class _NowPlayingCard extends StatelessWidget {
       case 'playlist':
         final playlist = libraryState.playlists
             .cast<GenericPlaylist?>()
-            .firstWhere(
-              (item) => item?.id == contextId,
-              orElse: () => null,
-            );
+            .firstWhere((item) => item?.id == contextId, orElse: () => null);
         final title = playlist?.title.trim();
         return _isUsableContextName(title) ? title : null;
       case 'album':
-        final album = libraryState.albums
-            .cast<GenericAlbum?>()
-            .firstWhere(
-              (item) => item?.id == contextId,
-              orElse: () => null,
-            );
+        final album = libraryState.albums.cast<GenericAlbum?>().firstWhere(
+          (item) => item?.id == contextId,
+          orElse: () => null,
+        );
         final title = album?.title.trim();
         return _isUsableContextName(title) ? title : null;
       case 'artist':
         final artist = libraryState.artists
             .cast<GenericSimpleArtist?>()
-            .firstWhere(
-              (item) => item?.id == contextId,
-              orElse: () => null,
-            );
+            .firstWhere((item) => item?.id == contextId, orElse: () => null);
         final name = artist?.name.trim();
         return _isUsableContextName(name) ? name : null;
       default:
@@ -391,10 +387,7 @@ class _NowPlayingCard extends StatelessWidget {
         normalized != 'unknown artist';
   }
 
-  void _openAlbum(
-    BuildContext context,
-    GenericSimpleAlbum album,
-  ) {
+  void _openAlbum(BuildContext context, GenericSimpleAlbum album) {
     AppNavigation.instance.openSharedList(
       context,
       id: album.id,
@@ -404,10 +397,7 @@ class _NowPlayingCard extends StatelessWidget {
     );
   }
 
-  void _openArtist(
-    BuildContext context,
-    GenericSimpleArtist artist,
-  ) {
+  void _openArtist(BuildContext context, GenericSimpleArtist artist) {
     AppNavigation.instance.openArtist(
       context,
       artistId: artist.id,
@@ -474,23 +464,24 @@ class _TrackArtworkWithCanvas extends StatelessWidget {
   final double? width;
   final double? height;
 
-  const _TrackArtworkWithCanvas({
-    required this.track,
-    this.width,
-    this.height,
-  });
+  const _TrackArtworkWithCanvas({required this.track, this.width, this.height});
 
   @override
   Widget build(BuildContext context) {
     final useCanvas = context.select<PreferencesProvider, bool>(
       (prefs) => prefs.animatedCanvasEnabled,
     );
-    final canUseCanvas = useCanvas &&
+    final canUseCanvas =
+        useCanvas &&
         (track.source == SongSource.spotifyInternal ||
             track.source == SongSource.spotify);
 
     if (!canUseCanvas) {
-      return _TrackArtwork(url: track.thumbnailUrl, width: width, height: height);
+      return _TrackArtwork(
+        url: track.thumbnailUrl,
+        width: width,
+        height: height,
+      );
     }
 
     final spotifyInternal = context.read<SpotifyInternalProvider>();
@@ -560,7 +551,9 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   Future<void> _initialize() async {
     try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.url),
+      );
       _controller = controller;
       await controller.initialize();
       await controller.setLooping(true);
@@ -648,7 +641,9 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
 
   Future<void> _initialize() async {
     try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.url),
+      );
       _controller = controller;
       await controller.initialize();
       await controller.setLooping(true);
@@ -838,22 +833,27 @@ class _ArtistInfoCard extends StatefulWidget {
 class _ArtistInfoCardState extends State<_ArtistInfoCard> {
   Future<GenericArtist?>? _artistFuture;
   String? _artistId;
+  bool _wasAuthenticated = false;
 
   @override
   Widget build(BuildContext context) {
-    return Selector<WispAudioHandler, GenericSimpleArtist?>(
-      selector: (context, player) {
+    return Consumer2<WispAudioHandler, SpotifyInternalProvider>(
+      builder: (context, player, spotifyInternal, child) {
         final track = player.currentTrack;
-        return track?.artists.isNotEmpty == true
-            ? track!.artists.first
-            : null;
-      },
-      builder: (context, artist, child) {
-        if (artist != null && artist.id != _artistId) {
+        final artist =
+            track?.artists.isNotEmpty == true ? track!.artists.first : null;
+
+        final shouldRefetch =
+            artist != null &&
+            (artist.id != _artistId ||
+                (spotifyInternal.isAuthenticated && !_wasAuthenticated));
+
+        if (shouldRefetch) {
           _artistId = artist.id;
-          final spotifyInternal = context.read<SpotifyInternalProvider>();
           _artistFuture = _loadArtist(spotifyInternal, artist);
         }
+
+        _wasAuthenticated = spotifyInternal.isAuthenticated;
 
         if (artist == null) {
           return _SectionCard(
@@ -882,6 +882,9 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
           future: _artistFuture,
           builder: (context, snapshot) {
             final data = snapshot.data;
+            final isLoading =
+                snapshot.connectionState == ConnectionState.waiting ||
+                snapshot.connectionState == ConnectionState.active;
             final imageUrl = data?.thumbnailUrl.isNotEmpty == true
                 ? data!.thumbnailUrl
                 : artist.thumbnailUrl;
@@ -944,9 +947,11 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          data == null
+                          isLoading
                               ? 'Loading artist info…'
-                              : '${_formatNumber(data.followers)} followers',
+                              : data == null
+                                  ? 'Artist info unavailable'
+                                  : '${_formatNumber(data.followers)} followers',
                           style: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 13,
@@ -958,7 +963,10 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                             'Top tracks: ${data.topSongs.take(2).map((s) => s.title).join(' • ')}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ],
@@ -980,6 +988,12 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
     /* final cached = await spotifyInternal.getCachedArtistInfo(artist.id);
     if (cached != null) return cached; */
     try {
+      if (!spotifyInternal.isAuthenticated) {
+        await spotifyInternal.checkAuthState();
+      }
+      if (!spotifyInternal.isAuthenticated) {
+        return null;
+      }
       return await spotifyInternal.getArtistInfo(artist.id);
     } catch (_) {
       /* return cached; */
@@ -1022,8 +1036,9 @@ class _LyricsPreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final track =
-      context.select<WispAudioHandler, GenericSong?>((p) => p.currentTrack);
+    final track = context.select<WispAudioHandler, GenericSong?>(
+      (p) => p.currentTrack,
+    );
 
     if (track == null) {
       return _SectionCard(
@@ -1099,15 +1114,18 @@ class _LyricsPreviewCard extends StatelessWidget {
                       style: TextStyle(color: Colors.grey, fontSize: 13),
                     )
                   else
-                    Selector<WispAudioHandler, int>(
-                      selector: (context, player) =>
-                          player.throttledPosition.inMilliseconds,
+                    Selector2<WispAudioHandler, ConnectSessionProvider, int>(
+                      selector: (context, player, connect) {
+                        final useHandoffState =
+                            connect.isLinked && connect.isHost;
+                        final position = useHandoffState
+                            ? connect.linkedInterpolatedPosition
+                            : player.throttledPosition;
+                        return position.inMilliseconds;
+                      },
                       builder: (context, positionMs, child) {
                         return AnimatedLyricsPreviewList(
-                          lines: _getPreviewLines(
-                            lyrics,
-                            positionMs,
-                          ),
+                          lines: _getPreviewLines(lyrics, positionMs),
                           resetKey: track.id,
                           textStyle: const TextStyle(
                             color: Colors.white,
@@ -1124,7 +1142,10 @@ class _LyricsPreviewCard extends StatelessWidget {
                           lyrics == null
                               ? ''
                               : 'Lyrics provided by ${lyrics.provider.label}',
-                          style: TextStyle(color: Colors.grey[200], fontSize: 11),
+                          style: TextStyle(
+                            color: Colors.grey[200],
+                            fontSize: 11,
+                          ),
                         ),
                       ),
                       ElevatedButton(
@@ -1135,8 +1156,9 @@ class _LyricsPreviewCard extends StatelessWidget {
                               },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: btnColor,
-                          foregroundColor:
-                              Theme.of(context).colorScheme.onPrimary,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onPrimary,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 6,
@@ -1282,8 +1304,14 @@ class _LyricsPreviewLines extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<WispAudioHandler, int>(
-      selector: (context, player) => player.throttledPosition.inMilliseconds,
+    return Selector2<WispAudioHandler, ConnectSessionProvider, int>(
+      selector: (context, player, connect) {
+        final useHandoffState = connect.isLinked && connect.isHost;
+        final position = useHandoffState
+            ? connect.linkedInterpolatedPosition
+            : player.throttledPosition;
+        return position.inMilliseconds;
+      },
       builder: (context, positionMs, child) {
         final delaySeconds = context.select<LyricsProvider, double>(
           (provider) => provider.getDelaySecondsCached(resetKey),
@@ -1352,13 +1380,17 @@ class _NowPlayingData {
   bool operator ==(Object other) =>
       other is _NowPlayingData &&
       other.track?.id == track?.id &&
-        other.playbackContextName == playbackContextName &&
-        other.playbackContextType == playbackContextType &&
-        other.playbackContextID == playbackContextID;
+      other.playbackContextName == playbackContextName &&
+      other.playbackContextType == playbackContextType &&
+      other.playbackContextID == playbackContextID;
 
   @override
-      int get hashCode =>
-        Object.hash(track?.id, playbackContextName, playbackContextType, playbackContextID);
+  int get hashCode => Object.hash(
+    track?.id,
+    playbackContextName,
+    playbackContextType,
+    playbackContextID,
+  );
 }
 
 class _QueuePreviewData {

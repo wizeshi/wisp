@@ -104,6 +104,21 @@ class YouTubeProvider {
     _videoIdCache.remove(trackId);
     await _saveVideoIdCache();
   }
+
+  /// Returns a copy of the full track -> video ID cache.
+  static Map<String, String> getVideoIdCacheSnapshot() {
+    return Map<String, String>.from(_videoIdCache);
+  }
+
+  /// Merges provided track -> video ID mappings into the cache.
+  static Future<void> mergeVideoIdCache(Map<String, String> map) async {
+    if (map.isEmpty) return;
+    _videoIdCache = {
+      ..._videoIdCache,
+      ...map,
+    };
+    await _saveVideoIdCache();
+  }
   
   /// Update yt-dlp binary on Android to latest version
   static Future<void> updateYtDlp() async {

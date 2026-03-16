@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/metadata_models.dart';
+import '../providers/connect/connect_session_provider.dart';
 import '../services/wisp_audio_handler.dart';
 import '../providers/lyrics/provider.dart';
 import '../utils/logger.dart';
@@ -102,9 +103,17 @@ class _LyricsViewState extends State<LyricsView> {
       final player = _playerRef;
       final lyrics = _activeLyrics;
       if (player == null || lyrics == null) return;
-      final positionMs = player.interpolatedPosition.inMilliseconds;
+      final positionMs = _effectivePositionMs(player);
       _updateCurrentLine(lyrics, positionMs);
     });
+  }
+
+  int _effectivePositionMs(WispAudioHandler player) {
+    final connect = context.read<ConnectSessionProvider>();
+    if (connect.isLinked && connect.isHost) {
+      return connect.linkedInterpolatedPosition.inMilliseconds;
+    }
+    return player.interpolatedPosition.inMilliseconds;
   }
 
   void _stopPositionTimer() {
@@ -166,7 +175,7 @@ class _LyricsViewState extends State<LyricsView> {
         final syncedState = provider.getState(track, LyricsSyncMode.synced);
         final syncedLyrics = syncedState.lyrics;
         if (syncedLyrics == null || !syncedLyrics.synced) return;
-        final positionMs = player.interpolatedPosition.inMilliseconds;
+        final positionMs = _effectivePositionMs(player);
         final index = _findCurrentLineIndex(syncedLyrics, positionMs);
         setState(() => _currentLineIndex = index);
         _scrollToLine(index);

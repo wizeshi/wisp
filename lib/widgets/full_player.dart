@@ -2,12 +2,14 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
+import 'package:wisp/services/connect/connect_models.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../providers/lyrics/provider.dart';
 import '../providers/metadata/spotify_internal.dart';
@@ -16,6 +18,7 @@ import '../providers/navigation_state.dart';
 import '../models/metadata_models.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../providers/theme/cover_art_palette_provider.dart';
+import '../providers/connect/connect_session_provider.dart';
 import '../views/lyrics.dart';
 import '../views/queue.dart';
 import '../views/artist_detail.dart';
@@ -48,7 +51,12 @@ class FullScreenPlayer extends StatelessWidget {
           _buildSheet(context, scrollController, style),
     );
   }
-  Widget _buildSheet(BuildContext context, ScrollController scrollController, String style) {
+
+  Widget _buildSheet(
+    BuildContext context,
+    ScrollController scrollController,
+    String style,
+  ) {
     switch (style) {
       case 'Apple Music':
         return AppleMusicFullScreenPlayer(scrollController: scrollController);
@@ -59,8 +67,6 @@ class FullScreenPlayer extends StatelessWidget {
         return SpotifyFullScreenPlayer(scrollController: scrollController);
     }
   }
-
-  
 }
 
 /// Spotify variant of the fullscreen player. Uses the existing helper methods
@@ -83,6 +89,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
   Widget _buildHeader(BuildContext context) {
     return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
+        final connect = context.watch<ConnectSessionProvider>();
         final contextType = player.playbackContextType;
         final contextName = player.playbackContextName;
 
@@ -96,6 +103,23 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             secondLine = 'Top 10 - $contextName';
           } else {
             secondLine = contextName;
+          }
+        }
+
+        if (connect.phase == ConnectPhase.pairing) {
+          firstLine = 'Handoff | Pairing';
+          if (connect.pendingPairRequest != null) {
+            secondLine = 'Incoming pairing request';
+          } else {
+            secondLine = 'Waiting for device...';
+          }
+        } else if (connect.isLinked) {
+          if (connect.isHost) {
+            firstLine = 'Handoff | Listening on';
+            secondLine = _resolveHandoffPeerName(connect) ?? 'Linked device';
+          } else if (connect.isTarget) {
+            firstLine = 'Handoff | Controlling from';
+            secondLine = _resolveHandoffPeerName(connect) ?? 'Host device';
           }
         }
 
@@ -151,8 +175,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 color: Colors.white,
                 padding: EdgeInsets.zero,
                 onPressed: () {
-                    final player =
-                      context.read<global_audio_player.WispAudioHandler>();
+                  final player = context
+                      .read<global_audio_player.WispAudioHandler>();
                   final currentTrack = player.currentTrack;
                   if (currentTrack == null) return;
                   final libraryState = context.read<LibraryState>();
@@ -170,6 +194,250 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  String? _resolveHandoffPeerName(ConnectSessionProvider connect) {
+    final peerId = connect.linkedDeviceId;
+    if (peerId == null) return null;
+    for (final device in connect.discoveredDevices) {
+      if (device.id == peerId) {
+        return device.name;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _openHandoffSheet(BuildContext context) async {
+    final connect = context.read<ConnectSessionProvider>();
+    connect.startDiscovery();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final mediaQuery = MediaQuery.of(sheetContext);
+        final maxHeight = mediaQuery.size.height * 0.75;
+        return SafeArea(
+          top: false,
+          child: Container(
+            height: maxHeight,
+            decoration: BoxDecoration(
+              color: const Color(0xFF171717),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+            ),
+            child: Consumer<ConnectSessionProvider>(
+              builder: (context, connect, child) {
+                final devices = connect.discoveredDevices
+                    .where((device) => device.id != connect.localDeviceId)
+                    .toList();
+                final linkedName = _resolveHandoffPeerName(connect);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.cast_connected,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Handoff',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            onPressed: connect.refreshDiscovery,
+                            icon: const Icon(
+                              Icons.refresh,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (connect.isLinked)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF212121),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.link,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  connect.isHost
+                                      ? 'Listening on ${linkedName ?? 'linked device'}'
+                                      : 'Controlling from ${linkedName ?? 'host device'}',
+                                  style: const TextStyle(color: Colors.white),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  connect.unlink(localResumed: true);
+                                  Navigator.of(sheetContext).pop();
+                                },
+                                child: const Text('Unlink'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (connect.pendingPairRequest != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF212121),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${connect.pendingPairRequest!.fromDeviceName} wants to pair',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: connect.rejectIncomingPair,
+                                      child: const Text('Decline'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: connect.acceptIncomingPair,
+                                      child: const Text('Accept'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      child: Text(
+                        'Available devices',
+                        style: TextStyle(
+                          color: Colors.grey[300],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: devices.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No devices found on this network.',
+                                style: TextStyle(color: Colors.grey[500]),
+                              ),
+                            )
+                          : ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                              itemCount: devices.length,
+                              separatorBuilder: (context, index) =>
+                                  const SizedBox(height: 6),
+                              itemBuilder: (context, index) {
+                                final device = devices[index];
+                                final isLinkedDevice =
+                                    connect.linkedDeviceId == device.id;
+                                return Material(
+                                  color: const Color(0xFF202020),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(10),
+                                    onTap: isLinkedDevice
+                                        ? null
+                                        : () {
+                                            connect.beginPairing(device.id);
+                                            Navigator.of(sheetContext).pop();
+                                          },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 10,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.devices,
+                                            size: 16,
+                                            color: Colors.white,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              device.name,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          if (isLinkedDevice)
+                                            const Text(
+                                              'Linked',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            )
+                                          else
+                                            const Icon(
+                                              Icons.chevron_right,
+                                              color: Colors.white70,
+                                              size: 18,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
         );
       },
     );
@@ -222,7 +490,25 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     return _CanvasVideo(url: url, fallbackUrl: fallbackUrl);
   }
 
+  Widget _buildHiddenArtworkPlaceholder(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: const ColoredBox(color: Colors.transparent),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildSingleLyricsLine(
+    BuildContext context,
     global_audio_player.WispAudioHandler player,
     LyricsProvider lyricsProvider,
   ) {
@@ -245,9 +531,14 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final connect = context.watch<ConnectSessionProvider>();
+    final useHandoffState = connect.isLinked && connect.isHost;
+    final basePosition = useHandoffState
+        ? connect.linkedInterpolatedPosition
+        : player.throttledPosition;
     final delayMs =
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
-    final adjustedPosition = player.throttledPosition.inMilliseconds - delayMs;
+    final adjustedPosition = basePosition.inMilliseconds - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
     final line = _getSingleLine(lyrics, effectivePosition);
     if (line == null || line.content.trim().isEmpty) {
@@ -367,10 +658,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           iconSize: 22,
           color: likeColor,
           padding: const EdgeInsets.all(2),
-          constraints: const BoxConstraints(
-            minWidth: 32,
-            minHeight: 32,
-          ),
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
         ),
       ],
     );
@@ -398,14 +686,19 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
 
     final lyrics = state.lyrics;
+    final connect = context.watch<ConnectSessionProvider>();
+    final useHandoffState = connect.isLinked && connect.isHost;
+    final basePosition = useHandoffState
+        ? connect.linkedInterpolatedPosition
+        : player.throttledPosition;
     final delayMs =
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
-    final adjustedPosition = player.throttledPosition.inMilliseconds - delayMs;
+    final adjustedPosition = basePosition.inMilliseconds - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
     final previewLines = lyrics == null
         ? const <LyricsLine>[]
         : _getPreviewLines(lyrics, effectivePosition);
-        
+
     return Container(
       decoration: BoxDecoration(
         color: bgColor,
@@ -464,8 +757,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                       },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: btnColor,
-                  foregroundColor:
-                      Theme.of(context).colorScheme.onPrimary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
@@ -557,10 +849,18 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           children: [
             // Queue button
             IconButton(
+              icon: const Icon(Icons.cast_connected),
+              iconSize: 24,
+              color: Colors.grey[400],
+              onPressed: () {
+                unawaited(_openHandoffSheet(context));
+              },
+            ),
+            IconButton(
               icon: const Icon(Icons.share),
               iconSize: 24,
               color: Colors.grey[400],
-              onPressed: () => { },
+              onPressed: () => {},
             ),
           ],
         ),
@@ -594,12 +894,33 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     global_audio_player.WispAudioHandler player,
     Color bgColor,
   ) {
+    final connect = context.watch<ConnectSessionProvider>();
+    final useHandoffState = connect.isLinked && connect.isHost;
+    final isLoading = _isUiLoading(player, useHandoffState);
     final colorScheme = Theme.of(context).colorScheme;
-    final position = player.throttledPosition;
+    final position = useHandoffState
+        ? connect.linkedInterpolatedPosition
+        : player.throttledPosition;
     final duration = player.duration;
     final progress = duration.inMilliseconds > 0
         ? position.inMilliseconds / duration.inMilliseconds
         : 0.0;
+
+    if (isLoading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: SizedBox(
+            height: 4,
+            child: LinearProgressIndicator(
+              backgroundColor: Colors.grey[800],
+              valueColor: AlwaysStoppedAnimation<Color>(bgColor),
+            ),
+          ),
+        ),
+      );
+    }
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
@@ -616,7 +937,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
               child: SliderTheme(
                 data: SliderThemeData(
                   trackHeight: 4,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 5,
+                  ),
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 6),
                   activeTrackColor: bgColor,
                   inactiveTrackColor: Colors.grey[800],
@@ -629,10 +952,12 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                     final newPosition = Duration(
                       milliseconds: (value * duration.inMilliseconds).toInt(),
                     );
-                    player.seek(newPosition);
+                    context.read<ConnectSessionProvider>().requestSeek(
+                      newPosition,
+                    );
                   },
                 ),
-              )
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 0),
@@ -671,7 +996,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           iconSize: 28,
           color: player.shuffleEnabled ? bgColor : Colors.grey[300],
           padding: const EdgeInsets.all(8),
-          onPressed: player.toggleShuffle,
+          onPressed: () {
+            context.read<ConnectSessionProvider>().requestToggleShuffle();
+          },
         ),
         // Previous
         IconButton(
@@ -679,7 +1006,11 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           iconSize: 36,
           color: Colors.white,
           padding: const EdgeInsets.all(12),
-          onPressed: player.queueTracks.isEmpty ? null : player.skipPrevious,
+          onPressed: player.queueTracks.isEmpty
+              ? null
+              : () {
+                  context.read<ConnectSessionProvider>().requestSkipPrevious();
+                },
         ),
         // Play/Pause - Large circular button
         _buildPlayPauseButton(context, player, bgColor),
@@ -689,7 +1020,11 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           iconSize: 36,
           color: Colors.white,
           padding: const EdgeInsets.all(12),
-          onPressed: player.queueTracks.isEmpty ? null : player.skipNext,
+          onPressed: player.queueTracks.isEmpty
+              ? null
+              : () {
+                  context.read<ConnectSessionProvider>().requestSkipNext();
+                },
         ),
         // Repeat
         IconButton(
@@ -703,7 +1038,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
               ? bgColor
               : Colors.grey[300],
           padding: const EdgeInsets.all(8),
-          onPressed: player.toggleRepeat,
+          onPressed: () {
+            context.read<ConnectSessionProvider>().requestToggleRepeat();
+          },
         ),
       ],
     );
@@ -714,15 +1051,16 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     global_audio_player.WispAudioHandler player,
     Color bgColor,
   ) {
-    if (player.isLoading || player.isBuffering) {
+    final connect = context.watch<ConnectSessionProvider>();
+    final useHandoffState = connect.isLinked && connect.isHost;
+    final isLoading = _isUiLoading(player, useHandoffState);
+
+    if (isLoading) {
       return SizedBox(
         width: 64,
         height: 64,
         child: Container(
-          decoration: BoxDecoration(
-            color: bgColor,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
           child: const Center(
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
@@ -733,15 +1071,14 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       );
     }
 
-    final isPlaying = player.isPlaying;
+    final isPlaying = useHandoffState
+        ? connect.linkedIsPlaying
+        : player.isPlaying;
 
     return Container(
       width: 64,
       height: 64,
-      decoration: BoxDecoration(
-        color: bgColor,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
       child: IconButton(
         icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
         iconSize: 36,
@@ -749,11 +1086,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         padding: EdgeInsets.zero,
         onPressed: () {
           if (isPlaying) {
-            player.pause();
-          } else if (player.currentTrack != null) {
-            player.play();
-          } else if (player.queueTracks.isNotEmpty) {
-            player.playTrack(player.queueTracks.first);
+            connect.requestPause();
+          } else {
+            connect.requestPlay();
           }
         },
       ),
@@ -772,6 +1107,110 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     return '$minutes:${twoDigits(seconds)}';
   }
 
+  bool _isUiLoading(
+    global_audio_player.WispAudioHandler player,
+    bool useHandoffState,
+  ) {
+    if (useHandoffState) {
+      return false;
+    }
+
+    if (player.isLoading || player.isBuffering) {
+      return true;
+    }
+
+    if (player.currentTrack == null) {
+      return false;
+    }
+
+    return !player.isPlaying &&
+        player.duration.inMilliseconds == 0 &&
+        player.throttledPosition.inMilliseconds <= 0;
+  }
+
+  Widget _buildSpotifyTopCanvasBackground(
+    BuildContext context,
+    String canvasUrl,
+    String fallbackUrl,
+  ) {
+    final topSpan = MediaQuery.of(context).size.height * 0.72;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        width: double.infinity,
+        height: topSpan,
+        child: _buildCanvasVideo(canvasUrl, fallbackUrl),
+      ),
+    );
+  }
+
+  Widget _buildCanvasBackground(String url, String fallbackUrl) {
+    return _CanvasVideo(url: url, fallbackUrl: fallbackUrl);
+  }
+
+  Widget _buildFallbackBackground(
+    BuildContext context,
+    String imageUrl,
+    double topInset,
+  ) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned(
+          top: -topInset,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Column(
+            children: [
+              Expanded(
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.cover,
+                    repeat: ImageRepeat.repeatY,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          top: topInset,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Column(
+            children: [
+              SizedBox(
+                height: MediaQuery.of(context).size.height * 0.65,
+                child: ShaderMask(
+                  shaderCallback: (rect) => const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black,
+                      Colors.black,
+                      Colors.transparent,
+                    ],
+                    stops: [0.0, 0.08, 0.88, 1.0],
+                  ).createShader(rect),
+                  blendMode: BlendMode.dstIn,
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.fitHeight,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
@@ -781,17 +1220,23 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         final useCanvas = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.animatedCanvasEnabled,
         );
-        final canUseCanvas = useCanvas &&
+        final canUseCanvas =
+            useCanvas &&
             currentTrack != null &&
             (currentTrack.source == SongSource.spotifyInternal ||
                 currentTrack.source == SongSource.spotify);
         final spotifyInternal = context.read<SpotifyInternalProvider>();
+        final Future<String?>? canvasFuture = canUseCanvas
+            ? spotifyInternal.getCanvasUrl(currentTrack.id)
+            : null;
 
         final viewPadding = MediaQuery.of(context).viewPadding;
         final windowPadding = MediaQueryData.fromView(
           WidgetsBinding.instance.platformDispatcher.views.first,
         ).padding;
-        final topInset = viewPadding.top == 0 ? windowPadding.top : viewPadding.top;
+        final topInset = viewPadding.top == 0
+            ? windowPadding.top
+            : viewPadding.top;
         final bottomInset = viewPadding.bottom == 0
             ? windowPadding.bottom
             : viewPadding.bottom;
@@ -806,83 +1251,90 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           palette?.onPrimaryContainer ?? const Color(0xFF1A1A1A),
         ).withLightness(0.7).withSaturation(1).toColor();
 
-        return _CoverGradientContainer(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.45),
-              ),
-              child: Padding(
-                padding: EdgeInsets.only(
-                  top: topInset,
-                  bottom: bottomInset,
-                ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    // Header with down arrow, title, more button
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: _buildHeader(context),
-                    ),
-                    const SizedBox(height: 48),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        controller: scrollController,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24.0,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Album art at 90% width
-                              if (canUseCanvas)
-                                FutureBuilder<String?>(
-                                  future: spotifyInternal.getCanvasUrl(
-                                    currentTrack!.id,
-                                  ),
-                                  builder: (context, snapshot) {
-                                    final canvasUrl = snapshot.data ?? '';
-                                    if (canvasUrl.isNotEmpty) {
-                                      return _buildCanvasVideo(canvasUrl, imageUrl);
-                                    }
-                                    return _buildAlbumArt(context, imageUrl);
-                                  },
-                                )
-                              else
-                                _buildAlbumArt(context, imageUrl),
-                              _buildSingleLyricsLine(
-                                player,
-                                lyricsProvider,
-                              ),
-                              const SizedBox(height: 24),
-                              // Track info with links
-                              _buildTrackInfo(currentTrack, btnColor),
-                              const SizedBox(height: 16),
-                              // Progress bar with controls
-                              _buildPlayerControls(context, player, btnColor),
-                              const SizedBox(height: 16),
-                              _buildLyricsPreview(
-                                context,
-                                player,
-                                lyricsProvider,
-                                bgColor,
-                                btnColor,
-                              ),
-                              const SizedBox(height: 16),
-                              _buildArtistInfoSection(currentTrack),
-                            ],
-                          ),
+        Widget buildPlayerScaffold({String? canvasUrl}) {
+          final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
+          final content = Container(
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.45)),
+            child: Padding(
+              padding: EdgeInsets.only(top: topInset, bottom: bottomInset),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: _buildHeader(context),
+                  ),
+                  const SizedBox(height: 48),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            hasCanvas
+                                ? _buildHiddenArtworkPlaceholder(context)
+                                : _buildAlbumArt(context, imageUrl),
+                            _buildSingleLyricsLine(
+                              context,
+                              player,
+                              lyricsProvider,
+                            ),
+                            const SizedBox(height: 24),
+                            _buildTrackInfo(currentTrack, btnColor),
+                            const SizedBox(height: 16),
+                            _buildPlayerControls(context, player, btnColor),
+                            const SizedBox(height: 16),
+                            _buildLyricsPreview(
+                              context,
+                              player,
+                              lyricsProvider,
+                              bgColor,
+                              btnColor,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildArtistInfoSection(currentTrack),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ),
+          );
+
+          if (hasCanvas) {
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+                _buildSpotifyTopCanvasBackground(context, canvasUrl, imageUrl),
+                Container(color: Colors.black.withOpacity(0.28)),
+                content,
+              ],
+            );
+          }
+
+          return _CoverGradientContainer(child: content);
+        }
+
+        if (!canUseCanvas) {
+          return buildPlayerScaffold();
+        }
+
+        return FutureBuilder<String?>(
+          future: spotifyInternal.getCanvasUrl(currentTrack!.id),
+          builder: (context, snapshot) {
+            final canvasUrl = snapshot.data ?? '';
+            return buildPlayerScaffold(canvasUrl: canvasUrl);
+          },
         );
       },
     );
@@ -926,7 +1378,9 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   Future<void> _initialize() async {
     try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.url),
+      );
       _controller = controller;
       await controller.initialize();
       await controller.setLooping(true);
@@ -952,7 +1406,8 @@ class _CanvasVideoState extends State<_CanvasVideo> {
         imageUrl: widget.fallbackUrl,
         fit: BoxFit.cover,
         placeholder: (context, url) => Container(color: Colors.grey[900]),
-        errorWidget: (context, url, error) => Container(color: Colors.grey[900]),
+        errorWidget: (context, url, error) =>
+            Container(color: Colors.grey[900]),
       );
     }
 
@@ -967,12 +1422,130 @@ class _CanvasVideoState extends State<_CanvasVideo> {
   }
 }
 
+class _RotatingBlurredCoverBackground extends StatefulWidget {
+  final String imageUrl;
+
+  const _RotatingBlurredCoverBackground({required this.imageUrl});
+
+  @override
+  State<_RotatingBlurredCoverBackground> createState() =>
+      _RotatingBlurredCoverBackgroundState();
+}
+
+class _RotatingBlurredCoverBackgroundState
+    extends State<_RotatingBlurredCoverBackground>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rotationController = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 50),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.imageUrl.isEmpty) {
+      return Container(color: const Color(0xFF101010));
+    }
+
+    return ClipRect(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final height = constraints.maxHeight;
+          final maxSide = width > height ? width : height;
+          final imageSize = maxSide * 2.0;
+          final orbitRadius = maxSide * 0.22;
+
+          return AnimatedBuilder(
+            animation: _rotationController,
+            builder: (context, child) {
+              final angle = _rotationController.value * 6.283185307179586;
+              final orbitX = orbitRadius * math.cos(angle);
+              final orbitY = orbitRadius * math.sin(angle);
+
+              final centerX = width + orbitX;
+              final centerY = orbitY;
+
+              return Stack(
+                children: [
+                  Positioned(
+                    left: centerX - (imageSize / 2),
+                    top: centerY - (imageSize / 2),
+                    width: imageSize,
+                    height: imageSize,
+                    child: child!,
+                  ),
+                ],
+              );
+            },
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+              child: CachedNetworkImage(
+                imageUrl: widget.imageUrl,
+                fit: BoxFit.cover,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Apple Music variant — currently uses the Spotify layout but is a separate
 /// class to allow future customization.
 class AppleMusicFullScreenPlayer extends StatelessWidget {
   final ScrollController scrollController;
 
   const AppleMusicFullScreenPlayer({required this.scrollController, super.key});
+
+  Widget _buildAlbumArt(BuildContext context, String imageUrl) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: imageUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        color: Colors.grey[900],
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: Colors.grey[900],
+                        child: const Icon(
+                          Icons.music_note,
+                          size: 80,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: Colors.grey[900],
+                      child: const Icon(
+                        Icons.music_note,
+                        size: 80,
+                        color: Colors.grey,
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildArtistInfoSection(dynamic currentTrack) {
     final artist = currentTrack?.artists?.isNotEmpty == true
@@ -987,6 +1560,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   Widget _buildHeader(BuildContext context) {
     return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
+        final connect = context.watch<ConnectSessionProvider>();
         final contextType = player.playbackContextType;
         final contextName = player.playbackContextName;
 
@@ -1000,6 +1574,34 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             secondLine = 'Top 10 - $contextName';
           } else {
             secondLine = contextName;
+          }
+        }
+
+        if (connect.phase == ConnectPhase.pairing) {
+          firstLine = 'Handoff | Pairing';
+          if (connect.pendingPairRequest != null) {
+            secondLine = 'Incoming pairing request';
+          } else {
+            secondLine = 'Waiting for device...';
+          }
+        } else if (connect.isLinked) {
+          String? peerName;
+          final peerId = connect.linkedDeviceId;
+          if (peerId != null) {
+            for (final device in connect.discoveredDevices) {
+              if (device.id == peerId) {
+                peerName = device.name;
+                break;
+              }
+            }
+          }
+
+          if (connect.isHost) {
+            firstLine = 'Handoff | Listening on';
+            secondLine = peerName ?? 'Linked device';
+          } else if (connect.isTarget) {
+            firstLine = 'Handoff | Controlling from';
+            secondLine = peerName ?? 'Host device';
           }
         }
 
@@ -1055,8 +1657,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 color: Colors.white,
                 padding: EdgeInsets.zero,
                 onPressed: () {
-                    final player =
-                      context.read<global_audio_player.WispAudioHandler>();
+                  final player = context
+                      .read<global_audio_player.WispAudioHandler>();
                   final currentTrack = player.currentTrack;
                   if (currentTrack == null) return;
                   final libraryState = context.read<LibraryState>();
@@ -1080,6 +1682,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }
 
   Widget _buildSingleLyricsLine(
+    BuildContext context,
     global_audio_player.WispAudioHandler player,
     LyricsProvider lyricsProvider,
   ) {
@@ -1102,9 +1705,14 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final connect = context.watch<ConnectSessionProvider>();
+    final useHandoffState = connect.isLinked && connect.isHost;
+    final basePosition = useHandoffState
+        ? connect.linkedInterpolatedPosition
+        : player.throttledPosition;
     final delayMs =
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
-    final adjustedPosition = player.throttledPosition.inMilliseconds - delayMs;
+    final adjustedPosition = basePosition.inMilliseconds - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
     final line = _getSingleLine(lyrics, effectivePosition);
     if (line == null || line.content.trim().isEmpty) {
@@ -1223,10 +1831,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           track: currentTrack as GenericSong?,
           iconSize: 22,
           padding: const EdgeInsets.all(2),
-          constraints: const BoxConstraints(
-            minWidth: 32,
-            minHeight: 32,
-          ),
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           likedIcon: CupertinoIcons.heart_fill,
           notLikedIcon: CupertinoIcons.heart,
           color: likeColor,
@@ -1255,9 +1860,14 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
 
     final lyrics = state.lyrics;
+    final connect = context.watch<ConnectSessionProvider>();
+    final useHandoffState = connect.isLinked && connect.isHost;
+    final basePosition = useHandoffState
+        ? connect.linkedInterpolatedPosition
+        : player.throttledPosition;
     final delayMs =
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
-    final adjustedPosition = player.throttledPosition.inMilliseconds - delayMs;
+    final adjustedPosition = basePosition.inMilliseconds - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
     final previewLines = lyrics == null
         ? const <LyricsLine>[]
@@ -1429,10 +2039,12 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   IconButton(
                     icon: const Icon(CupertinoIcons.shuffle),
                     iconSize: 24,
-                    color: player.shuffleEnabled
-                        ? btnColor
-                        : Colors.grey[200],
-                    onPressed: player.toggleShuffle,
+                    color: player.shuffleEnabled ? btnColor : Colors.grey[200],
+                    onPressed: () {
+                      context
+                          .read<ConnectSessionProvider>()
+                          .requestToggleShuffle();
+                    },
                   ),
                   IconButton(
                     icon: Icon(
@@ -1441,10 +2053,15 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                           : CupertinoIcons.repeat,
                     ),
                     iconSize: 24,
-                    color: player.repeatMode != global_audio_player.RepeatMode.off
+                    color:
+                        player.repeatMode != global_audio_player.RepeatMode.off
                         ? btnColor
                         : Colors.grey[200],
-                    onPressed: player.toggleRepeat,
+                    onPressed: () {
+                      context
+                          .read<ConnectSessionProvider>()
+                          .requestToggleRepeat();
+                    },
                   ),
                 ],
               ),
@@ -1478,12 +2095,33 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     BuildContext context,
     global_audio_player.WispAudioHandler player,
   ) {
+    final connect = context.watch<ConnectSessionProvider>();
+    final useHandoffState = connect.isLinked && connect.isHost;
+    final isLoading = _isUiLoading(player, useHandoffState);
     final colorScheme = Theme.of(context).colorScheme;
-    final position = player.throttledPosition;
+    final position = useHandoffState
+        ? connect.linkedInterpolatedPosition
+        : player.throttledPosition;
     final duration = player.duration;
     final progress = duration.inMilliseconds > 0
         ? position.inMilliseconds / duration.inMilliseconds
         : 0.0;
+
+    if (isLoading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: SizedBox(
+            height: 4,
+            child: LinearProgressIndicator(
+              backgroundColor: Colors.grey[400],
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[300]!),
+            ),
+          ),
+        ),
+      );
+    }
 
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
@@ -1500,7 +2138,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
               child: SliderTheme(
                 data: SliderThemeData(
                   trackHeight: 4,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 3),
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 3,
+                  ),
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 2),
                   activeTrackColor: Colors.grey[300],
                   inactiveTrackColor: Colors.grey[400],
@@ -1513,10 +2153,12 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     final newPosition = Duration(
                       milliseconds: (value * duration.inMilliseconds).toInt(),
                     );
-                    player.seek(newPosition);
+                    context.read<ConnectSessionProvider>().requestSeek(
+                      newPosition,
+                    );
                   },
                 ),
-              )
+              ),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 0),
@@ -1553,7 +2195,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           iconSize: 36,
           color: Colors.white,
           padding: const EdgeInsets.all(12),
-          onPressed: player.queueTracks.isEmpty ? null : player.skipPrevious,
+          onPressed: player.queueTracks.isEmpty
+              ? null
+              : () {
+                  context.read<ConnectSessionProvider>().requestSkipPrevious();
+                },
         ),
         // Play/Pause - Large circular button
         _buildPlayPauseButton(context, player),
@@ -1563,7 +2209,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           iconSize: 36,
           color: Colors.white,
           padding: const EdgeInsets.all(12),
-          onPressed: player.queueTracks.isEmpty ? null : player.skipNext,
+          onPressed: player.queueTracks.isEmpty
+              ? null
+              : () {
+                  context.read<ConnectSessionProvider>().requestSkipNext();
+                },
         ),
       ],
     );
@@ -1574,14 +2224,15 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     global_audio_player.WispAudioHandler player,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
-    if (player.isLoading || player.isBuffering) {
+    final connect = context.watch<ConnectSessionProvider>();
+    final useHandoffState = connect.isLinked && connect.isHost;
+    final isLoading = _isUiLoading(player, useHandoffState);
+    if (isLoading) {
       return SizedBox(
         width: 96,
         height: 96,
         child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(shape: BoxShape.circle),
           child: const Center(
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
@@ -1592,26 +2243,26 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       );
     }
 
-    final isPlaying = player.isPlaying;
+    final isPlaying = useHandoffState
+        ? connect.linkedIsPlaying
+        : player.isPlaying;
 
     return Container(
       width: 96,
       height: 96,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle),
       child: IconButton(
-        icon: Icon(isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill),
+        icon: Icon(
+          isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+        ),
         iconSize: 64,
         color: colorScheme.onPrimary,
         padding: EdgeInsets.zero,
         onPressed: () {
           if (isPlaying) {
-            player.pause();
-          } else if (player.currentTrack != null) {
-            player.play();
-          } else if (player.queueTracks.isNotEmpty) {
-            player.playTrack(player.queueTracks.first);
+            connect.requestPause();
+          } else {
+            connect.requestPlay();
           }
         },
       ),
@@ -1630,18 +2281,78 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     return '$minutes:${twoDigits(seconds)}';
   }
 
+  bool _isUiLoading(
+    global_audio_player.WispAudioHandler player,
+    bool useHandoffState,
+  ) {
+    if (useHandoffState) {
+      return false;
+    }
+
+    if (player.isLoading || player.isBuffering) {
+      return true;
+    }
+
+    if (player.currentTrack == null) {
+      return false;
+    }
+
+    return !player.isPlaying &&
+        player.duration.inMilliseconds == 0 &&
+        player.throttledPosition.inMilliseconds <= 0;
+  }
+
+  Widget _buildCanvasBackground(
+    BuildContext context,
+    String url,
+    String fallbackUrl,
+    double topInset,
+  ) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _RotatingBlurredCoverBackground(imageUrl: fallbackUrl),
+        Positioned.fill(
+          child: _CanvasVideo(url: url, fallbackUrl: fallbackUrl),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFallbackBackground(
+    BuildContext context,
+    String imageUrl,
+    double topInset,
+  ) {
+    return _RotatingBlurredCoverBackground(imageUrl: imageUrl);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
       builder: (context, player, lyricsProvider, child) {
         final currentTrack = player.currentTrack;
         final imageUrl = currentTrack?.thumbnailUrl ?? '';
+        final useCanvas = context.select<PreferencesProvider, bool>(
+          (prefs) => prefs.animatedCanvasEnabled,
+        );
+        final canUseCanvas =
+            useCanvas &&
+            currentTrack != null &&
+            (currentTrack.source == SongSource.spotifyInternal ||
+                currentTrack.source == SongSource.spotify);
+        final spotifyInternal = context.read<SpotifyInternalProvider>();
+        final Future<String?>? canvasFuture = canUseCanvas
+            ? spotifyInternal.getCanvasUrl(currentTrack.id)
+            : null;
 
         final viewPadding = MediaQuery.of(context).viewPadding;
         final windowPadding = MediaQueryData.fromView(
           WidgetsBinding.instance.platformDispatcher.views.first,
         ).padding;
-        final topInset = viewPadding.top == 0 ? windowPadding.top : viewPadding.top;
+        final topInset = viewPadding.top == 0
+            ? windowPadding.top
+            : viewPadding.top;
         final bottomInset = viewPadding.bottom == 0
             ? windowPadding.bottom
             : viewPadding.bottom;
@@ -1649,81 +2360,55 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         final imageProvider = CachedNetworkImageProvider(imageUrl);
 
         return FutureBuilder<ColorScheme?>(
-          future: ColorScheme.fromImageProvider(
-            provider: imageProvider,
-          ).catchError((_) => null as ColorScheme?),
+          future: _resolveColorScheme(imageProvider),
           builder: (context, snapshot) {
             final palette = snapshot.data;
-            var bgColor = HSLColor.fromColor(palette?.onSecondaryContainer ?? const Color(0xFF1A1A1A)).withLightness(0.6).withSaturation(0.65).toColor();
-            var btnColor = HSLColor.fromColor(palette?.onPrimaryContainer ?? const Color(0xFF1A1A1A)).withLightness(0.7).withSaturation(1).toColor();
+            var bgColor = HSLColor.fromColor(
+              palette?.onSecondaryContainer ?? const Color(0xFF1A1A1A),
+            ).withLightness(0.6).withSaturation(0.65).toColor();
+            var btnColor = HSLColor.fromColor(
+              palette?.onPrimaryContainer ?? const Color(0xFF1A1A1A),
+            ).withLightness(0.7).withSaturation(1).toColor();
 
             return Stack(
               clipBehavior: Clip.hardEdge,
               children: [
-                Positioned(
-                  top: -topInset,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: ImageFiltered(
-                          imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                          child: CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            fit: BoxFit.cover,
-                            repeat: ImageRepeat.repeatY,
-                          ),
-                        ),
-                      )
-                    ]
-                  )
-                ),
-                Positioned(
-                  top: topInset,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.65,
-                        child: ShaderMask(
-                          shaderCallback: (rect) => const LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black,
-                              Colors.black,
-                              Colors.transparent,
-                            ],
-                            stops: [0.0, 0.08, 0.88, 1.0],
-                          ).createShader(rect),
-                          blendMode: BlendMode.dstIn,
-                          child: CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            fit: BoxFit.fitHeight,
-                          ),
-                        ),
-                      )
-                    ]
-                  )
+                Positioned.fill(
+                  child: canvasFuture != null
+                      ? FutureBuilder<String?>(
+                          future: canvasFuture,
+                          builder: (context, canvasSnapshot) {
+                            final canvasUrl = canvasSnapshot.data ?? '';
+                            if (canvasUrl.isNotEmpty) {
+                              return _buildCanvasBackground(
+                                context,
+                                canvasUrl,
+                                imageUrl,
+                                topInset,
+                              );
+                            }
+                            return _buildFallbackBackground(
+                              context,
+                              imageUrl,
+                              topInset,
+                            );
+                          },
+                        )
+                      : _buildFallbackBackground(context, imageUrl, topInset),
                 ),
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.black.withOpacity(0.45),
                   ),
                   child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: bottomInset,
-                    ),
+                    padding: EdgeInsets.only(bottom: bottomInset),
                     child: Column(
                       children: [
                         // Header with down arrow, title, more button
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24.0).add(EdgeInsets.only(top: topInset)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                          ).add(EdgeInsets.only(top: topInset)),
                           child: _buildHeader(context),
                         ),
                         const SizedBox(height: 48),
@@ -1737,18 +2422,47 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Album art at 90% width
-                                  SizedBox(height: MediaQuery.of(context).size.height * 0.375),
+                                  if (canvasFuture != null)
+                                    FutureBuilder<String?>(
+                                      future: canvasFuture,
+                                      builder: (context, canvasSnapshot) {
+                                        final canvasUrl =
+                                            canvasSnapshot.data ?? '';
+                                        if (canvasUrl.isNotEmpty) {
+                                          return SizedBox(
+                                            height:
+                                                MediaQuery.of(
+                                                  context,
+                                                ).size.height *
+                                                0.375,
+                                          );
+                                        }
+                                        return _buildAlbumArt(
+                                          context,
+                                          imageUrl,
+                                        );
+                                      },
+                                    )
+                                  else
+                                    _buildAlbumArt(context, imageUrl),
                                   _buildSingleLyricsLine(
+                                    context,
                                     player,
                                     lyricsProvider,
                                   ),
                                   const SizedBox(height: 24),
                                   // Track info with links
-                                  _buildTrackInfo(currentTrack, btnColor ?? bgColor),
+                                  _buildTrackInfo(
+                                    currentTrack,
+                                    btnColor ?? bgColor,
+                                  ),
                                   const SizedBox(height: 16),
                                   // Progress bar with controls
-                                  _buildPlayerControls(context, player, btnColor ?? bgColor),
+                                  _buildPlayerControls(
+                                    context,
+                                    player,
+                                    btnColor ?? bgColor,
+                                  ),
                                   /* const SizedBox(height: 16),
                                   _buildLyricsPreview(
                                     context,
@@ -1766,21 +2480,23 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     ),
                   ),
                 ),
-              ]
+              ],
             );
           },
         );
-      }
+      },
     );
   }
 }
-
 
 /// YouTube Music variant — currently reuses the Spotify layout.
 class YouTubeMusicFullScreenPlayer extends StatelessWidget {
   final ScrollController scrollController;
 
-  const YouTubeMusicFullScreenPlayer({required this.scrollController, super.key});
+  const YouTubeMusicFullScreenPlayer({
+    required this.scrollController,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1879,7 +2595,8 @@ class _MarqueeTextState extends State<_MarqueeText>
             .clamp(0, textWidth)
             .toDouble();
 
-        if (_needsMarquee != needsMarquee || _scrollDistance != scrollDistance) {
+        if (_needsMarquee != needsMarquee ||
+            _scrollDistance != scrollDistance) {
           _needsMarquee = needsMarquee;
           _scrollDistance = scrollDistance;
           _configureController();
@@ -1916,25 +2633,46 @@ class _MarqueeTextState extends State<_MarqueeText>
   }
 }
 
+Future<ColorScheme?> _resolveColorScheme(ImageProvider imageProvider) async {
+  try {
+    return await ColorScheme.fromImageProvider(provider: imageProvider);
+  } catch (_) {
+    return null;
+  }
+}
+
 class _CoverGradientContainer extends StatelessWidget {
   final Widget child;
+  final Widget? background;
+  final Color? dominantColorOverride;
+  final bool overlayGradientOnBackground;
 
-  const _CoverGradientContainer({required this.child});
+  const _CoverGradientContainer({
+    required this.child,
+    this.background,
+    this.dominantColorOverride,
+    this.overlayGradientOnBackground = true,
+  });
 
   @override
   Widget build(BuildContext context) {
     final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
       (provider) => provider.palette,
     );
-    var dominantColor = palette?.onSecondaryContainer ?? Colors.black;
+    var dominantColor =
+        dominantColorOverride ??
+        palette?.primaryContainer ??
+        palette?.primary ??
+        palette?.onSecondaryContainer ??
+        Colors.black;
     if (dominantColor.computeLuminance() < 0.2) {
-      final altColor = palette?.onSecondary;
+      final altColor = palette?.primary ?? palette?.secondary;
       if (altColor != null && altColor.computeLuminance() >= 0.2) {
         dominantColor = altColor;
       }
     }
 
-    return Container(
+    final gradientLayer = Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -1949,7 +2687,16 @@ class _CoverGradientContainer extends StatelessWidget {
           stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
         ),
       ),
-      child: child,
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (!overlayGradientOnBackground) gradientLayer,
+        if (background != null) Positioned.fill(child: background!),
+        if (overlayGradientOnBackground) gradientLayer,
+        child,
+      ],
     );
   }
 }

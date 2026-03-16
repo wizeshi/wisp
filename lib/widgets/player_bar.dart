@@ -20,6 +20,8 @@ import '../providers/navigation_state.dart';
 import '../services/navigation_history.dart';
 import '../widgets/like_button.dart';
 import '../services/app_focus_service.dart';
+import '../providers/connect/connect_session_provider.dart';
+import '../services/connect/connect_models.dart';
 
 class WispPlayerBar extends StatelessWidget {
   const WispPlayerBar({super.key});
@@ -63,15 +65,15 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
   void _onHorizontalDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
-    final player = context.read<global_audio_player.WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
 
     if (velocity.abs() > 200 || _dragOffset.abs() > 50) {
       if (_dragOffset < 0 || velocity < -200) {
         // Swipe left -> skip next
-        player.skipNext();
+        connect.requestSkipNext();
       } else {
         // Swipe right -> skip previous
-        player.skipPrevious();
+        connect.requestSkipPrevious();
       }
     }
 
@@ -102,6 +104,10 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       palette?.onPrimaryContainer ?? colorFallback,
     ).withLightness(0.7).withSaturation(1).toColor();
 
+    final handoffMessage = context.select<ConnectSessionProvider, String?>(
+      (connect) => _handoffStatusMessage(connect),
+    );
+
     // Test Results:
     //  Nights - Frank Ocean
     //    Native - White-ish
@@ -128,72 +134,87 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: GestureDetector(
-        onHorizontalDragUpdate: _onHorizontalDragUpdate,
-        onHorizontalDragEnd: _onHorizontalDragEnd,
-        child: InkWell(
-          onTap: () => FullScreenPlayer.show(context),
-          child: Container(
-            height: 56,
-            decoration: BoxDecoration(
-              color: bgColor,
-              border: Border.all(
-                color: Colors.grey[900]!,
-                width: 1,
-              ).add(Border(bottom: BorderSide())),
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(8),
-                bottom: Radius.zero,
-              ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 3, 8, 0),
-                  child: Row(
-                    children: [
-                      // Album art
-                      _buildMobileAlbumArt(widget.currentTrack),
-                      const SizedBox(width: 12),
-                      // Track info with animation
-                      Expanded(
-                        child: ClipRect(
-                          clipBehavior: Clip.hardEdge,
-                          child: AnimatedSlide(
-                            offset: offset,
-                            duration: Duration.zero,
-                            child: Opacity(
-                              opacity: (1.0 - (_dragOffset.abs() / 100)).clamp(
-                                0.3,
-                                1.0,
-                              ),
-                              child: _buildMobileTrackInfo(widget.currentTrack),
-                            ),
-                          ),
-                        ),
-                      ),
-                      LikeButton(
-                        track: widget.currentTrack as GenericSong?,
-                        iconSize: 24,
-                        padding: const EdgeInsets.all(2),
-                        constraints: const BoxConstraints(
-                          minWidth: 28,
-                          minHeight: 28,
-                        ),
-                        color: btnColor,
-                      ),
-                      const SizedBox(width: 4),
-                      // Play/Pause button
-                      _buildMobilePlayPauseButton(),
-                    ],
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GestureDetector(
+            onHorizontalDragUpdate: _onHorizontalDragUpdate,
+            onHorizontalDragEnd: _onHorizontalDragEnd,
+            child: InkWell(
+              onTap: () => FullScreenPlayer.show(context),
+              child: Container(
+                height: 56,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  border: Border.all(
+                    color: Colors.grey[900]!,
+                    width: 1,
+                  ).add(Border(bottom: BorderSide())),
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(8),
+                    bottom: Radius.zero,
                   ),
                 ),
-                _buildMiniProgressBar(),
-              ],
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 3, 8, 0),
+                      child: Row(
+                        children: [
+                          _buildMobileAlbumArt(widget.currentTrack),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ClipRect(
+                              clipBehavior: Clip.hardEdge,
+                              child: AnimatedSlide(
+                                offset: offset,
+                                duration: Duration.zero,
+                                child: Opacity(
+                                  opacity: (1.0 - (_dragOffset.abs() / 100))
+                                      .clamp(0.3, 1.0),
+                                  child: _buildMobileTrackInfo(
+                                    widget.currentTrack,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          _buildMobileConnectButton(),
+                          LikeButton(
+                            track: widget.currentTrack as GenericSong?,
+                            iconSize: 24,
+                            padding: const EdgeInsets.all(2),
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
+                            color: btnColor,
+                          ),
+                          _buildMobilePlayPauseButton(),
+                        ],
+                      ),
+                    ),
+                    _buildMiniProgressBar(),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          if (handoffMessage != null)
+            Positioned(
+              top: -24,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _HandoffStatusIndicator(
+                  message: handoffMessage,
+                  backgroundColor: btnColor,
+                  mobile: true,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -253,6 +274,14 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     );
   }
 
+  Widget _buildMobileConnectButton() {
+    return _ConnectMenuButton(
+      iconSize: 24,
+      inactiveColor: Colors.grey[300],
+      activeColorOverride: Colors.white,
+    );
+  }
+
   Widget _buildMobilePlayPauseButton() {
     return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
       selector: (context, player) {
@@ -274,6 +303,11 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         );
       },
       builder: (context, data, child) {
+        final connect = context.watch<ConnectSessionProvider>();
+        final useHandoffState = connect.isLinked && connect.isHost;
+        final effectiveIsPlaying = useHandoffState
+            ? connect.linkedIsPlaying
+            : data.isPlaying;
         if (data.isLoading || data.isBuffering) {
           return const SizedBox(
             width: 40,
@@ -287,25 +321,33 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           );
         }
 
-        final player = context.read<global_audio_player.WispAudioHandler>();
         final isOfflineBlocked =
+            !useHandoffState &&
             !data.isOnline &&
             data.currentTrackId != null &&
             !data.currentTrackCached;
-        final IconData icon = data.isPlaying ? Icons.pause : Icons.play_arrow;
+        final IconData icon = effectiveIsPlaying
+            ? Icons.pause
+            : Icons.play_arrow;
         VoidCallback? onPressed;
         if (!isOfflineBlocked) {
-          if (data.isPlaying) {
-            onPressed = player.pause;
+          if (effectiveIsPlaying) {
+            onPressed = () {
+              connect.requestPause();
+            };
           } else if (data.currentTrackId != null) {
-            onPressed = player.play;
+            onPressed = () {
+              connect.requestPlay();
+            };
           } else if (data.queueNotEmpty) {
-            onPressed = () => player.playTrack(player.queueTracks.first);
+            onPressed = () {
+              connect.requestPlay();
+            };
           }
         }
 
         return IconButton(
-          icon: Icon(icon, size: 32, color: Colors.white),
+          icon: Icon(icon, size: 28, color: Colors.white),
           onPressed: onPressed,
         );
       },
@@ -319,12 +361,29 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       builder: (context, trackId, child) {
         if (trackId == null) return const SizedBox.shrink();
 
+        final connect = context.watch<ConnectSessionProvider>();
+        final useHandoffState = connect.isLinked && connect.isHost;
+
         return Selector<global_audio_player.WispAudioHandler, _PositionData>(
           selector: (context, player) => _PositionData(
-            position: player.throttledPosition,
+            position: useHandoffState
+                ? connect.linkedPosition
+                : player.throttledPosition,
             duration: player.duration,
+            isLoading:
+                !useHandoffState && (player.isLoading || player.isBuffering),
           ),
           builder: (context, data, child) {
+            if (data.isLoading) {
+              return const SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(
+                  backgroundColor: Colors.transparent,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              );
+            }
+
             final progress = data.duration.inMilliseconds > 0
                 ? data.position.inMilliseconds / data.duration.inMilliseconds
                 : 0.0;
@@ -368,59 +427,125 @@ class _DesktopPlayerBar extends StatelessWidget {
       buttonColor = buttonColor.withOpacity(0.65);
     }
 
-    return Container(
+    final handoffMessage = context.select<ConnectSessionProvider, String?>(
+      (connect) => _handoffStatusMessage(connect),
+    );
+
+    return SizedBox(
       height: 90,
-      decoration: BoxDecoration(
-        color: const Color(0xFF181818),
-        border: Border(top: BorderSide(color: Colors.grey[900]!, width: 1)),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            height: 90,
+            decoration: BoxDecoration(
+              color: const Color(0xFF181818),
+              border: Border(
+                top: BorderSide(color: Colors.grey[900]!, width: 1),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 24),
+                        child: _DesktopTrackInfo(
+                          currentTrack: currentTrack,
+                          btnColor: buttonColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 860),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _DesktopPlaybackControls(btnColor: buttonColor),
+                            _DesktopProgressBar(btnColor: buttonColor),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 24),
+                        child: _DesktopRightControls(
+                          currentTrack: currentTrack,
+                          btnColor: buttonColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (handoffMessage != null)
+            Positioned(
+              top: -26,
+              right: 16,
+              child: _HandoffStatusIndicator(
+                message: handoffMessage,
+                backgroundColor: HSLColor.fromColor(
+                  buttonColor,
+                ).withLightness(0.4).toColor(),
+              ),
+            ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+    );
+  }
+}
+
+class _HandoffStatusIndicator extends StatelessWidget {
+  final String message;
+  final Color backgroundColor;
+  final bool mobile;
+
+  const _HandoffStatusIndicator({
+    required this.message,
+    required this.backgroundColor,
+    this.mobile = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: mobile ? 8 : 10,
+          vertical: mobile ? 3 : 4,
+        ),
+        decoration: BoxDecoration(
+          color: backgroundColor.withValues(alpha: 1),
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Left: Album art + track info
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 24),
-                  child: _DesktopTrackInfo(
-                    currentTrack: currentTrack,
-                    btnColor: buttonColor,
-                  ),
-                ),
-              ),
-            ),
-
-            // Center: Playback controls + progress
-            Expanded(
-              flex: 2,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 860),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _DesktopPlaybackControls(btnColor: buttonColor),
-                      _DesktopProgressBar(btnColor: buttonColor),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // Right: Volume + queue
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 24),
-                  child: _DesktopRightControls(
-                    currentTrack: currentTrack,
-                    btnColor: buttonColor,
-                  ),
-                ),
+            const Icon(Icons.cast_connected, size: 14, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(
+              message,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: mobile ? 10 : 11,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -441,8 +566,24 @@ class _DesktopProgressBar extends StatelessWidget {
       selector: (context, player) => _PositionData(
         position: player.throttledPosition,
         duration: player.duration,
+        isLoading: player.isLoading || player.isBuffering,
       ),
       builder: (context, data, child) {
+        if (data.isLoading) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: const SizedBox(
+                height: 4,
+                child: LinearProgressIndicator(
+                  backgroundColor: Colors.transparent,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+            ),
+          );
+        }
+
         final duration = data.duration;
         final progress = duration.inMilliseconds > 0
             ? data.position.inMilliseconds / duration.inMilliseconds
@@ -502,9 +643,9 @@ class _DesktopProgressBar extends StatelessWidget {
                               milliseconds: (value * duration.inMilliseconds)
                                   .toInt(),
                             );
-                            context
-                                .read<global_audio_player.WispAudioHandler>()
-                                .seek(newPosition);
+                            context.read<ConnectSessionProvider>().requestSeek(
+                              newPosition,
+                            );
                           },
                         ),
                       ),
@@ -908,7 +1049,11 @@ class _DesktopPlaybackControls extends StatelessWidget {
         );
       },
       builder: (context, data, child) {
-        final player = context.read<global_audio_player.WispAudioHandler>();
+        final connect = context.watch<ConnectSessionProvider>();
+        final useHandoffState = connect.isLinked && connect.isHost;
+        final effectiveIsPlaying = useHandoffState
+            ? connect.linkedIsPlaying
+            : data.isPlaying;
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -922,7 +1067,9 @@ class _DesktopPlaybackControls extends StatelessWidget {
                 color: data.shuffleEnabled ? btnColor : Colors.grey[400],
                 size: 20,
               ),
-              onPressed: player.toggleShuffle,
+              onPressed: () {
+                connect.requestToggleShuffle();
+              },
             ),
 
             SizedBox(width: 4),
@@ -932,7 +1079,11 @@ class _DesktopPlaybackControls extends StatelessWidget {
               padding: EdgeInsets.all(4),
               constraints: BoxConstraints(),
               icon: Icon(Icons.skip_previous, color: Colors.white, size: 28),
-              onPressed: data.queueNotEmpty ? player.skipPrevious : null,
+              onPressed: data.queueNotEmpty
+                  ? () {
+                      connect.requestSkipPrevious();
+                    }
+                  : null,
             ),
 
             SizedBox(width: 4),
@@ -947,7 +1098,11 @@ class _DesktopPlaybackControls extends StatelessWidget {
               padding: EdgeInsets.all(4),
               constraints: BoxConstraints(),
               icon: Icon(Icons.skip_next, color: Colors.white, size: 28),
-              onPressed: data.queueNotEmpty ? player.skipNext : null,
+              onPressed: data.queueNotEmpty
+                  ? () {
+                      connect.requestSkipNext();
+                    }
+                  : null,
             ),
 
             SizedBox(width: 4),
@@ -965,7 +1120,9 @@ class _DesktopPlaybackControls extends StatelessWidget {
                     : Colors.grey[400],
                 size: 20,
               ),
-              onPressed: player.toggleRepeat,
+              onPressed: () {
+                connect.requestToggleRepeat();
+              },
             ),
           ],
         );
@@ -982,6 +1139,12 @@ class _DesktopPlayPauseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final connect = context.watch<ConnectSessionProvider>();
+    final useHandoffState = connect.isLinked && connect.isHost;
+    final effectiveIsPlaying = useHandoffState
+        ? connect.linkedIsPlaying
+        : data.isPlaying;
+
     if (data.isLoading || data.isBuffering) {
       return Padding(
         padding: EdgeInsets.all(8),
@@ -998,23 +1161,29 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       );
     }
 
-    final player = context.read<global_audio_player.WispAudioHandler>();
     final isOfflineBlocked =
+        !useHandoffState &&
         !data.isOnline &&
         data.currentTrackId != null &&
         !data.currentTrackCached;
-    IconData icon = data.isPlaying
+    IconData icon = effectiveIsPlaying
         ? Icons.pause_circle_filled
         : Icons.play_circle_filled;
     VoidCallback? onPressed;
 
     if (!isOfflineBlocked) {
-      if (data.isPlaying) {
-        onPressed = player.pause;
+      if (effectiveIsPlaying) {
+        onPressed = () {
+          connect.requestPause();
+        };
       } else if (data.currentTrackId != null) {
-        onPressed = player.play;
+        onPressed = () {
+          connect.requestPlay();
+        };
       } else if (data.queueNotEmpty) {
-        onPressed = () => player.playTrack(player.queueTracks.first);
+        onPressed = () {
+          connect.requestPlay();
+        };
       }
     }
 
@@ -1060,155 +1229,169 @@ class _DesktopRightControls extends StatelessWidget {
         final activeColor = btnColor ?? Theme.of(context).colorScheme.primary;
         final inactiveColor = Colors.grey[400];
 
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Right sidebar toggle
-            IconButton(
-              icon: Icon(
-                Icons.view_sidebar_outlined,
-                color: isSidebarOpen ? activeColor : inactiveColor,
-                size: 20,
-              ),
-              onPressed: navState.toggleRightSidebar,
-            ),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final showLyricsButton = width >= 230;
+            final showQueueButton = width >= 280;
+            final showVolumeSlider = width >= 390;
 
-            SizedBox(width: 8),
-
-            // Lyrics button
-            IconButton(
-              icon: Icon(
-                Icons.music_note,
-                color: isLyricsOpen ? activeColor : inactiveColor,
-                size: 20,
-              ),
-              onPressed: currentTrack == null
-                  ? null
-                  : () {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.view_sidebar_outlined,
+                    color: isSidebarOpen ? activeColor : inactiveColor,
+                    size: 20,
+                  ),
+                  onPressed: navState.toggleRightSidebar,
+                ),
+                const SizedBox(width: 8),
+                if (showLyricsButton) ...[
+                  IconButton(
+                    icon: Icon(
+                      Icons.music_note,
+                      color: isLyricsOpen ? activeColor : inactiveColor,
+                      size: 20,
+                    ),
+                    onPressed: currentTrack == null
+                        ? null
+                        : () {
+                            final currentScreen = NavigationHistory
+                                .instance
+                                .currentRoute
+                                .value
+                                ?.settings
+                                .name;
+                            if (currentScreen == '/lyrics') {
+                              NavigationHistory.instance.goBack();
+                            } else {
+                              _openLyrics(context);
+                            }
+                          },
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                if (showQueueButton) ...[
+                  IconButton(
+                    icon: Icon(
+                      Icons.queue_music,
+                      color: isQueueOpen ? activeColor : inactiveColor,
+                      size: 20,
+                    ),
+                    onPressed: () {
                       final currentScreen = NavigationHistory
                           .instance
                           .currentRoute
                           .value
                           ?.settings
                           .name;
-                      if (currentScreen == '/lyrics') {
+                      if (currentScreen == '/queue') {
                         NavigationHistory.instance.goBack();
                       } else {
-                        _openLyrics(context);
+                        _openQueue(context);
                       }
                     },
-            ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                _ConnectMenuButton(
+                  iconSize: 20,
+                  inactiveColor: inactiveColor,
+                  activeColorOverride: activeColor,
+                ),
+                const SizedBox(width: 8),
+                Selector<global_audio_player.WispAudioHandler, double>(
+                  selector: (context, player) => player.volume,
+                  builder: (context, volume, child) {
+                    final player = context
+                        .read<global_audio_player.WispAudioHandler>();
+                    if (!showVolumeSlider) {
+                      return _VolumePopupButton(
+                        inactiveColor: inactiveColor,
+                        accentColor: activeColor,
+                      );
+                    }
 
-            SizedBox(width: 8),
-
-            // Queue button
-            IconButton(
-              icon: Icon(
-                Icons.queue_music,
-                color: isQueueOpen ? activeColor : inactiveColor,
-                size: 20,
-              ),
-              onPressed: () {
-                final currentScreen = NavigationHistory
-                    .instance
-                    .currentRoute
-                    .value
-                    ?.settings
-                    .name;
-                if (currentScreen == '/queue') {
-                  NavigationHistory.instance.goBack();
-                } else {
-                  _openQueue(context);
-                }
-              },
-            ),
-
-            SizedBox(width: 8),
-
-            // Volume control
-            Selector<global_audio_player.WispAudioHandler, double>(
-              selector: (context, player) => player.volume,
-              builder: (context, volume, child) {
-                final player = context
-                    .read<global_audio_player.WispAudioHandler>();
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      mouseCursor: SystemMouseCursors.click,
-                      tooltip: volume == 0 ? 'Unmute' : 'Mute',
-                      onPressed: player.toggleMute,
-                      icon: Icon(
-                        volume == 0
-                            ? Icons.volume_off
-                            : volume < 0.5
-                            ? Icons.volume_down
-                            : Icons.volume_up,
-                        color: Colors.grey[400],
-                        size: 20,
-                      ),
-                    ),
-                    SizedBox(width: 4),
-                    SizedBox(
-                      width: 100,
-                      child: SliderTheme(
-                        data: SliderThemeData(
-                          trackHeight: 4,
-                          thumbShape: RoundSliderThumbShape(
-                            enabledThumbRadius: 6,
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          mouseCursor: SystemMouseCursors.click,
+                          tooltip: volume == 0 ? 'Unmute' : 'Mute',
+                          onPressed: player.toggleMute,
+                          icon: Icon(
+                            volume == 0
+                                ? Icons.volume_off
+                                : volume < 0.5
+                                ? Icons.volume_down
+                                : Icons.volume_up,
+                            color: Colors.grey[400],
+                            size: 20,
                           ),
-                          overlayShape: RoundSliderOverlayShape(
-                            overlayRadius: 12,
+                        ),
+                        const SizedBox(width: 4),
+                        SizedBox(
+                          width: 100,
+                          child: SliderTheme(
+                            data: SliderThemeData(
+                              trackHeight: 4,
+                              thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 6,
+                              ),
+                              overlayShape: const RoundSliderOverlayShape(
+                                overlayRadius: 12,
+                              ),
+                              activeTrackColor:
+                                  btnColor ??
+                                  Theme.of(context).colorScheme.primary,
+                              inactiveTrackColor: Colors.grey[800],
+                              thumbColor: Colors.white,
+                              overlayColor: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.2),
+                            ),
+                            child: Slider(
+                              value: volume,
+                              onChanged: (value) => player.setVolume(value),
+                            ),
                           ),
-                          activeTrackColor:
-                              btnColor ?? Theme.of(context).colorScheme.primary,
-                          inactiveTrackColor: Colors.grey[800],
-                          thumbColor: Colors.white,
-                          overlayColor: Theme.of(
-                            context,
-                          ).colorScheme.primary.withOpacity(0.2),
                         ),
-                        child: Slider(
-                          value: volume,
-                          onChanged: (value) => player.setVolume(value),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-
-            SizedBox(width: 8),
-
-            // Full Screen button
-            IconButton(
-              icon: Icon(
-                Icons.fullscreen,
-                color: isFullScreenOpen ? activeColor : inactiveColor,
-                size: 20,
-              ),
-              onPressed: () {
-                final currentScreen = NavigationHistory
-                    .instance
-                    .currentRoute
-                    .value
-                    ?.settings
-                    .name;
-                if (currentScreen == '/fullplayer') {
-                  NavigationHistory.instance.goBack();
-                  navState.rightSidebarVisible
-                      ? null
-                      : navState.toggleRightSidebar();
-                } else {
-                  _openFullPlayer(context);
-                  navState.rightSidebarVisible
-                      ? navState.toggleRightSidebar()
-                      : null;
-                }
-              },
-            ),
-          ],
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: Icon(
+                    Icons.fullscreen,
+                    color: isFullScreenOpen ? activeColor : inactiveColor,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    final currentScreen = NavigationHistory
+                        .instance
+                        .currentRoute
+                        .value
+                        ?.settings
+                        .name;
+                    if (currentScreen == '/fullplayer') {
+                      NavigationHistory.instance.goBack();
+                      navState.rightSidebarVisible
+                          ? null
+                          : navState.toggleRightSidebar();
+                    } else {
+                      _openFullPlayer(context);
+                      navState.rightSidebarVisible
+                          ? navState.toggleRightSidebar()
+                          : null;
+                    }
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -1239,21 +1422,657 @@ void _openQueue(BuildContext context) {
   AppNavigation.instance.openQueue();
 }
 
+Future<void> _openConnectMenuWithAccent(
+  BuildContext context,
+  Color? accentColor,
+) async {
+  final connect = context.read<ConnectSessionProvider>();
+  connect.startDiscovery();
+
+  final isMobile = Platform.isAndroid || Platform.isIOS;
+
+  if (isMobile) {
+    final themePrimary = accentColor ?? Theme.of(context).colorScheme.primary;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final mediaQuery = MediaQuery.of(sheetContext);
+        final maxHeight = mediaQuery.size.height * 0.75;
+        return SafeArea(
+          top: false,
+          child: Container(
+            height: maxHeight,
+            decoration: BoxDecoration(
+              color: const Color(0xFF171717),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+              border: Border.all(
+                color: themePrimary.withValues(alpha: 0.35),
+                width: 1,
+              ),
+            ),
+            child: _ConnectPanelContent(
+              accentColor: themePrimary,
+              onClose: () => Navigator.of(sheetContext).pop(),
+              isMobileSheet: true,
+            ),
+          ),
+        );
+      },
+    );
+    return;
+  }
+
+  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+  final button = context.findRenderObject() as RenderBox;
+  final buttonRect = Rect.fromPoints(
+    button.localToGlobal(Offset.zero, ancestor: overlay),
+    button.localToGlobal(
+      button.size.bottomRight(Offset.zero),
+      ancestor: overlay,
+    ),
+  );
+
+  await showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Dismiss',
+    barrierColor: Colors.transparent,
+    transitionDuration: const Duration(milliseconds: 150),
+    pageBuilder: (dialogContext, animation, secondaryAnimation) {
+      return _ConnectQuickPanel(
+        anchorRect: buttonRect,
+        overlaySize: overlay.size,
+        accentColor: accentColor,
+      );
+    },
+  );
+}
+
+class _ConnectQuickPanel extends StatelessWidget {
+  final Rect anchorRect;
+  final Size overlaySize;
+  final Color? accentColor;
+
+  const _ConnectQuickPanel({
+    required this.anchorRect,
+    required this.overlaySize,
+    this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themePrimary = accentColor ?? Theme.of(context).colorScheme.primary;
+    const panelWidth = 340.0;
+    const panelHeight = 360.0;
+    const margin = 8.0;
+
+    final left = (anchorRect.center.dx - (panelWidth / 2)).clamp(
+      margin,
+      overlaySize.width - panelWidth - margin,
+    );
+    final top = (anchorRect.top - panelHeight - margin).clamp(
+      margin,
+      overlaySize.height - panelHeight - margin,
+    );
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+          ),
+        ),
+        Positioned(
+          left: left,
+          top: top,
+          width: panelWidth,
+          height: panelHeight,
+          child: Material(
+            color: const Color(0xFF171717),
+            borderRadius: BorderRadius.circular(14),
+            elevation: 14,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: themePrimary.withValues(alpha: 0.35),
+                  width: 1,
+                ),
+              ),
+              child: _ConnectPanelContent(
+                accentColor: themePrimary,
+                onClose: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConnectPanelContent extends StatelessWidget {
+  final Color accentColor;
+  final VoidCallback onClose;
+  final bool isMobileSheet;
+
+  const _ConnectPanelContent({
+    required this.accentColor,
+    required this.onClose,
+    this.isMobileSheet = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ConnectSessionProvider>(
+      builder: (context, connect, child) {
+        final linkedLabel = _linkedDeviceLabel(connect);
+        final pendingRequest = connect.pendingPairRequest;
+        final devices = connect.discoveredDevices
+            .where((device) => device.id != connect.localDeviceId)
+            .toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.cast_connected, size: 18, color: accentColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Handoff',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isMobileSheet ? 18 : 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Refresh Handoff devices',
+                    splashRadius: 18,
+                    onPressed: connect.refreshDiscovery,
+                    icon: Icon(Icons.refresh, size: 18, color: accentColor),
+                  ),
+                ],
+              ),
+            ),
+            if (linkedLabel != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF212121),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: accentColor.withValues(alpha: 0.4),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.link, size: 16, color: accentColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          linkedLabel,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: isMobileSheet ? 14 : null,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          connect.unlink(localResumed: true);
+                          onClose();
+                        },
+                        child: const Text('Unlink'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (pendingRequest != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF212121),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: accentColor.withValues(alpha: 0.4),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${pendingRequest.fromDeviceName} wants to pair via Handoff',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: isMobileSheet ? 14 : 13,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: connect.rejectIncomingPair,
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: Colors.grey[700]!),
+                              ),
+                              child: const Text('Decline'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: connect.acceptIncomingPair,
+                              child: const Text('Accept'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                14,
+                linkedLabel != null ? 12 : 2,
+                14,
+                8,
+              ),
+              child: Text(
+                'Available devices',
+                style: TextStyle(
+                  color: Colors.grey[300],
+                  fontSize: isMobileSheet ? 14 : 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(
+              child: devices.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No devices found on this network.',
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: isMobileSheet ? 14 : 13,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      itemCount: devices.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final device = devices[index];
+                        final isLinkedDevice =
+                            connect.linkedDeviceId == device.id;
+                        return Material(
+                          color: const Color(0xFF202020),
+                          borderRadius: BorderRadius.circular(10),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: isLinkedDevice
+                                ? null
+                                : () {
+                                    connect.beginPairing(device.id);
+                                    onClose();
+                                  },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.devices,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          device.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: isMobileSheet ? 15 : null,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          device.platform,
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: isMobileSheet ? 13 : 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isLinkedDevice)
+                                    Text(
+                                      'Linked',
+                                      style: TextStyle(
+                                        color: accentColor,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: isMobileSheet ? 13 : 12,
+                                      ),
+                                    )
+                                  else
+                                    const Icon(
+                                      Icons.chevron_right,
+                                      color: Colors.white70,
+                                      size: 18,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ConnectMenuButton extends StatelessWidget {
+  final double iconSize;
+  final Color? inactiveColor;
+  final Color? activeColorOverride;
+
+  const _ConnectMenuButton({
+    required this.iconSize,
+    this.inactiveColor,
+    this.activeColorOverride,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor =
+        activeColorOverride ?? Theme.of(context).colorScheme.primary;
+    return Selector<ConnectSessionProvider, bool>(
+      selector: (context, connect) => connect.isLinked,
+      builder: (context, isLinked, child) {
+        return IconButton(
+          icon: Icon(
+            Icons.cast_connected,
+            color: isLinked ? activeColor : (inactiveColor ?? Colors.grey[400]),
+            size: iconSize,
+          ),
+          tooltip: 'Handoff',
+          onPressed: () => _openConnectMenuWithAccent(context, activeColor),
+        );
+      },
+    );
+  }
+}
+
+class _VolumePopupButton extends StatelessWidget {
+  final Color? inactiveColor;
+  final Color? accentColor;
+
+  const _VolumePopupButton({this.inactiveColor, this.accentColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<global_audio_player.WispAudioHandler, double>(
+      selector: (context, player) => player.volume,
+      builder: (context, volume, child) {
+        return IconButton(
+          mouseCursor: SystemMouseCursors.click,
+          tooltip: 'Volume',
+          onPressed: () => _openVolumeMenu(context, accentColor: accentColor),
+          icon: Icon(
+            volume == 0
+                ? Icons.volume_off
+                : volume < 0.5
+                ? Icons.volume_down
+                : Icons.volume_up,
+            color: inactiveColor ?? Colors.grey[400],
+            size: 20,
+          ),
+        );
+      },
+    );
+  }
+}
+
+Future<void> _openVolumeMenu(BuildContext context, {Color? accentColor}) async {
+  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+  final button = context.findRenderObject() as RenderBox;
+  final buttonRect = Rect.fromPoints(
+    button.localToGlobal(Offset.zero, ancestor: overlay),
+    button.localToGlobal(
+      button.size.bottomRight(Offset.zero),
+      ancestor: overlay,
+    ),
+  );
+
+  await showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Dismiss',
+    barrierColor: Colors.transparent,
+    transitionDuration: const Duration(milliseconds: 120),
+    pageBuilder: (dialogContext, animation, secondaryAnimation) {
+      return _VolumeQuickPanel(
+        anchorRect: buttonRect,
+        overlaySize: overlay.size,
+        accentColor: accentColor,
+      );
+    },
+  );
+}
+
+class _VolumeQuickPanel extends StatelessWidget {
+  final Rect anchorRect;
+  final Size overlaySize;
+  final Color? accentColor;
+
+  const _VolumeQuickPanel({
+    required this.anchorRect,
+    required this.overlaySize,
+    this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themePrimary = accentColor ?? Theme.of(context).colorScheme.primary;
+    const panelWidth = 72.0;
+    const panelHeight = 210.0;
+    const margin = 8.0;
+
+    final left = (anchorRect.center.dx - (panelWidth / 2)).clamp(
+      margin,
+      overlaySize.width - panelWidth - margin,
+    );
+    final top = (anchorRect.top - panelHeight - margin).clamp(
+      margin,
+      overlaySize.height - panelHeight - margin,
+    );
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+          ),
+        ),
+        Positioned(
+          left: left,
+          top: top,
+          width: panelWidth,
+          height: panelHeight,
+          child: Material(
+            color: const Color(0xFF171717),
+            borderRadius: BorderRadius.circular(12),
+            elevation: 10,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: themePrimary.withValues(alpha: 0.35),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                child: Selector<global_audio_player.WispAudioHandler, double>(
+                  selector: (context, player) => player.volume,
+                  builder: (context, volume, child) {
+                    final player = context
+                        .read<global_audio_player.WispAudioHandler>();
+                    return Column(
+                      children: [
+                        Icon(
+                          volume == 0
+                              ? Icons.volume_off
+                              : volume < 0.5
+                              ? Icons.volume_down
+                              : Icons.volume_up,
+                          color: themePrimary,
+                          size: 18,
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: RotatedBox(
+                            quarterTurns: 3,
+                            child: SliderTheme(
+                              data: SliderThemeData(
+                                trackHeight: 4,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 6,
+                                ),
+                                overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 12,
+                                ),
+                                activeTrackColor: themePrimary,
+                                inactiveTrackColor: Colors.grey[800],
+                                thumbColor: Colors.white,
+                                overlayColor: themePrimary.withValues(
+                                  alpha: 0.2,
+                                ),
+                              ),
+                              child: Slider(
+                                min: 0,
+                                max: 1,
+                                value: volume,
+                                label: '${(volume * 100).round()}%',
+                                divisions: 100,
+                                onChanged: (value) => player.setVolume(value),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String? _linkedDeviceLabel(ConnectSessionProvider connect) {
+  final linkedId = connect.linkedDeviceId;
+  if (linkedId == null || linkedId.isEmpty) return null;
+
+  for (final device in connect.discoveredDevices) {
+    if (device.id == linkedId) {
+      return device.name;
+    }
+  }
+
+  if (linkedId.length > 10) {
+    return 'Device ${linkedId.substring(0, 10)}';
+  }
+
+  return 'Device $linkedId';
+}
+
+String? _handoffStatusMessage(ConnectSessionProvider connect) {
+  if (connect.phase == ConnectPhase.pairing && !connect.isLinked) {
+    return 'Handoff | Waiting for approval...';
+  }
+
+  if (connect.isLinked) {
+    final label = _linkedDeviceLabel(connect) ?? 'Device';
+    if (connect.isTarget) {
+      return 'Handoff | Controlling from $label';
+    }
+    return 'Handoff | Listening on: $label';
+  }
+
+  return null;
+}
+
 class _PositionData {
   final Duration position;
   final Duration duration;
+  final bool isLoading;
 
-  const _PositionData({required this.position, required this.duration});
+  const _PositionData({
+    required this.position,
+    required this.duration,
+    this.isLoading = false,
+  });
 
   @override
   bool operator ==(Object other) =>
       other is _PositionData &&
       other.position.inMilliseconds == position.inMilliseconds &&
-      other.duration.inMilliseconds == duration.inMilliseconds;
+      other.duration.inMilliseconds == duration.inMilliseconds &&
+      other.isLoading == isLoading;
 
   @override
   int get hashCode =>
-      Object.hash(position.inMilliseconds, duration.inMilliseconds);
+      Object.hash(position.inMilliseconds, duration.inMilliseconds, isLoading);
 }
 
 class _PlayPauseData {

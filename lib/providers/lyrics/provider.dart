@@ -12,11 +12,13 @@ class LyricsFetchState {
   final bool isLoading;
   final LyricsResult? lyrics;
   final String? error;
+  final bool hasFetched;
 
   const LyricsFetchState({
     required this.isLoading,
     this.lyrics,
     this.error,
+    this.hasFetched = false,
   });
 
   const LyricsFetchState.idle() : this(isLoading: false);
@@ -25,11 +27,13 @@ class LyricsFetchState {
     bool? isLoading,
     LyricsResult? lyrics,
     String? error,
+    bool? hasFetched,
   }) {
     return LyricsFetchState(
       isLoading: isLoading ?? this.isLoading,
       lyrics: lyrics ?? this.lyrics,
       error: error ?? this.error,
+      hasFetched: hasFetched ?? this.hasFetched,
     );
   }
 }
@@ -44,6 +48,7 @@ class LyricsProvider extends ChangeNotifier {
 
   final Map<String, LyricsFetchState> _cache = {};
   final Map<String, DateTime> _lastErrorAt = {};
+  final Set<String> _lyricsInFlight = {};
   final Map<String, double> _delayCache = {};
   final Set<String> _delayLoading = {};
 
@@ -58,44 +63,67 @@ class LyricsProvider extends ChangeNotifier {
   Future<void> ensureLyrics(GenericSong track, LyricsSyncMode mode) async {
     final key = _key(track.id, mode);
     final current = _cache[key];
-    if (current?.isLoading == true) return;
+    if (current?.isLoading == true || _lyricsInFlight.contains(key)) return;
 
-    final lastErrorAt = _lastErrorAt[key];
-    if (lastErrorAt != null) {
-      final sinceError = DateTime.now().difference(lastErrorAt);
-      if (sinceError < _errorRetryCooldown) {
-        return;
-      }
+    if (current != null && current.hasFetched && current.error == null) {
+      return;
     }
 
-    final cached = await _readCachedLyrics(track.id, mode);
-    if (cached != null) {
-      _cache[key] = LyricsFetchState(isLoading: false, lyrics: cached.lyrics);
-      notifyListeners();
-      if (!cached.isExpired) return;
-    }
-
-    if (current?.lyrics != null && cached == null) return;
-
-    _cache[key] = const LyricsFetchState(isLoading: true);
-    notifyListeners();
+    _lyricsInFlight.add(key);
 
     try {
-      final result = await _fetchLyrics(track, mode);
-      _cache[key] = LyricsFetchState(isLoading: false, lyrics: result);
-      _lastErrorAt.remove(key);
-      if (result != null) {
-        await _writeCachedLyrics(track.id, mode, result);
+      final lastErrorAt = _lastErrorAt[key];
+      if (lastErrorAt != null) {
+        final sinceError = DateTime.now().difference(lastErrorAt);
+        if (sinceError < _errorRetryCooldown) {
+          return;
+        }
       }
-    } catch (e) {
-      _cache[key] = LyricsFetchState(
-        isLoading: false,
-        error: e.toString(),
-      );
-      _lastErrorAt[key] = DateTime.now();
-    }
 
-    notifyListeners();
+      final cached = await _readCachedLyrics(track.id, mode);
+      if (cached != null) {
+        _cache[key] = LyricsFetchState(
+          isLoading: false,
+          lyrics: cached.lyrics,
+          hasFetched: true,
+        );
+        notifyListeners();
+        if (!cached.isExpired) return;
+      }
+
+      if (current?.lyrics != null && cached == null) return;
+
+      _cache[key] = LyricsFetchState(
+        isLoading: true,
+        lyrics: current?.lyrics,
+        hasFetched: current?.hasFetched ?? false,
+      );
+      notifyListeners();
+
+      try {
+        final result = await _fetchLyrics(track, mode);
+        _cache[key] = LyricsFetchState(
+          isLoading: false,
+          lyrics: result,
+          hasFetched: true,
+        );
+        _lastErrorAt.remove(key);
+        if (result != null) {
+          await _writeCachedLyrics(track.id, mode, result);
+        }
+      } catch (e) {
+        _cache[key] = LyricsFetchState(
+          isLoading: false,
+          error: e.toString(),
+          hasFetched: true,
+        );
+        _lastErrorAt[key] = DateTime.now();
+      }
+
+      notifyListeners();
+    } finally {
+      _lyricsInFlight.remove(key);
+    }
   }
 
   double getDelaySecondsCached(String trackId) {
