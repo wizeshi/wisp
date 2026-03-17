@@ -11,10 +11,29 @@ enum ConnectPhase {
   error,
 }
 
-enum ConnectRole {
-  none,
-  host,
-  target,
+enum ConnectRole { none, host, target }
+
+enum ConnectLinkMode { fullHandoff, controlOnly }
+
+extension ConnectLinkModeJson on ConnectLinkMode {
+  String toJson() {
+    switch (this) {
+      case ConnectLinkMode.controlOnly:
+        return 'control_only';
+      case ConnectLinkMode.fullHandoff:
+        return 'full_handoff';
+    }
+  }
+
+  static ConnectLinkMode fromJson(String? value) {
+    switch (value) {
+      case 'control_only':
+        return ConnectLinkMode.controlOnly;
+      case 'full_handoff':
+      default:
+        return ConnectLinkMode.fullHandoff;
+    }
+  }
 }
 
 class ConnectDevice {
@@ -116,7 +135,8 @@ class ConnectPlaybackSnapshot {
 
   factory ConnectPlaybackSnapshot.fromJson(Map<String, dynamic> json) {
     final queueJson = (json['queue'] as List<dynamic>? ?? const []);
-    final originalQueueJson = (json['original_queue'] as List<dynamic>? ?? const []);
+    final originalQueueJson =
+        (json['original_queue'] as List<dynamic>? ?? const []);
     final resolvedIdsJson =
         (json['resolved_youtube_ids'] as Map<String, dynamic>? ?? const {});
 

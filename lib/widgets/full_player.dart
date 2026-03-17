@@ -360,6 +360,85 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                         ),
                       ),
                     ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF212121),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Next link mode:',
+                              style: TextStyle(
+                                color: Colors.grey[300],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SegmentedButton<ConnectLinkMode>(
+                              showSelectedIcon: false,
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? Colors.white.withValues(alpha: 0.12)
+                                          : Colors.transparent,
+                                    ),
+                                foregroundColor: WidgetStateProperty.all<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                              segments: const [
+                                ButtonSegment<ConnectLinkMode>(
+                                  value: ConnectLinkMode.fullHandoff,
+                                  label: Text('Full'),
+                                ),
+                                ButtonSegment<ConnectLinkMode>(
+                                  value: ConnectLinkMode.controlOnly,
+                                  label: Text('Controls'),
+                                ),
+                              ],
+                              selected: {connect.nextOutgoingLinkMode},
+                              onSelectionChanged: (selection) {
+                                connect.setNextOutgoingLinkMode(
+                                  selection.first,
+                                );
+                              },
+                            ),
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: connect.rememberModeForNextLink,
+                                  onChanged: (value) {
+                                    connect.setRememberModeForNextLink(
+                                      value ?? false,
+                                    );
+                                  },
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    'Remember for next session',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                     Expanded(
                       child: devices.isEmpty
                           ? Center(
@@ -385,7 +464,13 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                                     onTap: isLinkedDevice
                                         ? null
                                         : () {
-                                            connect.beginPairing(device.id);
+                                            connect.beginPairing(
+                                              device.id,
+                                              mode:
+                                                  connect.nextOutgoingLinkMode,
+                                              rememberForDevice: connect
+                                                  .rememberModeForNextLink,
+                                            );
                                             Navigator.of(sheetContext).pop();
                                           },
                                     child: Padding(
@@ -1505,10 +1590,7 @@ class _RotatingBlurredCoverBackgroundState
                         top: centerY - (imageSize / 2),
                         width: imageSize,
                         height: imageSize,
-                        child: Transform.rotate(
-                          angle: angle,
-                          child: child!,
-                        ),
+                        child: Transform.rotate(angle: angle, child: child!),
                       ),
                     ],
                   );
@@ -1695,7 +1777,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                     child: OutlinedButton(
                                       onPressed: connect.rejectIncomingPair,
                                       style: OutlinedButton.styleFrom(
-                                        side: BorderSide(color: Colors.grey[700]!),
+                                        side: BorderSide(
+                                          color: Colors.grey[700]!,
+                                        ),
                                       ),
                                       child: const Text('Decline'),
                                     ),
@@ -1721,6 +1805,86 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                           color: Colors.grey[300],
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF212121),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Next link mode:',
+                              style: TextStyle(
+                                color: Colors.grey[300],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SegmentedButton<ConnectLinkMode>(
+                              showSelectedIcon: false,
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? Colors.white.withValues(alpha: 0.12)
+                                          : Colors.transparent,
+                                    ),
+                                foregroundColor: WidgetStateProperty.all<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                              segments: const [
+                                ButtonSegment<ConnectLinkMode>(
+                                  value: ConnectLinkMode.fullHandoff,
+                                  label: Text('Full'),
+                                ),
+                                ButtonSegment<ConnectLinkMode>(
+                                  value: ConnectLinkMode.controlOnly,
+                                  label: Text('Controls'),
+                                ),
+                              ],
+                              selected: {connect.nextOutgoingLinkMode},
+                              onSelectionChanged: (selection) {
+                                connect.setNextOutgoingLinkMode(
+                                  selection.first,
+                                );
+                              },
+                            ),
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: connect.rememberModeForNextLink,
+                                  onChanged: (value) {
+                                    connect.setRememberModeForNextLink(
+                                      value ?? false,
+                                    );
+                                  },
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    'Remember for next session',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1752,7 +1916,13 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                     onTap: isLinkedDevice
                                         ? null
                                         : () {
-                                            connect.beginPairing(device.id);
+                                            connect.beginPairing(
+                                              device.id,
+                                              mode:
+                                                  connect.nextOutgoingLinkMode,
+                                              rememberForDevice: connect
+                                                  .rememberModeForNextLink,
+                                            );
                                             Navigator.of(sheetContext).pop();
                                           },
                                     child: Padding(
@@ -1892,9 +2062,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           AnimatedAlign(
             duration: const Duration(milliseconds: 340),
             curve: Curves.easeInOutCubic,
-            alignment: isNowPlaying
-                ? Alignment.center
-                : Alignment.centerLeft,
+            alignment: isNowPlaying ? Alignment.center : Alignment.centerLeft,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 340),
               curve: Curves.easeInOutCubic,
@@ -2001,9 +2169,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
     final lyrics = state.lyrics;
     if (state.isLoading && lyrics == null) {
-      return const Center(
-        child: CircularProgressIndicator(strokeWidth: 2),
-      );
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
     if (lyrics == null || lyrics.lines.isEmpty) {
       return Center(
@@ -2073,17 +2239,14 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             final lyricLine = lyrics.lines[index];
             final line = lyricLine.content.trim();
             if (line.isEmpty) {
-              return SizedBox(
-                key: lineKeys[index],
-                height: 18,
-              );
+              return SizedBox(key: lineKeys[index], height: 18);
             }
 
             final distance = (index - currentIndex).abs();
             final isCurrent = index == currentIndex;
             final opacity = isCurrent
                 ? 1.0
-              : (1.0 - (distance * 0.22)).clamp(0.16, 0.72);
+                : (1.0 - (distance * 0.22)).clamp(0.16, 0.72);
 
             return AnimatedOpacity(
               key: lineKeys[index],
@@ -2099,9 +2262,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                               .clamp(0, player.duration.inMilliseconds)
                               .toInt();
                           unawaited(
-                            context
-                                .read<ConnectSessionProvider>()
-                                .requestSeek(Duration(milliseconds: seekMs)),
+                            context.read<ConnectSessionProvider>().requestSeek(
+                              Duration(milliseconds: seekMs),
+                            ),
                           );
                         }
                       : null,
@@ -2112,8 +2275,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       style: TextStyle(
                         color: isCurrent ? Colors.white : Colors.grey[500],
                         fontSize: isCurrent ? 34 : 30,
-                        fontWeight:
-                            isCurrent ? FontWeight.w700 : FontWeight.w600,
+                        fontWeight: isCurrent
+                            ? FontWeight.w700
+                            : FontWeight.w600,
                         height: 1.1,
                       ),
                     ),
@@ -2176,7 +2340,13 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: queue.isEmpty ? null : player.clearQueue,
+              onPressed: queue.isEmpty
+                  ? null
+                  : () {
+                      context
+                          .read<ConnectSessionProvider>()
+                          .requestClearQueue();
+                    },
               child: Text(
                 'Clear',
                 style: TextStyle(color: Colors.grey[400], fontSize: 15),
@@ -2222,15 +2392,15 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     return InkWell(
                       borderRadius: BorderRadius.circular(8),
                       onTap: () {
-                        unawaited(player.playTrack(track, addToQueue: false));
+                        unawaited(
+                          context
+                              .read<ConnectSessionProvider>()
+                              .requestPlayQueueIndex(index),
+                        );
                       },
                       child: Row(
                         children: [
-                          _buildCoverImageBox(
-                            context,
-                            track.thumbnailUrl,
-                            56,
-                          ),
+                          _buildCoverImageBox(context, track.thumbnailUrl, 56),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -2679,7 +2849,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 },
               ),
               IconButton(
-                icon: const Icon(CupertinoIcons.music_note_list),
+                icon: const Icon(CupertinoIcons.list_bullet),
                 iconSize: 24,
                 color: mode == _ApplePlayerViewMode.queue
                     ? btnColor
@@ -3006,7 +3176,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 return ValueListenableBuilder<_ApplePlayerViewMode>(
                   valueListenable: _modeNotifier,
                   builder: (context, mode, _) {
-                    final isNowPlaying = mode == _ApplePlayerViewMode.nowPlaying;
+                    final isNowPlaying =
+                        mode == _ApplePlayerViewMode.nowPlaying;
                     final useNowPlayingCanvas = isNowPlaying && hasCanvas;
 
                     return Stack(
@@ -3026,85 +3197,87 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                   topInset,
                                 ),
                         ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.45),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: bottomInset),
-                        child: Column(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24.0,
-                              ).add(EdgeInsets.only(top: topInset)),
-                              child: _buildHeader(context),
-                            ),
-                            const SizedBox(height: 24),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24.0,
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.45),
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: bottomInset),
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24.0,
+                                  ).add(EdgeInsets.only(top: topInset)),
+                                  child: _buildHeader(context),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildAnimatedCoverSection(
-                                      context,
-                                      mode,
-                                      currentTrack,
-                                      imageUrl,
-                                      useNowPlayingCanvas,
+                                const SizedBox(height: 24),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24.0,
                                     ),
-                                    const SizedBox(height: 32),
-                                    if (isNowPlaying) ...[
-                                      _buildSingleLyricsLine(
-                                        context,
-                                        player,
-                                        lyricsProvider,
-                                      ),
-                                      const SizedBox(height: 24),
-                                      _buildTrackInfo(
-                                        currentTrack,
-                                        btnColor ?? bgColor,
-                                      ),
-                                      const Spacer(),
-                                    ] else ...[
-                                      Expanded(
-                                        child: AnimatedSwitcher(
-                                          duration: const Duration(
-                                            milliseconds: 280,
-                                          ),
-                                          switchInCurve: Curves.easeOut,
-                                          switchOutCurve: Curves.easeIn,
-                                          child: KeyedSubtree(
-                                            key: ValueKey<_ApplePlayerViewMode>(
-                                              mode,
-                                            ),
-                                            child: _buildModeContent(
-                                              context,
-                                              mode,
-                                              player,
-                                              lyricsProvider,
-                                            ),
-                                          ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _buildAnimatedCoverSection(
+                                          context,
+                                          mode,
+                                          currentTrack,
+                                          imageUrl,
+                                          useNowPlayingCanvas,
                                         ),
-                                      ),
-                                    ],
-                                    _buildPlayerControls(
-                                      context,
-                                      player,
-                                      btnColor ?? bgColor,
-                                      mode,
+                                        const SizedBox(height: 32),
+                                        if (isNowPlaying) ...[
+                                          _buildSingleLyricsLine(
+                                            context,
+                                            player,
+                                            lyricsProvider,
+                                          ),
+                                          const SizedBox(height: 24),
+                                          _buildTrackInfo(
+                                            currentTrack,
+                                            btnColor ?? bgColor,
+                                          ),
+                                          const Spacer(),
+                                        ] else ...[
+                                          Expanded(
+                                            child: AnimatedSwitcher(
+                                              duration: const Duration(
+                                                milliseconds: 280,
+                                              ),
+                                              switchInCurve: Curves.easeOut,
+                                              switchOutCurve: Curves.easeIn,
+                                              child: KeyedSubtree(
+                                                key:
+                                                    ValueKey<
+                                                      _ApplePlayerViewMode
+                                                    >(mode),
+                                                child: _buildModeContent(
+                                                  context,
+                                                  mode,
+                                                  player,
+                                                  lyricsProvider,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                        _buildPlayerControls(
+                                          context,
+                                          player,
+                                          btnColor ?? bgColor,
+                                          mode,
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
                       ],
                     );
                   },

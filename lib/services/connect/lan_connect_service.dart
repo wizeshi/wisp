@@ -11,6 +11,7 @@ class ConnectPairRequest {
   final String fromPlatform;
   final String fromAddress;
   final int controlPort;
+  final ConnectLinkMode requestedMode;
 
   const ConnectPairRequest({
     required this.fromDeviceId,
@@ -18,6 +19,7 @@ class ConnectPairRequest {
     required this.fromPlatform,
     required this.fromAddress,
     required this.controlPort,
+    required this.requestedMode,
   });
 }
 
@@ -28,6 +30,7 @@ class ConnectPairResponse {
   final String fromPlatform;
   final String fromAddress;
   final int controlPort;
+  final ConnectLinkMode linkMode;
 
   const ConnectPairResponse({
     required this.accepted,
@@ -36,6 +39,7 @@ class ConnectPairResponse {
     required this.fromPlatform,
     required this.fromAddress,
     required this.controlPort,
+    required this.linkMode,
   });
 }
 
@@ -249,6 +253,7 @@ class LanConnectService {
     required String fromDeviceId,
     required String fromDeviceName,
     required String fromPlatform,
+    required ConnectLinkMode mode,
   }) {
     final address = target.address;
     if (address == null || address.isEmpty) return;
@@ -259,6 +264,7 @@ class LanConnectService {
       'from_device_name': fromDeviceName,
       'from_platform': fromPlatform,
       'control_port': _controlPort,
+      'requested_mode': mode.toJson(),
       'ts': DateTime.now().toIso8601String(),
     };
 
@@ -272,6 +278,7 @@ class LanConnectService {
     required String localDeviceId,
     required String localDeviceName,
     required String localPlatform,
+    required ConnectLinkMode mode,
   }) {
     final payload = {
       'type': accepted ? 'pair_accept' : 'pair_reject',
@@ -279,6 +286,7 @@ class LanConnectService {
       'from_device_name': localDeviceName,
       'from_platform': localPlatform,
       'control_port': _controlPort,
+      'link_mode': mode.toJson(),
       'ts': DateTime.now().toIso8601String(),
     };
     _sendControlDatagram(targetAddress, payload);
@@ -453,6 +461,9 @@ class LanConnectService {
           fromPlatform: (jsonMap['from_platform'] as String?) ?? 'unknown',
           fromAddress: datagram.address.address,
           controlPort: (jsonMap['control_port'] as int?) ?? _controlPort,
+          requestedMode: ConnectLinkModeJson.fromJson(
+            jsonMap['requested_mode'] as String?,
+          ),
         );
         _pairRequestController.add(request);
         logger.d(
@@ -470,6 +481,9 @@ class LanConnectService {
           fromPlatform: (jsonMap['from_platform'] as String?) ?? 'unknown',
           fromAddress: datagram.address.address,
           controlPort: (jsonMap['control_port'] as int?) ?? _controlPort,
+          linkMode: ConnectLinkModeJson.fromJson(
+            jsonMap['link_mode'] as String?,
+          ),
         );
         _pairResponseController.add(response);
         logger.d(

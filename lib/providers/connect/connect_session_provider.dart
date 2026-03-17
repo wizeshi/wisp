@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wisp/models/metadata_models.dart';
 import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/services/connect/lan_connect_service.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
@@ -12,6 +14,10 @@ import 'package:wisp/utils/logger.dart';
 
 class ConnectSessionProvider extends ChangeNotifier {
   static const String _keyLocalDeviceId = 'connect_local_device_id';
+  static const String _keyTrustedIncomingDeviceIds =
+      'connect_trusted_incoming_device_ids';
+  static const String _keyPreferredModesByDevice =
+      'connect_preferred_modes_by_device';
   static const String _cmdPlay = 'play';
   static const String _cmdPause = 'pause';
   static const String _cmdSeek = 'seek';
@@ -19,6 +25,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   static const String _cmdSkipPrevious = 'skip_previous';
   static const String _cmdToggleShuffle = 'toggle_shuffle';
   static const String _cmdToggleRepeat = 'toggle_repeat';
+  static const String _cmdPlayQueueIndex = 'play_queue_index';
+  static const String _cmdRemoveFromQueue = 'remove_from_queue';
+  static const String _cmdClearQueue = 'clear_queue';
+  static const String _cmdReorderQueue = 'reorder_queue';
+  static const String _cmdRequestSnapshot = 'request_snapshot';
+  static const String _cmdSetQueue = 'set_queue';
 
   ConnectPhase _phase = ConnectPhase.idle;
   ConnectPhase get phase => _phase;
@@ -66,6 +78,17 @@ class ConnectSessionProvider extends ChangeNotifier {
   bool _linkedIsPlaying = false;
   bool get linkedIsPlaying => _linkedIsPlaying;
 
+  ConnectLinkMode _activeLinkMode = ConnectLinkMode.fullHandoff;
+  ConnectLinkMode get activeLinkMode => _activeLinkMode;
+  bool get isControlOnlyLinked =>
+      isLinked && _activeLinkMode == ConnectLinkMode.controlOnly;
+
+  ConnectLinkMode _nextOutgoingLinkMode = ConnectLinkMode.fullHandoff;
+  ConnectLinkMode get nextOutgoingLinkMode => _nextOutgoingLinkMode;
+
+  bool _rememberModeForNextLink = false;
+  bool get rememberModeForNextLink => _rememberModeForNextLink;
+
   Map<String, String> _sessionResolvedYoutubeIds = {};
   Map<String, String> get sessionResolvedYoutubeIds =>
       Map.unmodifiable(_sessionResolvedYoutubeIds);
@@ -84,6 +107,9 @@ class ConnectSessionProvider extends ChangeNotifier {
   Timer? _pruneTimer;
   Timer? _targetPulseTimer;
   Timer? _hostInterpolationTimer;
+  String? _lastTargetSnapshotTrackId;
+  int _lastTargetSnapshotIndex = -1;
+  DateTime? _lastTargetSnapshotSentAt;
   DateTime? _linkedPositionUpdatedAt;
   ConnectPairRequest? _pendingPairRequest;
   ConnectPairRequest? get pendingPairRequest => _pendingPairRequest;
@@ -94,6 +120,17 @@ class ConnectSessionProvider extends ChangeNotifier {
   WispAudioHandler? _audioHandler;
   bool _discoveryStarted = false;
   bool get discoveryStarted => _discoveryStarted;
+  SharedPreferences? _prefs;
+  final Set<String> _trustedIncomingDeviceIds = <String>{};
+  final Map<String, ConnectLinkMode> _preferredModesByDevice =
+      <String, ConnectLinkMode>{};
+  String? _pendingTrustPromptDeviceId;
+  String? _pendingTrustPromptDeviceName;
+  String? get pendingTrustPromptDeviceId => _pendingTrustPromptDeviceId;
+  String? get pendingTrustPromptDeviceName => _pendingTrustPromptDeviceName;
+  bool get hasPendingTrustPrompt =>
+      _pendingTrustPromptDeviceId != null &&
+      _pendingTrustPromptDeviceName != null;
 
   ConnectSessionProvider() {
     _initFuture = _initialize();
@@ -110,6 +147,7 @@ class ConnectSessionProvider extends ChangeNotifier {
 
   Future<void> _initialize() async {
     final prefs = await SharedPreferences.getInstance();
+    _prefs = prefs;
     var deviceId = prefs.getString(_keyLocalDeviceId);
     if (deviceId == null || deviceId.isEmpty) {
       deviceId = _generateDeviceId();
@@ -129,6 +167,33 @@ class ConnectSessionProvider extends ChangeNotifier {
     if (_localDeviceName.trim().isEmpty) {
       _localDeviceName = '${Platform.operatingSystem} device';
     }
+
+    final trustedIds = prefs.getStringList(_keyTrustedIncomingDeviceIds);
+    if (trustedIds != null) {
+      _trustedIncomingDeviceIds
+        ..clear()
+        ..addAll(trustedIds.where((id) => id.trim().isNotEmpty));
+    }
+
+    final preferredJson = prefs.getString(_keyPreferredModesByDevice);
+    if (preferredJson != null && preferredJson.isNotEmpty) {
+      try {
+        final decoded = json.decode(preferredJson) as Map<String, dynamic>;
+        _preferredModesByDevice
+          ..clear()
+          ..addEntries(
+            decoded.entries.map(
+              (entry) => MapEntry(
+                entry.key,
+                ConnectLinkModeJson.fromJson(entry.value as String?),
+              ),
+            ),
+          );
+      } catch (_) {
+        _preferredModesByDevice.clear();
+      }
+    }
+
     logger.d(
       '[Handoff] Initialized local device id=$_localDeviceId name=$_localDeviceName platform=$localPlatform',
     );
@@ -248,6 +313,159 @@ class ConnectSessionProvider extends ChangeNotifier {
     await _requestCommand(_cmdToggleRepeat);
   }
 
+  Future<void> requestPlayQueueIndex(int index) async {
+    final audio = _audioHandler;
+    if (audio == null) return;
+
+    if (!isLinked) {
+      if (index < 0 || index >= audio.queueTracks.length) return;
+      await audio.playTrack(audio.queueTracks[index], addToQueue: false);
+      return;
+    }
+
+    await _requestCommand(_cmdPlayQueueIndex, payload: {'index': index});
+  }
+
+  Future<void> requestRemoveFromQueue(int index) async {
+    final audio = _audioHandler;
+    if (audio == null) return;
+
+    if (!isLinked) {
+      audio.removeFromQueue(index);
+      return;
+    }
+
+    await _requestCommand(_cmdRemoveFromQueue, payload: {'index': index});
+  }
+
+  Future<void> requestClearQueue() async {
+    final audio = _audioHandler;
+    if (audio == null) return;
+
+    if (!isLinked) {
+      audio.clearQueue();
+      return;
+    }
+
+    await _requestCommand(_cmdClearQueue);
+  }
+
+  Future<void> requestReorderQueue(int oldIndex, int newIndex) async {
+    final audio = _audioHandler;
+    if (audio == null) return;
+
+    if (!isLinked) {
+      audio.reorderQueue(oldIndex, newIndex);
+      return;
+    }
+
+    await _requestCommand(
+      _cmdReorderQueue,
+      payload: {'old_index': oldIndex, 'new_index': newIndex},
+    );
+  }
+
+  Future<void> requestSetQueue(
+    List<GenericSong> tracks, {
+    int startIndex = 0,
+    bool play = true,
+    String? contextType,
+    String? contextName,
+    String? contextID,
+    SongSource? contextSource,
+    bool shuffleEnabled = false,
+    List<GenericSong>? originalQueue,
+  }) async {
+    final audio = _audioHandler;
+    if (audio == null) return;
+
+    if (!isLinked) {
+      await audio.setQueue(
+        tracks,
+        startIndex: startIndex,
+        play: play,
+        contextType: contextType,
+        contextName: contextName,
+        contextID: contextID,
+        contextSource: contextSource,
+        shuffleEnabled: shuffleEnabled,
+        originalQueue: originalQueue,
+      );
+      return;
+    }
+
+    await _requestCommand(
+      _cmdSetQueue,
+      payload: {
+        'tracks': tracks.map((t) => t.toJson()).toList(growable: false),
+        'start_index': startIndex,
+        'play': play,
+        'context_type': contextType,
+        'context_name': contextName,
+        'context_id': contextID,
+        'context_source': contextSource?.toJson(),
+        'shuffle_enabled': shuffleEnabled,
+        'original_queue': originalQueue
+            ?.map((t) => t.toJson())
+            .toList(growable: false),
+      },
+    );
+  }
+
+  void setNextOutgoingLinkMode(ConnectLinkMode mode) {
+    if (_nextOutgoingLinkMode == mode) return;
+    _nextOutgoingLinkMode = mode;
+    notifyListeners();
+  }
+
+  void setRememberModeForNextLink(bool remember) {
+    if (_rememberModeForNextLink == remember) return;
+    _rememberModeForNextLink = remember;
+    notifyListeners();
+  }
+
+  ConnectLinkMode preferredModeForDevice(String deviceId) {
+    return _preferredModesByDevice[deviceId] ?? ConnectLinkMode.fullHandoff;
+  }
+
+  bool isTrustedIncomingDevice(String deviceId) {
+    return _trustedIncomingDeviceIds.contains(deviceId);
+  }
+
+  Future<void> setTrustedIncomingDevice(
+    String deviceId, {
+    required bool trusted,
+  }) async {
+    if (deviceId.trim().isEmpty) return;
+    if (trusted) {
+      _trustedIncomingDeviceIds.add(deviceId);
+    } else {
+      _trustedIncomingDeviceIds.remove(deviceId);
+    }
+    await _prefs?.setStringList(
+      _keyTrustedIncomingDeviceIds,
+      _trustedIncomingDeviceIds.toList(growable: false),
+    );
+    notifyListeners();
+  }
+
+  Future<void> trustPendingIncomingDevice() async {
+    final deviceId = _pendingTrustPromptDeviceId;
+    if (deviceId == null) return;
+    await setTrustedIncomingDevice(deviceId, trusted: true);
+    clearPendingTrustPrompt();
+  }
+
+  void clearPendingTrustPrompt() {
+    if (_pendingTrustPromptDeviceId == null &&
+        _pendingTrustPromptDeviceName == null) {
+      return;
+    }
+    _pendingTrustPromptDeviceId = null;
+    _pendingTrustPromptDeviceName = null;
+    notifyListeners();
+  }
+
   void startDiscovery() {
     unawaited(_startDiscoveryInternal());
   }
@@ -279,11 +497,22 @@ class ConnectSessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void beginPairing(String deviceId) {
+  void beginPairing(
+    String deviceId, {
+    ConnectLinkMode? mode,
+    bool? rememberForDevice,
+  }) {
     final target = _discoveredById[deviceId];
     if (target == null) {
       setError('Target device is no longer available.');
       return;
+    }
+
+    final selectedMode = mode ?? preferredModeForDevice(deviceId);
+    final shouldRemember = rememberForDevice ?? _rememberModeForNextLink;
+    if (shouldRemember) {
+      _preferredModesByDevice[deviceId] = selectedMode;
+      unawaited(_persistPreferredModesByDevice());
     }
 
     _clearError();
@@ -291,7 +520,7 @@ class ConnectSessionProvider extends ChangeNotifier {
     _pairingTargetAddress = target.address;
     _setPhase(ConnectPhase.pairing);
     logger.d(
-      '[Handoff] Begin pairing targetId=$deviceId targetName=${target.name} targetAddress=${target.address}',
+      '[Handoff] Begin pairing targetId=$deviceId targetName=${target.name} targetAddress=${target.address} mode=${selectedMode.toJson()}',
     );
 
     _lanConnectService.requestPair(
@@ -299,28 +528,14 @@ class ConnectSessionProvider extends ChangeNotifier {
       fromDeviceId: _localDeviceId,
       fromDeviceName: _localDeviceName,
       fromPlatform: localPlatform,
+      mode: selectedMode,
     );
   }
 
   void acceptIncomingPair() {
     final request = _pendingPairRequest;
     if (request == null) return;
-
-    _lanConnectService.respondPair(
-      targetAddress: request.fromAddress,
-      accepted: true,
-      localDeviceId: _localDeviceId,
-      localDeviceName: _localDeviceName,
-      localPlatform: localPlatform,
-    );
-    markLinkedSyncingAsTarget(request.fromDeviceId);
-    _pairingTargetAddress = request.fromAddress;
-    _linkedPeerAddress = request.fromAddress;
-    logger.d(
-      '[Handoff] Accepted incoming pair from ${request.fromDeviceName} (${request.fromDeviceId}) @ ${request.fromAddress}',
-    );
-    _pendingPairRequest = null;
-    notifyListeners();
+    _acceptIncomingPairRequest(request, manual: true);
   }
 
   void rejectIncomingPair() {
@@ -333,6 +548,7 @@ class ConnectSessionProvider extends ChangeNotifier {
       localDeviceId: _localDeviceId,
       localDeviceName: _localDeviceName,
       localPlatform: localPlatform,
+      mode: request.requestedMode,
     );
     _pendingPairRequest = null;
     _pairingTargetAddress = null;
@@ -446,12 +662,16 @@ class ConnectSessionProvider extends ChangeNotifier {
     _pairingTargetDeviceId = null;
     _pairingTargetAddress = null;
     _linkedPeerAddress = null;
+    _activeLinkMode = ConnectLinkMode.fullHandoff;
     _pendingPairRequest = null;
     _linkedPosition = resumePosition;
     _linkedIsPlaying = resumePlaying;
     _linkedPositionUpdatedAt = DateTime.now();
     _lastAppliedSequence = -1;
     _lastAckedSequence = -1;
+    _lastTargetSnapshotTrackId = null;
+    _lastTargetSnapshotIndex = -1;
+    _lastTargetSnapshotSentAt = null;
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
 
@@ -476,6 +696,10 @@ class ConnectSessionProvider extends ChangeNotifier {
     _pairingTargetDeviceId = null;
     _pairingTargetAddress = null;
     _linkedPeerAddress = null;
+    _activeLinkMode = ConnectLinkMode.fullHandoff;
+    _lastTargetSnapshotTrackId = null;
+    _lastTargetSnapshotIndex = -1;
+    _lastTargetSnapshotSentAt = null;
     _clearError();
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
@@ -615,8 +839,17 @@ class ConnectSessionProvider extends ChangeNotifier {
 
   void _onPairRequest(ConnectPairRequest request) {
     logger.d(
-      '[Handoff] Incoming pair request from ${request.fromDeviceName} (${request.fromDeviceId}) @ ${request.fromAddress}',
+      '[Handoff] Incoming pair request from ${request.fromDeviceName} (${request.fromDeviceId}) @ ${request.fromAddress} mode=${request.requestedMode.toJson()}',
     );
+
+    if (isTrustedIncomingDevice(request.fromDeviceId)) {
+      logger.d(
+        '[Handoff] Auto-accept incoming pair from trusted device=${request.fromDeviceId}',
+      );
+      _acceptIncomingPairRequest(request, manual: false);
+      return;
+    }
+
     _pendingPairRequest = request;
     _setPhase(ConnectPhase.pairing);
   }
@@ -629,18 +862,24 @@ class ConnectSessionProvider extends ChangeNotifier {
 
     if (response.accepted) {
       logger.d(
-        '[Handoff] Pair accepted by ${response.fromDeviceName} (${response.fromDeviceId}) @ ${response.fromAddress}',
+        '[Handoff] Pair accepted by ${response.fromDeviceName} (${response.fromDeviceId}) @ ${response.fromAddress} mode=${response.linkMode.toJson()}',
       );
+      _activeLinkMode = response.linkMode;
       markLinkedSyncingAsHost(response.fromDeviceId);
       _pairingTargetAddress = response.fromAddress;
       _linkedPeerAddress = response.fromAddress;
-      _sendCurrentSnapshotToTarget(response.fromAddress);
+      if (response.linkMode == ConnectLinkMode.fullHandoff) {
+        _sendCurrentSnapshotToTarget(response.fromAddress);
+      } else {
+        unawaited(_requestCommand(_cmdRequestSnapshot));
+      }
       unawaited(_pauseLocalPlaybackAsHost());
     } else {
       logger.d(
         '[Handoff] Pair rejected by ${response.fromDeviceName} (${response.fromDeviceId})',
       );
       _linkedDeviceId = null;
+      _activeLinkMode = ConnectLinkMode.fullHandoff;
       _pairingTargetDeviceId = null;
       _pairingTargetAddress = null;
       _linkedPeerAddress = null;
@@ -657,6 +896,10 @@ class ConnectSessionProvider extends ChangeNotifier {
     );
 
     _linkedPeerAddress = sync.fromAddress;
+    if (isHost) {
+      unawaited(_applyIncomingSnapshotAsHost(sync));
+      return;
+    }
 
     _applyIncomingSnapshot(sync);
   }
@@ -704,7 +947,19 @@ class ConnectSessionProvider extends ChangeNotifier {
       notify: false,
     );
     if (ack.snapshot != null) {
-      applyResolvedYoutubeIds(ack.snapshot!.resolvedYoutubeIds);
+      if (isHost && _activeLinkMode == ConnectLinkMode.controlOnly) {
+        unawaited(
+          _applyIncomingSnapshotAsHost(
+            ConnectSnapshotSync(
+              fromDeviceId: ack.fromDeviceId,
+              fromAddress: ack.fromAddress,
+              snapshot: ack.snapshot!,
+            ),
+          ),
+        );
+      } else {
+        applyResolvedYoutubeIds(ack.snapshot!.resolvedYoutubeIds);
+      }
     }
     if (_phase == ConnectPhase.linkedSyncing) {
       _setPhase(ConnectPhase.linkedPlaying);
@@ -777,6 +1032,26 @@ class ConnectSessionProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _applyIncomingSnapshotAsHost(ConnectSnapshotSync sync) async {
+    final audioHandler = _audioHandler;
+    if (audioHandler != null) {
+      try {
+        await audioHandler.applyConnectSnapshot(
+          sync.snapshot,
+          autoPlay: false,
+          preserveVolume: true,
+        );
+      } catch (_) {}
+    }
+
+    applyResolvedYoutubeIds(sync.snapshot.resolvedYoutubeIds);
+    markLinkedPlaying(
+      isPlaying: sync.snapshot.isPlaying,
+      position: Duration(milliseconds: sync.snapshot.positionMs),
+    );
+    unawaited(_pauseLocalPlaybackAsHost());
+  }
+
   void _ensureTargetPulseTimer() {
     _targetPulseTimer ??= Timer.periodic(const Duration(milliseconds: 500), (
       _,
@@ -829,6 +1104,21 @@ class ConnectSessionProvider extends ChangeNotifier {
       isPlaying: snapshot.isPlaying,
       positionMs: snapshot.positionMs,
     );
+
+    final currentTrackId = audio.currentTrack?.id;
+    final currentIndex = audio.currentIndex;
+    final now = DateTime.now();
+    final shouldSendSnapshot =
+        currentTrackId != _lastTargetSnapshotTrackId ||
+        currentIndex != _lastTargetSnapshotIndex ||
+        _lastTargetSnapshotSentAt == null ||
+        now.difference(_lastTargetSnapshotSentAt!).inSeconds >= 2;
+    if (shouldSendSnapshot) {
+      _lastTargetSnapshotTrackId = currentTrackId;
+      _lastTargetSnapshotIndex = currentIndex;
+      _lastTargetSnapshotSentAt = now;
+      _sendCurrentSnapshotToHost(peerAddress);
+    }
   }
 
   void _sendCurrentSnapshotToTarget(String? targetAddress) {
@@ -937,6 +1227,53 @@ class ConnectSessionProvider extends ChangeNotifier {
       case _cmdToggleRepeat:
         audio.toggleRepeat();
         break;
+      case _cmdPlayQueueIndex:
+        final index = (payload['index'] as int?) ?? -1;
+        if (index >= 0 && index < audio.queueTracks.length) {
+          await audio.playTrack(audio.queueTracks[index], addToQueue: false);
+        }
+        break;
+      case _cmdRemoveFromQueue:
+        final index = (payload['index'] as int?) ?? -1;
+        audio.removeFromQueue(index);
+        break;
+      case _cmdClearQueue:
+        audio.clearQueue();
+        break;
+      case _cmdReorderQueue:
+        final oldIndex = (payload['old_index'] as int?) ?? -1;
+        final newIndex = (payload['new_index'] as int?) ?? -1;
+        if (oldIndex >= 0 && newIndex >= 0) {
+          audio.reorderQueue(oldIndex, newIndex);
+        }
+        break;
+      case _cmdSetQueue:
+        final tracksJson =
+            (payload['tracks'] as List<dynamic>? ?? const <dynamic>[])
+                .whereType<Map<String, dynamic>>()
+                .toList(growable: false);
+        final tracks = tracksJson.map(GenericSong.fromJson).toList();
+        final originalQueueJson =
+            (payload['original_queue'] as List<dynamic>? ?? const <dynamic>[])
+                .whereType<Map<String, dynamic>>()
+                .toList(growable: false);
+        final originalQueue = originalQueueJson
+            .map(GenericSong.fromJson)
+            .toList();
+        await audio.setQueue(
+          tracks,
+          startIndex: (payload['start_index'] as int?) ?? 0,
+          play: (payload['play'] as bool?) ?? true,
+          contextType: payload['context_type'] as String?,
+          contextName: payload['context_name'] as String?,
+          contextID: payload['context_id'] as String?,
+          contextSource: SongSource.fromJson(
+            payload['context_source'] as String? ?? SongSource.spotify.toJson(),
+          ),
+          shuffleEnabled: (payload['shuffle_enabled'] as bool?) ?? false,
+          originalQueue: originalQueue.isEmpty ? null : originalQueue,
+        );
+        break;
       default:
         break;
     }
@@ -966,6 +1303,28 @@ class ConnectSessionProvider extends ChangeNotifier {
     if (audio == null) return;
 
     try {
+      if (apply.command == _cmdRequestSnapshot) {
+        final snapshot = audio.buildConnectSnapshot();
+        _lanConnectService.sendCommandAck(
+          targetAddress: apply.fromAddress,
+          fromDeviceId: _localDeviceId,
+          sequence: apply.sequence,
+          isPlaying: snapshot.isPlaying,
+          positionMs: snapshot.positionMs,
+          snapshot: snapshot,
+        );
+        _lanConnectService.sendSnapshot(
+          targetAddress: apply.fromAddress,
+          fromDeviceId: _localDeviceId,
+          snapshot: snapshot,
+        );
+        markLinkedPlaying(
+          isPlaying: snapshot.isPlaying,
+          position: Duration(milliseconds: snapshot.positionMs),
+        );
+        return;
+      }
+
       logger.d(
         '[Handoff] Target apply seq=${apply.sequence} cmd=${apply.command} payload=${apply.payload}',
       );
@@ -995,6 +1354,67 @@ class ConnectSessionProvider extends ChangeNotifier {
         '[Handoff] Failed to apply remote command seq=${apply.sequence} cmd=${apply.command}',
       );
     }
+  }
+
+  void _acceptIncomingPairRequest(
+    ConnectPairRequest request, {
+    required bool manual,
+  }) {
+    _activeLinkMode = request.requestedMode;
+    _lanConnectService.respondPair(
+      targetAddress: request.fromAddress,
+      accepted: true,
+      localDeviceId: _localDeviceId,
+      localDeviceName: _localDeviceName,
+      localPlatform: localPlatform,
+      mode: request.requestedMode,
+    );
+    markLinkedSyncingAsTarget(request.fromDeviceId);
+    _pairingTargetAddress = request.fromAddress;
+    _linkedPeerAddress = request.fromAddress;
+    logger.d(
+      '[Handoff] Accepted incoming pair from ${request.fromDeviceName} (${request.fromDeviceId}) @ ${request.fromAddress} mode=${request.requestedMode.toJson()} manual=$manual',
+    );
+    _pendingPairRequest = null;
+
+    if (request.requestedMode == ConnectLinkMode.controlOnly) {
+      _sendCurrentSnapshotToHost(request.fromAddress);
+    }
+
+    if (manual && !isTrustedIncomingDevice(request.fromDeviceId)) {
+      _pendingTrustPromptDeviceId = request.fromDeviceId;
+      _pendingTrustPromptDeviceName = request.fromDeviceName;
+    }
+    notifyListeners();
+  }
+
+  void _sendCurrentSnapshotToHost(String targetAddress) {
+    final audioHandler = _audioHandler;
+    if (audioHandler == null) {
+      return;
+    }
+    final snapshot = audioHandler.buildConnectSnapshot();
+    _lanConnectService.sendSnapshot(
+      targetAddress: targetAddress,
+      fromDeviceId: _localDeviceId,
+      snapshot: snapshot,
+    );
+    markLinkedPlaying(
+      isPlaying: snapshot.isPlaying,
+      position: Duration(milliseconds: snapshot.positionMs),
+    );
+  }
+
+  Future<void> _persistPreferredModesByDevice() async {
+    final serialized = <String, String>{
+      for (final entry in _preferredModesByDevice.entries)
+        entry.key: entry.value.toJson(),
+    };
+    await _prefs?.setString(
+      _keyPreferredModesByDevice,
+      json.encode(serialized),
+    );
+    notifyListeners();
   }
 
   @override

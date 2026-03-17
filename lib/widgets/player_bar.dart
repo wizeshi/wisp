@@ -1700,6 +1700,101 @@ class _ConnectPanelContent extends StatelessWidget {
               ),
             Padding(
               padding: EdgeInsets.fromLTRB(
+                12,
+                linkedLabel != null ? 10 : 2,
+                12,
+                8,
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF212121),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: accentColor.withValues(alpha: 0.4),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Next link mode:',
+                          style: TextStyle(
+                            color: Colors.grey[300],
+                            fontSize: isMobileSheet ? 13 : 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: SegmentedButton<ConnectLinkMode>(
+                            showSelectedIcon: false,
+                            style: ButtonStyle(
+                              backgroundColor: WidgetStateProperty.resolveWith(
+                                (states) => states.contains(
+                                      WidgetState.selected,
+                                    )
+                                    ? accentColor.withValues(alpha: 0.2)
+                                    : Colors.transparent,
+                              ),
+                              foregroundColor: WidgetStateProperty.all<Color>(
+                                Colors.white,
+                              ),
+                              side: WidgetStatePropertyAll(
+                                BorderSide(color: Colors.grey[700]!),
+                              ),
+                            ),
+                            segments: const [
+                              ButtonSegment<ConnectLinkMode>(
+                                value: ConnectLinkMode.fullHandoff,
+                                label: Text('Full'),
+                              ),
+                              ButtonSegment<ConnectLinkMode>(
+                                value: ConnectLinkMode.controlOnly,
+                                label: Text('Controls'),
+                              ),
+                            ],
+                            selected: {connect.nextOutgoingLinkMode},
+                            onSelectionChanged: (selection) {
+                              final next = selection.first;
+                              connect.setNextOutgoingLinkMode(next);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: connect.rememberModeForNextLink,
+                          onChanged: (value) {
+                            connect.setRememberModeForNextLink(value ?? false);
+                          },
+                        ),
+                        Expanded(
+                          child: Text(
+                            'Remember for next session',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: isMobileSheet ? 12 : 11,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
                 14,
                 linkedLabel != null ? 12 : 2,
                 14,
@@ -1742,7 +1837,12 @@ class _ConnectPanelContent extends StatelessWidget {
                             onTap: isLinkedDevice
                                 ? null
                                 : () {
-                                    connect.beginPairing(device.id);
+                                    connect.beginPairing(
+                                      device.id,
+                                      mode: connect.nextOutgoingLinkMode,
+                                      rememberForDevice:
+                                          connect.rememberModeForNextLink,
+                                    );
                                     onClose();
                                   },
                             child: Padding(

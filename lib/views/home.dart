@@ -23,6 +23,7 @@ import 'list_detail.dart';
 import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
+import '../providers/connect/connect_session_provider.dart';
 import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/app_navigation.dart';
@@ -37,10 +38,7 @@ bool _isLocalThumbnailPath(String path) {
 class HomePage extends StatefulWidget {
   final ValueListenable<int>? refreshSignal;
 
-  const HomePage({
-    super.key,
-    this.refreshSignal,
-  });
+  const HomePage({super.key, this.refreshSignal});
 
   @override
   State<HomePage> createState() => HomePageState();
@@ -200,7 +198,7 @@ class HomePageState extends State<HomePage> {
         userDisplayName: _spotifyProvider.userDisplayName,
         total: spotifyInternal.likedTracksTotalCount ?? cachedLiked.length,
       );
-          
+
       var userLibrary = await spotifyInternal.getUserLibrary();
       final userHome = await spotifyInternal.getUserHome(policy: policy);
 
@@ -217,7 +215,13 @@ class HomePageState extends State<HomePage> {
                 final uri = e['uri'] as String? ?? e['id'] as String? ?? '';
                 final id = uri.isNotEmpty ? uri : (e['id'] as String? ?? '');
                 final name = e['name'] as String? ?? '';
-                remoteFolders.add(PlaylistFolder(id: id, title: name, createdAt: DateTime.now()));
+                remoteFolders.add(
+                  PlaylistFolder(
+                    id: id,
+                    title: name,
+                    createdAt: DateTime.now(),
+                  ),
+                );
               }
             }
           }
@@ -227,7 +231,9 @@ class HomePageState extends State<HomePage> {
         }
 
         if (userLibrary.folderAssignments != null) {
-          await folderState.batchAssignPlaylistsToFolders(userLibrary.folderAssignments!);
+          await folderState.batchAssignPlaylistsToFolders(
+            userLibrary.folderAssignments!,
+          );
         }
       } catch (e) {
         logger.w('[Views/Home] Failed to process remote folders: $e');
@@ -263,13 +269,15 @@ class HomePageState extends State<HomePage> {
           _savedAlbums = userLibrary.saved_albums;
           _savedPlaylists = mergedPlaylists;
           _followedArtists = userLibrary.saved_artists
-            .map((a) => GenericSimpleArtist(
-                id: a.id,
-                source: a.source,
-                name: a.name,
-                thumbnailUrl: a.thumbnailUrl,
-              ))
-            .toList();
+              .map(
+                (a) => GenericSimpleArtist(
+                  id: a.id,
+                  source: a.source,
+                  name: a.name,
+                  thumbnailUrl: a.thumbnailUrl,
+                ),
+              )
+              .toList();
           _homeSections = userHome.sections;
           _isLoading = false;
         });
@@ -282,9 +290,9 @@ class HomePageState extends State<HomePage> {
         allOrganized: allWithLiked,
       );
       if (mounted) {
-        context
-            .read<LibraryFolderState>()
-            .syncPlaylists(libraryState.playlists);
+        context.read<LibraryFolderState>().syncPlaylists(
+          libraryState.playlists,
+        );
       }
 
       logger.d('[Views/Home] Library state updated successfully');
@@ -502,18 +510,10 @@ class HomePageState extends State<HomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Left column - mixed quick tiles
-                  Expanded(
-                    child: Column(
-                      children: leftQuickTiles,
-                    ),
-                  ),
+                  Expanded(child: Column(children: leftQuickTiles)),
                   const SizedBox(width: 12),
                   // Right column - mixed quick tiles
-                  Expanded(
-                    child: Column(
-                      children: rightQuickTiles,
-                    ),
-                  ),
+                  Expanded(child: Column(children: rightQuickTiles)),
                 ],
               ),
             ),
@@ -530,7 +530,7 @@ class HomePageState extends State<HomePage> {
           ),
 
           // "this past month" section
-          if (_topTracks.isNotEmpty || _topArtists.isNotEmpty) 
+          if (_topTracks.isNotEmpty || _topArtists.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
@@ -673,7 +673,8 @@ class HomePageState extends State<HomePage> {
     Widget? customArt,
   }) {
     final isLocalThumb = imageUrl.isNotEmpty && _isLocalThumbnailPath(imageUrl);
-    final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -695,27 +696,28 @@ class HomePageState extends State<HomePage> {
                   width: 40,
                   height: 40,
                   color: Colors.grey[900],
-                  child: customArt ??
+                  child:
+                      customArt ??
                       (imageUrl.isNotEmpty
                           ? (isLocalThumb
-                              ? Image.file(
-                                  File(imageUrl.replaceFirst('file://', '')),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, url, error) => Icon(
-                                    Icons.music_note,
-                                    color: Colors.grey[700],
-                                  ),
-                                )
-                              : CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) =>
-                                      Container(color: Colors.grey[800]),
-                                  errorWidget: (context, url, error) => Icon(
-                                    Icons.music_note,
-                                    color: Colors.grey[700],
-                                  ),
-                                ))
+                                ? Image.file(
+                                    File(imageUrl.replaceFirst('file://', '')),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, url, error) => Icon(
+                                      Icons.music_note,
+                                      color: Colors.grey[700],
+                                    ),
+                                  )
+                                : CachedNetworkImage(
+                                    imageUrl: imageUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        Container(color: Colors.grey[800]),
+                                    errorWidget: (context, url, error) => Icon(
+                                      Icons.music_note,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ))
                           : Icon(Icons.music_note, color: Colors.grey[700])),
                 ),
               ),
@@ -738,10 +740,7 @@ class HomePageState extends State<HomePage> {
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -782,10 +781,9 @@ class HomePageState extends State<HomePage> {
 
       final tile = _buildMobileQuickTile(item);
       if (tile != null) {
-        tiles.add(Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: tile,
-        ));
+        tiles.add(
+          Padding(padding: const EdgeInsets.only(bottom: 12), child: tile),
+        );
       }
       if (tiles.length >= 8) break;
     }
@@ -958,29 +956,30 @@ class HomePageState extends State<HomePage> {
                   width: 144,
                   height: 144,
                   color: Colors.grey[900],
-                  child: customArt ??
+                  child:
+                      customArt ??
                       (imageUrl.isNotEmpty
                           ? (isLocalThumb
-                              ? Image.file(
-                                  File(imageUrl.replaceFirst('file://', '')),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, url, error) => Icon(
-                                    Icons.music_note,
-                                    color: Colors.grey[700],
-                                    size: 48,
-                                  ),
-                                )
-                              : CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) =>
-                                      Container(color: Colors.grey[800]),
-                                  errorWidget: (context, url, error) => Icon(
-                                    Icons.music_note,
-                                    color: Colors.grey[700],
-                                    size: 48,
-                                  ),
-                                ))
+                                ? Image.file(
+                                    File(imageUrl.replaceFirst('file://', '')),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, url, error) => Icon(
+                                      Icons.music_note,
+                                      color: Colors.grey[700],
+                                      size: 48,
+                                    ),
+                                  )
+                                : CachedNetworkImage(
+                                    imageUrl: imageUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        Container(color: Colors.grey[800]),
+                                    errorWidget: (context, url, error) => Icon(
+                                      Icons.music_note,
+                                      color: Colors.grey[700],
+                                      size: 48,
+                                    ),
+                                  ))
                           : Icon(
                               Icons.music_note,
                               color: Colors.grey[700],
@@ -1002,10 +1001,7 @@ class HomePageState extends State<HomePage> {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey[400], fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1041,7 +1037,9 @@ class HomePageState extends State<HomePage> {
 
   Widget _buildContentArea() {
     final quickRows = _buildDesktopQuickRows();
-    final dynamicSections = _buildDynamicHomeSections(skipFirst: quickRows != null);
+    final dynamicSections = _buildDynamicHomeSections(
+      skipFirst: quickRows != null,
+    );
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -1106,7 +1104,8 @@ class HomePageState extends State<HomePage> {
             .toList();
         if (cards.isEmpty) return const SizedBox.shrink();
 
-        final rowCount = ((cards.length + itemsPerRow - 1) / itemsPerRow).floor();
+        final rowCount = ((cards.length + itemsPerRow - 1) / itemsPerRow)
+            .floor();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1142,14 +1141,18 @@ class HomePageState extends State<HomePage> {
     if (player.playbackContextType != 'playlist') return false;
     if (player.playbackContextID == item.id) return true;
     final contextName = player.playbackContextName?.trim();
-    return contextName != null && contextName.isNotEmpty && contextName == item.title.trim();
+    return contextName != null &&
+        contextName.isNotEmpty &&
+        contextName == item.title.trim();
   }
 
   bool _isActiveAlbum(WispAudioHandler player, GenericAlbum item) {
     if (player.playbackContextType == 'album') {
       if (player.playbackContextID == item.id) return true;
       final contextName = player.playbackContextName?.trim();
-      return contextName != null && contextName.isNotEmpty && contextName == item.title.trim();
+      return contextName != null &&
+          contextName.isNotEmpty &&
+          contextName == item.title.trim();
     }
     return player.currentTrack?.album?.id == item.id;
   }
@@ -1158,7 +1161,9 @@ class HomePageState extends State<HomePage> {
     if (player.playbackContextType == 'artist') {
       if (player.playbackContextID == item.id) return true;
       final contextName = player.playbackContextName?.trim();
-      return contextName != null && contextName.isNotEmpty && contextName == item.name.trim();
+      return contextName != null &&
+          contextName.isNotEmpty &&
+          contextName == item.name.trim();
     }
     final currentTrack = player.currentTrack;
     if (currentTrack == null) return false;
@@ -1475,100 +1480,60 @@ class HomePageState extends State<HomePage> {
               ),
               child: Row(
                 children: [
-                // Number
-                SizedBox(
-                  width: 32,
-                  child: Text(
-                    '${index + 1}',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                  // Number
+                  SizedBox(
+                    width: 32,
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 16),
+                    ),
                   ),
-                ),
-                // Album art
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    color: Colors.grey[900],
-                    child: track.thumbnailUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: track.thumbnailUrl,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) =>
-                                Container(color: Colors.grey[800]),
-                            errorWidget: (context, url, error) =>
-                                Icon(Icons.music_note, color: Colors.grey[700]),
-                          )
-                        : Icon(Icons.music_note, color: Colors.grey[700]),
-                  ),
-                ),
-                SizedBox(width: 16),
-                // Track info
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      (isDesktop && album != null && album.id.isNotEmpty)
-                          ? HoverUnderline(
-                              onTap: () {
-                                _openSharedList(
-                                  SharedListType.album,
-                                  album.id,
-                                  title: album.title,
-                                  thumbnailUrl: album.thumbnailUrl,
-                                );
-                              },
-                              builder: (isHovering) => Text(
-                                track.title,
-                                style: TextStyle(
-                                  color: player.currentTrack?.id == track.id
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  decoration: isHovering
-                                      ? TextDecoration.underline
-                                      : TextDecoration.none,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                  // Album art
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      color: Colors.grey[900],
+                      child: track.thumbnailUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: track.thumbnailUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) =>
+                                  Container(color: Colors.grey[800]),
+                              errorWidget: (context, url, error) => Icon(
+                                Icons.music_note,
+                                color: Colors.grey[700],
                               ),
                             )
-                          : Text(
-                              track.title,
-                              style: TextStyle(
-                                color: player.currentTrack?.id == track.id
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                      if (track.artists.isNotEmpty) ...[
-                        SizedBox(height: 2),
-                        (isDesktop && primaryArtist != null)
+                          : Icon(Icons.music_note, color: Colors.grey[700]),
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  // Track info
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        (isDesktop && album != null && album.id.isNotEmpty)
                             ? HoverUnderline(
-                                onTap: () => _openArtist(primaryArtist),
-                                onSecondaryTapDown: (details) {
-                                  LibraryItemContextMenu.show(
-                                    context: context,
-                                    item: primaryArtist,
-                                    position: details.globalPosition,
-                                    playlists: _savedPlaylists,
-                                    albums: _savedAlbums,
-                                    artists: _followedArtists,
-                                    currentLibraryView: _currentLibraryView,
-                                    currentNavIndex: _currentNavIndex,
+                                onTap: () {
+                                  _openSharedList(
+                                    SharedListType.album,
+                                    album.id,
+                                    title: album.title,
+                                    thumbnailUrl: album.thumbnailUrl,
                                   );
                                 },
                                 builder: (isHovering) => Text(
-                                  track.artists.map((a) => a.name).join(', '),
+                                  track.title,
                                   style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
+                                    color: player.currentTrack?.id == track.id
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
                                     decoration: isHovering
                                         ? TextDecoration.underline
                                         : TextDecoration.none,
@@ -1578,108 +1543,150 @@ class HomePageState extends State<HomePage> {
                                 ),
                               )
                             : Text(
-                                track.artists.map((a) => a.name).join(', '),
+                                track.title,
                                 style: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 12,
+                                  color: player.currentTrack?.id == track.id
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                        if (track.artists.isNotEmpty) ...[
+                          SizedBox(height: 2),
+                          (isDesktop && primaryArtist != null)
+                              ? HoverUnderline(
+                                  onTap: () => _openArtist(primaryArtist),
+                                  onSecondaryTapDown: (details) {
+                                    LibraryItemContextMenu.show(
+                                      context: context,
+                                      item: primaryArtist,
+                                      position: details.globalPosition,
+                                      playlists: _savedPlaylists,
+                                      albums: _savedAlbums,
+                                      artists: _followedArtists,
+                                      currentLibraryView: _currentLibraryView,
+                                      currentNavIndex: _currentNavIndex,
+                                    );
+                                  },
+                                  builder: (isHovering) => Text(
+                                    track.artists.map((a) => a.name).join(', '),
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                      decoration: isHovering
+                                          ? TextDecoration.underline
+                                          : TextDecoration.none,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                )
+                              : Text(
+                                  track.artists.map((a) => a.name).join(', '),
+                                  style: TextStyle(
+                                    color: Colors.grey[400],
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                // Album name
-                Expanded(
-                  flex: 2,
-                  child: (isDesktop && album != null && album.id.isNotEmpty)
-                      ? HoverUnderline(
-                          onTap: () {
-                            _openSharedList(
-                              SharedListType.album,
-                              album.id,
-                              title: album.title,
-                              thumbnailUrl: album.thumbnailUrl,
-                            );
-                          },
-                          onSecondaryTapDown: (details) {
-                            LibraryItemContextMenu.show(
-                              context: context,
-                              item: album,
-                              position: details.globalPosition,
-                              playlists: _savedPlaylists,
-                              albums: _savedAlbums,
-                              artists: _followedArtists,
-                              currentLibraryView: _currentLibraryView,
-                              currentNavIndex: _currentNavIndex,
-                            );
-                          },
-                          builder: (isHovering) => Text(
-                            album.title,
+                  // Album name
+                  Expanded(
+                    flex: 2,
+                    child: (isDesktop && album != null && album.id.isNotEmpty)
+                        ? HoverUnderline(
+                            onTap: () {
+                              _openSharedList(
+                                SharedListType.album,
+                                album.id,
+                                title: album.title,
+                                thumbnailUrl: album.thumbnailUrl,
+                              );
+                            },
+                            onSecondaryTapDown: (details) {
+                              LibraryItemContextMenu.show(
+                                context: context,
+                                item: album,
+                                position: details.globalPosition,
+                                playlists: _savedPlaylists,
+                                albums: _savedAlbums,
+                                artists: _followedArtists,
+                                currentLibraryView: _currentLibraryView,
+                                currentNavIndex: _currentNavIndex,
+                              );
+                            },
+                            builder: (isHovering) => Text(
+                              album.title,
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 13,
+                                decoration: isHovering
+                                    ? TextDecoration.underline
+                                    : TextDecoration.none,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )
+                        : Text(
+                            track.album?.title ?? '',
                             style: TextStyle(
                               color: Colors.grey[400],
                               fontSize: 13,
-                              decoration: isHovering
-                                  ? TextDecoration.underline
-                                  : TextDecoration.none,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        )
-                      : Text(
-                          track.album?.title ?? '',
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 13,
+                  ),
+                  SizedBox(width: 16),
+                  if (isDesktop) ...[
+                    AnimatedOpacity(
+                      opacity: isHovering ? 1 : 0,
+                      duration: const Duration(milliseconds: 120),
+                      child: IgnorePointer(
+                        ignoring: !isHovering,
+                        child: LikeButton(
+                          track: track,
+                          iconSize: 16,
+                          padding: const EdgeInsets.all(2),
+                          constraints: const BoxConstraints(
+                            minWidth: 24,
+                            minHeight: 24,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                ),
-                SizedBox(width: 16),
-                if (isDesktop) ...[
-                  AnimatedOpacity(
-                    opacity: isHovering ? 1 : 0,
-                    duration: const Duration(milliseconds: 120),
-                    child: IgnorePointer(
-                      ignoring: !isHovering,
-                      child: LikeButton(
-                        track: track,
-                        iconSize: 16,
-                        padding: const EdgeInsets.all(2),
-                        constraints: const BoxConstraints(
-                          minWidth: 24,
-                          minHeight: 24,
                         ),
                       ),
                     ),
+                    SizedBox(width: 8),
+                  ],
+                  // Duration
+                  SizedBox(
+                    width: 50,
+                    child: Text(
+                      _formatDuration(track.durationSecs * 1000),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                      textAlign: TextAlign.right,
+                    ),
                   ),
-                  SizedBox(width: 8),
+                  SizedBox(width: isDesktop ? 16 : 12),
+                  // Spotify icon
+                  Icon(
+                    Icons.graphic_eq,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 20,
+                  ),
                 ],
-                // Duration
-                SizedBox(
-                  width: 50,
-                  child: Text(
-                    _formatDuration(track.durationSecs * 1000),
-                    style: TextStyle(color: Colors.grey[400], fontSize: 13),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-                SizedBox(width: isDesktop ? 16 : 12),
-                // Spotify icon
-                Icon(
-                  Icons.graphic_eq,
-                  color: Theme.of(context).colorScheme.primary,
-                  size: 20,
-                ),
-              ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 
@@ -1822,12 +1829,12 @@ class HomePageState extends State<HomePage> {
 
   Future<void> _playAlbum(String albumId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final player = context.read<WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
     try {
       final album = await spotify.getAlbumInfo(albumId);
       final tracks = album.songs ?? [];
       if (tracks.isEmpty) return;
-      await player.setQueue(
+      await connect.requestSetQueue(
         tracks,
         startIndex: 0,
         play: true,
@@ -1839,9 +1846,12 @@ class HomePageState extends State<HomePage> {
     } catch (_) {}
   }
 
-  Future<void> _playPlaylist(String playlistId, {String? contextNameOverride}) async {
+  Future<void> _playPlaylist(
+    String playlistId, {
+    String? contextNameOverride,
+  }) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final player = context.read<WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
     try {
       final playlist = await spotify.getPlaylistInfo(playlistId);
       final items = playlist.songs ?? [];
@@ -1860,12 +1870,13 @@ class HomePageState extends State<HomePage> {
             ),
           )
           .toList();
-      await player.setQueue(
+      await connect.requestSetQueue(
         tracks,
         startIndex: 0,
         play: true,
         contextType: 'playlist',
-        contextName: (contextNameOverride != null && contextNameOverride.isNotEmpty)
+        contextName:
+            (contextNameOverride != null && contextNameOverride.isNotEmpty)
             ? contextNameOverride
             : playlist.title,
         contextID: playlist.id,
@@ -1877,12 +1888,12 @@ class HomePageState extends State<HomePage> {
 
   Future<void> _playArtist(String artistId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final player = context.read<WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
     try {
       final artist = await spotify.getArtistInfo(artistId);
       final tracks = artist.topSongs;
       if (tracks.isEmpty) return;
-      await player.setQueue(
+      await connect.requestSetQueue(
         tracks,
         startIndex: 0,
         play: true,
@@ -1978,8 +1989,7 @@ class _ArtistCard extends StatelessWidget {
                               fit: BoxFit.cover,
                               placeholder: (context, url) =>
                                   Container(color: Colors.grey[800]),
-                              errorWidget: (context, url, error) =>
-                                  const Icon(
+                              errorWidget: (context, url, error) => const Icon(
                                 Icons.person,
                                 size: 48,
                                 color: Colors.grey,
@@ -2006,10 +2016,7 @@ class _ArtistCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Artist',
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -2107,8 +2114,7 @@ class _AlbumCard extends StatelessWidget {
                               fit: BoxFit.cover,
                               placeholder: (context, url) =>
                                   Container(color: Colors.grey[800]),
-                              errorWidget: (context, url, error) =>
-                                  const Icon(
+                              errorWidget: (context, url, error) => const Icon(
                                 Icons.album,
                                 size: 48,
                                 color: Colors.grey,
@@ -2135,10 +2141,7 @@ class _AlbumCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     album.artists.map((a) => a.name).join(', '),
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -2234,23 +2237,23 @@ class _PlaylistCard extends StatelessWidget {
                       child: isLiked
                           ? const LikedSongsArt()
                           : (playlist.thumbnailUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: playlist.thumbnailUrl,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) =>
-                                      Container(color: Colors.grey[800]),
-                                  errorWidget: (context, url, error) =>
-                                      const Icon(
+                                ? CachedNetworkImage(
+                                    imageUrl: playlist.thumbnailUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        Container(color: Colors.grey[800]),
+                                    errorWidget: (context, url, error) =>
+                                        const Icon(
+                                          Icons.playlist_play,
+                                          size: 48,
+                                          color: Colors.grey,
+                                        ),
+                                  )
+                                : const Icon(
                                     Icons.playlist_play,
                                     size: 48,
                                     color: Colors.grey,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.playlist_play,
-                                  size: 48,
-                                  color: Colors.grey,
-                                )),
+                                  )),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -2267,10 +2270,7 @@ class _PlaylistCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     playlist.author.displayName,
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -2348,28 +2348,39 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                       width: 40,
                       height: 40,
                       color: Colors.grey[900],
-                      child: widget.customArt ??
+                      child:
+                          widget.customArt ??
                           (widget.imageUrl.isNotEmpty
                               ? (isLocalThumb
-                                  ? Image.file(
-                                      File(widget.imageUrl.replaceFirst('file://', '')),
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, url, error) => Icon(
-                                        Icons.music_note,
-                                        color: Colors.grey[700],
-                                      ),
-                                    )
-                                  : CachedNetworkImage(
-                                      imageUrl: widget.imageUrl,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          Container(color: Colors.grey[800]),
-                                      errorWidget: (context, url, error) => Icon(
-                                        Icons.music_note,
-                                        color: Colors.grey[700],
-                                      ),
-                                    ))
-                              : Icon(Icons.music_note, color: Colors.grey[700])),
+                                    ? Image.file(
+                                        File(
+                                          widget.imageUrl.replaceFirst(
+                                            'file://',
+                                            '',
+                                          ),
+                                        ),
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, url, error) =>
+                                            Icon(
+                                              Icons.music_note,
+                                              color: Colors.grey[700],
+                                            ),
+                                      )
+                                    : CachedNetworkImage(
+                                        imageUrl: widget.imageUrl,
+                                        fit: BoxFit.cover,
+                                        placeholder: (context, url) =>
+                                            Container(color: Colors.grey[800]),
+                                        errorWidget: (context, url, error) =>
+                                            Icon(
+                                              Icons.music_note,
+                                              color: Colors.grey[700],
+                                            ),
+                                      ))
+                              : Icon(
+                                  Icons.music_note,
+                                  color: Colors.grey[700],
+                                )),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -2484,46 +2495,46 @@ class _HoverPlayCardState extends State<_HoverPlayCard> {
             borderRadius: BorderRadius.circular(8),
             child: Stack(
               clipBehavior: Clip.hardEdge,
-            children: [
-              widget.child,
-              Positioned(
-                right: 8,
-                bottom: 8,
-                child: AnimatedOpacity(
-                  opacity: _isHovering ? 1 : 0,
-                  duration: const Duration(milliseconds: 120),
-                  child: IgnorePointer(
-                    ignoring: !_isHovering,
-                    child: Material(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(16),
-                      child: IconButton(
-                        icon: Icon(
-                          widget.isActive && widget.isPlaying
-                              ? Icons.pause
-                              : Icons.play_arrow,
-                          color: Colors.white,
-                        ),
-                        onPressed: () {
-                          final player = context.read<WispAudioHandler>();
-                          if (widget.isActive) {
-                            if (player.isPlaying) {
-                              player.pause();
-                            } else {
-                              player.play();
+              children: [
+                widget.child,
+                Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: AnimatedOpacity(
+                    opacity: _isHovering ? 1 : 0,
+                    duration: const Duration(milliseconds: 120),
+                    child: IgnorePointer(
+                      ignoring: !_isHovering,
+                      child: Material(
+                        color: Colors.black.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(16),
+                        child: IconButton(
+                          icon: Icon(
+                            widget.isActive && widget.isPlaying
+                                ? Icons.pause
+                                : Icons.play_arrow,
+                            color: Colors.white,
+                          ),
+                          onPressed: () {
+                            final player = context.read<WispAudioHandler>();
+                            if (widget.isActive) {
+                              if (player.isPlaying) {
+                                player.pause();
+                              } else {
+                                player.play();
+                              }
+                              return;
                             }
-                            return;
-                          }
-                          widget.onPlay();
-                        },
-                        splashRadius: 18,
+                            widget.onPlay();
+                          },
+                          splashRadius: 18,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2535,10 +2546,7 @@ class _ScrollableCardSection extends StatefulWidget {
   final String title;
   final List<Widget> cards;
 
-  const _ScrollableCardSection({
-    required this.title,
-    required this.cards,
-  });
+  const _ScrollableCardSection({required this.title, required this.cards});
 
   @override
   State<_ScrollableCardSection> createState() => _ScrollableCardSectionState();
@@ -2578,8 +2586,10 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
 
   void _scrollBy(double delta) {
     if (!_controller.hasClients) return;
-    final target = (_controller.offset + delta)
-        .clamp(0.0, _controller.position.maxScrollExtent);
+    final target = (_controller.offset + delta).clamp(
+      0.0,
+      _controller.position.maxScrollExtent,
+    );
     _controller.animateTo(
       target,
       duration: const Duration(milliseconds: 220),
@@ -2663,10 +2673,7 @@ class _ScrollArrowButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
 
-  const _ScrollArrowButton({
-    required this.icon,
-    required this.onPressed,
-  });
+  const _ScrollArrowButton({required this.icon, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {

@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 
 import '../models/metadata_models.dart';
+import '../providers/connect/connect_session_provider.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../providers/library/library_state.dart';
 import '../providers/preferences/preferences_provider.dart';
@@ -119,10 +120,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Future<void> _playTopTracks(int index) async {
-    final player = context.read<global_audio_player.WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
     final tracks = _artist?.topSongs ?? [];
     if (tracks.isEmpty) return;
-    await player.setQueue(
+    await connect.requestSetQueue(
       tracks,
       startIndex: index,
       play: true,
@@ -199,7 +200,12 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(padding),
-                    child: _buildMobileHeader(name, imageUrl, followers, _artist?.monthlyListeners),
+                    child: _buildMobileHeader(
+                      name,
+                      imageUrl,
+                      followers,
+                      _artist?.monthlyListeners,
+                    ),
                   ),
                 ),
                 SliverPersistentHeader(
@@ -281,10 +287,16 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 ),
                 child: Column(
                   children: [
-                    _buildHeader(name, imageUrl, followers, _artist?.monthlyListeners),
+                    _buildHeader(
+                      name,
+                      imageUrl,
+                      followers,
+                      _artist?.monthlyListeners,
+                    ),
                     const SizedBox(height: 16),
                     _buildActionsRow(),
-                  ],)
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               _buildTopTracksSection(),
@@ -297,7 +309,12 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     );
   }
 
-  Widget _buildMobileHeader(String name, String imageUrl, int followers, int? monthlyListeners) {
+  Widget _buildMobileHeader(
+    String name,
+    String imageUrl,
+    int followers,
+    int? monthlyListeners,
+  ) {
     return Column(
       children: [
         // Avatar - 70% width as per old design
@@ -348,13 +365,15 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 ),
               ),
               const SizedBox(height: 4),
-              (monthlyListeners != null && monthlyListeners > 0) ? Text(
-                '${_formatNumber(monthlyListeners)} monthly listeners',
-                style: TextStyle(color: Colors.grey[500], fontSize: 14),
-              ) : Text(
-                '${_formatNumber(followers)} followers',
-                style: TextStyle(color: Colors.grey[500], fontSize: 14),
-              ),
+              (monthlyListeners != null && monthlyListeners > 0)
+                  ? Text(
+                      '${_formatNumber(monthlyListeners)} monthly listeners',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                    )
+                  : Text(
+                      '${_formatNumber(followers)} followers',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                    ),
             ],
           ),
         ),
@@ -376,7 +395,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 onPressed: () => _toggleFollowArtist(isFollowed),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
-                  side: BorderSide(color: Colors.grey[700]! ),
+                  side: BorderSide(color: Colors.grey[700]!),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -412,56 +431,63 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     );
   }
 
-  Widget _buildHeader(String name, String imageUrl, int followers, int? monthlyListeners) {
+  Widget _buildHeader(
+    String name,
+    String imageUrl,
+    int followers,
+    int? monthlyListeners,
+  ) {
     return Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          ClipOval(
-            child: Container(
-              width: 140,
-              height: 140,
-              color: Colors.grey[900],
-              child: imageUrl.isNotEmpty
-                  ? CachedNetworkImage(imageUrl: imageUrl, fit: BoxFit.cover)
-                  : Icon(Icons.person, color: Colors.grey[600], size: 48),
-            ),
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        ClipOval(
+          child: Container(
+            width: 140,
+            height: 140,
+            color: Colors.grey[900],
+            child: imageUrl.isNotEmpty
+                ? CachedNetworkImage(imageUrl: imageUrl, fit: BoxFit.cover)
+                : Icon(Icons.person, color: Colors.grey[600], size: 48),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'ARTIST',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[600],
-                    letterSpacing: 1.5,
-                  ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ARTIST',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[600],
+                  letterSpacing: 1.5,
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 38,
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 38,
+                  fontWeight: FontWeight.bold,
                 ),
-                const SizedBox(height: 8),
-                (monthlyListeners != null && monthlyListeners > 0) ? Text(
-                  '${_formatNumber(monthlyListeners)} monthly listeners',
-                  style: TextStyle(color: Colors.grey[300], fontSize: 14),
-                ) : Text(
-                  '${_formatNumber(followers)} followers',
-                  style: TextStyle(color: Colors.grey[300], fontSize: 14),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 8),
+              (monthlyListeners != null && monthlyListeners > 0)
+                  ? Text(
+                      '${_formatNumber(monthlyListeners)} monthly listeners',
+                      style: TextStyle(color: Colors.grey[300], fontSize: 14),
+                    )
+                  : Text(
+                      '${_formatNumber(followers)} followers',
+                      style: TextStyle(color: Colors.grey[300], fontSize: 14),
+                    ),
+            ],
           ),
-        ],
-      );
+        ),
+      ],
+    );
   }
 
   Widget _buildActionsRow() {
@@ -503,7 +529,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                             ? Icons.pause
                             : Icons.play_arrow,
                         size: 24,
-                      )
+                      ),
                     ),
                   ),
                 ),
@@ -523,7 +549,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     player.repeatMode == global_audio_player.RepeatMode.one
                         ? Icons.repeat_one
                         : Icons.repeat,
-                    color: player.repeatMode == global_audio_player.RepeatMode.off
+                    color:
+                        player.repeatMode == global_audio_player.RepeatMode.off
                         ? Colors.grey[300]
                         : colorScheme.primary,
                   ),
@@ -620,13 +647,13 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             thumbnailUrl: artist.thumbnailUrl,
           )
         : fallback != null
-            ? GenericSimpleArtist(
-                id: fallback.id,
-                source: SongSource.spotifyInternal,
-                name: fallback.name,
-                thumbnailUrl: fallback.thumbnailUrl,
-              )
-            : null;
+        ? GenericSimpleArtist(
+            id: fallback.id,
+            source: SongSource.spotifyInternal,
+            name: fallback.name,
+            thumbnailUrl: fallback.thumbnailUrl,
+          )
+        : null;
 
     try {
       if (isFollowed) {
@@ -641,9 +668,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              isFollowed ? 'Artist unfollowed' : 'Artist followed',
-            ),
+            content: Text(isFollowed ? 'Artist unfollowed' : 'Artist followed'),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -798,14 +823,15 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                                           album.id.isNotEmpty)
                                       ? HoverUnderline(
                                           onTap: () {
-                                            AppNavigation.instance.openSharedList(
-                                              context,
-                                              id: album.id,
-                                              type: SharedListType.album,
-                                              initialTitle: album.title,
-                                              initialThumbnailUrl:
-                                                  album.thumbnailUrl,
-                                            );
+                                            AppNavigation.instance
+                                                .openSharedList(
+                                                  context,
+                                                  id: album.id,
+                                                  type: SharedListType.album,
+                                                  initialTitle: album.title,
+                                                  initialThumbnailUrl:
+                                                      album.thumbnailUrl,
+                                                );
                                           },
                                           builder: (isHovering) => Text(
                                             track.title,
@@ -1008,12 +1034,12 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                                   '${album.releaseDate.year}',
                                   style: TextStyle(color: Colors.grey[500]),
                                 ),
-                              ]
-                            )
+                              ],
+                            ),
                           ],
                         ),
                       ),
-                    ) 
+                    ),
                   ),
                 ),
               );

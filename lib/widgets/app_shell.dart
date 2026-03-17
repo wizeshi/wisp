@@ -9,7 +9,11 @@ import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/navigation_state.dart';
 import '../providers/search/search_state.dart';
+import '../providers/connect/connect_session_provider.dart';
+import '../services/connect/connect_models.dart';
+import '../services/connect/lan_connect_service.dart';
 import '../services/app_navigation.dart';
+import '../services/desktop_notification_center.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/navigation_history.dart';
 import '../services/tab_routes.dart';
@@ -37,12 +41,18 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  bool get _isDesktop => Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  bool get _isDesktop =>
+      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
   final FocusNode _searchFocusNode = FocusNode();
   final ValueNotifier<int> _homeRefreshTick = ValueNotifier<int>(0);
   final ValueNotifier<int> _libraryRefreshTick = ValueNotifier<int>(0);
   Timer? _searchAutoSwitchTimer;
   bool _isHandlingPop = false;
+  ConnectSessionProvider? _connectProvider;
+  String? _lastPendingPairEventId;
+  String? _lastTrustPromptDeviceId;
+  bool _isShowingIncomingPairDialog = false;
+  static const int _handoffRequestNotificationId = 91011;
 
   void _debugNav(String message) {
     assert(() {
@@ -55,6 +65,10 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     NavigationHistory.instance.currentRoute.addListener(_handleRouteChange);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _bindConnectProvider();
+    });
   }
 
   @override
@@ -64,7 +78,133 @@ class _AppShellState extends State<AppShell> {
     _homeRefreshTick.dispose();
     _libraryRefreshTick.dispose();
     NavigationHistory.instance.currentRoute.removeListener(_handleRouteChange);
+    _connectProvider?.removeListener(_handleConnectEvents);
     super.dispose();
+  }
+
+  void _bindConnectProvider() {
+    final provider = context.read<ConnectSessionProvider>();
+    if (identical(_connectProvider, provider)) {
+      return;
+    }
+    _connectProvider?.removeListener(_handleConnectEvents);
+    _connectProvider = provider;
+    _connectProvider?.addListener(_handleConnectEvents);
+    _handleConnectEvents();
+  }
+
+  void _handleConnectEvents() {
+    final connect = _connectProvider;
+    if (!mounted || connect == null) return;
+
+    final pending = connect.pendingPairRequest;
+    if (pending == null) {
+      _lastPendingPairEventId = null;
+    } else {
+      final eventId =
+          '${pending.fromDeviceId}:${pending.fromAddress}:${pending.requestedMode.toJson()}';
+      if (_lastPendingPairEventId != eventId) {
+        _lastPendingPairEventId = eventId;
+        _handleIncomingPairRequest(connect, pending);
+      }
+    }
+
+    if (!connect.hasPendingTrustPrompt) {
+      _lastTrustPromptDeviceId = null;
+      return;
+    }
+    final trustDeviceId = connect.pendingTrustPromptDeviceId;
+    if (trustDeviceId == null || trustDeviceId == _lastTrustPromptDeviceId) {
+      return;
+    }
+    _lastTrustPromptDeviceId = trustDeviceId;
+    _showTrustDevicePrompt(connect);
+  }
+
+  void _handleIncomingPairRequest(
+    ConnectSessionProvider connect,
+    ConnectPairRequest request,
+  ) {
+    if (_isDesktop) {
+      context.read<DesktopNotificationCenter>().showComplete(
+        id: _handoffRequestNotificationId,
+        title: 'Handoff request',
+        body:
+            '${request.fromDeviceName} wants to pair (${request.requestedMode == ConnectLinkMode.controlOnly ? 'Control only' : 'Full handoff'}). Open Handoff panel to accept or decline.',
+      );
+      return;
+    }
+
+    if (_isShowingIncomingPairDialog) return;
+    _isShowingIncomingPairDialog = true;
+
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Incoming Handoff request'),
+            content: Text(
+              '${request.fromDeviceName} wants to pair (${request.requestedMode == ConnectLinkMode.controlOnly ? 'Control only' : 'Full handoff'}).',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  connect.rejectIncomingPair();
+                  Navigator.of(dialogContext).pop();
+                },
+                child: const Text('Decline'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  connect.acceptIncomingPair();
+                  Navigator.of(dialogContext).pop();
+                },
+                child: const Text('Accept'),
+              ),
+            ],
+          );
+        },
+      ).whenComplete(() {
+        _isShowingIncomingPairDialog = false;
+      }),
+    );
+  }
+
+  void _showTrustDevicePrompt(ConnectSessionProvider connect) {
+    final deviceName = connect.pendingTrustPromptDeviceName;
+    if (deviceName == null) return;
+
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Trust this device?'),
+            content: Text(
+              'Automatically accept future Handoff requests from $deviceName on this device?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  connect.clearPendingTrustPrompt();
+                  Navigator.of(dialogContext).pop();
+                },
+                child: const Text('Not now'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  unawaited(connect.trustPendingIncomingDevice());
+                  Navigator.of(dialogContext).pop();
+                },
+                child: const Text('Trust device'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   void _handleRouteChange() {
@@ -76,7 +216,9 @@ class _AppShellState extends State<AppShell> {
     );
     if (TabRoutes.isTabRoute(routeName)) {
       navState.setNavIndex(TabRoutes.indexForRoute(routeName));
-      _debugNav('setNavIndex from tab route -> ${TabRoutes.indexForRoute(routeName)}');
+      _debugNav(
+        'setNavIndex from tab route -> ${TabRoutes.indexForRoute(routeName)}',
+      );
       return;
     }
 
@@ -172,7 +314,9 @@ class _AppShellState extends State<AppShell> {
         _debugNav('back consumed by shell route pop');
         if (wasInSettings) {
           navState.setNavIndex(navState.lastNonSettingsNavIndex);
-          _debugNav('restored index after settings pop -> ${navState.lastNonSettingsNavIndex}');
+          _debugNav(
+            'restored index after settings pop -> ${navState.lastNonSettingsNavIndex}',
+          );
         }
         _syncNavIndexFromCurrentRoute(navState);
         return;
@@ -252,10 +396,7 @@ class _AppShellState extends State<AppShell> {
             }
             if (!folderState.isFolderCollapsed(folderId)) {
               entries.add(
-                LibrarySidebarEntry.item(
-                  playlist,
-                  folderId: folderId,
-                ),
+                LibrarySidebarEntry.item(playlist, folderId: folderId),
               );
             }
           } else {
@@ -329,7 +470,14 @@ class _AppShellState extends State<AppShell> {
             source: SongSource.spotifyInternal,
             title: e['name'] as String? ?? '',
             thumbnailUrl: e['image']?['url'] as String? ?? '',
-            author: GenericSimpleUser(id: '', source: SongSource.spotifyInternal, displayName: '', avatarUrl: null, followerCount: null, profileUrl: null),
+            author: GenericSimpleUser(
+              id: '',
+              source: SongSource.spotifyInternal,
+              displayName: '',
+              avatarUrl: null,
+              followerCount: null,
+              profileUrl: null,
+            ),
             songs: null,
             durationSecs: 0,
           );
@@ -389,9 +537,7 @@ class _AppShellState extends State<AppShell> {
                     expandedWidth: navState.leftSidebarWidth,
                   ),
                 if (_isDesktop)
-                  _LeftResizeHandle(
-                    onResize: navState.adjustLeftSidebarWidth,
-                  ),
+                  _LeftResizeHandle(onResize: navState.adjustLeftSidebarWidth),
                 Expanded(
                   child: Navigator(
                     key: NavigationHistory.instance.navigatorKey,
@@ -408,7 +554,8 @@ class _AppShellState extends State<AppShell> {
               ],
             ),
           ),
-          if (navState.selectedNavIndex != 3 && !_isDesktop) const WispPlayerBar(),
+          if (navState.selectedNavIndex != 3 && !_isDesktop)
+            const WispPlayerBar(),
           if (_isDesktop)
             Stack(
               clipBehavior: Clip.none,

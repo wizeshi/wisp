@@ -9,6 +9,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/metadata/spotify_internal.dart';
 import '../providers/metadata/youtube.dart';
 import '../providers/library/library_folders.dart';
+import '../providers/connect/connect_session_provider.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/wisp_audio_handler.dart';
 import '../models/metadata_models.dart';
@@ -197,21 +198,11 @@ class _SearchViewState extends State<SearchView> {
 
     if (mounted) {
       setState(() {
-        _tracks = selectedSource == 'YouTube'
-          ? youtubeTracks
-          : spotifyTracks;
-        _artists = selectedSource == 'YouTube'
-          ? []
-          : spotifyArtists;
-        _albums = selectedSource == 'YouTube'
-          ? []
-          : spotifyAlbums;
-        _playlists = selectedSource == 'YouTube'
-          ? []
-          : spotifyPlaylists;
-        _error = spotifyError != null && _tracks.isEmpty
-            ? spotifyError
-            : null;
+        _tracks = selectedSource == 'YouTube' ? youtubeTracks : spotifyTracks;
+        _artists = selectedSource == 'YouTube' ? [] : spotifyArtists;
+        _albums = selectedSource == 'YouTube' ? [] : spotifyAlbums;
+        _playlists = selectedSource == 'YouTube' ? [] : spotifyPlaylists;
+        _error = spotifyError != null && _tracks.isEmpty ? spotifyError : null;
         _isLoading = false;
       });
       if (_scrollController.hasClients) {
@@ -316,9 +307,7 @@ class _SearchViewState extends State<SearchView> {
             ),
           ),
           // Tab chips (mobile only)
-          if (isMobile &&
-              _lastQuery.isNotEmpty &&
-              effectiveSource != 'YouTube')
+          if (isMobile && _lastQuery.isNotEmpty && effectiveSource != 'YouTube')
             Padding(
               padding: EdgeInsets.symmetric(horizontal: padding),
               child: _buildTabChips(),
@@ -768,8 +757,9 @@ class _SearchViewState extends State<SearchView> {
                         heroTag: 'bestMatchPlay',
                         mini: true,
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimary,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary,
                         onPressed: () => _toggleTrackPlayback(track, 0),
                         child: Icon(
                           isCurrentPlaying ? Icons.pause : Icons.play_arrow,
@@ -787,7 +777,8 @@ class _SearchViewState extends State<SearchView> {
 
   Widget _buildSongsCard(List<GenericSong> songs) {
     final player = context.watch<WispAudioHandler>();
-    final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1050,17 +1041,19 @@ class _SearchViewState extends State<SearchView> {
   }
 
   void _playSearchQueue(int index) {
-    final player = context.read<WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
     if (_tracks.isEmpty) return;
     setState(() {
       _activePlayContext = 'song:${_tracks[index].id}';
     });
-    player.setQueue(
-      _tracks,
-      startIndex: index,
-      play: true,
-      contextType: 'search',
-      contextName: 'Search results',
+    unawaited(
+      connect.requestSetQueue(
+        _tracks,
+        startIndex: index,
+        play: true,
+        contextType: 'search',
+        contextName: 'Search results',
+      ),
     );
   }
 
@@ -1081,7 +1074,7 @@ class _SearchViewState extends State<SearchView> {
 
   Future<void> _playAlbum(BuildContext context, String albumId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final player = context.read<WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
     try {
       final album = await spotify.getAlbumInfo(albumId);
       final tracks = album.songs ?? [];
@@ -1089,7 +1082,7 @@ class _SearchViewState extends State<SearchView> {
       if (mounted) {
         setState(() => _activePlayContext = 'album:$albumId');
       }
-      await player.setQueue(
+      await connect.requestSetQueue(
         tracks,
         startIndex: 0,
         play: true,
@@ -1103,7 +1096,7 @@ class _SearchViewState extends State<SearchView> {
 
   Future<void> _playPlaylist(BuildContext context, String playlistId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final player = context.read<WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
     try {
       final playlist = await spotify.getPlaylistInfo(playlistId);
       final items = playlist.songs ?? [];
@@ -1125,7 +1118,7 @@ class _SearchViewState extends State<SearchView> {
             ),
           )
           .toList();
-      await player.setQueue(
+      await connect.requestSetQueue(
         tracks,
         startIndex: 0,
         play: true,
@@ -1140,7 +1133,7 @@ class _SearchViewState extends State<SearchView> {
 
   Future<void> _playArtist(BuildContext context, String artistId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final player = context.read<WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
     try {
       final artist = await spotify.getArtistInfo(artistId);
       final tracks = artist.topSongs;
@@ -1148,7 +1141,7 @@ class _SearchViewState extends State<SearchView> {
       if (mounted) {
         setState(() => _activePlayContext = 'artist:$artistId');
       }
-      await player.setQueue(
+      await connect.requestSetQueue(
         tracks,
         startIndex: 0,
         play: true,
@@ -2043,8 +2036,9 @@ class _MiniAlbumCard extends StatelessWidget {
                         heroTag: 'albumPlay_${album.id}',
                         mini: true,
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimary,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary,
                         onPressed: () {
                           if (isActiveContext) {
                             if (isPlaying) {
@@ -2208,8 +2202,9 @@ class _MiniPlaylistCard extends StatelessWidget {
                         heroTag: 'playlistPlay_${playlist.id}',
                         mini: true,
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimary,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary,
                         onPressed: () {
                           if (isActiveContext) {
                             if (isPlaying) {
@@ -2370,8 +2365,9 @@ class _MiniArtistCard extends StatelessWidget {
                         heroTag: 'artistPlay_${artist.id}',
                         mini: true,
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimary,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onPrimary,
                         onPressed: () {
                           if (isActiveContext) {
                             if (isPlaying) {

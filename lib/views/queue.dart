@@ -15,6 +15,7 @@ import '../services/app_navigation.dart';
 import 'list_detail.dart';
 import '../providers/navigation_state.dart';
 import '../widgets/navigation.dart';
+import '../providers/connect/connect_session_provider.dart';
 
 class QueueView extends StatefulWidget {
   /// If true, only returns the queue content without scaffold (for mobile bottom sheet)
@@ -63,7 +64,7 @@ class _QueueViewState extends State<QueueView> {
               if (player.queueTracks.isEmpty) return const SizedBox.shrink();
               return TextButton(
                 onPressed: () {
-                  player.clearQueue();
+                  context.read<ConnectSessionProvider>().requestClearQueue();
                 },
                 child: Text(
                   'Clear',
@@ -153,7 +154,7 @@ class _QueueViewState extends State<QueueView> {
               if (_isDesktop && queueLength > 0)
                 TextButton.icon(
                   onPressed: () {
-                    player.clearQueue();
+                    context.read<ConnectSessionProvider>().requestClearQueue();
                   },
                   icon: const Icon(Icons.delete_outline, size: 20),
                   label: const Text('Clear queue'),
@@ -206,7 +207,10 @@ class _QueueViewState extends State<QueueView> {
       itemCount: queue.length,
       buildDefaultDragHandles: false,
       onReorder: (oldIndex, newIndex) {
-        player.reorderQueue(oldIndex, newIndex);
+        context.read<ConnectSessionProvider>().requestReorderQueue(
+          oldIndex,
+          newIndex,
+        );
       },
       proxyDecorator: (child, index, animation) {
         return Material(
@@ -280,7 +284,7 @@ class _QueueViewState extends State<QueueView> {
         child: InkWell(
           onTap: () {
             // Play this track from queue
-            player.playTrack(track, addToQueue: false);
+            context.read<ConnectSessionProvider>().requestPlayQueueIndex(index);
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -435,7 +439,9 @@ class _QueueViewState extends State<QueueView> {
                   IconButton(
                     icon: Icon(Icons.close, color: Colors.grey[400], size: 20),
                     onPressed: () {
-                      player.removeFromQueue(index);
+                      context
+                          .read<ConnectSessionProvider>()
+                          .requestRemoveFromQueue(index);
                     },
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
@@ -528,7 +534,9 @@ void showMobileQueueSheet(BuildContext context) {
                           return const SizedBox.shrink();
                         return TextButton(
                           onPressed: () {
-                            player.clearQueue();
+                            context
+                                .read<ConnectSessionProvider>()
+                                .requestClearQueue();
                           },
                           child: Text(
                             'Clear',
