@@ -20,7 +20,6 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Animate the transition from search icon to box on the list view
 - Planned features: 
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
-    - [ ] Add ability to play local songs (should be a toggle in the settings)
     - [ ] Add ability to follow/unfollow artists and save/remove albums.
     - [ ] Add a semi-player bar to the bottom of the lyrics screen (just a seekable progress bar, and a play/pause button) (mobile)
     - [ ] Add a "Recommended" list of ~10 songs with "Add" buttons at the bottom of a playlist (not albums, not artists, not likes view)

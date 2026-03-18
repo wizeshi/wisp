@@ -1427,24 +1427,31 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             ),
           );
 
-          if (hasCanvas) {
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                Positioned.fill(
+          final foreground = hasCanvas
+              ? _CoverGradientContainer(
+                  background: _buildSpotifyTopCanvasBackground(
+                    context,
+                    canvasUrl,
+                    imageUrl,
+                  ),
+                  child: content,
+                )
+              : _CoverGradientContainer(child: content);
+
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(
+                child: ClipRect(
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                    child: const SizedBox.expand(),
+                    child: Container(color: Colors.black.withOpacity(0.16)),
                   ),
                 ),
-                _buildSpotifyTopCanvasBackground(context, canvasUrl, imageUrl),
-                Container(color: Colors.black.withOpacity(0.28)),
-                content,
-              ],
-            );
-          }
-
-          return _CoverGradientContainer(child: content);
+              ),
+              foreground,
+            ],
+          );
         }
 
         if (!canUseCanvas) {
@@ -1500,8 +1507,10 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   Future<void> _initialize() async {
     try {
+      _initFailed = false;
       final controller = VideoPlayerController.networkUrl(
         Uri.parse(widget.url),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
       );
       _controller = controller;
       await controller.initialize();
