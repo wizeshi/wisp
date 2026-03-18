@@ -1369,7 +1369,7 @@ class _DesktopRightControls extends StatelessWidget {
                     color: isFullScreenOpen ? activeColor : inactiveColor,
                     size: 20,
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     final currentScreen = NavigationHistory
                         .instance
                         .currentRoute
@@ -1377,15 +1377,9 @@ class _DesktopRightControls extends StatelessWidget {
                         ?.settings
                         .name;
                     if (currentScreen == '/fullplayer') {
-                      NavigationHistory.instance.goBack();
-                      navState.rightSidebarVisible
-                          ? null
-                          : navState.toggleRightSidebar();
+                      await AppNavigation.instance.closeFullPlayer();
                     } else {
-                      _openFullPlayer(context);
-                      navState.rightSidebarVisible
-                          ? navState.toggleRightSidebar()
-                          : null;
+                      await _openFullPlayer(context);
                     }
                   },
                 ),
@@ -1398,12 +1392,12 @@ class _DesktopRightControls extends StatelessWidget {
   }
 }
 
-void _openFullPlayer(BuildContext context) {
+Future<void> _openFullPlayer(BuildContext context) async {
   final currentRoute = ModalRoute.of(context);
   if (currentRoute?.settings.name == '/fullplayer') {
     return;
   }
-  AppNavigation.instance.openFullPlayer();
+  await AppNavigation.instance.openFullPlayer();
 }
 
 void _openLyrics(BuildContext context) {
@@ -1737,9 +1731,8 @@ class _ConnectPanelContent extends StatelessWidget {
                             showSelectedIcon: false,
                             style: ButtonStyle(
                               backgroundColor: WidgetStateProperty.resolveWith(
-                                (states) => states.contains(
-                                      WidgetState.selected,
-                                    )
+                                (states) =>
+                                    states.contains(WidgetState.selected)
                                     ? accentColor.withValues(alpha: 0.2)
                                     : Colors.transparent,
                               ),

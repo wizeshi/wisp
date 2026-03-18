@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
+import 'dart:io' show Platform;
 
 import '../models/metadata_models.dart';
 import '../providers/library/library_state.dart';
@@ -19,6 +21,38 @@ class AppNavigation {
 
   NavigatorState? get _shellNavigator =>
       NavigationHistory.instance.navigatorKey.currentState;
+
+  bool get _isDesktop =>
+      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+
+  NavigationState? get _navState {
+    final shellNavigator = _shellNavigator;
+    if (shellNavigator == null) {
+      return null;
+    }
+    try {
+      return shellNavigator.context.read<NavigationState>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _setWindowFullscreen(bool enabled) async {
+    if (!_isDesktop) return;
+    try {
+      await windowManager.setFullScreen(enabled);
+    } catch (_) {}
+  }
+
+  Future<void> _enterFullPlayerDesktopMode() async {
+    _navState?.enterDesktopImmersiveMode();
+    await _setWindowFullscreen(true);
+  }
+
+  Future<void> _exitFullPlayerDesktopMode() async {
+    await _setWindowFullscreen(false);
+    _navState?.exitDesktopImmersiveMode();
+  }
 
   Future<bool> maybePopOverlay(BuildContext context) {
     final rootNavigator = Navigator.of(context, rootNavigator: true);
@@ -75,11 +109,7 @@ class AppNavigation {
     }
 
     if (item is GenericSimpleArtist) {
-      openArtist(
-        context,
-        artistId: item.id,
-        initialArtist: item,
-      );
+      openArtist(context, artistId: item.id, initialArtist: item);
     }
   }
 
@@ -98,20 +128,22 @@ class AppNavigation {
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
         settings: RouteSettings(
-          name: type == SharedListType.playlist ? '/playlist/$id' : '/album/$id',
+          name: type == SharedListType.playlist
+              ? '/playlist/$id'
+              : '/album/$id',
         ),
         pageBuilder: (context, animation, secondaryAnimation) =>
             SharedListDetailView(
-          id: id,
-          type: type,
-          initialTitle: initialTitle,
-          initialThumbnailUrl: initialThumbnailUrl,
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: navState.selectedLibraryView,
-          initialNavIndex: navState.selectedNavIndex,
-        ),
+              id: id,
+              type: type,
+              initialTitle: initialTitle,
+              initialThumbnailUrl: initialThumbnailUrl,
+              playlists: libraryState.playlists,
+              albums: libraryState.albums,
+              artists: libraryState.artists,
+              initialLibraryView: navState.selectedLibraryView,
+              initialNavIndex: navState.selectedNavIndex,
+            ),
       ),
     );
   }
@@ -130,22 +162,23 @@ class AppNavigation {
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
         settings: RouteSettings(name: '/artist/$artistId'),
-        pageBuilder: (context, animation, secondaryAnimation) => ArtistDetailView(
-          artistId: artistId,
-          initialArtist:
-              initialArtist ??
-              GenericSimpleArtist(
-                id: artistId,
-                source: SongSource.spotifyInternal,
-                name: fallbackName ?? 'Artist',
-                thumbnailUrl: '',
-              ),
-          playlists: libraryState.playlists,
-          albums: libraryState.albums,
-          artists: libraryState.artists,
-          initialLibraryView: navState.selectedLibraryView,
-          initialNavIndex: navState.selectedNavIndex,
-        ),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            ArtistDetailView(
+              artistId: artistId,
+              initialArtist:
+                  initialArtist ??
+                  GenericSimpleArtist(
+                    id: artistId,
+                    source: SongSource.spotifyInternal,
+                    name: fallbackName ?? 'Artist',
+                    thumbnailUrl: '',
+                  ),
+              playlists: libraryState.playlists,
+              albums: libraryState.albums,
+              artists: libraryState.artists,
+              initialLibraryView: navState.selectedLibraryView,
+              initialNavIndex: navState.selectedNavIndex,
+            ),
       ),
     );
   }
@@ -157,11 +190,7 @@ class AppNavigation {
     String? contextName,
   }) {
     if (contextType == 'artist') {
-      openArtist(
-        context,
-        artistId: contextId,
-        fallbackName: contextName,
-      );
+      openArtist(context, artistId: contextId, fallbackName: contextName);
       return;
     }
 
@@ -177,9 +206,12 @@ class AppNavigation {
     );
   }
 
-  void openFullPlayer() {
+  Future<void> openFullPlayer() async {
     if (NavigationHistory.instance.currentRouteName == '/fullplayer') {
       return;
+    }
+    if (_isDesktop) {
+      await _enterFullPlayerDesktopMode();
     }
     _shellNavigator?.push(
       PageRouteBuilder(
@@ -190,6 +222,34 @@ class AppNavigation {
             const FullScreenPlayer(),
       ),
     );
+  }
+
+  Future<void> closeFullPlayer() async {
+    if (NavigationHistory.instance.currentRouteName == '/fullplayer') {
+      await _shellNavigator?.maybePop();
+    }
+    if (_isDesktop) {
+      await _exitFullPlayerDesktopMode();
+    }
+  }
+
+  Future<void> disableFullPlayerDesktopMode() async {
+    if (_isDesktop) {
+      await _exitFullPlayerDesktopMode();
+    }
+  }
+
+  Future<void> minimizeWindow() async {
+    if (!_isDesktop) return;
+    try {
+      await windowManager.minimize();
+    } catch (_) {}
+  }
+
+  Future<void> onFullPlayerPopped() async {
+    if (_isDesktop) {
+      await _exitFullPlayerDesktopMode();
+    }
   }
 
   void openLyrics() {

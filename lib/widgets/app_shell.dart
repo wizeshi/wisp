@@ -502,12 +502,13 @@ class _AppShellState extends State<AppShell> {
       folderState,
       navState.selectedLibraryView,
     );
+    final immersiveDesktop = _isDesktop && navState.desktopImmersiveMode;
 
     final shell = Material(
       color: const Color(0xFF121212),
       child: Column(
         children: [
-          if (_isDesktop)
+          if (_isDesktop && !immersiveDesktop)
             WispTitleBar(
               onHomeTap: () => _pushTab(0),
               onSettingsTap: () => _pushTab(3),
@@ -523,7 +524,7 @@ class _AppShellState extends State<AppShell> {
           Expanded(
             child: Row(
               children: [
-                if (_isDesktop)
+                if (_isDesktop && !immersiveDesktop)
                   WispNavigation(
                     selectedView: navState.selectedLibraryView,
                     onViewChanged: navState.setLibraryView,
@@ -536,7 +537,7 @@ class _AppShellState extends State<AppShell> {
                     onLibraryItemSelected: _handleLibraryItemSelected,
                     expandedWidth: navState.leftSidebarWidth,
                   ),
-                if (_isDesktop)
+                if (_isDesktop && !immersiveDesktop)
                   _LeftResizeHandle(onResize: navState.adjustLeftSidebarWidth),
                 Expanded(
                   child: Navigator(
@@ -546,7 +547,9 @@ class _AppShellState extends State<AppShell> {
                     onGenerateRoute: _onGenerateRoute,
                   ),
                 ),
-                if (_isDesktop && navState.rightSidebarVisible)
+                if (_isDesktop &&
+                    !immersiveDesktop &&
+                    navState.rightSidebarVisible)
                   RightSidebar(
                     width: navState.rightSidebarWidth,
                     onResize: navState.adjustRightSidebarWidth,
@@ -556,7 +559,7 @@ class _AppShellState extends State<AppShell> {
           ),
           if (navState.selectedNavIndex != 3 && !_isDesktop)
             const WispPlayerBar(),
-          if (_isDesktop)
+          if (_isDesktop && !immersiveDesktop)
             Stack(
               clipBehavior: Clip.none,
               children: const [

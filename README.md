@@ -8,10 +8,10 @@ wisp is a Flutter-based music player, with (pretty much) modular support for mul
 * Great, almost-native, performance
 * Extractors from services such as:
     * Youtube (Innertube, metadata & audio)
-    * Spotify (official API, metadata, note: this may change in the future due to Spotify's recent API restrictions)
+    * Spotify (internal API, metadata, maybe audio in the future)
 * Everything caching (support for audio, and metadata caches for everything, playlists, songs, you name it)
 * Lyrics (synced & unsynced) from the following services:
-    * Spotify (unofficial, removed temporarily)
+    * Spotify
     * LrcLib
 
 ## Installation
@@ -38,7 +38,7 @@ So, that was the best I could do, but these days nothing on the app itself refle
 I mean yeah, they do. I did this because for some reason, apps like Spotube frequently don't work (and I just don't like their UI, sorry)
 
 #### Is this ready?
-Mostly. Right now, it's mostly missing (some) writing to spotify, source mixing (not finished as well) and controlling playback from other devices. Everything else is on the Roadmap.
+Mostly. Right now, it's mostly missing (some) writing to spotify, source mixing (not finished as well). Everything else is on the Roadmap.
 
 #### Why is this only avaliable on 3 platforms?
 Well, they're the ones I have access to. I don't have a Mac, neither do I have an iPhone, so I can't develop for macOS or iOS. If you want to help me bring support to those (and other) platforms, create a PR with the features for them.

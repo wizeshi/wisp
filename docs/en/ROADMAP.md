@@ -1,41 +1,26 @@
-Here's the TODOs for version v26.03.xx (3/59):
+Here's the TODOs for version v26.03.xx:
 
 - Bugs:
-    - [x] The song name on the mobile full player isn't a marquee (it also wraps to a new line)
-    - [x] Clicking on the "Go to" buttons in the context menu sends the user to UIs that don't use the app shell (doesn't show the nav and player bar)
+    - [ ] Clicking the three dots menu in the artist view on desktop opens the mobile bottom sheet
 - Future changes:
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)
     - [ ] Increase heart icon size in the mobile likes view
     - [ ] Padding between elements (top and bottom) is part of the elements themselves (in the library view)
-    - [ ] Switch from a velocity based sliding mechanism to a position threshold one
     - [ ] Switch desktop context submenus to use prediction cones
-    - [ ] Make the right sidebar's title clickable when it is a Playlist/Album/Artist
-    - [ ] Make the heart icon on the playerbar (desktop) stick to the right of the Song/Artist box (right now it just has constant spacing)
-    - [ ] Make shuffling persist between playlists (e.g., I have shuffle on when hearing PL1, I switch to PL2 and it should automatically shuffle itself)
     - [ ] Remove the unassigned text from the sidebar. Also make playlists/folders be ordered with each other (e.g. have Folder1, then PL1, then Folder2, then PL2, and so on and so forth)
     - [ ] Add download tracks button on album/playlist right-click context menu
     - [ ] Revamp the list view grid pattern to account for the downloading/cached icon and also center the duration in it's column 
     - [ ] Increase max cache size (2GB -> 4GB). Also, make it permanent, not temporary.
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
     - [ ] Add a "Go to Folder" on the cache section.
-    - [ ] Make the player bar's progress bar smaller and truly centered (desktop)
-    - [ ] Change the lyrics icon to a song note icon
-    - [ ] Make the lyrics preview's background color the song cover's main color
     - [ ] Add padding at the top/bottom of the lyrics screen to ensure the focused line is centered
-    - [ ] Reduce loading spinner size on the player bar (mobile & desktop) and full screen player (mobile)
     - [ ] Move "Provided by {lyrics_provider}" text to the bottom-left corner (lyrics screen, desktop)
-    - [ ] "Add to Playlist" button should be the first in the right-click context menu
     - [ ] Change YT-DLP download/check logic. Right now, it pauses the whole app at startup. Should make it a notification warning it is loading/downloading
     - [ ] Make a playlist remember it's last play's player options (whether it was shuffled & the repeat mode)
-    - [ ] Merge the list controls area with the list songs area on the desktop list view 
     - [ ] Animate the transition from search icon to box on the list view
-    - [ ] Add a next up preview to the top left of the player bar (desktop)
 - Planned features: 
-    - [ ] Add the Connect capability (being able to control devices remotely, probably with bluetooth/nearby devices for now)
-    - [ ] Add a fullscreen player (desktop)
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
     - [ ] Add ability to play local songs (should be a toggle in the settings)
-    - [ ] Add a setting for write permissions: when off, should block all tries to remotely change things on other providers (e.g. add a song to a playlist on Spotify. Note: it should still add the song locally.)
     - [ ] Add ability to follow/unfollow artists and save/remove albums.
     - [ ] Add a semi-player bar to the bottom of the lyrics screen (just a seekable progress bar, and a play/pause button) (mobile)
     - [ ] Add a "Recommended" list of ~10 songs with "Add" buttons at the bottom of a playlist (not albums, not artists, not likes view)
@@ -45,4 +30,3 @@ Here's the TODOs for version v26.03.xx (3/59):
     - [ ] Change custom window controls to fit the OS (keep current appearance for windows)
     - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
     - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
-    - [ ] Change the App to use Spotify's closed API instead of the official one (very future change)

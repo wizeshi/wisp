@@ -7,6 +7,8 @@ class NavigationState extends ChangeNotifier {
   int _lastNonSettingsNavIndex = 0;
   LibraryView _selectedLibraryView = LibraryView.playlists;
   bool _rightSidebarVisible = true;
+  bool _desktopImmersiveMode = false;
+  bool? _rightSidebarVisibleBeforeImmersive;
   double _rightSidebarWidth = 320;
   double _leftSidebarWidth = 240;
 
@@ -18,6 +20,7 @@ class NavigationState extends ChangeNotifier {
   int get lastNonSettingsNavIndex => _lastNonSettingsNavIndex;
   LibraryView get selectedLibraryView => _selectedLibraryView;
   bool get rightSidebarVisible => _rightSidebarVisible;
+  bool get desktopImmersiveMode => _desktopImmersiveMode;
   double get rightSidebarWidth => _rightSidebarWidth;
   double get leftSidebarWidth => _leftSidebarWidth;
 
@@ -37,7 +40,26 @@ class NavigationState extends ChangeNotifier {
   }
 
   void toggleRightSidebar() {
+    if (_desktopImmersiveMode) return;
     _rightSidebarVisible = !_rightSidebarVisible;
+    notifyListeners();
+  }
+
+  void enterDesktopImmersiveMode() {
+    if (_desktopImmersiveMode) return;
+    _rightSidebarVisibleBeforeImmersive = _rightSidebarVisible;
+    _desktopImmersiveMode = true;
+    _rightSidebarVisible = false;
+    notifyListeners();
+  }
+
+  void exitDesktopImmersiveMode() {
+    if (!_desktopImmersiveMode) return;
+    _desktopImmersiveMode = false;
+    if (_rightSidebarVisibleBeforeImmersive != null) {
+      _rightSidebarVisible = _rightSidebarVisibleBeforeImmersive!;
+      _rightSidebarVisibleBeforeImmersive = null;
+    }
     notifyListeners();
   }
 
@@ -67,8 +89,10 @@ class NavigationState extends ChangeNotifier {
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    _rightSidebarWidth = prefs.getDouble('rightSidebarWidth') ?? _rightSidebarWidth;
-    _leftSidebarWidth = prefs.getDouble('leftSidebarWidth') ?? _leftSidebarWidth;
+    _rightSidebarWidth =
+        prefs.getDouble('rightSidebarWidth') ?? _rightSidebarWidth;
+    _leftSidebarWidth =
+        prefs.getDouble('leftSidebarWidth') ?? _leftSidebarWidth;
     notifyListeners();
   }
 
