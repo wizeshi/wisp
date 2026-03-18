@@ -627,21 +627,77 @@ GenericPlaylist spotifyInternalFullPlaylistToGeneric(
   int? offset,
   int? limit,
 }) {
-  // Accept either a wrapped shape (data.playlistV2) or an unwrapped playlist map
-  playlist =
-      (playlist['data'] is Map &&
-          (playlist['data'] as Map).containsKey('playlistV2'))
-      ? (playlist['data']['playlistV2'] as Map<String, dynamic>)
-      : (playlist['playlistV2'] as Map<String, dynamic>?) ??
-            (playlist['data'] as Map<String, dynamic>?) ??
-            playlist;
+  // Accept multiple wrapped shapes and normalize down to a Playlist-like map.
+  // Examples seen in different endpoints:
+  // - data.playlistV2
+  // - PlaylistResponseWrapper -> data -> Playlist
+  // - item -> content -> data
+  Map<String, dynamic> normalized = playlist;
+
+  bool changed = true;
+  while (changed) {
+    changed = false;
+
+    if (normalized['data'] is Map &&
+        (normalized['data'] as Map).containsKey('playlistV2')) {
+      normalized =
+          (normalized['data'] as Map<String, dynamic>)['playlistV2']
+              as Map<String, dynamic>;
+      changed = true;
+      continue;
+    }
+
+    if (normalized['playlistV2'] is Map<String, dynamic>) {
+      normalized = normalized['playlistV2'] as Map<String, dynamic>;
+      changed = true;
+      continue;
+    }
+
+    if (normalized['content'] is Map<String, dynamic>) {
+      final content = normalized['content'] as Map<String, dynamic>;
+      if (content['data'] is Map<String, dynamic>) {
+        normalized = content['data'] as Map<String, dynamic>;
+        changed = true;
+        continue;
+      }
+    }
+
+    if (normalized['item'] is Map<String, dynamic>) {
+      normalized = normalized['item'] as Map<String, dynamic>;
+      changed = true;
+      continue;
+    }
+
+    if (normalized['data'] is Map<String, dynamic>) {
+      final data = normalized['data'] as Map<String, dynamic>;
+      final typename = data['__typename'] as String? ?? '';
+      if (typename == 'Playlist' || typename.endsWith('ResponseWrapper')) {
+        normalized = data;
+        changed = true;
+        continue;
+      }
+    }
+  }
+
+  playlist = normalized;
 
   final ownerPayload =
       (playlist['ownerV2'] as Map<String, dynamic>?) ??
       (playlist['owner'] as Map<String, dynamic>?) ??
       (playlist['createdByV2'] as Map<String, dynamic>?) ??
       (playlist['creator'] as Map<String, dynamic>?) ??
-      const <String, dynamic>{};
+      (((playlist['content'] as Map<String, dynamic>?)?['items'] as List?)
+                  ?.whereType<Map<String, dynamic>>()
+                  .map(
+                    (entry) =>
+                        (entry['addedBy'] as Map<String, dynamic>?) ??
+                        const <String, dynamic>{},
+                  )
+                  .firstWhere(
+                    (entry) => entry.isNotEmpty,
+                    orElse: () => const <String, dynamic>{},
+                  ) ??
+              const <String, dynamic>{});
 
   final owner = spotifyInternalOwnerToGeneric(ownerPayload);
 
