@@ -960,43 +960,61 @@ class SpotifyInternalProvider extends MetadataProvider {
         }
 
         const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
+        final headers = {
+          'Authorization': 'Bearer $_bearerToken',
+          'client-token': _clientToken!,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': _spotifyUserAgent,
+          'Origin': 'https://open.spotify.com',
+          'Referer': 'https://open.spotify.com/',
+          'app-platform': 'WebPlayer',
+          'spotify-app-version': _spotifyAppVersion,
+          'Accept-Language': 'en',
+        };
+
+        final variables = {
+          "uri": "spotify:playlist:$playlistId",
+          "offset": offset,
+          "limit": limit,
+          "enableWatchFeedEntrypoint": true,
+        };
+
         final body = {
-          "variables": {
-            "uri": "spotify:playlist:$playlistId",
-            "offset": offset,
-            "limit": limit
-          },
-          "operationName": "fetchPlaylistContents",
+          "variables": variables,
+          "operationName": "fetchPlaylist",
           "extensions": {
             "persistedQuery": {
               "version": 1,
-              "sha256Hash": "9c53fb83f35c6a177be88bf1b67cb080b853e86b576ed174216faa8f9164fc8f"
+              "sha256Hash": "346811f856fb0b7e4f6c59f8ebea78dd081c6e2fb01b77c954b26259d5fc6763"
             }
           }
         };
 
         final response = await _postWithRetry(
           Uri.parse(url),
-          headers: {
-            'Authorization': 'Bearer $_bearerToken',
-            'client-token': _clientToken!,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'User-Agent': _spotifyUserAgent,
-            'Origin': 'https://open.spotify.com',
-            'Referer': 'https://open.spotify.com/',
-            'app-platform': 'WebPlayer',
-            'spotify-app-version': _spotifyAppVersion,
-            'Accept-Language': 'en',
-          },
+          headers: headers,
           body: jsonEncode(body),
         );
 
         if (response.statusCode != 200) {
-          throw Exception('[Metadata/Spotify-Internal] Failed to fetch playlist info: ${response.statusCode} ${response.body}');
+          throw Exception(
+            '[Metadata/Spotify-Internal] Failed to fetch playlist info: '
+            '${response.statusCode} ${response.body}',
+          );
         }
 
         final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        if (jsonResponse['errors'] is List &&
+            (jsonResponse['errors'] as List).isNotEmpty) {
+          throw Exception(
+            '[Metadata/Spotify-Internal] Playlist query returned errors: '
+            '${jsonResponse['errors']}',
+          );
+        }
+
+        logger.d("[Metadata/Spotify-Internal] Playlist description: ${jsonResponse['data']['playlistV2']}");
+
         return spotifyInternalFullPlaylistToGeneric(
           jsonResponse,
           offset: offset,

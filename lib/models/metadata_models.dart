@@ -393,6 +393,7 @@ class GenericPlaylist {
   final String id;
   final SongSource source;
   final String title;
+  final String? description;
   final String thumbnailUrl;
   final GenericSimpleUser author;
   final List<PlaylistItem>? songs;
@@ -410,12 +411,14 @@ class GenericPlaylist {
     required this.durationSecs,
     this.total,
     this.hasMore,
+    this.description,
   });
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'source': source.toJson(),
         'title': title,
+        'description': description,
         'thumbnail_url': thumbnailUrl,
         'author': author.toJson(),
         'songs': songs?.map((s) => s.toJson()).toList(),
@@ -429,6 +432,7 @@ class GenericPlaylist {
       id: json['id'] as String,
       source: SongSource.fromJson(json['source'] as String),
       title: json['title'] as String,
+      description: json['description'] as String?,
       thumbnailUrl: json['thumbnail_url'] as String,
       author:
           GenericSimpleUser.fromJson(json['author'] as Map<String, dynamic>),

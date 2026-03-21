@@ -94,6 +94,27 @@ List<Map<String, dynamic>> _extractImageSources(dynamic obj) {
   return [];
 }
 
+String? _extractPlaylistDescription(Map<String, dynamic> playlist) {
+  final raw = playlist['description'];
+  if (raw is String) return raw;
+  if (raw is Map<String, dynamic>) {
+    return raw['text'] as String? ??
+        raw['body'] as String? ??
+        raw['plainText'] as String?;
+  }
+
+  final details = playlist['details'] as Map<String, dynamic>?;
+  final detailDescription = details?['description'];
+  if (detailDescription is String) return detailDescription;
+  if (detailDescription is Map<String, dynamic>) {
+    return detailDescription['text'] as String? ??
+        detailDescription['body'] as String? ??
+        detailDescription['plainText'] as String?;
+  }
+
+  return null;
+}
+
 /// Convert Spotify artist JSON to GenericSimpleArtist
 GenericSimpleArtist spotifyInternalArtistToGeneric(
   Map<String, dynamic> artist,
@@ -681,23 +702,48 @@ GenericPlaylist spotifyInternalFullPlaylistToGeneric(
 
   playlist = normalized;
 
-  final ownerPayload =
-      (playlist['ownerV2'] as Map<String, dynamic>?) ??
-      (playlist['owner'] as Map<String, dynamic>?) ??
-      (playlist['createdByV2'] as Map<String, dynamic>?) ??
-      (playlist['creator'] as Map<String, dynamic>?) ??
+  final memberOwnerPayload =
+      (((playlist['members'] as Map<String, dynamic>?)?['items'] as List?)
+              ?.whereType<Map<String, dynamic>>()
+              .map(
+                (entry) =>
+                    (entry['user'] as Map<String, dynamic>?) ??
+                    const <String, dynamic>{},
+              )
+              .firstWhere(
+                (entry) => entry.isNotEmpty,
+                orElse: () => const <String, dynamic>{},
+              )) ??
+      const <String, dynamic>{};
+
+  final addedByPayload =
       (((playlist['content'] as Map<String, dynamic>?)?['items'] as List?)
-                  ?.whereType<Map<String, dynamic>>()
-                  .map(
-                    (entry) =>
-                        (entry['addedBy'] as Map<String, dynamic>?) ??
-                        const <String, dynamic>{},
-                  )
-                  .firstWhere(
-                    (entry) => entry.isNotEmpty,
-                    orElse: () => const <String, dynamic>{},
-                  ) ??
-              const <String, dynamic>{});
+              ?.whereType<Map<String, dynamic>>()
+              .map(
+                (entry) =>
+                    (entry['addedBy'] as Map<String, dynamic>?) ??
+                    const <String, dynamic>{},
+              )
+              .firstWhere(
+                (entry) => entry.isNotEmpty,
+                orElse: () => const <String, dynamic>{},
+              )) ??
+      const <String, dynamic>{};
+
+  final ownerPayload = <Map<String, dynamic>>[
+    (playlist['ownerV2'] as Map<String, dynamic>?) ??
+        const <String, dynamic>{},
+    (playlist['owner'] as Map<String, dynamic>?) ?? const <String, dynamic>{},
+    (playlist['createdByV2'] as Map<String, dynamic>?) ??
+        const <String, dynamic>{},
+    (playlist['creator'] as Map<String, dynamic>?) ??
+        const <String, dynamic>{},
+    memberOwnerPayload,
+    addedByPayload,
+  ].firstWhere(
+    (entry) => entry.isNotEmpty,
+    orElse: () => const <String, dynamic>{},
+  );
 
   final owner = spotifyInternalOwnerToGeneric(ownerPayload);
 
@@ -739,6 +785,7 @@ GenericPlaylist spotifyInternalFullPlaylistToGeneric(
     id: id,
     source: SongSource.spotifyInternal,
     title: playlist['name'] as String? ?? 'Unknown Playlist',
+    description: _extractPlaylistDescription(playlist),
     thumbnailUrl: _getLargestImage(_extractImageSources(playlist)),
     author: owner,
     songs: songs,

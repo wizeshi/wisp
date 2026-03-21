@@ -2063,7 +2063,7 @@ class _AlbumCard extends StatelessWidget {
       width: 180,
       child: ClipRect(
         child: Material(
-          color: Color(0xFF181818),
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           child: _HoverPlayCard(
             onTap: onTap,
@@ -2107,7 +2107,7 @@ class _AlbumCard extends StatelessWidget {
                     child: Container(
                       width: 150,
                       height: 150,
-                      color: Colors.grey[900],
+                      color: Colors.transparent,
                       child: album.thumbnailUrl.isNotEmpty
                           ? CachedNetworkImage(
                               imageUrl: album.thumbnailUrl,
@@ -2189,7 +2189,7 @@ class _PlaylistCard extends StatelessWidget {
       width: 180,
       child: ClipRect(
         child: Material(
-          color: Color(0xFF181818),
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           child: _HoverPlayCard(
             onTap: onTap,
@@ -2233,7 +2233,7 @@ class _PlaylistCard extends StatelessWidget {
                     child: Container(
                       width: 150,
                       height: 150,
-                      color: Colors.grey[900],
+                      color: Colors.transparent,
                       child: isLiked
                           ? const LikedSongsArt()
                           : (playlist.thumbnailUrl.isNotEmpty
@@ -2337,7 +2337,7 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.white.withOpacity(0.025),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(

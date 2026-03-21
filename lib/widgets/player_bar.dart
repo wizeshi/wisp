@@ -439,7 +439,7 @@ class _DesktopPlayerBar extends StatelessWidget {
           Container(
             height: 90,
             decoration: BoxDecoration(
-              color: const Color(0xFF181818),
+              color: Colors.black,
               border: Border(
                 top: BorderSide(color: Colors.grey[900]!, width: 1),
               ),

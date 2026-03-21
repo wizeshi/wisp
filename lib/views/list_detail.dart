@@ -456,6 +456,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       id: playlist.id,
       source: playlist.source,
       title: playlist.title,
+      description: playlist.description,
       thumbnailUrl: playlist.thumbnailUrl,
       author: playlist.author,
       songs: items,
@@ -1313,9 +1314,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         ? (_playlist?.total ?? _items.length)
         : (_album?.total ?? _items.length);
 
+    final description = widget.type == SharedListType.playlist
+      ? _playlist?.description
+      : null;
+
     final content = _isLoading
         ? const Center(child: CircularProgressIndicator())
-        : _buildListContent(title, subtitle, imageUrl, total, isDesktop);
+        : _buildListContent(title, subtitle, imageUrl, total, isDesktop, description);
 
     if (isDesktop) {
       return content;
@@ -1369,6 +1374,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     String imageUrl,
     int total,
     bool isDesktop,
+    String? description,
   ) {
     final isMobile = !isDesktop;
     final padding = isMobile ? 20.0 : 24.0;
@@ -1384,7 +1390,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(padding, padding, padding, 0),
-                    child: _buildMobileHeader(title, subtitle, imageUrl, total),
+                    child: _buildMobileHeader(title, subtitle, imageUrl, total, description),
                   ),
                 ),
                 SliverPersistentHeader(
@@ -1468,7 +1474,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       ),
                       child: Column(
                         children: [
-                          _buildHeader(title, subtitle, imageUrl, total),
+                          _buildHeader(title, subtitle, imageUrl, total, description),
                           _buildActionsRow(isDesktop),
                         ],
                       ),
@@ -1507,7 +1513,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     String? subtitle,
     String imageUrl,
     int total,
+    String? description,
   ) {
+    final descriptionText = description?.trim();
+    final hasDescription =
+        descriptionText != null && descriptionText.isNotEmpty;
     final isLiked =
         widget.type == SharedListType.playlist &&
         isLikedSongsPlaylistId(widget.id);
@@ -1623,6 +1633,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   ),
                 ],
               ),
+              if (hasDescription) ...[
+                const SizedBox(height: 10),
+                Text(
+                  descriptionText,
+                  style: TextStyle(color: Colors.grey[300], fontSize: 13),
+                ),
+              ],
             ],
           ),
         ),
@@ -1700,7 +1717,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     String? subtitle,
     String imageUrl,
     int total,
+    String? description,
   ) {
+    final descriptionText = description?.trim();
+    final hasDescription =
+        descriptionText != null && descriptionText.isNotEmpty;
     final isLiked =
         widget.type == SharedListType.playlist &&
         isLikedSongsPlaylistId(widget.id);
@@ -1763,6 +1784,15 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     color: Colors.white,
                     fontSize: 38,
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (hasDescription) const SizedBox(height: 4),
+                if (hasDescription) Text(
+                  descriptionText,
+                  style: TextStyle(
+                    color: Colors.grey[300],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w300,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -2282,8 +2312,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(6),
                               child: Container(
-                                width: 40,
-                                height: 40,
+                                width: 44,
+                                height: 44,
                                 color: Colors.grey[900],
                                 child: CachedNetworkImage(
                                   imageUrl: _getThumbnail(item),
@@ -2424,7 +2454,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               const SizedBox(width: 8),
                             ],
                             SizedBox(
-                              width: isMobile ? 40 : 70,
+                              width: isMobile ? 40 : 80,
                               child: Text(
                                 _formatDuration(_getDuration(item)),
                                 style: TextStyle(
@@ -2434,15 +2464,21 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 textAlign: TextAlign.right,
                               ),
                             ),
-                            SizedBox(width: isMobile ? 0 : 16),
+                            SizedBox(width: isMobile ? 0 : 12),
 
                             !isMobile
-                                ? Icon(
-                                    Icons.graphic_eq,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                    size: isMobile ? 16 : 18,
+                                ? SizedBox(
+                                    width: 32,
+                                    child: Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Icon(
+                                        Icons.graphic_eq,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        size: isMobile ? 16 : 18,
+                                      ),
+                                    ),
                                   )
                                 : const SizedBox.shrink(),
                           ],
@@ -2716,7 +2752,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         const SizedBox(width: 8),
                       ],
                       SizedBox(
-                        width: isMobile ? 40 : 70,
+                        width: isMobile ? 40 : 80,
                         child: Text(
                           _formatDuration(_getDuration(item)),
                           style: TextStyle(
@@ -2726,12 +2762,18 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           textAlign: TextAlign.right,
                         ),
                       ),
-                      SizedBox(width: isMobile ? 0 : 16),
+                      SizedBox(width: isMobile ? 0 : 12),
                       !isMobile
-                          ? Icon(
-                              Icons.graphic_eq,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: isMobile ? 16 : 18,
+                          ? SizedBox(
+                              width: 32,
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: Icon(
+                                  Icons.graphic_eq,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  size: isMobile ? 16 : 18,
+                                ),
+                              ),
                             )
                           : const SizedBox.shrink(),
                     ],

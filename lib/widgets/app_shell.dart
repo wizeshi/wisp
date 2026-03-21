@@ -505,7 +505,7 @@ class _AppShellState extends State<AppShell> {
     final immersiveDesktop = _isDesktop && navState.desktopImmersiveMode;
 
     final shell = Material(
-      color: const Color(0xFF121212),
+      color: HSLColor.fromColor(Colors.black).withLightness(0.05).toColor(),
       child: Column(
         children: [
           if (_isDesktop && !immersiveDesktop)

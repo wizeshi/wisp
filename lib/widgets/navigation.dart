@@ -79,7 +79,7 @@ class _WispNavigationState extends State<WispNavigation> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: _isCollapsed ? widget.collapsedWidth : widget.expandedWidth,
-      color: const Color(0xFF000000),
+      color: Colors.grey[900]?.withOpacity(0.3),
       onEnd: () {
         if (_layoutCollapsed != _isCollapsed) {
           setState(() => _layoutCollapsed = _isCollapsed);
