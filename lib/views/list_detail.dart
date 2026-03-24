@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'dart:io' show Platform, File;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -35,6 +36,8 @@ import '../widgets/provider_disabled_state.dart';
 enum SharedListType { playlist, album }
 
 enum _SortMethod { position, title, author, album, duration, source }
+
+enum _ListVisualStyle { spotify, apple }
 
 typedef _ListItem = Object;
 
@@ -1059,6 +1062,22 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
+  void _showShareDialog() {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Share not implemented yet')));
+  }
+
+  void _showEditDialog() {
+    if (widget.type == SharedListType.playlist && _playlist != null) {
+      PlaylistFolderModals.showRenamePlaylistDialog(context, _playlist!);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Edit not available for this item')),
+    );
+  }
+
   void _showDesktopListMenu(BuildContext buttonContext) {
     final overlay =
         Overlay.of(context, rootOverlay: true).context.findRenderObject()
@@ -1297,6 +1316,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (!preferences.metadataSpotifyEnabled) {
       return const ProviderDisabledState();
     }
+    final style = preferences.style;
 
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -1315,15 +1335,49 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         : (_album?.total ?? _items.length);
 
     final description = widget.type == SharedListType.playlist
-      ? _playlist?.description
-      : null;
+        ? _playlist?.description
+        : null;
 
     final content = _isLoading
         ? const Center(child: CircularProgressIndicator())
-        : _buildListContent(title, subtitle, imageUrl, total, isDesktop, description);
+        : _buildListContentByStyle(
+            style: style,
+            title: title,
+            subtitle: subtitle,
+            imageUrl: imageUrl,
+            total: total,
+            isDesktop: isDesktop,
+            description: description,
+          );
 
     if (isDesktop) {
       return content;
+    }
+
+    if (style == 'Apple Music') {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(CupertinoIcons.back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(CupertinoIcons.arrow_down_to_line),
+              onPressed: _isLoading ? null : _downloadAll,
+            ),
+            IconButton(
+              icon: const Icon(CupertinoIcons.ellipsis_vertical),
+              onPressed: _showMoreOptions,
+            ),
+          ],
+        ),
+        body: content,
+      );
     }
 
     return Scaffold(
@@ -1368,144 +1422,48 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     return PopupMenuItem<_SortMethod>(value: method, child: Text(label));
   }
 
-  Widget _buildListContent(
-    String title,
-    String? subtitle,
-    String imageUrl,
-    int total,
-    bool isDesktop,
-    String? description,
-  ) {
-    final isMobile = !isDesktop;
-    final padding = isMobile ? 20.0 : 24.0;
-
-    if (isMobile) {
-      // Mobile layout: single scroll area with sticky action bar
-      return Column(
-        children: [
-          Expanded(
-            child: CustomScrollView(
-              controller: _mobileScrollController,
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(padding, padding, padding, 0),
-                    child: _buildMobileHeader(title, subtitle, imageUrl, total, description),
-                  ),
-                ),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _StickyActionBarDelegate(
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: padding / 2,
-                        vertical: padding / 2,
-                      ),
-                      color: const Color(0xFF121212),
-                      child: _buildMobileActionsRow(),
-                    ),
-                  ),
-                ),
-                SliverPadding(
-                  padding: EdgeInsets.zero,
-                  sliver: SliverToBoxAdapter(
-                    child: _buildSongList(isMobile: true),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
+  Widget _buildListContentByStyle({
+    required String style,
+    required String title,
+    required String? subtitle,
+    required String imageUrl,
+    required int total,
+    required bool isDesktop,
+    required String? description,
+  }) {
+    switch (style) {
+      case 'Apple Music':
+        return _AppleMusicListDetailRenderer(
+          view: this,
+          title: title,
+          subtitle: subtitle,
+          imageUrl: imageUrl,
+          total: total,
+          isDesktop: isDesktop,
+          description: description,
+        );
+      case 'YouTube Music':
+        return _SpotifyListDetailRenderer(
+          view: this,
+          title: title,
+          subtitle: subtitle,
+          imageUrl: imageUrl,
+          total: total,
+          isDesktop: isDesktop,
+          description: description,
+        );
+      case 'Spotify':
+      default:
+        return _SpotifyListDetailRenderer(
+          view: this,
+          title: title,
+          subtitle: subtitle,
+          imageUrl: imageUrl,
+          total: total,
+          isDesktop: isDesktop,
+          description: description,
+        );
     }
-
-    // Desktop layout with background
-    return Stack(
-      children: [
-        if (imageUrl.isNotEmpty)
-          Positioned.fill(
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Opacity(
-                opacity: 0.35,
-                child: _isLocalImagePath(imageUrl)
-                    ? Image.file(
-                        File(imageUrl.replaceFirst('file://', '')),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, url, error) =>
-                            Container(color: Colors.grey[900]),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) =>
-                            Container(color: Colors.grey[900]),
-                      ),
-              ),
-            ),
-          ),
-        Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withOpacity(0.4),
-                  Colors.black.withOpacity(0.9),
-                ],
-              ),
-            ),
-          ),
-        ),
-        SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  controller: _desktopScrollController,
-                  padding: EdgeInsets.all(padding),
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        children: [
-                          _buildHeader(title, subtitle, imageUrl, total, description),
-                          _buildActionsRow(isDesktop),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            child: _buildListHeaderContent(),
-                          ),
-                          _buildSongList(isMobile: false),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 
   Widget _buildMobileHeader(
@@ -1787,14 +1745,15 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   ),
                 ),
                 if (hasDescription) const SizedBox(height: 4),
-                if (hasDescription) Text(
-                  descriptionText,
-                  style: TextStyle(
-                    color: Colors.grey[300],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w300,
+                if (hasDescription)
+                  Text(
+                    descriptionText,
+                    style: TextStyle(
+                      color: Colors.grey[300],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w300,
+                    ),
                   ),
-                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -2031,8 +1990,63 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
-  Widget _buildListHeaderContent() {
+  Widget _buildListHeaderContent({
+    _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+  }) {
     final headerStyle = TextStyle(color: Colors.grey[400], fontSize: 12);
+
+    if (visualStyle == _ListVisualStyle.apple) {
+      return Row(
+        children: [
+          const SizedBox(width: 44),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: InkWell(
+              onTap: _handleTitleHeaderTap,
+              child: Text(
+                _sortMethod == _SortMethod.author ? 'Artist' : 'Song',
+                style: headerStyle,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: InkWell(
+              onTap: () => _sortBy(_SortMethod.author),
+              child: Text(
+                'Artist',
+                style: headerStyle,
+                textAlign: TextAlign.left,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: InkWell(
+              onTap: () => _sortBy(_SortMethod.album),
+              child: Text(
+                'Album',
+                style: headerStyle,
+                textAlign: TextAlign.left,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 70,
+            child: InkWell(
+              onTap: () => _sortBy(_SortMethod.duration),
+              child: Text(
+                'Time',
+                style: headerStyle,
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ),
+          const SizedBox(width: 24),
+        ],
+      );
+    }
 
     return Row(
       children: [
@@ -2110,7 +2124,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
-  Widget _buildSongList({bool isMobile = false}) {
+  Widget _buildSongList({
+    bool isMobile = false,
+    _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+  }) {
     if (_isLoading) {
       return const Center(
         child: Padding(
@@ -2132,6 +2149,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final isAppleStyle = visualStyle == _ListVisualStyle.apple;
     final totalCount = _sortedIndices.length;
     final controller = isMobile
         ? _mobileScrollController
@@ -2263,14 +2281,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: isEven
-                              ? Colors.transparent
-                              : Colors.black.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(8),
+                          color: isAppleStyle
+                              ? (isEven
+                                    ? Colors.transparent
+                                    : Colors.white.withOpacity(0.03))
+                              : (isEven
+                                    ? Colors.transparent
+                                    : Colors.black.withOpacity(0.15)),
+                          borderRadius: isAppleStyle
+                              ? BorderRadius.zero
+                              : BorderRadius.circular(8),
                         ),
                         child: Row(
                           children: [
-                            if (isDesktop) ...[
+                            if (isDesktop && !isAppleStyle) ...[
                               SizedBox(
                                 width: 40,
                                 child: isHovering
@@ -2353,8 +2377,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 ],
                               ),
                             ),
-                            if (!isMobile &&
-                                widget.type == SharedListType.playlist)
+                            if (!isMobile && isAppleStyle) ...[
+                              Expanded(
+                                flex: 2,
+                                child: _buildArtistLine(
+                                  artists,
+                                  isDesktop: isDesktop,
+                                ),
+                              ),
                               Expanded(
                                 flex: 2,
                                 child:
@@ -2386,7 +2416,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                         builder: (isHovering) => Text(
                                           _getAlbumTitle(item),
                                           style: TextStyle(
-                                            color: Colors.grey[500],
+                                            color: Colors.grey[400],
                                             fontSize: 12,
                                             decoration: isHovering
                                                 ? TextDecoration.underline
@@ -2394,93 +2424,183 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
                                         ),
                                       )
                                     : Text(
                                         _getAlbumTitle(item),
                                         style: TextStyle(
-                                          color: Colors.grey[500],
+                                          color: Colors.grey[400],
                                           fontSize: 12,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.center,
                                       ),
-                              )
-                            else if (!isMobile)
-                              const SizedBox(width: 80),
-                            if (!isMobile &&
-                                widget.type == SharedListType.playlist)
+                              ),
                               SizedBox(
-                                width: 120,
+                                width: 70,
                                 child: Text(
-                                  _formatAddedAt(_getAddedAt(item)),
+                                  _formatDuration(_getDuration(item)),
                                   style: TextStyle(
-                                    color: Colors.grey[500],
+                                    color: Colors.grey[400],
                                     fontSize: 12,
                                   ),
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.right,
                                 ),
-                              )
-                            else if (!isMobile)
-                              const SizedBox(width: 120),
-                            SizedBox(
-                              width: 24,
-                              child: _buildCacheIndicator(song.id),
-                            ),
-                            if (isDesktop) ...[
-                              AnimatedOpacity(
-                                opacity: isHovering ? 1 : 0,
-                                duration: const Duration(milliseconds: 120),
-                                child: IgnorePointer(
-                                  ignoring: !isHovering,
-                                  child: SizedBox(
-                                    width: 28,
-                                    child: LikeButton(
-                                      track: song,
-                                      iconSize: 16,
-                                      padding: const EdgeInsets.all(2),
-                                      constraints: const BoxConstraints(
-                                        minWidth: 24,
-                                        minHeight: 24,
+                              ),
+                              SizedBox(
+                                width: 24,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Icon(
+                                    CupertinoIcons.ellipsis,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ] else ...[
+                              if (!isMobile &&
+                                  widget.type == SharedListType.playlist)
+                                Expanded(
+                                  flex: 2,
+                                  child:
+                                      (isDesktop &&
+                                          album != null &&
+                                          album.id.isNotEmpty)
+                                      ? HoverUnderline(
+                                          onTap: () {
+                                            _openSharedList(
+                                              SharedListType.album,
+                                              album.id,
+                                              title: album.title,
+                                              thumbnailUrl: album.thumbnailUrl,
+                                            );
+                                          },
+                                          onSecondaryTapDown: (details) {
+                                            LibraryItemContextMenu.show(
+                                              context: context,
+                                              item: album,
+                                              position: details.globalPosition,
+                                              playlists: widget.playlists,
+                                              albums: widget.albums,
+                                              artists: widget.artists,
+                                              currentLibraryView:
+                                                  _currentLibraryView,
+                                              currentNavIndex: _currentNavIndex,
+                                            );
+                                          },
+                                          builder: (isHovering) => Text(
+                                            _getAlbumTitle(item),
+                                            style: TextStyle(
+                                              color: Colors.grey[500],
+                                              fontSize: 12,
+                                              decoration: isHovering
+                                                  ? TextDecoration.underline
+                                                  : TextDecoration.none,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        )
+                                      : Text(
+                                          _getAlbumTitle(item),
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                )
+                              else if (!isMobile)
+                                const SizedBox(width: 80),
+                              if (!isMobile &&
+                                  widget.type == SharedListType.playlist)
+                                SizedBox(
+                                  width: 120,
+                                  child: Text(
+                                    _formatAddedAt(_getAddedAt(item)),
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                )
+                              else if (!isMobile)
+                                const SizedBox(width: 120),
+                              if (isMobile && isAppleStyle)
+                                SizedBox(
+                                  width: 24,
+                                  child: Icon(
+                                    CupertinoIcons.ellipsis_vertical,
+                                    color: Colors.grey[400],
+                                    size: 18,
+                                  ),
+                                )
+                              else
+                                SizedBox(
+                                  width: 24,
+                                  child: _buildCacheIndicator(song.id),
+                                ),
+                              if (isDesktop) ...[
+                                AnimatedOpacity(
+                                  opacity: isHovering ? 1 : 0,
+                                  duration: const Duration(milliseconds: 120),
+                                  child: IgnorePointer(
+                                    ignoring: !isHovering,
+                                    child: SizedBox(
+                                      width: 28,
+                                      child: LikeButton(
+                                        track: song,
+                                        iconSize: 16,
+                                        padding: const EdgeInsets.all(2),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 24,
+                                          minHeight: 24,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            SizedBox(
-                              width: isMobile ? 40 : 80,
-                              child: Text(
-                                _formatDuration(_getDuration(item)),
-                                style: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 12,
-                                ),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            SizedBox(width: isMobile ? 0 : 12),
-
-                            !isMobile
-                                ? SizedBox(
-                                    width: 32,
-                                    child: Align(
-                                      alignment: Alignment.centerRight,
-                                      child: Icon(
-                                        Icons.graphic_eq,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                        size: isMobile ? 16 : 18,
-                                      ),
+                                const SizedBox(width: 8),
+                              ],
+                              if (!(isMobile && isAppleStyle))
+                                SizedBox(
+                                  width: isMobile ? 40 : 80,
+                                  child: Text(
+                                    _formatDuration(_getDuration(item)),
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
                                     ),
-                                  )
-                                : const SizedBox.shrink(),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                ),
+                              if (!(isMobile && isAppleStyle))
+                                SizedBox(width: isMobile ? 0 : 12),
+                              !isMobile
+                                  ? SizedBox(
+                                      width: 32,
+                                      child: Align(
+                                        alignment: Alignment.centerRight,
+                                        child: Icon(
+                                          Icons.graphic_eq,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          size: isMobile ? 16 : 18,
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ],
                           ],
                         ),
                       ),
@@ -2575,14 +2695,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: isEven
-                        ? Colors.transparent
-                        : Colors.black.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(8),
+                    color: isAppleStyle
+                        ? (isEven
+                              ? Colors.transparent
+                              : Colors.white.withOpacity(0.03))
+                        : (isEven
+                              ? Colors.transparent
+                              : Colors.black.withOpacity(0.15)),
+                    borderRadius: isAppleStyle
+                        ? BorderRadius.zero
+                        : BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      if (isDesktop) ...[
+                      if (isDesktop && !isAppleStyle) ...[
                         SizedBox(
                           width: 40,
                           child: isHovering
@@ -2656,7 +2782,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           ],
                         ),
                       ),
-                      if (!isMobile && widget.type == SharedListType.playlist)
+                      if (!isMobile && isAppleStyle) ...[
+                        Expanded(
+                          flex: 2,
+                          child: _buildArtistLine(
+                            artists,
+                            isDesktop: isDesktop,
+                          ),
+                        ),
                         Expanded(
                           flex: 2,
                           child:
@@ -2687,7 +2820,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   builder: (isHovering) => Text(
                                     _getAlbumTitle(item),
                                     style: TextStyle(
-                                      color: Colors.grey[500],
+                                      color: Colors.grey[400],
                                       fontSize: 12,
                                       decoration: isHovering
                                           ? TextDecoration.underline
@@ -2695,87 +2828,178 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
                                   ),
                                 )
                               : Text(
                                   _getAlbumTitle(item),
                                   style: TextStyle(
-                                    color: Colors.grey[500],
+                                    color: Colors.grey[400],
                                     fontSize: 12,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
                                 ),
-                        )
-                      else if (!isMobile)
-                        const SizedBox(width: 80),
-                      if (!isMobile && widget.type == SharedListType.playlist)
+                        ),
                         SizedBox(
-                          width: 120,
+                          width: 70,
                           child: Text(
-                            _formatAddedAt(_getAddedAt(item)),
+                            _formatDuration(_getDuration(item)),
                             style: TextStyle(
-                              color: Colors.grey[500],
+                              color: Colors.grey[400],
                               fontSize: 12,
                             ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.right,
                           ),
-                        )
-                      else if (!isMobile)
-                        const SizedBox(width: 120),
-                      // Cache indicator
-                      SizedBox(width: 24, child: _buildCacheIndicator(song.id)),
-                      if (isDesktop) ...[
-                        AnimatedOpacity(
-                          opacity: isHovering ? 1 : 0,
-                          duration: const Duration(milliseconds: 120),
-                          child: IgnorePointer(
-                            ignoring: !isHovering,
-                            child: SizedBox(
-                              width: 28,
-                              child: LikeButton(
-                                track: song,
-                                iconSize: 16,
-                                padding: const EdgeInsets.all(2),
-                                constraints: const BoxConstraints(
-                                  minWidth: 24,
-                                  minHeight: 24,
+                        ),
+                        SizedBox(
+                          width: 24,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Icon(
+                              CupertinoIcons.ellipsis,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        if (!isMobile && widget.type == SharedListType.playlist)
+                          Expanded(
+                            flex: 2,
+                            child:
+                                (isDesktop &&
+                                    album != null &&
+                                    album.id.isNotEmpty)
+                                ? HoverUnderline(
+                                    onTap: () {
+                                      _openSharedList(
+                                        SharedListType.album,
+                                        album.id,
+                                        title: album.title,
+                                        thumbnailUrl: album.thumbnailUrl,
+                                      );
+                                    },
+                                    onSecondaryTapDown: (details) {
+                                      LibraryItemContextMenu.show(
+                                        context: context,
+                                        item: album,
+                                        position: details.globalPosition,
+                                        playlists: widget.playlists,
+                                        albums: widget.albums,
+                                        artists: widget.artists,
+                                        currentLibraryView: _currentLibraryView,
+                                        currentNavIndex: _currentNavIndex,
+                                      );
+                                    },
+                                    builder: (isHovering) => Text(
+                                      _getAlbumTitle(item),
+                                      style: TextStyle(
+                                        color: Colors.grey[500],
+                                        fontSize: 12,
+                                        decoration: isHovering
+                                            ? TextDecoration.underline
+                                            : TextDecoration.none,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  )
+                                : Text(
+                                    _getAlbumTitle(item),
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                  ),
+                          )
+                        else if (!isMobile)
+                          const SizedBox(width: 80),
+                        if (!isMobile && widget.type == SharedListType.playlist)
+                          SizedBox(
+                            width: 120,
+                            child: Text(
+                              _formatAddedAt(_getAddedAt(item)),
+                              style: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 12,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          )
+                        else if (!isMobile)
+                          const SizedBox(width: 120),
+                        if (isMobile && isAppleStyle)
+                          SizedBox(
+                            width: 24,
+                            child: Icon(
+                              CupertinoIcons.ellipsis_vertical,
+                              color: Colors.grey[400],
+                              size: 18,
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            width: 24,
+                            child: _buildCacheIndicator(song.id),
+                          ),
+                        if (isDesktop) ...[
+                          AnimatedOpacity(
+                            opacity: isHovering ? 1 : 0,
+                            duration: const Duration(milliseconds: 120),
+                            child: IgnorePointer(
+                              ignoring: !isHovering,
+                              child: SizedBox(
+                                width: 28,
+                                child: LikeButton(
+                                  track: song,
+                                  iconSize: 16,
+                                  padding: const EdgeInsets.all(2),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 24,
+                                    minHeight: 24,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      SizedBox(
-                        width: isMobile ? 40 : 80,
-                        child: Text(
-                          _formatDuration(_getDuration(item)),
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                      SizedBox(width: isMobile ? 0 : 12),
-                      !isMobile
-                          ? SizedBox(
-                              width: 32,
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: Icon(
-                                  Icons.graphic_eq,
-                                  color: Theme.of(context).colorScheme.primary,
-                                  size: isMobile ? 16 : 18,
-                                ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (!(isMobile && isAppleStyle))
+                          SizedBox(
+                            width: isMobile ? 40 : 80,
+                            child: Text(
+                              _formatDuration(_getDuration(item)),
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12,
                               ),
-                            )
-                          : const SizedBox.shrink(),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                        if (!(isMobile && isAppleStyle))
+                          SizedBox(width: isMobile ? 0 : 12),
+                        !isMobile
+                            ? SizedBox(
+                                width: 32,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Icon(
+                                    Icons.graphic_eq,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    size: isMobile ? 16 : 18,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ],
                     ],
                   ),
                 ),
@@ -2876,5 +3100,643 @@ class _StickyActionBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(_StickyActionBarDelegate oldDelegate) {
     return child != oldDelegate.child;
+  }
+}
+
+class _SpotifyListDetailRenderer extends StatelessWidget {
+  final _SharedListDetailViewState view;
+  final String title;
+  final String? subtitle;
+  final String imageUrl;
+  final int total;
+  final bool isDesktop;
+  final String? description;
+
+  const _SpotifyListDetailRenderer({
+    required this.view,
+    required this.title,
+    required this.subtitle,
+    required this.imageUrl,
+    required this.total,
+    required this.isDesktop,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = !isDesktop;
+    final padding = isMobile ? 20.0 : 24.0;
+
+    if (isMobile) {
+      return Column(
+        children: [
+          Expanded(
+            child: CustomScrollView(
+              controller: view._mobileScrollController,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(padding, padding, padding, 0),
+                    child: view._buildMobileHeader(
+                      title,
+                      subtitle,
+                      imageUrl,
+                      total,
+                      description,
+                    ),
+                  ),
+                ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _StickyActionBarDelegate(
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: padding / 2,
+                        vertical: padding / 2,
+                      ),
+                      color: const Color(0xFF121212),
+                      child: view._buildMobileActionsRow(),
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: EdgeInsets.zero,
+                  sliver: SliverToBoxAdapter(
+                    child: view._buildSongList(isMobile: true),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Stack(
+      children: [
+        if (imageUrl.isNotEmpty)
+          Positioned.fill(
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: Opacity(
+                opacity: 0.35,
+                child: view._isLocalImagePath(imageUrl)
+                    ? Image.file(
+                        File(imageUrl.replaceFirst('file://', '')),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, url, error) =>
+                            Container(color: Colors.grey[900]),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) =>
+                            Container(color: Colors.grey[900]),
+                      ),
+              ),
+            ),
+          ),
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.4),
+                  Colors.black.withOpacity(0.9),
+                ],
+              ),
+            ),
+          ),
+        ),
+        SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  controller: view._desktopScrollController,
+                  padding: EdgeInsets.all(padding),
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          view._buildHeader(
+                            title,
+                            subtitle,
+                            imageUrl,
+                            total,
+                            description,
+                          ),
+                          view._buildActionsRow(isDesktop),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: view._buildListHeaderContent(),
+                          ),
+                          view._buildSongList(isMobile: false),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AppleMusicListDetailRenderer extends StatelessWidget {
+  final _SharedListDetailViewState view;
+  final String title;
+  final String? subtitle;
+  final String imageUrl;
+  final int total;
+  final bool isDesktop;
+  final String? description;
+
+  const _AppleMusicListDetailRenderer({
+    required this.view,
+    required this.title,
+    required this.subtitle,
+    required this.imageUrl,
+    required this.total,
+    required this.isDesktop,
+    required this.description,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isDesktop) {
+      return _buildDesktop(context);
+    }
+    return _buildMobile(context);
+  }
+
+  Widget _buildMobile(BuildContext context) {
+    final topInset = MediaQuery.of(context).padding.top + (kToolbarHeight / 3);
+    final descriptionText = description?.trim();
+    final hasDescription =
+        descriptionText != null && descriptionText.isNotEmpty;
+
+    return Stack(
+      children: [
+        if (imageUrl.isNotEmpty)
+          Positioned.fill(
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+              child: Opacity(
+                opacity: 0.35,
+                child: view._isLocalImagePath(imageUrl)
+                    ? Image.file(
+                        File(imageUrl.replaceFirst('file://', '')),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, url, error) =>
+                            Container(color: Colors.black),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) =>
+                            Container(color: Colors.black),
+                      ),
+              ),
+            ),
+          ),
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.28),
+                  Colors.black.withOpacity(0.42),
+                  Colors.black.withOpacity(0.88),
+                  Colors.black,
+                ],
+                stops: const [0.0, 0.35, 0.62, 1.0],
+              ),
+            ),
+          ),
+        ),
+        CustomScrollView(
+          controller: view._mobileScrollController,
+          slivers: [
+            SliverToBoxAdapter(child: SizedBox(height: topInset)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(32, 0, 32, 0),
+                child: _buildArtwork(context),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                child: _buildMobileMeta(),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: _buildMobilePlaybackRow(),
+              ),
+            ),
+            if (hasDescription)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Text(
+                    descriptionText,
+                    style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(
+              child: view._buildSongList(
+                  isMobile: true,
+                  visualStyle: _ListVisualStyle.apple,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktop(BuildContext context) {
+    final descriptionText = description?.trim();
+    final hasDescription =
+        descriptionText != null && descriptionText.isNotEmpty;
+
+    return Stack(
+      children: [
+        if (imageUrl.isNotEmpty)
+          Positioned.fill(
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+              child: Opacity(
+                opacity: 0.24,
+                child: view._isLocalImagePath(imageUrl)
+                    ? Image.file(
+                        File(imageUrl.replaceFirst('file://', '')),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, url, error) =>
+                            Container(color: Colors.black),
+                      )
+                    : CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) =>
+                            Container(color: Colors.black),
+                      ),
+              ),
+            ),
+          ),
+        Positioned.fill(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.45),
+                  Colors.black.withOpacity(0.78),
+                ],
+              ),
+            ),
+          ),
+        ),
+        SafeArea(
+          bottom: false,
+          child: ListView(
+            controller: view._desktopScrollController,
+            padding: const EdgeInsets.fromLTRB(30, 30, 30, 18),
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SizedBox(
+                    width: 210,
+                    height: 210,
+                    child: _buildArtwork(context),
+                  ),
+                  const SizedBox(width: 22),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 40,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$total items • ${view._formatDuration(view._totalDurationSecs())}',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (subtitle != null && subtitle!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitle!,
+                            style: TextStyle(
+                              color: Colors.grey[300],
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                        if (hasDescription) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            descriptionText,
+                            style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        _buildDesktopPlaybackRow(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          CupertinoIcons.share,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        onPressed: view._showShareDialog,
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          CupertinoIcons.pencil,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        onPressed: view._showEditDialog,
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          CupertinoIcons.arrow_down_to_line,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        onPressed: view._isLoading ? null : view._downloadAll,
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          CupertinoIcons.ellipsis,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        onPressed: () => view._showDesktopListMenu(context),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 26),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: view._buildListHeaderContent(
+                  visualStyle: _ListVisualStyle.apple,
+                ),
+              ),
+              const SizedBox(height: 8),
+              view._buildSongList(
+                isMobile: false,
+                visualStyle: _ListVisualStyle.apple,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildArtwork(BuildContext context) {
+    final isLiked =
+        view.widget.type == SharedListType.playlist &&
+        isLikedSongsPlaylistId(view.widget.id);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        color: Colors.grey[900],
+        child: isLiked
+            ? const LikedSongsArt()
+            : (imageUrl.isNotEmpty
+                  ? (view._isLocalImagePath(imageUrl)
+                        ? Image.file(
+                            File(imageUrl.replaceFirst('file://', '')),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, url, error) => Icon(
+                              view.widget.type == SharedListType.playlist
+                                  ? Icons.playlist_play
+                                  : Icons.album,
+                              color: Colors.grey[600],
+                              size: 64,
+                            ),
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) =>
+                                Container(color: Colors.grey[800]),
+                            errorWidget: (context, url, error) => Icon(
+                              view.widget.type == SharedListType.playlist
+                                  ? Icons.playlist_play
+                                  : Icons.album,
+                              color: Colors.grey[600],
+                              size: 64,
+                            ),
+                          ))
+                  : Icon(
+                      view.widget.type == SharedListType.playlist
+                          ? Icons.playlist_play
+                          : Icons.album,
+                      color: Colors.grey[600],
+                      size: 64,
+                    )),
+      ),
+    );
+  }
+
+  Widget _buildMobileMeta() {
+    return Column(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+        if (subtitle != null && subtitle!.isNotEmpty) ...[
+          Text(
+            subtitle!,
+            style: TextStyle(color: Colors.grey[300], fontSize: 24),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ],
+        const SizedBox(height: 4),
+        Text(
+          '$total songs • ${view._formatDuration(view._totalDurationSecs())}',
+          style: TextStyle(color: Colors.grey[500], fontSize: 14),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobilePlaybackRow() {
+    return Consumer<global_audio_player.WispAudioHandler>(
+      builder: (context, player, child) {
+        final isPlayingList =
+            view._isCurrentListPlaying(player) && player.isPlaying;
+        return Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: view._items.isEmpty
+                    ? null
+                    : () {
+                        if (view._isCurrentListPlaying(player)) {
+                          player.togglePlayPause();
+                        } else {
+                          view._playFromStart();
+                        }
+                      },
+                icon: Icon(
+                  isPlayingList
+                      ? CupertinoIcons.pause_fill
+                      : CupertinoIcons.play_fill,
+                ),
+                label: Text(isPlayingList ? 'Pause' : 'Play'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: const StadiumBorder(),
+                  minimumSize: const Size(0, 48),
+                ),
+              ),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: view._items.isEmpty
+                    ? null
+                    : () {
+                        view._toggleListShuffle(player);
+                        if (!view._isCurrentListPlaying(player)) {
+                          view._playFromStart();
+                        }
+                      },
+                icon: const Icon(CupertinoIcons.shuffle),
+                label: const Text('Shuffle'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: const StadiumBorder(),
+                  minimumSize: const Size(0, 48),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDesktopPlaybackRow() {
+    return Consumer<global_audio_player.WispAudioHandler>(
+      builder: (context, player, child) {
+        final isPlayingList =
+            view._isCurrentListPlaying(player) && player.isPlaying;
+        return Row(
+          children: [
+            FilledButton.icon(
+              onPressed: view._items.isEmpty
+                  ? null
+                  : () {
+                      if (view._isCurrentListPlaying(player)) {
+                        player.togglePlayPause();
+                      } else {
+                        view._playFromStart();
+                      }
+                    },
+              icon: Icon(
+                isPlayingList
+                    ? CupertinoIcons.pause_fill
+                    : CupertinoIcons.play_fill,
+              ),
+              label: Text(isPlayingList ? 'Pause' : 'Play'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(118, 40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            FilledButton.icon(
+              onPressed: view._items.isEmpty
+                  ? null
+                  : () {
+                      view._toggleListShuffle(player);
+                      if (!view._isCurrentListPlaying(player)) {
+                        view._playFromStart();
+                      }
+                    },
+              icon: const Icon(CupertinoIcons.shuffle),
+              label: const Text('Shuffle'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(118, 40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

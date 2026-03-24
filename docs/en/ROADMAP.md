@@ -2,6 +2,8 @@ Here's the TODOs for version v26.03.xx:
 
 - Bugs:
     - [ ] Clicking the three dots menu in the artist view on desktop opens the mobile bottom sheet
+    - [ ] Apple Music List View doesn't have an option for index-based sorting
+    - [ ] Apple Music List View sorting headers occupy the whole width, not the text width
 - Future changes:
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)
     - [ ] Increase heart icon size in the mobile likes view

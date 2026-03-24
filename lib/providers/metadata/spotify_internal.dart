@@ -1013,8 +1013,6 @@ class SpotifyInternalProvider extends MetadataProvider {
           );
         }
 
-        logger.d("[Metadata/Spotify-Internal] Playlist description: ${jsonResponse['data']['playlistV2']}");
-
         return spotifyInternalFullPlaylistToGeneric(
           jsonResponse,
           offset: offset,
