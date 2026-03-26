@@ -79,7 +79,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   bool _showSearch = false;
   String _searchQuery = '';
   static const double _rowHeightDesktop = 64;
-  static const double _rowHeightMobile = 72;
+  static const double _rowHeightMobile = 64;
   static const int _windowBuffer = 6;
   double _songListTopOffset = 0;
   final ScrollController _desktopScrollController = ScrollController();
@@ -1358,24 +1358,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       return Scaffold(
         backgroundColor: Colors.black,
         extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(CupertinoIcons.back),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(CupertinoIcons.arrow_down_to_line),
-              onPressed: _isLoading ? null : _downloadAll,
-            ),
-            IconButton(
-              icon: const Icon(CupertinoIcons.ellipsis_vertical),
-              onPressed: _showMoreOptions,
-            ),
-          ],
-        ),
+        appBar: _isLoading
+            ? AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                leading: IconButton(
+                  icon: const Icon(CupertinoIcons.back),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              )
+            : null,
         body: content,
       );
     }
@@ -2198,6 +2190,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           SizedBox(key: _songListKey, height: 0),
           if (topSpacer > 0) SizedBox(height: topSpacer),
           ListView.builder(
+            padding: EdgeInsets.zero,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: visibleCount,
@@ -2271,7 +2264,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     color: Colors.transparent,
                     child: InkWell(
                       mouseCursor: SystemMouseCursors.click,
-                      onTap: isDesktop ? null : () => _playQueueAt(rowIndex),
+                      onTap: isDesktop
+                          ? null
+                          : () {
+                              if (isCurrentTrack) {
+                                if (player.isPlaying) {
+                                  player.pause();
+                                } else {
+                                  player.play();
+                                }
+                              } else {
+                                _playQueueAt(rowIndex);
+                              }
+                            },
                       onDoubleTap: isDesktop
                           ? () => _playQueueAt(rowIndex)
                           : null,
@@ -2451,12 +2456,33 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 width: 24,
                                 child: Align(
                                   alignment: Alignment.centerRight,
-                                  child: Icon(
-                                    CupertinoIcons.ellipsis,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.primary,
-                                    size: 18,
+                                  child: GestureDetector(
+                                    onTapDown: (details) {
+                                      TrackContextMenu.show(
+                                        context: context,
+                                        track: song,
+                                        position: details.globalPosition,
+                                        playlistId: widget.type == SharedListType.playlist
+                                            ? widget.id
+                                            : null,
+                                        playlistName: widget.type == SharedListType.playlist
+                                            ? _playlist?.title
+                                            : null,
+                                        playlistTrackUid: _getUid(item),
+                                        playlists: widget.playlists,
+                                        albums: widget.albums,
+                                        artists: widget.artists,
+                                        currentLibraryView: _currentLibraryView,
+                                        currentNavIndex: _currentNavIndex,
+                                      );
+                                    },
+                                    child: Icon(
+                                      CupertinoIcons.ellipsis,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      size: 18,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -2535,20 +2561,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 )
                               else if (!isMobile)
                                 const SizedBox(width: 120),
-                              if (isMobile && isAppleStyle)
-                                SizedBox(
-                                  width: 24,
-                                  child: Icon(
-                                    CupertinoIcons.ellipsis_vertical,
-                                    color: Colors.grey[400],
-                                    size: 18,
-                                  ),
-                                )
-                              else
-                                SizedBox(
-                                  width: 24,
-                                  child: _buildCacheIndicator(song.id),
-                                ),
+                              SizedBox(
+                                width: 24,
+                                child: _buildCacheIndicator(song.id),
+                              ),
                               if (isDesktop) ...[
                                 AnimatedOpacity(
                                   opacity: isHovering ? 1 : 0,
@@ -2571,20 +2587,18 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 ),
                                 const SizedBox(width: 8),
                               ],
-                              if (!(isMobile && isAppleStyle))
-                                SizedBox(
-                                  width: isMobile ? 40 : 80,
-                                  child: Text(
-                                    _formatDuration(_getDuration(item)),
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 12,
-                                    ),
-                                    textAlign: TextAlign.right,
+                              SizedBox(
+                                width: isMobile ? 40 : 80,
+                                child: Text(
+                                  _formatDuration(_getDuration(item)),
+                                  style: TextStyle(
+                                    color: Colors.grey[400],
+                                    fontSize: 12,
                                   ),
+                                  textAlign: TextAlign.right,
                                 ),
-                              if (!(isMobile && isAppleStyle))
-                                SizedBox(width: isMobile ? 0 : 12),
+                              ),
+                              SizedBox(width: isMobile ? 0 : 12),
                               !isMobile
                                   ? SizedBox(
                                       width: 32,
@@ -2616,6 +2630,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
 
     return ListView.builder(
+      padding: EdgeInsets.zero,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: totalCount,
@@ -2687,7 +2702,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               color: Colors.transparent,
               child: InkWell(
                 mouseCursor: SystemMouseCursors.click,
-                onTap: isDesktop ? null : () => _playQueueAt(idx),
+                onTap: isDesktop
+                    ? null
+                    : () {
+                        if (isCurrentTrack) {
+                          if (player.isPlaying) {
+                            player.pause();
+                          } else {
+                            player.play();
+                          }
+                        } else {
+                          _playQueueAt(idx);
+                        }
+                      },
                 onDoubleTap: isDesktop ? () => _playQueueAt(idx) : null,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -2855,10 +2882,31 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           width: 24,
                           child: Align(
                             alignment: Alignment.centerRight,
-                            child: Icon(
-                              CupertinoIcons.ellipsis,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 18,
+                            child: GestureDetector(
+                              onTapDown: (details) {
+                                TrackContextMenu.show(
+                                  context: context,
+                                  track: song,
+                                  position: details.globalPosition,
+                                  playlistId: widget.type == SharedListType.playlist
+                                      ? widget.id
+                                      : null,
+                                  playlistName: widget.type == SharedListType.playlist
+                                      ? _playlist?.title
+                                      : null,
+                                  playlistTrackUid: _getUid(item),
+                                  playlists: widget.playlists,
+                                  albums: widget.albums,
+                                  artists: widget.artists,
+                                  currentLibraryView: _currentLibraryView,
+                                  currentNavIndex: _currentNavIndex,
+                                );
+                              },
+                              child: Icon(
+                                CupertinoIcons.ellipsis,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -2934,20 +2982,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           )
                         else if (!isMobile)
                           const SizedBox(width: 120),
-                        if (isMobile && isAppleStyle)
-                          SizedBox(
-                            width: 24,
-                            child: Icon(
-                              CupertinoIcons.ellipsis_vertical,
-                              color: Colors.grey[400],
-                              size: 18,
-                            ),
-                          )
-                        else
-                          SizedBox(
-                            width: 24,
-                            child: _buildCacheIndicator(song.id),
-                          ),
+                        SizedBox(
+                          width: 24,
+                          child: _buildCacheIndicator(song.id),
+                        ),
                         if (isDesktop) ...[
                           AnimatedOpacity(
                             opacity: isHovering ? 1 : 0,
@@ -2970,20 +3008,18 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           ),
                           const SizedBox(width: 8),
                         ],
-                        if (!(isMobile && isAppleStyle))
-                          SizedBox(
-                            width: isMobile ? 40 : 80,
-                            child: Text(
-                              _formatDuration(_getDuration(item)),
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 12,
-                              ),
-                              textAlign: TextAlign.right,
+                        SizedBox(
+                          width: isMobile ? 40 : 80,
+                          child: Text(
+                            _formatDuration(_getDuration(item)),
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
                             ),
+                            textAlign: TextAlign.right,
                           ),
-                        if (!(isMobile && isAppleStyle))
-                          SizedBox(width: isMobile ? 0 : 12),
+                        ),
+                        SizedBox(width: isMobile ? 0 : 12),
                         !isMobile
                             ? SizedBox(
                                 width: 32,
@@ -3294,79 +3330,120 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
     return _buildMobile(context);
   }
 
+  Widget _buildHeaderArtwork(BuildContext context) {
+    final isLiked =
+        view.widget.type == SharedListType.playlist &&
+        isLikedSongsPlaylistId(view.widget.id);
+
+    if (isLiked) {
+      return Container(
+        color: Colors.grey[900],
+        child: const LikedSongsArt(),
+      );
+    }
+
+    if (imageUrl.isNotEmpty) {
+      if (view._isLocalImagePath(imageUrl)) {
+        return Image.file(
+          File(imageUrl.replaceFirst('file://', '')),
+          fit: BoxFit.cover,
+          errorBuilder: (context, url, error) => Container(color: Colors.grey[900]),
+        );
+      } else {
+        return CachedNetworkImage(
+          imageUrl: imageUrl,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => Container(color: Colors.grey[900]),
+          errorWidget: (context, url, error) => Container(color: Colors.grey[900]),
+        );
+      }
+    }
+
+    return Container(
+      color: Colors.grey[900],
+      child: Icon(
+        view.widget.type == SharedListType.playlist
+            ? Icons.playlist_play
+            : Icons.album,
+        color: Colors.grey[600],
+        size: 64,
+      ),
+    );
+  }
+
   Widget _buildMobile(BuildContext context) {
-    final topInset = MediaQuery.of(context).padding.top + (kToolbarHeight / 3);
     final descriptionText = description?.trim();
     final hasDescription =
         descriptionText != null && descriptionText.isNotEmpty;
 
     return Stack(
       children: [
-        if (imageUrl.isNotEmpty)
-          Positioned.fill(
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
-              child: Opacity(
-                opacity: 0.35,
-                child: view._isLocalImagePath(imageUrl)
-                    ? Image.file(
-                        File(imageUrl.replaceFirst('file://', '')),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, url, error) =>
-                            Container(color: Colors.black),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) =>
-                            Container(color: Colors.black),
-                      ),
-              ),
-            ),
-          ),
         Positioned.fill(
           child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withOpacity(0.28),
-                  Colors.black.withOpacity(0.42),
-                  Colors.black.withOpacity(0.88),
-                  Colors.black,
-                ],
-                stops: const [0.0, 0.35, 0.62, 1.0],
-              ),
-            ),
+            color: Colors.black,
           ),
         ),
         CustomScrollView(
           controller: view._mobileScrollController,
           slivers: [
-            SliverToBoxAdapter(child: SizedBox(height: topInset)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 0),
-                child: _buildArtwork(context),
+            SliverAppBar(
+              backgroundColor: Colors.black,
+              pinned: true,
+              expandedHeight: MediaQuery.of(context).size.width - MediaQuery.of(context).padding.top,
+              leading: IconButton(
+                icon: const Icon(CupertinoIcons.back),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(CupertinoIcons.arrow_down_to_line),
+                  onPressed: view._isLoading ? null : view._downloadAll,
+                ),
+                IconButton(
+                  icon: const Icon(CupertinoIcons.ellipsis_vertical),
+                  onPressed: view._showMoreOptions,
+                ),
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildHeaderArtwork(context),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.4),
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.6),
+                            Colors.black,
+                          ],
+                          stops: const [0.0, 0.25, 0.75, 1.0],
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 24,
+                      right: 24,
+                      bottom: 12,
+                      child: _buildMobileMeta(),
+                    ),
+                  ],
+                ),
               ),
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
-                child: _buildMobileMeta(),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                 child: _buildMobilePlaybackRow(),
               ),
             ),
             if (hasDescription)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 6),
                   child: Text(
                     descriptionText,
                     style: TextStyle(color: Colors.grey[400], fontSize: 14),
@@ -3648,13 +3725,19 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   isPlayingList
                       ? CupertinoIcons.pause_fill
                       : CupertinoIcons.play_fill,
+                  size: 20,
                 ),
-                label: Text(isPlayingList ? 'Pause' : 'Play'),
+                label: Text(
+                  isPlayingList ? 'Pause' : 'Play', 
+                  style: const TextStyle(
+                    fontSize: 20,
+                  )
+                ),
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                   shape: const StadiumBorder(),
-                  minimumSize: const Size(0, 48),
+                  minimumSize: const Size(0, 44),
                 ),
               ),
             ),
@@ -3664,18 +3747,27 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                 onPressed: view._items.isEmpty
                     ? null
                     : () {
-                        view._toggleListShuffle(player);
-                        if (!view._isCurrentListPlaying(player)) {
-                          view._playFromStart();
+                        if (view._isCurrentListPlaying(player)) {
+                          view._toggleListShuffle(player);
+                        } else {
+                          view._playFromStart(shuffle: true);
                         }
                       },
-                icon: const Icon(CupertinoIcons.shuffle),
-                label: const Text('Shuffle'),
+                icon: const Icon(
+                  CupertinoIcons.shuffle,
+                  size: 20,
+                ),
+                label: const Text(
+                  'Shuffle',
+                  style: TextStyle(
+                    fontSize: 20,
+                  )
+                  ),
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                   shape: const StadiumBorder(),
-                  minimumSize: const Size(0, 48),
+                  minimumSize: const Size(0, 44),
                 ),
               ),
             ),
@@ -3720,9 +3812,10 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               onPressed: view._items.isEmpty
                   ? null
                   : () {
-                      view._toggleListShuffle(player);
-                      if (!view._isCurrentListPlaying(player)) {
-                        view._playFromStart();
+                      if (view._isCurrentListPlaying(player)) {
+                        view._toggleListShuffle(player);
+                      } else {
+                        view._playFromStart(shuffle: true);
                       }
                     },
               icon: const Icon(CupertinoIcons.shuffle),
