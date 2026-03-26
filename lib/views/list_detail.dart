@@ -558,14 +558,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   void _sortBy(_SortMethod method, {bool? ascending}) {
-    if (method == _sortMethod && ascending == null) {
-      _ascending = !_ascending;
-    } else if (ascending != null) {
+    if (ascending != null) {
       _ascending = ascending;
+      _sortMethod = method;
+    } else if (method == _sortMethod) {
+      if (_ascending) {
+        _ascending = false;
+      } else {
+        _sortMethod = _SortMethod.position;
+        _ascending = true;
+      }
     } else {
+      _sortMethod = method;
       _ascending = true;
     }
-    _sortMethod = method;
     setState(_rebuildIndices);
   }
 
@@ -1373,7 +1379,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           );
 
     if (isDesktop) {
-      return content;
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: content,
+      );
     }
 
     if (style == 'Apple Music') {
@@ -2004,6 +2013,50 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
+  Widget _buildSortableHeader({
+    required String text,
+    required _SortMethod method,
+    TextAlign textAlign = TextAlign.left,
+    VoidCallback? onTap,
+  }) {
+    final headerStyle = TextStyle(color: Colors.grey[400], fontSize: 12);
+    final isSorted = _sortMethod == method;
+    final sortIcon = isSorted
+        ? Icon(
+            _ascending ? Icons.arrow_upward : Icons.arrow_downward,
+            size: 14,
+            color: Colors.white,
+          )
+        : null;
+
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: textAlign == TextAlign.right
+          ? MainAxisAlignment.end
+          : textAlign == TextAlign.center
+          ? MainAxisAlignment.center
+          : MainAxisAlignment.start,
+      children: [
+        Text(
+          text,
+          style: isSorted ? headerStyle.copyWith(color: Colors.white) : headerStyle,
+        ),
+        if (sortIcon != null) ...[
+          const SizedBox(width: 4),
+          sortIcon,
+        ],
+      ],
+    );
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap ?? () => _sortBy(method),
+        child: content,
+      ),
+    );
+  }
+
   Widget _buildListHeaderContent({
     _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
   }) {
@@ -2012,52 +2065,58 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (visualStyle == _ListVisualStyle.apple) {
       return Row(
         children: [
-          const SizedBox(width: 44),
+          SizedBox(
+            width: 40,
+            child: _buildSortableHeader(
+              text: '#',
+              method: _SortMethod.position,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(width: 4),
           const SizedBox(width: 12),
           Expanded(
             flex: 3,
-            child: InkWell(
-              onTap: _handleTitleHeaderTap,
-              child: Text(
-                _sortMethod == _SortMethod.author ? 'Artist' : 'Song',
-                style: headerStyle,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _buildSortableHeader(
+                text: 'Song',
+                method: _SortMethod.title,
               ),
             ),
           ),
           Expanded(
             flex: 2,
-            child: InkWell(
-              onTap: () => _sortBy(_SortMethod.author),
-              child: Text(
-                'Artist',
-                style: headerStyle,
-                textAlign: TextAlign.left,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _buildSortableHeader(
+                text: 'Artist',
+                method: _SortMethod.author,
               ),
             ),
           ),
           Expanded(
             flex: 2,
-            child: InkWell(
-              onTap: () => _sortBy(_SortMethod.album),
-              child: Text(
-                'Album',
-                style: headerStyle,
-                textAlign: TextAlign.left,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _buildSortableHeader(
+                text: 'Album',
+                method: _SortMethod.album,
               ),
             ),
           ),
           SizedBox(
             width: 70,
-            child: InkWell(
-              onTap: () => _sortBy(_SortMethod.duration),
-              child: Text(
-                'Time',
-                style: headerStyle,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _buildSortableHeader(
+                text: 'Time',
+                method: _SortMethod.duration,
                 textAlign: TextAlign.right,
               ),
             ),
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 48), // Adjusted space for more context menu room
         ],
       );
     }
@@ -2309,9 +2368,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         ),
                         decoration: BoxDecoration(
                           color: isAppleStyle
-                              ? (isEven
-                                    ? Colors.transparent
-                                    : Colors.white.withOpacity(0.03))
+                              ? Colors.transparent
                               : (isEven
                                     ? Colors.transparent
                                     : Colors.black.withOpacity(0.15)),
@@ -2383,6 +2440,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               flex: 3,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
                                     _getTitle(item),
@@ -2396,11 +2454,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  const SizedBox(height: 2),
-                                  _buildArtistLine(
-                                    artists,
-                                    isDesktop: isDesktop,
-                                  ),
+                                  if (!isAppleStyle) ...[
+                                    const SizedBox(height: 2),
+                                    _buildArtistLine(
+                                      artists,
+                                      isDesktop: isDesktop,
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -2475,7 +2535,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 ),
                               ),
                               SizedBox(
-                                width: 24,
+                                width: 48, // Updated width
                                 child: Align(
                                   alignment: Alignment.centerRight,
                                   child: GestureDetector(
@@ -2745,9 +2805,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   ),
                   decoration: BoxDecoration(
                     color: isAppleStyle
-                        ? (isEven
-                              ? Colors.transparent
-                              : Colors.white.withOpacity(0.03))
+                        ? Colors.transparent
                         : (isEven
                               ? Colors.transparent
                               : Colors.black.withOpacity(0.15)),
@@ -2815,6 +2873,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         flex: 3,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               _getTitle(item),
@@ -2826,8 +2885,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 2),
-                            _buildArtistLine(artists, isDesktop: isDesktop),
+                            if (!isAppleStyle) ...[
+                              const SizedBox(height: 2),
+                              _buildArtistLine(artists, isDesktop: isDesktop),
+                            ],
                           ],
                         ),
                       ),
@@ -3614,12 +3675,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                         ),
                         onPressed: view._isLoading ? null : view._downloadAll,
                       ),
-                      IconButton(
-                        icon: Icon(
-                          CupertinoIcons.ellipsis,
-                          color: Theme.of(context).colorScheme.primary,
+                      Builder(
+                        builder: (buttonContext) => IconButton(
+                          icon: Icon(
+                            CupertinoIcons.ellipsis,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          onPressed: () => view._showDesktopListMenu(buttonContext),
                         ),
-                        onPressed: () => view._showDesktopListMenu(context),
                       ),
                     ],
                   ),
