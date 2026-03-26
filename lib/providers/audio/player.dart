@@ -386,7 +386,7 @@ class AudioPlayerProvider extends ChangeNotifier {
     String? videoId = YouTubeProvider.getCachedVideoId(track.id);
     if (videoId == null) {
       final artistNames = track.artists.map((a) => a.name).join(', ');
-      final result = await _youtube.searchYouTube(artistNames, track.title);
+      final result = await _youtube.searchYouTube(artistNames, track.title, durationSecs: track.durationSecs);
       if (result == null) return null;
       videoId = result.videoId;
       YouTubeProvider.cacheVideoId(track.id, videoId);
@@ -428,7 +428,7 @@ class AudioPlayerProvider extends ChangeNotifier {
 
     try {
       final artistNames = track.artists.map((a) => a.name).join(', ');
-      final result = await _youtube.searchYouTube(artistNames, track.title);
+      final result = await _youtube.searchYouTube(artistNames, track.title, durationSecs: track.durationSecs);
       if (result == null) return;
       YouTubeProvider.cacheVideoId(track.id, result.videoId);
       logger.d('[Player] Pre-resolved next track: ${track.title}');
@@ -452,7 +452,7 @@ class AudioPlayerProvider extends ChangeNotifier {
       resolveAndGetStream: () async {
         String? videoId = YouTubeProvider.getCachedVideoId(track.id);
         if (videoId == null) {
-          final result = await _youtube.searchYouTube(artistNames, track.title);
+          final result = await _youtube.searchYouTube(artistNames, track.title, durationSecs: track.durationSecs);
           if (result == null) throw Exception('Could not find video');
           videoId = result.videoId;
           YouTubeProvider.cacheVideoId(track.id, videoId);
@@ -732,7 +732,7 @@ class AudioPlayerProvider extends ChangeNotifier {
         // Check cache first
         String? videoId = YouTubeProvider.getCachedVideoId(track.id);
         if (videoId == null) {
-          final result = await _youtube.searchYouTube(artistNames, track.title);
+          final result = await _youtube.searchYouTube(artistNames, track.title, durationSecs: track.durationSecs);
           if (result == null) throw Exception('Could not find video');
           videoId = result.videoId;
           YouTubeProvider.cacheVideoId(track.id, videoId);

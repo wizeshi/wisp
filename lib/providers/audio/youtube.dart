@@ -105,6 +105,12 @@ class YouTubeProvider {
     await _saveVideoIdCache();
   }
 
+  /// Clears the entire video ID cache
+  static Future<void> clearVideoIdCache() async {
+    _videoIdCache.clear();
+    await _saveVideoIdCache();
+  }
+
   /// Returns a copy of the full track -> video ID cache.
   static Map<String, String> getVideoIdCacheSnapshot() {
     return Map<String, String>.from(_videoIdCache);
@@ -136,7 +142,11 @@ class YouTubeProvider {
   
   /// Search YouTube for a track by artist and title
   /// Returns the best matching result based on filtering criteria
-  Future<YouTubeResult?> searchYouTube(String artist, String title) async {
+  Future<YouTubeResult?> searchYouTube(
+    String artist,
+    String title, {
+    int? durationSecs,
+  }) async {
     try {
       final query = '$artist - $title';
       logger.d('[YouTube] Searching for: $query');
@@ -151,14 +161,21 @@ class YouTubeProvider {
       // Filter and score results
       final scoredResults = <MapEntry<Video, double>>[];
       
-      for (final result in searchResults) {
+      var currentResults = searchResults;
+      
+      for (final result in currentResults) {
         final video = result;
-        final score = _scoreVideo(video, artist: artist, title: title);
+        final score = _scoreVideo(video, artist: artist, title: title, durationSecs: durationSecs);
         if (score == null) {
           logger.d('[YouTube] Excluded: ${video.title} (unwanted terms)');
           continue;
         }
         scoredResults.add(MapEntry(video, score));
+        
+        // Stop if we found 5 decent scores
+        if (scoredResults.where((e) => e.value >= 10.0).length >= 5) {
+          break;
+        }
       }
       
       if (scoredResults.isEmpty) {
@@ -377,8 +394,8 @@ class YouTubeProvider {
     throw YouTubeException('Failed to get stream URL', lastError);
   }
   
-  /// Check if title contains excluded terms
-  bool _containsExcludedTerms(String title) {
+  /// Check if title contains excluded terms unless they are in the original title
+  bool _containsExcludedTerms(String title, String originalTitle) {
     const excludedTerms = [
       'live',
       'concert',
@@ -393,17 +410,28 @@ class YouTubeProvider {
       'tutorial',
       'lesson',
       'how to',
-      '8D',
+      '8d',
       'edit',
+      'lyrics',
+      'lyric',
     ];
     
-    return excludedTerms.any((term) => title.contains(term));
+    final originalTitleLower = originalTitle.toLowerCase();
+    
+    return excludedTerms.any((term) {
+      if (title.contains(term)) {
+        // Only exclude if the original title didn't ask for this term
+        return !originalTitleLower.contains(term);
+      }
+      return false;
+    });
   }
 
   double? _scoreVideo(
     Video video, {
     required String artist,
     required String title,
+    int? durationSecs,
   }) {
     double score = 0.0;
 
@@ -412,25 +440,48 @@ class YouTubeProvider {
     final artistLower = artist.trim().toLowerCase();
     final titleQueryLower = title.trim().toLowerCase();
 
-    if (_containsExcludedTerms(titleLower)) {
+    if (_containsExcludedTerms(titleLower, titleQueryLower)) {
       return null;
     }
 
     if (titleLower.contains('audio')) score += 5.0;
     if (titleLower.contains('official audio')) score += 10.0;
     if (titleLower.contains('official')) score += 3.0;
-    if (channelLower.contains('topic') || channelLower.contains('vevo')) {
-      score += 7.0;
+    
+    // Official channel check
+    if (channelLower.contains('topic') || channelLower.contains('vevo') || channelLower.contains('official')) {
+      score += 15.0; // Boosted for official channels
+    }
+    if (channelLower == artistLower || channelLower.contains(artistLower)) {
+      score += 15.0; // Direct artist channel match
     }
 
+    // Close "Title - Artist" match
     if (titleQueryLower.isNotEmpty && titleLower.contains(titleQueryLower)) {
       score += 5.0;
+      // Exact match for title or exact 'Artist - Title' format
+      if (titleLower == titleQueryLower || titleLower == '$artistLower - $titleQueryLower' || titleLower == '$titleQueryLower - $artistLower') {
+        score += 10.0;
+      }
     }
     if (artistLower.isNotEmpty && titleLower.contains(artistLower)) {
       score += 5.0;
     }
 
     if (titleLower.contains(' - ')) score += 3.0;
+
+    // Duration match check
+    if (durationSecs != null && video.duration != null) {
+      final videoDurationSecs = video.duration!.inSeconds;
+      final diff = (videoDurationSecs - durationSecs).abs();
+      if (diff <= 5) {
+        score += 15.0; // Very close duration
+      } else if (diff <= 15) {
+        score += 8.0; // Reasonably close duration
+      } else if (diff > 60) {
+        score -= 20.0; // Heavily penalize huge duration mismatch
+      }
+    }
 
     return score;
   }

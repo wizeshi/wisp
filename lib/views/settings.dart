@@ -5,11 +5,14 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/models/metadata_provider.dart';
+import 'package:wisp/providers/audio/youtube.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
+import 'package:wisp/providers/metadata/youtube.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/cache_manager.dart';
 import '../services/navigation_history.dart';
+import '../utils/logger.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -187,6 +190,112 @@ class _SettingsPageState extends State<SettingsPage> {
               child: const Text('Close'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Future<bool> _deleteCacheByType(String type) async {
+    try {
+      switch (type) {
+        case 'audio':
+          await AudioCacheManager.instance.clearCache();
+          return true;
+
+        case 'metadata':
+          return true;
+
+        case 'yt-sp-link':
+          await YouTubeProvider.clearVideoIdCache();
+          return true;
+
+        case 'lyrics':
+          return true;
+      }
+    } catch (e) {
+      logger.e('[Views/Settings] Failed to delete $type cache: $e');
+      return false;
+    }
+    // Shouldn't reach here since the options are fixed, but the linter complains without a return
+    return false;
+  }
+
+  Future<void> _showCacheDeleteDialog() async {
+    const Map<String, String> cacheTypes = {
+      'audio': 'Audio',
+      'metadata': 'Metadata',
+      'lyrics': 'Lyrics',
+      'yt-sp-link': 'Youtube - Spotify Link'
+    };
+
+    // Dynamically create a map using the types above, as to not have
+    // to update both code sections when adding new cache types
+    Map<String, bool> cacheDeleteEnabled = cacheTypes.map((key, value) => MapEntry(key, false));
+    
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF282828),
+              title: const Text(
+                'Provider Preferences',
+                style: TextStyle(color: Colors.white),
+              ),
+              content: SizedBox(
+                width: 520,
+                child: SingleChildScrollView(
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: cacheTypes.entries.map((entry) {
+                        return SwitchListTile.adaptive(
+                          title: Text(
+                            entry.value,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          value: cacheDeleteEnabled[entry.key]!,
+                          onChanged: (value) {
+                            setState(() {
+                              cacheDeleteEnabled[entry.key] = value;
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      for (var key in cacheDeleteEnabled.keys) {
+                        cacheDeleteEnabled[key] = false;
+                      }
+                    });
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    for (var key in cacheDeleteEnabled.keys) {
+                      if (cacheDeleteEnabled[key] == true) {
+                        _deleteCacheByType(key);
+                      }
+                    }
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Delete'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -389,9 +498,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => _showClearCacheDialog(context),
+                      onPressed: () => _showCacheDeleteDialog(),
                       icon: const Icon(Icons.delete_outline, size: 18),
-                      label: const Text('Clear All'),
+                      label: const Text('Clear'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.red[400],
                         side: BorderSide(color: Colors.red[700]!),
