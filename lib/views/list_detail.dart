@@ -9,6 +9,7 @@ import 'dart:io' show Platform, File;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
@@ -1063,9 +1064,30 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   void _showShareDialog() {
+    final isSpotify = _playlist?.source == SongSource.spotify ||
+        _playlist?.source == SongSource.spotifyInternal ||
+        _album?.source == SongSource.spotify ||
+        _album?.source == SongSource.spotifyInternal ||
+        widget.id.startsWith('spotify:');
+
+    if (isSpotify) {
+      final typePath = widget.type == SharedListType.playlist ? 'playlist' : 'album';
+      final id = widget.id.split(':').last;
+      final url = 'https://open.spotify.com/$typePath/$id';
+
+      Clipboard.setData(ClipboardData(text: url)).then((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Link copied to clipboard')),
+          );
+        }
+      });
+      return;
+    }
+
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Share not implemented yet')));
+    ).showSnackBar(const SnackBar(content: Text('Share not implemented for this source yet')));
   }
 
   void _showEditDialog() {

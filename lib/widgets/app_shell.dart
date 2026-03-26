@@ -504,9 +504,9 @@ class _AppShellState extends State<AppShell> {
     );
     final immersiveDesktop = _isDesktop && navState.desktopImmersiveMode;
 
-    final shell = Material(
-      color: HSLColor.fromColor(Colors.black).withLightness(0.05).toColor(),
-      child: Column(
+    final shell = Scaffold(
+      backgroundColor: HSLColor.fromColor(Colors.black).withLightness(0.05).toColor(),
+      body: Column(
         children: [
           if (_isDesktop && !immersiveDesktop)
             WispTitleBar(
