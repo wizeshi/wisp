@@ -243,10 +243,12 @@ class _LyricsViewState extends State<LyricsView> {
 
   @override
   Widget build(BuildContext context) {
+    var color = Theme.of(context).colorScheme.primaryContainer;
+
     final content = _buildLyricsContent();
 
     if (_isDesktop) {
-      return Material(color: const Color(0xFF121212), child: content);
+      return Material(color: color, child: content);
     }
 
     return Scaffold(
@@ -345,7 +347,7 @@ class _LyricsViewState extends State<LyricsView> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: Text(
                 'Lyrics provided by ${lyrics.provider.label}',
-                style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                style: TextStyle(color: Colors.grey[300], fontSize: 12),
                 textAlign: TextAlign.left,
               ),
             ),
@@ -365,17 +367,17 @@ class _LyricsViewState extends State<LyricsView> {
                     itemBuilder: (context, index) {
                       final line = lyrics.lines[index];
                       final displayContent = line.content.trim().isEmpty
-                          ? '🎶'
+                          ? '♪'
                           : line.content;
                       final isSynced = lyrics.synced;
                       final distance = isSynced
                           ? (index - _currentLineIndex).abs()
                           : 0;
                       final blurSigma = isSynced
-                          ? (distance * 1.4).clamp(0, 8).toDouble()
+                          ? (distance * 1.05).clamp(0, 8).toDouble()
                           : 0.0;
                       final opacity = isSynced
-                          ? (1 - (distance * 0.12)).clamp(0.35, 1.0)
+                          ? (1 - (distance * 0.06)).clamp(0.35, 1.0)
                           : 1.0;
                       final isCurrent = isSynced && index == _currentLineIndex;
                       final canSeek = line.startTimeMs > 0;
@@ -419,7 +421,7 @@ class _LyricsViewState extends State<LyricsView> {
                                     style: TextStyle(
                                       color: isCurrent
                                           ? Colors.white
-                                          : Colors.grey[400],
+                                          : Colors.grey[200],
                                       fontSize: fontSize,
                                       fontWeight: isCurrent
                                           ? FontWeight.w600
@@ -428,7 +430,7 @@ class _LyricsViewState extends State<LyricsView> {
                                     ),
                                     child: Text(
                                       displayContent,
-                                      textAlign: TextAlign.center,
+                                      textAlign: _textCentered ? TextAlign.center : TextAlign.left,
                                     ),
                                   ),
                                 ),
@@ -469,7 +471,7 @@ class _LyricsViewState extends State<LyricsView> {
                 hintStyle: TextStyle(color: Colors.grey[500], fontSize: 12),
                 isDense: true,
                 filled: true,
-                fillColor: const Color(0xFF1A1A1A),
+                fillColor: Colors.black.withOpacity(0.35),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 8,
@@ -513,8 +515,8 @@ class _LyricsViewState extends State<LyricsView> {
             },
             borderRadius: BorderRadius.circular(8),
             color: Colors.grey[400],
-            selectedColor: Theme.of(context).colorScheme.onPrimary,
-            fillColor: Theme.of(context).colorScheme.primary,
+            selectedColor: Colors.white,
+            fillColor: Colors.black.withOpacity(0.1),
             constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
             children: const [
               Icon(
@@ -589,8 +591,8 @@ class _LyricsViewState extends State<LyricsView> {
       color: Colors.grey[400],
       disabledColor: Colors.grey[600],
       disabledBorderColor: Colors.grey[700],
-      selectedColor: colorScheme.onPrimary,
-      fillColor: colorScheme.primary,
+      selectedColor: Colors.white,
+      fillColor: Colors.black.withOpacity(0.1),
       constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
       children: [
         Icon(

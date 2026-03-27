@@ -2,8 +2,6 @@ Here's the TODOs for version v26.03.xx:
 
 - Bugs:
     - [ ] Clicking the three dots menu in the artist view on desktop opens the mobile bottom sheet
-    - [ ] Apple Music List View doesn't have an option for index-based sorting
-    - [ ] Apple Music List View sorting headers occupy the whole width, not the text width
 - Future changes:
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)
     - [ ] Increase heart icon size in the mobile likes view
@@ -19,15 +17,13 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Move "Provided by {lyrics_provider}" text to the bottom-left corner (lyrics screen, desktop)
     - [ ] Change YT-DLP download/check logic. Right now, it pauses the whole app at startup. Should make it a notification warning it is loading/downloading
     - [ ] Make a playlist remember it's last play's player options (whether it was shuffled & the repeat mode)
-    - [ ] Animate the transition from search icon to box on the list view
+    - [ ] Animate the transition from search icon to box on the desktop Spotify-style list view
 - Planned features: 
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
     - [ ] Add ability to follow/unfollow artists and save/remove albums.
     - [ ] Add a semi-player bar to the bottom of the lyrics screen (just a seekable progress bar, and a play/pause button) (mobile)
     - [ ] Add a "Recommended" list of ~10 songs with "Add" buttons at the bottom of a playlist (not albums, not artists, not likes view)
-    - [ ] Add author name to the home view's playlist cards.
     - [ ] Improve lyrics preview animation
     - [ ] Add a preview of the next/previous song's metadata to the player bar's swiping animation
-    - [ ] Change custom window controls to fit the OS (keep current appearance for windows)
     - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
     - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)

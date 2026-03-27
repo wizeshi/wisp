@@ -458,7 +458,6 @@ class _DesktopPlayerBar extends StatelessWidget {
                         padding: const EdgeInsets.only(right: 24),
                         child: _DesktopTrackInfo(
                           currentTrack: currentTrack,
-                          btnColor: buttonColor,
                         ),
                       ),
                     ),
@@ -472,8 +471,8 @@ class _DesktopPlayerBar extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _DesktopPlaybackControls(btnColor: buttonColor),
-                            _DesktopProgressBar(btnColor: buttonColor),
+                            _DesktopPlaybackControls(),
+                            _DesktopProgressBar(),
                           ],
                         ),
                       ),
@@ -486,7 +485,6 @@ class _DesktopPlayerBar extends StatelessWidget {
                         padding: const EdgeInsets.only(left: 24),
                         child: _DesktopRightControls(
                           currentTrack: currentTrack,
-                          btnColor: buttonColor,
                         ),
                       ),
                     ),
@@ -556,9 +554,7 @@ class _HandoffStatusIndicator extends StatelessWidget {
 }
 
 class _DesktopProgressBar extends StatelessWidget {
-  final Color? btnColor;
-
-  const _DesktopProgressBar({this.btnColor});
+  const _DesktopProgressBar();
 
   @override
   Widget build(BuildContext context) {
@@ -628,13 +624,11 @@ class _DesktopProgressBar extends StatelessWidget {
                             overlayRadius: 12,
                           ),
                           activeTrackColor:
-                              btnColor ?? Theme.of(context).colorScheme.primary,
+                              Theme.of(context).colorScheme.primary,
                           inactiveTrackColor: Colors.grey[800],
                           thumbColor: Colors.white,
                           overlayColor:
-                              (btnColor ??
-                                      Theme.of(context).colorScheme.primary)
-                                  .withOpacity(0.2),
+                              (Theme.of(context).colorScheme.primary).withOpacity(0.2),
                         ),
                         child: Slider(
                           value: animatedProgress,
@@ -689,9 +683,8 @@ String _formatDuration(Duration duration) {
 
 class _DesktopTrackInfo extends StatelessWidget {
   final GenericSong? currentTrack;
-  final Color? btnColor;
 
-  const _DesktopTrackInfo({required this.currentTrack, this.btnColor});
+  const _DesktopTrackInfo({required this.currentTrack});
 
   @override
   Widget build(BuildContext context) {
@@ -862,7 +855,7 @@ class _DesktopTrackInfo extends StatelessWidget {
           iconSize: 18,
           padding: const EdgeInsets.all(2),
           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          color: btnColor ?? Theme.of(context).colorScheme.primary,
+          color: Theme.of(context).colorScheme.primary,
         ),
       ],
     );
@@ -1021,9 +1014,7 @@ class DesktopNextUpPreviewOverlay extends StatelessWidget {
 }
 
 class _DesktopPlaybackControls extends StatelessWidget {
-  final Color? btnColor;
-
-  const _DesktopPlaybackControls({this.btnColor});
+  const _DesktopPlaybackControls();
 
   @override
   Widget build(BuildContext context) {
@@ -1064,7 +1055,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               constraints: BoxConstraints(),
               icon: Icon(
                 Icons.shuffle,
-                color: data.shuffleEnabled ? btnColor : Colors.grey[400],
+                color: data.shuffleEnabled ? Theme.of(context).colorScheme.primary : Colors.grey[400],
                 size: 20,
               ),
               onPressed: () {
@@ -1089,7 +1080,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
             SizedBox(width: 4),
 
             // Play/Pause
-            _DesktopPlayPauseButton(data: data, btnColor: btnColor),
+            _DesktopPlayPauseButton(data: data),
 
             SizedBox(width: 4),
 
@@ -1116,7 +1107,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
                     ? Icons.repeat_one
                     : Icons.repeat,
                 color: data.repeatMode != global_audio_player.RepeatMode.off
-                    ? btnColor
+                    ? Theme.of(context).colorScheme.primary
                     : Colors.grey[400],
                 size: 20,
               ),
@@ -1133,9 +1124,8 @@ class _DesktopPlaybackControls extends StatelessWidget {
 
 class _DesktopPlayPauseButton extends StatelessWidget {
   final _PlayPauseData data;
-  final Color? btnColor;
 
-  const _DesktopPlayPauseButton({required this.data, this.btnColor});
+  const _DesktopPlayPauseButton({required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -1154,7 +1144,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
           child: CircularProgressIndicator(
             strokeWidth: 2.5,
             valueColor: AlwaysStoppedAnimation<Color>(
-              btnColor ?? Theme.of(context).colorScheme.primary,
+              Theme.of(context).colorScheme.primary,
             ),
           ),
         ),
@@ -1201,7 +1191,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       constraints: BoxConstraints(),
       icon: Icon(
         icon,
-        color: btnColor ?? Theme.of(context).colorScheme.primary,
+        color: Theme.of(context).colorScheme.primary,
         size: 40,
       ),
       onPressed: onPressed,
@@ -1211,9 +1201,8 @@ class _DesktopPlayPauseButton extends StatelessWidget {
 
 class _DesktopRightControls extends StatelessWidget {
   final GenericSong? currentTrack;
-  final Color? btnColor;
 
-  const _DesktopRightControls({required this.currentTrack, this.btnColor});
+  const _DesktopRightControls({required this.currentTrack});
 
   @override
   Widget build(BuildContext context) {
@@ -1226,7 +1215,7 @@ class _DesktopRightControls extends StatelessWidget {
         final isQueueOpen = routeName == '/queue';
         final isFullScreenOpen = routeName == '/fullplayer';
         final isSidebarOpen = navState.rightSidebarVisible;
-        final activeColor = btnColor ?? Theme.of(context).colorScheme.primary;
+        final activeColor = Theme.of(context).colorScheme.primary;
         final inactiveColor = Colors.grey[400];
 
         return LayoutBuilder(
@@ -1344,7 +1333,6 @@ class _DesktopRightControls extends StatelessWidget {
                                 overlayRadius: 12,
                               ),
                               activeTrackColor:
-                                  btnColor ??
                                   Theme.of(context).colorScheme.primary,
                               inactiveTrackColor: Colors.grey[800],
                               thumbColor: Colors.white,

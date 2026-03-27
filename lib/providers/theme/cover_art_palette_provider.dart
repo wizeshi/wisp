@@ -64,7 +64,9 @@ class CoverArtPaletteProvider extends ChangeNotifier {
 
   void _applyPalette(ColorScheme? palette) {
     _palette = palette;
-    _primaryColor = palette?.primary;
+    _primaryColor = HSLColor.fromColor(
+      palette?.onSecondaryContainer ?? const Color(0xFF1A1A1A),
+    ).withLightness(0.5).withSaturation(0.65).toColor();
     notifyListeners();
   }
 }

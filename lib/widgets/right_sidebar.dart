@@ -1066,9 +1066,7 @@ class _LyricsPreviewCard extends StatelessWidget {
     final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
       (provider) => provider.palette,
     );
-    final bgColor = HSLColor.fromColor(
-      palette?.onSecondaryContainer ?? const Color(0xFF1A1A1A),
-    ).withLightness(0.6).withSaturation(0.65).toColor();
+    final bgColor = Theme.of(context).colorScheme.primary;
     final btnColor = HSLColor.fromColor(
       palette?.onPrimaryContainer ?? const Color(0xFF1A1A1A),
     ).withLightness(0.7).withSaturation(1).toColor();
