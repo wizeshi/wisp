@@ -254,9 +254,20 @@ class _LyricsViewState extends State<LyricsView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Lyrics'),
-        actions: [_buildLyricsControls()],
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: _buildLyricsControls()
+          )
+        ],
+        backgroundColor: HSLColor.fromColor(color).withLightness(0.25).toColor(),
       ),
-      body: content,
+      body: Container(
+        decoration: BoxDecoration(
+          color: color,
+        ),
+        child: content,
+      ),
     );
   }
 
