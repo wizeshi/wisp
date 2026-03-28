@@ -418,7 +418,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 '${cacheManager.maxCacheSizeMB} MB',
                 cacheManager.maxCacheSizeMB.toDouble(),
                 100,
-                2048,
+                4096,
                 (value) {
                   cacheManager.setMaxCacheSize(value.toInt() * 1024 * 1024);
                 },

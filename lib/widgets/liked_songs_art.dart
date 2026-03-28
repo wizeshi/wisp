@@ -21,14 +21,22 @@ class LikedSongsArt extends StatelessWidget {
           ],
         ),
       ),
-      child: const Center(
-        child: Icon(
-          Icons.favorite,
-          color: Colors.white,
-          size: 22,
+      child: Center(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final iconSize = (constraints.maxWidth < constraints.maxHeight
+          ? constraints.maxWidth
+          : constraints.maxHeight) *
+          0.5;
+            return Icon(
+              Icons.favorite,
+              color: Colors.white,
+              size: iconSize,
+            );
+          },
+        )
         ),
-      ),
-    );
+      );
 
     if (size == null) return child;
     return SizedBox(width: size, height: size, child: child);

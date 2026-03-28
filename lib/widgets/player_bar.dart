@@ -3,9 +3,11 @@ library;
 
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:wisp/providers/preferences/preferences_provider.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../providers/theme/cover_art_palette_provider.dart';
 import '../providers/library/library_state.dart';
@@ -35,18 +37,24 @@ class WispPlayerBar extends StatelessWidget {
           (player) => player.currentTrack,
         );
 
+    final appStyle = context.watch<PreferencesProvider>().style;
+
     if (_isMobile) {
-      return _MobilePlayerBarAnimated(currentTrack: currentTrack);
+      return _MobilePlayerBarAnimated(currentTrack: currentTrack, appStyle: appStyle);
     }
 
-    return _DesktopPlayerBar(currentTrack: currentTrack);
+    return _DesktopPlayerBar(currentTrack: currentTrack, appStyle: appStyle);
   }
 }
 
 class _MobilePlayerBarAnimated extends StatefulWidget {
   final dynamic currentTrack;
+  final String appStyle;
 
-  const _MobilePlayerBarAnimated({required this.currentTrack});
+  const _MobilePlayerBarAnimated({
+    required this.currentTrack,
+    required this.appStyle,
+  });
 
   @override
   State<_MobilePlayerBarAnimated> createState() =>
@@ -168,7 +176,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                               ),
                             ),
                           ),
-                          _buildMobileConnectButton(),
+                          _buildMobileConnectButton(widget.appStyle),
                           LikeButton(
                             track: widget.currentTrack as GenericSong?,
                             iconSize: 24,
@@ -179,7 +187,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                             ),
                             color: btnColor,
                           ),
-                          _buildMobilePlayPauseButton(),
+                          _buildMobilePlayPauseButton(widget.appStyle),
                         ],
                       ),
                     ),
@@ -262,15 +270,16 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     );
   }
 
-  Widget _buildMobileConnectButton() {
+  Widget _buildMobileConnectButton(String appStyle) {
     return _ConnectMenuButton(
       iconSize: 24,
+      appStyle: appStyle,
       inactiveColor: Colors.grey[300],
       activeColorOverride: Colors.white,
     );
   }
 
-  Widget _buildMobilePlayPauseButton() {
+  Widget _buildMobilePlayPauseButton(String appStyle) {
     return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
       selector: (context, player) {
         final track = player.currentTrack;
@@ -315,8 +324,20 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             data.currentTrackId != null &&
             !data.currentTrackCached;
         final IconData icon = effectiveIsPlaying
-            ? Icons.pause
-            : Icons.play_arrow;
+            ? (
+              switch (appStyle) {
+                'Spotify' => Icons.pause,
+                'Apple Music' => CupertinoIcons.pause_solid,
+                _ => Icons.pause,
+              }
+            ) 
+            : (
+              switch (appStyle) {
+                'Spotify' => Icons.play_arrow,
+                'Apple Music' => CupertinoIcons.play_arrow_solid,
+                _ => Icons.pause,
+              }
+            );
         VoidCallback? onPressed;
         if (!isOfflineBlocked) {
           if (effectiveIsPlaying) {
@@ -399,8 +420,12 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
 class _DesktopPlayerBar extends StatelessWidget {
   final GenericSong? currentTrack;
+  final String appStyle;
 
-  const _DesktopPlayerBar({required this.currentTrack});
+  const _DesktopPlayerBar({
+    required this.currentTrack, 
+    required this.appStyle
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -473,6 +498,7 @@ class _DesktopPlayerBar extends StatelessWidget {
                         padding: const EdgeInsets.only(left: 24),
                         child: _DesktopRightControls(
                           currentTrack: currentTrack,
+                          appStyle: appStyle
                         ),
                       ),
                     ),
@@ -1189,8 +1215,12 @@ class _DesktopPlayPauseButton extends StatelessWidget {
 
 class _DesktopRightControls extends StatelessWidget {
   final GenericSong? currentTrack;
+  final String appStyle;
 
-  const _DesktopRightControls({required this.currentTrack});
+  const _DesktopRightControls({
+    required this.currentTrack,
+    required this.appStyle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1275,6 +1305,7 @@ class _DesktopRightControls extends StatelessWidget {
                 ],
                 _ConnectMenuButton(
                   iconSize: 20,
+                  appStyle: appStyle,
                   inactiveColor: inactiveColor,
                   activeColorOverride: activeColor,
                 ),
@@ -1886,12 +1917,20 @@ class _ConnectMenuButton extends StatelessWidget {
   final double iconSize;
   final Color? inactiveColor;
   final Color? activeColorOverride;
+  final String appStyle;
 
   const _ConnectMenuButton({
     required this.iconSize,
+    required this.appStyle,
     this.inactiveColor,
     this.activeColorOverride,
   });
+
+  IconData get icon => switch (appStyle) {
+    'Spotify' => Icons.cast_connected,
+    'Apple Music' => CupertinoIcons.antenna_radiowaves_left_right,
+    _ => Icons.cast_connected,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -1902,7 +1941,7 @@ class _ConnectMenuButton extends StatelessWidget {
       builder: (context, isLinked, child) {
         return IconButton(
           icon: Icon(
-            Icons.cast_connected,
+            icon,
             color: isLinked ? activeColor : (inactiveColor ?? Colors.grey[400]),
             size: iconSize,
           ),

@@ -9,10 +9,9 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Switch desktop context submenus to use prediction cones
     - [ ] Remove the unassigned text from the sidebar. Also make playlists/folders be ordered with each other (e.g. have Folder1, then PL1, then Folder2, then PL2, and so on and so forth)
     - [ ] Add download tracks button on album/playlist right-click context menu
-    - [ ] Revamp the list view grid pattern to account for the downloading/cached icon and also center the duration in it's column 
-    - [ ] Increase max cache size (2GB -> 4GB). Also, make it permanent, not temporary.
+    - [ ] Make audio cache permanent, not temporary.
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
-    - [ ] Add a "Go to Folder" on the cache section.
+    - [ ] Add a "Go to Folder" on the cache section (desktop-only).
     - [ ] Add padding at the top/bottom of the lyrics screen to ensure the focused line is centered
     - [ ] Move "Provided by {lyrics_provider}" text to the bottom-left corner (lyrics screen, desktop)
     - [ ] Change YT-DLP download/check logic. Right now, it pauses the whole app at startup. Should make it a notification warning it is loading/downloading
