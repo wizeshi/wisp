@@ -557,8 +557,10 @@ class _AppShellState extends State<AppShell> {
               ],
             ),
           ),
-          if (navState.selectedNavIndex != 3 && !_isDesktop)
+          if (navState.selectedNavIndex != 3 && !_isDesktop) ...[
             const WispPlayerBar(),
+            const SizedBox(height: 8),
+          ],
           if (_isDesktop && !immersiveDesktop)
             Stack(
               clipBehavior: Clip.none,

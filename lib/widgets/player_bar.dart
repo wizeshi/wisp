@@ -85,23 +85,11 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   @override
   Widget build(BuildContext context) {
     final offset = Offset(_dragOffset / 300, 0);
-    final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
-      (provider) => provider.palette,
-    );
 
-    const colorFallback = Color(0xFF1A1A1A);
-    var bgColor = HSLColor.fromColor(
-      palette?.primary ?? colorFallback,
-    ).toColor();
-
-    if (bgColor.computeLuminance() < 0.11) {
-      bgColor = HSLColor.fromColor(
-        palette?.onPrimary ?? colorFallback,
-      ).withLightness(0.5).toColor();
-    }
+    var bgColor = Theme.of(context).colorScheme.primary;
 
     var btnColor = HSLColor.fromColor(
-      palette?.onPrimaryContainer ?? colorFallback,
+      bgColor,
     ).withLightness(0.7).withSaturation(1).toColor();
 
     final handoffMessage = context.select<ConnectSessionProvider, String?>(
@@ -132,17 +120,17 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     //       secondaryContainer - Light Grey (blueish)
     //       onSecondaryContainer - Dead Cyan
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          GestureDetector(
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Center(
+          child: GestureDetector(
             onHorizontalDragUpdate: _onHorizontalDragUpdate,
             onHorizontalDragEnd: _onHorizontalDragEnd,
             child: InkWell(
               onTap: () => FullScreenPlayer.show(context),
               child: Container(
+                width: MediaQuery.of(context).size.width - 32, // 16px padding each side
                 height: 56,
                 decoration: BoxDecoration(
                   color: bgColor,
@@ -201,21 +189,21 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
               ),
             ),
           ),
-          if (handoffMessage != null)
-            Positioned(
-              top: -24,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _HandoffStatusIndicator(
-                  message: handoffMessage,
-                  backgroundColor: btnColor,
-                  mobile: true,
-                ),
+        ),
+        if (handoffMessage != null)
+          Positioned(
+            top: -24,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _HandoffStatusIndicator(
+                message: handoffMessage,
+                backgroundColor: btnColor,
+                mobile: true,
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
