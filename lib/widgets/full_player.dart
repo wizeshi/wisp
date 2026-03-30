@@ -682,21 +682,33 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: Colors.grey[300],
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTrackInfo(dynamic currentTrack, Color likeColor) {
+  Widget _buildTrackInfo(
+    dynamic currentTrack,
+    Color likeColor,
+    bool useCoverArt,
+  ) {
     final title = currentTrack?.title ?? 'No track playing';
     final artists = currentTrack?.artists ?? [];
+    final thumbnailUrl = currentTrack?.thumbnailUrl;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (useCoverArt) ...[
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 56, maxWidth: 56),
+            child: CachedNetworkImage(imageUrl: currentTrack.thumbnailUrl),
+          ),
+          const SizedBox(width: 12),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1204,7 +1216,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       child: IconButton(
         icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
         iconSize: 36,
-        color: Colors.white,
+        color: Colors.black,
         padding: EdgeInsets.zero,
         onPressed: () {
           if (isPlaying) {
@@ -1255,82 +1267,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     String canvasUrl,
     String fallbackUrl,
   ) {
-    final topSpan = MediaQuery.of(context).size.height * 0.72;
-    return Align(
-      alignment: Alignment.topCenter,
-      child: SizedBox(
-        width: double.infinity,
-        height: topSpan,
-        child: _buildCanvasVideo(canvasUrl, fallbackUrl),
-      ),
-    );
-  }
-
-  Widget _buildCanvasBackground(String url, String fallbackUrl) {
-    return _CanvasVideo(url: url, fallbackUrl: fallbackUrl);
-  }
-
-  Widget _buildFallbackBackground(
-    BuildContext context,
-    String imageUrl,
-    double topInset,
-  ) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned(
-          top: -topInset,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Column(
-            children: [
-              Expanded(
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                  child: CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.cover,
-                    repeat: ImageRepeat.repeatY,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          top: topInset,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Column(
-            children: [
-              SizedBox(
-                height: MediaQuery.of(context).size.height * 0.65,
-                child: ShaderMask(
-                  shaderCallback: (rect) => const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black,
-                      Colors.black,
-                      Colors.transparent,
-                    ],
-                    stops: [0.0, 0.08, 0.88, 1.0],
-                  ).createShader(rect),
-                  blendMode: BlendMode.dstIn,
-                  child: CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.fitHeight,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+    return SizedBox.expand(child: _buildCanvasVideo(canvasUrl, fallbackUrl));
   }
 
   @override
@@ -1381,12 +1318,6 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
               padding: EdgeInsets.only(top: topInset, bottom: bottomInset),
               child: Column(
                 children: [
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: _buildHeader(context),
-                  ),
-                  const SizedBox(height: 48),
                   Expanded(
                     child: SingleChildScrollView(
                       controller: scrollController,
@@ -1395,16 +1326,26 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const SizedBox(height: 12),
+                            _buildHeader(context),
+                            const SizedBox(height: 48),
                             hasCanvas
                                 ? _buildHiddenArtworkPlaceholder(context)
                                 : _buildAlbumArt(context, imageUrl),
+                            const SizedBox(height: 24),
                             _buildSingleLyricsLine(
                               context,
                               player,
                               lyricsProvider,
                             ),
                             const SizedBox(height: 24),
-                            _buildTrackInfo(currentTrack, btnColor),
+                            _buildTrackInfo(
+                              currentTrack,
+                              btnColor,
+                              (currentTrack!.thumbnailUrl.isNotEmpty &&
+                                  hasCanvas &&
+                                  useCanvas),
+                            ),
                             const SizedBox(height: 16),
                             _buildPlayerControls(context, player, btnColor),
                             const SizedBox(height: 16),
@@ -2751,9 +2692,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            for (var i = 0;
-                                i < math.min(topTracks.length, 5);
-                                i++) ...[
+                            for (
+                              var i = 0;
+                              i < math.min(topTracks.length, 5);
+                              i++
+                            ) ...[
                               Padding(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 4,
@@ -3079,7 +3022,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     );
   }
 
-  Widget _buildTrackInfo(GenericSong? currentTrack, Color likeColor, bool isDesktop) {
+  Widget _buildTrackInfo(
+    GenericSong? currentTrack,
+    Color likeColor,
+    bool isDesktop,
+  ) {
     final title = currentTrack?.title ?? 'No track playing';
     final artists = currentTrack?.artists ?? [];
     final albumName = currentTrack?.album?.title ?? '';
@@ -3148,7 +3095,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     maxLines: isDesktop ? 2 : 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ]
+                ],
               ),
             ],
           ),
@@ -4573,15 +4520,8 @@ Future<ColorScheme?> _resolveColorScheme(ImageProvider imageProvider) async {
 class _CoverGradientContainer extends StatelessWidget {
   final Widget child;
   final Widget? background;
-  final Color? dominantColorOverride;
-  final bool overlayGradientOnBackground;
 
-  const _CoverGradientContainer({
-    required this.child,
-    this.background,
-    this.dominantColorOverride,
-    this.overlayGradientOnBackground = true,
-  });
+  const _CoverGradientContainer({required this.child, this.background});
 
   @override
   Widget build(BuildContext context) {
@@ -4589,17 +4529,8 @@ class _CoverGradientContainer extends StatelessWidget {
       (provider) => provider.palette,
     );
     var dominantColor =
-        dominantColorOverride ??
-        palette?.primaryContainer ??
         palette?.primary ??
-        palette?.onSecondaryContainer ??
         Colors.black;
-    if (dominantColor.computeLuminance() < 0.2) {
-      final altColor = palette?.primary ?? palette?.secondary;
-      if (altColor != null && altColor.computeLuminance() >= 0.2) {
-        dominantColor = altColor;
-      }
-    }
 
     final gradientLayer = Container(
       decoration: BoxDecoration(
@@ -4621,9 +4552,8 @@ class _CoverGradientContainer extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (!overlayGradientOnBackground) gradientLayer,
+        gradientLayer,
         if (background != null) Positioned.fill(child: background!),
-        if (overlayGradientOnBackground) gradientLayer,
         child,
       ],
     );
