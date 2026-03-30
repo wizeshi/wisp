@@ -1358,6 +1358,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final subtitle = widget.type == SharedListType.playlist
         ? _playlist?.author.displayName
         : _album?.artists.map((a) => a.name).join(', ');
+
+    final subtitleImageUrl = widget.type == SharedListType.playlist
+        ? _playlist?.author.avatarUrl
+        : (_album != null && _album!.artists.isNotEmpty)
+            ? _album!.artists.first.thumbnailUrl
+            : null;
+
     final total = widget.type == SharedListType.playlist
         ? (_playlist?.total ?? _items.length)
         : (_album?.total ?? _items.length);
@@ -1373,6 +1380,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             title: title,
             subtitle: subtitle,
             imageUrl: imageUrl,
+            subtitleImageUrl: subtitleImageUrl,
             total: total,
             isDesktop: isDesktop,
             description: description,
@@ -1449,6 +1457,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     required String style,
     required String title,
     required String? subtitle,
+    required String? subtitleImageUrl,
     required String imageUrl,
     required int total,
     required bool isDesktop,
@@ -1460,6 +1469,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           view: this,
           title: title,
           subtitle: subtitle,
+          subtitleImageUrl: subtitleImageUrl,
           imageUrl: imageUrl,
           total: total,
           isDesktop: isDesktop,
@@ -1470,6 +1480,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           view: this,
           title: title,
           subtitle: subtitle,
+          subtitleImageUrl: subtitleImageUrl,
           imageUrl: imageUrl,
           total: total,
           isDesktop: isDesktop,
@@ -1481,6 +1492,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           view: this,
           title: title,
           subtitle: subtitle,
+          subtitleImageUrl: subtitleImageUrl,
           imageUrl: imageUrl,
           total: total,
           isDesktop: isDesktop,
@@ -1696,6 +1708,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   Widget _buildHeader(
     String title,
     String? subtitle,
+    String? subtitleImageUrl,
     String imageUrl,
     int total,
     String? description,
@@ -1780,6 +1793,32 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
+                    if (subtitleImageUrl != null) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          color: Colors.grey[900],
+                          child: _isLocalImagePath(subtitleImageUrl)
+                              ? Image.file(
+                                  File(subtitleImageUrl.replaceFirst('file://', '')),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, url, error) =>
+                                      Container(color: Colors.grey[800]),
+                                )
+                              : CachedNetworkImage(
+                                  imageUrl: subtitleImageUrl,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) =>
+                                      Container(color: Colors.grey[800]),
+                                  errorWidget: (context, url, error) =>
+                                       Container(color: Colors.grey[800]),
+                                ),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                    ],
                     if (subtitle != null)
                       Flexible(
                         child: Text(
@@ -3227,6 +3266,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
   final String title;
   final String? subtitle;
   final String imageUrl;
+  final String? subtitleImageUrl;
   final int total;
   final bool isDesktop;
   final String? description;
@@ -3236,6 +3276,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.imageUrl,
+    required this.subtitleImageUrl,
     required this.total,
     required this.isDesktop,
     required this.description,
@@ -3348,6 +3389,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                           view._buildHeader(
                             title,
                             subtitle,
+                            subtitleImageUrl,
                             imageUrl,
                             total,
                             description,
@@ -3394,12 +3436,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
   final int total;
   final bool isDesktop;
   final String? description;
+  final String? subtitleImageUrl;
 
   const _AppleMusicListDetailRenderer({
     required this.view,
     required this.title,
     required this.subtitle,
     required this.imageUrl,
+    required this.subtitleImageUrl,
     required this.total,
     required this.isDesktop,
     required this.description,
@@ -3617,25 +3661,52 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
                         Text(
                           '$total items • ${view._formatDuration(view._totalDurationSecs())}',
                           style: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
-                        if (subtitle != null && subtitle!.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            subtitle!,
-                            style: TextStyle(
-                              color: Colors.grey[300],
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                        if ((subtitle != null && subtitle!.isNotEmpty) || subtitleImageUrl != null) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              if (subtitleImageUrl != null) ...[
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: view._isLocalImagePath(subtitleImageUrl!)
+                                      ? Image.file(
+                                          File(subtitleImageUrl!.replaceFirst('file://', '')),
+                                          width: 24,
+                                          height: 24,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, url, error) =>
+                                              Container(width: 24, height: 24, color: Colors.grey[700]),
+                                        )
+                                      : CachedNetworkImage(
+                                          imageUrl: subtitleImageUrl!,
+                                          width: 24,
+                                          height: 24,
+                                          fit: BoxFit.cover,
+                                          errorWidget: (context, url, error) =>
+                                              Container(width: 24, height: 24, color: Colors.grey[700]),
+                                        ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              if (subtitle != null && subtitle!.isNotEmpty) 
+                              Text(
+                                subtitle!,
+                                style: TextStyle(
+                                  color: Colors.grey[300],
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ]
+                          )
                         ],
                         if (hasDescription) ...[
                           const SizedBox(height: 4),

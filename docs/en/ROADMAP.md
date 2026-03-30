@@ -3,8 +3,10 @@ Here's the TODOs for version v26.03.xx:
 - Bugs:
     - [ ] Clicking the three dots menu in the artist view on desktop opens the mobile bottom sheet
 - Future changes:
+    - [ ] Change "Show Lyrics" button in the right sidebar preview to a floating button
+    - [ ] Lyrics View should hide both sidebars. Also, increase the text size and make the text centered, just aligned to the left (maybe with symmetric horizontal padding relative to widget width?)
+    - [ ] Interpret home rows differently: if we only have one element in the row, and if we're on mobile, use a special card style; if on desktop, remove it from the main content area, and make special cards at the bottom. 
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)
-    - [ ] Increase heart icon size in the mobile likes view
     - [ ] Padding between elements (top and bottom) is part of the elements themselves (in the library view)
     - [ ] Switch desktop context submenus to use prediction cones
     - [ ] Remove the unassigned text from the sidebar. Also make playlists/folders be ordered with each other (e.g. have Folder1, then PL1, then Folder2, then PL2, and so on and so forth)
