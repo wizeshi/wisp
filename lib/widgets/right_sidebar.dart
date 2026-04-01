@@ -23,11 +23,18 @@ import 'entity_context_menus.dart';
 import 'hover_underline.dart';
 import 'like_button.dart';
 
-class RightSidebar extends StatelessWidget {
+class RightSidebar extends StatefulWidget {
   final double width;
   final ValueChanged<double> onResize;
 
   const RightSidebar({super.key, required this.width, required this.onResize});
+
+  @override
+  State<RightSidebar> createState() => _RightSidebarState();
+}
+
+class _RightSidebarState extends State<RightSidebar> {
+  bool _isHoveringSidebar = false;
 
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -39,44 +46,54 @@ class RightSidebar extends StatelessWidget {
     }
 
     return SizedBox(
-      width: width,
-      child: Row(
-        children: [
-          _ResizeHandle(onResize: onResize),
-          Expanded(
-            child: Material(
-              color: const Color(0xFF0F0F0F),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    left: BorderSide(color: Colors.grey[900]!, width: 1),
+      width: widget.width,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHoveringSidebar = true),
+        onExit: (_) => setState(() => _isHoveringSidebar = false),
+        child: Row(
+          children: [
+            _ResizeHandle(onResize: widget.onResize),
+            Expanded(
+              child: Material(
+                color: const Color(0xFF0F0F0F),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      left: BorderSide(color: Colors.grey[900]!, width: 1),
+                    ),
                   ),
-                ),
-                child: SafeArea(
-                  left: false,
-                  right: true,
-                  top: false,
-                  bottom: false,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: const [
-                        _NowPlayingCard(),
-                        SizedBox(height: 16),
-                        _LyricsPreviewCard(),
-                        SizedBox(height: 16),
-                        _ArtistInfoCard(),
-                        SizedBox(height: 16),
-                        _QueuePreviewCard(),
-                      ],
+                  child: SafeArea(
+                    left: false,
+                    right: true,
+                    top: false,
+                    bottom: false,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _NowPlayingCard(showHoverControls: _isHoveringSidebar),
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _LyricsPreviewCard(),
+                                SizedBox(height: 16),
+                                _ArtistInfoCard(),
+                                SizedBox(height: 16),
+                                _QueuePreviewCard(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -118,12 +135,20 @@ class _SectionCard extends StatelessWidget {
   final Color? backgroundColor;
   final Widget? background;
   final EdgeInsetsGeometry padding;
+  final double borderRadius;
+  final bool showBottomFade;
+  final Color bottomFadeColor;
+  final double bottomFadeHeight;
 
   const _SectionCard({
     required this.child,
     this.backgroundColor,
     this.background,
     this.padding = const EdgeInsets.all(14),
+    this.borderRadius = 14,
+    this.showBottomFade = false,
+    this.bottomFadeColor = const Color(0xFF0F0F0F),
+    this.bottomFadeHeight = 24,
   });
 
   @override
@@ -131,11 +156,11 @@ class _SectionCard extends StatelessWidget {
     final baseColor = backgroundColor ?? const Color(0xFF1A1A1A);
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(color: Colors.white10),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(borderRadius),
         child: Stack(
           children: [
             if (background != null) Positioned.fill(child: background!),
@@ -144,6 +169,27 @@ class _SectionCard extends StatelessWidget {
               padding: padding,
               child: child,
             ),
+            if (showBottomFade)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    height: bottomFadeHeight,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          bottomFadeColor.withValues(alpha: 0),
+                          bottomFadeColor.withValues(alpha: 0.75),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -152,7 +198,9 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _NowPlayingCard extends StatelessWidget {
-  const _NowPlayingCard();
+  final bool showHoverControls;
+
+  const _NowPlayingCard({required this.showHoverControls});
 
   @override
   Widget build(BuildContext context) {
@@ -191,42 +239,131 @@ class _NowPlayingCard extends StatelessWidget {
           final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
           return _SectionCard(
             background: hasCanvas ? _CanvasBackground(url: canvasUrl) : null,
+            borderRadius: 0,
+            showBottomFade: hasCanvas,
+            bottomFadeColor: const Color(0xFF0F0F0F),
+            bottomFadeHeight: 28,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                HoverUnderline(
-                  cursor: canOpenContext
-                      ? SystemMouseCursors.click
-                      : SystemMouseCursors.basic,
-                  onTap: canOpenContext
-                      ? () => _openPlaybackContext(
-                          context,
-                          data.playbackContextType!,
-                          data.playbackContextID!,
-                          resolvedContextName,
-                        )
-                      : null,
-                  onSecondaryTapDown: canOpenContext
-                      ? (details) {
-                          _showPlaybackContextMenu(
-                            context,
-                            data,
-                            libraryState,
-                            details.globalPosition,
-                          );
-                        }
-                      : null,
-                  builder: (isHovering) => Text(
-                    headerText,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      decoration: isHovering
-                          ? TextDecoration.underline
-                          : TextDecoration.none,
+                Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      width: showHoverControls ? 28 : 0,
+                      child: ClipRect(
+                        child: AnimatedSlide(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          offset: showHoverControls
+                              ? Offset.zero
+                              : const Offset(-0.25, 0),
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 180),
+                            opacity: showHoverControls ? 1 : 0,
+                            child: IgnorePointer(
+                              ignoring: !showHoverControls,
+                              child: IconButton(
+                                tooltip: 'Hide sidebar',
+                                icon: const Icon(Icons.keyboard_arrow_right),
+                                iconSize: 18,
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 28,
+                                  minHeight: 28,
+                                ),
+                                onPressed: () {
+                                  context.read<NavigationState>().toggleRightSidebar();
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: HoverUnderline(
+                        cursor: canOpenContext
+                            ? SystemMouseCursors.click
+                            : SystemMouseCursors.basic,
+                        onTap: canOpenContext
+                            ? () => _openPlaybackContext(
+                                context,
+                                data.playbackContextType!,
+                                data.playbackContextID!,
+                                resolvedContextName,
+                              )
+                            : null,
+                        onSecondaryTapDown: canOpenContext
+                            ? (details) {
+                                _showPlaybackContextMenu(
+                                  context,
+                                  data,
+                                  libraryState,
+                                  details.globalPosition,
+                                );
+                              }
+                            : null,
+                        builder: (isHovering) => Text(
+                          headerText,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            decoration: isHovering
+                                ? TextDecoration.underline
+                                : TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    AnimatedScale(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      scale: showHoverControls ? 1 : 0.85,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 180),
+                        opacity: showHoverControls ? 1 : 0,
+                        child: IgnorePointer(
+                          ignoring: !showHoverControls,
+                          child: Builder(
+                            builder: (buttonContext) {
+                              return IconButton(
+                                tooltip: 'More',
+                                icon: const Icon(Icons.more_horiz),
+                                iconSize: 18,
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 28,
+                                  minHeight: 28,
+                                ),
+                                onPressed: track == null
+                                    ? null
+                                    : () async {
+                                  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+                                  final box = buttonContext.findRenderObject() as RenderBox?;
+                                  if (box == null) return;
+                                  final rect = Rect.fromPoints(
+                                    box.localToGlobal(Offset.zero, ancestor: overlay),
+                                    box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+                                  );
+                                  await EntityContextMenus.showTrackMenu(
+                                    context,
+                                    track: track,
+                                    anchorRect: rect,
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 if (track == null)
@@ -297,7 +434,7 @@ class _NowPlayingCard extends StatelessWidget {
                                                   ? ', '
                                                   : ''),
                                           style: TextStyle(
-                                            color: Colors.grey[400],
+                                            color: Colors.grey[200],
                                             fontSize: 13,
                                             fontWeight: FontWeight.w500,
                                             decoration: isHovering
@@ -1113,7 +1250,9 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                         if (data != null) ...[
                           const SizedBox(height: 10),
                           Text(
-                            'Top tracks: ${data.topSongs.take(2).map((s) => s.title).join(' • ')}',
+                            data.description!.isEmpty ?
+                              'Top tracks: ${data.topSongs.take(3).map((s) => s.title).join(' • ')}'
+                              : data.description!,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
