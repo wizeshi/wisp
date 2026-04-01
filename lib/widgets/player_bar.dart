@@ -581,13 +581,19 @@ class _DesktopProgressBar extends StatelessWidget {
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),
-              child: const SizedBox(
-                height: 4,
-                child: LinearProgressIndicator(
-                  backgroundColor: Colors.transparent,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
+              child: const Column(
+                children: [
+                  SizedBox(height: 8),
+                  SizedBox(
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                  SizedBox(height: 12)
+                ]
+              )
             ),
           );
         }
