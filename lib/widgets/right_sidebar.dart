@@ -19,6 +19,7 @@ import '../services/app_navigation.dart';
 import '../services/navigation_history.dart';
 import '../views/list_detail.dart';
 import 'animated_lyrics_preview.dart';
+import 'entity_context_menus.dart';
 import 'hover_underline.dart';
 import 'like_button.dart';
 
@@ -205,6 +206,16 @@ class _NowPlayingCard extends StatelessWidget {
                           resolvedContextName,
                         )
                       : null,
+                  onSecondaryTapDown: canOpenContext
+                      ? (details) {
+                          _showPlaybackContextMenu(
+                            context,
+                            data,
+                            libraryState,
+                            details.globalPosition,
+                          );
+                        }
+                      : null,
                   builder: (isHovering) => Text(
                     headerText,
                     style: TextStyle(
@@ -247,6 +258,13 @@ class _NowPlayingCard extends StatelessWidget {
                                 onTap: album != null && album.id.isNotEmpty
                                     ? () => _openAlbum(context, album)
                                     : null,
+                                onSecondaryTapDown: (details) {
+                                  EntityContextMenus.showTrackMenu(
+                                    context,
+                                    track: track,
+                                    globalPosition: details.globalPosition,
+                                  );
+                                },
                                 builder: (isHovering) => _MarqueeText(
                                   text: track.title,
                                   style: TextStyle(
@@ -267,7 +285,11 @@ class _NowPlayingCard extends StatelessWidget {
                                         onTap: () =>
                                             _openArtist(context, artist),
                                         onSecondaryTapDown: (details) {
-                                          
+                                          EntityContextMenus.showArtistMenu(
+                                            context,
+                                            artist: artist,
+                                            globalPosition: details.globalPosition,
+                                          );
                                         },
                                         builder: (isHovering) => Text(
                                           artist.name +
@@ -405,6 +427,60 @@ class _NowPlayingCard extends StatelessWidget {
       contextId: contextId,
       contextName: contextName,
     );
+  }
+
+  void _showPlaybackContextMenu(
+    BuildContext context,
+    _NowPlayingData data,
+    LibraryState libraryState,
+    Offset globalPosition,
+  ) {
+    final contextType = data.playbackContextType;
+    final contextId = data.playbackContextID;
+    if (contextType == null || contextId == null || contextId.isEmpty) {
+      return;
+    }
+
+    if (contextType == 'playlist') {
+      final playlist = libraryState.playlists
+          .cast<GenericPlaylist?>()
+          .firstWhere((item) => item?.id == contextId, orElse: () => null);
+      if (playlist != null) {
+        EntityContextMenus.showPlaylistMenu(
+          context,
+          playlist: playlist,
+          globalPosition: globalPosition,
+        );
+      }
+      return;
+    }
+
+    if (contextType == 'album') {
+      final album = libraryState.albums
+          .cast<GenericAlbum?>()
+          .firstWhere((item) => item?.id == contextId, orElse: () => null);
+      if (album != null) {
+        EntityContextMenus.showAlbumMenu(
+          context,
+          album: album,
+          globalPosition: globalPosition,
+        );
+      }
+      return;
+    }
+
+    if (contextType == 'artist') {
+      final artist = libraryState.artists
+          .cast<GenericSimpleArtist?>()
+          .firstWhere((item) => item?.id == contextId, orElse: () => null);
+      if (artist != null) {
+        EntityContextMenus.showArtistMenu(
+          context,
+          artist: artist,
+          globalPosition: globalPosition,
+        );
+      }
+    }
   }
 }
 
@@ -993,6 +1069,21 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                       children: [
                         HoverUnderline(
                           onTap: () => _openArtist(data, artist),
+                          onSecondaryTapDown: (details) {
+                            final menuArtist = data != null
+                                ? GenericSimpleArtist(
+                                    id: data.id,
+                                    source: data.source,
+                                    name: data.name,
+                                    thumbnailUrl: data.thumbnailUrl,
+                                  )
+                                : artist;
+                            EntityContextMenus.showArtistMenu(
+                              context,
+                              artist: menuArtist,
+                              globalPosition: details.globalPosition,
+                            );
+                          },
                           builder: (isHovering) => Text(
                             data?.name ?? artist.name,
                             maxLines: 1,

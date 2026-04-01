@@ -9,6 +9,7 @@ import '../providers/library/library_state.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/navigation_history.dart';
 import 'playlist_folder_modals.dart';
+import 'entity_context_menus.dart';
 import '../utils/liked_songs.dart';
 import 'liked_songs_art.dart';
 
@@ -474,7 +475,56 @@ class _WispNavigationState extends State<WispNavigation> {
       child: InkWell(
         mouseCursor: SystemMouseCursors.click,
         onSecondaryTapDown: (details) {
-          
+          if (!isDesktop) return;
+          if (resolvedItem is GenericPlaylist) {
+            EntityContextMenus.showPlaylistMenu(
+              context,
+              playlist: resolvedItem,
+              globalPosition: details.globalPosition,
+            );
+            return;
+          }
+          if (resolvedItem is GenericAlbum) {
+            EntityContextMenus.showAlbumMenu(
+              context,
+              album: resolvedItem,
+              globalPosition: details.globalPosition,
+            );
+            return;
+          }
+          if (resolvedItem is GenericSimpleArtist) {
+            EntityContextMenus.showArtistMenu(
+              context,
+              artist: resolvedItem,
+              globalPosition: details.globalPosition,
+            );
+            return;
+          }
+          if (resolvedItem is PlaylistFolder) {
+            EntityContextMenus.showFolderMenu(
+              context,
+              folder: resolvedItem,
+              globalPosition: details.globalPosition,
+            );
+          }
+        },
+        onLongPress: () {
+          if (isDesktop) return;
+          if (resolvedItem is GenericPlaylist) {
+            EntityContextMenus.showPlaylistMenu(context, playlist: resolvedItem);
+            return;
+          }
+          if (resolvedItem is GenericAlbum) {
+            EntityContextMenus.showAlbumMenu(context, album: resolvedItem);
+            return;
+          }
+          if (resolvedItem is GenericSimpleArtist) {
+            EntityContextMenus.showArtistMenu(context, artist: resolvedItem);
+            return;
+          }
+          if (resolvedItem is PlaylistFolder) {
+            EntityContextMenus.showFolderMenu(context, folder: resolvedItem);
+          }
         },
         onTap: () {
           if (resolvedItem is PlaylistFolder) {

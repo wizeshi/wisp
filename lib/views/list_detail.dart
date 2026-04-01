@@ -23,14 +23,18 @@ import '../providers/library/library_state.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
 import '../widgets/playlist_folder_modals.dart';
+import '../widgets/adaptive_context_menu.dart';
+import '../widgets/entity_context_menus.dart';
 import '../widgets/like_button.dart';
 import '../services/app_navigation.dart';
 import '../services/cache_manager.dart';
 import '../services/metadata_cache.dart';
 import '../providers/navigation_state.dart';
+import '../providers/audio/youtube.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
 import '../widgets/provider_disabled_state.dart';
+import '../views/youtube_alternatives.dart';
 
 enum SharedListType { playlist, album }
 
@@ -117,97 +121,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       _spotifyInternal.addListener(_likedTracksListener!);
     }
     _loadListDetails();
-  }
-
-  Future<void> _saveLocalPlaylistToSpotify() async {
-    final localState = context.read<LocalPlaylistState>();
-    final localPlaylist = localState.getById(widget.id);
-    if (localPlaylist == null) return;
-    if (!context.read<PreferencesProvider>().allowWriting) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Spotify writing is disabled in Preferences.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
-    final spotifyTrackIds = localPlaylist.tracks
-        .where(
-          (item) =>
-              item.source == SongSource.spotify ||
-              item.source == SongSource.spotifyInternal,
-        )
-        .map((item) => item.id)
-        .toList();
-    if (spotifyTrackIds.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No Spotify tracks to save.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
-    final spotifyInternal = context.read<SpotifyInternalProvider>();
-    if (!spotifyInternal.isAuthenticated) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Spotify (Internal) is not connected.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
-    String? targetId = localPlaylist.linkedSource == SongSource.spotifyInternal
-        ? localPlaylist.linkedId
-        : null;
-
-    try {
-      if (targetId == null || targetId.isEmpty) {
-        targetId = await spotifyInternal.createPlaylist(
-          name: localPlaylist.title,
-        );
-        await localState.linkToProvider(
-          id: localPlaylist.id,
-          provider: SongSource.spotifyInternal,
-          providerId: targetId,
-        );
-      }
-
-      await spotifyInternal.addTracksToPlaylist(targetId, spotifyTrackIds);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Saved Spotify tracks to playlist.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save playlist: $e'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    }
-  }
-
-  void _detachLocalPlaylist() {
-    final localState = context.read<LocalPlaylistState>();
-    localState.detachFromProvider(widget.id);
   }
 
   Future<void> _toggleSaveAlbum(bool isSaved) async {
@@ -929,159 +842,472 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
   }
 
-  /// Show more options menu
-  void _showMoreOptions() {
-    showModalBottomSheet(
-      context: context,
-      useRootNavigator: true,
-      backgroundColor: const Color(0xFF282828),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+  Rect? _anchorRectFromContext(BuildContext? anchorContext) {
+    if (anchorContext == null) return null;
+    final overlay = Overlay.of(context, rootOverlay: true).context.findRenderObject() as RenderBox;
+    final box = anchorContext.findRenderObject() as RenderBox?;
+    if (box == null) return null;
+    return Rect.fromPoints(
+      box.localToGlobal(Offset.zero, ancestor: overlay),
+      box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+    );
+  }
+
+  Future<void> _appendTracksToQueue(
+    List<GenericSong> tracks, {
+    required String contextType,
+    required String contextName,
+    SongSource? contextSource,
+  }) async {
+    if (tracks.isEmpty) return;
+
+    final player = context.read<global_audio_player.WispAudioHandler>();
+    final connect = context.read<ConnectSessionProvider>();
+    final mergedQueue = List<GenericSong>.from(player.queueTracks);
+    final seen = mergedQueue
+        .map((track) => '${track.source.name}:${track.id}')
+        .toSet();
+
+    var addedCount = 0;
+    for (final track in tracks) {
+      final key = '${track.source.name}:${track.id}';
+      if (seen.add(key)) {
+        mergedQueue.add(track);
+        addedCount += 1;
+      }
+    }
+
+    if (addedCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All tracks are already in queue')),
+      );
+      return;
+    }
+
+    var startIndex = 0;
+    final currentTrackId = player.currentTrack?.id;
+    if (currentTrackId != null) {
+      final foundIndex = mergedQueue.indexWhere((track) => track.id == currentTrackId);
+      if (foundIndex >= 0) {
+        startIndex = foundIndex;
+      }
+    }
+
+    await connect.requestSetQueue(
+      mergedQueue,
+      startIndex: startIndex,
+      play: player.currentTrack != null ? player.isPlaying : false,
+      contextType: player.playbackContextType ?? contextType,
+      contextName: player.playbackContextName ?? contextName,
+      contextID: player.playbackContextID,
+      contextSource: player.playbackContextSource ?? contextSource,
+      shuffleEnabled: player.shuffleEnabled,
+      originalQueue: player.shuffleEnabled
+          ? List<GenericSong>.from(player.originalQueueTracks)
+          : null,
+    );
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Added $addedCount track${addedCount == 1 ? '' : 's'} to queue'),
       ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[600],
-                borderRadius: BorderRadius.circular(2),
-              ),
+    );
+  }
+
+  IconData _sourceIcon(SongSource source) {
+    switch (source) {
+      case SongSource.youtube:
+        return Icons.ondemand_video;
+      case SongSource.soundcloud:
+        return Icons.cloud;
+      case SongSource.spotify:
+      case SongSource.spotifyInternal:
+      case SongSource.local:
+        return Icons.music_note;
+    }
+  }
+
+  Future<void> _showPlaylistDeletePlaceholder() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete playlist?'),
+          content: const Text('Delete confirmation is still a placeholder for now.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
             ),
-            ListTile(
-              leading: const Icon(Icons.share, color: Colors.white),
-              title: const Text('Share', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement share
-              },
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
             ),
-            if (widget.type == SharedListType.album)
-              Builder(
-                builder: (context) {
-                  final album = _album;
-                  if (album == null) return const SizedBox.shrink();
-                  final libraryState = context.watch<LibraryState>();
-                  final isSaved = libraryState.isAlbumSaved(album.id);
-                  return Column(
-                    children: [
-                      ListTile(
-                        leading: Icon(
-                          isSaved ? Icons.bookmark_remove : Icons.bookmark_add,
-                          color: Colors.white,
-                        ),
-                        title: Text(
-                          isSaved ? 'Remove from Library' : 'Save to Library',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _toggleSaveAlbum(isSaved);
-                        },
-                      ),
-                    ],
-                  );
-                },
-              ),
-            if (widget.type == SharedListType.playlist)
-              Builder(
-                builder: (context) {
-                  final localState = context.read<LocalPlaylistState>();
-                  final localPlaylist = localState.getById(widget.id);
-                  if (localPlaylist == null) return const SizedBox.shrink();
-                  return Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(
-                          Icons.cloud_upload,
-                          color: Colors.white,
-                        ),
-                        title: const Text(
-                          'Save to Spotify',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _saveLocalPlaylistToSpotify();
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.edit, color: Colors.white),
-                        title: const Text(
-                          'Rename',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          PlaylistFolderModals.showRenamePlaylistDialog(
-                            context,
-                            _playlist!,
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(
-                          Icons.image_outlined,
-                          color: Colors.white,
-                        ),
-                        title: const Text(
-                          'Change thumbnail',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          PlaylistFolderModals.showChangePlaylistThumbnailDialog(
-                            context,
-                            _playlist!,
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.white,
-                        ),
-                        title: const Text(
-                          'Delete',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                        onTap: () {
-                          Navigator.pop(context);
-                          PlaylistFolderModals.deletePlaylistWithSync(
-                            context,
-                            widget.id,
-                          );
-                          if (mounted) {
-                            Navigator.of(context).maybePop();
-                          }
-                        },
-                      ),
-                      if (localPlaylist.isLinked)
-                        ListTile(
-                          leading: const Icon(
-                            Icons.link_off,
-                            color: Colors.white,
-                          ),
-                          title: const Text(
-                            'Detach from provider',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          onTap: () {
-                            Navigator.pop(context);
-                            _detachLocalPlaylist();
-                          },
-                        ),
-                    ],
-                  );
-                },
-              ),
-            const SizedBox(height: 8),
           ],
+        );
+      },
+    );
+    if (confirm != true || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Delete playlist placeholder')),
+    );
+  }
+
+  Future<void> _showListContextMenu({
+    BuildContext? anchorContext,
+    Offset? globalPosition,
+  }) async {
+    final actions = _buildListContextActions();
+    if (actions.isEmpty) return;
+    await showAdaptiveContextMenu(
+      context: context,
+      actions: actions,
+      anchorRect: _anchorRectFromContext(anchorContext),
+      globalPosition: globalPosition,
+    );
+  }
+
+  List<ContextMenuAction> _buildListContextActions() {
+    final listSongs = _buildQueueSongs();
+    final title = widget.type == SharedListType.playlist
+        ? (_playlist?.title ?? 'Playlist')
+        : (_album?.title ?? 'Album');
+    final source = widget.type == SharedListType.playlist
+        ? _playlist?.source
+        : _album?.source;
+
+    final downloadSubmenu = [
+      ContextMenuAction(
+        id: 'download-metadata',
+        label: 'Download Metadata',
+        icon: Icons.description_outlined,
+        onSelected: (_) async {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Download metadata placeholder')),
+          );
+        },
+      ),
+      ContextMenuAction(
+        id: 'download-cache',
+        label: 'Download Audio',
+        icon: Icons.download_outlined,
+        onSelected: (_) => _downloadAll(),
+      ),
+    ];
+
+    if (widget.type == SharedListType.playlist) {
+      final folderState = context.read<LibraryFolderState>();
+      final folders = folderState.folders;
+      final currentFolderId = folderState.folderIdForPlaylist(widget.id);
+
+      final moveToFolderChildren = <ContextMenuAction>[
+        ContextMenuAction(
+          id: 'move-no-folder',
+          label: currentFolderId == null ? '✓ No Folder' : 'No Folder',
+          icon: Icons.folder_off_outlined,
+          onSelected: (_) => folderState.movePlaylistIntoFolder(widget.id, null),
+        ),
+        for (final folder in folders)
+          ContextMenuAction(
+            id: 'move-folder-${folder.id}',
+            label: currentFolderId == folder.id
+                ? '✓ ${folder.title}'
+                : folder.title,
+            icon: Icons.folder,
+            onSelected: (_) => folderState.movePlaylistIntoFolder(widget.id, folder.id),
+          ),
+      ];
+
+      return [
+        ContextMenuAction(
+          id: 'add-queue',
+          label: 'Add to Queue',
+          icon: Icons.queue_music,
+          onSelected: (_) => _appendTracksToQueue(
+            listSongs,
+            contextType: 'playlist',
+            contextName: title,
+            contextSource: source,
+          ),
+        ),
+        ContextMenuAction(
+          id: 'edit-details',
+          label: 'Edit Details',
+          icon: Icons.edit,
+          onSelected: (_) async => _showEditDialog(),
+        ),
+        ContextMenuAction(
+          id: 'delete',
+          label: 'Delete',
+          icon: Icons.delete_outline,
+          destructive: true,
+          onSelected: (_) => _showPlaylistDeletePlaceholder(),
+        ),
+        ContextMenuAction(
+          id: 'download',
+          label: 'Download',
+          icon: Icons.download,
+          children: downloadSubmenu,
+        ),
+        ContextMenuAction(
+          id: 'move-folder',
+          label: 'Move to Folder',
+          icon: Icons.folder_open,
+          children: moveToFolderChildren,
+        ),
+        ContextMenuAction(
+          id: 'share',
+          label: 'Share',
+          icon: Icons.share,
+          onSelected: (_) async => _showShareDialog(),
+        ),
+      ];
+    }
+
+    final album = _album;
+    final libraryState = context.read<LibraryState>();
+    final isSaved = album != null && libraryState.isAlbumSaved(album.id);
+    return [
+      ContextMenuAction(
+        id: 'toggle-library',
+        label: isSaved ? 'Remove from Library' : 'Add to Library',
+        icon: isSaved ? Icons.bookmark_remove : Icons.bookmark_add,
+        iconColor: isSaved ? Theme.of(context).colorScheme.primary : null,
+        onSelected: (_) => _toggleSaveAlbum(isSaved),
+      ),
+      ContextMenuAction(
+        id: 'add-queue',
+        label: 'Add to Queue',
+        icon: Icons.queue_music,
+        onSelected: (_) => _appendTracksToQueue(
+          listSongs,
+          contextType: 'album',
+          contextName: title,
+          contextSource: source,
         ),
       ),
+      ContextMenuAction(
+        id: 'download',
+        label: 'Download',
+        icon: Icons.download,
+        children: downloadSubmenu,
+      ),
+      ContextMenuAction(
+        id: 'share',
+        label: 'Share',
+        icon: Icons.share,
+        onSelected: (_) async => _showShareDialog(),
+      ),
+    ];
+  }
+
+  Future<void> _showSongContextMenu(
+    GenericSong song, {
+    Offset? globalPosition,
+    BuildContext? anchorContext,
+  }) async {
+    await _spotifyInternal.ensureLikedTracksLoaded();
+    if (!mounted) return;
+
+    final isLiked = _spotifyInternal.isTrackLiked(song.id);
+    final cacheManager = AudioCacheManager.instance;
+    final isCached = cacheManager.isTrackCached(song.id);
+    final isDownloading = cacheManager.isDownloading(song.id);
+    final progress = cacheManager.getDownloadProgress(song.id) ?? 0;
+    final hasAlbum = song.album != null && song.album!.id.isNotEmpty;
+    final hasOneArtist = song.artists.length == 1;
+
+    final cacheLabel = isDownloading
+        ? 'Downloading ${(progress * 100).toStringAsFixed(0)}%'
+        : (isCached ? 'Remove from Audio Cache' : 'Add to Audio Cache');
+
+    final actions = <ContextMenuAction>[
+      ContextMenuAction(
+        id: 'likes-toggle',
+        label: isLiked ? 'Remove from Likes' : 'Add to Likes',
+        icon: isLiked ? Icons.favorite : Icons.favorite_border,
+        iconColor: isLiked ? Theme.of(context).colorScheme.primary : null,
+        onSelected: (_) => _spotifyInternal.toggleTrackLike(song),
+      ),
+      ContextMenuAction(
+        id: 'playlist-add',
+        label: 'Add to Playlist',
+        icon: Icons.playlist_add,
+        onSelected: (_) async {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Add to playlist placeholder')),
+          );
+        },
+      ),
+      ContextMenuAction(
+        id: 'cache-toggle',
+        label: cacheLabel,
+        icon: isCached ? Icons.delete_outline : Icons.download_outlined,
+        iconColor: isCached ? Theme.of(context).colorScheme.primary : null,
+        enabled: !isDownloading,
+        onSelected: (_) async {
+          if (isCached) {
+            await cacheManager.removeFromCache(song.id);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Removed from audio cache')),
+            );
+            return;
+          }
+
+          final player = context.read<global_audio_player.WispAudioHandler>();
+          final result = await player.downloadTrack(song);
+          if (!mounted) return;
+          final message = switch (result) {
+            QueueDownloadResult.queued => 'Queued track for download',
+            QueueDownloadResult.alreadyCached => 'Track already cached',
+            QueueDownloadResult.alreadyQueued => 'Track already in download queue',
+            QueueDownloadResult.blockedByNetworkPolicy =>
+              'Downloads blocked by your WiFi/Ethernet-only setting',
+            QueueDownloadResult.blockedByNetworkOnlyMode =>
+              'Downloads blocked because Network-only mode is enabled',
+          };
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+        },
+      ),
+      ContextMenuAction(
+        id: 'youtube-alt',
+        label: 'Search Alternatives',
+        icon: Icons.ondemand_video,
+        onSelected: (_) async {
+          final selectedVideoId = await Navigator.of(context).push<String>(
+            MaterialPageRoute(
+              builder: (_) => YouTubeAlternativesView(track: song),
+            ),
+          );
+          if (!mounted || selectedVideoId == null) return;
+          if (selectedVideoId.isEmpty) {
+            await YouTubeProvider.removeCachedVideoId(song.id);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('YouTube mapping cleared')),
+            );
+            return;
+          }
+          await YouTubeProvider.setCachedVideoId(song.id, selectedVideoId);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('YouTube alternative saved')),
+          );
+        },
+      ),
+      ContextMenuAction(
+        id: 'share',
+        label: 'Share',
+        icon: Icons.share,
+        onSelected: (_) async {
+          await EntityContextMenus.copySpotifyShareUrl(
+            context,
+            source: song.source,
+            type: 'track',
+            id: song.id,
+          );
+        },
+      ),
+      if (hasAlbum)
+        ContextMenuAction(
+          id: 'go-album',
+          label: 'Go to Album',
+          icon: Icons.album,
+          onSelected: (_) async {
+            final album = song.album!;
+            _openSharedList(
+              SharedListType.album,
+              album.id,
+              title: album.title,
+              thumbnailUrl: album.thumbnailUrl,
+            );
+          },
+        ),
+      if (hasOneArtist)
+        ContextMenuAction(
+          id: 'go-artist',
+          label: 'Go to Artist',
+          icon: Icons.person,
+          onSelected: (_) async => _openArtist(song.artists.first),
+        )
+      else
+        ContextMenuAction(
+          id: 'artists-submenu',
+          label: 'Artists',
+          icon: Icons.groups,
+          children: [
+            for (final artist in song.artists)
+              ContextMenuAction(
+                id: 'artist-${artist.id}',
+                label: artist.name,
+                icon: Icons.person_outline,
+                onSelected: (_) async => _openArtist(artist),
+              ),
+          ],
+        ),
+    ];
+
+    await showAdaptiveContextMenu(
+      context: context,
+      actions: actions,
+      anchorRect: _anchorRectFromContext(anchorContext),
+      globalPosition: globalPosition,
+      mobileHeaderBuilder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: CachedNetworkImage(
+                    imageUrl: song.thumbnailUrl,
+                    fit: BoxFit.cover,
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey[900],
+                      child: Icon(Icons.music_note, color: Colors.grey[600]),
+                    ),
+                    placeholder: (context, url) => Container(color: Colors.grey[850]),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      song.artists.map((artist) => artist.name).join(', '),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(_sourceIcon(song.source), color: Colors.grey[300]),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1119,172 +1345,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Edit not available for this item')),
-    );
-  }
-
-  void _showDesktopListMenu(BuildContext buttonContext) {
-    final overlay =
-        Overlay.of(context, rootOverlay: true).context.findRenderObject()
-            as RenderBox;
-    final box = buttonContext.findRenderObject() as RenderBox;
-    final position = box.localToGlobal(Offset.zero, ancestor: overlay);
-    const menuWidth = 220.0;
-    var left = position.dx;
-    final maxLeft = overlay.size.width - menuWidth - 8;
-    if (left > maxLeft) left = maxLeft;
-    if (left < 8) left = 8;
-
-    showDialog<void>(
-      context: context,
-      barrierColor: Colors.transparent,
-      barrierDismissible: true,
-      useRootNavigator: true,
-      builder: (dialogContext) {
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => Navigator.of(dialogContext).pop(),
-          child: Stack(
-            children: [
-              Positioned(
-                left: left,
-                top: position.dy + box.size.height,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: () {},
-                  child: Material(
-                color: const Color(0xFF282828),
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: menuWidth,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildDesktopMenuButton(
-                          dialogContext,
-                          icon: Icons.download_outlined,
-                          label: 'Download All',
-                          onTap: _downloadAll,
-                        ),
-                        if (widget.type == SharedListType.playlist) ...[
-                          Builder(
-                            builder: (context) {
-                              final localState = context
-                                  .read<LocalPlaylistState>();
-                              final localPlaylist = localState.getById(
-                                widget.id,
-                              );
-                              if (localPlaylist == null) {
-                                return const SizedBox.shrink();
-                              }
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  _buildDesktopMenuButton(
-                                    dialogContext,
-                                    icon: Icons.cloud_upload,
-                                    label: 'Save to Spotify',
-                                    onTap: _saveLocalPlaylistToSpotify,
-                                  ),
-                                  _buildDesktopMenuButton(
-                                    dialogContext,
-                                    icon: Icons.edit,
-                                    label: 'Rename',
-                                    onTap: () {
-                                      PlaylistFolderModals.showRenamePlaylistDialog(
-                                        context,
-                                        _playlist!,
-                                      );
-                                    },
-                                  ),
-                                  _buildDesktopMenuButton(
-                                    dialogContext,
-                                    icon: Icons.image_outlined,
-                                    label: 'Change thumbnail',
-                                    onTap: () {
-                                      PlaylistFolderModals.showChangePlaylistThumbnailDialog(
-                                        context,
-                                        _playlist!,
-                                      );
-                                    },
-                                  ),
-                                  _buildDesktopMenuButton(
-                                    dialogContext,
-                                    icon: Icons.delete_outline,
-                                    label: 'Delete',
-                                    onTap: () {
-                                      PlaylistFolderModals.deletePlaylistWithSync(
-                                        context,
-                                        widget.id,
-                                      );
-                                      if (mounted) {
-                                        Navigator.of(context).maybePop();
-                                      }
-                                    },
-                                  ),
-                                  if (localPlaylist.isLinked)
-                                    _buildDesktopMenuButton(
-                                      dialogContext,
-                                      icon: Icons.link_off,
-                                      label: 'Detach from provider',
-                                      onTap: _detachLocalPlaylist,
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                        const SizedBox(height: 4),
-                        _buildDesktopMenuButton(
-                          dialogContext,
-                          icon: Icons.share,
-                          label: 'Share',
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Share not implemented yet'),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  ),
-                ),
-              ),
-                ),
-              ],
-            ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDesktopMenuButton(
-    BuildContext dialogContext, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: () {
-        Navigator.of(dialogContext).pop();
-        onTap();
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.grey[300], size: 20),
-            const SizedBox(width: 12),
-            Text(label, style: const TextStyle(color: Colors.white)),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1686,7 +1746,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               IconButton(
                 icon: const Icon(Icons.more_horiz),
                 color: Colors.white,
-                onPressed: () => _showMoreOptions(),
+                onPressed: () => _showListContextMenu(),
               ),
               const Spacer(),
               // Right side: Loop + Shuffle + Play
@@ -1969,9 +2029,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     return IconButton(
                       onPressed: () {
                         if (isDesktop) {
-                          _showDesktopListMenu(buttonContext);
+                          _showListContextMenu(anchorContext: buttonContext);
                         } else {
-                          _showMoreOptions();
+                          _showListContextMenu();
                         }
                       },
                       icon: const Icon(Icons.more_horiz, color: Colors.grey),
@@ -2364,13 +2424,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   behavior: HitTestBehavior.opaque,
                   onSecondaryTapDown: isDesktop
                       ? (details) {
-                          
+                          _showSongContextMenu(
+                            song,
+                            globalPosition: details.globalPosition,
+                          );
                         }
                       : null,
                   onLongPress: isDesktop
                       ? null
                       : () {
-                          
+                          _showSongContextMenu(song);
                         },
                   child: Material(
                     color: Colors.transparent,
@@ -2519,7 +2582,21 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                           );
                                         },
                                         onSecondaryTapDown: (details) {
-                                          
+                                          EntityContextMenus.showAlbumMenu(
+                                            context,
+                                            album: GenericAlbum(
+                                              id: album.id,
+                                              source: album.source,
+                                              title: album.title,
+                                              thumbnailUrl: album.thumbnailUrl,
+                                              artists: album.artists,
+                                              label: album.label,
+                                              releaseDate: album.releaseDate,
+                                              explicit: song.explicit,
+                                              durationSecs: 0,
+                                            ),
+                                            globalPosition: details.globalPosition,
+                                          );
                                         },
                                         builder: (isHovering) => Text(
                                           _getAlbumTitle(item),
@@ -2561,7 +2638,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   alignment: Alignment.centerRight,
                                   child: GestureDetector(
                                     onTapDown: (details) {
-                                      
+                                      _showSongContextMenu(
+                                        song,
+                                        globalPosition: details.globalPosition,
+                                      );
                                     },
                                     child: Icon(
                                       CupertinoIcons.ellipsis,
@@ -2592,7 +2672,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                             );
                                           },
                                           onSecondaryTapDown: (details) {
-                                            
+                                            _showSongContextMenu(
+                                              song,
+                                              globalPosition: details.globalPosition,
+                                            );
                                           },
                                           builder: (isHovering) => Text(
                                             _getAlbumTitle(item),
@@ -2736,13 +2819,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             behavior: HitTestBehavior.opaque,
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    
+                    _showSongContextMenu(
+                      song,
+                      globalPosition: details.globalPosition,
+                    );
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    
+                    _showSongContextMenu(song);
                   },
             child: Material(
               color: Colors.transparent,
@@ -2851,7 +2937,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                             ),
                             if (!isAppleStyle) ...[
                               const SizedBox(height: 2),
-                              _buildArtistLine(artists, isDesktop: isDesktop),
+                              _buildArtistLine(
+                                artists,
+                                isDesktop: isDesktop,
+                              ),
                             ],
                           ],
                         ),
@@ -2880,7 +2969,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     );
                                   },
                                   onSecondaryTapDown: (details) {
-                                    
+                                    _showSongContextMenu(
+                                      song,
+                                      globalPosition: details.globalPosition,
+                                    );
                                   },
                                   builder: (isHovering) => Text(
                                     _getAlbumTitle(item),
@@ -2922,7 +3014,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                             alignment: Alignment.centerRight,
                             child: GestureDetector(
                               onTapDown: (details) {
-                                
+                                _showSongContextMenu(
+                                  song,
+                                  globalPosition: details.globalPosition,
+                                );
                               },
                               child: Icon(
                                 CupertinoIcons.ellipsis,
@@ -2950,7 +3045,21 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                       );
                                     },
                                     onSecondaryTapDown: (details) {
-                                      
+                                      EntityContextMenus.showAlbumMenu(
+                                        context,
+                                        album: GenericAlbum(
+                                          id: album.id,
+                                          source: album.source,
+                                          title: album.title,
+                                          thumbnailUrl: album.thumbnailUrl,
+                                          artists: album.artists,
+                                          label: album.label,
+                                          releaseDate: album.releaseDate,
+                                          explicit: song.explicit,
+                                          durationSecs: 0,
+                                        ),
+                                        globalPosition: details.globalPosition,
+                                      );
                                     },
                                     builder: (isHovering) => Text(
                                       _getAlbumTitle(item),
@@ -3094,7 +3203,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           HoverUnderline(
             onTap: () => _openArtist(artists[i]),
             onSecondaryTapDown: (details) {
-              
+              EntityContextMenus.showArtistMenu(
+                context,
+                artist: artists[i],
+                globalPosition: details.globalPosition,
+              );
             },
             builder: (isHovering) => Text(
               artists[i].name,
@@ -3410,7 +3523,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                 ),
                 IconButton(
                   icon: const Icon(CupertinoIcons.ellipsis_vertical),
-                  onPressed: view._showMoreOptions,
+                  onPressed: view._showListContextMenu,
                 ),
               ],
               flexibleSpace: FlexibleSpaceBar(
@@ -3634,7 +3747,9 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                             CupertinoIcons.ellipsis,
                             color: Theme.of(context).colorScheme.primary,
                           ),
-                          onPressed: () => view._showDesktopListMenu(buttonContext),
+                          onPressed: () => view._showListContextMenu(
+                            anchorContext: buttonContext,
+                          ),
                         ),
                       ),
                     ],

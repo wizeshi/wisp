@@ -10,7 +10,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../providers/theme/cover_art_palette_provider.dart';
-import '../providers/library/library_state.dart';
 import '../models/metadata_models.dart';
 import 'full_player.dart';
 import '../services/app_navigation.dart';
@@ -19,6 +18,7 @@ import '../widgets/hover_underline.dart';
 import '../providers/navigation_state.dart';
 import '../services/navigation_history.dart';
 import '../widgets/like_button.dart';
+import '../widgets/entity_context_menus.dart';
 import '../services/app_focus_service.dart';
 import '../providers/connect/connect_session_provider.dart';
 import '../services/connect/connect_models.dart';
@@ -700,14 +700,6 @@ class _DesktopTrackInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final libraryState = context.read<LibraryState>();
-    final navState = context.read<NavigationState>();
-    final currentLibraryView = navState.selectedLibraryView;
-    final currentNavIndex = navState.selectedNavIndex;
-    final track = currentTrack;
-    final album = track?.album;
-    final artists = track?.artists ?? <GenericSimpleArtist>[];
-    final primaryArtist = artists.isNotEmpty ? artists.first : null;
     if (currentTrack == null) {
       return SizedBox(
         width: 200,
@@ -740,6 +732,12 @@ class _DesktopTrackInfo extends StatelessWidget {
       );
     }
 
+    final track = currentTrack!;
+    final album = track.album;
+    final hasAlbum = album != null && album.id.isNotEmpty;
+    final artists = track.artists;
+    final primaryArtist = artists.isNotEmpty ? artists.first : null;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -770,12 +768,11 @@ class _DesktopTrackInfo extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                (track != null)
-                    ? HoverUnderline(
-                        cursor: album != null && album.id.isNotEmpty
+                HoverUnderline(
+                        cursor: hasAlbum
                             ? SystemMouseCursors.click
                             : SystemMouseCursors.basic,
-                        onTap: album != null && album.id.isNotEmpty
+                        onTap: hasAlbum
                             ? () {
                                 AppNavigation.instance.openSharedList(
                                   context,
@@ -787,7 +784,11 @@ class _DesktopTrackInfo extends StatelessWidget {
                               }
                             : null,
                         onSecondaryTapDown: (details) {
-                          
+                          EntityContextMenus.showTrackMenu(
+                            context,
+                            track: track,
+                            globalPosition: details.globalPosition,
+                          );
                         },
                         builder: (isHovering) => _MarqueeText(
                           text: track.title,
@@ -795,43 +796,53 @@ class _DesktopTrackInfo extends StatelessWidget {
                             color: Colors.white,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            decoration: isHovering && album != null
+                            decoration: isHovering && hasAlbum
                                 ? TextDecoration.underline
                                 : TextDecoration.none,
                           ),
-                        ),
-                      )
-                    : _MarqueeText(
-                        text: currentTrack!.title,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
                 SizedBox(height: 2),
                 (primaryArtist != null)
-                    ? HoverUnderline(
-                        onTap: () {
-                          AppNavigation.instance.openArtist(
-                            context,
-                            artistId: primaryArtist.id,
-                            initialArtist: primaryArtist,
-                          );
-                        },
-                        onSecondaryTapDown: (details) {
-                          
-                        },
-                        builder: (isHovering) => _MarqueeText(
-                          text: artists.map((a) => a.name).join(', '),
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                            decoration: isHovering
-                                ? TextDecoration.underline
-                                : TextDecoration.none,
-                          ),
-                        ),
+                    ? Wrap(
+                        children: [
+                          for (int i = 0; i < artists.length; i++) ...[
+                            HoverUnderline(
+                              onTap: () {
+                                AppNavigation.instance.openArtist(
+                                  context,
+                                  artistId: artists[i].id,
+                                  initialArtist: artists[i],
+                                );
+                              },
+                              onSecondaryTapDown: (details) {
+                                EntityContextMenus.showArtistMenu(
+                                  context,
+                                  artist: artists[i],
+                                  globalPosition: details.globalPosition,
+                                );
+                              },
+                              builder: (isHovering) => Text(
+                                artists[i].name,
+                                style: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 12,
+                                  decoration: isHovering
+                                      ? TextDecoration.underline
+                                      : TextDecoration.none,
+                                ),
+                              ),
+                            ),
+                            if (i < artists.length - 1)
+                              Text(
+                                ', ',
+                                style: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ],
                       )
                     : _MarqueeText(
                         text: currentTrack!.artists

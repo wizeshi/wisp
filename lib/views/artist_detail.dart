@@ -19,6 +19,8 @@ import '../services/metadata_cache.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
 import '../widgets/like_button.dart';
+import '../widgets/adaptive_context_menu.dart';
+import '../widgets/entity_context_menus.dart';
 import '../services/app_navigation.dart';
 import '../widgets/provider_disabled_state.dart';
 import 'list_detail.dart';
@@ -570,120 +572,58 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Future<void> _showArtistOptions([BuildContext? anchorContext]) async {
-    final name = _artist?.name ?? widget.initialArtist?.name ?? 'Artist';
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final libraryState = context.read<LibraryState>();
+    final isFollowed = libraryState.isArtistFollowed(widget.artistId);
 
-    if (isDesktop && anchorContext != null) {
-      final overlay =
-          Overlay.of(context, rootOverlay: true).context.findRenderObject()
-              as RenderBox;
+    Rect? anchorRect;
+    if (anchorContext != null) {
+      final overlay = Overlay.of(context, rootOverlay: true).context.findRenderObject() as RenderBox;
       final button = anchorContext.findRenderObject() as RenderBox?;
       if (button != null) {
-        final buttonRect = Rect.fromPoints(
+        anchorRect = Rect.fromPoints(
           button.localToGlobal(Offset.zero, ancestor: overlay),
-          button.localToGlobal(
-            button.size.bottomRight(Offset.zero),
-            ancestor: overlay,
-          ),
+          button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
         );
-        final selected = await showMenu<String>(
-          context: context,
-          color: const Color(0xFF282828),
-          position: RelativeRect.fromRect(buttonRect, Offset.zero & overlay.size),
-          items: const [
-            PopupMenuItem<String>(
-              value: 'copy',
-              child: Row(
-                children: [
-                  Icon(Icons.copy, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('Copy artist name', style: TextStyle(color: Colors.white)),
-                ],
-              ),
-            ),
-            PopupMenuItem<String>(
-              value: 'share',
-              child: Row(
-                children: [
-                  Icon(Icons.share, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('Share', style: TextStyle(color: Colors.white)),
-                ],
-              ),
-            ),
-          ],
-        );
-        if (!mounted || selected == null) return;
-        if (selected == 'copy') {
-          await Clipboard.setData(ClipboardData(text: name));
-          if (!mounted) return;
-          ScaffoldMessenger.of(this.context).showSnackBar(
-            const SnackBar(content: Text('Artist name copied')),
-          );
-          return;
-        }
-        if (selected == 'share') {
-          ScaffoldMessenger.of(this.context).showSnackBar(
-            const SnackBar(content: Text('Share not implemented yet')),
-          );
-        }
       }
-      return;
     }
 
-    await showModalBottomSheet(
+    await showAdaptiveContextMenu(
       context: context,
-      useRootNavigator: true,
-      isDismissible: true,
-      enableDrag: true,
-      backgroundColor: const Color(0xFF282828),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[600],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy, color: Colors.white),
-              title: const Text(
-                'Copy artist name',
-                style: TextStyle(color: Colors.white),
-              ),
-              onTap: () async {
-                await Clipboard.setData(ClipboardData(text: name));
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(content: Text('Artist name copied')),
-                  );
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.share, color: Colors.white),
-              title: const Text('Share', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  const SnackBar(content: Text('Share not implemented yet')),
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+      anchorRect: anchorRect,
+      actions: [
+        ContextMenuAction(
+          id: 'follow-toggle',
+          label: isFollowed ? 'Unfollow' : 'Follow',
+          icon: isFollowed ? Icons.person_remove : Icons.person_add,
+          onSelected: (_) => _toggleFollowArtist(isFollowed),
         ),
-      ),
+        ContextMenuAction(
+          id: 'download-metadata',
+          label: 'Download Metadata',
+          icon: Icons.download_outlined,
+          onSelected: (_) async {
+            await _loadArtist();
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Artist metadata refreshed')),
+            );
+          },
+        ),
+        ContextMenuAction(
+          id: 'share',
+          label: 'Share',
+          icon: Icons.share,
+          onSelected: (_) async {
+            final source = _artist?.source ?? widget.initialArtist?.source ?? SongSource.spotifyInternal;
+            await EntityContextMenus.copySpotifyShareUrl(
+              context,
+              source: source,
+              type: 'artist',
+              id: widget.artistId,
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -796,13 +736,17 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 behavior: HitTestBehavior.opaque,
                 onSecondaryTapDown: isDesktop
                     ? (details) {
-                        
+                        EntityContextMenus.showTrackMenu(
+                          context,
+                          track: track,
+                          globalPosition: details.globalPosition,
+                        );
                       }
                     : null,
                 onLongPress: isDesktop
                     ? null
                     : () {
-                        
+                        EntityContextMenus.showTrackMenu(context, track: track);
                       },
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
@@ -1008,7 +952,28 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               return GestureDetector(
                 onSecondaryTapDown: isDesktop
                     ? (details) {
-                        
+                        EntityContextMenus.showAlbumMenu(
+                          context,
+                          album: GenericAlbum(
+                            id: album.id,
+                            source: SongSource.spotifyInternal,
+                            title: album.title,
+                            thumbnailUrl: album.thumbnailUrl,
+                            artists: [
+                              GenericSimpleArtist(
+                                id: widget.artistId,
+                                source: SongSource.spotifyInternal,
+                                name: _artist?.name ?? widget.initialArtist?.name ?? 'Artist',
+                                thumbnailUrl: _artist?.thumbnailUrl ?? widget.initialArtist?.thumbnailUrl ?? '',
+                              ),
+                            ],
+                            label: '',
+                            releaseDate: album.releaseDate,
+                            explicit: false,
+                            durationSecs: 0,
+                          ),
+                          globalPosition: details.globalPosition,
+                        );
                       }
                     : null,
                 child: Material(

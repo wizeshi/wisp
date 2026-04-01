@@ -28,6 +28,7 @@ import '../services/app_navigation.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
 import '../widgets/provider_disabled_state.dart';
+import '../widgets/entity_context_menus.dart';
 
 bool _isLocalThumbnailPath(String path) {
   return path.startsWith('/') || path.startsWith('file://');
@@ -1140,8 +1141,14 @@ class HomePageState extends State<HomePage> {
         ),
         onPlay: () => _playPlaylist(item.id, contextNameOverride: item.title),
         onSecondaryTapDown: (details) {
-          final navState = context.read<NavigationState>();
-          
+          EntityContextMenus.showPlaylistMenu(
+            context,
+            playlist: item,
+            globalPosition: details.globalPosition,
+          );
+        },
+        onLongPress: () {
+          EntityContextMenus.showPlaylistMenu(context, playlist: item);
         },
       );
     }
@@ -1162,8 +1169,14 @@ class HomePageState extends State<HomePage> {
         ),
         onPlay: () => _playAlbum(item.id),
         onSecondaryTapDown: (details) {
-          final navState = context.read<NavigationState>();
-          
+          EntityContextMenus.showAlbumMenu(
+            context,
+            album: item,
+            globalPosition: details.globalPosition,
+          );
+        },
+        onLongPress: () {
+          EntityContextMenus.showAlbumMenu(context, album: item);
         },
       );
     }
@@ -1179,8 +1192,14 @@ class HomePageState extends State<HomePage> {
         onTap: () => _openArtist(item),
         onPlay: () => _playArtist(item.id),
         onSecondaryTapDown: (details) {
-          final navState = context.read<NavigationState>();
-          
+          EntityContextMenus.showArtistMenu(
+            context,
+            artist: item,
+            globalPosition: details.globalPosition,
+          );
+        },
+        onLongPress: () {
+          EntityContextMenus.showArtistMenu(context, artist: item);
         },
       );
     }
@@ -1204,8 +1223,14 @@ class HomePageState extends State<HomePage> {
           await player.playTrack(item);
         },
         onSecondaryTapDown: (details) {
-          final navState = context.read<NavigationState>();
-          
+          EntityContextMenus.showTrackMenu(
+            context,
+            track: item,
+            globalPosition: details.globalPosition,
+          );
+        },
+        onLongPress: () {
+          EntityContextMenus.showTrackMenu(context, track: item);
         },
       );
     }
@@ -1336,13 +1361,17 @@ class HomePageState extends State<HomePage> {
         behavior: HitTestBehavior.opaque,
         onSecondaryTapDown: isDesktop
             ? (details) {
-                
+                EntityContextMenus.showTrackMenu(
+                  context,
+                  track: track,
+                  globalPosition: details.globalPosition,
+                );
               }
             : null,
         onLongPress: isDesktop
             ? null
             : () {
-                
+                EntityContextMenus.showTrackMenu(context, track: track);
               },
         child: Material(
           color: Colors.transparent,
@@ -1456,7 +1485,11 @@ class HomePageState extends State<HomePage> {
                               ? HoverUnderline(
                                   onTap: () => _openArtist(primaryArtist),
                                   onSecondaryTapDown: (details) {
-                                    
+                                    EntityContextMenus.showTrackMenu(
+                                      context,
+                                      track: track,
+                                      globalPosition: details.globalPosition,
+                                    );
                                   },
                                   builder: (isHovering) => Text(
                                     track.artists.map((a) => a.name).join(', '),
@@ -1498,7 +1531,11 @@ class HomePageState extends State<HomePage> {
                               );
                             },
                             onSecondaryTapDown: (details) {
-                              
+                              EntityContextMenus.showTrackMenu(
+                                context,
+                                track: track,
+                                globalPosition: details.globalPosition,
+                              );
                             },
                             builder: (isHovering) => Text(
                               album.title,
@@ -1584,13 +1621,17 @@ class HomePageState extends State<HomePage> {
           return GestureDetector(
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    
+                    EntityContextMenus.showArtistMenu(
+                      context,
+                      artist: artist,
+                      globalPosition: details.globalPosition,
+                    );
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    
+                    EntityContextMenus.showArtistMenu(context, artist: artist);
                   },
             child: Material(
               color: Colors.transparent,
@@ -1809,13 +1850,17 @@ class _ArtistCard extends StatelessWidget {
             isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    
+                    EntityContextMenus.showArtistMenu(
+                      context,
+                      artist: artist,
+                      globalPosition: details.globalPosition,
+                    );
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    
+                    EntityContextMenus.showArtistMenu(context, artist: artist);
                   },
             child: Padding(
               padding: const EdgeInsets.all(11.0),
@@ -1916,13 +1961,17 @@ class _AlbumCard extends StatelessWidget {
             isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    
+                    EntityContextMenus.showAlbumMenu(
+                      context,
+                      album: album,
+                      globalPosition: details.globalPosition,
+                    );
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    
+                    EntityContextMenus.showAlbumMenu(context, album: album);
                   },
             child: Padding(
               padding: const EdgeInsets.all(11.0),
@@ -2025,13 +2074,20 @@ class _PlaylistCard extends StatelessWidget {
             isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    
+                    EntityContextMenus.showPlaylistMenu(
+                      context,
+                      playlist: playlist,
+                      globalPosition: details.globalPosition,
+                    );
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    
+                    EntityContextMenus.showPlaylistMenu(
+                      context,
+                      playlist: playlist,
+                    );
                   },
             child: Padding(
               padding: const EdgeInsets.all(11.0),
@@ -2103,6 +2159,7 @@ class _HomeQuickTile extends StatefulWidget {
   final bool isActive;
   final bool isPlaying;
   final GestureTapDownCallback? onSecondaryTapDown;
+  final VoidCallback? onLongPress;
   final Widget? customArt;
 
   const _HomeQuickTile({
@@ -2114,6 +2171,7 @@ class _HomeQuickTile extends StatefulWidget {
     required this.isActive,
     required this.isPlaying,
     this.onSecondaryTapDown,
+    this.onLongPress,
     this.customArt,
   });
 
@@ -2139,6 +2197,7 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
         color: Colors.transparent,
         child: GestureDetector(
           onSecondaryTapDown: widget.onSecondaryTapDown,
+          onLongPress: widget.onLongPress,
           behavior: HitTestBehavior.opaque,
           child: InkWell(
             mouseCursor: isDesktop ? SystemMouseCursors.click : null,

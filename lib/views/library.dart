@@ -20,6 +20,7 @@ import '../widgets/liked_songs_art.dart';
 import '../services/metadata_cache.dart';
 import '../services/app_navigation.dart';
 import '../widgets/provider_disabled_state.dart';
+import '../widgets/entity_context_menus.dart';
 import 'list_detail.dart';
 
 bool _isLocalThumbnailPath(String path) {
@@ -922,13 +923,20 @@ class _PlaylistListTile extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              
+              EntityContextMenus.showPlaylistMenu(
+                context,
+                playlist: playlist,
+                globalPosition: details.globalPosition,
+              );
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              
+              EntityContextMenus.showPlaylistMenu(
+                context,
+                playlist: playlist,
+              );
             },
       child: ListTile(
         onTap: onTap,
@@ -1083,13 +1091,20 @@ class _FolderListTileState extends State<_FolderListTile> {
     final tile = GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              
+              EntityContextMenus.showFolderMenu(
+                context,
+                folder: widget.folder,
+                globalPosition: details.globalPosition,
+              );
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              
+              EntityContextMenus.showFolderMenu(
+                context,
+                folder: widget.folder,
+              );
             },
       child: ListTile(
         onTap: () {
@@ -1348,13 +1363,20 @@ class _AlbumListTile extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              
+              EntityContextMenus.showAlbumMenu(
+                context,
+                album: album,
+                globalPosition: details.globalPosition,
+              );
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              
+              EntityContextMenus.showAlbumMenu(
+                context,
+                album: album,
+              );
             },
       child: ListTile(
         onTap: onTap,
@@ -1427,13 +1449,20 @@ class _ArtistListTile extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              
+              EntityContextMenus.showArtistMenu(
+                context,
+                artist: artist,
+                globalPosition: details.globalPosition,
+              );
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              
+              EntityContextMenus.showArtistMenu(
+                context,
+                artist: artist,
+              );
             },
       child: ListTile(
         onTap: onTap,

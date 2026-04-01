@@ -14,6 +14,7 @@ import 'list_detail.dart';
 import '../providers/navigation_state.dart';
 import '../widgets/navigation.dart';
 import '../providers/connect/connect_session_provider.dart';
+import '../widgets/entity_context_menus.dart';
 
 class QueueView extends StatefulWidget {
   /// If true, only returns the queue content without scaffold (for mobile bottom sheet)
@@ -252,13 +253,17 @@ class _QueueViewState extends State<QueueView> {
       key: key,
       onSecondaryTapDown: (details) {
         if (_isDesktop) {
-          
+          EntityContextMenus.showTrackMenu(
+            context,
+            track: track,
+            globalPosition: details.globalPosition,
+          );
         }
       },
       onLongPress: _isDesktop
           ? null
           : () {
-              
+              EntityContextMenus.showTrackMenu(context, track: track);
             },
       child: Material(
         color: Colors.transparent,
@@ -369,7 +374,11 @@ class _QueueViewState extends State<QueueView> {
                               onTap: () =>
                                   _openArtist(primaryArtist, libraryState),
                               onSecondaryTapDown: (details) {
-                                
+                                EntityContextMenus.showTrackMenu(
+                                  context,
+                                  track: track,
+                                  globalPosition: details.globalPosition,
+                                );
                               },
                               builder: (isHovering) => Text(
                                 track.artists.map((a) => a.name).join(', '),

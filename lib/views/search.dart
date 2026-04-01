@@ -19,6 +19,7 @@ import '../widgets/like_button.dart';
 import '../providers/search/search_state.dart';
 import '../services/app_navigation.dart';
 import '../widgets/provider_disabled_state.dart';
+import '../widgets/entity_context_menus.dart';
 import 'list_detail.dart';
 
 enum SearchTab { tracks, artists, albums, playlists }
@@ -674,6 +675,16 @@ class _SearchViewState extends State<SearchView> {
               children: [
                 GestureDetector(
                   onTap: () => _openAlbumFromTrack(track),
+                  onSecondaryTapDown: (details) {
+                    EntityContextMenus.showTrackMenu(
+                      context,
+                      track: track,
+                      globalPosition: details.globalPosition,
+                    );
+                  },
+                  onLongPress: () {
+                    EntityContextMenus.showTrackMenu(context, track: track);
+                  },
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -814,15 +825,33 @@ class _SearchViewState extends State<SearchView> {
                         player.isPlaying && player.currentTrack?.id == song.id;
                     return Material(
                       color: Colors.transparent,
-                      child: MouseRegion(
-                        onEnter: (_) =>
-                            setState(() => _hoveredSongIndex = displayIndex),
-                        onExit: (_) => setState(() => _hoveredSongIndex = -1),
-                        cursor: SystemMouseCursors.click,
-                        child: InkWell(
-                          mouseCursor: SystemMouseCursors.click,
-                          onTap: () => _playSearchQueue(displayIndex),
-                          child: Container(
+                      child: GestureDetector(
+                        onSecondaryTapDown: isDesktop
+                            ? (details) {
+                                EntityContextMenus.showTrackMenu(
+                                  context,
+                                  track: song,
+                                  globalPosition: details.globalPosition,
+                                );
+                              }
+                            : null,
+                        onLongPress: isDesktop
+                            ? null
+                            : () {
+                                EntityContextMenus.showTrackMenu(
+                                  context,
+                                  track: song,
+                                );
+                              },
+                        child: MouseRegion(
+                          onEnter: (_) =>
+                              setState(() => _hoveredSongIndex = displayIndex),
+                          onExit: (_) => setState(() => _hoveredSongIndex = -1),
+                          cursor: SystemMouseCursors.click,
+                          child: InkWell(
+                            mouseCursor: SystemMouseCursors.click,
+                            onTap: () => _playSearchQueue(displayIndex),
+                            child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 10,
@@ -947,6 +976,7 @@ class _SearchViewState extends State<SearchView> {
                                   ),
                                 ),
                               ],
+                            ),
                             ),
                           ),
                         ),
@@ -1408,13 +1438,17 @@ class _TrackTileState extends State<_TrackTile> {
       behavior: HitTestBehavior.opaque,
       onSecondaryTapDown: isDesktop
           ? (details) {
-              
+              EntityContextMenus.showTrackMenu(
+                context,
+                track: track,
+                globalPosition: details.globalPosition,
+              );
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              
+              EntityContextMenus.showTrackMenu(context, track: track);
             },
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -1494,7 +1528,11 @@ class _TrackTileState extends State<_TrackTile> {
                     );
                   },
                   onSecondaryTapDown: (details) {
-                    
+                    EntityContextMenus.showTrackMenu(
+                      context,
+                      track: track,
+                      globalPosition: details.globalPosition,
+                    );
                   },
                   builder: (isHovering) => Text(
                     track.artists.map((a) => a.name).join(', '),
@@ -1574,13 +1612,17 @@ class _ArtistTile extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              
+              EntityContextMenus.showArtistMenu(
+                context,
+                artist: artist,
+                globalPosition: details.globalPosition,
+              );
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              
+              EntityContextMenus.showArtistMenu(context, artist: artist);
             },
       child: ListTile(
         onTap: onTap,
@@ -1662,13 +1704,17 @@ class _AlbumTile extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              
+              EntityContextMenus.showAlbumMenu(
+                context,
+                album: album,
+                globalPosition: details.globalPosition,
+              );
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              
+              EntityContextMenus.showAlbumMenu(context, album: album);
             },
       child: ListTile(
         onTap: onTap,
@@ -1756,13 +1802,17 @@ class _PlaylistTile extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              
+              EntityContextMenus.showPlaylistMenu(
+                context,
+                playlist: playlist,
+                globalPosition: details.globalPosition,
+              );
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              
+              EntityContextMenus.showPlaylistMenu(context, playlist: playlist);
             },
       child: ListTile(
         onTap: onTap,
@@ -1852,30 +1902,40 @@ class _MiniAlbumCard extends StatelessWidget {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final hover = ValueNotifier(false);
-    return InkWell(
-      mouseCursor: SystemMouseCursors.click,
-      onLongPress: isDesktop
-          ? null
-          : () {
-              
-            },
-      onTap: () {
-        AppNavigation.instance.openSharedList(
-          context,
-          id: album.id,
-          type: SharedListType.album,
-          initialTitle: album.title,
-          initialThumbnailUrl: album.thumbnailUrl,
-        );
-      },
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => hover.value = true,
-        onExit: (_) => hover.value = false,
-        child: ValueListenableBuilder<bool>(
-          valueListenable: hover,
-          builder: (context, isHovered, _) {
-            return Stack(
+    return GestureDetector(
+      onSecondaryTapDown: isDesktop
+          ? (details) {
+              EntityContextMenus.showAlbumMenu(
+                context,
+                album: album,
+                globalPosition: details.globalPosition,
+              );
+            }
+          : null,
+      child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
+        onLongPress: isDesktop
+            ? null
+            : () {
+                EntityContextMenus.showAlbumMenu(context, album: album);
+              },
+        onTap: () {
+          AppNavigation.instance.openSharedList(
+            context,
+            id: album.id,
+            type: SharedListType.album,
+            initialTitle: album.title,
+            initialThumbnailUrl: album.thumbnailUrl,
+          );
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => hover.value = true,
+          onExit: (_) => hover.value = false,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: hover,
+            builder: (context, isHovered, _) {
+              return Stack(
               clipBehavior: Clip.hardEdge,
               children: [
                 Container(
@@ -1974,8 +2034,9 @@ class _MiniAlbumCard extends StatelessWidget {
                     ),
                   ),
               ],
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -2010,30 +2071,40 @@ class _MiniPlaylistCard extends StatelessWidget {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final hover = ValueNotifier(false);
-    return InkWell(
-      mouseCursor: SystemMouseCursors.click,
-      onLongPress: isDesktop
-          ? null
-          : () {
-              
-            },
-      onTap: () {
-        AppNavigation.instance.openSharedList(
-          context,
-          id: playlist.id,
-          type: SharedListType.playlist,
-          initialTitle: playlist.title,
-          initialThumbnailUrl: playlist.thumbnailUrl,
-        );
-      },
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => hover.value = true,
-        onExit: (_) => hover.value = false,
-        child: ValueListenableBuilder<bool>(
-          valueListenable: hover,
-          builder: (context, isHovered, _) {
-            return Stack(
+    return GestureDetector(
+      onSecondaryTapDown: isDesktop
+          ? (details) {
+              EntityContextMenus.showPlaylistMenu(
+                context,
+                playlist: playlist,
+                globalPosition: details.globalPosition,
+              );
+            }
+          : null,
+      child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
+        onLongPress: isDesktop
+            ? null
+            : () {
+                EntityContextMenus.showPlaylistMenu(context, playlist: playlist);
+              },
+        onTap: () {
+          AppNavigation.instance.openSharedList(
+            context,
+            id: playlist.id,
+            type: SharedListType.playlist,
+            initialTitle: playlist.title,
+            initialThumbnailUrl: playlist.thumbnailUrl,
+          );
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => hover.value = true,
+          onExit: (_) => hover.value = false,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: hover,
+            builder: (context, isHovered, _) {
+              return Stack(
               clipBehavior: Clip.hardEdge,
               children: [
                 Container(
@@ -2132,8 +2203,9 @@ class _MiniPlaylistCard extends StatelessWidget {
                     ),
                   ),
               ],
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -2168,28 +2240,38 @@ class _MiniArtistCard extends StatelessWidget {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final hover = ValueNotifier(false);
-    return InkWell(
-      mouseCursor: SystemMouseCursors.click,
-      onLongPress: isDesktop
-          ? null
-          : () {
-              
-            },
-      onTap: () {
-        AppNavigation.instance.openArtist(
-          context,
-          artistId: artist.id,
-          initialArtist: artist,
-        );
-      },
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => hover.value = true,
-        onExit: (_) => hover.value = false,
-        child: ValueListenableBuilder<bool>(
-          valueListenable: hover,
-          builder: (context, isHovered, _) {
-            return Stack(
+    return GestureDetector(
+      onSecondaryTapDown: isDesktop
+          ? (details) {
+              EntityContextMenus.showArtistMenu(
+                context,
+                artist: artist,
+                globalPosition: details.globalPosition,
+              );
+            }
+          : null,
+      child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
+        onLongPress: isDesktop
+            ? null
+            : () {
+                EntityContextMenus.showArtistMenu(context, artist: artist);
+              },
+        onTap: () {
+          AppNavigation.instance.openArtist(
+            context,
+            artistId: artist.id,
+            initialArtist: artist,
+          );
+        },
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => hover.value = true,
+          onExit: (_) => hover.value = false,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: hover,
+            builder: (context, isHovered, _) {
+              return Stack(
               clipBehavior: Clip.hardEdge,
               children: [
                 Container(
@@ -2287,8 +2369,9 @@ class _MiniArtistCard extends StatelessWidget {
                     ),
                   ),
               ],
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
