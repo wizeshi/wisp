@@ -209,11 +209,18 @@ class _AppShellState extends State<AppShell> {
 
   void _handleRouteChange() {
     if (!mounted) return;
+    final currentRoute = NavigationHistory.instance.currentRoute.value;
     final routeName = NavigationHistory.instance.currentRouteName;
     final navState = context.read<NavigationState>();
     _debugNav(
       'routeChange route=$routeName selected=${navState.selectedNavIndex} lastNonSettings=${navState.lastNonSettingsNavIndex}',
     );
+
+    if (currentRoute is PopupRoute || routeName == null || routeName.isEmpty) {
+      _debugNav('ignoring transient/unnamed route change');
+      return;
+    }
+
     if (TabRoutes.isTabRoute(routeName)) {
       navState.setNavIndex(TabRoutes.indexForRoute(routeName));
       _debugNav(
