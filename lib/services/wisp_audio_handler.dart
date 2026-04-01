@@ -21,6 +21,7 @@ import '../providers/preferences/preferences_provider.dart';
 import '../services/connect/connect_models.dart';
 import '../services/spotify/spotify_audio_decryptor.dart';
 import '../services/spotify/spotify_decrypt_streaming_proxy.dart';
+import '../services/ytdlp_readiness_coordinator.dart';
 
 enum PlaybackState { idle, loading, playing, paused, error }
 
@@ -668,6 +669,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       throw Exception('YouTube audio provider is disabled in Preferences.');
     }
 
+    await YtDlpReadinessCoordinator.instance.waitUntilReady();
+
     String? videoId = YouTubeProvider.getCachedVideoId(track.id);
     if (videoId == null) {
       final artistNames = track.artists.map((a) => a.name).join(', ');
@@ -736,6 +739,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (!audioYouTubeEnabled) {
       return;
     }
+
+    await YtDlpReadinessCoordinator.instance.waitUntilReady();
 
     String? videoId = YouTubeProvider.getCachedVideoId(track.id);
     if (videoId != null && _getCachedStreamUrl(videoId) != null) return;
@@ -809,6 +814,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         if (!audioYouTubeEnabled) {
           throw Exception('YouTube audio provider is disabled in Preferences.');
         }
+
+        await YtDlpReadinessCoordinator.instance.waitUntilReady();
 
         String? videoId = YouTubeProvider.getCachedVideoId(track.id);
         if (videoId == null) {

@@ -128,7 +128,7 @@ class YouTubeProvider {
   }
   
   /// Update yt-dlp binary on Android to latest version
-  static Future<void> updateYtDlp() async {
+  static Future<void> updateYtDlp({bool throwOnFailure = false}) async {
     if (!Platform.isAndroid) return;
     
     try {
@@ -137,7 +137,9 @@ class YouTubeProvider {
       logger.i('[YouTube] ✓ yt-dlp updated successfully');
     } catch (e) {
       logger.w('[YouTube] Failed to update yt-dlp', error: e);
-      // Don't throw - continue with existing version
+      if (throwOnFailure) {
+        throw YouTubeException('Failed to update yt-dlp', e);
+      }
     }
   }
   

@@ -16,7 +16,6 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Add a "Go to Folder" on the cache section (desktop-only).
     - [ ] Add padding at the top/bottom of the lyrics screen to ensure the focused line is centered
     - [ ] Move "Provided by {lyrics_provider}" text to the bottom-left corner (lyrics screen, desktop)
-    - [ ] Change YT-DLP download/check logic. Right now, it pauses the whole app at startup. Should make it a notification warning it is loading/downloading
     - [ ] Make a playlist remember it's last play's player options (whether it was shuffled & the repeat mode)
     - [ ] Animate the transition from search icon to box on the desktop Spotify-style list view
 - Planned features: 

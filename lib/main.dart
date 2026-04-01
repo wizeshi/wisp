@@ -7,7 +7,6 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:fvp/fvp.dart' as fvp;
-import 'package:wisp/providers/audio/youtube.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'providers/metadata/youtube.dart';
 import 'services/wisp_audio_handler.dart';
@@ -27,8 +26,9 @@ import 'services/download_foreground_service.dart';
 import 'services/desktop_notification_center.dart';
 import 'services/discord_rpc_service.dart';
 import 'services/spotify/spotify_audio_key_session_manager.dart';
-import 'services/ytdlp_manager.dart';
+import 'services/ytdlp_readiness_coordinator.dart';
 import 'widgets/app_shell.dart';
+import 'views/ytdlp_initializing.dart';
 import 'package:wisp/utils/logger.dart';
 
 void main() async {
@@ -99,15 +99,8 @@ void main() async {
   // Initialize foreground service for background downloads (Android)
   await DownloadForegroundService.initialize();
 
-  // Update yt-dlp on Android during startup to avoid per-track delay
-  if (Platform.isAndroid) {
-    await YouTubeProvider.updateYtDlp();
-  }
-
-  // Ensure yt-dlp is available on desktop
-  if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
-    await YtDlpManager.instance.ensureReady(notifyOnFailure: true);
-  }
+  // Start yt-dlp readiness in background to avoid blocking app startup.
+  YtDlpReadinessCoordinator.instance.startInitializationInBackground();
 
   // Initialize audio cache manager
   await AudioCacheManager.instance.initialize();
@@ -167,6 +160,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SearchState()),
         ChangeNotifierProvider(create: (_) => NavigationState()),
         ChangeNotifierProvider.value(value: DesktopNotificationCenter.instance),
+        ChangeNotifierProvider.value(
+          value: YtDlpReadinessCoordinator.instance,
+        ),
       ],
       child: Consumer<CoverArtPaletteProvider>(
         builder: (context, palette, child) {
@@ -175,7 +171,16 @@ class MyApp extends StatelessWidget {
             theme: AppTheme.dark(primaryOverride: palette.primaryColor),
             darkTheme: AppTheme.dark(primaryOverride: palette.primaryColor),
             themeMode: ThemeMode.dark,
-            home: const AppShell(),
+            home: Consumer<YtDlpReadinessCoordinator>(
+              builder: (context, ytDlp, child) {
+                final shouldGateMobile =
+                    (Platform.isAndroid || Platform.isIOS) && !ytDlp.isReady;
+                if (shouldGateMobile) {
+                  return const YtDlpInitializingView();
+                }
+                return const AppShell();
+              },
+            ),
           );
         },
       ),
