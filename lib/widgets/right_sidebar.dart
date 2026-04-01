@@ -1250,7 +1250,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                         if (data != null) ...[
                           const SizedBox(height: 10),
                           Text(
-                            data.description!.isEmpty ?
+                            data.description != null && data.description!.isNotEmpty ?
                               'Top tracks: ${data.topSongs.take(3).map((s) => s.title).join(' • ')}'
                               : data.description!,
                             maxLines: 2,

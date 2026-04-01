@@ -453,6 +453,7 @@ class HomePageState extends State<HomePage> {
     final quickTiles = _buildMobileQuickGridTiles();
     final leftQuickTiles = <Widget>[];
     final rightQuickTiles = <Widget>[];
+
     for (var i = 0; i < quickTiles.length; i++) {
       if (i.isEven) {
         leftQuickTiles.add(quickTiles[i]);
@@ -518,7 +519,6 @@ class HomePageState extends State<HomePage> {
             ),
           ),
 
-          // "this past month" section
           ...dynamicSections.map(
             (section) => SliverToBoxAdapter(
               child: Padding(
@@ -986,9 +986,61 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildContentArea() {
+    final viewWidth = MediaQuery.sizeOf(context).width;
+    const minWidthForSpecialCard = 1200.0;
+    final canShowSpecialCard = viewWidth >= minWidthForSpecialCard;
+
     final quickRows = _buildDesktopQuickRows();
+    final dynamicEntries = ((quickRows != null)
+            ? _homeSections.entries.skip(1)
+            : _homeSections.entries)
+        .toList(growable: false);
+
+    final newMusicIndex = dynamicEntries.indexWhere(
+      (entry) => entry.key.trim().toLowerCase() == 'new music',
+    );
+    final rightSectionIndex =
+      (newMusicIndex == 0 && dynamicEntries.length > 1) ? 1 : 0;
+
+    final firstDynamicSectionCards =
+      (dynamicEntries.isNotEmpty && rightSectionIndex < dynamicEntries.length)
+      ? dynamicEntries[rightSectionIndex].value
+              .map<Widget?>((item) => _buildHomeCard(item))
+              .whereType<Widget>()
+              .toList()
+        : const <Widget>[];
+    final firstDynamicSectionWidget =
+        dynamicEntries.isNotEmpty && firstDynamicSectionCards.isNotEmpty
+      ? _buildSection(
+        dynamicEntries[rightSectionIndex].key,
+        firstDynamicSectionCards,
+        showTitle: false,
+        )
+        : null;
+
+    final newMusicSpecialCard =
+      canShowSpecialCard &&
+        newMusicIndex >= 0 && dynamicEntries[newMusicIndex].value.isNotEmpty
+        ? _buildHomeCard(
+            dynamicEntries[newMusicIndex].value.first,
+            useSpecialCardStyle: true,
+          )
+        : null;
+
+    final skipDynamicIndexes = <int>{};
+    if (firstDynamicSectionWidget != null &&
+        dynamicEntries.isNotEmpty &&
+        rightSectionIndex < dynamicEntries.length) {
+      skipDynamicIndexes.add(rightSectionIndex);
+    }
+    if (newMusicSpecialCard != null && newMusicIndex >= 0) {
+      skipDynamicIndexes.add(newMusicIndex);
+    }
+
     final dynamicSections = _buildDynamicHomeSections(
       skipFirst: quickRows != null,
+      skipEntryIndexes: skipDynamicIndexes,
+      allowSpecialCardStyle: canShowSpecialCard,
     );
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -1003,6 +1055,27 @@ class HomePageState extends State<HomePage> {
         ),
         const SizedBox(height: 16),
         if (quickRows != null) quickRows,
+        if (newMusicSpecialCard != null && firstDynamicSectionWidget != null)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: SizedBox(height: 230, child: newMusicSpecialCard),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(child: firstDynamicSectionWidget),
+            ],
+          )
+        else if (newMusicSpecialCard != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: newMusicSpecialCard,
+          )
+        else if (firstDynamicSectionWidget != null)
+          firstDynamicSectionWidget,
         ...dynamicSections,
 
         // Top Tracks as a table/list
@@ -1046,7 +1119,7 @@ class HomePageState extends State<HomePage> {
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
         final itemsPerRow = (maxWidth / 220).floor().clamp(1, 5);
-        final maxItems = itemsPerRow * 2;
+        final maxItems = min(itemsPerRow * 2, 8);
         final cards = firstSection.value
             .map<Widget?>((item) => _buildHomeQuickTile(item, player))
             .whereType<Widget>()
@@ -1130,6 +1203,7 @@ class HomePageState extends State<HomePage> {
         subtitle: item.author.displayName,
         isActive: isActive,
         isPlaying: isPlaying,
+        showPlayingWaveform: true,
         customArt: isLikedSongsPlaylistId(item.id)
             ? const LikedSongsArt()
             : null,
@@ -1238,31 +1312,72 @@ class HomePageState extends State<HomePage> {
     return null;
   }
 
-  List<Widget> _buildDynamicHomeSections({bool skipFirst = false}) {
+  List<Widget> _buildDynamicHomeSections({
+    bool skipFirst = false,
+    Set<int> skipEntryIndexes = const <int>{},
+    bool allowSpecialCardStyle = true,
+  }) {
     if (_homeSections.isEmpty) return const [];
     final widgets = <Widget>[];
 
-    final entries = skipFirst
+    var entries = (skipFirst
         ? _homeSections.entries.skip(1)
-        : _homeSections.entries;
-
-    for (final entry in entries) {
+        : _homeSections.entries)
+        .toList(growable: false);
+    for (var i = 0; i < entries.length; i++) {
+      if (skipEntryIndexes.contains(i)) continue;
+      final entry = entries[i];
+      final useSpecialCardStyle =
+          allowSpecialCardStyle &&
+          i == 0 &&
+          entry.key.trim().toLowerCase() == 'new music';
       final cards = entry.value
-          .map<Widget?>(_buildHomeCard)
+          .map<Widget?>(
+            (item) => _buildHomeCard(
+              item,
+              useSpecialCardStyle: useSpecialCardStyle,
+            ),
+          )
           .whereType<Widget>()
           .toList();
       if (cards.isEmpty) continue;
-      widgets.add(_buildSection(entry.key, cards));
+      widgets.add(
+        _buildSection(
+          entry.key,
+          cards,
+          showTitle: !useSpecialCardStyle,
+          expandCardsToRowWidth: useSpecialCardStyle,
+        ),
+      );
     }
 
     return widgets;
   }
 
-  Widget? _buildHomeCard(dynamic item) {
+  Widget? _buildHomeCard(dynamic item, {bool useSpecialCardStyle = false}) {
     final player = context.watch<WispAudioHandler>();
     final isPlaying = player.isPlaying;
     if (item is GenericPlaylist) {
       final isActive = _isActivePlaylist(player, item);
+      if (useSpecialCardStyle) {
+        return _SpecialCard(
+          title: item.title,
+          subtitle: item.author.displayName,
+          id: item.id,
+          thumbnailUrl: item.thumbnailUrl,
+          onTap: () => _openSharedList(
+            SharedListType.playlist,
+            item.id,
+            title: item.title,
+            thumbnailUrl: item.thumbnailUrl,
+          ),
+          onPlay: () => _playPlaylist(item.id, contextNameOverride: item.title),
+          isActive: isActive,
+          isPlaying: isPlaying,
+          currentLibraryView: _currentLibraryView,
+          currentNavIndex: _currentNavIndex,
+        );
+      }
       return _PlaylistCard(
         playlist: item,
         onTap: () => _openSharedList(
@@ -1284,6 +1399,26 @@ class HomePageState extends State<HomePage> {
 
     if (item is GenericAlbum) {
       final isActive = _isActiveAlbum(player, item);
+      if (useSpecialCardStyle) {
+        final subtitle = item.artists.map((a) => a.name).join(', ');
+        return _SpecialCard(
+          title: item.title,
+          subtitle: subtitle,
+          id: item.id,
+          thumbnailUrl: item.thumbnailUrl,
+          onTap: () => _openSharedList(
+            SharedListType.album,
+            item.id,
+            title: item.title,
+            thumbnailUrl: item.thumbnailUrl,
+          ),
+          onPlay: () => _playAlbum(item.id),
+          isActive: isActive,
+          isPlaying: isPlaying,
+          currentLibraryView: _currentLibraryView,
+          currentNavIndex: _currentNavIndex,
+        );
+      }
       return _AlbumCard(
         album: item,
         onTap: () => _openSharedList(
@@ -1305,6 +1440,20 @@ class HomePageState extends State<HomePage> {
 
     if (item is GenericSimpleArtist) {
       final isActive = _isActiveArtist(player, item);
+      if (useSpecialCardStyle) {
+        return _SpecialCard(
+          title: item.name,
+          subtitle: 'Artist',
+          id: item.id,
+          thumbnailUrl: item.thumbnailUrl,
+          onTap: () => _openArtist(item),
+          onPlay: () => _playArtist(item.id),
+          isActive: isActive,
+          isPlaying: isPlaying,
+          currentLibraryView: _currentLibraryView,
+          currentNavIndex: _currentNavIndex,
+        );
+      }
       return _ArtistCard(
         artist: item,
         onTap: () => _openArtist(item),
@@ -1725,8 +1874,18 @@ class HomePageState extends State<HomePage> {
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
-  Widget _buildSection(String title, List<Widget> cards) {
-    return _ScrollableCardSection(title: title, cards: cards);
+  Widget _buildSection(
+    String title,
+    List<Widget> cards, {
+    bool showTitle = true,
+    bool expandCardsToRowWidth = false,
+  }) {
+    return _ScrollableCardSection(
+      title: title,
+      cards: cards,
+      showTitle: showTitle,
+      expandCardsToRowWidth: expandCardsToRowWidth,
+    );
   }
 
   Future<void> _playAlbum(String albumId) async {
@@ -2150,6 +2309,156 @@ class _PlaylistCard extends StatelessWidget {
   }
 }
 
+class _SpecialCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String id;
+  final String thumbnailUrl;
+  final VoidCallback onTap;
+  final VoidCallback onPlay;
+  final bool isActive;
+  final bool isPlaying;
+  final LibraryView? currentLibraryView;
+  final int? currentNavIndex;
+
+  const _SpecialCard({
+    required this.title,
+    required this.subtitle,
+    required this.id,
+    required this.thumbnailUrl,
+    required this.onTap,
+    required this.onPlay,
+    required this.isActive,
+    required this.isPlaying,
+    this.currentLibraryView,
+    this.currentNavIndex,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fallbackColor = const Color(0xFF181818);
+
+    Widget buildCard(Color backgroundColor) {
+      return SizedBox(
+        width: double.infinity,
+        child: ClipRect(
+          child: Material(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            child: _HoverPlayCard(
+              onTap: onTap,
+              onPlay: onPlay,
+              isActive: isActive,
+              isPlaying: isPlaying,
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "New Release",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: SizedBox(
+                            width: 120,
+                            height: 120,
+                            child: thumbnailUrl.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: thumbnailUrl,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        Container(color: Colors.grey[800]),
+                                    errorWidget: (context, url, error) =>
+                                        const Icon(
+                                          Icons.music_note,
+                                          size: 48,
+                                          color: Colors.grey,
+                                        ),
+                                  )
+                                : const Icon(
+                                    Icons.music_note,
+                                    size: 48,
+                                    color: Colors.grey,
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                fontSize: 24,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                color: Colors.grey[200],
+                                fontSize: 18,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ]
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      "Listen to this brand new release from $subtitle",
+                      style: TextStyle(
+                        color: Colors.grey[300],
+                        fontSize: 16,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (thumbnailUrl.isEmpty) {
+      return buildCard(fallbackColor);
+    }
+
+    return FutureBuilder<ColorScheme>(
+      future: ColorScheme.fromImageProvider(
+        provider: CachedNetworkImageProvider(thumbnailUrl),
+      ),
+      builder: (context, snapshot) {
+        final sourceColor = snapshot.data?.primary ?? fallbackColor;
+        final backgroundColor = HSLColor.fromColor(
+          sourceColor,
+        ).withLightness(0.5).withSaturation(0.65).toColor();
+        return buildCard(backgroundColor);
+      },
+    );
+  }
+}
+
 class _HomeQuickTile extends StatefulWidget {
   final String imageUrl;
   final String title;
@@ -2158,6 +2467,7 @@ class _HomeQuickTile extends StatefulWidget {
   final VoidCallback onPlay;
   final bool isActive;
   final bool isPlaying;
+  final bool showPlayingWaveform;
   final GestureTapDownCallback? onSecondaryTapDown;
   final VoidCallback? onLongPress;
   final Widget? customArt;
@@ -2170,6 +2480,7 @@ class _HomeQuickTile extends StatefulWidget {
     required this.onPlay,
     required this.isActive,
     required this.isPlaying,
+    this.showPlayingWaveform = false,
     this.onSecondaryTapDown,
     this.onLongPress,
     this.customArt,
@@ -2281,32 +2592,52 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                       ],
                     ),
                   ),
-                  AnimatedOpacity(
-                    opacity: _isHovering ? 1 : 0,
-                    duration: const Duration(milliseconds: 120),
-                    child: IgnorePointer(
-                      ignoring: !_isHovering,
-                      child: IconButton(
-                        icon: Icon(
-                          widget.isActive && widget.isPlaying
-                              ? Icons.pause
-                              : Icons.play_arrow,
-                          color: Colors.white,
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        AnimatedOpacity(
+                          opacity: widget.showPlayingWaveform &&
+                                  widget.isActive &&
+                                  widget.isPlaying
+                              ? 1
+                              : 0,
+                          duration: const Duration(milliseconds: 120),
+                          child: _AnimatedQuickWaveform(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         ),
-                        onPressed: () {
-                          final player = context.read<WispAudioHandler>();
-                          if (widget.isActive) {
-                            if (player.isPlaying) {
-                              player.pause();
-                            } else {
-                              player.play();
-                            }
-                            return;
-                          }
-                          widget.onPlay();
-                        },
-                        splashRadius: 18,
-                      ),
+                        AnimatedOpacity(
+                          opacity: _isHovering ? 1 : 0,
+                          duration: const Duration(milliseconds: 120),
+                          child: IgnorePointer(
+                            ignoring: !_isHovering,
+                            child: IconButton(
+                              icon: Icon(
+                                widget.isActive && widget.isPlaying
+                                    ? Icons.pause
+                                    : Icons.play_arrow,
+                                color: Colors.white,
+                              ),
+                              onPressed: () {
+                                final player = context.read<WispAudioHandler>();
+                                if (widget.isActive) {
+                                  if (player.isPlaying) {
+                                    player.pause();
+                                  } else {
+                                    player.play();
+                                  }
+                                  return;
+                                }
+                                widget.onPlay();
+                              },
+                              splashRadius: 18,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -2314,6 +2645,78 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AnimatedQuickWaveform extends StatefulWidget {
+  final Color color;
+
+  const _AnimatedQuickWaveform({required this.color});
+
+  @override
+  State<_AnimatedQuickWaveform> createState() => _AnimatedQuickWaveformState();
+}
+
+class _AnimatedQuickWaveformState extends State<_AnimatedQuickWaveform>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value * 2 * pi;
+        double barHeight(double phase) {
+          final value = (sin(t + phase) + 1) / 2;
+          return 4 + value * 10;
+        }
+
+        return SizedBox(
+          width: 16,
+          height: 16,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _waveBar(widget.color, barHeight(0.0)),
+              const SizedBox(width: 2),
+              _waveBar(widget.color, barHeight(1.4)),
+              const SizedBox(width: 2),
+              _waveBar(widget.color, barHeight(2.8)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _waveBar(Color color, double height) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      width: 3,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(2),
       ),
     );
   }
@@ -2414,8 +2817,15 @@ class _HoverPlayCardState extends State<_HoverPlayCard> {
 class _ScrollableCardSection extends StatefulWidget {
   final String title;
   final List<Widget> cards;
+  final bool showTitle;
+  final bool expandCardsToRowWidth;
 
-  const _ScrollableCardSection({required this.title, required this.cards});
+  const _ScrollableCardSection({
+    required this.title,
+    required this.cards,
+    this.showTitle = true,
+    this.expandCardsToRowWidth = false,
+  });
 
   @override
   State<_ScrollableCardSection> createState() => _ScrollableCardSectionState();
@@ -2472,65 +2882,77 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          widget.title,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+        if (widget.showTitle)
+          Text(
+            widget.title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 230,
-          child: Stack(
-            children: [
-              ListView.separated(
-                controller: _controller,
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(bottom: 4),
-                itemCount: widget.cards.length,
-                separatorBuilder: (context, index) => const SizedBox(width: 16),
-                itemBuilder: (context, index) => widget.cards[index],
-              ),
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: AnimatedOpacity(
-                  opacity: _canScrollLeft ? 1 : 0,
-                  duration: const Duration(milliseconds: 120),
-                  child: IgnorePointer(
-                    ignoring: !_canScrollLeft,
-                    child: Center(
-                      child: _ScrollArrowButton(
-                        icon: Icons.chevron_left,
-                        onPressed: () => _scrollBy(-240),
+        SizedBox(height: widget.showTitle ? 16 : 0),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              height: widget.expandCardsToRowWidth ? 170 : 230,
+              child: Stack(
+                children: [
+                  ListView.separated(
+                    controller: _controller,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(bottom: 4),
+                    itemCount: widget.cards.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(width: 16),
+                    itemBuilder: (context, index) {
+                      final card = widget.cards[index];
+                      if (!widget.expandCardsToRowWidth) {
+                        return card;
+                      }
+                      return SizedBox(width: constraints.maxWidth, child: card);
+                    },
+                  ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: AnimatedOpacity(
+                      opacity: _canScrollLeft ? 1 : 0,
+                      duration: const Duration(milliseconds: 120),
+                      child: IgnorePointer(
+                        ignoring: !_canScrollLeft,
+                        child: Center(
+                          child: _ScrollArrowButton(
+                            icon: Icons.chevron_left,
+                            onPressed: () => _scrollBy(-240),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: AnimatedOpacity(
-                  opacity: _canScrollRight ? 1 : 0,
-                  duration: const Duration(milliseconds: 120),
-                  child: IgnorePointer(
-                    ignoring: !_canScrollRight,
-                    child: Center(
-                      child: _ScrollArrowButton(
-                        icon: Icons.chevron_right,
-                        onPressed: () => _scrollBy(240),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: AnimatedOpacity(
+                      opacity: _canScrollRight ? 1 : 0,
+                      duration: const Duration(milliseconds: 120),
+                      child: IgnorePointer(
+                        ignoring: !_canScrollRight,
+                        child: Center(
+                          child: _ScrollArrowButton(
+                            icon: Icons.chevron_right,
+                            onPressed: () => _scrollBy(240),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
         const SizedBox(height: 24),
       ],
