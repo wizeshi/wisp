@@ -20,7 +20,6 @@ import '../services/navigation_history.dart';
 import '../views/list_detail.dart';
 import 'animated_lyrics_preview.dart';
 import 'hover_underline.dart';
-import 'library_item_context_menu.dart';
 import 'like_button.dart';
 
 class RightSidebar extends StatelessWidget {
@@ -268,18 +267,7 @@ class _NowPlayingCard extends StatelessWidget {
                                         onTap: () =>
                                             _openArtist(context, artist),
                                         onSecondaryTapDown: (details) {
-                                          LibraryItemContextMenu.show(
-                                            context: context,
-                                            item: artist,
-                                            position: details.globalPosition,
-                                            playlists: libraryState.playlists,
-                                            albums: libraryState.albums,
-                                            artists: libraryState.artists,
-                                            currentLibraryView:
-                                                navState.selectedLibraryView,
-                                            currentNavIndex:
-                                                navState.selectedNavIndex,
-                                          );
+                                          
                                         },
                                         builder: (isHovering) => Text(
                                           artist.name +

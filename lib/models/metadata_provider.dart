@@ -8,7 +8,7 @@ import 'package:wisp/models/metadata_models.dart';
 import 'package:wisp/services/metadata_cache.dart';
 import 'package:wisp/utils/logger.dart';
 
-class MetadataProvider extends ChangeNotifier {
+abstract class MetadataProvider extends ChangeNotifier {
   String get name => "base";
 
   // State

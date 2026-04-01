@@ -16,8 +16,6 @@ import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../providers/library/library_state.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/metadata_cache.dart';
-import '../widgets/track_context_menu.dart';
-import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
 import '../widgets/like_button.dart';
@@ -798,30 +796,13 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 behavior: HitTestBehavior.opaque,
                 onSecondaryTapDown: isDesktop
                     ? (details) {
-                        TrackContextMenu.show(
-                          context: context,
-                          track: track,
-                          position: details.globalPosition,
-                          playlists: widget.playlists,
-                          albums: widget.albums,
-                          artists: widget.artists,
-                          currentLibraryView: _currentLibraryView,
-                          currentNavIndex: _currentNavIndex,
-                        );
+                        
                       }
                     : null,
                 onLongPress: isDesktop
                     ? null
                     : () {
-                        TrackContextMenu.show(
-                          context: context,
-                          track: track,
-                          playlists: widget.playlists,
-                          albums: widget.albums,
-                          artists: widget.artists,
-                          currentLibraryView: _currentLibraryView,
-                          currentNavIndex: _currentNavIndex,
-                        );
+                        
                       },
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
@@ -1027,16 +1008,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               return GestureDetector(
                 onSecondaryTapDown: isDesktop
                     ? (details) {
-                        LibraryItemContextMenu.show(
-                          context: context,
-                          item: album,
-                          position: details.globalPosition,
-                          playlists: widget.playlists,
-                          albums: widget.albums,
-                          artists: widget.artists,
-                          currentLibraryView: _currentLibraryView,
-                          currentNavIndex: _currentNavIndex,
-                        );
+                        
                       }
                     : null,
                 child: Material(

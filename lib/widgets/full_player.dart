@@ -28,7 +28,6 @@ import '../providers/connect/connect_session_provider.dart';
 import '../views/lyrics.dart';
 import '../views/queue.dart';
 import '../views/artist_detail.dart';
-import '../widgets/track_context_menu.dart';
 import '../widgets/animated_lyrics_preview.dart';
 import '../widgets/like_button.dart';
 
@@ -197,15 +196,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                   if (currentTrack == null) return;
                   final libraryState = context.read<LibraryState>();
                   final navState = context.read<NavigationState>();
-                  TrackContextMenu.show(
-                    context: context,
-                    track: currentTrack,
-                    playlists: libraryState.playlists,
-                    albums: libraryState.albums,
-                    artists: libraryState.artists,
-                    currentLibraryView: navState.selectedLibraryView,
-                    currentNavIndex: navState.selectedNavIndex,
-                  );
+                  
                 },
               ),
             ),
@@ -3010,15 +3001,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   if (currentTrack == null) return;
                   final libraryState = context.read<LibraryState>();
                   final navState = context.read<NavigationState>();
-                  TrackContextMenu.show(
-                    context: context,
-                    track: currentTrack,
-                    playlists: libraryState.playlists,
-                    albums: libraryState.albums,
-                    artists: libraryState.artists,
-                    currentLibraryView: navState.selectedLibraryView,
-                    currentNavIndex: navState.selectedNavIndex,
-                  );
+                  
                 },
               ),
             ),

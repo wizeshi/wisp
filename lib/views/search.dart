@@ -14,8 +14,6 @@ import '../providers/preferences/preferences_provider.dart';
 import '../services/wisp_audio_handler.dart';
 import '../models/metadata_models.dart';
 import '../widgets/navigation.dart';
-import '../widgets/track_context_menu.dart';
-import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/like_button.dart';
 import '../providers/search/search_state.dart';
@@ -1410,30 +1408,13 @@ class _TrackTileState extends State<_TrackTile> {
       behavior: HitTestBehavior.opaque,
       onSecondaryTapDown: isDesktop
           ? (details) {
-              TrackContextMenu.show(
-                context: context,
-                track: track,
-                position: details.globalPosition,
-                playlists: widget.playlists,
-                albums: widget.albums,
-                artists: widget.artists,
-                currentLibraryView: widget.currentLibraryView,
-                currentNavIndex: widget.currentNavIndex,
-              );
+              
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              TrackContextMenu.show(
-                context: context,
-                track: track,
-                playlists: widget.playlists,
-                albums: widget.albums,
-                artists: widget.artists,
-                currentLibraryView: widget.currentLibraryView,
-                currentNavIndex: widget.currentNavIndex,
-              );
+              
             },
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -1513,16 +1494,7 @@ class _TrackTileState extends State<_TrackTile> {
                     );
                   },
                   onSecondaryTapDown: (details) {
-                    LibraryItemContextMenu.show(
-                      context: context,
-                      item: primaryArtist,
-                      position: details.globalPosition,
-                      playlists: widget.playlists,
-                      albums: widget.albums,
-                      artists: widget.artists,
-                      currentLibraryView: widget.currentLibraryView,
-                      currentNavIndex: widget.currentNavIndex,
-                    );
+                    
                   },
                   builder: (isHovering) => Text(
                     track.artists.map((a) => a.name).join(', '),
@@ -1602,30 +1574,13 @@ class _ArtistTile extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: artist,
-                position: details.globalPosition,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: currentLibraryView,
-                currentNavIndex: currentNavIndex,
-              );
+              
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: artist,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: currentLibraryView,
-                currentNavIndex: currentNavIndex,
-              );
+              
             },
       child: ListTile(
         onTap: onTap,
@@ -1707,30 +1662,13 @@ class _AlbumTile extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: album,
-                position: details.globalPosition,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: currentLibraryView,
-                currentNavIndex: currentNavIndex,
-              );
+              
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: album,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: currentLibraryView,
-                currentNavIndex: currentNavIndex,
-              );
+              
             },
       child: ListTile(
         onTap: onTap,
@@ -1818,30 +1756,13 @@ class _PlaylistTile extends StatelessWidget {
     return GestureDetector(
       onSecondaryTapDown: isDesktop
           ? (details) {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: playlist,
-                position: details.globalPosition,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: currentLibraryView,
-                currentNavIndex: currentNavIndex,
-              );
+              
             }
           : null,
       onLongPress: isDesktop
           ? null
           : () {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: playlist,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: currentLibraryView,
-                currentNavIndex: currentNavIndex,
-              );
+              
             },
       child: ListTile(
         onTap: onTap,
@@ -1936,15 +1857,7 @@ class _MiniAlbumCard extends StatelessWidget {
       onLongPress: isDesktop
           ? null
           : () {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: album,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: initialLibraryView,
-                currentNavIndex: 1,
-              );
+              
             },
       onTap: () {
         AppNavigation.instance.openSharedList(
@@ -2102,15 +2015,7 @@ class _MiniPlaylistCard extends StatelessWidget {
       onLongPress: isDesktop
           ? null
           : () {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: playlist,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: initialLibraryView,
-                currentNavIndex: 1,
-              );
+              
             },
       onTap: () {
         AppNavigation.instance.openSharedList(
@@ -2268,15 +2173,7 @@ class _MiniArtistCard extends StatelessWidget {
       onLongPress: isDesktop
           ? null
           : () {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: artist,
-                playlists: playlists,
-                albums: albums,
-                artists: artists,
-                currentLibraryView: initialLibraryView,
-                currentNavIndex: 1,
-              );
+              
             },
       onTap: () {
         AppNavigation.instance.openArtist(

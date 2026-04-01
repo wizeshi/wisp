@@ -26,6 +26,7 @@ import 'package:wisp/utils/logger.dart';
 import 'package:wisp/models/spotify_internal_converters.dart';
 
 class SpotifyInternalProvider extends MetadataProvider {
+  @override
   String get name => 'Spotify (Internal)';
 
   final CredentialsService _credentialsService = CredentialsService();
@@ -1181,9 +1182,6 @@ class SpotifyInternalProvider extends MetadataProvider {
         logger.d("[Metadata/Spotify-Internal] Sending request to Spotify internal API for artist $artistId");
 
         logger.d("[Metadata/Spotify-Internal] Bearer Token Length: ${_bearerToken?.length ?? 0}");
-        logger.d("[Metadata/Spotify-Internal] Client Token Length: ${_clientToken?.length ?? 0}");
-
-        logger.d("Body: ${jsonEncode(body)}");
 
         final response = await _postWithRetry(
           Uri.parse(url),

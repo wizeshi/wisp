@@ -14,8 +14,6 @@ import '../utils/logger.dart';
 import '../services/wisp_audio_handler.dart';
 import '../models/metadata_models.dart';
 import '../services/metadata_cache.dart';
-import '../widgets/track_context_menu.dart';
-import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
 import '../widgets/like_button.dart';
@@ -583,15 +581,7 @@ class HomePageState extends State<HomePage> {
                           },
                           onLongPress: () {
                             final navState = context.read<NavigationState>();
-                            TrackContextMenu.show(
-                              context: context,
-                              track: track,
-                              playlists: _savedPlaylists,
-                              albums: _savedAlbums,
-                              artists: _followedArtists,
-                              currentLibraryView: navState.selectedLibraryView,
-                              currentNavIndex: navState.selectedNavIndex,
-                            );
+                            
                           },
                         );
                       },
@@ -637,16 +627,7 @@ class HomePageState extends State<HomePage> {
                             onTap: () => _openArtist(artist),
                             onLongPress: () {
                               final navState = context.read<NavigationState>();
-                              LibraryItemContextMenu.show(
-                                context: context,
-                                item: artist,
-                                playlists: _savedPlaylists,
-                                albums: _savedAlbums,
-                                artists: _followedArtists,
-                                currentLibraryView:
-                                    navState.selectedLibraryView,
-                                currentNavIndex: navState.selectedNavIndex,
-                              );
+                              
                             },
                           );
                         },
@@ -837,15 +818,7 @@ class HomePageState extends State<HomePage> {
         ),
         onLongPress: () {
           final navState = context.read<NavigationState>();
-          LibraryItemContextMenu.show(
-            context: context,
-            item: item,
-            playlists: _savedPlaylists,
-            albums: _savedAlbums,
-            artists: _followedArtists,
-            currentLibraryView: navState.selectedLibraryView,
-            currentNavIndex: navState.selectedNavIndex,
-          );
+          
         },
       );
     }
@@ -863,15 +836,7 @@ class HomePageState extends State<HomePage> {
         ),
         onLongPress: () {
           final navState = context.read<NavigationState>();
-          LibraryItemContextMenu.show(
-            context: context,
-            item: item,
-            playlists: _savedPlaylists,
-            albums: _savedAlbums,
-            artists: _followedArtists,
-            currentLibraryView: navState.selectedLibraryView,
-            currentNavIndex: navState.selectedNavIndex,
-          );
+          
         },
       );
     }
@@ -884,15 +849,7 @@ class HomePageState extends State<HomePage> {
         onTap: () => _openArtist(item),
         onLongPress: () {
           final navState = context.read<NavigationState>();
-          LibraryItemContextMenu.show(
-            context: context,
-            item: item,
-            playlists: _savedPlaylists,
-            albums: _savedAlbums,
-            artists: _followedArtists,
-            currentLibraryView: navState.selectedLibraryView,
-            currentNavIndex: navState.selectedNavIndex,
-          );
+          
         },
       );
     }
@@ -909,15 +866,7 @@ class HomePageState extends State<HomePage> {
         },
         onLongPress: () {
           final navState = context.read<NavigationState>();
-          TrackContextMenu.show(
-            context: context,
-            track: item,
-            playlists: _savedPlaylists,
-            albums: _savedAlbums,
-            artists: _followedArtists,
-            currentLibraryView: navState.selectedLibraryView,
-            currentNavIndex: navState.selectedNavIndex,
-          );
+          
         },
       );
     }
@@ -1192,16 +1141,7 @@ class HomePageState extends State<HomePage> {
         onPlay: () => _playPlaylist(item.id, contextNameOverride: item.title),
         onSecondaryTapDown: (details) {
           final navState = context.read<NavigationState>();
-          LibraryItemContextMenu.show(
-            context: context,
-            position: details.globalPosition,
-            item: item,
-            playlists: _savedPlaylists,
-            albums: _savedAlbums,
-            artists: _followedArtists,
-            currentLibraryView: navState.selectedLibraryView,
-            currentNavIndex: navState.selectedNavIndex,
-          );
+          
         },
       );
     }
@@ -1223,16 +1163,7 @@ class HomePageState extends State<HomePage> {
         onPlay: () => _playAlbum(item.id),
         onSecondaryTapDown: (details) {
           final navState = context.read<NavigationState>();
-          LibraryItemContextMenu.show(
-            context: context,
-            position: details.globalPosition,
-            item: item,
-            playlists: _savedPlaylists,
-            albums: _savedAlbums,
-            artists: _followedArtists,
-            currentLibraryView: navState.selectedLibraryView,
-            currentNavIndex: navState.selectedNavIndex,
-          );
+          
         },
       );
     }
@@ -1249,16 +1180,7 @@ class HomePageState extends State<HomePage> {
         onPlay: () => _playArtist(item.id),
         onSecondaryTapDown: (details) {
           final navState = context.read<NavigationState>();
-          LibraryItemContextMenu.show(
-            context: context,
-            position: details.globalPosition,
-            item: item,
-            playlists: _savedPlaylists,
-            albums: _savedAlbums,
-            artists: _followedArtists,
-            currentLibraryView: navState.selectedLibraryView,
-            currentNavIndex: navState.selectedNavIndex,
-          );
+          
         },
       );
     }
@@ -1283,16 +1205,7 @@ class HomePageState extends State<HomePage> {
         },
         onSecondaryTapDown: (details) {
           final navState = context.read<NavigationState>();
-          TrackContextMenu.show(
-            context: context,
-            position: details.globalPosition,
-            track: item,
-            playlists: _savedPlaylists,
-            albums: _savedAlbums,
-            artists: _followedArtists,
-            currentLibraryView: navState.selectedLibraryView,
-            currentNavIndex: navState.selectedNavIndex,
-          );
+          
         },
       );
     }
@@ -1423,30 +1336,13 @@ class HomePageState extends State<HomePage> {
         behavior: HitTestBehavior.opaque,
         onSecondaryTapDown: isDesktop
             ? (details) {
-                TrackContextMenu.show(
-                  context: context,
-                  track: track,
-                  position: details.globalPosition,
-                  playlists: _savedPlaylists,
-                  albums: _savedAlbums,
-                  artists: _followedArtists,
-                  currentLibraryView: _currentLibraryView,
-                  currentNavIndex: _currentNavIndex,
-                );
+                
               }
             : null,
         onLongPress: isDesktop
             ? null
             : () {
-                TrackContextMenu.show(
-                  context: context,
-                  track: track,
-                  playlists: _savedPlaylists,
-                  albums: _savedAlbums,
-                  artists: _followedArtists,
-                  currentLibraryView: _currentLibraryView,
-                  currentNavIndex: _currentNavIndex,
-                );
+                
               },
         child: Material(
           color: Colors.transparent,
@@ -1560,16 +1456,7 @@ class HomePageState extends State<HomePage> {
                               ? HoverUnderline(
                                   onTap: () => _openArtist(primaryArtist),
                                   onSecondaryTapDown: (details) {
-                                    LibraryItemContextMenu.show(
-                                      context: context,
-                                      item: primaryArtist,
-                                      position: details.globalPosition,
-                                      playlists: _savedPlaylists,
-                                      albums: _savedAlbums,
-                                      artists: _followedArtists,
-                                      currentLibraryView: _currentLibraryView,
-                                      currentNavIndex: _currentNavIndex,
-                                    );
+                                    
                                   },
                                   builder: (isHovering) => Text(
                                     track.artists.map((a) => a.name).join(', '),
@@ -1611,16 +1498,7 @@ class HomePageState extends State<HomePage> {
                               );
                             },
                             onSecondaryTapDown: (details) {
-                              LibraryItemContextMenu.show(
-                                context: context,
-                                item: album,
-                                position: details.globalPosition,
-                                playlists: _savedPlaylists,
-                                albums: _savedAlbums,
-                                artists: _followedArtists,
-                                currentLibraryView: _currentLibraryView,
-                                currentNavIndex: _currentNavIndex,
-                              );
+                              
                             },
                             builder: (isHovering) => Text(
                               album.title,
@@ -1706,30 +1584,13 @@ class HomePageState extends State<HomePage> {
           return GestureDetector(
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    LibraryItemContextMenu.show(
-                      context: context,
-                      item: artist,
-                      position: details.globalPosition,
-                      playlists: _savedPlaylists,
-                      albums: _savedAlbums,
-                      artists: _followedArtists,
-                      currentLibraryView: _currentLibraryView,
-                      currentNavIndex: _currentNavIndex,
-                    );
+                    
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    LibraryItemContextMenu.show(
-                      context: context,
-                      item: artist,
-                      playlists: _savedPlaylists,
-                      albums: _savedAlbums,
-                      artists: _followedArtists,
-                      currentLibraryView: _currentLibraryView,
-                      currentNavIndex: _currentNavIndex,
-                    );
+                    
                   },
             child: Material(
               color: Colors.transparent,
@@ -1948,30 +1809,13 @@ class _ArtistCard extends StatelessWidget {
             isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    LibraryItemContextMenu.show(
-                      context: context,
-                      item: artist,
-                      position: details.globalPosition,
-                      playlists: playlists,
-                      albums: albums,
-                      artists: artists,
-                      currentLibraryView: currentLibraryView,
-                      currentNavIndex: currentNavIndex,
-                    );
+                    
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    LibraryItemContextMenu.show(
-                      context: context,
-                      item: artist,
-                      playlists: playlists,
-                      albums: albums,
-                      artists: artists,
-                      currentLibraryView: currentLibraryView,
-                      currentNavIndex: currentNavIndex,
-                    );
+                    
                   },
             child: Padding(
               padding: const EdgeInsets.all(11.0),
@@ -2072,30 +1916,13 @@ class _AlbumCard extends StatelessWidget {
             isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    LibraryItemContextMenu.show(
-                      context: context,
-                      item: album,
-                      position: details.globalPosition,
-                      playlists: playlists,
-                      albums: albums,
-                      artists: artists,
-                      currentLibraryView: currentLibraryView,
-                      currentNavIndex: currentNavIndex,
-                    );
+                    
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    LibraryItemContextMenu.show(
-                      context: context,
-                      item: album,
-                      playlists: playlists,
-                      albums: albums,
-                      artists: artists,
-                      currentLibraryView: currentLibraryView,
-                      currentNavIndex: currentNavIndex,
-                    );
+                    
                   },
             child: Padding(
               padding: const EdgeInsets.all(11.0),
@@ -2198,30 +2025,13 @@ class _PlaylistCard extends StatelessWidget {
             isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    LibraryItemContextMenu.show(
-                      context: context,
-                      item: playlist,
-                      position: details.globalPosition,
-                      playlists: playlists,
-                      albums: albums,
-                      artists: artists,
-                      currentLibraryView: currentLibraryView,
-                      currentNavIndex: currentNavIndex,
-                    );
+                    
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    LibraryItemContextMenu.show(
-                      context: context,
-                      item: playlist,
-                      playlists: playlists,
-                      albums: albums,
-                      artists: artists,
-                      currentLibraryView: currentLibraryView,
-                      currentNavIndex: currentNavIndex,
-                    );
+                    
                   },
             child: Padding(
               padding: const EdgeInsets.all(11.0),

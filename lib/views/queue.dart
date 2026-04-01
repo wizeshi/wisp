@@ -7,8 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/wisp_audio_handler.dart';
 import '../providers/library/library_state.dart';
-import '../widgets/track_context_menu.dart';
-import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../models/metadata_models.dart';
 import '../services/app_navigation.dart';
@@ -254,30 +252,13 @@ class _QueueViewState extends State<QueueView> {
       key: key,
       onSecondaryTapDown: (details) {
         if (_isDesktop) {
-          TrackContextMenu.show(
-            context: context,
-            track: track,
-            position: details.globalPosition,
-            playlists: libraryState.playlists,
-            albums: libraryState.albums,
-            artists: libraryState.artists,
-            currentLibraryView: _currentLibraryView,
-            currentNavIndex: _currentNavIndex,
-          );
+          
         }
       },
       onLongPress: _isDesktop
           ? null
           : () {
-              TrackContextMenu.show(
-                context: context,
-                track: track,
-                playlists: libraryState.playlists,
-                albums: libraryState.albums,
-                artists: libraryState.artists,
-                currentLibraryView: _currentLibraryView,
-                currentNavIndex: _currentNavIndex,
-              );
+              
             },
       child: Material(
         color: Colors.transparent,
@@ -388,16 +369,7 @@ class _QueueViewState extends State<QueueView> {
                               onTap: () =>
                                   _openArtist(primaryArtist, libraryState),
                               onSecondaryTapDown: (details) {
-                                LibraryItemContextMenu.show(
-                                  context: context,
-                                  item: primaryArtist,
-                                  position: details.globalPosition,
-                                  playlists: libraryState.playlists,
-                                  albums: libraryState.albums,
-                                  artists: libraryState.artists,
-                                  currentLibraryView: _currentLibraryView,
-                                  currentNavIndex: _currentNavIndex,
-                                );
+                                
                               },
                               builder: (isHovering) => Text(
                                 track.artists.map((a) => a.name).join(', '),

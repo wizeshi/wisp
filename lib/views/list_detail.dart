@@ -20,8 +20,6 @@ import '../providers/library/local_playlists.dart';
 import '../providers/connect/connect_session_provider.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../providers/library/library_state.dart';
-import '../widgets/track_context_menu.dart';
-import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
 import '../widgets/playlist_folder_modals.dart';
@@ -2366,44 +2364,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   behavior: HitTestBehavior.opaque,
                   onSecondaryTapDown: isDesktop
                       ? (details) {
-                          TrackContextMenu.show(
-                            context: context,
-                            track: song,
-                            position: details.globalPosition,
-                            playlistId: widget.type == SharedListType.playlist
-                                ? widget.id
-                                : null,
-                            playlistName: widget.type == SharedListType.playlist
-                                ? _playlist?.title
-                                : null,
-                            playlistTrackUid: _getUid(item),
-                            playlists: widget.playlists,
-                            albums: widget.albums,
-                            artists: widget.artists,
-                            currentLibraryView: _currentLibraryView,
-                            currentNavIndex: _currentNavIndex,
-                          );
+                          
                         }
                       : null,
                   onLongPress: isDesktop
                       ? null
                       : () {
-                          TrackContextMenu.show(
-                            context: context,
-                            track: song,
-                            playlistId: widget.type == SharedListType.playlist
-                                ? widget.id
-                                : null,
-                            playlistName: widget.type == SharedListType.playlist
-                                ? _playlist?.title
-                                : null,
-                            playlistTrackUid: _getUid(item),
-                            playlists: widget.playlists,
-                            albums: widget.albums,
-                            artists: widget.artists,
-                            currentLibraryView: _currentLibraryView,
-                            currentNavIndex: _currentNavIndex,
-                          );
+                          
                         },
                   child: Material(
                     color: Colors.transparent,
@@ -2552,17 +2519,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                           );
                                         },
                                         onSecondaryTapDown: (details) {
-                                          LibraryItemContextMenu.show(
-                                            context: context,
-                                            item: album,
-                                            position: details.globalPosition,
-                                            playlists: widget.playlists,
-                                            albums: widget.albums,
-                                            artists: widget.artists,
-                                            currentLibraryView:
-                                                _currentLibraryView,
-                                            currentNavIndex: _currentNavIndex,
-                                          );
+                                          
                                         },
                                         builder: (isHovering) => Text(
                                           _getAlbumTitle(item),
@@ -2604,23 +2561,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   alignment: Alignment.centerRight,
                                   child: GestureDetector(
                                     onTapDown: (details) {
-                                      TrackContextMenu.show(
-                                        context: context,
-                                        track: song,
-                                        position: details.globalPosition,
-                                        playlistId: widget.type == SharedListType.playlist
-                                            ? widget.id
-                                            : null,
-                                        playlistName: widget.type == SharedListType.playlist
-                                            ? _playlist?.title
-                                            : null,
-                                        playlistTrackUid: _getUid(item),
-                                        playlists: widget.playlists,
-                                        albums: widget.albums,
-                                        artists: widget.artists,
-                                        currentLibraryView: _currentLibraryView,
-                                        currentNavIndex: _currentNavIndex,
-                                      );
+                                      
                                     },
                                     child: Icon(
                                       CupertinoIcons.ellipsis,
@@ -2651,17 +2592,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                             );
                                           },
                                           onSecondaryTapDown: (details) {
-                                            LibraryItemContextMenu.show(
-                                              context: context,
-                                              item: album,
-                                              position: details.globalPosition,
-                                              playlists: widget.playlists,
-                                              albums: widget.albums,
-                                              artists: widget.artists,
-                                              currentLibraryView:
-                                                  _currentLibraryView,
-                                              currentNavIndex: _currentNavIndex,
-                                            );
+                                            
                                           },
                                           builder: (isHovering) => Text(
                                             _getAlbumTitle(item),
@@ -2805,44 +2736,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             behavior: HitTestBehavior.opaque,
             onSecondaryTapDown: isDesktop
                 ? (details) {
-                    TrackContextMenu.show(
-                      context: context,
-                      track: song,
-                      position: details.globalPosition,
-                      playlistId: widget.type == SharedListType.playlist
-                          ? widget.id
-                          : null,
-                      playlistName: widget.type == SharedListType.playlist
-                          ? _playlist?.title
-                          : null,
-                      playlistTrackUid: _getUid(item),
-                      playlists: widget.playlists,
-                      albums: widget.albums,
-                      artists: widget.artists,
-                      currentLibraryView: _currentLibraryView,
-                      currentNavIndex: _currentNavIndex,
-                    );
+                    
                   }
                 : null,
             onLongPress: isDesktop
                 ? null
                 : () {
-                    TrackContextMenu.show(
-                      context: context,
-                      track: song,
-                      playlistId: widget.type == SharedListType.playlist
-                          ? widget.id
-                          : null,
-                      playlistName: widget.type == SharedListType.playlist
-                          ? _playlist?.title
-                          : null,
-                      playlistTrackUid: _getUid(item),
-                      playlists: widget.playlists,
-                      albums: widget.albums,
-                      artists: widget.artists,
-                      currentLibraryView: _currentLibraryView,
-                      currentNavIndex: _currentNavIndex,
-                    );
+                    
                   },
             child: Material(
               color: Colors.transparent,
@@ -2980,16 +2880,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     );
                                   },
                                   onSecondaryTapDown: (details) {
-                                    LibraryItemContextMenu.show(
-                                      context: context,
-                                      item: album,
-                                      position: details.globalPosition,
-                                      playlists: widget.playlists,
-                                      albums: widget.albums,
-                                      artists: widget.artists,
-                                      currentLibraryView: _currentLibraryView,
-                                      currentNavIndex: _currentNavIndex,
-                                    );
+                                    
                                   },
                                   builder: (isHovering) => Text(
                                     _getAlbumTitle(item),
@@ -3031,23 +2922,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                             alignment: Alignment.centerRight,
                             child: GestureDetector(
                               onTapDown: (details) {
-                                TrackContextMenu.show(
-                                  context: context,
-                                  track: song,
-                                  position: details.globalPosition,
-                                  playlistId: widget.type == SharedListType.playlist
-                                      ? widget.id
-                                      : null,
-                                  playlistName: widget.type == SharedListType.playlist
-                                      ? _playlist?.title
-                                      : null,
-                                  playlistTrackUid: _getUid(item),
-                                  playlists: widget.playlists,
-                                  albums: widget.albums,
-                                  artists: widget.artists,
-                                  currentLibraryView: _currentLibraryView,
-                                  currentNavIndex: _currentNavIndex,
-                                );
+                                
                               },
                               child: Icon(
                                 CupertinoIcons.ellipsis,
@@ -3075,16 +2950,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                       );
                                     },
                                     onSecondaryTapDown: (details) {
-                                      LibraryItemContextMenu.show(
-                                        context: context,
-                                        item: album,
-                                        position: details.globalPosition,
-                                        playlists: widget.playlists,
-                                        albums: widget.albums,
-                                        artists: widget.artists,
-                                        currentLibraryView: _currentLibraryView,
-                                        currentNavIndex: _currentNavIndex,
-                                      );
+                                      
                                     },
                                     builder: (isHovering) => Text(
                                       _getAlbumTitle(item),
@@ -3228,16 +3094,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           HoverUnderline(
             onTap: () => _openArtist(artists[i]),
             onSecondaryTapDown: (details) {
-              LibraryItemContextMenu.show(
-                context: context,
-                item: artists[i],
-                position: details.globalPosition,
-                playlists: widget.playlists,
-                albums: widget.albums,
-                artists: widget.artists,
-                currentLibraryView: _currentLibraryView,
-                currentNavIndex: _currentNavIndex,
-              );
+              
             },
             builder: (isHovering) => Text(
               artists[i].name,

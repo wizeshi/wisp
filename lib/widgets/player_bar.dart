@@ -15,8 +15,6 @@ import '../models/metadata_models.dart';
 import 'full_player.dart';
 import '../services/app_navigation.dart';
 import '../views/list_detail.dart';
-import '../widgets/track_context_menu.dart';
-import '../widgets/library_item_context_menu.dart';
 import '../widgets/hover_underline.dart';
 import '../providers/navigation_state.dart';
 import '../services/navigation_history.dart';
@@ -789,16 +787,7 @@ class _DesktopTrackInfo extends StatelessWidget {
                               }
                             : null,
                         onSecondaryTapDown: (details) {
-                          TrackContextMenu.show(
-                            context: context,
-                            track: track,
-                            position: details.globalPosition,
-                            playlists: libraryState.playlists,
-                            albums: libraryState.albums,
-                            artists: libraryState.artists,
-                            currentLibraryView: currentLibraryView,
-                            currentNavIndex: currentNavIndex,
-                          );
+                          
                         },
                         builder: (isHovering) => _MarqueeText(
                           text: track.title,
@@ -831,16 +820,7 @@ class _DesktopTrackInfo extends StatelessWidget {
                           );
                         },
                         onSecondaryTapDown: (details) {
-                          LibraryItemContextMenu.show(
-                            context: context,
-                            item: primaryArtist,
-                            position: details.globalPosition,
-                            playlists: libraryState.playlists,
-                            albums: libraryState.albums,
-                            artists: libraryState.artists,
-                            currentLibraryView: currentLibraryView,
-                            currentNavIndex: currentNavIndex,
-                          );
+                          
                         },
                         builder: (isHovering) => _MarqueeText(
                           text: artists.map((a) => a.name).join(', '),

@@ -8,7 +8,6 @@ import '../providers/library/library_folders.dart';
 import '../providers/library/library_state.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/navigation_history.dart';
-import 'library_item_context_menu.dart';
 import 'playlist_folder_modals.dart';
 import '../utils/liked_songs.dart';
 import 'liked_songs_art.dart';
@@ -475,16 +474,7 @@ class _WispNavigationState extends State<WispNavigation> {
       child: InkWell(
         mouseCursor: SystemMouseCursors.click,
         onSecondaryTapDown: (details) {
-          LibraryItemContextMenu.show(
-            context: context,
-            item: resolvedItem,
-            position: details.globalPosition,
-            playlists: _extractItems<GenericPlaylist>(),
-            albums: _extractItems<GenericAlbum>(),
-            artists: _extractItems<GenericSimpleArtist>(),
-            currentLibraryView: widget.selectedView,
-            currentNavIndex: widget.selectedIndex,
-          );
+          
         },
         onTap: () {
           if (resolvedItem is PlaylistFolder) {
