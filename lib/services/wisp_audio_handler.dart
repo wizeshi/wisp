@@ -205,7 +205,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     });
 
     _playingSubscription = _player.playingStream.listen((playing) {
+      final wasPlaying = _state == PlaybackState.playing;
       if (_player.processingState == ProcessingState.ready) {
+        if (!playing && wasPlaying && _isAtTrackEnd()) {
+          logger.w(
+            '[Player] Fallback completion trigger: playing=false at track end',
+          );
+          _onCompleted();
+          _broadcastPlaybackState();
+          return;
+        }
         _setState(playing ? PlaybackState.playing : PlaybackState.paused);
       }
       _broadcastPlaybackState();
@@ -313,6 +322,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     return predicted;
+  }
+
+  bool _isAtTrackEnd() {
+    final trackDuration = _player.duration;
+    if (trackDuration == null || trackDuration <= Duration.zero) {
+      return false;
+    }
+
+    final position = _player.position;
+    final threshold = trackDuration - const Duration(milliseconds: 400);
+    return position >= threshold;
   }
 
   void _ensureRpcTimer() {

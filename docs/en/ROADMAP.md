@@ -5,14 +5,13 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Clicking outside bottom sheets does not close them
     - [ ] Clicking the style select in the settings shows the app shell (mobile)
 - Future changes:
-    - [ ] Change "Show Lyrics" button in the right sidebar preview to a floating button
+    - [ ] Change "Show Lyrics" button in the right sidebar preview to a floating button. In the spotify full player
     - [ ] Lyrics View's text size should be increased and it's text centered, just aligned to the left (maybe with symmetric horizontal padding relative to widget width?)
     - [ ] Interpret home rows differently: if we only have one element in the row, and if we're on mobile, use a special card style; if on desktop, remove it from the main content area, and make special cards at the bottom. 
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)
     - [ ] Padding between elements (top and bottom) is part of the elements themselves (in the library view)
     - [ ] Switch desktop context submenus to use prediction cones
     - [ ] Add download tracks button on album/playlist right-click context menu
-    - [ ] Make audio cache permanent, not temporary.
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
     - [ ] Add a "Go to Folder" on the cache section (desktop-only).
     - [ ] Add padding at the top/bottom of the lyrics screen to ensure the focused line is centered
@@ -26,6 +25,7 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Lyrics View on mobile should be acessible by swiping on the song cover art; it shouldn't be its own view, rather, when visible, it should be a widget that replaces the cover art. it should also hide the lyrics preview and everything under it.  
     - [ ] Add a "Recommended" list of ~10 songs with "Add" buttons at the bottom of a playlist (not albums, not artists, not likes view)
     - [ ] Improve lyrics preview animation
+    . [ ] Clicking on the song cover (apple music mobile full player) should go back to the main view. 
     - [ ] Add a preview of the next/previous song's metadata to the player bar's swiping animation (depending on the scroll direction)
     - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
     - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
