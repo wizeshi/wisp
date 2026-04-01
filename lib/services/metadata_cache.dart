@@ -196,4 +196,14 @@ class MetadataCacheStore {
     await baseDir.delete(recursive: true);
     _baseDir = null;
   }
+
+  Future<void> clearProvider(String provider) async {
+    await _ensureInitialized();
+    final baseDir = _baseDir;
+    if (baseDir == null || !await baseDir.exists()) return;
+    final providerDir = Directory('${baseDir.path}/$provider');
+    if (await providerDir.exists()) {
+      await providerDir.delete(recursive: true);
+    }
+  }
 }

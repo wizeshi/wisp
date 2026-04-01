@@ -97,12 +97,11 @@ class DownloadsSettingsPage extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: Colors.grey[400], fontSize: 12),
             ),
-            const SizedBox(height: 6),
-            Text(
-              '$statusLabel • $progressPercent%',
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
-            ),
           ],
+        ),
+        trailing: Text(
+          '$statusLabel • $progressPercent%',
+          style: TextStyle(color: Colors.grey[500], fontSize: 12),
         ),
       ),
     );

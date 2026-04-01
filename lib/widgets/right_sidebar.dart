@@ -598,9 +598,16 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   @override
   Widget build(BuildContext context) {
-    final shouldPlay = context.select<WispAudioHandler, bool>(
+    final useLinkedState = context.select<ConnectSessionProvider, bool>(
+      (connect) => connect.isLinked && connect.isHost,
+    );
+    final linkedShouldPlay = context.select<ConnectSessionProvider, bool>(
+      (connect) => connect.linkedIsPlaying,
+    );
+    final localShouldPlay = context.select<WispAudioHandler, bool>(
       (player) => player.isPlaying,
     );
+    final shouldPlay = useLinkedState ? linkedShouldPlay : localShouldPlay;
     final controller = _controller;
     final hasSize = widget.width != null || widget.height != null;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
@@ -718,9 +725,16 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
 
   @override
   Widget build(BuildContext context) {
-    final shouldPlay = context.select<WispAudioHandler, bool>(
+    final useLinkedState = context.select<ConnectSessionProvider, bool>(
+      (connect) => connect.isLinked && connect.isHost,
+    );
+    final linkedShouldPlay = context.select<ConnectSessionProvider, bool>(
+      (connect) => connect.linkedIsPlaying,
+    );
+    final localShouldPlay = context.select<WispAudioHandler, bool>(
       (player) => player.isPlaying,
     );
+    final shouldPlay = useLinkedState ? linkedShouldPlay : localShouldPlay;
     final controller = _controller;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
       return const SizedBox.shrink();
@@ -1220,31 +1234,27 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                     Positioned(
                       right: 8,
                       bottom: 8,
-                      child: MouseRegion(
-                        cursor: (_hovering && lyrics != null)
-                            ? SystemMouseCursors.click
-                            : SystemMouseCursors.basic,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 160),
+                        opacity: (_hovering && lyrics != null) ? 1.0 : 0.0,
                         child: IgnorePointer(
                           ignoring: !_hovering || lyrics == null,
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 160),
-                            opacity: (_hovering && lyrics != null) ? 1.0 : 0.0,
-                            child: SizedBox(
-                              width: 38,
-                              height: 38,
-                              child: FloatingActionButton(
-                                heroTag: null,
-                                mini: true,
-                                backgroundColor: btnColor,
-                                foregroundColor:
-                                    Theme.of(context).colorScheme.onPrimary,
-                                onPressed: lyrics == null
-                                    ? null
-                                    : () {
-                                        _openLyrics(context);
-                                      },
-                                child: const Icon(Icons.lyrics_outlined, size: 18),
-                              ),
+                          child: SizedBox(
+                            width: 38,
+                            height: 38,
+                            child: FloatingActionButton(
+                              heroTag: null,
+                              mini: true,
+                              mouseCursor: SystemMouseCursors.click,
+                              backgroundColor: btnColor,
+                              foregroundColor:
+                                  Theme.of(context).colorScheme.onPrimary,
+                              onPressed: lyrics == null
+                                  ? null
+                                  : () {
+                                      _openLyrics(context);
+                                    },
+                              child: const Icon(Icons.lyrics_outlined, size: 18),
                             ),
                           ),
                         ),

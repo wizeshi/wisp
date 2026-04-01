@@ -287,6 +287,16 @@ class LyricsProvider extends ChangeNotifier {
       payload: {'delaySeconds': seconds},
     );
   }
+
+  Future<void> clearCache() async {
+    _cache.clear();
+    _lastErrorAt.clear();
+    _lyricsInFlight.clear();
+    _delayCache.clear();
+    _delayLoading.clear();
+    notifyListeners();
+    await _cacheStore.clearProvider(_cacheProvider);
+  }
 }
 
 class _LyricsCacheResult {

@@ -1484,9 +1484,17 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   @override
   Widget build(BuildContext context) {
-    final shouldPlay = context.select<global_audio_player.WispAudioHandler, bool>(
-      (player) => player.isPlaying,
+    final useLinkedState = context.select<ConnectSessionProvider, bool>(
+      (connect) => connect.isLinked && connect.isHost,
     );
+    final linkedShouldPlay = context.select<ConnectSessionProvider, bool>(
+      (connect) => connect.linkedIsPlaying,
+    );
+    final localShouldPlay =
+        context.select<global_audio_player.WispAudioHandler, bool>(
+          (player) => player.isPlaying,
+        );
+    final shouldPlay = useLinkedState ? linkedShouldPlay : localShouldPlay;
     final controller = _controller;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
       return CachedNetworkImage(

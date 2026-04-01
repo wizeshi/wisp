@@ -36,6 +36,7 @@ class _LyricsViewState extends State<LyricsView> {
   WispAudioHandler? _playerRef;
   bool _textCentered = true;
   bool _syncedLyricsAvailable = true;
+  bool _didInitialCenter = false;
 
   bool get _isMobile => Platform.isAndroid || Platform.isIOS;
   bool get _isDesktop =>
@@ -143,10 +144,23 @@ class _LyricsViewState extends State<LyricsView> {
 
     Scrollable.ensureVisible(
       context,
-      alignment: 0.35,
+      alignment: 0.5,
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOut,
     );
+  }
+
+  void _centerCurrentLineOnOpen(WispAudioHandler player, LyricsResult lyrics) {
+    if (_didInitialCenter) return;
+    _didInitialCenter = true;
+    final initialIndex = lyrics.synced
+        ? _findCurrentLineIndex(lyrics, _effectivePositionMs(player))
+        : 0;
+    _currentLineIndex = initialIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToLine(initialIndex);
+    });
   }
 
   void _onSyncModeChanged(LyricsSyncMode mode) {
@@ -155,6 +169,7 @@ class _LyricsViewState extends State<LyricsView> {
       _syncMode = mode;
       _currentLineIndex = 0;
       _autoScrollEnabled = true;
+      _didInitialCenter = false;
     });
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
@@ -290,6 +305,7 @@ class _LyricsViewState extends State<LyricsView> {
           _currentLineIndex = 0;
           _autoScrollEnabled = true;
           _syncedLyricsAvailable = true;
+          _didInitialCenter = false;
           lyricsProvider.ensureDelayLoaded(track.id);
           _loadLyricsDelay(lyricsProvider, track.id);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -333,6 +349,7 @@ class _LyricsViewState extends State<LyricsView> {
         _activeLyrics = lyrics;
         _playerRef = player;
         _ensurePositionTimer();
+        _centerCurrentLineOnOpen(player, lyrics);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.center,

@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/models/metadata_provider.dart';
 import 'package:wisp/providers/audio/youtube.dart';
+import 'package:wisp/providers/lyrics/provider.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/cache_manager.dart';
+import '../services/metadata_cache.dart';
 import '../services/navigation_history.dart';
 import 'settings_downloads.dart';
 import '../utils/logger.dart';
@@ -205,6 +207,9 @@ class _SettingsPageState extends State<SettingsPage> {
           return true;
 
         case 'metadata':
+          await MetadataCacheStore.instance.clearProvider('spotify');
+          await MetadataCacheStore.instance.clearProvider('spotify_internal');
+          await MetadataCacheStore.instance.clearProvider('youtube');
           return true;
 
         case 'yt-sp-link':
@@ -212,6 +217,7 @@ class _SettingsPageState extends State<SettingsPage> {
           return true;
 
         case 'lyrics':
+          await context.read<LyricsProvider>().clearCache();
           return true;
       }
     } catch (e) {
@@ -285,11 +291,22 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: const Text('Cancel'),
                 ),
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
+                    var hadFailure = false;
                     for (var key in cacheDeleteEnabled.keys) {
                       if (cacheDeleteEnabled[key] == true) {
-                        _deleteCacheByType(key);
+                        final success = await _deleteCacheByType(key);
+                        if (!success) {
+                          hadFailure = true;
+                        }
                       }
+                    }
+                    if (mounted) {
+                      _showSnackBar(
+                        hadFailure
+                            ? 'Some selected caches could not be deleted.'
+                            : 'Selected caches deleted.',
+                      );
                     }
                     Navigator.of(dialogContext).pop();
                   },
