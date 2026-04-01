@@ -596,38 +596,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showClearCacheDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF282828),
-        title: const Text('Clear Cache', style: TextStyle(color: Colors.white)),
-        content: Text(
-          'This will delete all cached audio files. You\'ll need to re-download '
-          'tracks for offline playback.',
-          style: TextStyle(color: Colors.grey[400]),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await AudioCacheManager.instance.clearCache();
-              if (mounted) {
-                _showSnackBar('Cache cleared');
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red[700]),
-            child: const Text('Clear'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildProviderCard(
     BuildContext context,
     MetadataProvider provider,
