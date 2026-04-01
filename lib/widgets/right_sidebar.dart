@@ -527,6 +527,7 @@ class _CanvasVideo extends StatefulWidget {
 class _CanvasVideoState extends State<_CanvasVideo> {
   VideoPlayerController? _controller;
   bool _initFailed = false;
+  bool? _lastShouldPlay;
 
   @override
   void initState() {
@@ -569,10 +570,37 @@ class _CanvasVideoState extends State<_CanvasVideo> {
   void _disposeController() {
     _controller?.dispose();
     _controller = null;
+    _lastShouldPlay = null;
+  }
+
+  void _syncPlayback(VideoPlayerController controller, bool shouldPlay) {
+    if (_lastShouldPlay == shouldPlay) return;
+    _lastShouldPlay = shouldPlay;
+    unawaited(_setPlayback(controller, shouldPlay));
+  }
+
+  Future<void> _setPlayback(
+    VideoPlayerController controller,
+    bool shouldPlay,
+  ) async {
+    try {
+      if (shouldPlay) {
+        if (!controller.value.isPlaying) {
+          await controller.play();
+        }
+      } else {
+        if (controller.value.isPlaying) {
+          await controller.pause();
+        }
+      }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    final shouldPlay = context.select<WispAudioHandler, bool>(
+      (player) => player.isPlaying,
+    );
     final controller = _controller;
     final hasSize = widget.width != null || widget.height != null;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
@@ -582,6 +610,8 @@ class _CanvasVideoState extends State<_CanvasVideo> {
         height: widget.height,
       );
     }
+
+    _syncPlayback(controller, shouldPlay);
 
     final video = FittedBox(
       fit: BoxFit.cover,
@@ -617,6 +647,7 @@ class _CanvasBackground extends StatefulWidget {
 class _CanvasBackgroundState extends State<_CanvasBackground> {
   VideoPlayerController? _controller;
   bool _initFailed = false;
+  bool? _lastShouldPlay;
 
   @override
   void initState() {
@@ -659,14 +690,43 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
   void _disposeController() {
     _controller?.dispose();
     _controller = null;
+    _lastShouldPlay = null;
+  }
+
+  void _syncPlayback(VideoPlayerController controller, bool shouldPlay) {
+    if (_lastShouldPlay == shouldPlay) return;
+    _lastShouldPlay = shouldPlay;
+    unawaited(_setPlayback(controller, shouldPlay));
+  }
+
+  Future<void> _setPlayback(
+    VideoPlayerController controller,
+    bool shouldPlay,
+  ) async {
+    try {
+      if (shouldPlay) {
+        if (!controller.value.isPlaying) {
+          await controller.play();
+        }
+      } else {
+        if (controller.value.isPlaying) {
+          await controller.pause();
+        }
+      }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    final shouldPlay = context.select<WispAudioHandler, bool>(
+      (player) => player.isPlaying,
+    );
     final controller = _controller;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
       return const SizedBox.shrink();
     }
+
+    _syncPlayback(controller, shouldPlay);
 
     return Stack(
       fit: StackFit.expand,
@@ -1031,8 +1091,15 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
   }
 }
 
-class _LyricsPreviewCard extends StatelessWidget {
+class _LyricsPreviewCard extends StatefulWidget {
   const _LyricsPreviewCard();
+
+  @override
+  State<_LyricsPreviewCard> createState() => _LyricsPreviewCardState();
+}
+
+class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
+  bool _hovering = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1087,56 +1154,59 @@ class _LyricsPreviewCard extends StatelessWidget {
         return ValueListenableBuilder<Route<dynamic>?>(
           valueListenable: NavigationHistory.instance.currentRoute,
           builder: (context, route, child) {
-            return _SectionCard(
-              backgroundColor: bgColor,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Lyrics Preview',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  if (state.isLoading && lyrics == null)
-                    const Text(
-                      'Loading lyrics…',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
-                    )
-                  else if (lyrics == null)
-                    const Text(
-                      'No lyrics found',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
-                    )
-                  else
-                    Selector2<WispAudioHandler, ConnectSessionProvider, int>(
-                      selector: (context, player, connect) {
-                        final useHandoffState =
-                            connect.isLinked && connect.isHost;
-                        final position = useHandoffState
-                            ? connect.linkedInterpolatedPosition
-                            : player.throttledPosition;
-                        return position.inMilliseconds;
-                      },
-                      builder: (context, positionMs, child) {
-                        return AnimatedLyricsPreviewList(
-                          lines: _getPreviewLines(lyrics, positionMs),
-                          resetKey: track.id,
-                          textStyle: const TextStyle(
+            return MouseRegion(
+              onEnter: (_) => setState(() => _hovering = true),
+              onExit: (_) => setState(() => _hovering = false),
+              child: _SectionCard(
+                backgroundColor: bgColor,
+                child: Stack(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Lyrics Preview',
+                          style: TextStyle(
                             color: Colors.white,
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
-                        );
-                      },
-                    ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
+                        ),
+                        const SizedBox(height: 10),
+                        if (state.isLoading && lyrics == null)
+                          const Text(
+                            'Loading lyrics…',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          )
+                        else if (lyrics == null)
+                          const Text(
+                            'No lyrics found',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          )
+                        else
+                          Selector2<WispAudioHandler, ConnectSessionProvider, int>(
+                            selector: (context, player, connect) {
+                              final useHandoffState =
+                                  connect.isLinked && connect.isHost;
+                              final position = useHandoffState
+                                  ? connect.linkedInterpolatedPosition
+                                  : player.throttledPosition;
+                              return position.inMilliseconds;
+                            },
+                            builder: (context, positionMs, child) {
+                              return AnimatedLyricsPreviewList(
+                                lines: _getPreviewLines(lyrics, positionMs),
+                                resetKey: track.id,
+                                textStyle: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              );
+                            },
+                          ),
+                        SizedBox(height: 4),
+                        Text(
                           lyrics == null
                               ? ''
                               : 'Lyrics provided by ${lyrics.provider.label}',
@@ -1145,32 +1215,43 @@ class _LyricsPreviewCard extends StatelessWidget {
                             fontSize: 11,
                           ),
                         ),
-                      ),
-                      ElevatedButton(
-                        onPressed: lyrics == null
-                            ? null
-                            : () {
-                                _openLyrics(context);
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: btnColor,
-                          foregroundColor: Theme.of(
-                            context,
-                          ).colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                      ],
+                    ),
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: MouseRegion(
+                        cursor: (_hovering && lyrics != null)
+                            ? SystemMouseCursors.click
+                            : SystemMouseCursors.basic,
+                        child: IgnorePointer(
+                          ignoring: !_hovering || lyrics == null,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 160),
+                            opacity: (_hovering && lyrics != null) ? 1.0 : 0.0,
+                            child: SizedBox(
+                              width: 38,
+                              height: 38,
+                              child: FloatingActionButton(
+                                heroTag: null,
+                                mini: true,
+                                backgroundColor: btnColor,
+                                foregroundColor:
+                                    Theme.of(context).colorScheme.onPrimary,
+                                onPressed: lyrics == null
+                                    ? null
+                                    : () {
+                                        _openLyrics(context);
+                                      },
+                                child: const Icon(Icons.lyrics_outlined, size: 18),
+                              ),
+                            ),
                           ),
                         ),
-                        child: const Text('Show lyrics'),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             );
           },

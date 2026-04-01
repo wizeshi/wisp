@@ -2,8 +2,6 @@ Here's the TODOs for version v26.03.xx:
 
 - Bugs:
 - Future changes:
-    - [ ] Change "Show Lyrics" button in the right sidebar preview to a floating button. In the spotify full player (mobile), change it to an icon to the right of the "Lyrics Preview" text. 
-    - [ ] Lyrics View's text size should be increased and it's text centered, just aligned to the left (maybe with symmetric horizontal padding relative to widget width?)
     - [ ] Interpret home rows differently: if we only have one element in the row, and if we're on mobile, use a special card style; if on desktop, remove it from the main content area, and make special cards at the bottom. 
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)
     - [ ] Padding between elements (top and bottom) is part of the elements themselves (in the library view)
@@ -12,7 +10,6 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
     - [ ] Add a "Go to Folder" on the cache section (desktop-only).
     - [ ] Add padding at the top/bottom of the lyrics screen to ensure the focused line is centered
-    - [ ] Move "Provided by {lyrics_provider}" text to the bottom-left corner (lyrics screen, desktop)
     - [ ] Make a playlist remember it's last play's player options (whether it was shuffled & the repeat mode)
     - [ ] Animate the transition from search icon to box on the desktop Spotify-style list view
 - Planned features: 

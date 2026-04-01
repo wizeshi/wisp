@@ -823,13 +823,28 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 12.0),
-            child: const Text(
-              'Lyrics Preview',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Lyrics Preview',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Open lyrics',
+                  onPressed: lyrics == null ? null : () => _openLyrics(context),
+                  icon: const Icon(Icons.lyrics_outlined),
+                  iconSize: 20,
+                  color: Colors.white,
+                  visualDensity: VisualDensity.compact,
+                  splashRadius: 18,
+                ),
+              ],
             ),
           ),
           if (state.isLoading && lyrics == null)
@@ -852,37 +867,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  lyrics == null
-                      ? ''
-                      : 'Lyrics provided by ${lyrics.provider.label}',
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ),
-              ElevatedButton(
-                onPressed: lyrics == null
-                    ? null
-                    : () {
-                        _openLyrics(context);
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: btnColor,
-                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                child: const Text('Show lyrics'),
-              ),
-            ],
+          Text(
+            lyrics == null ? '' : 'Lyrics provided by ${lyrics.provider.label}',
+            style: TextStyle(color: Colors.white, fontSize: 12),
           ),
         ],
       ),
@@ -1424,6 +1411,7 @@ class _CanvasVideo extends StatefulWidget {
 class _CanvasVideoState extends State<_CanvasVideo> {
   VideoPlayerController? _controller;
   bool _initFailed = false;
+  bool? _lastShouldPlay;
 
   @override
   void initState() {
@@ -1468,10 +1456,37 @@ class _CanvasVideoState extends State<_CanvasVideo> {
   void _disposeController() {
     _controller?.dispose();
     _controller = null;
+    _lastShouldPlay = null;
+  }
+
+  void _syncPlayback(VideoPlayerController controller, bool shouldPlay) {
+    if (_lastShouldPlay == shouldPlay) return;
+    _lastShouldPlay = shouldPlay;
+    unawaited(_setPlayback(controller, shouldPlay));
+  }
+
+  Future<void> _setPlayback(
+    VideoPlayerController controller,
+    bool shouldPlay,
+  ) async {
+    try {
+      if (shouldPlay) {
+        if (!controller.value.isPlaying) {
+          await controller.play();
+        }
+      } else {
+        if (controller.value.isPlaying) {
+          await controller.pause();
+        }
+      }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    final shouldPlay = context.select<global_audio_player.WispAudioHandler, bool>(
+      (player) => player.isPlaying,
+    );
     final controller = _controller;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
       return CachedNetworkImage(
@@ -1482,6 +1497,8 @@ class _CanvasVideoState extends State<_CanvasVideo> {
             Container(color: Colors.grey[900]),
       );
     }
+
+    _syncPlayback(controller, shouldPlay);
 
     return FittedBox(
       fit: BoxFit.cover,
