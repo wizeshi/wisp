@@ -1287,18 +1287,20 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                           ),
                         ),
                         if (data != null) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            data.description != null && data.description!.isNotEmpty ?
-                              'Top tracks: ${data.topSongs.take(3).map((s) => s.title).join(' • ')}'
-                              : data.description!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 12,
+                          if (data.description != null) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              data.description!.isNotEmpty ?
+                                'Top tracks: ${data.topSongs.take(3).map((s) => s.title).join(' • ')}'
+                                : data.description!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 12,
+                              ),
                             ),
-                          ),
+                          ]
                         ],
                       ],
                     ),
