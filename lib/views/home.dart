@@ -818,8 +818,7 @@ class HomePageState extends State<HomePage> {
           thumbnailUrl: item.thumbnailUrl,
         ),
         onLongPress: () {
-          final navState = context.read<NavigationState>();
-          
+          EntityContextMenus.showPlaylistMenu(context, playlist: item);
         },
       );
     }
@@ -836,8 +835,7 @@ class HomePageState extends State<HomePage> {
           thumbnailUrl: item.thumbnailUrl,
         ),
         onLongPress: () {
-          final navState = context.read<NavigationState>();
-          
+          EntityContextMenus.showAlbumMenu(context, album: item);
         },
       );
     }
@@ -849,8 +847,7 @@ class HomePageState extends State<HomePage> {
         subtitle: 'Artist',
         onTap: () => _openArtist(item),
         onLongPress: () {
-          final navState = context.read<NavigationState>();
-          
+          EntityContextMenus.showArtistMenu(context, artist: item);
         },
       );
     }
@@ -866,8 +863,7 @@ class HomePageState extends State<HomePage> {
           await player.playTrack(item);
         },
         onLongPress: () {
-          final navState = context.read<NavigationState>();
-          
+          EntityContextMenus.showTrackMenu(context, track: item);
         },
       );
     }
