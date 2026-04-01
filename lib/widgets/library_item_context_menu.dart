@@ -72,121 +72,37 @@ class LibraryItemContextMenu {
     final localPlaylist = item is GenericPlaylist
         ? localState.getById(item.id)
         : null;
+
     showDialog<void>(
       context: context,
       barrierColor: Colors.transparent,
       barrierDismissible: true,
       useRootNavigator: true,
       builder: (dialogContext) {
-        return Stack(
-          children: [
-            Positioned(
-              left: position.dx,
-              top: position.dy,
-              child: Material(
-                color: const Color(0xFF282828),
-                borderRadius: BorderRadius.circular(8),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 220),
-                  child: IntrinsicWidth(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (item is PlaylistFolder) ...[
-                            _buildDesktopMenuButton(
-                              context: dialogContext,
-                              child: _buildDesktopMenuItem(
-                                Icons.edit,
-                                'Rename',
-                              ),
-                              onTap: () {
-                                PlaylistFolderModals.showRenameFolderDialog(
-                                  context,
-                                  item,
-                                );
-                              },
-                            ),
-                            _buildDesktopMenuButton(
-                              context: dialogContext,
-                              child: _buildDesktopMenuItem(
-                                Icons.image_outlined,
-                                'Change thumbnail',
-                              ),
-                              onTap: () {
-                                PlaylistFolderModals.showChangeThumbnailDialog(
-                                  context,
-                                  item,
-                                );
-                              },
-                            ),
-                            _buildDesktopMenuButton(
-                              context: dialogContext,
-                              child: _buildDesktopMenuItem(
-                                Icons.delete_outline,
-                                'Delete',
-                              ),
-                              onTap: () {
-                                context
-                                    .read<LibraryFolderState>()
-                                    .deleteFolder(item.id);
-                              },
-                            ),
-                          ] else ...[
-                            _buildDesktopMenuButton(
-                              context: dialogContext,
-                              child: _buildDesktopMenuItem(
-                                Icons.open_in_new,
-                                'Open',
-                              ),
-                              onTap: () {
-                                _navigateToItem(
-                                  context,
-                                  item,
-                                  playlists,
-                                  albums,
-                                  artists,
-                                  currentLibraryView,
-                                  currentNavIndex,
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 4),
-                            _buildDesktopMenuButton(
-                              context: dialogContext,
-                              child: _buildDesktopMenuItem(
-                                Icons.download_outlined,
-                                'Download Metadata',
-                              ),
-                              onTap: () {
-                                _downloadMetadata(context, item);
-                              },
-                            ),
-                            if (item is GenericPlaylist) ...[
-                              const SizedBox(height: 4),
-                              _buildDesktopMenuButton(
-                                context: dialogContext,
-                                closeMenu: false,
-                                child: _buildDesktopMenuItem(
-                                  Icons.folder,
-                                  'Add to folder',
-                                ),
-                                onTap: () {
-                                  PlaylistFolderModals.showAddToFolderSubmenu(
-                                    context,
-                                    playlist: item,
-                                    position: Offset(
-                                      position.dx + 230,
-                                      position.dy,
-                                    ),
-                                    parentMenuContext: dialogContext,
-                                  );
-                                },
-                              ),
-                              if (localPlaylist != null) ...[
-                                const SizedBox(height: 4),
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(dialogContext).pop(),
+          child: Stack(
+            children: [
+              Positioned(
+                left: position.dx,
+                top: position.dy,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () {},
+                  child: Material(
+                    color: const Color(0xFF282828),
+                    borderRadius: BorderRadius.circular(8),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 220),
+                      child: IntrinsicWidth(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (item is PlaylistFolder) ...[
                                 _buildDesktopMenuButton(
                                   context: dialogContext,
                                   child: _buildDesktopMenuItem(
@@ -194,7 +110,7 @@ class LibraryItemContextMenu {
                                     'Rename',
                                   ),
                                   onTap: () {
-                                    PlaylistFolderModals.showRenamePlaylistDialog(
+                                    PlaylistFolderModals.showRenameFolderDialog(
                                       context,
                                       item,
                                     );
@@ -207,8 +123,7 @@ class LibraryItemContextMenu {
                                     'Change thumbnail',
                                   ),
                                   onTap: () {
-                                    PlaylistFolderModals
-                                        .showChangePlaylistThumbnailDialog(
+                                    PlaylistFolderModals.showChangeThumbnailDialog(
                                       context,
                                       item,
                                     );
@@ -221,38 +136,131 @@ class LibraryItemContextMenu {
                                     'Delete',
                                   ),
                                   onTap: () {
-                                    PlaylistFolderModals
-                                        .deletePlaylistWithSync(
+                                    context
+                                        .read<LibraryFolderState>()
+                                        .deleteFolder(item.id);
+                                  },
+                                ),
+                              ] else ...[
+                                _buildDesktopMenuButton(
+                                  context: dialogContext,
+                                  child: _buildDesktopMenuItem(
+                                    Icons.open_in_new,
+                                    'Open',
+                                  ),
+                                  onTap: () {
+                                    _navigateToItem(
                                       context,
-                                      item.id,
+                                      item,
+                                      playlists,
+                                      albums,
+                                      artists,
+                                      currentLibraryView,
+                                      currentNavIndex,
                                     );
                                   },
                                 ),
-                                if (localPlaylist.isLinked) ...[
+                                const SizedBox(height: 4),
+                                _buildDesktopMenuButton(
+                                  context: dialogContext,
+                                  child: _buildDesktopMenuItem(
+                                    Icons.download_outlined,
+                                    'Download Metadata',
+                                  ),
+                                  onTap: () {
+                                    _downloadMetadata(context, item);
+                                  },
+                                ),
+                                if (item is GenericPlaylist) ...[
+                                  const SizedBox(height: 4),
                                   _buildDesktopMenuButton(
                                     context: dialogContext,
+                                    closeMenu: false,
                                     child: _buildDesktopMenuItem(
-                                      Icons.link_off,
-                                      'Detach from provider',
+                                      Icons.folder,
+                                      'Add to folder',
                                     ),
                                     onTap: () {
-                                      context
-                                          .read<LocalPlaylistState>()
-                                          .detachFromProvider(item.id);
+                                      PlaylistFolderModals.showAddToFolderSubmenu(
+                                        context,
+                                        playlist: item,
+                                        position: Offset(
+                                          position.dx + 230,
+                                          position.dy,
+                                        ),
+                                        parentMenuContext: dialogContext,
+                                      );
                                     },
                                   ),
+                                  if (localPlaylist != null) ...[
+                                    const SizedBox(height: 4),
+                                    _buildDesktopMenuButton(
+                                      context: dialogContext,
+                                      child: _buildDesktopMenuItem(
+                                        Icons.edit,
+                                        'Rename',
+                                      ),
+                                      onTap: () {
+                                        PlaylistFolderModals.showRenamePlaylistDialog(
+                                          context,
+                                          item,
+                                        );
+                                      },
+                                    ),
+                                    _buildDesktopMenuButton(
+                                      context: dialogContext,
+                                      child: _buildDesktopMenuItem(
+                                        Icons.image_outlined,
+                                        'Change thumbnail',
+                                      ),
+                                      onTap: () {
+                                        PlaylistFolderModals
+                                            .showChangePlaylistThumbnailDialog(
+                                          context,
+                                          item,
+                                        );
+                                      },
+                                    ),
+                                    _buildDesktopMenuButton(
+                                      context: dialogContext,
+                                      child: _buildDesktopMenuItem(
+                                        Icons.delete_outline,
+                                        'Delete',
+                                      ),
+                                      onTap: () {
+                                        PlaylistFolderModals
+                                            .deletePlaylistWithSync(
+                                          context,
+                                          item.id,
+                                        );
+                                      },
+                                    ),
+                                    if (localPlaylist.isLinked)
+                                      _buildDesktopMenuButton(
+                                        context: dialogContext,
+                                        child: _buildDesktopMenuItem(
+                                          Icons.link_off,
+                                          'Detach from provider',
+                                        ),
+                                        onTap: () {
+                                          context
+                                              .read<LocalPlaylistState>()
+                                              .detachFromProvider(item.id);
+                                        },
+                                      ),
+                                  ],
                                 ],
                               ],
                             ],
-                          ],
-                        ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     ).then((_) => PlaylistFolderModals.hideAddToFolderSubmenu());

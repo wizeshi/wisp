@@ -1156,19 +1156,24 @@ class SpotifyInternalProvider extends MetadataProvider {
           await _acquireTokensFromCookie(cookie);
         }
 
+        if (artistId.startsWith("spotify:artist:")) {
+          artistId = artistId.split(":").last;
+        }
+
         logger.d("[Metadata/Spotify-Internal] Getting artist info for $artistId");
 
         const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
         final body = {
           "variables": {
             "uri": "spotify:artist:$artistId",
-            "locale": ""
+            "locale": "intl-pt",
+            "preReleaseV2": false
           },
           "operationName": "queryArtistOverview",
           "extensions": {
             "persistedQuery": {
               "version": 1,
-              "sha256Hash": "dd14c6043d8127b56c5acbe534f6b3c58714f0c26bc6ad41776079ed52833a8f"
+              "sha256Hash": "5b9e64f43843fa3a9b6a98543600299b0a2cbbbccfdcdcef2402eb9c1017ca4c"
             }
           }
         };
@@ -1176,6 +1181,9 @@ class SpotifyInternalProvider extends MetadataProvider {
         logger.d("[Metadata/Spotify-Internal] Sending request to Spotify internal API for artist $artistId");
 
         logger.d("[Metadata/Spotify-Internal] Bearer Token Length: ${_bearerToken?.length ?? 0}");
+        logger.d("[Metadata/Spotify-Internal] Client Token Length: ${_clientToken?.length ?? 0}");
+
+        logger.d("Body: ${jsonEncode(body)}");
 
         final response = await _postWithRetry(
           Uri.parse(url),
@@ -1189,7 +1197,10 @@ class SpotifyInternalProvider extends MetadataProvider {
             'User-Agent': _spotifyUserAgent,
             'Origin': 'https://open.spotify.com',
             'Referer': 'https://open.spotify.com/',
-            'Spotify-App-Version': _spotifyAppVersion,
+            // For some reason, this endpoint requires this app version,
+            // which 1. is different from the one used in other endpoints
+            // and 2. doesn't follow Spotify's usual versioning scheme
+            'Spotify-App-Version': "896000000",
           },
           body: jsonEncode(body),
         );
@@ -2673,9 +2684,9 @@ class SpotifyInternalProvider extends MetadataProvider {
 const _spotifyWebTokenUrl = 'https://open.spotify.com/api/token';
 const _spotifyClientTokenUrl = 'https://clienttoken.spotify.com/v1/clienttoken';
 const _spotifyUserAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
-const _spotifyAppVersion = "1.2.85.300.gd6e199b8";
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    '(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36';
+const _spotifyAppVersion = "1.2.87.317.g32ca400d";
 const _allowInsecureSpotifyTls = bool.fromEnvironment(
   'WISP_ALLOW_INSECURE_SPOTIFY_TLS',
   defaultValue: true,

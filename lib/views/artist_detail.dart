@@ -407,7 +407,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
           IconButton(
             icon: const Icon(Icons.more_horiz),
             color: Colors.white,
-            onPressed: _showArtistOptions,
+            onPressed: () => _showArtistOptions(context),
           ),
           const Spacer(),
           // Right side: Play button
@@ -555,9 +555,13 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                         : colorScheme.primary,
                   ),
                 ),
-                IconButton(
-                  onPressed: _showArtistOptions,
-                  icon: const Icon(Icons.more_horiz, color: Colors.grey),
+                Builder(
+                  builder: (buttonContext) {
+                    return IconButton(
+                      onPressed: () => _showArtistOptions(buttonContext),
+                      icon: const Icon(Icons.more_horiz, color: Colors.grey),
+                    );
+                  },
                 ),
               ],
             ),
@@ -567,11 +571,74 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     );
   }
 
-  void _showArtistOptions() {
+  Future<void> _showArtistOptions([BuildContext? anchorContext]) async {
     final name = _artist?.name ?? widget.initialArtist?.name ?? 'Artist';
-    showModalBottomSheet(
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+
+    if (isDesktop && anchorContext != null) {
+      final overlay =
+          Overlay.of(context, rootOverlay: true).context.findRenderObject()
+              as RenderBox;
+      final button = anchorContext.findRenderObject() as RenderBox?;
+      if (button != null) {
+        final buttonRect = Rect.fromPoints(
+          button.localToGlobal(Offset.zero, ancestor: overlay),
+          button.localToGlobal(
+            button.size.bottomRight(Offset.zero),
+            ancestor: overlay,
+          ),
+        );
+        final selected = await showMenu<String>(
+          context: context,
+          color: const Color(0xFF282828),
+          position: RelativeRect.fromRect(buttonRect, Offset.zero & overlay.size),
+          items: const [
+            PopupMenuItem<String>(
+              value: 'copy',
+              child: Row(
+                children: [
+                  Icon(Icons.copy, color: Colors.white),
+                  SizedBox(width: 12),
+                  Text('Copy artist name', style: TextStyle(color: Colors.white)),
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
+              value: 'share',
+              child: Row(
+                children: [
+                  Icon(Icons.share, color: Colors.white),
+                  SizedBox(width: 12),
+                  Text('Share', style: TextStyle(color: Colors.white)),
+                ],
+              ),
+            ),
+          ],
+        );
+        if (!mounted || selected == null) return;
+        if (selected == 'copy') {
+          await Clipboard.setData(ClipboardData(text: name));
+          if (!mounted) return;
+          ScaffoldMessenger.of(this.context).showSnackBar(
+            const SnackBar(content: Text('Artist name copied')),
+          );
+          return;
+        }
+        if (selected == 'share') {
+          ScaffoldMessenger.of(this.context).showSnackBar(
+            const SnackBar(content: Text('Share not implemented yet')),
+          );
+        }
+      }
+      return;
+    }
+
+    await showModalBottomSheet(
       context: context,
       useRootNavigator: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: const Color(0xFF282828),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

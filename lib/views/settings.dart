@@ -22,6 +22,8 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  bool get _isMobile => Platform.isAndroid || Platform.isIOS;
+
   Future<void> _showProviderPreferencesDialog() async {
     await showDialog<void>(
       context: context,
@@ -692,6 +694,31 @@ class _SettingsPageState extends State<SettingsPage> {
           Selector<PreferencesProvider, String>(
             selector: (context, prefs) => prefs.style,
             builder: (context, selectedStyle, child) {
+              if (_isMobile) {
+                return InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _showStyleSelectionSheet(selectedStyle, options),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          selectedStyle,
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.keyboard_arrow_down,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               return MouseRegion(
                 cursor: SystemMouseCursors.click,
                 child: DropdownButton<String>(
@@ -719,6 +746,63 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _showStyleSelectionSheet(
+    String selectedStyle,
+    List<String> options,
+  ) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: const Color(0xFF282828),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[600],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...options.map(
+                (style) => ListTile(
+                  title: Text(
+                    style,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  trailing: style == selectedStyle
+                      ? Icon(
+                          Icons.check,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.of(sheetContext).pop(style),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || selected == null || selected == selectedStyle) {
+      return;
+    }
+
+    await context.read<PreferencesProvider>().setStyle(selected);
   }
 
   Widget _buildAnimatedCanvasPreferenceRow() {

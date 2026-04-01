@@ -1,11 +1,8 @@
 Here's the TODOs for version v26.03.xx:
 
 - Bugs:
-    - [ ] Clicking the three dots menu in the artist view on desktop opens the mobile bottom sheet
-    - [ ] Clicking outside bottom sheets does not close them
-    - [ ] Clicking the style select in the settings shows the app shell (mobile)
 - Future changes:
-    - [ ] Change "Show Lyrics" button in the right sidebar preview to a floating button. In the spotify full player
+    - [ ] Change "Show Lyrics" button in the right sidebar preview to a floating button. In the spotify full player (mobile), change it to an icon to the right of the "Lyrics Preview" text. 
     - [ ] Lyrics View's text size should be increased and it's text centered, just aligned to the left (maybe with symmetric horizontal padding relative to widget width?)
     - [ ] Interpret home rows differently: if we only have one element in the row, and if we're on mobile, use a special card style; if on desktop, remove it from the main content area, and make special cards at the bottom. 
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)

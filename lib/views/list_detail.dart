@@ -1142,12 +1142,18 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       barrierDismissible: true,
       useRootNavigator: true,
       builder: (dialogContext) {
-        return Stack(
-          children: [
-            Positioned(
-              left: left,
-              top: position.dy + box.size.height,
-              child: Material(
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(dialogContext).pop(),
+          child: Stack(
+            children: [
+              Positioned(
+                left: left,
+                top: position.dy + box.size.height,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () {},
+                  child: Material(
                 color: const Color(0xFF282828),
                 borderRadius: BorderRadius.circular(8),
                 child: SizedBox(
@@ -1249,10 +1255,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       ],
                     ),
                   ),
+                  ),
                 ),
               ),
+                ),
+              ],
             ),
-          ],
         );
       },
     );

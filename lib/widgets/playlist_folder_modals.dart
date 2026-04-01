@@ -903,12 +903,18 @@ class PlaylistFolderModals {
       barrierDismissible: true,
       useRootNavigator: true,
       builder: (dialogContext) {
-        return Stack(
-          children: [
-            Positioned(
-              left: menuPosition.dx,
-              top: menuPosition.dy,
-              child: Material(
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(dialogContext).pop(),
+          child: Stack(
+            children: [
+              Positioned(
+                left: menuPosition.dx,
+                top: menuPosition.dy,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () {},
+                  child: Material(
                 color: const Color(0xFF282828),
                 borderRadius: BorderRadius.circular(8),
                 child: ConstrainedBox(
@@ -956,10 +962,12 @@ class PlaylistFolderModals {
                       ),
                     ),
                   ),
+                  ),
                 ),
               ),
-            ),
-          ],
+              ),
+            ],
+          ),
         );
       },
     );

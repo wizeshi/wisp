@@ -363,11 +363,19 @@ class _LyricsViewState extends State<LyricsView> {
               ),
             ),
             Expanded(
-              child: Align(
+              child: AnimatedAlign(
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeInOutCubic,
                 alignment: _textCentered ? Alignment.topCenter : Alignment.topLeft,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(),
-                  child: ListView.builder(
+                  constraints: const BoxConstraints(maxWidth: 920),
+                  child: AnimatedPadding(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeInOutCubic,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _textCentered ? 0 : 36,
+                    ),
+                    child: ListView.builder(
                     key: _listKey,
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(
@@ -394,9 +402,9 @@ class _LyricsViewState extends State<LyricsView> {
                       final canSeek = line.startTimeMs > 0;
                       final delayMs = (_lyricsDelaySeconds * 1000).round();
 
-                      final fontSize = _isDesktop
-                          ? (isCurrent ? 28.0 : 22.0)
-                          : (isCurrent ? 22.0 : 18.0);
+                        final fontSize = _isDesktop
+                          ? (isCurrent ? 32.0 : 26.0)
+                          : (isCurrent ? 25.0 : 20.0);
 
                       return Padding(
                         key: _lineKeys[index],
@@ -451,6 +459,7 @@ class _LyricsViewState extends State<LyricsView> {
                         ),
                       );
                     },
+                    ),
                   ),
                 ),
               ),
@@ -517,11 +526,12 @@ class _LyricsViewState extends State<LyricsView> {
               _textCentered == true,
             ],
             onPressed: (index) {
-              switch (index) {
-                case 0:
-                  setState(() => _textCentered = false);
-                case 1:
-                  setState(() => _textCentered = true);
+              if (index == 0) {
+                setState(() => _textCentered = false);
+                return;
+              }
+              if (index == 1) {
+                setState(() => _textCentered = true);
               }
             },
             borderRadius: BorderRadius.circular(8),
@@ -586,7 +596,6 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildDesktopSyncSelector() {
-    final colorScheme = Theme.of(context).colorScheme;
     return ToggleButtons(
       isSelected: [
         _syncMode == LyricsSyncMode.synced,

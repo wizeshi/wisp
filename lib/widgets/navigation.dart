@@ -174,12 +174,18 @@ class _WispNavigationState extends State<WispNavigation> {
       barrierDismissible: true,
       useRootNavigator: true,
       builder: (dialogContext) {
-        return Stack(
-          children: [
-            Positioned(
-              left: position.dx,
-              top: position.dy + box.size.height,
-              child: Material(
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(dialogContext).pop(),
+          child: Stack(
+            children: [
+              Positioned(
+                left: position.dx,
+                top: position.dy + box.size.height,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () {},
+                  child: Material(
                 color: const Color(0xFF282828),
                 borderRadius: BorderRadius.circular(8),
                 child: ConstrainedBox(
@@ -214,10 +220,12 @@ class _WispNavigationState extends State<WispNavigation> {
                       ),
                     ),
                   ),
+                  ),
                 ),
               ),
-            ),
-          ],
+              ),
+            ],
+          ),
         );
       },
     );
