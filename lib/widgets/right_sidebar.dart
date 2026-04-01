@@ -448,14 +448,53 @@ class _NowPlayingCard extends StatelessWidget {
                               ),
                             ],
                           ),
-                          LikeButton(
-                            track: track,
-                            iconSize: 20,
-                            padding: const EdgeInsets.all(2),
-                            constraints: const BoxConstraints(
-                              minWidth: 28,
-                              minHeight: 28,
-                            ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                curve: Curves.easeOut,
+                                width: showHoverControls ? 28 : 0,
+                                child: ClipRect(
+                                  child: AnimatedOpacity(
+                                    duration: const Duration(milliseconds: 180),
+                                    opacity: showHoverControls ? 1 : 0,
+                                    child: IgnorePointer(
+                                      ignoring: !showHoverControls,
+                                      child: IconButton(
+                                        tooltip: 'Share',
+                                        icon: const Icon(Icons.share),
+                                        iconSize: 18,
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 28,
+                                          minHeight: 28,
+                                        ),
+                                        onPressed: () async {
+                                          await EntityContextMenus.copySpotifyShareUrl(
+                                            context,
+                                            source: track.source,
+                                            type: 'track',
+                                            id: track.id,
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              LikeButton(
+                                track: track,
+                                iconSize: 20,
+                                padding: const EdgeInsets.all(2),
+                                constraints: const BoxConstraints(
+                                  minWidth: 28,
+                                  minHeight: 28,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
