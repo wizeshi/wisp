@@ -1,6 +1,7 @@
 /// YouTube audio streaming provider using youtube_explode_dart
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
@@ -214,6 +215,9 @@ class YouTubeProvider {
   Future<List<YouTubeResult>> searchYouTubeTracks(
     String query, {
     int limit = 10,
+    String? artist,
+    String? title,
+    int? durationSecs,
   }) async {
     try {
       logger.d('[YouTube] Searching tracks for: $query');
@@ -224,7 +228,12 @@ class YouTubeProvider {
       final scoredResults = <MapEntry<Video, double>>[];
       for (final result in searchResults) {
         final video = result;
-        final score = _scoreVideo(video, artist: '', title: query);
+        final score = _scoreVideo(
+          video,
+          artist: artist ?? '',
+          title: title ?? query,
+          durationSecs: durationSecs,
+        );
         if (score == null) {
           continue;
         }
@@ -349,7 +358,6 @@ class YouTubeProvider {
     final clientsToTry = [
       YoutubeApiClient.ios,
       YoutubeApiClient.android,
-      YoutubeApiClient.tvSimplyEmbedded,
       YoutubeApiClient.androidVr,
     ];
     
@@ -394,9 +402,41 @@ class YouTubeProvider {
     throw YouTubeException('Failed to get stream URL', lastError);
   }
   
-  /// Check if title contains excluded terms unless they are in the original title
-  bool _containsExcludedTerms(String title, String originalTitle) {
-    const excludedTerms = [
+  /// Check if text contains excluded terms unless they are in the query.
+  bool _containsExcludedTerms(
+    String text,
+    String originalQuery,
+    List<String> excludedTerms,
+  ) {
+    final originalQueryLower = originalQuery.toLowerCase();
+
+    return excludedTerms.any((term) {
+      if (text.contains(term)) {
+        return !originalQueryLower.contains(term);
+      }
+      return false;
+    });
+  }
+
+  String _extractDescription(Video video) {
+    try {
+      final dynamic dynamicVideo = video;
+      final description = dynamicVideo.description;
+      if (description == null) return '';
+      return description.toString().toLowerCase();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  int _maxAllowedDurationDiff(int durationSecs) {
+    final relativeDiff = (durationSecs * 0.12).round();
+    if (relativeDiff < 20) return 20;
+    if (relativeDiff > 45) return 45;
+    return relativeDiff;
+  }
+
+  static const List<String> _excludedTitleTerms = [
       'live',
       'concert',
       'cover',
@@ -415,17 +455,15 @@ class YouTubeProvider {
       'lyrics',
       'lyric',
     ];
-    
-    final originalTitleLower = originalTitle.toLowerCase();
-    
-    return excludedTerms.any((term) {
-      if (title.contains(term)) {
-        // Only exclude if the original title didn't ask for this term
-        return !originalTitleLower.contains(term);
-      }
-      return false;
-    });
-  }
+
+  static const List<String> _excludedDescriptionTerms = [
+    'live performance',
+    'performed live',
+    'recorded live',
+    'live at',
+    'performing at',
+    'perform',
+  ];
 
   double? _scoreVideo(
     Video video, {
@@ -436,11 +474,24 @@ class YouTubeProvider {
     double score = 0.0;
 
     final titleLower = video.title.toLowerCase();
+    final descriptionLower = _extractDescription(video);
     final channelLower = video.author.toLowerCase();
     final artistLower = artist.trim().toLowerCase();
     final titleQueryLower = title.trim().toLowerCase();
 
-    if (_containsExcludedTerms(titleLower, titleQueryLower)) {
+    if (_containsExcludedTerms(
+      titleLower,
+      titleQueryLower,
+      _excludedTitleTerms,
+    )) {
+      return null;
+    }
+
+    if (_containsExcludedTerms(
+      descriptionLower,
+      titleQueryLower,
+      _excludedDescriptionTerms,
+    )) {
       return null;
     }
 
@@ -474,12 +525,17 @@ class YouTubeProvider {
     if (durationSecs != null && video.duration != null) {
       final videoDurationSecs = video.duration!.inSeconds;
       final diff = (videoDurationSecs - durationSecs).abs();
+      final maxAllowedDiff = _maxAllowedDurationDiff(durationSecs);
+      if (diff > maxAllowedDiff) {
+        return null;
+      }
+
       if (diff <= 5) {
         score += 15.0; // Very close duration
       } else if (diff <= 15) {
         score += 8.0; // Reasonably close duration
-      } else if (diff > 60) {
-        score -= 20.0; // Heavily penalize huge duration mismatch
+      } else if (diff <= 30) {
+        score += 3.0;
       }
     }
 

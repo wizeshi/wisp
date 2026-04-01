@@ -2217,11 +2217,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           width: 80,
           child: InkWell(
             onTap: () => _sortBy(_SortMethod.duration),
-            child: Text(
-              'Duration',
-              style: headerStyle,
-              textAlign: TextAlign.right,
-            ),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Icon(Icons.access_time, size: 14, color: Colors.grey)
+            )
           ),
         ),
         const SizedBox(width: 12),

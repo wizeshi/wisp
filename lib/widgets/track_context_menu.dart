@@ -17,6 +17,7 @@ import '../providers/library/local_playlists.dart';
 import '../utils/liked_songs.dart';
 import '../providers/metadata/spotify_internal.dart';
 import '../services/app_navigation.dart';
+import '../views/youtube_alternatives.dart';
 
 /// Shows a context menu for a track
 /// On mobile: bottom sheet drawer
@@ -194,7 +195,7 @@ class TrackContextMenu {
                           },
                         ),
                         _buildDownloadMenuItem(context, track, isMobile: true),
-                        _buildChangeVideoIdMenuItem(
+                        _buildSearchAlternativesMenuItem(
                           context,
                           track,
                           isMobile: true,
@@ -456,13 +457,12 @@ class TrackContextMenu {
                           const SizedBox(height: 4),
                           _buildDesktopMenuButton(
                             context: dialogContext,
-                            child: _buildChangeVideoIdMenuItem(
+                            child: _buildSearchAlternativesMenuItem(
                               context,
                               track,
                               isMobile: false,
                             ),
-                            onTap: () =>
-                                _showChangeVideoIdDialog(context, track),
+                            onTap: () => _openSearchAlternatives(context, track),
                           ),
                           const SizedBox(height: 4),
                           _buildDesktopMenuButton(
@@ -736,6 +736,7 @@ class TrackContextMenu {
                     overflow: TextOverflow.ellipsis,
                   ),
                   onTap: () async {
+                    final messenger = ScaffoldMessenger.of(dialogContext);
                     if (!localState.isLocalPlaylistId(playlist.id)) {
                       await localState.ensureLinkedFromProvider(playlist);
                     }
@@ -743,7 +744,7 @@ class TrackContextMenu {
                     if (dialogContext.mounted) {
                       Navigator.of(dialogContext).pop();
                     }
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       SnackBar(
                         content: Text('Added to ${playlist.title}'),
                         duration: const Duration(seconds: 2),
@@ -933,16 +934,13 @@ class TrackContextMenu {
     }
   }
 
-  static Widget _buildChangeVideoIdMenuItem(
+  static Widget _buildSearchAlternativesMenuItem(
     BuildContext context,
     GenericSong track, {
     required bool isMobile,
   }) {
-    final hasOverride = YouTubeProvider.getCachedVideoId(track.id) != null;
-    final label = hasOverride
-        ? 'Change YouTube Video ID'
-        : 'Set YouTube Video ID';
-    final icon = Icons.video_settings;
+    const label = 'Search Alternatives';
+    const icon = Icons.manage_search;
 
     if (isMobile) {
       return _buildMobileMenuItem(
@@ -950,7 +948,7 @@ class TrackContextMenu {
         label: label,
         onTap: () {
           Navigator.pop(context);
-          _showChangeVideoIdDialog(context, track);
+          _openSearchAlternatives(context, track);
         },
       );
     }
@@ -958,64 +956,20 @@ class TrackContextMenu {
     return _buildDesktopMenuItem(icon, label);
   }
 
-  static Future<void> _showChangeVideoIdDialog(
+  static Future<void> _openSearchAlternatives(
     BuildContext context,
     GenericSong track,
   ) async {
-    final existing = YouTubeProvider.getCachedVideoId(track.id) ?? '';
-    final controller = TextEditingController(text: existing);
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF282828),
-        title: const Text(
-          'YouTube Video ID',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Set a custom YouTube video ID for this track. Leave empty to clear.',
-              style: TextStyle(color: Colors.grey[400]),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'e.g., dQw4w9WgXcQ',
-                hintStyle: TextStyle(color: Colors.grey[500]),
-                filled: true,
-                fillColor: const Color(0xFF1A1A1A),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+    final selectedVideoId = await Navigator.of(context, rootNavigator: true)
+        .push<String>(
+          MaterialPageRoute(
+            builder: (_) => YouTubeAlternativesView(track: track),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.primary,
-              foregroundColor: Theme.of(dialogContext).colorScheme.onPrimary,
-            ),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
+        );
 
-    if (result != true) return;
+    if (selectedVideoId == null) return;
 
-    final input = controller.text.trim();
+    final input = selectedVideoId.trim();
     if (input.isEmpty) {
       await YouTubeProvider.removeCachedVideoId(track.id);
       if (context.mounted) {

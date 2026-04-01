@@ -1636,6 +1636,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   static String? _lyricsLineKeysTrackId;
   static final Map<String, Future<GenericArtist?>> _artistInfoFutureCache =
       <String, Future<GenericArtist?>>{};
+  static final Map<String, Future<ColorScheme?>> _colorSchemeFutureCache =
+      <String, Future<ColorScheme?>>{};
+  static final Map<String, Future<String?>> _canvasUrlFutureCache =
+      <String, Future<String?>>{};
 
   const AppleMusicFullScreenPlayer({required this.scrollController, super.key});
 
@@ -2065,9 +2069,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       MediaQuery.of(context).size.width - 48,
       360.0,
     );
-    if (isNowPlaying && hideNowPlayingCover) {
-      return SizedBox(width: double.infinity, height: expandedSize);
-    }
+    final shouldHideCover = isNowPlaying && hideNowPlayingCover;
     final compactSize = 64.0;
 
     return AnimatedContainer(
@@ -2085,10 +2087,32 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
               curve: Curves.easeInOutCubic,
               width: isNowPlaying ? expandedSize : compactSize,
               height: isNowPlaying ? expandedSize : compactSize,
-              child: _buildCoverImageBox(
-                context,
-                imageUrl,
-                isNowPlaying ? expandedSize : compactSize,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  final scale = Tween<double>(
+                    begin: 0.98,
+                    end: 1.0,
+                  ).animate(animation);
+                  return FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(scale: scale, child: child),
+                  );
+                },
+                child: shouldHideCover
+                    ? const SizedBox.expand(key: ValueKey('apple-cover-hidden'))
+                    : SizedBox(
+                        key: const ValueKey('apple-cover-visible'),
+                        width: isNowPlaying ? expandedSize : compactSize,
+                        height: isNowPlaying ? expandedSize : compactSize,
+                        child: _buildCoverImageBox(
+                          context,
+                          imageUrl,
+                          isNowPlaying ? expandedSize : compactSize,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -2753,6 +2777,45 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     );
   }
 
+  void _pruneFutureCache<T>(Map<String, Future<T>> cache, {int maxSize = 48}) {
+    while (cache.length > maxSize) {
+      cache.remove(cache.keys.first);
+    }
+  }
+
+  Future<ColorScheme?> _getColorSchemeFuture(String imageUrl) {
+    if (imageUrl.isEmpty) {
+      return Future.value(null);
+    }
+    final cached = _colorSchemeFutureCache[imageUrl];
+    if (cached != null) {
+      return cached;
+    }
+    _pruneFutureCache<ColorScheme?>(_colorSchemeFutureCache);
+    final future = _resolveColorScheme(CachedNetworkImageProvider(imageUrl));
+    _colorSchemeFutureCache[imageUrl] = future;
+    return future;
+  }
+
+  Future<String?>? _getCanvasUrlFuture(
+    SpotifyInternalProvider spotifyInternal,
+    GenericSong? currentTrack,
+    bool canUseCanvas,
+  ) {
+    if (!canUseCanvas || currentTrack == null) {
+      return null;
+    }
+    final trackId = currentTrack.id;
+    final cached = _canvasUrlFutureCache[trackId];
+    if (cached != null) {
+      return cached;
+    }
+    _pruneFutureCache<String?>(_canvasUrlFutureCache);
+    final future = spotifyInternal.getCanvasUrl(trackId);
+    _canvasUrlFutureCache[trackId] = future;
+    return future;
+  }
+
   String _formatLargeNumber(int value) {
     if (value >= 1000000000)
       return '${(value / 1000000000).toStringAsFixed(1)}B';
@@ -3147,7 +3210,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     }
     return Column(
       children: [
-        const SizedBox(height: 4),
+        const SizedBox(height: 0),
         _buildProgressBar(context, player),
         const SizedBox(height: 16),
         _buildPlaybackControls(context, player),
@@ -3843,7 +3906,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                             btnColor,
                                             true,
                                           ),
-                                          const SizedBox(height: 10),
+                                          const SizedBox(height: 6),
                                           _buildPlayerControls(
                                             context,
                                             player,
@@ -3936,9 +3999,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             (currentTrack.source == SongSource.spotifyInternal ||
                 currentTrack.source == SongSource.spotify);
         final spotifyInternal = context.read<SpotifyInternalProvider>();
-        final Future<String?>? canvasFuture = canUseCanvas
-            ? spotifyInternal.getCanvasUrl(currentTrack.id)
-            : null;
+        final Future<String?>? canvasFuture = _getCanvasUrlFuture(
+          spotifyInternal,
+          currentTrack,
+          canUseCanvas,
+        );
 
         final viewPadding = MediaQuery.of(context).viewPadding;
         final windowPadding = MediaQueryData.fromView(
@@ -3951,10 +4016,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             ? windowPadding.bottom
             : viewPadding.bottom;
 
-        final imageProvider = CachedNetworkImageProvider(imageUrl);
-
         return FutureBuilder<ColorScheme?>(
-          future: _resolveColorScheme(imageProvider),
+          future: _getColorSchemeFuture(imageUrl),
           builder: (context, snapshot) {
             final palette = snapshot.data;
             var bgColor = HSLColor.fromColor(
@@ -3983,18 +4046,39 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       clipBehavior: Clip.hardEdge,
                       children: [
                         Positioned.fill(
-                          child: useNowPlayingCanvas
-                              ? _buildCanvasBackground(
-                                  context,
-                                  canvasUrl,
-                                  imageUrl,
-                                  topInset,
-                                )
-                              : _buildFallbackBackground(
-                                  context,
-                                  imageUrl,
-                                  topInset,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 420),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (child, animation) {
+                              final moveAnimation = Tween<Offset>(
+                                begin: const Offset(0, 0.06),
+                                end: Offset.zero,
+                              ).animate(animation);
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: moveAnimation,
+                                  child: child,
                                 ),
+                              );
+                            },
+                            child: KeyedSubtree(
+                              key: ValueKey<bool>(useNowPlayingCanvas),
+                              child: useNowPlayingCanvas
+                                  ? _buildCanvasBackground(
+                                      context,
+                                      canvasUrl,
+                                      imageUrl,
+                                      topInset,
+                                    )
+                                  : _buildFallbackBackground(
+                                      context,
+                                      imageUrl,
+                                      topInset,
+                                    ),
+                            ),
+                          ),
                         ),
                         Container(
                           decoration: BoxDecoration(
@@ -4015,7 +4099,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                   child: _buildHeader(context),
                                 ),
                                 const SizedBox(height: 16),
-                                Expanded(
+                                Flexible(
+                                  fit: FlexFit.tight,
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 24.0,
@@ -4031,6 +4116,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                             btnColor,
                                           )
                                         : Column(
+                                            mainAxisSize: MainAxisSize.max,
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
@@ -4041,20 +4127,23 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                                 imageUrl,
                                                 useNowPlayingCanvas,
                                               ),
-                                              const SizedBox(height: 32),
+                                              SizedBox(
+                                                height: isNowPlaying ? 10 : 4,
+                                              ),
                                               if (isNowPlaying) ...[
+                                                const Spacer(),
                                                 _buildSingleLyricsLine(
                                                   context,
                                                   player,
                                                   lyricsProvider,
                                                 ),
-                                                const SizedBox(height: 24),
+                                                const SizedBox(height: 12),
                                                 _buildTrackInfo(
                                                   currentTrack,
                                                   btnColor,
                                                   false,
                                                 ),
-                                                const Spacer(),
+                                                const SizedBox(height: 24),
                                               ] else ...[
                                                 Expanded(
                                                   child: AnimatedSwitcher(
@@ -4528,9 +4617,7 @@ class _CoverGradientContainer extends StatelessWidget {
     final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
       (provider) => provider.palette,
     );
-    var dominantColor =
-        palette?.primary ??
-        Colors.black;
+    var dominantColor = palette?.primary ?? Colors.black;
 
     final gradientLayer = Container(
       decoration: BoxDecoration(
