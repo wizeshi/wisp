@@ -354,114 +354,148 @@ class _LyricsViewState extends State<LyricsView> {
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              child: Text(
-                'Lyrics provided by ${lyrics.provider.label}',
-                style: TextStyle(color: Colors.grey[300], fontSize: 12),
-                textAlign: TextAlign.left,
+            if (!_isDesktop)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Text(
+                  'Lyrics provided by ${lyrics.provider.label}',
+                  style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                  textAlign: TextAlign.left,
+                ),
               ),
-            ),
             Expanded(
-              child: AnimatedAlign(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeInOutCubic,
-                alignment: _textCentered ? Alignment.topCenter : Alignment.topLeft,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 920),
-                  child: AnimatedPadding(
-                    duration: const Duration(milliseconds: 260),
-                    curve: Curves.easeInOutCubic,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: _textCentered ? 0 : 36,
-                    ),
-                    child: ListView.builder(
-                    key: _listKey,
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 24,
-                    ),
-                    itemCount: lyrics.lines.length,
-                    itemBuilder: (context, index) {
-                      final line = lyrics.lines[index];
-                      final displayContent = line.content.trim().isEmpty
-                          ? '♪'
-                          : line.content;
-                      final isSynced = lyrics.synced;
-                      final distance = isSynced
-                          ? (index - _currentLineIndex).abs()
-                          : 0;
-                      final blurSigma = isSynced
-                          ? (distance * 1.05).clamp(0, 8).toDouble()
-                          : 0.0;
-                      final opacity = isSynced
-                          ? (1 - (distance * 0.06)).clamp(0.35, 1.0)
-                          : 1.0;
-                      final isCurrent = isSynced && index == _currentLineIndex;
-                      final canSeek = line.startTimeMs > 0;
-                      final delayMs = (_lyricsDelaySeconds * 1000).round();
+              child: Stack(
+                children: [
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final edgeCenterPadding =
+                          ((constraints.maxHeight - 56.0) / 2).clamp(24.0, double.infinity).toDouble();
 
-                        final fontSize = _isDesktop
-                          ? (isCurrent ? 32.0 : 26.0)
-                          : (isCurrent ? 25.0 : 20.0);
+                      return AnimatedAlign(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeInOutCubic,
+                        alignment: _textCentered
+                            ? Alignment.topCenter
+                            : Alignment.topLeft,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 920),
+                          child: AnimatedPadding(
+                            duration: const Duration(milliseconds: 260),
+                            curve: Curves.easeInOutCubic,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: _textCentered ? 0 : 56,
+                            ),
+                            child: ScrollConfiguration(
+                              behavior: ScrollConfiguration.of(context).copyWith(
+                                scrollbars: false,
+                              ),
+                              child: ListView.builder(
+                                key: _listKey,
+                                controller: _scrollController,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: edgeCenterPadding,
+                                ),
+                                itemCount: lyrics.lines.length,
+                                itemBuilder: (context, index) {
+                                  final line = lyrics.lines[index];
+                                  final displayContent = line.content.trim().isEmpty
+                                      ? '♪'
+                                      : line.content;
+                                  final isSynced = lyrics.synced;
+                                  final distance = isSynced
+                                      ? (index - _currentLineIndex).abs()
+                                      : 0;
+                                  final blurSigma = isSynced
+                                      ? (distance * 1.05).clamp(0, 8).toDouble()
+                                      : 0.0;
+                                  final opacity = isSynced
+                                      ? (1 - (distance * 0.06)).clamp(0.35, 1.0)
+                                      : 1.0;
+                                  final isCurrent =
+                                      isSynced && index == _currentLineIndex;
+                                  final canSeek = line.startTimeMs > 0;
+                                  final delayMs =
+                                      (_lyricsDelaySeconds * 1000).round();
 
-                      return Padding(
-                        key: _lineKeys[index],
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Align(
-                          alignment: _textCentered ? Alignment.center : Alignment.centerLeft,
-                          child: MouseRegion(
-                            cursor: canSeek
-                                ? SystemMouseCursors.click
-                                : MouseCursor.defer,
-                            child: GestureDetector(
-                              onTap: canSeek
-                                  ? () {
-                                      final targetMs =
-                                          line.startTimeMs + delayMs;
-                                      final safeMs = targetMs < 0
-                                          ? 0
-                                          : targetMs;
-                                      player.seek(
-                                        Duration(milliseconds: safeMs),
-                                      );
-                                    }
-                                  : null,
-                              child: ImageFiltered(
-                                imageFilter: ImageFilter.blur(
-                                  sigmaX: blurSigma,
-                                  sigmaY: blurSigma,
-                                ),
-                                child: Opacity(
-                                  opacity: opacity,
-                                  child: AnimatedDefaultTextStyle(
-                                    duration: const Duration(milliseconds: 250),
-                                    style: TextStyle(
-                                      color: isCurrent
-                                          ? Colors.white
-                                          : Colors.grey[200],
-                                      fontSize: fontSize,
-                                      fontWeight: isCurrent
-                                          ? FontWeight.w600
-                                          : FontWeight.w500,
-                                      height: 1.4,
+                                  final fontSize = _isDesktop
+                                      ? (isCurrent ? 32.0 : 26.0)
+                                      : (isCurrent ? 25.0 : 20.0);
+
+                                  return Padding(
+                                    key: _lineKeys[index],
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    child: Align(
+                                      alignment: _textCentered
+                                          ? Alignment.center
+                                          : Alignment.centerLeft,
+                                      child: MouseRegion(
+                                        cursor: canSeek
+                                            ? SystemMouseCursors.click
+                                            : MouseCursor.defer,
+                                        child: GestureDetector(
+                                          onTap: canSeek
+                                              ? () {
+                                                  final targetMs =
+                                                      line.startTimeMs + delayMs;
+                                                  final safeMs =
+                                                      targetMs < 0 ? 0 : targetMs;
+                                                  player.seek(
+                                                    Duration(milliseconds: safeMs),
+                                                  );
+                                                }
+                                              : null,
+                                          child: ImageFiltered(
+                                            imageFilter: ImageFilter.blur(
+                                              sigmaX: blurSigma,
+                                              sigmaY: blurSigma,
+                                            ),
+                                            child: Opacity(
+                                              opacity: opacity,
+                                              child: AnimatedDefaultTextStyle(
+                                                duration: const Duration(milliseconds: 250),
+                                                style: TextStyle(
+                                                  color: isCurrent
+                                                      ? Colors.white
+                                                      : Colors.grey[200],
+                                                  fontSize: fontSize,
+                                                  fontWeight: isCurrent
+                                                      ? FontWeight.w600
+                                                      : FontWeight.w500,
+                                                  height: 1.4,
+                                                ),
+                                                child: Text(
+                                                  displayContent,
+                                                  textAlign: _textCentered
+                                                      ? TextAlign.center
+                                                      : TextAlign.left,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                    child: Text(
-                                      displayContent,
-                                      textAlign: _textCentered ? TextAlign.center : TextAlign.left,
-                                    ),
-                                  ),
-                                ),
+                                  );
+                                },
                               ),
                             ),
                           ),
                         ),
                       );
                     },
-                    ),
                   ),
-                ),
+                  if (_isDesktop)
+                    Positioned(
+                      left: 24,
+                      bottom: 10,
+                      child: Text(
+                        'Lyrics provided by ${lyrics.provider.label}',
+                        style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                        textAlign: TextAlign.left,
+                      ),
+                    ),
+                ],
               ),
             ),
           ],
