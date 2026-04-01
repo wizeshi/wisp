@@ -1,4 +1,4 @@
-/// Audio file cache manager with LRU + age-based expiration
+/// Audio file cache manager with LRU-based size management
 library;
 
 import 'dart:async';
@@ -25,6 +25,8 @@ class CacheEntry {
   final String videoId;
   final String filePath;
   final int fileSize;
+  final String? trackTitle;
+  final String? artistName;
   final DateTime downloadDate;
   DateTime lastPlayedDate;
 
@@ -33,6 +35,8 @@ class CacheEntry {
     required this.videoId,
     required this.filePath,
     required this.fileSize,
+    this.trackTitle,
+    this.artistName,
     required this.downloadDate,
     required this.lastPlayedDate,
   });
@@ -42,6 +46,8 @@ class CacheEntry {
     'videoId': videoId,
     'filePath': filePath,
     'fileSize': fileSize,
+    'trackTitle': trackTitle,
+    'artistName': artistName,
     'downloadDate': downloadDate.toIso8601String(),
     'lastPlayedDate': lastPlayedDate.toIso8601String(),
   };
@@ -51,24 +57,31 @@ class CacheEntry {
     videoId: json['videoId'] as String,
     filePath: json['filePath'] as String,
     fileSize: json['fileSize'] as int,
+    trackTitle: json['trackTitle'] as String?,
+    artistName: json['artistName'] as String?,
     downloadDate: DateTime.parse(json['downloadDate'] as String),
     lastPlayedDate: DateTime.parse(json['lastPlayedDate'] as String),
   );
 
-  bool get isExpired {
-    final age = DateTime.now().difference(lastPlayedDate);
-    return age.inDays >= 30;
-  }
 }
 
 /// Download task status
 enum DownloadStatus { queued, downloading, completed, failed, cancelled }
+
+enum QueueDownloadResult {
+  queued,
+  alreadyCached,
+  alreadyQueued,
+  blockedByNetworkPolicy,
+  blockedByNetworkOnlyMode,
+}
 
 /// A download task
 class DownloadTask {
   final String trackId;
   final String trackTitle;
   final String artistName;
+  final DateTime queuedAt;
   DownloadStatus status;
   double progress;
   String? errorMessage;
@@ -79,12 +92,13 @@ class DownloadTask {
     required this.trackId,
     required this.trackTitle,
     required this.artistName,
+    DateTime? queuedAt,
     this.status = DownloadStatus.queued,
     this.progress = 0.0,
     this.errorMessage,
     this.retryCount = 0,
     this.cancelToken,
-  });
+  }) : queuedAt = queuedAt ?? DateTime.now();
 }
 
 /// Callback types for download events
@@ -163,6 +177,31 @@ class AudioCacheManager extends ChangeNotifier {
   Map<String, DownloadTask> get downloadQueue =>
       Map.unmodifiable(_downloadQueue);
   Set<String> get cachedTrackIds => _cacheEntries.keys.toSet();
+
+  List<CacheEntry> get downloadedTracks {
+    final entries = _cacheEntries.values.toList()
+      ..sort((a, b) => b.downloadDate.compareTo(a.downloadDate));
+    return List.unmodifiable(entries);
+  }
+
+  List<DownloadTask> get recentActiveDownloads {
+    final active = _downloadQueue.values
+        .where(
+          (task) =>
+              task.status == DownloadStatus.downloading ||
+              task.status == DownloadStatus.queued,
+        )
+        .toList()
+      ..sort((a, b) {
+        final rankA = a.status == DownloadStatus.downloading ? 0 : 1;
+        final rankB = b.status == DownloadStatus.downloading ? 0 : 1;
+        if (rankA != rankB) {
+          return rankA.compareTo(rankB);
+        }
+        return b.queuedAt.compareTo(a.queuedAt);
+      });
+    return List.unmodifiable(active);
+  }
 
   /// Initialize the cache manager
   Future<void> initialize() async {
@@ -264,7 +303,7 @@ class AudioCacheManager extends ChangeNotifier {
   ///
   /// [resolveAndGetStream] is called lazily when the download actually starts,
   /// not when queued. This prevents rate limiting when bulk downloading.
-  Future<void> queueDownload({
+  Future<QueueDownloadResult> queueDownload({
     required String trackId,
     required String trackTitle,
     required String artistName,
@@ -276,15 +315,21 @@ class AudioCacheManager extends ChangeNotifier {
     if (!_initialized) await initialize();
     if (_networkOnlyMode) {
       logger.d('[CacheManager] Download skipped (network-only mode): $trackTitle');
-      return;
+      return QueueDownloadResult.blockedByNetworkOnlyMode;
+    }
+    if (!await _hasPreferredNetwork()) {
+      logger.d(
+        '[CacheManager] Download blocked by network policy at queue time: $trackTitle',
+      );
+      return QueueDownloadResult.blockedByNetworkPolicy;
     }
     if (isTrackCached(key)) {
       logger.d('[CacheManager] Download skipped (already cached): $trackTitle');
-      return;
+      return QueueDownloadResult.alreadyCached;
     }
     if (_downloadQueue.containsKey(key)) {
       logger.d('[CacheManager] Download skipped (already queued): $trackTitle');
-      return;
+      return QueueDownloadResult.alreadyQueued;
     }
 
     logger.i('[CacheManager] Queued download: $trackTitle - $artistName');
@@ -303,6 +348,7 @@ class AudioCacheManager extends ChangeNotifier {
     );
 
     _processDownloadQueue();
+    return QueueDownloadResult.queued;
   }
 
   final Map<String, _PendingDownload> _pendingDownloads = {};
@@ -510,6 +556,8 @@ class AudioCacheManager extends ChangeNotifier {
         videoId: resolvedId,
         filePath: filePath,
         fileSize: fileSize,
+        trackTitle: task.trackTitle,
+        artistName: task.artistName,
         downloadDate: DateTime.now(),
         lastPlayedDate: DateTime.now(),
       );
@@ -790,26 +838,6 @@ class AudioCacheManager extends ChangeNotifier {
     onCacheChanged?.call();
     notifyListeners();
     logger.i('[CacheManager] Cache cleared');
-  }
-
-  /// Prune expired entries (older than 30 days since last played)
-  Future<int> pruneExpiredCache() async {
-    final expiredIds = <String>[];
-    for (final entry in _cacheEntries.entries) {
-      if (entry.value.isExpired) {
-        expiredIds.add(entry.key);
-      }
-    }
-
-    for (final id in expiredIds) {
-      await _removeEntry(id);
-    }
-
-    if (expiredIds.isNotEmpty) {
-      logger.i('[CacheManager] Pruned ${expiredIds.length} expired entries');
-    }
-
-    return expiredIds.length;
   }
 
   /// Calculate total cache size

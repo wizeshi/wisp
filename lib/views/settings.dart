@@ -7,11 +7,11 @@ import 'package:provider/provider.dart';
 import 'package:wisp/models/metadata_provider.dart';
 import 'package:wisp/providers/audio/youtube.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
-import 'package:wisp/providers/metadata/youtube.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/cache_manager.dart';
 import '../services/navigation_history.dart';
+import 'settings_downloads.dart';
 import '../utils/logger.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -480,14 +480,15 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final count = await cacheManager.pruneExpiredCache();
-                        if (context.mounted) {
-                          _showSnackBar('Removed $count expired tracks');
-                        }
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const DownloadsSettingsPage(),
+                          ),
+                        );
                       },
-                      icon: const Icon(Icons.auto_delete_outlined, size: 18),
-                      label: const Text('Remove Expired'),
+                      icon: const Icon(Icons.download_outlined, size: 18),
+                      label: const Text('Downloads'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.grey[400],
                         side: BorderSide(color: Colors.grey[700]!),

@@ -866,13 +866,22 @@ class TrackContextMenu {
 
     // Start download
     try {
-      await player.downloadTrack(track);
+      final result = await player.downloadTrack(track);
       if (context.mounted) {
+        final message = switch (result) {
+          QueueDownloadResult.queued => 'Downloading "${track.title}"...',
+          QueueDownloadResult.alreadyCached =>
+            '"${track.title}" is already downloaded',
+          QueueDownloadResult.alreadyQueued =>
+            '"${track.title}" is already in the download queue',
+          QueueDownloadResult.blockedByNetworkPolicy =>
+            'Download blocked by your WiFi/Ethernet-only setting',
+          QueueDownloadResult.blockedByNetworkOnlyMode =>
+            'Download blocked because Network-only mode is enabled',
+        };
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Downloading "${track.title}"...'),
-            duration: const Duration(seconds: 2),
-          ),
+          SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
         );
       }
     } catch (e) {

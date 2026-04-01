@@ -7,9 +7,14 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 class DownloadForegroundService {
   static bool _initialized = false;
+  static const bool _androidForegroundDownloadNotificationEnabled = false;
 
   static Future<void> initialize() async {
     if (!Platform.isAndroid || _initialized) return;
+    if (!_androidForegroundDownloadNotificationEnabled) {
+      _initialized = true;
+      return;
+    }
 
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
@@ -38,6 +43,7 @@ class DownloadForegroundService {
 
   static Future<void> start({required String title, required String text}) async {
     if (!Platform.isAndroid) return;
+    if (!_androidForegroundDownloadNotificationEnabled) return;
     await initialize();
 
     final isRunning = await FlutterForegroundTask.isRunningService;
@@ -58,6 +64,7 @@ class DownloadForegroundService {
 
   static Future<void> stop() async {
     if (!Platform.isAndroid) return;
+    if (!_androidForegroundDownloadNotificationEnabled) return;
 
     final isRunning = await FlutterForegroundTask.isRunningService;
     if (isRunning) {

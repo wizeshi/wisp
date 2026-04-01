@@ -1168,10 +1168,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   // DOWNLOADS
-  Future<void> downloadTrack(GenericSong track) async {
+  Future<QueueDownloadResult> downloadTrack(GenericSong track) async {
     final artistNames = track.artists.map((a) => a.name).join(', ');
 
-    await AudioCacheManager.instance.queueDownload(
+    return AudioCacheManager.instance.queueDownload(
       trackId: track.id,
       trackTitle: track.title,
       artistName: artistNames,
@@ -1230,12 +1230,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     );
   }
 
-  Future<void> downloadTracks(List<GenericSong> tracks) async {
+  Future<Map<QueueDownloadResult, int>> downloadTracks(
+    List<GenericSong> tracks,
+  ) async {
+    final results = <QueueDownloadResult, int>{};
     for (final track in tracks) {
       try {
-        await downloadTrack(track);
+        final result = await downloadTrack(track);
+        results.update(result, (count) => count + 1, ifAbsent: () => 1);
       } catch (_) {}
     }
+    return results;
   }
 
   void cancelDownload(String trackId) =>

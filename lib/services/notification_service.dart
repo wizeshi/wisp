@@ -23,6 +23,7 @@ class NotificationService {
   static const String _downloadChannelDesc = 'Shows progress of audio downloads';
   static const String _downloadGroupKey = 'download_progress_group';
   static const int _downloadSummaryId = 1000001;
+  static const bool _mobileNotificationsEnabled = false;
   
   /// Initialize the notification service
   Future<void> initialize() async {
@@ -30,6 +31,10 @@ class NotificationService {
     if (!Platform.isAndroid && !Platform.isIOS) {
       _initialized = true;
       return; // Desktop doesn't need notifications
+    }
+    if (!_mobileNotificationsEnabled) {
+      _initialized = true;
+      return;
     }
     
     try {
@@ -81,6 +86,7 @@ class NotificationService {
     _permissionRequested = true;
 
     if (!Platform.isAndroid) return;
+    if (!_mobileNotificationsEnabled) return;
     try {
       final androidPlugin = _notifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -98,6 +104,9 @@ class NotificationService {
     required int progress,
     required int maxProgress,
   }) async {
+    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+      return;
+    }
     if (Platform.isAndroid) {
       return; // Android uses foreground service notification only
     }
@@ -162,6 +171,9 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
+    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+      return;
+    }
     if (Platform.isAndroid) {
       return; // Android uses foreground service notification only
     }
@@ -222,6 +234,9 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
+    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+      return;
+    }
     if (Platform.isAndroid) {
       return; // Android uses foreground service notification only
     }
@@ -271,6 +286,9 @@ class NotificationService {
   
   /// Cancel a specific notification
   Future<void> cancelNotification(int id) async {
+    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+      return;
+    }
     if (!Platform.isAndroid && !Platform.isIOS) {
       DesktopNotificationCenter.instance.dismiss(id);
       return;
@@ -290,6 +308,7 @@ class NotificationService {
     required String body,
     required bool ongoing,
   }) async {
+    if (!_mobileNotificationsEnabled) return;
     if (!Platform.isAndroid && !Platform.isIOS) return;
     if (!_initialized || (!Platform.isAndroid && !Platform.isIOS)) return;
 
@@ -326,6 +345,9 @@ class NotificationService {
   
   /// Cancel all notifications
   Future<void> cancelAllNotifications() async {
+    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+      return;
+    }
     if (!Platform.isAndroid && !Platform.isIOS) {
       DesktopNotificationCenter.instance.clearAll();
       return;

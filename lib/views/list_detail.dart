@@ -900,12 +900,30 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
 
     if (confirm == true) {
+      if (!mounted) {
+        return;
+      }
       final player = context.read<global_audio_player.WispAudioHandler>();
-      await player.downloadTracks(tracks);
+      final results = await player.downloadTracks(tracks);
       if (mounted) {
+        final queued = results[QueueDownloadResult.queued] ?? 0;
+        final blockedPolicy =
+            results[QueueDownloadResult.blockedByNetworkPolicy] ?? 0;
+        final blockedNetworkOnly =
+            results[QueueDownloadResult.blockedByNetworkOnlyMode] ?? 0;
+
+        var message = 'Queued $queued track${queued == 1 ? '' : 's'} for download';
+        if (queued == 0 && (blockedPolicy > 0 || blockedNetworkOnly > 0)) {
+          message = blockedPolicy > 0
+              ? 'Downloads blocked by your WiFi/Ethernet-only setting'
+              : 'Downloads blocked because Network-only mode is enabled';
+        } else if (blockedPolicy > 0 || blockedNetworkOnly > 0) {
+          message += ' • ${blockedPolicy + blockedNetworkOnly} blocked';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Downloading $toDownload tracks...'),
+            content: Text(message),
             duration: const Duration(seconds: 2),
           ),
         );

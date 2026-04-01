@@ -2,14 +2,15 @@ Here's the TODOs for version v26.03.xx:
 
 - Bugs:
     - [ ] Clicking the three dots menu in the artist view on desktop opens the mobile bottom sheet
+    - [ ] Clicking outside bottom sheets does not close them
+    - [ ] Clicking the style select in the settings shows the app shell (mobile)
 - Future changes:
     - [ ] Change "Show Lyrics" button in the right sidebar preview to a floating button
-    - [ ] Lyrics View should hide both sidebars. Also, increase the text size and make the text centered, just aligned to the left (maybe with symmetric horizontal padding relative to widget width?)
+    - [ ] Lyrics View's text size should be increased and it's text centered, just aligned to the left (maybe with symmetric horizontal padding relative to widget width?)
     - [ ] Interpret home rows differently: if we only have one element in the row, and if we're on mobile, use a special card style; if on desktop, remove it from the main content area, and make special cards at the bottom. 
     - [ ] Show source in the mobile context menu (remove it from mobile song rows)
     - [ ] Padding between elements (top and bottom) is part of the elements themselves (in the library view)
     - [ ] Switch desktop context submenus to use prediction cones
-    - [ ] Remove the unassigned text from the sidebar. Also make playlists/folders be ordered with each other (e.g. have Folder1, then PL1, then Folder2, then PL2, and so on and so forth)
     - [ ] Add download tracks button on album/playlist right-click context menu
     - [ ] Make audio cache permanent, not temporary.
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
@@ -22,9 +23,9 @@ Here's the TODOs for version v26.03.xx:
 - Planned features: 
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
     - [ ] Add ability to follow/unfollow artists and save/remove albums.
-    - [ ] Add a semi-player bar to the bottom of the lyrics screen (just a seekable progress bar, and a play/pause button) (mobile)
+    - [ ] Lyrics View on mobile should be acessible by swiping on the song cover art; it shouldn't be its own view, rather, when visible, it should be a widget that replaces the cover art. it should also hide the lyrics preview and everything under it.  
     - [ ] Add a "Recommended" list of ~10 songs with "Add" buttons at the bottom of a playlist (not albums, not artists, not likes view)
     - [ ] Improve lyrics preview animation
-    - [ ] Add a preview of the next/previous song's metadata to the player bar's swiping animation
+    - [ ] Add a preview of the next/previous song's metadata to the player bar's swiping animation (depending on the scroll direction)
     - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
     - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
