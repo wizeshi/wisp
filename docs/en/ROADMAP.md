@@ -2,11 +2,9 @@ Here's the TODOs for version v26.03.xx:
 
 - Bugs:
 - Future changes:
-    - [ ] Make double-clicking a playable element (lists or artist top songs) play it
     - [ ] Padding between elements (top and bottom) is part of the elements themselves (in the library view)
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
     - [ ] Add a "Go to Folder" on the cache section (desktop-only).
-    - [ ] Animate the transition from search icon to box on the desktop Spotify-style list view
 - Planned features: 
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
     - [ ] Add ability to follow/unfollow artists and save/remove albums.

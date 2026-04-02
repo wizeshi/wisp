@@ -2058,29 +2058,41 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     );
                   },
                 ),
-                const SizedBox(width: 12),
-                if (_showSearch)
-                  SizedBox(
-                    width: isDesktop ? 240 : 160,
-                    child: TextField(
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                          _rebuildIndices();
-                        });
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Search in list',
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.black.withOpacity(0.4),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none,
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  width: _showSearch ? 12 : 0,
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  width: _showSearch ? (isDesktop ? 240 : 160) : 0,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 160),
+                    opacity: _showSearch ? 1 : 0,
+                    child: IgnorePointer(
+                      ignoring: !_showSearch,
+                      child: TextField(
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                            _rebuildIndices();
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search in list',
+                          isDense: true,
+                          filled: true,
+                          fillColor: Colors.black.withOpacity(0.4),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
                       ),
                     ),
                   ),
+                ),
                 IconButton(
                   onPressed: () {
                     setState(() {

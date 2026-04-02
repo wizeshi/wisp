@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'dart:io' show Platform, File;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -6,6 +8,8 @@ import '../models/metadata_models.dart';
 import '../models/library_folder.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/library_state.dart';
+import '../providers/connect/connect_session_provider.dart';
+import '../providers/metadata/spotify_internal.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/navigation_history.dart';
 import 'playlist_folder_modals.dart';
@@ -68,6 +72,94 @@ class _WispNavigationState extends State<WispNavigation> {
 
   bool _isDesktop() {
     return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  }
+
+  Future<void> _playSidebarItem(dynamic resolvedItem) async {
+    if (resolvedItem is GenericPlaylist) {
+      final tracks = resolvedItem.songs
+              ?.map(
+                (item) => GenericSong(
+                  id: item.id,
+                  source: item.source,
+                  title: item.title,
+                  artists: item.artists,
+                  thumbnailUrl: item.thumbnailUrl,
+                  explicit: item.explicit,
+                  album: item.album,
+                  durationSecs: item.durationSecs,
+                ),
+              )
+              .toList() ??
+          const <GenericSong>[];
+      final queueTracks = tracks.isNotEmpty
+          ? tracks
+          : (await context.read<SpotifyInternalProvider>().getPlaylistInfo(
+                resolvedItem.id,
+              )).songs
+                  ?.map(
+                    (item) => GenericSong(
+                      id: item.id,
+                      source: item.source,
+                      title: item.title,
+                      artists: item.artists,
+                      thumbnailUrl: item.thumbnailUrl,
+                      explicit: item.explicit,
+                      album: item.album,
+                      durationSecs: item.durationSecs,
+                    ),
+                  )
+                  .toList() ??
+              const <GenericSong>[];
+      if (queueTracks.isEmpty || !mounted) return;
+      await context.read<ConnectSessionProvider>().requestSetQueue(
+            queueTracks,
+            startIndex: 0,
+            play: true,
+            contextType: 'playlist',
+            contextName: resolvedItem.title,
+            contextID: resolvedItem.id,
+            contextSource: resolvedItem.source,
+          );
+      if (!mounted) return;
+      context.read<LibraryFolderState>().markPlaylistPlayed(resolvedItem.id);
+      return;
+    }
+
+    if (resolvedItem is GenericAlbum || resolvedItem is GenericSimpleAlbum) {
+      final albumId = resolvedItem.id as String;
+      final fullAlbum = await context.read<SpotifyInternalProvider>().getAlbumInfo(
+            albumId,
+          );
+      final tracks = fullAlbum.songs ?? const <GenericSong>[];
+      if (tracks.isEmpty || !mounted) return;
+      await context.read<ConnectSessionProvider>().requestSetQueue(
+            tracks,
+            startIndex: 0,
+            play: true,
+            contextType: 'album',
+            contextName: fullAlbum.title,
+            contextID: fullAlbum.id,
+            contextSource: fullAlbum.source,
+          );
+      return;
+    }
+
+    if (resolvedItem is GenericSimpleArtist) {
+      final artist = await context.read<SpotifyInternalProvider>().getArtistInfo(
+            resolvedItem.id,
+          );
+      final tracks = artist.topSongs;
+      if (tracks.isEmpty || !mounted) return;
+      await context.read<ConnectSessionProvider>().requestSetQueue(
+            tracks,
+            startIndex: 0,
+            play: true,
+            contextType: 'artist',
+            contextName: artist.name,
+            contextID: artist.id,
+            contextSource: artist.source,
+          );
+    }
   }
 
   @override
@@ -532,6 +624,9 @@ class _WispNavigationState extends State<WispNavigation> {
             return;
           }
           widget.onLibraryItemSelected(resolvedItem);
+        },
+        onDoubleTap: () {
+          _playSidebarItem(resolvedItem);
         },
         child: Container(
           decoration: BoxDecoration(

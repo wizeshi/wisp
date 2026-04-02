@@ -593,13 +593,6 @@ class LibraryTabViewState extends State<LibraryTabView> {
     }
   }
 
-  EdgeInsets _contentPadding(double padding) {
-    final isMobile = Platform.isAndroid || Platform.isIOS;
-    return isMobile
-        ? EdgeInsets.fromLTRB(padding, 0, padding, padding)
-        : EdgeInsets.all(padding);
-  }
-
   Widget _buildPlaylistsContent(double padding) {
     final folderState = context.watch<LibraryFolderState>();
     final isMobile = Platform.isAndroid || Platform.isIOS;
@@ -660,18 +653,22 @@ class LibraryTabViewState extends State<LibraryTabView> {
       child: ListView.builder(
         key: const ValueKey('playlists'),
         controller: _playlistScrollController,
-          padding: _contentPadding(padding),
+        padding: EdgeInsets.zero,
         itemCount:
             entries.length +
             (_hasMorePlaylists || _isLoadingPlaylists ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= entries.length) {
-            return _buildLoadingIndicator(_isLoadingPlaylists);
+            return _buildLoadingIndicator(
+              _isLoadingPlaylists,
+              horizontalPadding: padding,
+            );
           }
 
           final entry = entries[index];
           if (entry.type == _PlaylistListEntryType.unassignedHeader) {
             return _UnassignedHeader(
+              horizontalPadding: padding,
               enabled: allowDrag,
               onDrop: (playlistId) {
                 folderState.movePlaylistIntoFolder(playlistId, null);
@@ -682,6 +679,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
           if (entry.type == _PlaylistListEntryType.folder && entry.folder != null) {
             return _FolderListTile(
               folder: entry.folder!,
+              horizontalPadding: padding,
               playlists: _displayPlaylists,
               albums: _albums,
               artists: _artists,
@@ -705,6 +703,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
           if (isLiked) {
             return _PlaylistListTile(
               playlist: playlist,
+              horizontalPadding: padding,
               onTap: () => _openPlaylist(playlist),
               playlists: _displayPlaylists,
               albums: _albums,
@@ -715,6 +714,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
           }
           return _DraggablePlaylistTile(
             playlist: playlist,
+            horizontalPadding: padding,
             folderId: targetFolderId,
             enableDrag: allowDrag,
             playlists: _displayPlaylists,
@@ -747,17 +747,21 @@ class LibraryTabViewState extends State<LibraryTabView> {
       child: ListView.builder(
         key: const ValueKey('albums'),
         controller: _albumScrollController,
-          padding: _contentPadding(padding),
+        padding: EdgeInsets.zero,
         itemCount:
             _albums.length + (_hasMoreAlbums || _isLoadingAlbums ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= _albums.length) {
-            return _buildLoadingIndicator(_isLoadingAlbums);
+            return _buildLoadingIndicator(
+              _isLoadingAlbums,
+              horizontalPadding: padding,
+            );
           }
 
           final album = _albums[index];
           return _AlbumListTile(
             album: album,
+            horizontalPadding: padding,
             onTap: () => _openAlbum(album),
             playlists: _displayPlaylists,
             albums: _albums,
@@ -784,17 +788,21 @@ class LibraryTabViewState extends State<LibraryTabView> {
       child: ListView.builder(
         key: const ValueKey('artists'),
         controller: _artistScrollController,
-          padding: _contentPadding(padding),
+        padding: EdgeInsets.zero,
         itemCount:
             _artists.length + (_hasMoreArtists || _isLoadingArtists ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= _artists.length) {
-            return _buildLoadingIndicator(_isLoadingArtists);
+            return _buildLoadingIndicator(
+              _isLoadingArtists,
+              horizontalPadding: padding,
+            );
           }
 
           final artist = _artists[index];
           return _ArtistListTile(
             artist: artist,
+            horizontalPadding: padding,
             onTap: () => _openArtist(artist),
             playlists: _displayPlaylists,
             albums: _albums,
@@ -807,12 +815,15 @@ class LibraryTabViewState extends State<LibraryTabView> {
     );
   }
 
-  Widget _buildLoadingIndicator(bool isLoading) {
+  Widget _buildLoadingIndicator(
+    bool isLoading, {
+    double horizontalPadding = 0,
+  }) {
     if (!isLoading) return const SizedBox.shrink();
 
-    return const Padding(
-      padding: EdgeInsets.all(16),
-      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(horizontalPadding, 16, horizontalPadding, 16),
+      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
     );
   }
 
@@ -895,6 +906,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
 class _PlaylistListTile extends StatelessWidget {
   final GenericPlaylist playlist;
+  final double horizontalPadding;
   final VoidCallback onTap;
   final List<GenericPlaylist> playlists;
   final List<GenericAlbum> albums;
@@ -906,6 +918,7 @@ class _PlaylistListTile extends StatelessWidget {
 
   const _PlaylistListTile({
     required this.playlist,
+    required this.horizontalPadding,
     required this.onTap,
     required this.playlists,
     required this.albums,
@@ -941,7 +954,8 @@ class _PlaylistListTile extends StatelessWidget {
       child: ListTile(
         onTap: onTap,
         contentPadding:
-            contentPadding ?? const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+            contentPadding ??
+            EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 0),
         trailing: trailing,
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(4),
@@ -1016,15 +1030,25 @@ class _FolderDragData {
 }
 
 class _UnassignedHeader extends StatelessWidget {
+  final double horizontalPadding;
   final bool enabled;
   final ValueChanged<String> onDrop;
 
-  const _UnassignedHeader({required this.enabled, required this.onDrop});
+  const _UnassignedHeader({
+    required this.horizontalPadding,
+    required this.enabled,
+    required this.onDrop,
+  });
 
   @override
   Widget build(BuildContext context) {
     final child = Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 6),
+      padding: EdgeInsets.only(
+        left: horizontalPadding,
+        right: horizontalPadding,
+        top: 6,
+        bottom: 6,
+      ),
       child: Text(
         'UNASSIGNED',
         style: TextStyle(color: Colors.grey[500], fontSize: 10, fontWeight: FontWeight.bold),
@@ -1053,6 +1077,7 @@ class _UnassignedHeader extends StatelessWidget {
 
 class _FolderListTile extends StatefulWidget {
   final PlaylistFolder folder;
+  final double horizontalPadding;
   final List<GenericPlaylist> playlists;
   final List<GenericAlbum> albums;
   final List<GenericSimpleArtist> artists;
@@ -1065,6 +1090,7 @@ class _FolderListTile extends StatefulWidget {
 
   const _FolderListTile({
     required this.folder,
+    required this.horizontalPadding,
     required this.playlists,
     required this.albums,
     required this.artists,
@@ -1110,7 +1136,10 @@ class _FolderListTileState extends State<_FolderListTile> {
         onTap: () {
           folderState.toggleFolderCollapsed(widget.folder.id);
         },
-        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: widget.horizontalPadding,
+          vertical: 4,
+        ),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: SizedBox(
@@ -1220,6 +1249,7 @@ class _FolderListTileState extends State<_FolderListTile> {
 
 class _DraggablePlaylistTile extends StatelessWidget {
   final GenericPlaylist playlist;
+  final double horizontalPadding;
   final String? folderId;
   final bool enableDrag;
   final List<GenericPlaylist> playlists;
@@ -1232,6 +1262,7 @@ class _DraggablePlaylistTile extends StatelessWidget {
 
   const _DraggablePlaylistTile({
     required this.playlist,
+    required this.horizontalPadding,
     required this.folderId,
     required this.enableDrag,
     required this.playlists,
@@ -1248,6 +1279,7 @@ class _DraggablePlaylistTile extends StatelessWidget {
     final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     Widget tile = _PlaylistListTile(
       playlist: playlist,
+      horizontalPadding: horizontalPadding,
       onTap: onTap,
       playlists: playlists,
       albums: albums,
@@ -1258,8 +1290,8 @@ class _DraggablePlaylistTile extends StatelessWidget {
           ? const Icon(Icons.drag_handle, color: Colors.grey)
           : null,
       contentPadding: EdgeInsets.only(
-        left: folderId != null ? 20 : 0,
-        right: 0,
+        left: horizontalPadding + (folderId != null ? 20 : 0),
+        right: horizontalPadding,
         top: 4,
         bottom: 4,
       ),
@@ -1339,6 +1371,7 @@ class _DragFeedback extends StatelessWidget {
 
 class _AlbumListTile extends StatelessWidget {
   final GenericAlbum album;
+  final double horizontalPadding;
   final VoidCallback onTap;
   final List<GenericPlaylist> playlists;
   final List<GenericAlbum> albums;
@@ -1348,6 +1381,7 @@ class _AlbumListTile extends StatelessWidget {
 
   const _AlbumListTile({
     required this.album,
+    required this.horizontalPadding,
     required this.onTap,
     required this.playlists,
     required this.albums,
@@ -1380,7 +1414,10 @@ class _AlbumListTile extends StatelessWidget {
             },
       child: ListTile(
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 4,
+        ),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: SizedBox(
@@ -1425,6 +1462,7 @@ class _AlbumListTile extends StatelessWidget {
 
 class _ArtistListTile extends StatelessWidget {
   final GenericSimpleArtist artist;
+  final double horizontalPadding;
   final VoidCallback onTap;
   final List<GenericPlaylist> playlists;
   final List<GenericAlbum> albums;
@@ -1434,6 +1472,7 @@ class _ArtistListTile extends StatelessWidget {
 
   const _ArtistListTile({
     required this.artist,
+    required this.horizontalPadding,
     required this.onTap,
     required this.playlists,
     required this.albums,
@@ -1466,7 +1505,10 @@ class _ArtistListTile extends StatelessWidget {
             },
       child: ListTile(
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 4,
+        ),
         leading: ClipOval(
           child: SizedBox(
             width: 56,
