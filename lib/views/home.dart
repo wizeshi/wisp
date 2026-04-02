@@ -987,7 +987,7 @@ class HomePageState extends State<HomePage> {
 
   Widget _buildContentArea() {
     final viewWidth = MediaQuery.sizeOf(context).width;
-    const minWidthForSpecialCard = 1200.0;
+    const minWidthForSpecialCard = 1600.0;
     final canShowSpecialCard = viewWidth >= minWidthForSpecialCard;
 
     final quickRows = _buildDesktopQuickRows();
