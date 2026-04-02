@@ -562,7 +562,7 @@ class _LyricsViewState extends State<LyricsView> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh, size: 18),
-            color: Colors.grey[400],
+            color: Colors.white,
             tooltip: 'Reset Delay',
             onPressed: _resetDelay,
           ),
@@ -586,7 +586,7 @@ class _LyricsViewState extends State<LyricsView> {
               }
             },
             borderRadius: BorderRadius.circular(8),
-            color: Colors.grey[400],
+            color: Colors.white,
             selectedColor: Colors.white,
             fillColor: Colors.black.withOpacity(0.1),
             constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
@@ -659,7 +659,7 @@ class _LyricsViewState extends State<LyricsView> {
         );
       },
       borderRadius: BorderRadius.circular(8),
-      color: Colors.grey[400],
+      color: Colors.white,
       disabledColor: Colors.grey[600],
       disabledBorderColor: Colors.grey[700],
       selectedColor: Colors.white,
