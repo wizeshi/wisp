@@ -101,7 +101,10 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     if (artist == null) {
       return const SizedBox.shrink();
     }
-    return _MobileArtistInfoCard(artist: artist);
+    return _MobileArtistInfoCard(
+      artist: artist,
+      trackId: currentTrack?.id as String?,
+    );
   }
 
   Widget _buildHeader(BuildContext context) {
@@ -196,7 +199,6 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                   if (currentTrack == null) return;
                   final libraryState = context.read<LibraryState>();
                   final navState = context.read<NavigationState>();
-                  
                 },
               ),
             ),
@@ -1481,8 +1483,8 @@ class _CanvasVideoState extends State<_CanvasVideo> {
     final linkedShouldPlay = context.select<ConnectSessionProvider, bool>(
       (connect) => connect.linkedIsPlaying,
     );
-    final localShouldPlay =
-        context.select<global_audio_player.WispAudioHandler, bool>(
+    final localShouldPlay = context
+        .select<global_audio_player.WispAudioHandler, bool>(
           (player) => player.isPlaying,
         );
     final shouldPlay = useLinkedState ? linkedShouldPlay : localShouldPlay;
@@ -2635,7 +2637,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         final spotifyInternal = context.read<SpotifyInternalProvider>();
 
         return FutureBuilder<GenericArtist?>(
-          future: _getArtistInfoFuture(spotifyInternal, selectedArtist),
+          future: _getArtistInfoFuture(
+            spotifyInternal,
+            selectedArtist,
+            track.id,
+          ),
           builder: (context, snapshot) {
             final artist = snapshot.data;
             final artistImage = (artist?.thumbnailUrl.isNotEmpty == true)
@@ -2770,12 +2776,16 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   Future<GenericArtist?> _loadArtistInfo(
     SpotifyInternalProvider spotifyInternal,
     GenericSimpleArtist artist,
+    String? trackId,
   ) async {
     if (artist.source != SongSource.spotifyInternal &&
         artist.source != SongSource.spotify) {
       return null;
     }
     try {
+      if (trackId != null && trackId.isNotEmpty) {
+        return await spotifyInternal.getNpvArtistInfo(artist.id, trackId);
+      }
       return await spotifyInternal.getArtistInfo(artist.id);
     } catch (_) {
       return null;
@@ -2785,11 +2795,15 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   Future<GenericArtist?> _getArtistInfoFuture(
     SpotifyInternalProvider spotifyInternal,
     GenericSimpleArtist artist,
+    String? trackId,
   ) {
-    final cacheKey = '${artist.source.name}:${artist.id}';
+    final normalizedTrackId = (trackId == null || trackId.isEmpty)
+        ? 'none'
+        : trackId;
+    final cacheKey = '${artist.source.name}:${artist.id}:$normalizedTrackId';
     return _artistInfoFutureCache.putIfAbsent(
       cacheKey,
-      () => _loadArtistInfo(spotifyInternal, artist),
+      () => _loadArtistInfo(spotifyInternal, artist, trackId),
     );
   }
 
@@ -3001,7 +3015,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   if (currentTrack == null) return;
                   final libraryState = context.read<LibraryState>();
                   final navState = context.read<NavigationState>();
-                  
                 },
               ),
             ),
@@ -4657,8 +4670,9 @@ class _CoverGradientContainer extends StatelessWidget {
 
 class _MobileArtistInfoCard extends StatefulWidget {
   final GenericSimpleArtist artist;
+  final String? trackId;
 
-  const _MobileArtistInfoCard({required this.artist});
+  const _MobileArtistInfoCard({required this.artist, this.trackId});
 
   @override
   State<_MobileArtistInfoCard> createState() => _MobileArtistInfoCardState();
@@ -4667,13 +4681,19 @@ class _MobileArtistInfoCard extends StatefulWidget {
 class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
   Future<GenericArtist?>? _artistFuture;
   String? _artistId;
+  String? _trackId;
 
   @override
   Widget build(BuildContext context) {
-    if (_artistId != widget.artist.id) {
+    if (_artistId != widget.artist.id || _trackId != widget.trackId) {
       _artistId = widget.artist.id;
+      _trackId = widget.trackId;
       final spotifyInternal = context.read<SpotifyInternalProvider>();
-      _artistFuture = _loadArtist(spotifyInternal, widget.artist);
+      _artistFuture = _loadArtist(
+        spotifyInternal,
+        widget.artist,
+        widget.trackId,
+      );
     }
 
     return FutureBuilder<GenericArtist?>(
@@ -4829,8 +4849,12 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
   Future<GenericArtist?> _loadArtist(
     SpotifyInternalProvider spotify,
     GenericSimpleArtist artist,
+    String? trackId,
   ) async {
     try {
+      if (trackId != null && trackId.isNotEmpty) {
+        return await spotify.getNpvArtistInfo(artist.id, trackId);
+      }
       return await spotify.getArtistInfo(artist.id);
     } catch (_) {
       return null;

@@ -71,7 +71,9 @@ class _RightSidebarState extends State<RightSidebar> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _NowPlayingCard(showHoverControls: _isHoveringSidebar),
+                          _NowPlayingCard(
+                            showHoverControls: _isHoveringSidebar,
+                          ),
                           const Padding(
                             padding: EdgeInsets.all(16),
                             child: Column(
@@ -275,7 +277,9 @@ class _NowPlayingCard extends StatelessWidget {
                                   minHeight: 28,
                                 ),
                                 onPressed: () {
-                                  context.read<NavigationState>().toggleRightSidebar();
+                                  context
+                                      .read<NavigationState>()
+                                      .toggleRightSidebar();
                                 },
                               ),
                             ),
@@ -344,19 +348,31 @@ class _NowPlayingCard extends StatelessWidget {
                                 onPressed: track == null
                                     ? null
                                     : () async {
-                                  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-                                  final box = buttonContext.findRenderObject() as RenderBox?;
-                                  if (box == null) return;
-                                  final rect = Rect.fromPoints(
-                                    box.localToGlobal(Offset.zero, ancestor: overlay),
-                                    box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
-                                  );
-                                  await EntityContextMenus.showTrackMenu(
-                                    context,
-                                    track: track,
-                                    anchorRect: rect,
-                                  );
-                                },
+                                        final overlay =
+                                            Overlay.of(
+                                                  context,
+                                                ).context.findRenderObject()
+                                                as RenderBox;
+                                        final box =
+                                            buttonContext.findRenderObject()
+                                                as RenderBox?;
+                                        if (box == null) return;
+                                        final rect = Rect.fromPoints(
+                                          box.localToGlobal(
+                                            Offset.zero,
+                                            ancestor: overlay,
+                                          ),
+                                          box.localToGlobal(
+                                            box.size.bottomRight(Offset.zero),
+                                            ancestor: overlay,
+                                          ),
+                                        );
+                                        await EntityContextMenus.showTrackMenu(
+                                          context,
+                                          track: track,
+                                          anchorRect: rect,
+                                        );
+                                      },
                               );
                             },
                           ),
@@ -425,7 +441,8 @@ class _NowPlayingCard extends StatelessWidget {
                                           EntityContextMenus.showArtistMenu(
                                             context,
                                             artist: artist,
-                                            globalPosition: details.globalPosition,
+                                            globalPosition:
+                                                details.globalPosition,
                                           );
                                         },
                                         builder: (isHovering) => Text(
@@ -632,9 +649,10 @@ class _NowPlayingCard extends StatelessWidget {
     }
 
     if (contextType == 'album') {
-      final album = libraryState.albums
-          .cast<GenericAlbum?>()
-          .firstWhere((item) => item?.id == contextId, orElse: () => null);
+      final album = libraryState.albums.cast<GenericAlbum?>().firstWhere(
+        (item) => item?.id == contextId,
+        orElse: () => null,
+      );
       if (album != null) {
         EntityContextMenus.showAlbumMenu(
           context,
@@ -1147,6 +1165,7 @@ class _ArtistInfoCard extends StatefulWidget {
 class _ArtistInfoCardState extends State<_ArtistInfoCard> {
   Future<GenericArtist?>? _artistFuture;
   String? _artistId;
+  String? _trackId;
   bool _wasAuthenticated = false;
 
   @override
@@ -1154,17 +1173,20 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
     return Consumer2<WispAudioHandler, SpotifyInternalProvider>(
       builder: (context, player, spotifyInternal, child) {
         final track = player.currentTrack;
-        final artist =
-            track?.artists.isNotEmpty == true ? track!.artists.first : null;
+        final artist = track?.artists.isNotEmpty == true
+            ? track!.artists.first
+            : null;
 
         final shouldRefetch =
             artist != null &&
             (artist.id != _artistId ||
+                track?.id != _trackId ||
                 (spotifyInternal.isAuthenticated && !_wasAuthenticated));
 
         if (shouldRefetch) {
           _artistId = artist.id;
-          _artistFuture = _loadArtist(spotifyInternal, artist);
+          _trackId = track?.id;
+          _artistFuture = _loadArtist(spotifyInternal, artist, track?.id ?? '');
         }
 
         _wasAuthenticated = spotifyInternal.isAuthenticated;
@@ -1279,7 +1301,9 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                           isLoading
                               ? 'Loading artist info…'
                               : data == null
-                                  ? 'Artist info unavailable'
+                              ? 'Artist info unavailable'
+                              : data.monthlyListeners != null
+                                  ? '${_formatNumber(data.monthlyListeners!)} monthly listeners'
                                   : '${_formatNumber(data.followers)} followers',
                           style: TextStyle(
                             color: Colors.grey[400],
@@ -1288,11 +1312,9 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                         ),
                         if (data != null) ...[
                           if (data.description != null) ...[
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 6),
                             Text(
-                              data.description!.isNotEmpty ?
-                                'Top tracks: ${data.topSongs.take(3).map((s) => s.title).join(' • ')}'
-                                : data.description!,
+                              data.description!,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -1300,7 +1322,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                                 fontSize: 12,
                               ),
                             ),
-                          ]
+                          ],
                         ],
                       ],
                     ),
@@ -1317,6 +1339,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
   Future<GenericArtist?> _loadArtist(
     SpotifyInternalProvider spotifyInternal,
     GenericSimpleArtist artist,
+    String trackId,
   ) async {
     /* final cached = await spotifyInternal.getCachedArtistInfo(artist.id);
     if (cached != null) return cached; */
@@ -1327,7 +1350,10 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
       if (!spotifyInternal.isAuthenticated) {
         return null;
       }
-      return await spotifyInternal.getArtistInfo(artist.id);
+      if (trackId.isEmpty) {
+        return await spotifyInternal.getArtistInfo(artist.id);
+      }
+      return await spotifyInternal.getNpvArtistInfo(artist.id, trackId);
     } catch (_) {
       /* return cached; */
     }
@@ -1457,7 +1483,11 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                             style: TextStyle(color: Colors.grey, fontSize: 13),
                           )
                         else
-                          Selector2<WispAudioHandler, ConnectSessionProvider, int>(
+                          Selector2<
+                            WispAudioHandler,
+                            ConnectSessionProvider,
+                            int
+                          >(
                             selector: (context, player, connect) {
                               final useHandoffState =
                                   connect.isLinked && connect.isHost;
@@ -1506,14 +1536,18 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                               mini: true,
                               mouseCursor: SystemMouseCursors.click,
                               backgroundColor: btnColor,
-                              foregroundColor:
-                                  Theme.of(context).colorScheme.onPrimary,
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.onPrimary,
                               onPressed: lyrics == null
                                   ? null
                                   : () {
                                       _openLyrics(context);
                                     },
-                              child: const Icon(Icons.lyrics_outlined, size: 18),
+                              child: const Icon(
+                                Icons.lyrics_outlined,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),

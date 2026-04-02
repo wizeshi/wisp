@@ -1,10 +1,10 @@
 // New implementation of the Spotify provider.
 // This one uses Spotify's internal API, since the SDK is unusable as of March 9th, 2026.
-// This one is more flexible, faster and more reliable than the old one, 
+// This one is more flexible, faster and more reliable than the old one,
 // but it also requires more work to implement.
 // This one requires the user to log in to their Spotify account in-app (through a webview),
 // instead of opening the browser, which is a bit of a hassle, but we need it to
-// get the proper cookies, to then fetch tokens to access the internal API. 
+// get the proper cookies, to then fetch tokens to access the internal API.
 
 import 'dart:async';
 import 'dart:convert';
@@ -151,15 +151,21 @@ class SpotifyInternalProvider extends MetadataProvider {
     clearError();
 
     try {
-      final result = await Navigator.of(context).push<Map<String, String>>(MaterialPageRoute(
-        builder: (_) => const SpotifyWebview(initialUrl: 'https://accounts.spotify.com/en/login'),
-        fullscreenDialog: true,
-      ));
+      final result = await Navigator.of(context).push<Map<String, String>>(
+        MaterialPageRoute(
+          builder: (_) => const SpotifyWebview(
+            initialUrl: 'https://accounts.spotify.com/en/login',
+          ),
+          fullscreenDialog: true,
+        ),
+      );
 
       if (result != null && result.isNotEmpty) {
         await _credentialsService.saveSpotifyCookies(result);
-        
-        final fullCookieString = result.entries.map((e) => '${e.key}=${e.value}').join('; ');
+
+        final fullCookieString = result.entries
+            .map((e) => '${e.key}=${e.value}')
+            .join('; ');
         // We are re-purposing the lyrics cookie storage for the full cookie string for now.
         await _credentialsService.saveSpotifyLyricsCookie(fullCookieString);
 
@@ -174,7 +180,9 @@ class SpotifyInternalProvider extends MetadataProvider {
           }
         }
       } else {
-        throw StateError('[Metadata/Spotify-Internal] User cancelled or no cookies found');
+        throw StateError(
+          '[Metadata/Spotify-Internal] User cancelled or no cookies found',
+        );
       }
 
       _isAuthenticated = true;
@@ -259,7 +267,9 @@ class SpotifyInternalProvider extends MetadataProvider {
         try {
           await _acquireTokensFromCookie(cookie);
           await _syncAudioSessionContext(cookie: cookie);
-          logger.d('[Metadata/Spotify-Internal] Token exchange successful, user is authenticated.');
+          logger.d(
+            '[Metadata/Spotify-Internal] Token exchange successful, user is authenticated.',
+          );
           _isAuthenticated = true;
           _lastAuthInitFailed = false;
           _startupAuthRetryCount = 0;
@@ -280,14 +290,20 @@ class SpotifyInternalProvider extends MetadataProvider {
         _lastAuthInitFailed = true;
       }
 
-      logger.d('[Metadata/Spotify-Internal] Initial auth state: $_isAuthenticated');
+      logger.d(
+        '[Metadata/Spotify-Internal] Initial auth state: $_isAuthenticated',
+      );
       if (_isAuthenticated) {
         await ensureLikedTracksLoaded();
       }
       notifyListeners();
     } catch (e) {
-      logger.e('[Metadata/Spotify-Internal] Failed to initialize auth state', error: e);
-      _errorMessage = '[Metadata/Spotify-Internal] Failed to initialize auth state: $e';
+      logger.e(
+        '[Metadata/Spotify-Internal] Failed to initialize auth state',
+        error: e,
+      );
+      _errorMessage =
+          '[Metadata/Spotify-Internal] Failed to initialize auth state: $e';
       _lastAuthInitFailed = true;
       notifyListeners();
     }
@@ -354,11 +370,15 @@ class SpotifyInternalProvider extends MetadataProvider {
       final ms = accessJson['accessTokenExpirationTimestampMs'] as int;
       expiresAt = DateTime.fromMillisecondsSinceEpoch(ms);
     } else if (accessJson['expiresIn'] != null) {
-      expiresAt = DateTime.now().add(Duration(seconds: accessJson['expiresIn'] as int));
+      expiresAt = DateTime.now().add(
+        Duration(seconds: accessJson['expiresIn'] as int),
+      );
     }
 
     if (accessToken == null || clientId == null) {
-      throw StateError('[Metadata/Spotify-Internal] Invalid access token response');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Invalid access token response',
+      );
     }
 
     _bearerToken = accessToken;
@@ -418,13 +438,18 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
 
     if (clientTokenResponse.statusCode != 200) {
-      throw StateError('[Metadata/Spotify-Internal] Spotify client token request failed: ${clientTokenResponse.statusCode}');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Spotify client token request failed: ${clientTokenResponse.statusCode}',
+      );
     }
 
-    final clientJson = jsonDecode(clientTokenResponse.body) as Map<String, dynamic>;
+    final clientJson =
+        jsonDecode(clientTokenResponse.body) as Map<String, dynamic>;
     final responseType = clientJson['response_type'] as String?;
     if (responseType == 'RESPONSE_GRANTED_TOKEN_RESPONSE') {
-      final grantedToken = (clientJson['granted_token'] as Map<String, dynamic>?)?['token'] as String?;
+      final grantedToken =
+          (clientJson['granted_token'] as Map<String, dynamic>?)?['token']
+              as String?;
       _clientToken = grantedToken;
     }
 
@@ -442,13 +467,16 @@ class SpotifyInternalProvider extends MetadataProvider {
     if (_bearerToken != null && _clientToken != null) return;
     final cookie = await _credentialsService.getSpotifyLyricsCookie();
     if (cookie == null || cookie.isEmpty) {
-      throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+      );
     }
     await _acquireTokensFromCookie(cookie);
   }
 
   Future<void> _syncAudioSessionContext({required String cookie}) async {
-    final spotifyAudioEnabled = await PreferencesProvider.isAudioSpotifyEnabled();
+    final spotifyAudioEnabled =
+        await PreferencesProvider.isAudioSpotifyEnabled();
     if (!spotifyAudioEnabled) {
       await SpotifyAudioKeySessionManager.instance.clear();
       return;
@@ -493,10 +521,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       }
     }
     await _ensureTokens();
-    final response = await _makeWebApiRequestWithBody(
-      '/me',
-      method: 'GET',
-    );
+    final response = await _makeWebApiRequestWithBody('/me', method: 'GET');
     if (response.statusCode != 200) {
       throw Exception(
         '[Metadata/Spotify-Internal] Failed to fetch user profile: '
@@ -510,10 +535,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       await _writeCacheEntry(
         type: 'profile',
         id: 'me',
-        payload: {
-          'userId': _userId,
-          'displayName': _userDisplayName,
-        },
+        payload: {'userId': _userId, 'displayName': _userDisplayName},
       );
     }
   }
@@ -536,27 +558,30 @@ class SpotifyInternalProvider extends MetadataProvider {
       final client = _createSpotifyHttpClient();
       try {
         final response = await client.post(url, headers: headers, body: body);
-        
-        if (response.statusCode == 429 || (response.statusCode >= 500 && response.statusCode <= 504)) {
+
+        if (response.statusCode == 429 ||
+            (response.statusCode >= 500 && response.statusCode <= 504)) {
           if (retryCount >= maxRetries) {
             return response;
           }
-          
+
           retryCount++;
           var waitTime = backoffSeconds;
-          
+
           final retryAfter = response.headers['retry-after'];
           if (retryAfter != null) {
             waitTime = int.tryParse(retryAfter) ?? backoffSeconds;
           }
-          
-          logger.w('[Metadata/Spotify-Internal] Got ${response.statusCode} for $url, retrying in $waitTime seconds (Attempt $retryCount of $maxRetries)');
+
+          logger.w(
+            '[Metadata/Spotify-Internal] Got ${response.statusCode} for $url, retrying in $waitTime seconds (Attempt $retryCount of $maxRetries)',
+          );
           await Future.delayed(Duration(seconds: waitTime));
-          
+
           backoffSeconds *= 2;
           continue;
         }
-        
+
         return response;
       } finally {
         client.close();
@@ -754,9 +779,7 @@ class SpotifyInternalProvider extends MetadataProvider {
             type: type,
             id: id,
             pageKey: pageKey,
-            payload: {
-              'items': fresh.map(itemToJson).toList(),
-            },
+            payload: {'items': fresh.map(itemToJson).toList()},
           );
           return fresh;
         } catch (_) {
@@ -771,9 +794,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         type: type,
         id: id,
         pageKey: pageKey,
-        payload: {
-          'items': fresh.map(itemToJson).toList(),
-        },
+        payload: {'items': fresh.map(itemToJson).toList()},
       );
       return fresh;
     } catch (e) {
@@ -800,13 +821,17 @@ class SpotifyInternalProvider extends MetadataProvider {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     if (!_isAuthenticated) {
-      throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
     }
 
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
       if (cookie == null || cookie.isEmpty) {
-        throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+        );
       }
       await _acquireTokensFromCookie(cookie);
     }
@@ -815,7 +840,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     if (policy == MetadataFetchPolicy.cacheFirst && cached != null) {
       return spotifyInternalHomeToGeneric(cached.payload);
     }
-    if (policy == MetadataFetchPolicy.refreshIfExpired && cached != null && !cached.isExpired) {
+    if (policy == MetadataFetchPolicy.refreshIfExpired &&
+        cached != null &&
+        !cached.isExpired) {
       return spotifyInternalHomeToGeneric(cached.payload);
     }
 
@@ -838,9 +865,10 @@ class SpotifyInternalProvider extends MetadataProvider {
       'extensions': {
         'persistedQuery': {
           'version': 1,
-          'sha256Hash': '66aedae92842f23d5254ba3371f4f7def0bf00342d0cbe3fea3de198d9414a60',
-        }
-      }
+          'sha256Hash':
+              '66aedae92842f23d5254ba3371f4f7def0bf00342d0cbe3fea3de198d9414a60',
+        },
+      },
     };
 
     final headers = {
@@ -875,9 +903,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
 
     final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
-    
+
     await _writeCacheEntry(type: 'home', id: 'home', payload: jsonResponse);
-    
+
     return spotifyInternalHomeToGeneric(jsonResponse);
   }
 
@@ -915,12 +943,14 @@ class SpotifyInternalProvider extends MetadataProvider {
   }) async {
     final library = await getUserLibrary(policy: policy);
     final items = library.saved_artists
-        .map((artist) => GenericSimpleArtist(
-              id: artist.id,
-              source: artist.source,
-              name: artist.name,
-              thumbnailUrl: artist.thumbnailUrl,
-            ))
+        .map(
+          (artist) => GenericSimpleArtist(
+            id: artist.id,
+            source: artist.source,
+            name: artist.name,
+            thumbnailUrl: artist.thumbnailUrl,
+          ),
+        )
         .toList();
 
     var start = 0;
@@ -936,11 +966,11 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   @override
   Future<GenericPlaylist> getPlaylistInfo(
-      String playlistId, {
-        int offset = 0,
-        int limit = 50,
-        MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
-      }) async {
+    String playlistId, {
+    int offset = 0,
+    int limit = 50,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
     final pageKey = 'offset_${offset}_limit_$limit';
     return _getWithCache(
       type: 'playlist',
@@ -949,13 +979,17 @@ class SpotifyInternalProvider extends MetadataProvider {
       policy: policy,
       fetcher: () async {
         if (!_isAuthenticated) {
-          throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+          throw StateError(
+            '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+          );
         }
 
         if (_bearerToken == null || _clientToken == null) {
           final cookie = await _credentialsService.getSpotifyLyricsCookie();
           if (cookie == null || cookie.isEmpty) {
-            throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
+            throw StateError(
+              '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+            );
           }
           await _acquireTokensFromCookie(cookie);
         }
@@ -987,9 +1021,10 @@ class SpotifyInternalProvider extends MetadataProvider {
           "extensions": {
             "persistedQuery": {
               "version": 1,
-              "sha256Hash": "346811f856fb0b7e4f6c59f8ebea78dd081c6e2fb01b77c954b26259d5fc6763"
-            }
-          }
+              "sha256Hash":
+                  "346811f856fb0b7e4f6c59f8ebea78dd081c6e2fb01b77c954b26259d5fc6763",
+            },
+          },
         };
 
         final response = await _postWithRetry(
@@ -1043,12 +1078,12 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   @override
   Future<GenericAlbum> getAlbumInfo(
-      String albumId, {
-        int offset = 0,
-        int limit = 50,
-        String locale = "",
-        MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
-      }) async {
+    String albumId, {
+    int offset = 0,
+    int limit = 50,
+    String locale = "",
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
     final pageKey = 'offset_${offset}_limit_$limit';
     return _getWithCache(
       type: 'album',
@@ -1057,13 +1092,17 @@ class SpotifyInternalProvider extends MetadataProvider {
       policy: policy,
       fetcher: () async {
         if (!_isAuthenticated) {
-          throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+          throw StateError(
+            '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+          );
         }
 
         if (_bearerToken == null || _clientToken == null) {
           final cookie = await _credentialsService.getSpotifyLyricsCookie();
           if (cookie == null || cookie.isEmpty) {
-            throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
+            throw StateError(
+              '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+            );
           }
           await _acquireTokensFromCookie(cookie);
         }
@@ -1074,36 +1113,39 @@ class SpotifyInternalProvider extends MetadataProvider {
             "uri": "spotify:album:$albumId",
             "locale": locale,
             "offset": offset,
-            "limit": limit
+            "limit": limit,
           },
           "operationName": "getAlbum",
           "extensions": {
             "persistedQuery": {
               "version": 1,
-              "sha256Hash": "b9bfabef66ed756e5e13f68a942deb60bd4125ec1f1be8cc42769dc0259b4b10"
-            }
-          }
+              "sha256Hash":
+                  "b9bfabef66ed756e5e13f68a942deb60bd4125ec1f1be8cc42769dc0259b4b10",
+            },
+          },
         };
 
         final response = await _postWithRetry(
           Uri.parse(url),
           headers: {
             'Authorization': 'Bearer $_bearerToken',
-             'client-token': _clientToken!,
-             'Content-Type': 'application/json',
-             'Accept': 'application/json',
-             'User-Agent': _spotifyUserAgent,
-             'Origin': 'https://open.spotify.com',
-             'Referer': 'https://open.spotify.com/',
-             'app-platform': 'WebPlayer',
-             'spotify-app-version': _spotifyAppVersion,
-             'Accept-Language': 'en',
+            'client-token': _clientToken!,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': _spotifyUserAgent,
+            'Origin': 'https://open.spotify.com',
+            'Referer': 'https://open.spotify.com/',
+            'app-platform': 'WebPlayer',
+            'spotify-app-version': _spotifyAppVersion,
+            'Accept-Language': 'en',
           },
           body: jsonEncode(body),
         );
 
         if (response.statusCode != 200) {
-          throw Exception('[Metadata/Spotify-Internal] Failed to fetch album info: ${response.statusCode} ${response.body}');
+          throw Exception(
+            '[Metadata/Spotify-Internal] Failed to fetch album info: ${response.statusCode} ${response.body}',
+          );
         }
 
         final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1136,10 +1178,10 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   @override
   Future<GenericArtist> getArtistInfo(
-      String artistId, {
-        String locale = "",
-        MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
-      }) async {
+    String artistId, {
+    String locale = "",
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
     return _getWithCache(
       type: 'artist',
       id: artistId,
@@ -1161,27 +1203,34 @@ class SpotifyInternalProvider extends MetadataProvider {
           artistId = artistId.split(":").last;
         }
 
-        logger.d("[Metadata/Spotify-Internal] Getting artist info for $artistId");
+        logger.d(
+          "[Metadata/Spotify-Internal] Getting artist info for $artistId",
+        );
 
         const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
         final body = {
           "variables": {
             "uri": "spotify:artist:$artistId",
             "locale": "intl-pt",
-            "preReleaseV2": false
+            "preReleaseV2": false,
           },
           "operationName": "queryArtistOverview",
           "extensions": {
             "persistedQuery": {
               "version": 1,
-              "sha256Hash": "5b9e64f43843fa3a9b6a98543600299b0a2cbbbccfdcdcef2402eb9c1017ca4c"
-            }
-          }
+              "sha256Hash":
+                  "5b9e64f43843fa3a9b6a98543600299b0a2cbbbccfdcdcef2402eb9c1017ca4c",
+            },
+          },
         };
 
-        logger.d("[Metadata/Spotify-Internal] Sending request to Spotify internal API for artist $artistId");
+        logger.d(
+          "[Metadata/Spotify-Internal] Sending request to Spotify internal API for artist $artistId",
+        );
 
-        logger.d("[Metadata/Spotify-Internal] Bearer Token Length: ${_bearerToken?.length ?? 0}");
+        logger.d(
+          "[Metadata/Spotify-Internal] Bearer Token Length: ${_bearerToken?.length ?? 0}",
+        );
 
         final response = await _postWithRetry(
           Uri.parse(url),
@@ -1204,13 +1253,108 @@ class SpotifyInternalProvider extends MetadataProvider {
         );
 
         if (response.statusCode != 200) {
-          throw Exception('[Metadata/Spotify-Internal] Failed to fetch artist info: ${response.statusCode} ${response.body}');
+          throw Exception(
+            '[Metadata/Spotify-Internal] Failed to fetch artist info: ${response.statusCode} ${response.body}',
+          );
         }
 
         final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
         final genericArtist = spotifyInternalFullArtistToGeneric(jsonResponse);
 
         logger.d("[Metadata/Spotify-Internal] Got artist info for $artistId");
+
+        return genericArtist;
+      },
+      toJson: (artist) => artist.toJson(),
+      fromJson: GenericArtist.fromJson,
+    );
+  }
+
+  Future<GenericArtist> getNpvArtistInfo(
+    String artistId,
+    String trackId, {
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    final normalizedArtistId = artistId.startsWith('spotify:artist:')
+        ? artistId.split(':').last
+        : artistId;
+    final normalizedTrackId = trackId.startsWith('spotify:track:')
+        ? trackId.split(':').last
+        : trackId;
+
+    return _getWithCache(
+      type: 'artist_npv',
+      id: '$normalizedArtistId:$normalizedTrackId',
+      policy: policy,
+      fetcher: () async {
+        if (!_isAuthenticated) {
+          throw StateError('Not authenticated. Please log in.');
+        }
+
+        if (_bearerToken == null || _clientToken == null) {
+          final cookie = await _credentialsService.getSpotifyLyricsCookie();
+          if (cookie == null || cookie.isEmpty) {
+            throw StateError('Not logged in. No Spotify cookie found.');
+          }
+          await _acquireTokensFromCookie(cookie);
+        }
+
+        logger.d(
+          '[Metadata/Spotify-Internal] Getting NPV artist info for '
+          '$normalizedArtistId with track $normalizedTrackId',
+        );
+
+        const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
+        final body = {
+          'variables': {
+            'artistUri': 'spotify:artist:$normalizedArtistId',
+            'trackUri': 'spotify:track:$normalizedTrackId',
+            'contributorsLimit': 10,
+            'contributorsOffset': 0,
+            'enableRelatedVideos': true,
+            'enableRelatedAudioTracks': true,
+          },
+          'operationName': 'queryNpvArtist',
+          'extensions': {
+            'persistedQuery': {
+              'version': 1,
+              'sha256Hash':
+                  '047c9c225967d41a763949a4db3f0493e901c9f8689a6537408aabf9beffc177',
+            },
+          },
+        };
+
+        final response = await _postWithRetry(
+          Uri.parse(url),
+          headers: {
+            'Accept-Language': 'en',
+            'App-Platform': 'WebPlayer',
+            'Authorization': 'Bearer $_bearerToken',
+            'Client-Token': _clientToken!,
+            'Content-Type': 'application/json;charset=UTF-8',
+            'Accept': 'application/json',
+            'User-Agent': _spotifyUserAgent,
+            'Origin': 'https://open.spotify.com',
+            'Referer': 'https://open.spotify.com/',
+            'Spotify-App-Version': _spotifyAppVersion,
+          },
+          body: jsonEncode(body),
+        );
+
+        if (response.statusCode != 200) {
+          throw Exception(
+            '[Metadata/Spotify-Internal] Failed to fetch NPV artist info: '
+            '${response.statusCode} ${response.body}',
+          );
+        }
+
+        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        final genericArtist = spotifyInternalFullArtistToGeneric(jsonResponse);
+
+        logger.d(
+          '[Metadata/Spotify-Internal] Got NPV artist info for '
+          '$normalizedArtistId',
+        );
 
         return genericArtist;
       },
@@ -1226,13 +1370,17 @@ class SpotifyInternalProvider extends MetadataProvider {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     if (!_isAuthenticated) {
-      throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
     }
 
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
       if (cookie == null || cookie.isEmpty) {
-        throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+        );
       }
       await _acquireTokensFromCookie(cookie);
     }
@@ -1254,7 +1402,9 @@ class SpotifyInternalProvider extends MetadataProvider {
       }
     }
 
-    if (policy == MetadataFetchPolicy.refreshIfExpired && cached != null && !cached.isExpired) {
+    if (policy == MetadataFetchPolicy.refreshIfExpired &&
+        cached != null &&
+        !cached.isExpired) {
       final items = cached.payload['items'] as List?;
       if (items != null) {
         return items
@@ -1266,17 +1416,15 @@ class SpotifyInternalProvider extends MetadataProvider {
 
     const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
     final body = {
-      'variables': {
-        'offset': offset,
-        'limit': limit,
-      },
+      'variables': {'offset': offset, 'limit': limit},
       'operationName': 'fetchLibraryTracks',
       'extensions': {
         'persistedQuery': {
           'version': 1,
-          'sha256Hash': '087278b20b743578a6262c2b0b4bcd20d879c503cc359a2285baf083ef944240',
-        }
-      }
+          'sha256Hash':
+              '087278b20b743578a6262c2b0b4bcd20d879c503cc359a2285baf083ef944240',
+        },
+      },
     };
 
     final headers = {
@@ -1311,15 +1459,22 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
 
     final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
-    final tracks = jsonResponse['data']?['me']?['library']?['tracks'] as Map<String, dynamic>?;
+    final tracks =
+        jsonResponse['data']?['me']?['library']?['tracks']
+            as Map<String, dynamic>?;
     final items = tracks?['items'] as List? ?? [];
 
-    final pageItems = items.asMap().entries.map((entry) {
-      return spotifyInternalLibraryTrackToPlaylistItem(
-        entry.value as Map<String, dynamic>,
-        offset + entry.key + 1,
-      );
-    }).where((item) => item.id.isNotEmpty).toList();
+    final pageItems = items
+        .asMap()
+        .entries
+        .map((entry) {
+          return spotifyInternalLibraryTrackToPlaylistItem(
+            entry.value as Map<String, dynamic>,
+            offset + entry.key + 1,
+          );
+        })
+        .where((item) => item.id.isNotEmpty)
+        .toList();
 
     final totalCount = tracks?['totalCount'] as int?;
     if (totalCount != null) {
@@ -1383,13 +1538,17 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   Future<Map<String, bool>> getCuratedStatus(List<String> trackIds) async {
     if (!_isAuthenticated) {
-      throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
     }
 
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
       if (cookie == null || cookie.isEmpty) {
-        throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+        );
       }
       await _acquireTokensFromCookie(cookie);
     }
@@ -1410,16 +1569,15 @@ class SpotifyInternalProvider extends MetadataProvider {
       fetcher: () async {
         const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
         final body = {
-          'variables': {
-            'uris': normalized,
-          },
+          'variables': {'uris': normalized},
           'operationName': 'isCurated',
           'extensions': {
             'persistedQuery': {
               'version': 1,
-              'sha256Hash': 'e4ed1f91a2cc5415befedb85acf8671dc1a4bf3ca1a5b945a6386101a22e28a6',
-            }
-          }
+              'sha256Hash':
+                  'e4ed1f91a2cc5415befedb85acf8671dc1a4bf3ca1a5b945a6386101a22e28a6',
+            },
+          },
         };
 
         final headers = {
@@ -1479,20 +1637,24 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   Future<String?> getCanvasUrl(String trackId) async {
     if (!_isAuthenticated) {
-      throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
     }
 
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
       if (cookie == null || cookie.isEmpty) {
-        throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+        );
       }
       await _acquireTokensFromCookie(cookie);
     }
 
     final normalizedId = trackId.startsWith('spotify:track:')
-      ? trackId.split(':').last
-      : trackId;
+        ? trackId.split(':').last
+        : trackId;
     if (_canvasUrlCache.containsKey(normalizedId)) {
       return _canvasUrlCache[normalizedId];
     }
@@ -1507,21 +1669,20 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
 
     final uri = trackId.startsWith('spotify:track:')
-      ? trackId
-      : 'spotify:track:$trackId';
+        ? trackId
+        : 'spotify:track:$trackId';
 
     const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
     final body = {
-      'variables': {
-        'trackUri': uri,
-      },
+      'variables': {'trackUri': uri},
       'operationName': 'canvas',
       'extensions': {
         'persistedQuery': {
           'version': 1,
-          'sha256Hash': '575138ab27cd5c1b3e54da54d0a7cc8d85485402de26340c2145f0f6bb5e7a9f',
-        }
-      }
+          'sha256Hash':
+              '575138ab27cd5c1b3e54da54d0a7cc8d85485402de26340c2145f0f6bb5e7a9f',
+        },
+      },
     };
 
     final headers = {
@@ -1557,7 +1718,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       }
 
       final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
-      final trackUnion = jsonResponse['data']?['trackUnion'] as Map<String, dynamic>?;
+      final trackUnion =
+          jsonResponse['data']?['trackUnion'] as Map<String, dynamic>?;
       final canvas = trackUnion?['canvas'] as Map<String, dynamic>?;
       final canvasUrl = canvas?['url'] as String?;
       _canvasUrlCache[normalizedId] = canvasUrl;
@@ -1608,7 +1770,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     if (uris.isEmpty) return;
     await _ensureWritingAllowed();
     if (!_isAuthenticated) {
-      throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
     }
     await _ensureTokens();
     if (_bearerToken == null || _clientToken == null) {
@@ -1617,17 +1781,15 @@ class SpotifyInternalProvider extends MetadataProvider {
 
     const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
     final body = {
-      'variables': {
-        'libraryItemUris': uris,
-      },
+      'variables': {'libraryItemUris': uris},
       'operationName': operationName,
       'extensions': {
         'persistedQuery': {
           'version': 1,
           'sha256Hash':
               '7c5a69420e2bfae3da5cc4e14cbc8bb3f6090f80afc00ffc179177f19be3f33d',
-        }
-      }
+        },
+      },
     };
 
     final headers = {
@@ -1679,8 +1841,10 @@ class SpotifyInternalProvider extends MetadataProvider {
         );
         if (pageItems.isEmpty) break;
 
-        final cachedPage =
-            await _getCachedSavedTracksPage(limit: limit, offset: offset);
+        final cachedPage = await _getCachedSavedTracksPage(
+          limit: limit,
+          offset: offset,
+        );
         final pageMatches = _savedTracksPageMatches(pageItems, cachedPage);
 
         merged.addAll(pageItems);
@@ -1758,13 +1922,17 @@ class SpotifyInternalProvider extends MetadataProvider {
     int offset = 0,
   }) async {
     if (!_isAuthenticated) {
-      throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
     }
 
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
       if (cookie == null || cookie.isEmpty) {
-        throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+        );
       }
       await _acquireTokensFromCookie(cookie);
     }
@@ -1787,8 +1955,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           'version': 1,
           'sha256Hash':
               '3c9d3f60dac5dea3876b6db3f534192b1c1d90032c4233c1bbaba526db41eb31',
-        }
-      }
+        },
+      },
     };
 
     final headers = {
@@ -1827,7 +1995,9 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   @override
   Future<void> toggleTrackLike(GenericSong track) async {
-    if (track.source != SongSource.spotifyInternal && track.source != SongSource.spotify) return;
+    if (track.source != SongSource.spotifyInternal &&
+        track.source != SongSource.spotify)
+      return;
     if (!await _isWritingAllowed()) return;
     if (isTrackLiked(track.id)) {
       await unlikeTrack(track);
@@ -1845,7 +2015,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     try {
       await _ensureWritingAllowed();
       if (!_isAuthenticated) {
-        throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+        );
       }
       await _ensureTokens();
       await _ensureUserProfile();
@@ -1863,11 +2035,11 @@ class SpotifyInternalProvider extends MetadataProvider {
             'kind': 'UPDATE_LIST_ATTRIBUTES',
             'updateListAttributes': {
               'newAttributes': {
-                'values': {'name': name}
-              }
-            }
-          }
-        ]
+                'values': {'name': name},
+              },
+            },
+          },
+        ],
       };
 
       final createResponse = await _postWithRetry(
@@ -1883,7 +2055,8 @@ class SpotifyInternalProvider extends MetadataProvider {
         );
       }
 
-      final createJson = jsonDecode(createResponse.body) as Map<String, dynamic>;
+      final createJson =
+          jsonDecode(createResponse.body) as Map<String, dynamic>;
       final uri = createJson['uri'] as String?;
       if (uri == null || uri.isEmpty) {
         throw Exception('[Metadata/Spotify-Internal] Missing playlist URI');
@@ -1901,18 +2074,18 @@ class SpotifyInternalProvider extends MetadataProvider {
                   'items': [
                     {
                       'uri': 'spotify:playlist:$playlistId',
-                      'attributes': {'timestamp': timestamp}
-                    }
+                      'attributes': {'timestamp': timestamp},
+                    },
                   ],
-                  'addFirst': true
-                }
-              }
+                  'addFirst': true,
+                },
+              },
             ],
             'info': {
-              'source': {'client': 'WEBPLAYER'}
-            }
-          }
-        ]
+              'source': {'client': 'WEBPLAYER'},
+            },
+          },
+        ],
       };
 
       final addResponse = await _postWithRetry(
@@ -1943,7 +2116,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     try {
       await _ensureWritingAllowed();
       if (!_isAuthenticated) {
-        throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+        );
       }
       await _ensureTokens();
       final cookieHeader = await _credentialsService.getSpotifyLyricsCookie();
@@ -1957,16 +2132,16 @@ class SpotifyInternalProvider extends MetadataProvider {
                 'kind': 'UPDATE_LIST_ATTRIBUTES',
                 'updateListAttributes': {
                   'newAttributes': {
-                    'values': {'name': name}
-                  }
-                }
-              }
+                    'values': {'name': name},
+                  },
+                },
+              },
             ],
             'info': {
-              'source': {'client': 'WEBPLAYER'}
-            }
-          }
-        ]
+              'source': {'client': 'WEBPLAYER'},
+            },
+          },
+        ],
       };
 
       final response = await _postWithRetry(
@@ -1995,7 +2170,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     try {
       await _ensureWritingAllowed();
       if (!_isAuthenticated) {
-        throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+        );
       }
       await _ensureTokens();
       await _ensureUserProfile();
@@ -2014,17 +2191,17 @@ class SpotifyInternalProvider extends MetadataProvider {
                 'kind': 'REM',
                 'rem': {
                   'items': [
-                    {'uri': 'spotify:playlist:$playlistId'}
+                    {'uri': 'spotify:playlist:$playlistId'},
                   ],
-                  'itemsAsKey': true
-                }
-              }
+                  'itemsAsKey': true,
+                },
+              },
             ],
             'info': {
-              'source': {'client': 'WEBPLAYER'}
-            }
-          }
-        ]
+              'source': {'client': 'WEBPLAYER'},
+            },
+          },
+        ],
       };
 
       final response = await _postWithRetry(
@@ -2057,7 +2234,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     try {
       await _ensureWritingAllowed();
       if (!_isAuthenticated) {
-        throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+        );
       }
 
       await _ensureTokens();
@@ -2067,9 +2246,9 @@ class SpotifyInternalProvider extends MetadataProvider {
 
       final normalized = trackIds
           .where((id) => id.trim().isNotEmpty)
-          .map((id) => id.startsWith('spotify:track:')
-              ? id
-              : 'spotify:track:$id')
+          .map(
+            (id) => id.startsWith('spotify:track:') ? id : 'spotify:track:$id',
+          )
           .toList();
       if (normalized.isEmpty) return;
 
@@ -2078,10 +2257,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         'variables': {
           'playlistItemUris': normalized,
           'playlistUri': 'spotify:playlist:$playlistId',
-          'newPosition': {
-            'moveType': 'BOTTOM_OF_PLAYLIST',
-            'fromUid': null,
-          },
+          'newPosition': {'moveType': 'BOTTOM_OF_PLAYLIST', 'fromUid': null},
         },
         'operationName': 'addToPlaylist',
         'extensions': {
@@ -2089,8 +2265,8 @@ class SpotifyInternalProvider extends MetadataProvider {
             'version': 1,
             'sha256Hash':
                 '47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990',
-          }
-        }
+          },
+        },
       };
 
       final headers = {
@@ -2138,7 +2314,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     try {
       await _ensureWritingAllowed();
       if (!_isAuthenticated) {
-        throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+        );
       }
 
       await _ensureTokens();
@@ -2158,8 +2336,8 @@ class SpotifyInternalProvider extends MetadataProvider {
             'version': 1,
             'sha256Hash':
                 '47b2a1234b17748d332dd0431534f22450e9ecbb3d5ddcdacbd83368636a0990',
-          }
-        }
+          },
+        },
       };
 
       final headers = {
@@ -2203,40 +2381,28 @@ class SpotifyInternalProvider extends MetadataProvider {
     final uri = artistId.startsWith('spotify:artist:')
         ? artistId
         : 'spotify:artist:$artistId';
-    await _mutateLibrary(
-      operationName: 'addToLibrary',
-      uris: [uri],
-    );
+    await _mutateLibrary(operationName: 'addToLibrary', uris: [uri]);
   }
 
   Future<void> unfollowArtist(String artistId) async {
     final uri = artistId.startsWith('spotify:artist:')
         ? artistId
         : 'spotify:artist:$artistId';
-    await _mutateLibrary(
-      operationName: 'removeFromLibrary',
-      uris: [uri],
-    );
+    await _mutateLibrary(operationName: 'removeFromLibrary', uris: [uri]);
   }
 
   Future<void> saveAlbum(String albumId) async {
     final uri = albumId.startsWith('spotify:album:')
         ? albumId
         : 'spotify:album:$albumId';
-    await _mutateLibrary(
-      operationName: 'addToLibrary',
-      uris: [uri],
-    );
+    await _mutateLibrary(operationName: 'addToLibrary', uris: [uri]);
   }
 
   Future<void> unsaveAlbum(String albumId) async {
     final uri = albumId.startsWith('spotify:album:')
         ? albumId
         : 'spotify:album:$albumId';
-    await _mutateLibrary(
-      operationName: 'removeFromLibrary',
-      uris: [uri],
-    );
+    await _mutateLibrary(operationName: 'removeFromLibrary', uris: [uri]);
   }
 
   @override
@@ -2252,7 +2418,9 @@ class SpotifyInternalProvider extends MetadataProvider {
       }
     }
     if (!_isAuthenticated) {
-      throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
     }
     await _ensureTokens();
     if (_bearerToken == null || _clientToken == null) {
@@ -2268,8 +2436,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           'version': 1,
           'sha256Hash':
               '53bcb064f6cd18c23f752bc324a791194d20df612d8e1239c735144ab0399ced',
-        }
-      }
+        },
+      },
     };
 
     final headers = {
@@ -2304,7 +2472,8 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
 
     final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
-    final profile = jsonResponse['data']?['me']?['profile'] as Map<String, dynamic>?;
+    final profile =
+        jsonResponse['data']?['me']?['profile'] as Map<String, dynamic>?;
     final username = profile?['username'] as String?;
     final name = profile?['name'] as String?;
     _userId = username;
@@ -2313,17 +2482,16 @@ class SpotifyInternalProvider extends MetadataProvider {
       await _writeCacheEntry(
         type: 'profile',
         id: 'me',
-        payload: {
-          'userId': _userId,
-          'displayName': _userDisplayName,
-        },
+        payload: {'userId': _userId, 'displayName': _userDisplayName},
       );
     }
   }
 
   @override
   Future<void> likeTrack(GenericSong track) async {
-    if (track.source != SongSource.spotifyInternal && track.source != SongSource.spotify) return;
+    if (track.source != SongSource.spotifyInternal &&
+        track.source != SongSource.spotify)
+      return;
     if (!await _isWritingAllowed()) return;
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
@@ -2334,17 +2502,16 @@ class SpotifyInternalProvider extends MetadataProvider {
     const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
     final body = {
       'variables': {
-        'libraryItemUris': [
-          'spotify:track:${track.id}',
-        ],
+        'libraryItemUris': ['spotify:track:${track.id}'],
       },
       'operationName': 'addToLibrary',
       'extensions': {
         'persistedQuery': {
           'version': 1,
-          'sha256Hash': '7c5a69420e2bfae3da5cc4e14cbc8bb3f6090f80afc00ffc179177f19be3f33d',
-        }
-      }
+          'sha256Hash':
+              '7c5a69420e2bfae3da5cc4e14cbc8bb3f6090f80afc00ffc179177f19be3f33d',
+        },
+      },
     };
 
     final headers = {
@@ -2372,7 +2539,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     );
 
     if (response.statusCode != 200) {
-      throw Exception('[Metadata/Spotify-Internal] Failed to like track: ${response.statusCode} ${response.body}');
+      throw Exception(
+        '[Metadata/Spotify-Internal] Failed to like track: ${response.statusCode} ${response.body}',
+      );
     }
 
     _likedTrackIds.add(track.id);
@@ -2382,7 +2551,9 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   @override
   Future<void> unlikeTrack(GenericSong track) async {
-    if (track.source != SongSource.spotifyInternal && track.source != SongSource.spotify) return;
+    if (track.source != SongSource.spotifyInternal &&
+        track.source != SongSource.spotify)
+      return;
     if (!await _isWritingAllowed()) return;
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
@@ -2398,20 +2569,19 @@ class SpotifyInternalProvider extends MetadataProvider {
             {
               'contextUri': 'spotify:collection:tracks',
               'curationType': 'UNCURATE',
-            }
+            },
           ],
-          'itemUris': [
-            'spotify:track:${track.id}',
-          ],
-        }
+          'itemUris': ['spotify:track:${track.id}'],
+        },
       },
       'operationName': 'applyCurations',
       'extensions': {
         'persistedQuery': {
           'version': 1,
-          'sha256Hash': '05b739a3a73091c213385233b9d3ed8a857c2ca29d2eebadb3d04ed12e288697',
-        }
-      }
+          'sha256Hash':
+              '05b739a3a73091c213385233b9d3ed8a857c2ca29d2eebadb3d04ed12e288697',
+        },
+      },
     };
 
     final headers = {
@@ -2439,7 +2609,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     );
 
     if (response.statusCode != 200) {
-      throw Exception('[Metadata/Spotify-Internal] Failed to unlike track: ${response.statusCode} ${response.body}');
+      throw Exception(
+        '[Metadata/Spotify-Internal] Failed to unlike track: ${response.statusCode} ${response.body}',
+      );
     }
 
     _likedTrackIds.remove(track.id);
@@ -2467,10 +2639,7 @@ class SpotifyInternalProvider extends MetadataProvider {
     if (cached == null) return;
     if (cached.any((item) => item.id == song.id)) return;
 
-    final updated = [
-      _playlistItemFromSong(song),
-      ...cached,
-    ];
+    final updated = [_playlistItemFromSong(song), ...cached];
     if (updated.length > 50) {
       updated.removeRange(50, updated.length);
     }
@@ -2548,11 +2717,18 @@ class SpotifyInternalProvider extends MetadataProvider {
           int folderCount = 0;
 
           if (initialItem is Map<String, dynamic>) {
-            final t = initialItem['__typename'] as String? ?? initialItem['type'] as String?;
+            final t =
+                initialItem['__typename'] as String? ??
+                initialItem['type'] as String?;
             if (t == 'Folder' || t == 'folder') {
               isFolder = true;
-              final uri = initialItem['uri'] as String? ?? initialItem['id'] as String? ?? '';
-              folderId = uri.isNotEmpty ? uri : (initialItem['id'] as String? ?? '');
+              final uri =
+                  initialItem['uri'] as String? ??
+                  initialItem['id'] as String? ??
+                  '';
+              folderId = uri.isNotEmpty
+                  ? uri
+                  : (initialItem['id'] as String? ?? '');
               folderCount = initialItem['playlistCount'] as int? ?? 0;
             }
           }
@@ -2581,7 +2757,9 @@ class SpotifyInternalProvider extends MetadataProvider {
                   itemId = finalItem.id;
                 } else if (finalItem is Map<String, dynamic>) {
                   itemId = finalItem['id'] as String? ?? '';
-                  final t = finalItem['__typename'] as String? ?? finalItem['type'] as String?;
+                  final t =
+                      finalItem['__typename'] as String? ??
+                      finalItem['type'] as String?;
                   if (t == 'Playlist' || t == 'playlist') isPlaylist = true;
                 }
 
@@ -2612,15 +2790,21 @@ class SpotifyInternalProvider extends MetadataProvider {
     );
   }
 
-  Future<GenericLibrary> _fetchUserLibrary(List<String>? expandedFoldersIDs) async {
+  Future<GenericLibrary> _fetchUserLibrary(
+    List<String>? expandedFoldersIDs,
+  ) async {
     if (!_isAuthenticated) {
-      throw StateError('[Metadata/Spotify-Internal] Not authenticated. Please log in.');
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
     }
 
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
       if (cookie == null || cookie.isEmpty) {
-        throw StateError('[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.');
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+        );
       }
       await _acquireTokensFromCookie(cookie);
     }
@@ -2629,7 +2813,7 @@ class SpotifyInternalProvider extends MetadataProvider {
     final body = {
       "variables": {
         "expandedFolders": expandedFoldersIDs ?? [],
-        "features": [ "LIKED_SONGS" ],
+        "features": ["LIKED_SONGS"],
         "flatten": false,
         "folderUri": null,
         "includeFoldersWhenFlattening": true,
@@ -2642,9 +2826,10 @@ class SpotifyInternalProvider extends MetadataProvider {
       "extensions": {
         "persistedQuery": {
           "version": 1,
-          "sha256Hash": "9f4da031f81274d572cfedaf6fc57a737c84b43d572952200b2c36aaa8fec1c6"
-        }
-      }
+          "sha256Hash":
+              "9f4da031f81274d572cfedaf6fc57a737c84b43d572952200b2c36aaa8fec1c6",
+        },
+      },
     };
 
     final headers = {
@@ -2667,7 +2852,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     );
 
     if (response.statusCode != 200) {
-      throw Exception('[Metadata/Spotify-Internal] Failed to fetch user library: ${response.statusCode} ${response.body}');
+      throw Exception(
+        '[Metadata/Spotify-Internal] Failed to fetch user library: ${response.statusCode} ${response.body}',
+      );
     }
 
     final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
@@ -2693,7 +2880,8 @@ const _allowInsecureSpotifySecretsTls = bool.fromEnvironment(
   'WISP_ALLOW_INSECURE_SPOTIFY_SECRETS_TLS',
   defaultValue: true,
 );
-const _secretsUrl = 'https://git.gay/thereallo/totp-secrets/raw/branch/main/secrets/secrets.json';
+const _secretsUrl =
+    'https://git.gay/thereallo/totp-secrets/raw/branch/main/secrets/secrets.json';
 const _spotifyNetworkTimeout = Duration(seconds: 12);
 
 Future<Map<String, dynamic>> _requestAccessToken(String cookie) async {
@@ -2754,7 +2942,9 @@ Future<Map<String, dynamic>> _requestAccessToken(String cookie) async {
 Future<_TotpPayload> _generateTotp() async {
   const secretSauce = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
-  final client = _createHttpClient(allowInsecureSpotifySecretsTls: _allowInsecureSpotifySecretsTls);
+  final client = _createHttpClient(
+    allowInsecureSpotifySecretsTls: _allowInsecureSpotifySecretsTls,
+  );
   http.Response response;
   try {
     response = await client
@@ -2764,12 +2954,16 @@ Future<_TotpPayload> _generateTotp() async {
     client.close();
   }
   if (response.statusCode != 200) {
-    throw StateError('[Metadata/Spotify-Internal] Failed to fetch TOTP secrets');
+    throw StateError(
+      '[Metadata/Spotify-Internal] Failed to fetch TOTP secrets',
+    );
   }
 
   final secrets = jsonDecode(response.body) as List<dynamic>;
   if (secrets.isEmpty) {
-    throw StateError('[Metadata/Spotify-Internal] No secrets available for TOTP');
+    throw StateError(
+      '[Metadata/Spotify-Internal] No secrets available for TOTP',
+    );
   }
 
   final mostRecent = secrets.last as Map<String, dynamic>;
@@ -2827,7 +3021,11 @@ String _base32FromBytes(Uint8List bytes, String alphabet) {
   return buffer.toString();
 }
 
-String _generateTotpCode(String base32Secret, {int digits = 6, int interval = 30}) {
+String _generateTotpCode(
+  String base32Secret, {
+  int digits = 6,
+  int interval = 30,
+}) {
   final secretBytes = _decodeBase32(base32Secret);
   final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
   final counter = timestamp ~/ interval;
@@ -2902,7 +3100,9 @@ http.Client _createSpotifyHttpClient() {
 
   final ioClient = HttpClient();
   ioClient.badCertificateCallback = (cert, host, port) {
-    return host == 'open.spotify.com' || host == 'clienttoken.spotify.com' || host == 'spclient.wg.spotify.com';
+    return host == 'open.spotify.com' ||
+        host == 'clienttoken.spotify.com' ||
+        host == 'spclient.wg.spotify.com';
   };
   return IOClient(ioClient);
 }
