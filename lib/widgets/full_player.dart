@@ -2083,6 +2083,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     bool hideNowPlayingCover,
   ) {
     final isNowPlaying = mode == _ApplePlayerViewMode.nowPlaying;
+    final onCoverTap = isNowPlaying
+        ? null
+        : () => _setMode(_ApplePlayerViewMode.nowPlaying);
     final double expandedSize = math.min(
       MediaQuery.of(context).size.width - 48,
       360.0,
@@ -2121,14 +2124,18 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 },
                 child: shouldHideCover
                     ? const SizedBox.expand(key: ValueKey('apple-cover-hidden'))
-                    : SizedBox(
+                    : GestureDetector(
                         key: const ValueKey('apple-cover-visible'),
-                        width: isNowPlaying ? expandedSize : compactSize,
-                        height: isNowPlaying ? expandedSize : compactSize,
-                        child: _buildCoverImageBox(
-                          context,
-                          imageUrl,
-                          isNowPlaying ? expandedSize : compactSize,
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onCoverTap,
+                        child: SizedBox(
+                          width: isNowPlaying ? expandedSize : compactSize,
+                          height: isNowPlaying ? expandedSize : compactSize,
+                          child: _buildCoverImageBox(
+                            context,
+                            imageUrl,
+                            isNowPlaying ? expandedSize : compactSize,
+                          ),
                         ),
                       ),
               ),
