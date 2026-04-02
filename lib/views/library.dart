@@ -216,6 +216,38 @@ class LibraryTabViewState extends State<LibraryTabView> {
     }
   }
 
+  int get _providerPlaylistCount => _remotePlaylists
+      .where((playlist) => !isLikedSongsPlaylistId(playlist.id))
+      .length;
+
+  GenericPlaylist _resolveLikedPlaylistTemplate() {
+    final existingRemote = _remotePlaylists.where((playlist) {
+      return isLikedSongsPlaylistId(playlist.id);
+    });
+    if (existingRemote.isNotEmpty) {
+      return existingRemote.first;
+    }
+
+    final existingLocal = _localPlaylists.where((playlist) {
+      return isLikedSongsPlaylistId(playlist.id);
+    });
+    if (existingLocal.isNotEmpty) {
+      return existingLocal.first;
+    }
+
+    return buildLikedSongsPlaylist(
+      userDisplayName: context.read<SpotifyInternalProvider>().userDisplayName,
+    );
+  }
+
+  void _ensureLikedPlaylistInRemote() {
+    final hasLiked = _remotePlaylists.any((playlist) {
+      return isLikedSongsPlaylistId(playlist.id);
+    });
+    if (hasLiked) return;
+    _remotePlaylists = [_resolveLikedPlaylistTemplate(), ..._remotePlaylists];
+  }
+
   Future<void> _loadMorePlaylists({
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
@@ -228,13 +260,14 @@ class LibraryTabViewState extends State<LibraryTabView> {
     try {
       final morePlaylists = await spotify.getUserPlaylists(
         limit: 50,
-        offset: _remotePlaylists.length,
+        offset: _providerPlaylistCount,
         policy: policy,
       );
 
       if (mounted) {
         setState(() {
           _remotePlaylists.addAll(morePlaylists);
+          _ensureLikedPlaylistInRemote();
           _hasMorePlaylists = morePlaylists.length == 50;
           _isLoadingPlaylists = false;
           _playlistError = null;
@@ -329,8 +362,9 @@ class LibraryTabViewState extends State<LibraryTabView> {
   Future<void> _refreshPlaylists({
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
+    final likedTemplate = _resolveLikedPlaylistTemplate();
     setState(() {
-      _remotePlaylists = [];
+      _remotePlaylists = [likedTemplate];
       _hasMorePlaylists = true;
       _playlistError = null;
     });
