@@ -823,7 +823,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         final blockedNetworkOnly =
             results[QueueDownloadResult.blockedByNetworkOnlyMode] ?? 0;
 
-        var message = 'Queued $queued track${queued == 1 ? '' : 's'} for download';
+        var message =
+            'Queued $queued track${queued == 1 ? '' : 's'} for download';
         if (queued == 0 && (blockedPolicy > 0 || blockedNetworkOnly > 0)) {
           message = blockedPolicy > 0
               ? 'Downloads blocked by your WiFi/Ethernet-only setting'
@@ -844,7 +845,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   Rect? _anchorRectFromContext(BuildContext? anchorContext) {
     if (anchorContext == null) return null;
-    final overlay = Overlay.of(context, rootOverlay: true).context.findRenderObject() as RenderBox;
+    final overlay =
+        Overlay.of(context, rootOverlay: true).context.findRenderObject()
+            as RenderBox;
     final box = anchorContext.findRenderObject() as RenderBox?;
     if (box == null) return null;
     return Rect.fromPoints(
@@ -887,7 +890,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     var startIndex = 0;
     final currentTrackId = player.currentTrack?.id;
     if (currentTrackId != null) {
-      final foundIndex = mergedQueue.indexWhere((track) => track.id == currentTrackId);
+      final foundIndex = mergedQueue.indexWhere(
+        (track) => track.id == currentTrackId,
+      );
       if (foundIndex >= 0) {
         startIndex = foundIndex;
       }
@@ -910,7 +915,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Added $addedCount track${addedCount == 1 ? '' : 's'} to queue'),
+        content: Text(
+          'Added $addedCount track${addedCount == 1 ? '' : 's'} to queue',
+        ),
       ),
     );
   }
@@ -934,7 +941,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Delete playlist?'),
-          content: const Text('Delete confirmation is still a placeholder for now.'),
+          content: const Text(
+            'Delete confirmation is still a placeholder for now.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -1006,7 +1015,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           id: 'move-no-folder',
           label: currentFolderId == null ? '✓ No Folder' : 'No Folder',
           icon: Icons.folder_off_outlined,
-          onSelected: (_) => folderState.movePlaylistIntoFolder(widget.id, null),
+          onSelected: (_) =>
+              folderState.movePlaylistIntoFolder(widget.id, null),
         ),
         for (final folder in folders)
           ContextMenuAction(
@@ -1015,7 +1025,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 ? '✓ ${folder.title}'
                 : folder.title,
             icon: Icons.folder,
-            onSelected: (_) => folderState.movePlaylistIntoFolder(widget.id, folder.id),
+            onSelected: (_) =>
+                folderState.movePlaylistIntoFolder(widget.id, folder.id),
           ),
       ];
 
@@ -1162,15 +1173,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           final message = switch (result) {
             QueueDownloadResult.queued => 'Queued track for download',
             QueueDownloadResult.alreadyCached => 'Track already cached',
-            QueueDownloadResult.alreadyQueued => 'Track already in download queue',
+            QueueDownloadResult.alreadyQueued =>
+              'Track already in download queue',
             QueueDownloadResult.blockedByNetworkPolicy =>
               'Downloads blocked by your WiFi/Ethernet-only setting',
             QueueDownloadResult.blockedByNetworkOnlyMode =>
               'Downloads blocked because Network-only mode is enabled',
           };
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
         },
       ),
       ContextMenuAction(
@@ -1273,7 +1285,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       color: Colors.grey[900],
                       child: Icon(Icons.music_note, color: Colors.grey[600]),
                     ),
-                    placeholder: (context, url) => Container(color: Colors.grey[850]),
+                    placeholder: (context, url) =>
+                        Container(color: Colors.grey[850]),
                   ),
                 ),
               ),
@@ -1312,14 +1325,17 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   void _showShareDialog() {
-    final isSpotify = _playlist?.source == SongSource.spotify ||
+    final isSpotify =
+        _playlist?.source == SongSource.spotify ||
         _playlist?.source == SongSource.spotifyInternal ||
         _album?.source == SongSource.spotify ||
         _album?.source == SongSource.spotifyInternal ||
         widget.id.startsWith('spotify:');
 
     if (isSpotify) {
-      final typePath = widget.type == SharedListType.playlist ? 'playlist' : 'album';
+      final typePath = widget.type == SharedListType.playlist
+          ? 'playlist'
+          : 'album';
       final id = widget.id.split(':').last;
       final url = 'https://open.spotify.com/$typePath/$id';
 
@@ -1333,9 +1349,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Share not implemented for this source yet')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Share not implemented for this source yet'),
+      ),
+    );
   }
 
   void _showEditDialog() {
@@ -1446,8 +1464,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final subtitleImageUrl = widget.type == SharedListType.playlist
         ? _playlist?.author.avatarUrl
         : (_album != null && _album!.artists.isNotEmpty)
-            ? _album!.artists.first.thumbnailUrl
-            : null;
+        ? _album!.artists.first.thumbnailUrl
+        : null;
 
     final total = widget.type == SharedListType.playlist
         ? (_playlist?.total ?? _items.length)
@@ -1471,10 +1489,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           );
 
     if (isDesktop) {
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: content,
-      );
+      return Scaffold(backgroundColor: Colors.transparent, body: content);
     }
 
     if (style == 'Apple Music') {
@@ -1886,7 +1901,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           color: Colors.grey[900],
                           child: _isLocalImagePath(subtitleImageUrl)
                               ? Image.file(
-                                  File(subtitleImageUrl.replaceFirst('file://', '')),
+                                  File(
+                                    subtitleImageUrl.replaceFirst(
+                                      'file://',
+                                      '',
+                                    ),
+                                  ),
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, url, error) =>
                                       Container(color: Colors.grey[800]),
@@ -1897,7 +1917,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   placeholder: (context, url) =>
                                       Container(color: Colors.grey[800]),
                                   errorWidget: (context, url, error) =>
-                                       Container(color: Colors.grey[800]),
+                                      Container(color: Colors.grey[800]),
                                 ),
                         ),
                       ),
@@ -2162,12 +2182,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       children: [
         Text(
           text,
-          style: isSorted ? headerStyle.copyWith(color: Colors.white) : headerStyle,
+          style: isSorted
+              ? headerStyle.copyWith(color: Colors.white)
+              : headerStyle,
         ),
-        if (sortIcon != null) ...[
-          const SizedBox(width: 4),
-          sortIcon,
-        ],
+        if (sortIcon != null) ...[const SizedBox(width: 4), sortIcon],
       ],
     );
 
@@ -2239,7 +2258,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               ),
             ),
           ),
-          const SizedBox(width: 48), // Adjusted space for more context menu room
+          const SizedBox(
+            width: 48,
+          ), // Adjusted space for more context menu room
         ],
       );
     }
@@ -2303,8 +2324,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             onTap: () => _sortBy(_SortMethod.duration),
             child: Align(
               alignment: Alignment.centerRight,
-              child: Icon(Icons.access_time, size: 14, color: Colors.grey)
-            )
+              child: Icon(Icons.access_time, size: 14, color: Colors.grey),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -2595,7 +2616,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                               explicit: song.explicit,
                                               durationSecs: 0,
                                             ),
-                                            globalPosition: details.globalPosition,
+                                            globalPosition:
+                                                details.globalPosition,
                                           );
                                         },
                                         builder: (isHovering) => Text(
@@ -2674,7 +2696,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                           onSecondaryTapDown: (details) {
                                             _showSongContextMenu(
                                               song,
-                                              globalPosition: details.globalPosition,
+                                              globalPosition:
+                                                  details.globalPosition,
                                             );
                                           },
                                           builder: (isHovering) => Text(
@@ -2937,10 +2960,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                             ),
                             if (!isAppleStyle) ...[
                               const SizedBox(height: 2),
-                              _buildArtistLine(
-                                artists,
-                                isDesktop: isDesktop,
-                              ),
+                              _buildArtistLine(artists, isDesktop: isDesktop),
                             ],
                           ],
                         ),
@@ -3458,10 +3478,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         isLikedSongsPlaylistId(view.widget.id);
 
     if (isLiked) {
-      return Container(
-        color: Colors.grey[900],
-        child: const LikedSongsArt(),
-      );
+      return Container(color: Colors.grey[900], child: const LikedSongsArt());
     }
 
     if (imageUrl.isNotEmpty) {
@@ -3469,14 +3486,16 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         return Image.file(
           File(imageUrl.replaceFirst('file://', '')),
           fit: BoxFit.cover,
-          errorBuilder: (context, url, error) => Container(color: Colors.grey[900]),
+          errorBuilder: (context, url, error) =>
+              Container(color: Colors.grey[900]),
         );
       } else {
         return CachedNetworkImage(
           imageUrl: imageUrl,
           fit: BoxFit.cover,
           placeholder: (context, url) => Container(color: Colors.grey[900]),
-          errorWidget: (context, url, error) => Container(color: Colors.grey[900]),
+          errorWidget: (context, url, error) =>
+              Container(color: Colors.grey[900]),
         );
       }
     }
@@ -3500,18 +3519,16 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
 
     return Stack(
       children: [
-        Positioned.fill(
-          child: Container(
-            color: Colors.black,
-          ),
-        ),
+        Positioned.fill(child: Container(color: Colors.black)),
         CustomScrollView(
           controller: view._mobileScrollController,
           slivers: [
             SliverAppBar(
               backgroundColor: Colors.black,
               pinned: true,
-              expandedHeight: MediaQuery.of(context).size.width - MediaQuery.of(context).padding.top,
+              expandedHeight:
+                  MediaQuery.of(context).size.width -
+                  MediaQuery.of(context).padding.top,
               leading: IconButton(
                 icon: const Icon(CupertinoIcons.back),
                 onPressed: () => Navigator.of(context).pop(),
@@ -3574,8 +3591,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               ),
             SliverToBoxAdapter(
               child: view._buildSongList(
-                  isMobile: true,
-                  visualStyle: _ListVisualStyle.apple,
+                isMobile: true,
+                visualStyle: _ListVisualStyle.apple,
               ),
             ),
           ],
@@ -3664,21 +3681,32 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                             fontWeight: FontWeight.w400,
                           ),
                         ),
-                        if ((subtitle != null && subtitle!.isNotEmpty) || subtitleImageUrl != null) ...[
+                        if ((subtitle != null && subtitle!.isNotEmpty) ||
+                            subtitleImageUrl != null) ...[
                           const SizedBox(height: 6),
                           Row(
                             children: [
                               if (subtitleImageUrl != null) ...[
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
-                                  child: view._isLocalImagePath(subtitleImageUrl!)
+                                  child:
+                                      view._isLocalImagePath(subtitleImageUrl!)
                                       ? Image.file(
-                                          File(subtitleImageUrl!.replaceFirst('file://', '')),
+                                          File(
+                                            subtitleImageUrl!.replaceFirst(
+                                              'file://',
+                                              '',
+                                            ),
+                                          ),
                                           width: 24,
                                           height: 24,
                                           fit: BoxFit.cover,
                                           errorBuilder: (context, url, error) =>
-                                              Container(width: 24, height: 24, color: Colors.grey[700]),
+                                              Container(
+                                                width: 24,
+                                                height: 24,
+                                                color: Colors.grey[700],
+                                              ),
                                         )
                                       : CachedNetworkImage(
                                           imageUrl: subtitleImageUrl!,
@@ -3686,28 +3714,35 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                                           height: 24,
                                           fit: BoxFit.cover,
                                           errorWidget: (context, url, error) =>
-                                              Container(width: 24, height: 24, color: Colors.grey[700]),
+                                              Container(
+                                                width: 24,
+                                                height: 24,
+                                                color: Colors.grey[700],
+                                              ),
                                         ),
                                 ),
                                 const SizedBox(width: 8),
                               ],
-                              if (subtitle != null && subtitle!.isNotEmpty) 
-                              Text(
-                                subtitle!,
-                                style: TextStyle(
-                                  color: Colors.grey[300],
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                              if (subtitle != null && subtitle!.isNotEmpty)
+                                Text(
+                                  subtitle!,
+                                  style: TextStyle(
+                                    color: Colors.grey[300],
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
-                            ]
-                          )
+                            ],
+                          ),
                         ],
                         if (hasDescription) ...[
                           const SizedBox(height: 4),
                           Text(
                             descriptionText,
-                            style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
+                            ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -3881,10 +3916,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   size: 20,
                 ),
                 label: Text(
-                  isPlayingList ? 'Pause' : 'Play', 
-                  style: const TextStyle(
-                    fontSize: 20,
-                  )
+                  isPlayingList ? 'Pause' : 'Play',
+                  style: const TextStyle(fontSize: 20),
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
@@ -3906,16 +3939,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                           view._playFromStart(shuffle: true);
                         }
                       },
-                icon: const Icon(
-                  CupertinoIcons.shuffle,
-                  size: 20,
-                ),
-                label: const Text(
-                  'Shuffle',
-                  style: TextStyle(
-                    fontSize: 20,
-                  )
-                  ),
+                icon: const Icon(CupertinoIcons.shuffle, size: 20),
+                label: const Text('Shuffle', style: TextStyle(fontSize: 20)),
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
@@ -3954,6 +3979,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               ),
               label: Text(isPlayingList ? 'Pause' : 'Play'),
               style: FilledButton.styleFrom(
+                enabledMouseCursor: SystemMouseCursors.click,
+                disabledMouseCursor: SystemMouseCursors.basic,
                 minimumSize: const Size(118, 40),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
@@ -3974,6 +4001,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               icon: const Icon(CupertinoIcons.shuffle),
               label: const Text('Shuffle'),
               style: FilledButton.styleFrom(
+                enabledMouseCursor: SystemMouseCursors.click,
+                disabledMouseCursor: SystemMouseCursors.basic,
                 minimumSize: const Size(118, 40),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),

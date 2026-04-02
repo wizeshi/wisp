@@ -6,7 +6,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-typedef ContextMenuActionCallback = FutureOr<void> Function(BuildContext context);
+typedef ContextMenuActionCallback =
+    FutureOr<void> Function(BuildContext context);
 typedef ContextMenuHeaderBuilder = Widget Function(BuildContext context);
 
 class ContextMenuAction {
@@ -44,8 +45,12 @@ Future<void> showAdaptiveContextMenu({
   if (actions.isEmpty) return;
   final desktop = _isDesktop;
   if (desktop) {
-    final overlay = Overlay.of(context, rootOverlay: true).context.findRenderObject() as RenderBox;
-    final anchor = anchorRect ?? Rect.fromLTWH(globalPosition?.dx ?? 0, globalPosition?.dy ?? 0, 1, 1);
+    final overlay =
+        Overlay.of(context, rootOverlay: true).context.findRenderObject()
+            as RenderBox;
+    final anchor =
+        anchorRect ??
+        Rect.fromLTWH(globalPosition?.dx ?? 0, globalPosition?.dy ?? 0, 1, 1);
     await showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -70,7 +75,8 @@ Future<void> showAdaptiveContextMenu({
   );
 }
 
-bool get _isDesktop => Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+bool get _isDesktop =>
+    Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
 Future<void> _showMobileContextMenu(
   BuildContext context, {
@@ -142,10 +148,7 @@ class _MobileMenuTile extends StatelessWidget {
   final ContextMenuAction action;
   final Future<void> Function() onSelected;
 
-  const _MobileMenuTile({
-    required this.action,
-    required this.onSelected,
-  });
+  const _MobileMenuTile({required this.action, required this.onSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -183,7 +186,8 @@ class _DesktopContextMenuDialog extends StatefulWidget {
   });
 
   @override
-  State<_DesktopContextMenuDialog> createState() => _DesktopContextMenuDialogState();
+  State<_DesktopContextMenuDialog> createState() =>
+      _DesktopContextMenuDialogState();
 }
 
 class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
@@ -232,8 +236,14 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
 
   Offset _clampMenuPosition(Offset proposed, {required int itemCount}) {
     final height = _menuHeight(itemCount);
-    final maxLeft = math.max(_screenMargin, widget.overlaySize.width - _menuWidth - _screenMargin);
-    final maxTop = math.max(_screenMargin, widget.overlaySize.height - height - _screenMargin);
+    final maxLeft = math.max(
+      _screenMargin,
+      widget.overlaySize.width - _menuWidth - _screenMargin,
+    );
+    final maxTop = math.max(
+      _screenMargin,
+      widget.overlaySize.height - height - _screenMargin,
+    );
     return Offset(
       proposed.dx.clamp(_screenMargin, maxLeft),
       proposed.dy.clamp(_screenMargin, maxTop),
@@ -389,7 +399,9 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
                   borderRadius: BorderRadius.circular(8),
                   elevation: 14,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: _menuVerticalPadding),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: _menuVerticalPadding,
+                    ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -447,6 +459,9 @@ class _DesktopActionTile extends StatelessWidget {
     return Builder(
       builder: (tileContext) {
         return MouseRegion(
+          cursor: action.enabled
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
           onEnter: (_) {
             final box = tileContext.findRenderObject() as RenderBox?;
             if (box == null) return;
@@ -466,6 +481,9 @@ class _DesktopActionTile extends StatelessWidget {
             onExit(rect);
           },
           child: InkWell(
+            mouseCursor: action.enabled
+                ? SystemMouseCursors.click
+                : SystemMouseCursors.basic,
             onTap: action.enabled ? onTap : null,
             child: SizedBox(
               height: _DesktopContextMenuDialogState._itemHeight,
@@ -491,7 +509,9 @@ class _DesktopActionTile extends StatelessWidget {
                     if (action.hasChildren)
                       Icon(
                         Icons.chevron_right,
-                        color: action.enabled ? Colors.white70 : Colors.grey[600],
+                        color: action.enabled
+                            ? Colors.white70
+                            : Colors.grey[600],
                         size: 18,
                       ),
                   ],
@@ -529,10 +549,17 @@ class _Triangle {
   const _Triangle(this.a, this.b, this.c);
 
   bool contains(Offset point) {
-    final denominator = ((b.dy - c.dy) * (a.dx - c.dx) + (c.dx - b.dx) * (a.dy - c.dy));
+    final denominator =
+        ((b.dy - c.dy) * (a.dx - c.dx) + (c.dx - b.dx) * (a.dy - c.dy));
     if (denominator == 0) return false;
-    final w1 = ((b.dy - c.dy) * (point.dx - c.dx) + (c.dx - b.dx) * (point.dy - c.dy)) / denominator;
-    final w2 = ((c.dy - a.dy) * (point.dx - c.dx) + (a.dx - c.dx) * (point.dy - c.dy)) / denominator;
+    final w1 =
+        ((b.dy - c.dy) * (point.dx - c.dx) +
+            (c.dx - b.dx) * (point.dy - c.dy)) /
+        denominator;
+    final w2 =
+        ((c.dy - a.dy) * (point.dx - c.dx) +
+            (a.dx - c.dx) * (point.dy - c.dy)) /
+        denominator;
     final w3 = 1 - w1 - w2;
     return w1 >= 0 && w2 >= 0 && w3 >= 0;
   }
