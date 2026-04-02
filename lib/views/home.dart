@@ -581,8 +581,10 @@ class HomePageState extends State<HomePage> {
                             await player.playTrack(track);
                           },
                           onLongPress: () {
-                            final navState = context.read<NavigationState>();
-                            
+                            EntityContextMenus.showTrackMenu(
+                              context,
+                              track: track,
+                            );
                           },
                         );
                       },
@@ -627,8 +629,10 @@ class HomePageState extends State<HomePage> {
                             subtitle: 'Artist',
                             onTap: () => _openArtist(artist),
                             onLongPress: () {
-                              final navState = context.read<NavigationState>();
-                              
+                              EntityContextMenus.showArtistMenu(
+                                context,
+                                artist: artist,
+                              );
                             },
                           );
                         },
