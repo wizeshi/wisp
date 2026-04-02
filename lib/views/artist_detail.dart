@@ -714,45 +714,60 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       return const SizedBox.shrink();
     }
 
-    const tracksPerColumn = 3;
     final displayTracks = tracks.take(9).toList();
-    final columns = <List<GenericSong>>[];
-    for (var i = 0; i < displayTracks.length; i += tracksPerColumn) {
-      columns.add(
-        displayTracks.skip(i).take(tracksPerColumn).toList(growable: false),
-      );
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         /* _buildSectionTitle('Top Songs'),
         const SizedBox(height: 14), */
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var columnIndex = 0; columnIndex < columns.length; columnIndex++)
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: columnIndex == columns.length - 1 ? 0 : 18,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final maxColumnsByWidth = (constraints.maxWidth / 340).floor();
+            final columnCount = maxColumnsByWidth.clamp(1, 3).toInt();
+            final tracksPerColumn = (displayTracks.length / columnCount).ceil();
+
+            final columns = <List<GenericSong>>[];
+            for (var i = 0; i < displayTracks.length; i += tracksPerColumn) {
+              columns.add(
+                displayTracks
+                    .skip(i)
+                    .take(tracksPerColumn)
+                    .toList(growable: false),
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (
+                  var columnIndex = 0;
+                  columnIndex < columns.length;
+                  columnIndex++
+                )
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: columnIndex == columns.length - 1 ? 0 : 18,
+                      ),
+                      child: Column(
+                        children: [
+                          for (
+                            var trackIndex = 0;
+                            trackIndex < columns[columnIndex].length;
+                            trackIndex++
+                          )
+                            _buildDesktopTopSongRow(
+                              track: columns[columnIndex][trackIndex],
+                              index: (columnIndex * tracksPerColumn) + trackIndex,
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      for (
-                        var trackIndex = 0;
-                        trackIndex < columns[columnIndex].length;
-                        trackIndex++
-                      )
-                        _buildDesktopTopSongRow(
-                          track: columns[columnIndex][trackIndex],
-                          index: (columnIndex * tracksPerColumn) + trackIndex,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         ),
       ],
     );
