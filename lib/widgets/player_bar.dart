@@ -91,6 +91,33 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   @override
   Widget build(BuildContext context) {
     final offset = Offset(_dragOffset / 300, 0);
+    final dragProgress = (_dragOffset.abs() / 100).clamp(0.0, 1.0);
+    final swipePreview = context.select<
+      global_audio_player.WispAudioHandler,
+      _SwipePreviewData
+    >((player) {
+      final queue = player.queueTracks;
+      final currentIndex = player.currentIndex;
+      GenericSong? previousTrack;
+      GenericSong? nextTrack;
+
+      if (currentIndex > 0 && currentIndex < queue.length) {
+        previousTrack = queue[currentIndex - 1];
+      }
+      if (currentIndex >= 0 && currentIndex + 1 < queue.length) {
+        nextTrack = queue[currentIndex + 1];
+      }
+
+      return _SwipePreviewData(
+        previousTrack: previousTrack,
+        nextTrack: nextTrack,
+      );
+    });
+
+    final isSwipingLeft = _dragOffset < 0;
+    final previewTrack = isSwipingLeft
+        ? swipePreview.nextTrack
+        : swipePreview.previousTrack;
 
     var bgColor = Theme.of(context).colorScheme.primary;
 
@@ -161,16 +188,44 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                           Expanded(
                             child: ClipRect(
                               clipBehavior: Clip.hardEdge,
-                              child: AnimatedSlide(
-                                offset: offset,
-                                duration: Duration.zero,
-                                child: Opacity(
-                                  opacity: (1.0 - (_dragOffset.abs() / 100))
-                                      .clamp(0.3, 1.0),
-                                  child: _buildMobileTrackInfo(
-                                    widget.currentTrack,
+                              child: Stack(
+                                children: [
+                                  AnimatedSlide(
+                                    offset: offset,
+                                    duration: Duration.zero,
+                                    child: Opacity(
+                                      opacity: (1.0 - dragProgress).clamp(
+                                        0.3,
+                                        1.0,
+                                      ),
+                                      child: _buildMobileTrackInfo(
+                                        widget.currentTrack,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  if (previewTrack != null && dragProgress > 0)
+                                    Positioned.fill(
+                                      child: IgnorePointer(
+                                        child: Opacity(
+                                          opacity: (dragProgress * 0.95).clamp(
+                                            0.0,
+                                            0.95,
+                                          ),
+                                          child: Transform.translate(
+                                            offset: Offset(
+                                              isSwipingLeft
+                                                  ? (1 - dragProgress) * 24
+                                                  : -(1 - dragProgress) * 24,
+                                              0,
+                                            ),
+                                            child: _buildMobileTrackInfo(
+                                              previewTrack,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -414,6 +469,26 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       },
     );
   }
+}
+
+class _SwipePreviewData {
+  final GenericSong? previousTrack;
+  final GenericSong? nextTrack;
+
+  const _SwipePreviewData({
+    required this.previousTrack,
+    required this.nextTrack,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is _SwipePreviewData &&
+        other.previousTrack?.id == previousTrack?.id &&
+        other.nextTrack?.id == nextTrack?.id;
+  }
+
+  @override
+  int get hashCode => Object.hash(previousTrack?.id, nextTrack?.id);
 }
 
 class _DesktopPlayerBar extends StatelessWidget {
