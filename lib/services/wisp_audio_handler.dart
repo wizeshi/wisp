@@ -896,8 +896,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final icon = mode == audio_service.AudioServiceRepeatMode.one
         ? 'drawable/ic_repeat_one'
         : mode == audio_service.AudioServiceRepeatMode.all
-        ? 'drawable/ic_repeat_on'
-        : 'drawable/ic_repeat_off';
+        ? 'drawable/ic_repeat'
+        : 'drawable/ic_repeat_on';
     return audio_service.MediaControl.custom(
       androidIcon: icon,
       label: 'Repeat',

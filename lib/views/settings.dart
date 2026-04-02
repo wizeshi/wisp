@@ -1,8 +1,9 @@
 /// Settings page with Spotify authentication
 library;
 
-import 'dart:io' show Platform;
+import 'dart:io' show Directory, Platform, Process;
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/models/metadata_provider.dart';
 import 'package:wisp/providers/audio/youtube.dart';
@@ -352,6 +353,39 @@ class _SettingsPageState extends State<SettingsPage> {
     rootMessenger?.showSnackBar(SnackBar(content: Text(message)));
   }
 
+  bool get _isDesktop =>
+      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+
+  Future<Directory> _resolveAudioCacheDirectory() async {
+    await AudioCacheManager.instance.initialize();
+    final appDir = await getApplicationCacheDirectory();
+    final cacheDir = Directory('${appDir.path}/audio_cache');
+    if (!await cacheDir.exists()) {
+      await cacheDir.create(recursive: true);
+    }
+    return cacheDir;
+  }
+
+  Future<void> _openAudioCacheFolder() async {
+    if (!_isDesktop) {
+      return;
+    }
+
+    try {
+      final cacheDir = await _resolveAudioCacheDirectory();
+      if (Platform.isWindows) {
+        final normalizedPath = cacheDir.absolute.path.replaceAll('/', '\\');
+        await Process.start('explorer.exe', [normalizedPath]);
+      } else if (Platform.isMacOS) {
+        await Process.start('open', [cacheDir.path]);
+      } else if (Platform.isLinux) {
+        await Process.start('xdg-open', [cacheDir.path]);
+      }
+    } catch (e) {
+      _showSnackBar('Could not open cache folder: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDesktop =
@@ -386,6 +420,7 @@ class _SettingsPageState extends State<SettingsPage> {
       listenable: AudioCacheManager.instance,
       builder: (context, _) {
         final cacheManager = AudioCacheManager.instance;
+        final isDesktop = _isDesktop;
 
         return Container(
           decoration: BoxDecoration(
@@ -497,6 +532,21 @@ class _SettingsPageState extends State<SettingsPage> {
               Divider(color: Colors.grey[800], height: 32),
               Row(
                 children: [
+                  if (isDesktop) ...[
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _openAudioCacheFolder,
+                        icon: const Icon(Icons.folder_open_outlined, size: 18),
+                        label: const Text('Go to Folder'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey[400],
+                          side: BorderSide(color: Colors.grey[700]!),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {

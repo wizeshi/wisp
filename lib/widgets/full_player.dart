@@ -2396,20 +2396,50 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     final queue = player.queueTracks;
     final currentIndex = player.currentIndex;
     final contextName = player.playbackContextName;
+    final continuePlayingSource =
+        contextName != null && contextName.isNotEmpty ? contextName : 'Queue';
+    final hideLeadingCurrent = currentIndex == 0 && queue.length > 1;
+    final queueStartIndex = hideLeadingCurrent ? 1 : 0;
+    final visibleQueueCount = queue.length - queueStartIndex;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: 14),
+        _buildMobileNowPlayingActionButtons(
+          context,
+          player,
+          Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(height: 14),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Expanded(
-              child: Text(
-                'History',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                ),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Continue playing from',
+                    style: TextStyle(
+                      color: Colors.grey[300],
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    continuePlayingSource,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
             TextButton(
@@ -2427,26 +2457,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             ),
           ],
         ),
-        const Text(
-          'Continue playing',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          contextName != null && contextName.isNotEmpty
-              ? 'from $contextName'
-              : 'from Queue',
-          style: TextStyle(
-            color: Colors.grey[400],
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
         Expanded(
           child: queue.isEmpty
               ? Center(
@@ -2455,63 +2466,88 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     style: TextStyle(color: Colors.grey[500], fontSize: 18),
                   ),
                 )
-              : ListView.separated(
-                  itemCount: queue.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
+              : ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
+                  proxyDecorator: (child, index, animation) {
+                    return Material(
+                      type: MaterialType.transparency,
+                      color: Colors.transparent,
+                      child: child,
+                    );
+                  },
+                  itemCount: visibleQueueCount,
+                  onReorder: (oldIndex, newIndex) {
+                    if (oldIndex == newIndex) return;
+                    final queueOldIndex = oldIndex + queueStartIndex;
+                    final queueNewIndex = newIndex + queueStartIndex;
+                    unawaited(
+                      context.read<ConnectSessionProvider>().requestReorderQueue(
+                        queueOldIndex,
+                        queueNewIndex,
+                      ),
+                    );
+                  },
                   itemBuilder: (context, index) {
-                    final track = queue[index];
-                    final isCurrent = index == currentIndex;
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: () {
-                        unawaited(
-                          context
-                              .read<ConnectSessionProvider>()
-                              .requestPlayQueueIndex(index),
-                        );
-                      },
-                      child: Row(
-                        children: [
-                          _buildCoverImageBox(context, track.thumbnailUrl, 56),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  track.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: isCurrent
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
+                    final queueIndex = index + queueStartIndex;
+                    final track = queue[queueIndex];
+                    final isCurrent = queueIndex == currentIndex;
+                    return Padding(
+                      key: ValueKey('queue-item-${track.id}-$queueIndex'),
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () {
+                          unawaited(
+                            context
+                                .read<ConnectSessionProvider>()
+                                .requestPlayQueueIndex(queueIndex),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            _buildCoverImageBox(context, track.thumbnailUrl, 56),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    track.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: isCurrent
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 1),
-                                Text(
-                                  track.artists.isNotEmpty
-                                      ? track.artists.first.name
-                                      : 'Unknown artist',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 13,
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    track.artists.isNotEmpty
+                                        ? track.artists.first.name
+                                        : 'Unknown artist',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 13,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          Icon(
-                            Icons.drag_handle,
-                            color: Colors.grey[500],
-                            size: 22,
-                          ),
-                        ],
+                            ReorderableDragStartListener(
+                              index: index,
+                              child: Icon(
+                                Icons.drag_handle,
+                                color: Colors.grey[500],
+                                size: 22,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -3491,6 +3527,76 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         color: onTap == null
             ? Colors.grey[600]
             : (selected ? activeColor : Colors.grey[300]),
+      ),
+    );
+  }
+
+  Widget _buildMobileNowPlayingActionButtons(
+    BuildContext context,
+    global_audio_player.WispAudioHandler player,
+    Color btnColor,
+  ) {
+    final connect = context.read<ConnectSessionProvider>();
+    final repeatMode = player.repeatMode;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildMobileNowPlayingActionButton(
+            icon: CupertinoIcons.shuffle,
+            selected: player.shuffleEnabled,
+            activeColor: btnColor,
+            onTap: () => _deferAsyncAction(connect.requestToggleShuffle),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildMobileNowPlayingActionButton(
+            icon: repeatMode == global_audio_player.RepeatMode.one
+                ? CupertinoIcons.repeat_1
+                : CupertinoIcons.repeat,
+            selected: repeatMode != global_audio_player.RepeatMode.off,
+            activeColor: btnColor,
+            onTap: () => _deferAsyncAction(connect.requestToggleRepeat),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _deferAsyncAction(Future<void> Function() action) {
+    unawaited(Future<void>.delayed(Duration.zero, action));
+  }
+
+  Widget _buildMobileNowPlayingActionButton({
+    required IconData icon,
+    required bool selected,
+    required Color activeColor,
+    required VoidCallback onTap,
+  }) {
+    final color = selected ? Colors.white : Colors.grey[200]!;
+    final background = selected
+        ? activeColor.withOpacity(0.34)
+        : Colors.white.withOpacity(0.13);
+
+    return SizedBox(
+      height: 48,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: Colors.white.withOpacity(selected ? 0.26 : 0.14),
+            width: 1,
+          ),
+        ),
+        child: IconButton(
+          onPressed: onTap,
+          iconSize: 22,
+          splashRadius: 18,
+          color: color,
+          icon: Icon(icon),
+        ),
       ),
     );
   }
