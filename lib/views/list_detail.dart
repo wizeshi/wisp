@@ -2581,7 +2581,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  if (!isAppleStyle) ...[
+                                  if (!isAppleStyle || isMobile) ...[
                                     const SizedBox(height: 2),
                                     _buildArtistLine(
                                       artists,
@@ -2970,7 +2970,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if (!isAppleStyle) ...[
+                            if (!isAppleStyle || isMobile) ...[
                               const SizedBox(height: 2),
                               _buildArtistLine(artists, isDesktop: isDesktop),
                             ],
