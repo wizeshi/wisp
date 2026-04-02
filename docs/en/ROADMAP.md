@@ -1,7 +1,10 @@
 Here's the TODOs for version v26.03.xx:
 
 - Bugs:
+    - [ ] Fix these not changing the mouse cursor: Play/Shuffle buttons in the desktop apple music list view; options in the desktop context menu;
 - Future changes:
+    - [ ] Make double-clicking a playable element (lists or artist top songs) play it
+    - [ ] Use queryNpvArtist endpoint for better consistency when fetching the artist info in the right sidebar
     - [ ] Padding between elements (top and bottom) is part of the elements themselves (in the library view)
     - [ ] Change icons in the media session controls (android) to be greyed when disabled (loop is already done, missing shuffle).
     - [ ] Add a "Go to Folder" on the cache section (desktop-only).

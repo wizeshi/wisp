@@ -488,7 +488,7 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 12),
               _buildToggleSetting(
                 'Network-only mode',
-                'Only play cached tracks (offline mode)',
+                'Only stream tracks, no caching',
                 cacheManager.networkOnlyMode,
                 (value) {
                   cacheManager.setNetworkOnlyMode(value);

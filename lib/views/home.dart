@@ -989,7 +989,7 @@ class HomePageState extends State<HomePage> {
     final viewWidth = MediaQuery.sizeOf(context).width;
     const minWidthForSpecialCard = 1600.0;
     final canShowSpecialCard = viewWidth >= minWidthForSpecialCard;
-
+  
     final quickRows = _buildDesktopQuickRows();
     final dynamicEntries = ((quickRows != null)
             ? _homeSections.entries.skip(1)
@@ -1118,7 +1118,7 @@ class HomePageState extends State<HomePage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
-        final itemsPerRow = (maxWidth / 220).floor().clamp(1, 5);
+        final itemsPerRow = (maxWidth / 220).floor().clamp(1, 4);
         final maxItems = min(itemsPerRow * 2, 8);
         final cards = firstSection.value
             .map<Widget?>((item) => _buildHomeQuickTile(item, player))

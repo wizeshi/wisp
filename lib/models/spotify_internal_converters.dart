@@ -327,10 +327,7 @@ GenericSimpleUser spotifyInternalOwnerToGeneric(Map<String, dynamic> owner) {
       '';
 
   return GenericSimpleUser(
-    id: rawId
-        .toString()
-        .split(':')
-        .last,
+    id: rawId.toString().split(':').last,
     source: SongSource.spotifyInternal,
     displayName: displayName,
     avatarUrl: _getLargestImage(avatarSources),
@@ -704,46 +701,48 @@ GenericPlaylist spotifyInternalFullPlaylistToGeneric(
 
   final memberOwnerPayload =
       (((playlist['members'] as Map<String, dynamic>?)?['items'] as List?)
-              ?.whereType<Map<String, dynamic>>()
-              .map(
-                (entry) =>
-                    (entry['user'] as Map<String, dynamic>?) ??
-                    const <String, dynamic>{},
-              )
-              .firstWhere(
-                (entry) => entry.isNotEmpty,
-                orElse: () => const <String, dynamic>{},
-              )) ??
+          ?.whereType<Map<String, dynamic>>()
+          .map(
+            (entry) =>
+                (entry['user'] as Map<String, dynamic>?) ??
+                const <String, dynamic>{},
+          )
+          .firstWhere(
+            (entry) => entry.isNotEmpty,
+            orElse: () => const <String, dynamic>{},
+          )) ??
       const <String, dynamic>{};
 
   final addedByPayload =
       (((playlist['content'] as Map<String, dynamic>?)?['items'] as List?)
-              ?.whereType<Map<String, dynamic>>()
-              .map(
-                (entry) =>
-                    (entry['addedBy'] as Map<String, dynamic>?) ??
-                    const <String, dynamic>{},
-              )
-              .firstWhere(
-                (entry) => entry.isNotEmpty,
-                orElse: () => const <String, dynamic>{},
-              )) ??
+          ?.whereType<Map<String, dynamic>>()
+          .map(
+            (entry) =>
+                (entry['addedBy'] as Map<String, dynamic>?) ??
+                const <String, dynamic>{},
+          )
+          .firstWhere(
+            (entry) => entry.isNotEmpty,
+            orElse: () => const <String, dynamic>{},
+          )) ??
       const <String, dynamic>{};
 
-  final ownerPayload = <Map<String, dynamic>>[
-    (playlist['ownerV2'] as Map<String, dynamic>?) ??
-        const <String, dynamic>{},
-    (playlist['owner'] as Map<String, dynamic>?) ?? const <String, dynamic>{},
-    (playlist['createdByV2'] as Map<String, dynamic>?) ??
-        const <String, dynamic>{},
-    (playlist['creator'] as Map<String, dynamic>?) ??
-        const <String, dynamic>{},
-    memberOwnerPayload,
-    addedByPayload,
-  ].firstWhere(
-    (entry) => entry.isNotEmpty,
-    orElse: () => const <String, dynamic>{},
-  );
+  final ownerPayload =
+      <Map<String, dynamic>>[
+        (playlist['ownerV2'] as Map<String, dynamic>?) ??
+            const <String, dynamic>{},
+        (playlist['owner'] as Map<String, dynamic>?) ??
+            const <String, dynamic>{},
+        (playlist['createdByV2'] as Map<String, dynamic>?) ??
+            const <String, dynamic>{},
+        (playlist['creator'] as Map<String, dynamic>?) ??
+            const <String, dynamic>{},
+        memberOwnerPayload,
+        addedByPayload,
+      ].firstWhere(
+        (entry) => entry.isNotEmpty,
+        orElse: () => const <String, dynamic>{},
+      );
 
   final owner = spotifyInternalOwnerToGeneric(ownerPayload);
 
@@ -799,7 +798,7 @@ GenericPlaylist spotifyInternalFullPlaylistToGeneric(
 GenericArtist spotifyInternalFullArtistToGeneric(Map<String, dynamic> artist) {
   artist = (artist['data']?['artistUnion'] ?? artist) as Map<String, dynamic>;
 
-  final topTracksList =
+  var topTracksList =
       (artist['discography']?['topTracks']?['items'] as List?)
           ?.map(
             (t) => spotifyInternalTrackToGeneric(
@@ -842,6 +841,32 @@ GenericArtist spotifyInternalFullArtistToGeneric(Map<String, dynamic> artist) {
         .where((a) => !albumIds.contains(a.id))
         .toList();
     albums.insertAll(0, toAdd);
+  }
+
+  if (topTracksList.isNotEmpty && albums.isNotEmpty) {
+    final albumsById = {for (final album in albums) album.id: album};
+    topTracksList = topTracksList.map((track) {
+      final trackAlbum = track.album;
+      if (trackAlbum == null || trackAlbum.id.isEmpty) {
+        return track;
+      }
+
+      final hydratedAlbum = albumsById[trackAlbum.id];
+      if (hydratedAlbum == null) {
+        return track;
+      }
+
+      return GenericSong(
+        id: track.id,
+        source: track.source,
+        title: track.title,
+        artists: track.artists,
+        thumbnailUrl: track.thumbnailUrl,
+        explicit: track.explicit,
+        album: hydratedAlbum,
+        durationSecs: track.durationSecs,
+      );
+    }).toList();
   }
 
   final thumbSources = _extractImageSources(artist);

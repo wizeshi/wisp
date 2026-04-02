@@ -487,7 +487,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               ),
               const SizedBox(height: 24),
               _buildTopTracksSection(),
-              const SizedBox(height: 24),
+              const SizedBox(height: 0),
               _buildSpotifyAlbumsGridDesktop(),
             ],
           ),
@@ -726,8 +726,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('Top Songs'),
-        const SizedBox(height: 14),
+        /* _buildSectionTitle('Top Songs'),
+        const SizedBox(height: 14), */
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

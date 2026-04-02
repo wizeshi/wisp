@@ -108,7 +108,7 @@ class _WispNavigationState extends State<WispNavigation> {
                   children: [
                     Image.asset('assets/wisp.png', width: 28, height: 28),
                     if (!_isCollapsed) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 12),
                       const Text(
                         'wisp',
                         style: TextStyle(
