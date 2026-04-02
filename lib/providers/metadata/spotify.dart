@@ -1570,7 +1570,7 @@ class SpotifyProvider extends MetadataProvider {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     try {
-      final cacheId = 'query_${query}_limit_${limit}_offset_$offset';
+      final cacheId = 'v2_query_${query}_limit_${limit}_offset_$offset';
       return _getWithCache<SearchResults>(
         type: 'search_all',
         id: cacheId,
@@ -1585,28 +1585,35 @@ class SpotifyProvider extends MetadataProvider {
           final albumItems = data['albums']?['items'] as List? ?? [];
           final playlistItems = data['playlists']?['items'] as List? ?? [];
 
+            final tracks = trackItems
+              .where((track) => track != null)
+              .map((track) =>
+                spotifyTrackToGeneric(track as Map<String, dynamic>))
+              .toList();
+            final artists = artistItems
+              .where((artist) => artist != null)
+              .map((artist) =>
+                spotifyArtistToGeneric(artist as Map<String, dynamic>))
+              .toList();
+            final albums = albumItems
+              .where((album) => album != null)
+              .map((album) =>
+                spotifyFullAlbumToGeneric(album as Map<String, dynamic>))
+              .toList();
+            final playlists = playlistItems
+              .where((playlist) => playlist != null)
+              .map((playlist) => spotifyFullPlaylistToGeneric(
+                playlist as Map<String, dynamic>,
+                ))
+              .toList();
+
           return SearchResults(
-            tracks: trackItems
-                .where((track) => track != null)
-                .map((track) =>
-                    spotifyTrackToGeneric(track as Map<String, dynamic>))
-                .toList(),
-            artists: artistItems
-                .where((artist) => artist != null)
-                .map((artist) =>
-                    spotifyArtistToGeneric(artist as Map<String, dynamic>))
-                .toList(),
-            albums: albumItems
-                .where((album) => album != null)
-                .map((album) =>
-                    spotifyFullAlbumToGeneric(album as Map<String, dynamic>))
-                .toList(),
-            playlists: playlistItems
-                .where((playlist) => playlist != null)
-                .map((playlist) => spotifyFullPlaylistToGeneric(
-                      playlist as Map<String, dynamic>,
-                    ))
-                .toList(),
+            tracks: tracks,
+            artists: artists,
+            albums: albums,
+            playlists: playlists,
+            bestMatch:
+              tracks.isNotEmpty ? SearchBestMatch.track(tracks.first) : null,
           );
         },
         toJson: (results) => results.toJson(),

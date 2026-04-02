@@ -13,6 +13,9 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   final ValueChanged<String>? onSearchChanged;
   final VoidCallback? onSearchSubmitted;
   final VoidCallback? onSearchCleared;
+  final List<String> availableSources;
+  final String selectedSource;
+  final ValueChanged<String>? onSourceChanged;
 
   const WispTitleBar({
     super.key,
@@ -23,7 +26,14 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     this.onSearchChanged,
     this.onSearchSubmitted,
     this.onSearchCleared,
+    this.availableSources = const <String>[],
+    this.selectedSource = 'Spotify',
+    this.onSourceChanged,
   });
+
+  IconData _sourceIcon(String source) {
+    return source == 'YouTube' ? Icons.ondemand_video : Icons.music_note;
+  }
 
   bool _isDesktop() {
     return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -340,8 +350,11 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
               hintText: 'Search songs, albums, artists...',
               hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
               prefixIcon: Icon(Icons.search, color: Colors.grey[600], size: 20),
-              suffixIcon: value.text.isNotEmpty
-                  ? IconButton(
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (value.text.isNotEmpty)
+                    IconButton(
                       icon: Icon(
                         Icons.close,
                         color: Colors.grey[500],
@@ -353,8 +366,48 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                           onSearchCleared!();
                         }
                       },
-                    )
-                  : null,
+                    ),
+                  if (availableSources.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: availableSources.contains(selectedSource)
+                              ? selectedSource
+                              : availableSources.first,
+                          dropdownColor: const Color(0xFF181818),
+                          iconEnabledColor: Colors.grey[400],
+                          selectedItemBuilder: (_) => availableSources
+                              .map(
+                                (source) => Icon(
+                                  _sourceIcon(source),
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              )
+                              .toList(),
+                          items: availableSources
+                              .map(
+                                (source) => DropdownMenuItem<String>(
+                                  value: source,
+                                  child: Icon(
+                                    _sourceIcon(source),
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value == null || onSourceChanged == null) return;
+                            onSourceChanged!(value);
+                          },
+                        ),
+                      ),
+                    ),
+                ],
+              ),
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(vertical: 8),
               isDense: true,

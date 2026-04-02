@@ -19,17 +19,102 @@ enum SongSource {
   }
 }
 
+enum SearchBestMatchKind {
+  track,
+  artist,
+  album,
+  playlist;
+
+  String toJson() => name;
+
+  static SearchBestMatchKind fromJson(String json) {
+    return SearchBestMatchKind.values.firstWhere(
+      (e) => e.name == json,
+      orElse: () => SearchBestMatchKind.track,
+    );
+  }
+}
+
+class SearchBestMatch {
+  final SearchBestMatchKind kind;
+  final GenericSong? track;
+  final GenericSimpleArtist? artist;
+  final GenericAlbum? album;
+  final GenericPlaylist? playlist;
+
+  const SearchBestMatch._({
+    required this.kind,
+    this.track,
+    this.artist,
+    this.album,
+    this.playlist,
+  });
+
+  const SearchBestMatch.track(GenericSong track)
+      : this._(kind: SearchBestMatchKind.track, track: track);
+
+  const SearchBestMatch.artist(GenericSimpleArtist artist)
+      : this._(kind: SearchBestMatchKind.artist, artist: artist);
+
+  const SearchBestMatch.album(GenericAlbum album)
+      : this._(kind: SearchBestMatchKind.album, album: album);
+
+  const SearchBestMatch.playlist(GenericPlaylist playlist)
+      : this._(kind: SearchBestMatchKind.playlist, playlist: playlist);
+
+  Map<String, dynamic> toJson() => {
+        'kind': kind.toJson(),
+        'track': track?.toJson(),
+        'artist': artist?.toJson(),
+        'album': album?.toJson(),
+        'playlist': playlist?.toJson(),
+      };
+
+  factory SearchBestMatch.fromJson(Map<String, dynamic> json) {
+    final kind = SearchBestMatchKind.fromJson(json['kind'] as String);
+    switch (kind) {
+      case SearchBestMatchKind.track:
+        final track = json['track'] as Map<String, dynamic>?;
+        if (track != null) {
+          return SearchBestMatch.track(GenericSong.fromJson(track));
+        }
+        break;
+      case SearchBestMatchKind.artist:
+        final artist = json['artist'] as Map<String, dynamic>?;
+        if (artist != null) {
+          return SearchBestMatch.artist(GenericSimpleArtist.fromJson(artist));
+        }
+        break;
+      case SearchBestMatchKind.album:
+        final album = json['album'] as Map<String, dynamic>?;
+        if (album != null) {
+          return SearchBestMatch.album(GenericAlbum.fromJson(album));
+        }
+        break;
+      case SearchBestMatchKind.playlist:
+        final playlist = json['playlist'] as Map<String, dynamic>?;
+        if (playlist != null) {
+          return SearchBestMatch.playlist(GenericPlaylist.fromJson(playlist));
+        }
+        break;
+    }
+    throw const FormatException('Invalid SearchBestMatch payload');
+  }
+}
+
 class SearchResults {
   final List<GenericSong> tracks;
   final List<GenericSimpleArtist> artists;
   final List<GenericAlbum> albums;
   final List<GenericPlaylist> playlists;
+  final SearchBestMatch? bestMatch;
 
   SearchResults({
     required this.tracks,
     required this.artists,
     required this.albums,
     required this.playlists,
+    this.bestMatch,
   });
 
   Map<String, dynamic> toJson() => {
@@ -37,14 +122,17 @@ class SearchResults {
         'artists': artists.map((a) => a.toJson()).toList(),
         'albums': albums.map((a) => a.toJson()).toList(),
         'playlists': playlists.map((p) => p.toJson()).toList(),
+        'best_match': bestMatch?.toJson(),
       };
 
   factory SearchResults.fromJson(Map<String, dynamic> json) {
+    final bestMatchJson = json['best_match'] as Map<String, dynamic>?;
+    final tracks = (json['tracks'] as List? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(GenericSong.fromJson)
+        .toList();
     return SearchResults(
-      tracks: (json['tracks'] as List? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(GenericSong.fromJson)
-          .toList(),
+      tracks: tracks,
       artists: (json['artists'] as List? ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(GenericSimpleArtist.fromJson)
@@ -57,6 +145,9 @@ class SearchResults {
           .whereType<Map<String, dynamic>>()
           .map(GenericPlaylist.fromJson)
           .toList(),
+      bestMatch: bestMatchJson == null
+          ? (tracks.isNotEmpty ? SearchBestMatch.track(tracks.first) : null)
+          : SearchBestMatch.fromJson(bestMatchJson),
     );
   }
 }

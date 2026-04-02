@@ -1088,6 +1088,44 @@ List<GenericSong> spotifyInternalSearchTracks(Map<String, dynamic> response) {
   }).toList();
 }
 
+SearchBestMatch? spotifyInternalSearchBestMatch(Map<String, dynamic> response) {
+  final root = _extractSearchRoot(response);
+  final items = (root['topResultsV2']?['itemsV2'] as List?) ?? const [];
+  final firstItem = items.isNotEmpty ? items.first : null;
+  if (firstItem is! Map<String, dynamic>) {
+    return null;
+  }
+
+  final wrapper =
+      firstItem['item'] as Map<String, dynamic>? ??
+      firstItem['data'] as Map<String, dynamic>? ??
+      firstItem;
+  final data = wrapper['data'] as Map<String, dynamic>? ?? wrapper;
+  final typeName =
+      (wrapper['__typename'] as String?) ?? (data['__typename'] as String?);
+
+  try {
+    switch (typeName) {
+      case 'TrackResponseWrapper':
+      case 'Track':
+        return SearchBestMatch.track(spotifyInternalTrackToGeneric(data));
+      case 'ArtistResponseWrapper':
+      case 'Artist':
+        return SearchBestMatch.artist(spotifyInternalArtistToGeneric(data));
+      case 'AlbumResponseWrapper':
+      case 'Album':
+        return SearchBestMatch.album(spotifyInternalFullAlbumToGeneric(data));
+      case 'PlaylistResponseWrapper':
+      case 'Playlist':
+        return SearchBestMatch.playlist(spotifyInternalFullPlaylistToGeneric(data));
+    }
+  } catch (_) {
+    return null;
+  }
+
+  return null;
+}
+
 List<GenericSimpleArtist> spotifyInternalSearchArtists(
   Map<String, dynamic> response,
 ) {

@@ -9,6 +9,7 @@ import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/navigation_state.dart';
 import '../providers/search/search_state.dart';
+import '../providers/preferences/preferences_provider.dart';
 import '../providers/connect/connect_session_provider.dart';
 import '../services/connect/connect_models.dart';
 import '../services/connect/lan_connect_service.dart';
@@ -501,7 +502,17 @@ class _AppShellState extends State<AppShell> {
     final libraryState = context.watch<LibraryState>();
     final folderState = context.watch<LibraryFolderState>();
     final searchState = context.read<SearchState>();
+    final preferences = context.watch<PreferencesProvider>();
     final searchController = searchState.controller;
+    final availableSources = <String>[
+      if (preferences.metadataSpotifyEnabled) 'Spotify',
+      if (preferences.metadataYouTubeEnabled) 'YouTube',
+    ];
+    final selectedSource = availableSources.contains(searchState.selectedSource)
+        ? searchState.selectedSource
+        : (availableSources.isNotEmpty
+              ? availableSources.first
+              : searchState.selectedSource);
 
     final enableExitPrompt = !_isDesktop;
     final libraryItems = _getLibraryItems(
@@ -521,6 +532,16 @@ class _AppShellState extends State<AppShell> {
               onSettingsTap: () => _pushTab(3),
               searchController: searchController,
               searchFocusNode: _searchFocusNode,
+              availableSources: availableSources,
+              selectedSource: selectedSource,
+              onSourceChanged: (source) {
+                searchState.setSelectedSource(source);
+                final query = searchController.text.trim();
+                if (query.isNotEmpty) {
+                  _pushTab(1);
+                  searchState.submit();
+                }
+              },
               onSearchChanged: _scheduleSearchAutoSwitch,
               onSearchSubmitted: () {
                 _pushTab(1);

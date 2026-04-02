@@ -13,6 +13,7 @@ class LikeButton extends StatefulWidget {
   final EdgeInsets padding;
   final BoxConstraints constraints;
   final bool showTooltip;
+  final bool showIfUnliked;
   final Color color;
   final IconData? likedIcon;
   final IconData? notLikedIcon;
@@ -24,6 +25,7 @@ class LikeButton extends StatefulWidget {
     this.padding = const EdgeInsets.all(4),
     this.constraints = const BoxConstraints(minWidth: 28, minHeight: 28),
     this.showTooltip = true,
+    this.showIfUnliked = true,
     this.color = Colors.white,
     this.likedIcon = Icons.favorite,
     this.notLikedIcon = Icons.favorite_border,
@@ -52,6 +54,14 @@ class _LikeButtonState extends State<LikeButton> {
   Widget build(BuildContext context) {
     final track = widget.track;
     if (track == null) {
+      return const SizedBox.shrink();
+    }
+
+    final isLiked = context.select<SpotifyInternalProvider, bool>(
+      (spotify) => spotify.isTrackLiked(track.id),
+    );
+
+    if (!widget.showIfUnliked && !isLiked) {
       return const SizedBox.shrink();
     }
 

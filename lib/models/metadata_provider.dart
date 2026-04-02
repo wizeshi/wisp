@@ -256,6 +256,7 @@ abstract class MetadataProvider extends ChangeNotifier {
       artists: const [],
       albums: const [],
       playlists: const [],
+      bestMatch: null,
     );
   }
 }

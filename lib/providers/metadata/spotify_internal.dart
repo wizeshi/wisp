@@ -1893,7 +1893,7 @@ class SpotifyInternalProvider extends MetadataProvider {
     int offset = 0,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
-    final cacheId = 'query_${query}_limit_${limit}_offset_$offset';
+    final cacheId = 'v2_query_${query}_limit_${limit}_offset_$offset';
     return _getWithCache<SearchResults>(
       type: 'search_all',
       id: cacheId,
@@ -1904,11 +1904,18 @@ class SpotifyInternalProvider extends MetadataProvider {
           limit: limit,
           offset: offset,
         );
+        final tracks = spotifyInternalSearchTracks(response);
+        final artists = spotifyInternalSearchArtists(response);
+        final albums = spotifyInternalSearchAlbums(response);
+        final playlists = spotifyInternalSearchPlaylists(response);
+        final topResult = spotifyInternalSearchBestMatch(response);
         return SearchResults(
-          tracks: spotifyInternalSearchTracks(response),
-          artists: spotifyInternalSearchArtists(response),
-          albums: spotifyInternalSearchAlbums(response),
-          playlists: spotifyInternalSearchPlaylists(response),
+          tracks: tracks,
+          artists: artists,
+          albums: albums,
+          playlists: playlists,
+          bestMatch: topResult ??
+              (tracks.isNotEmpty ? SearchBestMatch.track(tracks.first) : null),
         );
       },
       toJson: (results) => results.toJson(),
