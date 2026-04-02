@@ -5,7 +5,6 @@ Here's the TODOs for version v26.03.xx:
 - Planned features: 
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
     - [ ] Add ability to follow/unfollow artists and save/remove albums.
-    - [ ] Lyrics View on mobile should be acessible by swiping on the song cover art; it shouldn't be its own view, rather, when visible, it should be a widget that replaces the cover art. it should also hide the lyrics preview and everything under it.  
     - [ ] Add a "Recommended" list of ~10 songs with "Add" buttons at the bottom of a playlist (not albums, not artists, not likes view)
     - [ ] Improve lyrics preview animation
     - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched

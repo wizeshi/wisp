@@ -29,6 +29,7 @@ import '../views/lyrics.dart';
 import '../views/queue.dart';
 import '../views/artist_detail.dart';
 import '../widgets/animated_lyrics_preview.dart';
+import '../widgets/entity_context_menus.dart';
 import '../widgets/like_button.dart';
 
 class FullScreenPlayer extends StatelessWidget {
@@ -197,8 +198,10 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                       .read<global_audio_player.WispAudioHandler>();
                   final currentTrack = player.currentTrack;
                   if (currentTrack == null) return;
-                  final libraryState = context.read<LibraryState>();
-                  final navState = context.read<NavigationState>();
+                  EntityContextMenus.showTrackMenu(
+                    context,
+                    track: currentTrack,
+                  );
                 },
               ),
             ),
@@ -2392,6 +2395,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   Widget _buildQueueModeContent(
     BuildContext context,
     global_audio_player.WispAudioHandler player,
+    bool isMobile,
   ) {
     final queue = player.queueTracks;
     final currentIndex = player.currentIndex;
@@ -2405,12 +2409,14 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 14),
-        _buildMobileNowPlayingActionButtons(
-          context,
-          player,
-          Theme.of(context).colorScheme.primary,
-        ),
+        if (isMobile) ...[
+          const SizedBox(height: 14),
+          _buildMobileNowPlayingActionButtons(
+            context,
+            player,
+            Theme.of(context).colorScheme.primary,
+          ),
+        ],
         const SizedBox(height: 14),
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -2590,6 +2596,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     _ApplePlayerViewMode mode,
     global_audio_player.WispAudioHandler player,
     LyricsProvider lyricsProvider,
+    bool isMobile,
   ) {
     Widget child;
     switch (mode) {
@@ -2597,7 +2604,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         child = _buildLyricsModeContent(context, player, lyricsProvider);
         break;
       case _ApplePlayerViewMode.queue:
-        child = _buildQueueModeContent(context, player);
+        child = _buildQueueModeContent(context, player, isMobile);
         break;
       case _ApplePlayerViewMode.waveform:
         if (!_isWaveformSupported) {
@@ -3056,8 +3063,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       .read<global_audio_player.WispAudioHandler>();
                   final currentTrack = player.currentTrack;
                   if (currentTrack == null) return;
-                  final libraryState = context.read<LibraryState>();
-                  final navState = context.read<NavigationState>();
+                  EntityContextMenus.showTrackMenu(
+                    context,
+                    track: currentTrack,
+                  );
                 },
               ),
             ),
@@ -4096,6 +4105,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                             mode,
                                             player,
                                             lyricsProvider,
+                                            false,
                                           ),
                                         ),
                                       ),
@@ -4298,6 +4308,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                                         mode,
                                                         player,
                                                         lyricsProvider,
+                                                        true,
                                                       ),
                                                     ),
                                                   ),
