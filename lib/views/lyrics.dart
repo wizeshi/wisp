@@ -139,12 +139,33 @@ class _LyricsViewState extends State<LyricsView> {
 
   void _scrollToLine(int index) {
     if (index < 0 || index >= _lineKeys.length) return;
-    final context = _lineKeys[index].currentContext;
-    if (context == null) return;
+    if (!_scrollController.hasClients) return;
 
-    Scrollable.ensureVisible(
-      context,
-      alignment: 0.5,
+    final lineContext = _lineKeys[index].currentContext;
+    final listContext = _listKey.currentContext;
+    if (lineContext == null || listContext == null) return;
+
+    final lineBox = lineContext.findRenderObject() as RenderBox?;
+    final listBox = listContext.findRenderObject() as RenderBox?;
+    if (lineBox == null || listBox == null) return;
+
+    final lineGlobalTop = lineBox.localToGlobal(Offset.zero).dy;
+    final viewportGlobalTop = listBox.localToGlobal(Offset.zero).dy;
+    final lineTopInViewport = lineGlobalTop - viewportGlobalTop;
+
+    final currentOffset = _scrollController.offset;
+    final targetOffset =
+        (lineTopInViewport + currentOffset) -
+        ((_scrollController.position.viewportDimension - lineBox.size.height) /
+            2);
+
+    final clampedOffset = targetOffset.clamp(
+      _scrollController.position.minScrollExtent,
+      _scrollController.position.maxScrollExtent,
+    );
+
+    _scrollController.animateTo(
+      clampedOffset,
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOut,
     );
