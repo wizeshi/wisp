@@ -190,6 +190,7 @@ class EntityContextMenus {
     required GenericSong track,
     Offset? globalPosition,
     Rect? anchorRect,
+    List<ContextMenuAction> additionalActions = const [],
   }) async {
     final spotifyInternal = context.read<SpotifyInternalProvider>();
     await spotifyInternal.ensureLikedTracksLoaded();
@@ -259,12 +260,25 @@ class EntityContextMenus {
         label: 'Search Alternatives',
         icon: Icons.ondemand_video,
         onSelected: (_) async {
+          final player = context.read<global_audio_player.WispAudioHandler>();
+          final previousVideoId = YouTubeProvider.getCachedVideoId(track.id);
           final selectedVideoId = await Navigator.of(context).push<String>(
             MaterialPageRoute(builder: (_) => YouTubeAlternativesView(track: track)),
           );
           if (!context.mounted || selectedVideoId == null) return;
+
+          final hasChanged = selectedVideoId.isEmpty
+              ? previousVideoId != null
+              : previousVideoId != selectedVideoId;
+
           if (selectedVideoId.isEmpty) {
             await YouTubeProvider.removeCachedVideoId(track.id);
+            if (hasChanged) {
+              await player.onYouTubeAlternativeUpdated(
+                track.id,
+                previousVideoId: previousVideoId,
+              );
+            }
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('YouTube mapping cleared')),
@@ -272,12 +286,19 @@ class EntityContextMenus {
             return;
           }
           await YouTubeProvider.setCachedVideoId(track.id, selectedVideoId);
+          if (hasChanged) {
+            await player.onYouTubeAlternativeUpdated(
+              track.id,
+              previousVideoId: previousVideoId,
+            );
+          }
           if (!context.mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('YouTube alternative saved')),
           );
         },
       ),
+      ...additionalActions,
       ContextMenuAction(
         id: 'share',
         label: 'Share',

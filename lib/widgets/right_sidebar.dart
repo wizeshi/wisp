@@ -19,6 +19,7 @@ import '../services/app_navigation.dart';
 import '../services/navigation_history.dart';
 import '../utils/lyrics_timing.dart';
 import '../views/list_detail.dart';
+import 'full_player.dart';
 import 'animated_lyrics_preview.dart';
 import 'entity_context_menus.dart';
 import 'hover_underline.dart';
@@ -207,14 +208,18 @@ class _NowPlayingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<WispAudioHandler, _NowPlayingData>(
-      selector: (context, player) => _NowPlayingData(
-        track: player.currentTrack,
-        playbackContextName: player.playbackContextName,
-        playbackContextType: player.playbackContextType,
-        playbackContextID: player.playbackContextID,
-      ),
-      builder: (context, data, child) {
+    return ValueListenableBuilder<bool>(
+      valueListenable:
+          AppleMusicFullScreenPlayer.animatedCanvasTemporarilyDisabledListenable,
+      builder: (context, animatedCanvasDisabled, _) {
+        return Selector<WispAudioHandler, _NowPlayingData>(
+          selector: (context, player) => _NowPlayingData(
+            track: player.currentTrack,
+            playbackContextName: player.playbackContextName,
+            playbackContextType: player.playbackContextType,
+            playbackContextID: player.playbackContextID,
+          ),
+          builder: (context, data, child) {
         final useCanvas = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.animatedCanvasEnabled,
         );
@@ -233,10 +238,11 @@ class _NowPlayingCard extends StatelessWidget {
                 data.playbackContextType == 'album' ||
                 data.playbackContextType == 'artist');
         final album = track?.album;
-        final canUseCanvas =
+          final canUseCanvas =
+            !animatedCanvasDisabled &&
             useCanvas &&
             (track?.source == SongSource.spotifyInternal ||
-                track?.source == SongSource.spotify);
+              track?.source == SongSource.spotify);
 
         Widget buildCard({String? canvasUrl}) {
           final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
@@ -368,7 +374,8 @@ class _NowPlayingCard extends StatelessWidget {
                                             ancestor: overlay,
                                           ),
                                         );
-                                        await EntityContextMenus.showTrackMenu(
+                                        await AppleMusicFullScreenPlayer
+                                            .showTrackMenuWithCanvasToggle(
                                           context,
                                           track: track,
                                           anchorRect: rect,
@@ -523,16 +530,18 @@ class _NowPlayingCard extends StatelessWidget {
           );
         }
 
-        if (track == null || !canUseCanvas) {
-          return buildCard();
-        }
+            if (track == null || !canUseCanvas) {
+              return buildCard();
+            }
 
-        final spotifyInternal = context.read<SpotifyInternalProvider>();
-        return FutureBuilder<String?>(
-          future: spotifyInternal.getCanvasUrl(track.id),
-          builder: (context, snapshot) {
-            final canvasUrl = snapshot.data ?? '';
-            return buildCard(canvasUrl: canvasUrl);
+            final spotifyInternal = context.read<SpotifyInternalProvider>();
+            return FutureBuilder<String?>(
+              future: spotifyInternal.getCanvasUrl(track.id),
+              builder: (context, snapshot) {
+                final canvasUrl = snapshot.data ?? '';
+                return buildCard(canvasUrl: canvasUrl);
+              },
+            );
           },
         );
       },

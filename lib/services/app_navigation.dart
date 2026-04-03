@@ -210,6 +210,7 @@ class AppNavigation {
     if (NavigationHistory.instance.currentRouteName == '/fullplayer') {
       return;
     }
+    AppleMusicFullScreenPlayer.resetTemporaryOptions();
     if (_isDesktop) {
       await _enterFullPlayerDesktopMode();
     }

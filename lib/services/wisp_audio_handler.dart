@@ -527,6 +527,61 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     await _playAtIndex(nextIndex, token: token);
   }
 
+  Future<void> _reloadCurrentTrackSource() async {
+    final track = _currentTrack;
+    if (track == null) return;
+
+    final requestToken = ++_trackChangeToken;
+    final wasPlaying = _player.playing;
+    final targetPosition = _player.position;
+
+    _errorMessage = null;
+    _setState(PlaybackState.loading);
+
+    try {
+      await _player.stop();
+      if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
+        return;
+      }
+
+      final source = await _getAudioSource(track);
+      if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
+        return;
+      }
+      if (source == null) {
+        throw Exception('Could not get audio source');
+      }
+
+      await _player.setAudioSource(source);
+      if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
+        return;
+      }
+
+      final duration = _player.duration;
+      final seekPosition =
+          duration != null && targetPosition > duration ? duration : targetPosition;
+      await _player.seek(seekPosition);
+      _forcePositionUpdate(seekPosition);
+      if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
+        return;
+      }
+
+      if (wasPlaying) {
+        await _player.play();
+      }
+
+      _setState(wasPlaying ? PlaybackState.playing : PlaybackState.paused);
+      _broadcastPlaybackState();
+      _ensureRpcTimer();
+      _ensureMprisTimer();
+      _updateDiscordPresence(force: true);
+    } catch (e) {
+      logger.e('[Player] Failed to reload current track source', error: e);
+      _errorMessage = e.toString();
+      _setState(PlaybackState.error);
+    }
+  }
+
   Future<void> _playAtIndex(int index, {int? token}) async {
     if (index < 0 || index >= _queue.length) return;
     final requestToken = token ?? ++_trackChangeToken;
@@ -1275,6 +1330,25 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   Future<void> removeFromCache(String trackId) async =>
       AudioCacheManager.instance.removeFromCache(trackId);
+
+  Future<void> onYouTubeAlternativeUpdated(
+    String trackId, {
+    String? previousVideoId,
+  }) async {
+    await removeFromCache(trackId);
+
+    if (previousVideoId != null && previousVideoId.isNotEmpty) {
+      _streamUrlCache.remove(previousVideoId);
+    }
+
+    final updatedVideoId = YouTubeProvider.getCachedVideoId(trackId);
+    if (updatedVideoId != null && updatedVideoId.isNotEmpty) {
+      _streamUrlCache.remove(updatedVideoId);
+    }
+
+    if (_currentTrack?.id != trackId) return;
+    await _reloadCurrentTrackSource();
+  }
 
   double? getDownloadProgress(String trackId) =>
       AudioCacheManager.instance.getDownloadProgress(trackId);

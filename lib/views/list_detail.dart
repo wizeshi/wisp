@@ -1190,14 +1190,27 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         label: 'Search Alternatives',
         icon: Icons.ondemand_video,
         onSelected: (_) async {
+          final player = context.read<global_audio_player.WispAudioHandler>();
+          final previousVideoId = YouTubeProvider.getCachedVideoId(song.id);
           final selectedVideoId = await Navigator.of(context).push<String>(
             MaterialPageRoute(
               builder: (_) => YouTubeAlternativesView(track: song),
             ),
           );
           if (!mounted || selectedVideoId == null) return;
+
+          final hasChanged = selectedVideoId.isEmpty
+              ? previousVideoId != null
+              : previousVideoId != selectedVideoId;
+
           if (selectedVideoId.isEmpty) {
             await YouTubeProvider.removeCachedVideoId(song.id);
+            if (hasChanged) {
+              await player.onYouTubeAlternativeUpdated(
+                song.id,
+                previousVideoId: previousVideoId,
+              );
+            }
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('YouTube mapping cleared')),
@@ -1205,6 +1218,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             return;
           }
           await YouTubeProvider.setCachedVideoId(song.id, selectedVideoId);
+          if (hasChanged) {
+            await player.onYouTubeAlternativeUpdated(
+              song.id,
+              previousVideoId: previousVideoId,
+            );
+          }
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('YouTube alternative saved')),

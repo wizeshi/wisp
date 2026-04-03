@@ -28,6 +28,7 @@ import '../providers/connect/connect_session_provider.dart';
 import '../views/lyrics.dart';
 import '../views/queue.dart';
 import '../views/artist_detail.dart';
+import '../widgets/adaptive_context_menu.dart';
 import '../widgets/animated_lyrics_preview.dart';
 import '../widgets/entity_context_menus.dart';
 import '../widgets/like_button.dart';
@@ -40,6 +41,7 @@ class FullScreenPlayer extends StatelessWidget {
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
   static void show(BuildContext context) {
+    AppleMusicFullScreenPlayer.resetTemporaryOptions();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -199,9 +201,11 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                       .read<global_audio_player.WispAudioHandler>();
                   final currentTrack = player.currentTrack;
                   if (currentTrack == null) return;
-                  EntityContextMenus.showTrackMenu(
-                    context,
-                    track: currentTrack,
+                  unawaited(
+                    AppleMusicFullScreenPlayer.showTrackMenuWithCanvasToggle(
+                      context,
+                      track: currentTrack,
+                    ),
                   );
                 },
               ),
@@ -1657,8 +1661,48 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       <String, Future<ColorScheme?>>{};
   static final Map<String, Future<String?>> _canvasUrlFutureCache =
       <String, Future<String?>>{};
+  static final ValueNotifier<bool> _animatedCanvasTemporarilyDisabledNotifier =
+      ValueNotifier<bool>(false);
 
   const AppleMusicFullScreenPlayer({required this.scrollController, super.key});
+
+  static void resetTemporaryOptions() {
+    _animatedCanvasTemporarilyDisabledNotifier.value = false;
+  }
+
+  static ValueNotifier<bool> get animatedCanvasTemporarilyDisabledListenable =>
+      _animatedCanvasTemporarilyDisabledNotifier;
+
+  static Future<void> showTrackMenuWithCanvasToggle(
+    BuildContext context, {
+    required GenericSong track,
+    Offset? globalPosition,
+    Rect? anchorRect,
+  }) async {
+    final animatedCanvasDisabled =
+        _animatedCanvasTemporarilyDisabledNotifier.value;
+    await EntityContextMenus.showTrackMenu(
+      context,
+      track: track,
+      globalPosition: globalPosition,
+      anchorRect: anchorRect,
+      additionalActions: [
+        ContextMenuAction(
+          id: 'toggle-animated-canvas-temp',
+          label: animatedCanvasDisabled
+              ? 'Enable Animated Canvas'
+              : 'Disable Animated Canvas',
+          icon: animatedCanvasDisabled
+              ? Icons.motion_photos_on
+              : Icons.motion_photos_off,
+          onSelected: (_) {
+            _animatedCanvasTemporarilyDisabledNotifier.value =
+                !animatedCanvasDisabled;
+          },
+        ),
+      ],
+    );
+  }
 
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -3136,9 +3180,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       .read<global_audio_player.WispAudioHandler>();
                   final currentTrack = player.currentTrack;
                   if (currentTrack == null) return;
-                  EntityContextMenus.showTrackMenu(
-                    context,
-                    track: currentTrack,
+                  unawaited(
+                    AppleMusicFullScreenPlayer.showTrackMenuWithCanvasToggle(
+                      context,
+                      track: currentTrack,
+                    ),
                   );
                 },
               ),
@@ -3378,6 +3424,42 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Builder(
+                      builder: (buttonContext) => _buildModeActionButton(
+                        tooltip: 'More options',
+                        icon: CupertinoIcons.ellipsis,
+                        selected: false,
+                        onTap: () {
+                          final overlay = Overlay.of(context).context
+                              .findRenderObject() as RenderBox;
+                          final box = buttonContext.findRenderObject()
+                              as RenderBox?;
+                          if (box == null) {
+                            unawaited(_openTrackMenu(context, player));
+                            return;
+                          }
+                          final rect = Rect.fromPoints(
+                            box.localToGlobal(
+                              Offset.zero,
+                              ancestor: overlay,
+                            ),
+                            box.localToGlobal(
+                              box.size.bottomRight(Offset.zero),
+                              ancestor: overlay,
+                            ),
+                          );
+                          unawaited(
+                            _openTrackMenu(
+                              context,
+                              player,
+                              anchorRect: rect,
+                            ),
+                          );
+                        },
+                        activeColor: btnColor,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
                     _buildModeActionButton(
                       tooltip: 'Shuffle',
                       icon: CupertinoIcons.shuffle,
@@ -3639,6 +3721,24 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
   void _deferAsyncAction(Future<void> Function() action) {
     unawaited(Future<void>.delayed(Duration.zero, action));
+  }
+
+  Future<void> _openTrackMenu(
+    BuildContext context,
+    global_audio_player.WispAudioHandler player,
+    {
+      Offset? globalPosition,
+      Rect? anchorRect,
+    }
+  ) async {
+    final currentTrack = player.currentTrack;
+    if (currentTrack == null) return;
+    await showTrackMenuWithCanvasToggle(
+      context,
+      track: currentTrack,
+      globalPosition: globalPosition,
+      anchorRect: anchorRect,
+    );
   }
 
   Widget _buildMobileNowPlayingActionButton({
@@ -4241,53 +4341,57 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 final canvasUrl = canvasSnapshot.data ?? '';
                 final hasCanvas = canvasUrl.isNotEmpty;
 
-                return ValueListenableBuilder<_ApplePlayerViewMode>(
-                  valueListenable: _modeNotifier,
-                  builder: (context, mode, _) {
-                    final isNowPlaying =
-                        mode == _ApplePlayerViewMode.nowPlaying;
-                    final useNowPlayingCanvas = _isDesktop
-                        ? hasCanvas
-                        : (isNowPlaying && hasCanvas);
+                return ValueListenableBuilder<bool>(
+                  valueListenable: _animatedCanvasTemporarilyDisabledNotifier,
+                  builder: (context, animatedCanvasDisabled, __) {
+                    return ValueListenableBuilder<_ApplePlayerViewMode>(
+                      valueListenable: _modeNotifier,
+                      builder: (context, mode, _) {
+                        final isNowPlaying =
+                            mode == _ApplePlayerViewMode.nowPlaying;
+                        final useNowPlayingCanvas = !animatedCanvasDisabled &&
+                            (_isDesktop
+                                ? hasCanvas
+                                : (isNowPlaying && hasCanvas));
 
-                    return Stack(
-                      clipBehavior: Clip.hardEdge,
-                      children: [
-                        Positioned.fill(
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 420),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            transitionBuilder: (child, animation) {
-                              final moveAnimation = Tween<Offset>(
-                                begin: const Offset(0, 0.06),
-                                end: Offset.zero,
-                              ).animate(animation);
-                              return FadeTransition(
-                                opacity: animation,
-                                child: SlideTransition(
-                                  position: moveAnimation,
-                                  child: child,
-                                ),
-                              );
-                            },
-                            child: KeyedSubtree(
-                              key: ValueKey<bool>(useNowPlayingCanvas),
-                              child: useNowPlayingCanvas
-                                  ? _buildCanvasBackground(
-                                      context,
-                                      canvasUrl,
-                                      imageUrl,
-                                      topInset,
-                                    )
-                                  : _buildFallbackBackground(
-                                      context,
-                                      imageUrl,
-                                      topInset,
+                        return Stack(
+                          clipBehavior: Clip.hardEdge,
+                          children: [
+                            Positioned.fill(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 420),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder: (child, animation) {
+                                  final moveAnimation = Tween<Offset>(
+                                    begin: const Offset(0, 0.06),
+                                    end: Offset.zero,
+                                  ).animate(animation);
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: SlideTransition(
+                                      position: moveAnimation,
+                                      child: child,
                                     ),
+                                  );
+                                },
+                                child: KeyedSubtree(
+                                  key: ValueKey<bool>(useNowPlayingCanvas),
+                                  child: useNowPlayingCanvas
+                                      ? _buildCanvasBackground(
+                                          context,
+                                          canvasUrl,
+                                          imageUrl,
+                                          topInset,
+                                        )
+                                      : _buildFallbackBackground(
+                                          context,
+                                          imageUrl,
+                                          topInset,
+                                        ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.black.withOpacity(0.45),
@@ -4400,7 +4504,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                             ),
                           ),
                         ),
-                      ],
+                          ],
+                        );
+                      },
                     );
                   },
                 );
