@@ -266,7 +266,7 @@ class AudioPlayerProvider extends ChangeNotifier {
     _isHandlingCompletion = true;
     final token = _trackChangeToken;
     () async {
-      logger.i('[Player] ▶ Track completed: ${_currentTrack?.title}');
+      logger.i('[Audio/Player] Track completed: ${_currentTrack?.title}');
 
       if (_repeatMode == RepeatMode.one) {
         await _player.seek(Duration.zero);
@@ -290,7 +290,7 @@ class AudioPlayerProvider extends ChangeNotifier {
         _setState(PlaybackState.paused);
       }
     } catch (e) {
-      logger.w('[Player] Startup prepare failed', error: e);
+      logger.w('[Audio/Player] Startup prepare failed', error: e);
     }
   }
 
@@ -302,7 +302,7 @@ class AudioPlayerProvider extends ChangeNotifier {
       if (_repeatMode == RepeatMode.all) {
         nextIndex = 0;
       } else {
-        logger.i('[Player] End of queue');
+        logger.i('[Audio/Player] End of queue reached');
         _setState(PlaybackState.idle);
         return;
       }
@@ -317,7 +317,7 @@ class AudioPlayerProvider extends ChangeNotifier {
     final requestToken = token ?? ++_trackChangeToken;
 
     final track = _queue[index];
-    logger.i('[Player] Playing [${index + 1}/${_queue.length}]: ${track.title}');
+    logger.i('[Audio/Player] Playing [${index + 1}/${_queue.length}]: ${track.title}');
 
     _currentIndex = index;
     _currentTrack = track;
@@ -352,7 +352,7 @@ class AudioPlayerProvider extends ChangeNotifier {
       _saveQueue();
       _queueCaching(track);
     } catch (e) {
-      logger.e('[Player] Error', error: e);
+      logger.e('[Audio/Player] Error', error: e);
       _errorMessage = e.toString();
       _setState(PlaybackState.error);
 
@@ -373,7 +373,7 @@ class AudioPlayerProvider extends ChangeNotifier {
     // Try cache first
     final cachedPath = cacheManager.getCachedPath(track.id);
     if (cachedPath != null && File(cachedPath).existsSync()) {
-      logger.d('[Player] 📦 From cache');
+      logger.d('[Audio/Player] From cache');
       await cacheManager.updateLastPlayed(track.id);
       return AudioSource.file(cachedPath);
     }
@@ -393,7 +393,7 @@ class AudioPlayerProvider extends ChangeNotifier {
     }
 
     // Get stream URL
-    logger.d('[Player] 🎵 Streaming from YouTube');
+    logger.d('[Audio/Player] 🎵 Streaming from YouTube');
     final streamUrl = await _youtube.getStreamUrl(videoId);
 
     final userAgent = Platform.isAndroid
@@ -431,9 +431,9 @@ class AudioPlayerProvider extends ChangeNotifier {
       final result = await _youtube.searchYouTube(artistNames, track.title, durationSecs: track.durationSecs);
       if (result == null) return;
       YouTubeProvider.cacheVideoId(track.id, result.videoId);
-      logger.d('[Player] Pre-resolved next track: ${track.title}');
+      logger.d('[Audio/Player] Pre-resolved next track: ${track.title}');
     } catch (e) {
-      logger.w('[Player] Failed to pre-resolve next track', error: e);
+      logger.w('[Audio/Player] Failed to pre-resolve next track', error: e);
     }
   }
 
@@ -796,7 +796,7 @@ class AudioPlayerProvider extends ChangeNotifier {
       }
       notifyListeners();
     } catch (e) {
-      logger.e('[Player] Load queue error', error: e);
+      logger.e('[Audio/Player] Load queue error', error: e);
     }
   }
 
@@ -815,7 +815,7 @@ class AudioPlayerProvider extends ChangeNotifier {
       await prefs.setBool('shuffle_enabled', _shuffleEnabled);
       await prefs.setString('repeat_mode', _repeatMode.toString());
     } catch (e) {
-      logger.e('[Player] Save queue error', error: e);
+      logger.e('[Audio/Player] Save queue error', error: e);
     }
   }
 
@@ -825,7 +825,7 @@ class AudioPlayerProvider extends ChangeNotifier {
       await prefs.setDouble('player_volume', _player.volume);
       await prefs.setDouble('player_last_volume', _lastVolume);
     } catch (e) {
-      logger.e('[Player] Save volume error', error: e);
+      logger.e('[Audio/Player] Save volume error', error: e);
     }
   }
 

@@ -210,7 +210,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       if (_player.processingState == ProcessingState.ready) {
         if (!playing && wasPlaying && _isAtTrackEnd()) {
           logger.w(
-            '[Player] Fallback completion trigger: playing=false at track end',
+            '[Audio/Player] Fallback completion trigger: playing=false at track end',
           );
           _onCompleted();
           _broadcastPlaybackState();
@@ -483,7 +483,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _isHandlingCompletion = true;
     final token = _trackChangeToken;
     () async {
-      logger.i('[Player] Track completed: ${_currentTrack?.title}');
+      logger.i('[Audio/Player] Track completed: ${_currentTrack?.title}');
 
       if (_repeatMode == RepeatMode.one) {
         await _player.seek(Duration.zero);
@@ -507,7 +507,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         _setState(PlaybackState.paused);
       }
     } catch (e) {
-      logger.w('[Player] Startup prepare failed', error: e);
+      logger.w('[Audio/Player] Startup prepare failed', error: e);
     }
   }
 
@@ -518,7 +518,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       if (_repeatMode == RepeatMode.all) {
         nextIndex = 0;
       } else {
-        logger.i('[Player] End of queue');
+        logger.i('[Audio/Player] Reached end of queue');
         _setState(PlaybackState.idle);
         return;
       }
@@ -576,7 +576,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _ensureMprisTimer();
       _updateDiscordPresence(force: true);
     } catch (e) {
-      logger.e('[Player] Failed to reload current track source', error: e);
+      logger.e('[Audio/Player] Failed to reload current track source', error: e);
       _errorMessage = e.toString();
       _setState(PlaybackState.error);
     }
@@ -588,7 +588,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     final track = _queue[index];
     logger.i(
-      '[Player] Playing [${index + 1}/${_queue.length}]: ${track.title}',
+      '[Audio/Player] Playing [${index + 1}/${_queue.length}]: ${track.title}',
     );
 
     _currentIndex = index;
@@ -623,7 +623,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _saveQueue();
       _queueCaching(track);
     } catch (e) {
-      logger.e('[Player] Error', error: e);
+      logger.e('[Audio/Player] Error', error: e);
       _errorMessage = e.toString();
       _setState(PlaybackState.error);
 
@@ -649,7 +649,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     final cachedPath = cacheManager.getCachedPath(track.id);
     if (cachedPath != null && File(cachedPath).existsSync()) {
-      logger.d('[Player] From cache');
+      logger.d('[Audio/Player] From cache');
       await cacheManager.updateLastPlayed(track.id);
       return AudioSource.file(cachedPath);
     }
@@ -674,11 +674,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
                     fallbackStreamUrls: spotify.fallbackStreamUrls,
                     headers: spotify.requestHeaders,
                   );
-              logger.d('[Player] Streaming decrypted Spotify via local proxy');
+              logger.d('[Audio/Player] Streaming decrypted Spotify via local proxy');
               return AudioSource.uri(proxyUri);
             } catch (error) {
               logger.w(
-                '[Player] Spotify decrypt proxy unavailable, falling back',
+                '[Audio/Player] Spotify decrypt proxy unavailable, falling back',
                 error: error,
               );
             }
@@ -691,15 +691,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
                   headers: spotify.requestHeaders,
                 );
             if (decryptedPath != null && File(decryptedPath).existsSync()) {
-              logger.d('[Player] Playing decrypted Spotify temp file');
+              logger.d('[Audio/Player] Playing decrypted Spotify temp file');
               return AudioSource.file(decryptedPath);
             }
             logger.w(
-              '[Player] Spotify decrypt temp fallback failed, trying raw stream',
+              '[Audio/Player] Spotify decrypt temp fallback failed, trying raw stream',
             );
           }
 
-          logger.d('[Player] Streaming from Spotify');
+          logger.d('[Audio/Player] Streaming from Spotify');
           return AudioSource.uri(
             Uri.parse(spotify.streamUrl),
             headers: {
@@ -710,11 +710,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           );
         }
         logger.d(
-          '[Player] Spotify stream unavailable, falling back to YouTube',
+          '[Audio/Player] Spotify stream unavailable, falling back to YouTube',
         );
       } catch (e) {
         logger.w(
-          '[Player] Spotify stream failed, falling back to YouTube',
+          '[Audio/Player] Spotify stream failed, falling back to YouTube',
           error: e,
         );
       }
@@ -739,7 +739,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       YouTubeProvider.cacheVideoId(track.id, videoId);
     }
 
-    logger.d('[Player] Streaming from YouTube');
+    logger.d('[Audio/Player] Streaming from YouTube');
     final streamUrl = await _getStreamUrlWithCache(videoId);
 
     final userAgent = Platform.isAndroid
@@ -783,11 +783,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       try {
         final spotify = await _spotifyAudio.resolveStream(track);
         if (spotify != null) {
-          logger.d('[Player] Pre-resolved Spotify URL: ${track.title}');
+          logger.d('[Audio/Player] Pre-resolved Spotify URL: ${track.title}');
           return;
         }
       } catch (e) {
-        logger.w('[Player] Failed to pre-resolve Spotify URL', error: e);
+        logger.w('[Audio/Player] Failed to pre-resolve Spotify URL', error: e);
       }
     }
 
@@ -814,9 +814,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
 
       await _getStreamUrlWithCache(videoId);
-      logger.d('[Player] Pre-resolved next track URL: ${track.title}');
+      logger.d('[Audio/Player] Pre-resolved next track URL: ${track.title}');
     } catch (e) {
-      logger.w('[Player] Failed to pre-resolve next track', error: e);
+      logger.w('[Audio/Player] Failed to pre-resolve next track', error: e);
     }
   }
 
@@ -1410,7 +1410,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _updateMediaItem();
       notifyListeners();
     } catch (e) {
-      logger.e('[Player] Load queue error', error: e);
+      logger.e('[Audio/Player] Load queue error', error: e);
     }
   }
 
@@ -1442,7 +1442,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         _playbackContextSource?.toString() ?? '',
       );
     } catch (e) {
-      logger.e('[Player] Save queue error', error: e);
+      logger.e('[Audio/Player] Save queue error', error: e);
     }
   }
 
@@ -1452,7 +1452,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await prefs.setDouble('player_volume', _player.volume);
       await prefs.setDouble('player_last_volume', _lastVolume);
     } catch (e) {
-      logger.e('[Player] Save volume error', error: e);
+      logger.e('[Audio/Player] Save volume error', error: e);
     }
   }
 
