@@ -999,6 +999,10 @@ class HomePageState extends State<HomePage> {
     final newMusicIndex = dynamicEntries.indexWhere(
       (entry) => entry.key.trim().toLowerCase() == 'new music',
     );
+    final shouldShowNewMusicSpecialCard =
+        canShowSpecialCard &&
+        newMusicIndex >= 0 &&
+        dynamicEntries[newMusicIndex].value.isNotEmpty;
     final rightSectionIndex =
       (newMusicIndex == 0 && dynamicEntries.length > 1) ? 1 : 0;
 
@@ -1014,13 +1018,12 @@ class HomePageState extends State<HomePage> {
       ? _buildSection(
         dynamicEntries[rightSectionIndex].key,
         firstDynamicSectionCards,
-        showTitle: false,
+        showTitle: !shouldShowNewMusicSpecialCard,
         )
         : null;
 
     final newMusicSpecialCard =
-      canShowSpecialCard &&
-        newMusicIndex >= 0 && dynamicEntries[newMusicIndex].value.isNotEmpty
+      shouldShowNewMusicSpecialCard
         ? _buildHomeCard(
             dynamicEntries[newMusicIndex].value.first,
             useSpecialCardStyle: true,
