@@ -17,7 +17,7 @@ class AnimatedLyricsPreviewList extends StatefulWidget {
     this.itemPadding = const EdgeInsets.only(bottom: 6),
     this.maxLines,
     this.overflow = TextOverflow.ellipsis,
-    this.duration = const Duration(milliseconds: 250),
+    this.duration = const Duration(milliseconds: 190),
     this.resetKey,
   });
 
@@ -90,9 +90,17 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
       }
 
       final removedLine = _items.first;
+      final previousLength = _items.length;
+      final newTailLine = newLines.last;
+
       setState(() {
         _items.removeAt(0);
+        for (var i = 0; i < _items.length; i++) {
+          _items[i] = newLines[i];
+        }
+        _items.add(newTailLine);
       });
+
       listState.removeItem(
         0,
         (context, animation) =>
@@ -100,21 +108,11 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
         duration: widget.duration,
       );
 
-      Future.delayed(widget.duration, () {
-        if (!mounted || token != _updateToken) return;
-        final insertIndex = _items.length;
-        final newLine = newLines.last;
-        setState(() {
-          for (var i = 0; i < _items.length; i++) {
-            _items[i] = newLines[i];
-          }
-          _items.insert(insertIndex, newLine);
-        });
-        _listKey.currentState?.insertItem(
-          insertIndex,
-          duration: widget.duration,
-        );
-      });
+      if (!mounted || token != _updateToken) return;
+      _listKey.currentState?.insertItem(
+        previousLength - 1,
+        duration: widget.duration,
+      );
       return;
     }
 
@@ -129,22 +127,53 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
     Animation<double> animation, {
     required bool isRemoving,
   }) {
-    final anim = isRemoving ? ReverseAnimation(animation) : animation;
-    final tween = isRemoving
-        ? Tween<Offset>(begin: Offset.zero, end: const Offset(0, -0.2))
-        : Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero);
+    final progress = isRemoving ? ReverseAnimation(animation) : animation;
 
-    return FadeTransition(
-      opacity: anim,
-      child: SlideTransition(
-        position: tween.animate(anim),
-        child: Padding(
-          padding: widget.itemPadding,
-          child: Text(
-            line.content,
-            maxLines: widget.maxLines,
-            overflow: widget.overflow,
-            style: widget.textStyle,
+    final slideAnimation = isRemoving
+        ? Tween<Offset>(
+            begin: Offset.zero,
+            end: const Offset(0, -0.32),
+          ).animate(
+            CurvedAnimation(
+              parent: progress,
+              curve: Curves.easeInOutCubicEmphasized,
+            ),
+          )
+        : Tween<Offset>(begin: const Offset(0, 0.28), end: Offset.zero).animate(
+            CurvedAnimation(parent: progress, curve: Curves.easeOutCubic),
+          );
+
+    final opacityAnimation = isRemoving
+        ? Tween<double>(begin: 1, end: 0).animate(
+            CurvedAnimation(parent: progress, curve: Curves.easeInCubic),
+          )
+        : CurvedAnimation(parent: progress, curve: Curves.easeOutCubic);
+
+    final sizeAnimation = isRemoving
+        ? Tween<double>(
+            begin: 1,
+            end: 0,
+          ).animate(CurvedAnimation(parent: progress, curve: Curves.linear))
+        : Tween<double>(
+            begin: 0,
+            end: 1,
+          ).animate(CurvedAnimation(parent: progress, curve: Curves.linear));
+
+    return SizeTransition(
+      sizeFactor: sizeAnimation,
+      axisAlignment: -1.0,
+      child: FadeTransition(
+        opacity: opacityAnimation,
+        child: SlideTransition(
+          position: slideAnimation,
+          child: Padding(
+            padding: widget.itemPadding,
+            child: Text(
+              line.content,
+              maxLines: widget.maxLines,
+              overflow: widget.overflow,
+              style: widget.textStyle,
+            ),
           ),
         ),
       ),
@@ -155,6 +184,7 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
   Widget build(BuildContext context) {
     return AnimatedList(
       key: _listKey,
+      clipBehavior: Clip.hardEdge,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       initialItemCount: _items.length,
