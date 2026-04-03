@@ -35,6 +35,7 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   String? _bearerToken;
   String? _clientToken;
+  DateTime? _bearerTokenExpiresAt;
   String? _userId;
   String? _userDisplayName;
 
@@ -56,6 +57,7 @@ class SpotifyInternalProvider extends MetadataProvider {
   static const Duration _authInitCooldown = Duration(seconds: 45);
   static const Duration _authInitFailureCooldown = Duration(seconds: 4);
   static const Duration _tokenRequestTimeout = Duration(seconds: 12);
+  static const Duration _tokenRefreshSkew = Duration(minutes: 1);
   static const int _tokenRequestMaxAttempts = 2;
   static const int _maxStartupAuthRetries = 2;
 
@@ -208,6 +210,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       _isAuthenticated = false;
       _bearerToken = null;
       _clientToken = null;
+      _bearerTokenExpiresAt = null;
     } catch (e) {
       _errorMessage = '[Metadata/Spotify-Internal] Logout failed: $e';
       logger.d(_errorMessage);
@@ -282,6 +285,7 @@ class SpotifyInternalProvider extends MetadataProvider {
           _isAuthenticated = false;
           _bearerToken = null;
           _clientToken = null;
+          _bearerTokenExpiresAt = null;
           _lastAuthInitFailed = true;
           _scheduleStartupAuthRetry(e);
         }
@@ -382,6 +386,7 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
 
     _bearerToken = accessToken;
+    _bearerTokenExpiresAt = expiresAt;
 
     final deviceId = _randomHex(32);
     final clientTokenPayload = {
@@ -464,7 +469,14 @@ class SpotifyInternalProvider extends MetadataProvider {
   }
 
   Future<void> _ensureTokens() async {
-    if (_bearerToken != null && _clientToken != null) return;
+    final expiresAt = _bearerTokenExpiresAt;
+    if (_bearerToken != null &&
+        _clientToken != null &&
+        expiresAt != null &&
+        DateTime.now().isBefore(expiresAt.subtract(_tokenRefreshSkew))) {
+      return;
+    }
+
     final cookie = await _credentialsService.getSpotifyLyricsCookie();
     if (cookie == null || cookie.isEmpty) {
       throw StateError(
@@ -641,7 +653,16 @@ class SpotifyInternalProvider extends MetadataProvider {
     String path, {
     required String method,
     String? body,
+    bool forceTokenRefresh = false,
   }) async {
+    if (forceTokenRefresh) {
+      _bearerToken = null;
+      _clientToken = null;
+      _bearerTokenExpiresAt = null;
+    }
+
+    await _ensureTokens();
+
     final url = Uri.parse('https://api.spotify.com/v1$path');
     final headers = {
       'Authorization': 'Bearer $_bearerToken',
@@ -651,16 +672,27 @@ class SpotifyInternalProvider extends MetadataProvider {
 
     final client = _createSpotifyHttpClient();
     try {
+      late http.Response response;
       if (method == 'PUT') {
-        return await client.put(url, headers: headers, body: body);
+        response = await client.put(url, headers: headers, body: body);
+      } else if (method == 'DELETE') {
+        response = await client.delete(url, headers: headers, body: body);
+      } else if (method == 'POST') {
+        response = await client.post(url, headers: headers, body: body);
+      } else {
+        response = await client.get(url, headers: headers);
       }
-      if (method == 'DELETE') {
-        return await client.delete(url, headers: headers, body: body);
+
+      if (response.statusCode == 401 && !forceTokenRefresh) {
+        return _makeWebApiRequestWithBody(
+          path,
+          method: method,
+          body: body,
+          forceTokenRefresh: true,
+        );
       }
-      if (method == 'POST') {
-        return await client.post(url, headers: headers, body: body);
-      }
-      return await client.get(url, headers: headers);
+
+      return response;
     } finally {
       client.close();
     }
