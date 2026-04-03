@@ -249,7 +249,7 @@ class _SettingsPageState extends State<SettingsPage> {
             return AlertDialog(
               backgroundColor: const Color(0xFF282828),
               title: const Text(
-                'Provider Preferences',
+                'Cache Deletion',
                 style: TextStyle(color: Colors.white),
               ),
               content: SizedBox(
@@ -342,15 +342,20 @@ class _SettingsPageState extends State<SettingsPage> {
   void _showSnackBar(String message) {
     if (!mounted) return;
     final localMessenger = ScaffoldMessenger.maybeOf(context);
-    if (localMessenger != null) {
+    final localScaffold = Scaffold.maybeOf(context);
+    if (localMessenger != null && localScaffold != null) {
       localMessenger.showSnackBar(SnackBar(content: Text(message)));
       return;
     }
 
     final rootContext = NavigationHistory.instance.navigatorKey.currentContext;
-    final rootMessenger =
-        rootContext == null ? null : ScaffoldMessenger.maybeOf(rootContext);
-    rootMessenger?.showSnackBar(SnackBar(content: Text(message)));
+    if (rootContext != null) {
+      final rootMessenger = ScaffoldMessenger.maybeOf(rootContext);
+      final rootScaffold = Scaffold.maybeOf(rootContext);
+      if (rootMessenger != null && rootScaffold != null) {
+        rootMessenger.showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
   }
 
   bool get _isDesktop =>

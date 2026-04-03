@@ -642,8 +642,18 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
+    final lines = nonEmptyLyricsLines(lyrics.lines);
+    if (lines.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final timing = lyrics.synced
+        ? resolveSyncedLyricsTiming(lines, effectivePosition)
+        : null;
     final line = _getSingleLine(lyrics, effectivePosition);
-    if (line == null || line.content.trim().isEmpty) {
+    final showWaitingPlaceholder =
+        lyrics.synced && timing != null && timing.activeIndex < 0 && timing.nextIndex != null;
+    if ((line == null || line.content.trim().isEmpty) && !showWaitingPlaceholder) {
       return const SizedBox.shrink();
     }
 
@@ -676,17 +686,23 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             ),
           );
         },
-        child: Text(
-          line.content.trim(),
-          key: ValueKey<String>(line.content.trim()),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.grey[300],
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        child: line == null
+            ? const SizedBox(
+                key: ValueKey<String>('lyrics-waiting-placeholder'),
+                width: double.infinity,
+                height: 19,
+              )
+            : Text(
+                line.content.trim(),
+                key: ValueKey<String>(line.content.trim()),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.grey[300],
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
       ),
     );
   }
@@ -3228,8 +3244,18 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
+    final lines = nonEmptyLyricsLines(lyrics.lines);
+    if (lines.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final timing = lyrics.synced
+        ? resolveSyncedLyricsTiming(lines, effectivePosition)
+        : null;
     final line = _getSingleLine(lyrics, effectivePosition);
-    if (line == null || line.content.trim().isEmpty) {
+    final showWaitingPlaceholder =
+        lyrics.synced && timing != null && timing.activeIndex < 0 && timing.nextIndex != null;
+    if ((line == null || line.content.trim().isEmpty) && !showWaitingPlaceholder) {
       return const SizedBox.shrink();
     }
 
@@ -3262,17 +3288,23 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             ),
           );
         },
-        child: Text(
-          line.content.trim(),
-          key: ValueKey<String>(line.content.trim()),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.grey[300],
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+        child: line == null
+            ? const SizedBox(
+                key: ValueKey<String>('lyrics-waiting-placeholder'),
+                width: double.infinity,
+                height: 18,
+              )
+            : Text(
+                line.content.trim(),
+                key: ValueKey<String>(line.content.trim()),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.grey[300],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
       ),
     );
   }

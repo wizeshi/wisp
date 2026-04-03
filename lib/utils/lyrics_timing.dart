@@ -33,7 +33,21 @@ class LyricsTimingState {
 }
 
 List<LyricsLine> nonEmptyLyricsLines(List<LyricsLine> lines) {
-  return lines.where(_shouldKeepLyricsLine).toList(growable: false);
+  final filtered = <({LyricsLine line, int index})>[];
+  for (var i = 0; i < lines.length; i++) {
+    final line = lines[i];
+    if (_shouldKeepLyricsLine(line)) {
+      filtered.add((line: line, index: i));
+    }
+  }
+
+  filtered.sort((a, b) {
+    final byStart = a.line.startTimeMs.compareTo(b.line.startTimeMs);
+    if (byStart != 0) return byStart;
+    return a.index.compareTo(b.index);
+  });
+
+  return filtered.map((entry) => entry.line).toList(growable: false);
 }
 
 bool _shouldKeepLyricsLine(LyricsLine line) {
@@ -64,6 +78,8 @@ LyricsTimingState resolveSyncedLyricsTiming(
   List<LyricsLine> lines,
   int positionMs,
 ) {
+  final safePositionMs = positionMs < 0 ? 0 : positionMs;
+
   if (lines.isEmpty) {
     return const LyricsTimingState(
       activeIndex: -1,
@@ -79,7 +95,7 @@ LyricsTimingState resolveSyncedLyricsTiming(
   int? nextIndex;
 
   for (var i = 0; i < lines.length; i++) {
-    if (lines[i].startTimeMs <= positionMs) {
+    if (lines[i].startTimeMs <= safePositionMs) {
       previousIndex = i;
       continue;
     }
@@ -90,7 +106,8 @@ LyricsTimingState resolveSyncedLyricsTiming(
   if (previousIndex == null) {
     final nextStart = nextIndex == null ? 0 : lines[nextIndex].startTimeMs;
     final gapMs = nextStart < 0 ? 0 : nextStart;
-    final progress = gapMs <= 0 ? 0.0 : (positionMs.clamp(0, gapMs) / gapMs);
+    final progress =
+        gapMs <= 0 ? 0.0 : (safePositionMs.clamp(0, gapMs) / gapMs);
 
     return LyricsTimingState(
       activeIndex: -1,
@@ -126,11 +143,11 @@ LyricsTimingState resolveSyncedLyricsTiming(
   final lineEndMs = math.min(estimatedLineEndMs, nextStart);
 
   final gapMs = (nextStart - lineEndMs).clamp(0, 1 << 31).toInt();
-  final isPastLineEnd = positionMs >= lineEndMs;
+    final isPastLineEnd = safePositionMs >= lineEndMs;
 
   final progress = gapMs <= 0
       ? 1.0
-      : ((positionMs - lineEndMs).clamp(0, gapMs) / gapMs).toDouble();
+      : ((safePositionMs - lineEndMs).clamp(0, gapMs) / gapMs).toDouble();
 
     final fadeWindowMs = gapMs <= 0
       ? 0
@@ -138,7 +155,7 @@ LyricsTimingState resolveSyncedLyricsTiming(
     final fadeStartMs = nextStart - fadeWindowMs;
     final fadeOutProgress = fadeWindowMs <= 0
         ? 0.0
-      : ((positionMs - fadeStartMs).clamp(0, fadeWindowMs) / fadeWindowMs)
+        : ((safePositionMs - fadeStartMs).clamp(0, fadeWindowMs) / fadeWindowMs)
         .toDouble();
 
   final isLongGap = gapMs > kLyricsWaitingGapThresholdMs;
