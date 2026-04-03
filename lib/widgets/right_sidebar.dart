@@ -17,6 +17,7 @@ import '../providers/preferences/preferences_provider.dart';
 import '../providers/theme/cover_art_palette_provider.dart';
 import '../services/app_navigation.dart';
 import '../services/navigation_history.dart';
+import '../utils/lyrics_timing.dart';
 import '../views/list_detail.dart';
 import 'animated_lyrics_preview.dart';
 import 'entity_context_menus.dart';
@@ -1737,24 +1738,16 @@ class _LyricsPreviewLines extends StatelessWidget {
 }
 
 List<LyricsLine> _getPreviewLines(LyricsResult lyrics, int positionMs) {
-  if (lyrics.lines.isEmpty) return const [];
+  final lines = nonEmptyLyricsLines(lyrics.lines);
+  if (lines.isEmpty) return const [];
   if (!lyrics.synced) {
-    return lyrics.lines.take(3).toList();
+    return lines.take(3).toList();
   }
-  final currentIndex = _findCurrentLineIndex(lyrics.lines, positionMs);
-  return lyrics.lines.skip(currentIndex).take(3).toList();
-}
-
-int _findCurrentLineIndex(List<LyricsLine> lines, int positionMs) {
-  var index = 0;
-  for (var i = 0; i < lines.length; i++) {
-    if (lines[i].startTimeMs <= positionMs) {
-      index = i;
-    } else {
-      break;
-    }
-  }
-  return index;
+  final timing = resolveSyncedLyricsTiming(lines, positionMs);
+  final startIndex = timing.activeIndex >= 0
+      ? timing.activeIndex
+      : (timing.nextIndex ?? timing.previousIndex ?? 0);
+  return lines.skip(startIndex).take(3).toList();
 }
 
 class _NowPlayingData {

@@ -11,6 +11,7 @@ import '../providers/connect/connect_session_provider.dart';
 import '../services/wisp_audio_handler.dart';
 import '../providers/lyrics/provider.dart';
 import '../utils/logger.dart';
+import '../utils/lyrics_timing.dart';
 
 class LyricsView extends StatefulWidget {
   const LyricsView({super.key});
@@ -25,7 +26,8 @@ class _LyricsViewState extends State<LyricsView> {
   List<GlobalKey> _lineKeys = [];
   LyricsSyncMode _syncMode = LyricsSyncMode.synced;
   bool _autoScrollEnabled = true;
-  int _currentLineIndex = 0;
+  int _currentLineIndex = -1;
+  LyricsTimingState? _timingState;
   String? _trackId;
   final TextEditingController _delayController = TextEditingController(
     text: '0',
@@ -88,12 +90,29 @@ class _LyricsViewState extends State<LyricsView> {
     final delayMs = (_lyricsDelaySeconds * 1000).round();
     final adjustedPosition = positionMs - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
-    final newIndex = _findCurrentLineIndex(lyrics, effectivePosition);
-    if (newIndex != _currentLineIndex) {
-      setState(() => _currentLineIndex = newIndex);
-      if (_autoScrollEnabled) {
-        _scrollToLine(newIndex);
+    if (!lyrics.synced) {
+      final newIndex = lyrics.lines.isEmpty ? -1 : 0;
+      if (newIndex != _currentLineIndex || _timingState != null) {
+        setState(() {
+          _currentLineIndex = newIndex;
+          _timingState = null;
+        });
       }
+      return;
+    }
+
+    final timing = resolveSyncedLyricsTiming(lyrics.lines, effectivePosition);
+    final shouldScroll = _autoScrollEnabled &&
+        timing.activeIndex >= 0 &&
+        timing.activeIndex != _currentLineIndex;
+
+    setState(() {
+      _currentLineIndex = timing.activeIndex;
+      _timingState = timing;
+    });
+
+    if (shouldScroll) {
+      _scrollToLine(timing.activeIndex);
     }
   }
 
@@ -122,19 +141,6 @@ class _LyricsViewState extends State<LyricsView> {
     _positionTimer = null;
     _activeLyrics = null;
     _playerRef = null;
-  }
-
-  int _findCurrentLineIndex(LyricsResult lyrics, int positionMs) {
-    if (!lyrics.synced || lyrics.lines.isEmpty) return 0;
-    var index = 0;
-    for (var i = 0; i < lyrics.lines.length; i++) {
-      if (lyrics.lines[i].startTimeMs <= positionMs) {
-        index = i;
-      } else {
-        break;
-      }
-    }
-    return index;
   }
 
   void _scrollToLine(int index) {
@@ -174,13 +180,17 @@ class _LyricsViewState extends State<LyricsView> {
   void _centerCurrentLineOnOpen(WispAudioHandler player, LyricsResult lyrics) {
     if (_didInitialCenter) return;
     _didInitialCenter = true;
-    final initialIndex = lyrics.synced
-        ? _findCurrentLineIndex(lyrics, _effectivePositionMs(player))
-        : 0;
+    final timing = lyrics.synced
+        ? resolveSyncedLyricsTiming(lyrics.lines, _effectivePositionMs(player))
+        : null;
+    final initialIndex = lyrics.synced ? timing!.activeIndex : 0;
     _currentLineIndex = initialIndex;
+    _timingState = timing;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _scrollToLine(initialIndex);
+      if (initialIndex >= 0) {
+        _scrollToLine(initialIndex);
+      }
     });
   }
 
@@ -188,7 +198,8 @@ class _LyricsViewState extends State<LyricsView> {
     if (_syncMode == mode) return;
     setState(() {
       _syncMode = mode;
-      _currentLineIndex = 0;
+      _currentLineIndex = mode == LyricsSyncMode.synced ? -1 : 0;
+      _timingState = null;
       _autoScrollEnabled = true;
       _didInitialCenter = false;
     });
@@ -211,10 +222,20 @@ class _LyricsViewState extends State<LyricsView> {
         final syncedState = provider.getState(track, LyricsSyncMode.synced);
         final syncedLyrics = syncedState.lyrics;
         if (syncedLyrics == null || !syncedLyrics.synced) return;
+        final cleanedSyncedLyrics = removeEmptyLyricsLines(syncedLyrics);
+        if (cleanedSyncedLyrics.lines.isEmpty) return;
         final positionMs = _effectivePositionMs(player);
-        final index = _findCurrentLineIndex(syncedLyrics, positionMs);
-        setState(() => _currentLineIndex = index);
-        _scrollToLine(index);
+        final timing = resolveSyncedLyricsTiming(
+          cleanedSyncedLyrics.lines,
+          positionMs,
+        );
+        setState(() {
+          _currentLineIndex = timing.activeIndex;
+          _timingState = timing;
+        });
+        if (timing.activeIndex >= 0) {
+          _scrollToLine(timing.activeIndex);
+        }
       });
     }
   }
@@ -227,6 +248,7 @@ class _LyricsViewState extends State<LyricsView> {
         _syncedLyricsAvailable = false;
         _syncMode = LyricsSyncMode.unsynced;
         _currentLineIndex = 0;
+        _timingState = null;
         _autoScrollEnabled = true;
       });
       if (_scrollController.hasClients) {
@@ -323,7 +345,8 @@ class _LyricsViewState extends State<LyricsView> {
 
         if (_trackId != track.id) {
           _trackId = track.id;
-          _currentLineIndex = 0;
+          _currentLineIndex = _syncMode == LyricsSyncMode.synced ? -1 : 0;
+          _timingState = null;
           _autoScrollEnabled = true;
           _syncedLyricsAvailable = true;
           _didInitialCenter = false;
@@ -348,8 +371,19 @@ class _LyricsViewState extends State<LyricsView> {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final lyrics = state.lyrics;
-        if (lyrics == null || lyrics.lines.isEmpty) {
+        final rawLyrics = state.lyrics;
+        if (rawLyrics == null || rawLyrics.lines.isEmpty) {
+          _stopPositionTimer();
+          return const Center(
+            child: Text(
+              'No lyrics found',
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
+        }
+
+        final lyrics = removeEmptyLyricsLines(rawLyrics);
+        if (lyrics.lines.isEmpty) {
           _stopPositionTimer();
           return const Center(
             child: Text(
@@ -371,6 +405,13 @@ class _LyricsViewState extends State<LyricsView> {
         _playerRef = player;
         _ensurePositionTimer();
         _centerCurrentLineOnOpen(player, lyrics);
+        final syncedTiming = lyrics.synced
+            ? _timingState ??
+                resolveSyncedLyricsTiming(
+                  lyrics.lines,
+                  _effectivePositionMs(player),
+                )
+            : null;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -437,17 +478,18 @@ class _LyricsViewState extends State<LyricsView> {
                                 itemCount: lyrics.lines.length,
                                 itemBuilder: (context, index) {
                                   final line = lyrics.lines[index];
-                                  final displayContent = line.content.trim().isEmpty
-                                      ? '♪'
-                                      : line.content;
                                   final isSynced = lyrics.synced;
+                                  final timing = syncedTiming;
+                                  final anchorIndex = _currentLineIndex >= 0
+                                      ? _currentLineIndex
+                                      : (timing?.nextIndex ?? timing?.previousIndex ?? 0);
                                   final distance = isSynced
-                                      ? (index - _currentLineIndex).abs()
+                                      ? (index - anchorIndex).abs()
                                       : 0;
-                                  final blurSigma = isSynced
+                                  var blurSigma = isSynced
                                       ? (distance * 1.05).clamp(0, 8).toDouble()
                                       : 0.0;
-                                  final opacity = isSynced
+                                  var opacity = isSynced
                                       ? (1 - (distance * 0.06)).clamp(0.35, 1.0)
                                       : 1.0;
                                   final isCurrent =
@@ -456,11 +498,41 @@ class _LyricsViewState extends State<LyricsView> {
                                   final delayMs =
                                       (_lyricsDelaySeconds * 1000).round();
 
-                                  final fontSize = _isDesktop
+                                  if (isSynced &&
+                                      timing != null &&
+                                      timing.shouldFadePreviousLine &&
+                                      timing.previousIndex == index &&
+                                      timing.nextIndex != null) {
+                                    opacity = lerpDouble(1.0, 0.7, timing.fadeOutProgress)!;
+                                    blurSigma = lerpDouble(0.0, 1.6, timing.fadeOutProgress)!;
+                                  }
+
+                                  final isActiveLine = isCurrent &&
+                                      !(isSynced &&
+                                          timing != null &&
+                                          timing.shouldFadePreviousLine &&
+                                        timing.fadeOutProgress > 0 &&
+                                          timing.previousIndex == index);
+
+                                  var fontSize = _isDesktop
                                       ? (isCurrent ? 32.0 : 26.0)
                                       : (isCurrent ? 25.0 : 20.0);
 
-                                  return Padding(
+                                  if (isSynced &&
+                                      timing != null &&
+                                      timing.shouldFadePreviousLine &&
+                                      timing.previousIndex == index &&
+                                      timing.nextIndex != null) {
+                                    final currentSize = _isDesktop ? 32.0 : 25.0;
+                                    final inactiveSize = _isDesktop ? 26.0 : 20.0;
+                                    fontSize = lerpDouble(
+                                      currentSize,
+                                      inactiveSize,
+                                      timing.fadeOutProgress,
+                                    )!;
+                                  }
+
+                                  final lineWidget = Padding(
                                     key: _lineKeys[index],
                                     padding: const EdgeInsets.symmetric(vertical: 8),
                                     child: Align(
@@ -493,17 +565,17 @@ class _LyricsViewState extends State<LyricsView> {
                                               child: AnimatedDefaultTextStyle(
                                                 duration: const Duration(milliseconds: 250),
                                                 style: TextStyle(
-                                                  color: isCurrent
+                                                  color: isActiveLine
                                                       ? Colors.white
                                                       : Colors.grey[200],
                                                   fontSize: fontSize,
-                                                  fontWeight: isCurrent
+                                                  fontWeight: isActiveLine
                                                       ? FontWeight.w600
                                                       : FontWeight.w500,
                                                   height: 1.4,
                                                 ),
                                                 child: Text(
-                                                  displayContent,
+                                                  line.content,
                                                   textAlign: _textCentered
                                                       ? TextAlign.center
                                                       : TextAlign.left,
@@ -514,6 +586,25 @@ class _LyricsViewState extends State<LyricsView> {
                                         ),
                                       ),
                                     ),
+                                  );
+
+                                  final showWaitingDots = isSynced &&
+                                      timing != null &&
+                                      timing.showWaitingDots &&
+                                      timing.nextIndex == index;
+
+                                  if (!showWaitingDots) {
+                                    return lineWidget;
+                                  }
+
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildWaitingDots(
+                                        progress: timing.progressToNext,
+                                      ),
+                                      lineWidget,
+                                    ],
                                   );
                                 },
                               ),
@@ -697,6 +788,45 @@ class _LyricsViewState extends State<LyricsView> {
           size: 16,
         )
       ],
+    );
+  }
+
+  Widget _buildWaitingDots({required double progress}) {
+    final dotSize = _isDesktop ? 12.0 : 10.0;
+    final horizontalPadding = _textCentered ? 0.0 : 8.0;
+
+    final dots = List<Widget>.generate(3, (index) {
+      final start = index / 3;
+      final end = (index + 1) / 3;
+      final localProgress = ((progress - start) / (end - start)).clamp(0.0, 1.0);
+      final opacity = lerpDouble(0.24, 1.0, localProgress)!;
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: dotSize,
+          height: dotSize,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(opacity),
+            shape: BoxShape.circle,
+          ),
+        ),
+      );
+    });
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Align(
+        alignment: _textCentered ? Alignment.center : Alignment.centerLeft,
+        child: Padding(
+          padding: EdgeInsets.only(left: horizontalPadding),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: dots,
+          ),
+        ),
+      ),
     );
   }
 }

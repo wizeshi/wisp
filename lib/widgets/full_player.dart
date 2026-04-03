@@ -31,6 +31,7 @@ import '../views/artist_detail.dart';
 import '../widgets/animated_lyrics_preview.dart';
 import '../widgets/entity_context_menus.dart';
 import '../widgets/like_button.dart';
+import '../utils/lyrics_timing.dart';
 
 class FullScreenPlayer extends StatelessWidget {
   const FullScreenPlayer({super.key});
@@ -889,34 +890,29 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
   }
 
   List<LyricsLine> _getPreviewLines(LyricsResult lyrics, int positionMs) {
-    if (lyrics.lines.isEmpty) return const [];
+    final lines = nonEmptyLyricsLines(lyrics.lines);
+    if (lines.isEmpty) return const [];
     if (!lyrics.synced) {
-      return lyrics.lines.take(5).toList();
+      return lines.take(5).toList();
     }
-    final currentIndex = _findCurrentLineIndex(lyrics.lines, positionMs);
-    return lyrics.lines.skip(currentIndex).take(5).toList();
+    final timing = resolveSyncedLyricsTiming(lines, positionMs);
+    final startIndex = timing.activeIndex >= 0
+        ? timing.activeIndex
+        : (timing.nextIndex ?? timing.previousIndex ?? 0);
+    return lines.skip(startIndex).take(5).toList();
   }
 
   LyricsLine? _getSingleLine(LyricsResult lyrics, int positionMs) {
-    if (lyrics.lines.isEmpty) return null;
+    final lines = nonEmptyLyricsLines(lyrics.lines);
+    if (lines.isEmpty) return null;
     if (!lyrics.synced) {
-      return lyrics.lines.first;
+      return lines.first;
     }
-    final currentIndex = _findCurrentLineIndex(lyrics.lines, positionMs);
-    if (currentIndex < 0 || currentIndex >= lyrics.lines.length) return null;
-    return lyrics.lines[currentIndex];
-  }
-
-  int _findCurrentLineIndex(List<LyricsLine> lines, int positionMs) {
-    var index = 0;
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].startTimeMs <= positionMs) {
-        index = i;
-      } else {
-        break;
-      }
+    final timing = resolveSyncedLyricsTiming(lines, positionMs);
+    if (timing.activeIndex < 0 || timing.activeIndex >= lines.length) {
+      return null;
     }
-    return index;
+    return lines[timing.activeIndex];
   }
 
   Widget _buildPlayerControls(
@@ -2278,6 +2274,16 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       );
     }
 
+    final normalizedLyrics = removeEmptyLyricsLines(lyrics);
+    if (normalizedLyrics.lines.isEmpty) {
+      return Center(
+        child: Text(
+          'No lyrics found',
+          style: TextStyle(color: Colors.grey[400], fontSize: 16),
+        ),
+      );
+    }
+
     final connect = context.watch<ConnectSessionProvider>();
     final useHandoffState = connect.isLinked && connect.isHost;
     final basePosition = useHandoffState
@@ -2287,8 +2293,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
-    final currentIndex = lyrics.synced
-        ? _findCurrentLineIndex(lyrics.lines, effectivePosition)
+    final timing = normalizedLyrics.synced
+      ? resolveSyncedLyricsTiming(normalizedLyrics.lines, effectivePosition)
+      : null;
+    final currentIndex = normalizedLyrics.synced
+      ? timing!.activeIndex
         : 0;
 
     if (_lastLyricsTrackId != currentTrack.id) {
@@ -2301,10 +2310,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
     if (_lyricsLineKeysTrackId != currentTrack.id ||
         _lyricsLineKeys == null ||
-        _lyricsLineKeys!.length != lyrics.lines.length) {
+        _lyricsLineKeys!.length != normalizedLyrics.lines.length) {
       _lyricsLineKeysTrackId = currentTrack.id;
       _lyricsLineKeys = List<GlobalKey>.generate(
-        lyrics.lines.length,
+        normalizedLyrics.lines.length,
         (_) => GlobalKey(),
       );
     }
@@ -2331,22 +2340,38 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
         return ListView.builder(
           controller: _lyricsScrollController,
-          itemCount: lyrics.lines.length,
+          itemCount: normalizedLyrics.lines.length,
           padding: const EdgeInsets.only(top: 8, bottom: 8),
           itemBuilder: (context, index) {
-            final lyricLine = lyrics.lines[index];
+            final lyricLine = normalizedLyrics.lines[index];
             final line = lyricLine.content.trim();
-            if (line.isEmpty) {
-              return SizedBox(key: lineKeys[index], height: 18);
-            }
 
-            final distance = (index - currentIndex).abs();
+            final anchorIndex = currentIndex >= 0
+                ? currentIndex
+                : (timing?.nextIndex ?? timing?.previousIndex ?? 0);
+            final distance = (index - anchorIndex).abs();
             final isCurrent = index == currentIndex;
-            final opacity = isCurrent
+            var opacity = isCurrent
                 ? 1.0
                 : (1.0 - (distance * 0.22)).clamp(0.16, 0.72);
+            var fontSize = isCurrent ? 34.0 : 30.0;
+            var fontWeight = isCurrent ? FontWeight.w700 : FontWeight.w600;
+            var color = isCurrent ? Colors.white : Colors.grey[500];
 
-            return AnimatedOpacity(
+            if (normalizedLyrics.synced &&
+                timing != null &&
+                timing.shouldFadePreviousLine &&
+                timing.previousIndex == index &&
+                timing.nextIndex != null) {
+              opacity = lerpDouble(1.0, 0.72, timing.fadeOutProgress)!;
+              fontSize = lerpDouble(34.0, 30.0, timing.fadeOutProgress)!;
+              fontWeight = timing.fadeOutProgress < 0.55
+                  ? FontWeight.w700
+                  : FontWeight.w600;
+              color = Color.lerp(Colors.white, Colors.grey[500], timing.fadeOutProgress)!;
+            }
+
+            final row = AnimatedOpacity(
               key: lineKeys[index],
               duration: const Duration(milliseconds: 220),
               opacity: opacity,
@@ -2354,10 +2379,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  mouseCursor: lyrics.synced
+                  mouseCursor: normalizedLyrics.synced
                       ? SystemMouseCursors.click
                       : SystemMouseCursors.basic,
-                  onTap: lyrics.synced
+                  onTap: normalizedLyrics.synced
                       ? () {
                           final seekMs = (lyricLine.startTimeMs + delayMs)
                               .clamp(0, player.duration.inMilliseconds)
@@ -2374,11 +2399,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     child: Text(
                       line,
                       style: TextStyle(
-                        color: isCurrent ? Colors.white : Colors.grey[500],
-                        fontSize: isCurrent ? 34 : 30,
-                        fontWeight: isCurrent
-                            ? FontWeight.w700
-                            : FontWeight.w600,
+                        color: color,
+                        fontSize: fontSize,
+                        fontWeight: fontWeight,
                         height: 1.1,
                       ),
                     ),
@@ -2386,9 +2409,59 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 ),
               ),
             );
+
+            final showWaitingDots = normalizedLyrics.synced &&
+                timing != null &&
+                timing.showWaitingDots &&
+                timing.nextIndex == index;
+
+            if (!showWaitingDots) {
+              return row;
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildLyricsWaitingDots(timing.progressToNext),
+                row,
+              ],
+            );
           },
         );
       },
+    );
+  }
+
+  Widget _buildLyricsWaitingDots(double progress) {
+    final dots = List<Widget>.generate(3, (index) {
+      final start = index / 3;
+      final end = (index + 1) / 3;
+      final localProgress = ((progress - start) / (end - start)).clamp(0.0, 1.0);
+      final opacity = lerpDouble(0.2, 1.0, localProgress)!;
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: 13,
+          height: 13,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(opacity),
+            shape: BoxShape.circle,
+          ),
+        ),
+      );
+    });
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: dots,
+        ),
+      ),
     );
   }
 
@@ -3251,25 +3324,16 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }
 
   LyricsLine? _getSingleLine(LyricsResult lyrics, int positionMs) {
-    if (lyrics.lines.isEmpty) return null;
+    final lines = nonEmptyLyricsLines(lyrics.lines);
+    if (lines.isEmpty) return null;
     if (!lyrics.synced) {
-      return lyrics.lines.first;
+      return lines.first;
     }
-    final currentIndex = _findCurrentLineIndex(lyrics.lines, positionMs);
-    if (currentIndex < 0 || currentIndex >= lyrics.lines.length) return null;
-    return lyrics.lines[currentIndex];
-  }
-
-  int _findCurrentLineIndex(List<LyricsLine> lines, int positionMs) {
-    var index = 0;
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].startTimeMs <= positionMs) {
-        index = i;
-      } else {
-        break;
-      }
+    final timing = resolveSyncedLyricsTiming(lines, positionMs);
+    if (timing.activeIndex < 0 || timing.activeIndex >= lines.length) {
+      return null;
     }
-    return index;
+    return lines[timing.activeIndex];
   }
 
   Widget _buildPlayerControls(
