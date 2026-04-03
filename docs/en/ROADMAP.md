@@ -3,6 +3,8 @@ Here's the TODOs for version v26.03.xx:
 - Bugs:
 - Future changes:
     - [ ] Change lyrics display: when no lyrics is active, show a ". . ." animation
+    - [ ] Make volume slider pop-up better (add it to full player as well), and make all volume slider's color change to the app's primary color on hover. 
+    - [ ] Make animated canvas fit in the right sidebar 
 - Planned features: 
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
     - [ ] Add ability to follow/unfollow artists and save/remove albums.

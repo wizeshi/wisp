@@ -86,7 +86,7 @@ dependencies:
   logger: ^2.6.2
   device_info_plus: ^11.2.0
   flutter_discord_rpc: ^1.1.0
-  audio_service_win: ^0.0.2
+  audio_service_win: ^0.0.3
   flutter_inappwebview: 6.2.0-beta.3
 
 dev_dependencies:
