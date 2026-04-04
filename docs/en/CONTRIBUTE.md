@@ -28,3 +28,11 @@ Well, I doubt you really want to contribute, but here it goes:
 6. Enabling software rendering:
     One of the dependencies of the app is flutter_inappwebview, and their Linux implementation is in a very early stage of development, but it works okay. But when using it, any webview areas are black screens. So for now, you'll always have to start the app with this in your environment variables (usually prepend it to the launch command): ```LIBGL_ALWAYS_SOFTWARE=1```
     Note: this is only on Linux. All other platforms' implementations are decently mature and don't have this problem. [Here](https://github.com/pichillilorenzo/flutter_inappwebview/issues/2778) is the issue where this behaviour is documented and tracked. 
+
+#### WINDOWS
+
+3. Install [NuGet](https://learn.microsoft.com/en-us/nuget/install-nuget-client-tools?tabs=windows#nugetexe-cli) for FlutterInAppWebview
+
+4. Install Visual Studio Build Tools for "Desktop development with C++" (turn on MSVC v142 and C++ ATL)
+
+5. Install Inno Setup 6 (if you wanna distribute) 
