@@ -501,6 +501,9 @@ class _AppShellState extends State<AppShell> {
     final navState = context.watch<NavigationState>();
     final libraryState = context.watch<LibraryState>();
     final folderState = context.watch<LibraryFolderState>();
+    final hasCurrentTrack = context.select<WispAudioHandler, bool>(
+      (player) => player.currentTrack != null,
+    );
     final searchState = context.read<SearchState>();
     final preferences = context.watch<PreferencesProvider>();
     final searchController = searchState.controller;
@@ -577,6 +580,7 @@ class _AppShellState extends State<AppShell> {
                 ),
                 if (_isDesktop &&
                     !immersiveDesktop &&
+                    hasCurrentTrack &&
                     navState.rightSidebarVisible)
                   RightSidebar(
                     width: navState.rightSidebarWidth,

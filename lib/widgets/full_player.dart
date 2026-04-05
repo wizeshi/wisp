@@ -3117,25 +3117,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           return Align(
             alignment: Alignment.centerRight,
             child: SizedBox(
-              width: 120,
+              width: 84,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  IconButton(
-                    tooltip: 'Minimize',
-                    icon: const Icon(Icons.minimize, size: 18),
-                    color: Colors.white,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
-                    ),
-                    splashRadius: 16,
-                    onPressed: () {
-                      unawaited(AppNavigation.instance.minimizeWindow());
-                    },
-                  ),
-                  const SizedBox(width: 4),
                   IconButton(
                     tooltip: 'Exit fullscreen',
                     icon: const Icon(Icons.fullscreen_exit, size: 18),
@@ -3152,7 +3137,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   IconButton(
-                    tooltip: 'Close player',
+                    tooltip: 'Close window',
                     icon: const Icon(Icons.close, size: 18),
                     color: Colors.white,
                     padding: EdgeInsets.zero,
@@ -3162,7 +3147,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     ),
                     splashRadius: 16,
                     onPressed: () {
-                      unawaited(AppNavigation.instance.closeFullPlayer());
+                      unawaited(windowManager.close());
                     },
                   ),
                 ],

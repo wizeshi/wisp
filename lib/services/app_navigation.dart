@@ -244,6 +244,17 @@ class AppNavigation {
     if (!_isDesktop) return;
     try {
       await windowManager.minimize();
+
+      final minimized = await windowManager.isMinimized();
+      if (minimized) {
+        return;
+      }
+
+      final isFullScreen = await windowManager.isFullScreen();
+      if (isFullScreen) {
+        await windowManager.setFullScreen(false);
+        await windowManager.minimize();
+      }
     } catch (_) {}
   }
 

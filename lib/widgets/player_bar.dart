@@ -1321,7 +1321,8 @@ class _DesktopRightControls extends StatelessWidget {
         final isLyricsOpen = routeName == '/lyrics';
         final isQueueOpen = routeName == '/queue';
         final isFullScreenOpen = routeName == '/fullplayer';
-        final isSidebarOpen = navState.rightSidebarVisible;
+        final hasTrack = currentTrack != null;
+        final isSidebarOpen = hasTrack && navState.rightSidebarVisible;
         final activeColor = Theme.of(context).colorScheme.primary;
         final inactiveColor = Colors.grey[400];
 
@@ -1343,7 +1344,7 @@ class _DesktopRightControls extends StatelessWidget {
                     color: isSidebarOpen ? activeColor : inactiveColor,
                     size: 20,
                   ),
-                  onPressed: navState.toggleRightSidebar,
+                  onPressed: hasTrack ? navState.toggleRightSidebar : null,
                 ),
                 SizedBox(width: controlSpacing),
                 if (showLyricsButton) ...[
