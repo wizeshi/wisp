@@ -71,6 +71,7 @@ class SpotifyInternalProvider extends MetadataProvider {
   String? get userDisplayName => _userDisplayName;
 
   int? get likedTracksTotalCount => _likedTracksTotalCount;
+  bool get hasLoadedLikedTracks => _likedTracksLoaded;
 
   @override
   bool isTrackLiked(String trackId) => _likedTrackIds.contains(trackId);

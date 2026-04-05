@@ -107,12 +107,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   final Set<String> _addingRecommendationTrackIDs = {};
   bool _isLoadingRecommendations = false;
   String? _recommendationsError;
-  bool _suppressRecommendedSongContextMenu = false;
 
   @override
   void initState() {
     super.initState();
     _spotifyInternal = context.read<SpotifyInternalProvider>();
+    unawaited(_spotifyInternal.ensureLikedTracksLoaded());
     _desktopScrollController.addListener(
       () => _handleScroll(_desktopScrollController),
     );
@@ -1310,10 +1310,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     Offset? globalPosition,
     BuildContext? anchorContext,
   }) async {
-    await _spotifyInternal.ensureLikedTracksLoaded();
-    if (!mounted) return;
+    unawaited(_spotifyInternal.ensureLikedTracksLoaded());
 
-    final isLiked = _spotifyInternal.isTrackLiked(song.id);
+    final hasLikedTracksState = _spotifyInternal.hasLoadedLikedTracks;
+    final isLiked =
+        hasLikedTracksState && _spotifyInternal.isTrackLiked(song.id);
     final cacheManager = AudioCacheManager.instance;
     final isCached = cacheManager.isTrackCached(song.id);
     final isDownloading = cacheManager.isDownloading(song.id);
@@ -1328,8 +1329,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final actions = <ContextMenuAction>[
       ContextMenuAction(
         id: 'likes-toggle',
-        label: isLiked ? 'Remove from Likes' : 'Add to Likes',
-        icon: isLiked ? Icons.favorite : Icons.favorite_border,
+        label: hasLikedTracksState
+            ? (isLiked ? 'Remove from Likes' : 'Add to Likes')
+            : 'Like / Unlike',
+        icon: hasLikedTracksState && isLiked
+            ? Icons.favorite
+            : Icons.favorite_border,
         iconColor: isLiked ? Theme.of(context).colorScheme.primary : null,
         onSelected: (_) => _spotifyInternal.toggleTrackLike(song),
       ),
@@ -2666,7 +2671,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 },
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onSecondaryTapDown: isDesktop
+                  onSecondaryTapUp: isDesktop
                       ? (details) {
                           _showSongContextMenu(
                             song,
@@ -2757,19 +2762,69 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                             ],
                             ClipRRect(
                               borderRadius: BorderRadius.circular(6),
-                              child: Container(
+                              child: SizedBox(
                                 width: 44,
                                 height: 44,
-                                color: Colors.grey[900],
-                                child: CachedNetworkImage(
-                                  imageUrl: _getThumbnail(item),
-                                  fit: BoxFit.cover,
-                                  errorWidget: (context, url, error) => Icon(
-                                    Icons.music_note,
-                                    color: Colors.grey[700],
-                                  ),
-                                  placeholder: (context, url) =>
-                                      Container(color: Colors.grey[800]),
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: Container(
+                                        color: Colors.grey[900],
+                                        child: CachedNetworkImage(
+                                          imageUrl: _getThumbnail(item),
+                                          fit: BoxFit.cover,
+                                          errorWidget:
+                                              (context, url, error) => Icon(
+                                                Icons.music_note,
+                                                color: Colors.grey[700],
+                                              ),
+                                          placeholder: (context, url) =>
+                                              Container(
+                                                color: Colors.grey[800],
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (isDesktop && isAppleStyle) ...[
+                                      AnimatedOpacity(
+                                        opacity: isHovering ? 1 : 0,
+                                        duration: const Duration(
+                                          milliseconds: 120,
+                                        ),
+                                        child: Container(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.45,
+                                          ),
+                                        ),
+                                      ),
+                                      if (isHovering)
+                                        Positioned.fill(
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              onTap: () {
+                                                if (isCurrentTrack) {
+                                                  if (player.isPlaying) {
+                                                    player.pause();
+                                                  } else {
+                                                    player.play();
+                                                  }
+                                                } else {
+                                                  _playQueueAt(rowIndex);
+                                                }
+                                              },
+                                              child: Icon(
+                                                isCurrentTrack && player.isPlaying
+                                                    ? Icons.pause
+                                                    : Icons.play_arrow,
+                                                color: Colors.white,
+                                                size: 20,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ],
                                 ),
                               ),
                             ),
@@ -2881,19 +2936,26 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 width: 48, // Updated width
                                 child: Align(
                                   alignment: Alignment.centerRight,
-                                  child: GestureDetector(
-                                    onTapDown: (details) {
-                                      _showSongContextMenu(
-                                        song,
-                                        globalPosition: details.globalPosition,
-                                      );
-                                    },
-                                    child: Icon(
-                                      CupertinoIcons.ellipsis,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                      size: 18,
+                                  child: Builder(
+                                    builder: (buttonContext) => IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 24,
+                                        minHeight: 24,
+                                      ),
+                                      icon: Icon(
+                                        CupertinoIcons.ellipsis,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        size: 18,
+                                      ),
+                                      onPressed: () {
+                                        _showSongContextMenu(
+                                          song,
+                                          anchorContext: buttonContext,
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
@@ -3063,7 +3125,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           },
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onSecondaryTapDown: isDesktop
+            onSecondaryTapUp: isDesktop
                 ? (details) {
                     _showSongContextMenu(
                       song,
@@ -3150,17 +3212,62 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       ],
                       ClipRRect(
                         borderRadius: BorderRadius.circular(6),
-                        child: Container(
+                        child: SizedBox(
                           width: 44,
                           height: 44,
-                          color: Colors.grey[900],
-                          child: CachedNetworkImage(
-                            imageUrl: _getThumbnail(item),
-                            fit: BoxFit.cover,
-                            errorWidget: (context, url, error) =>
-                                Icon(Icons.music_note, color: Colors.grey[700]),
-                            placeholder: (context, url) =>
-                                Container(color: Colors.grey[800]),
+                          child: Stack(
+                            children: [
+                              Positioned.fill(
+                                child: Container(
+                                  color: Colors.grey[900],
+                                  child: CachedNetworkImage(
+                                    imageUrl: _getThumbnail(item),
+                                    fit: BoxFit.cover,
+                                    errorWidget: (context, url, error) => Icon(
+                                      Icons.music_note,
+                                      color: Colors.grey[700],
+                                    ),
+                                    placeholder: (context, url) =>
+                                        Container(color: Colors.grey[800]),
+                                  ),
+                                ),
+                              ),
+                              if (isDesktop && isAppleStyle) ...[
+                                AnimatedOpacity(
+                                  opacity: isHovering ? 1 : 0,
+                                  duration: const Duration(milliseconds: 120),
+                                  child: Container(
+                                    color: Colors.black.withValues(alpha: 0.45),
+                                  ),
+                                ),
+                                if (isHovering)
+                                  Positioned.fill(
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          if (isCurrentTrack) {
+                                            if (player.isPlaying) {
+                                              player.pause();
+                                            } else {
+                                              player.play();
+                                            }
+                                          } else {
+                                            _playQueueAt(idx);
+                                          }
+                                        },
+                                        child: Icon(
+                                          isCurrentTrack && player.isPlaying
+                                              ? Icons.pause
+                                              : Icons.play_arrow,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
@@ -3212,8 +3319,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     );
                                   },
                                   onSecondaryTapDown: (details) {
-                                    _showSongContextMenu(
-                                      song,
+                                    EntityContextMenus.showAlbumMenu(
+                                      context,
+                                      album: GenericAlbum(
+                                        id: album.id,
+                                        source: album.source,
+                                        title: album.title,
+                                        thumbnailUrl: album.thumbnailUrl,
+                                        artists: album.artists,
+                                        label: album.label,
+                                        releaseDate: album.releaseDate,
+                                        explicit: song.explicit,
+                                        durationSecs: 0,
+                                      ),
                                       globalPosition: details.globalPosition,
                                     );
                                   },
@@ -3255,17 +3373,24 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           width: 24,
                           child: Align(
                             alignment: Alignment.centerRight,
-                            child: GestureDetector(
-                              onTapDown: (details) {
-                                _showSongContextMenu(
-                                  song,
-                                  globalPosition: details.globalPosition,
-                                );
-                              },
-                              child: Icon(
-                                CupertinoIcons.ellipsis,
-                                color: Theme.of(context).colorScheme.primary,
-                                size: 18,
+                            child: Builder(
+                              builder: (buttonContext) => IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 24,
+                                  minHeight: 24,
+                                ),
+                                icon: Icon(
+                                  CupertinoIcons.ellipsis,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  size: 18,
+                                ),
+                                onPressed: () {
+                                  _showSongContextMenu(
+                                    song,
+                                    anchorContext: buttonContext,
+                                  );
+                                },
                               ),
                             ),
                           ),
@@ -3551,12 +3676,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           },
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onSecondaryTapDown: isDesktop
+            onSecondaryTapUp: isDesktop
                 ? (details) {
-                    if (_suppressRecommendedSongContextMenu) {
-                      _suppressRecommendedSongContextMenu = false;
-                      return;
-                    }
                     _showSongContextMenu(
                       song,
                       globalPosition: details.globalPosition,
@@ -3675,7 +3796,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   );
                                 },
                                 onSecondaryTapDown: (details) {
-                                  _suppressRecommendedSongContextMenu = true;
                                   EntityContextMenus.showAlbumMenu(
                                     context,
                                     album: GenericAlbum(
@@ -3793,7 +3913,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           HoverUnderline(
             onTap: () => _openArtist(artists[i]),
             onSecondaryTapDown: (details) {
-              _suppressRecommendedSongContextMenu = true;
               EntityContextMenus.showArtistMenu(
                 context,
                 artist: artists[i],
