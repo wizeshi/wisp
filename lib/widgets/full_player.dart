@@ -1702,6 +1702,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       track: track,
       globalPosition: globalPosition,
       anchorRect: anchorRect,
+      onBeforeNavigate: () => AppNavigation.instance.disableFullPlayerDesktopMode(),
       additionalActions: [
         ContextMenuAction(
           id: 'toggle-animated-canvas-temp',
@@ -5124,7 +5125,9 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
                           ),
                         ),
                         OutlinedButton(
-                          onPressed: () => _openArtist(data, widget.artist),
+                          onPressed: () async {
+                            await _openArtist(data, widget.artist);
+                          },
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
                             side: const BorderSide(color: Colors.white24),
@@ -5224,7 +5227,10 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
     return value.toString();
   }
 
-  void _openArtist(GenericArtist? data, GenericSimpleArtist fallback) {
+  Future<void> _openArtist(
+    GenericArtist? data,
+    GenericSimpleArtist fallback,
+  ) async {
     final libraryState = context.read<LibraryState>();
     final navState = context.read<NavigationState>();
     final artist = data == null
@@ -5235,6 +5241,9 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
             name: data.name,
             thumbnailUrl: data.thumbnailUrl,
           );
+
+    await AppNavigation.instance.disableFullPlayerDesktopMode();
+    if (!mounted) return;
 
     Navigator.of(context).push(
       PageRouteBuilder(

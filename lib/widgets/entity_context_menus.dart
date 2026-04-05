@@ -191,6 +191,7 @@ class EntityContextMenus {
     Offset? globalPosition,
     Rect? anchorRect,
     List<ContextMenuAction> additionalActions = const [],
+    Future<void> Function()? onBeforeNavigate,
   }) async {
     final spotifyInternal = context.read<SpotifyInternalProvider>();
     await spotifyInternal.ensureLikedTracksLoaded();
@@ -317,6 +318,10 @@ class EntityContextMenus {
           icon: Icons.album,
           onSelected: (_) async {
             final album = track.album!;
+            if (onBeforeNavigate != null) {
+              await onBeforeNavigate();
+              if (!context.mounted) return;
+            }
             AppNavigation.instance.openSharedList(
               context,
               id: album.id,
@@ -333,6 +338,10 @@ class EntityContextMenus {
           icon: Icons.person,
           onSelected: (_) async {
             final artist = track.artists.first;
+            if (onBeforeNavigate != null) {
+              await onBeforeNavigate();
+              if (!context.mounted) return;
+            }
             AppNavigation.instance.openArtist(
               context,
               artistId: artist.id,
@@ -352,6 +361,10 @@ class EntityContextMenus {
                 label: artist.name,
                 icon: Icons.person_outline,
                 onSelected: (_) async {
+                  if (onBeforeNavigate != null) {
+                    await onBeforeNavigate();
+                    if (!context.mounted) return;
+                  }
                   AppNavigation.instance.openArtist(
                     context,
                     artistId: artist.id,
