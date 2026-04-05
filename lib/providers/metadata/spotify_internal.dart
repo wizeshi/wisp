@@ -1108,6 +1108,140 @@ class SpotifyInternalProvider extends MetadataProvider {
     return playlist.songs ?? const <PlaylistItem>[];
   }
 
+  Future<List<PlaylistItem>> getRecommended(
+    String playlistId,
+    List<String> skippedTrackIDs, {
+    int numResults = 20,
+  }) async {
+    if (!_isAuthenticated) {
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
+    }
+
+    await _ensureTokens();
+    if (_bearerToken == null || _clientToken == null) {
+      throw StateError('[Metadata/Spotify-Internal] Missing Spotify tokens');
+    }
+
+    final cookieHeader = await _credentialsService.getSpotifyLyricsCookie();
+    final headers = _buildInternalHeaders(cookieHeader: cookieHeader);
+
+    final normalizedPlaylistId = _playlistIdFromUri(playlistId);
+    final normalizedSkipped = skippedTrackIDs
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .map((id) => id.split(':').last)
+        .toList();
+
+    final body = {
+      'numResults': numResults,
+      'playlistURI': 'spotify:playlist:$normalizedPlaylistId',
+      'trackSkipIDs': normalizedSkipped,
+    };
+
+    final response = await _postWithRetry(
+      Uri.parse('https://spclient.wg.spotify.com/playlistextender/extendp/'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        '[Metadata/Spotify-Internal] Failed to fetch recommendations: '
+        '${response.statusCode} ${response.body}',
+      );
+    }
+
+    final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+    final recommendedTracks = jsonResponse['recommendedTracks'] as List?;
+    if (recommendedTracks == null || recommendedTracks.isEmpty) {
+      return const [];
+    }
+
+    return recommendedTracks
+        .whereType<Map>()
+        .map((track) => Map<String, dynamic>.from(track))
+        .toList()
+        .asMap()
+        .entries
+        .map(
+          (entry) => _spotifyInternalRecommendedTrackToPlaylistItem(
+            entry.value,
+            entry.key + 1,
+          ),
+        )
+        .toList();
+  }
+
+  PlaylistItem _spotifyInternalRecommendedTrackToPlaylistItem(
+    Map<String, dynamic> track,
+    int trackNumber,
+  ) {
+    final rawId =
+        (track['id'] as String?) ?? (track['originalId'] as String?) ?? '';
+    final normalizedId = rawId.split(':').last;
+
+    final artists =
+        (track['artists'] as List?)
+            ?.whereType<Map>()
+            .map(
+              (artist) => GenericSimpleArtist(
+                id:
+                    ((artist['id'] as String?) ??
+                            (artist['uri'] as String?) ??
+                            '')
+                        .split(':')
+                        .last,
+                source: SongSource.spotifyInternal,
+                name: artist['name'] as String? ?? 'Unknown Artist',
+                thumbnailUrl: '',
+              ),
+            )
+            .toList() ??
+        const <GenericSimpleArtist>[];
+
+    final albumMap = (track['album'] as Map?)?.cast<String, dynamic>();
+    final albumImageUrl =
+        albumMap?['imageUrl'] as String? ??
+        albumMap?['largeImageUrl'] as String? ??
+        '';
+    final album = albumMap == null
+        ? null
+        : GenericSimpleAlbum(
+            id:
+                ((albumMap['id'] as String?) ??
+                        (albumMap['uri'] as String?) ??
+                        '')
+                    .split(':')
+                    .last,
+            source: SongSource.spotifyInternal,
+            title: albumMap['name'] as String? ?? 'Unknown Album',
+            thumbnailUrl: albumImageUrl,
+            artists: artists,
+            label: '',
+            releaseDate: DateTime.now(),
+          );
+
+    final durationMs =
+        (track['duration'] as num?)?.toInt() ??
+        (track['duration_ms'] as num?)?.toInt() ??
+        0;
+
+    return PlaylistItem(
+      id: normalizedId,
+      source: SongSource.spotifyInternal,
+      title: track['name'] as String? ?? 'Unknown Track',
+      artists: artists,
+      thumbnailUrl: albumImageUrl,
+      explicit: track['explicit'] as bool? ?? false,
+      album: album,
+      durationSecs: (durationMs / 1000).round(),
+      addedAt: DateTime.now(),
+      trackNumber: trackNumber,
+    );
+  }
+
   @override
   Future<GenericAlbum> getAlbumInfo(
     String albumId, {
@@ -1946,7 +2080,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           artists: artists,
           albums: albums,
           playlists: playlists,
-          bestMatch: topResult ??
+          bestMatch:
+              topResult ??
               (tracks.isNotEmpty ? SearchBestMatch.track(tracks.first) : null),
         );
       },
