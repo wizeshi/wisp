@@ -1015,6 +1015,7 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
       children: [
         FittedBox(
           fit: BoxFit.cover,
+          alignment: Alignment.topLeft,
           child: SizedBox(
             width: controller.value.size.width,
             height: controller.value.size.height,

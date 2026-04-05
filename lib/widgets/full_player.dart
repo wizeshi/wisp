@@ -3529,14 +3529,53 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         ? Icons.volume_down
         : Icons.volume_up;
 
-    return _buildModeActionButton(
-      tooltip: 'Toggle mute',
-      icon: volumeIcon,
-      selected: volume <= 0.001,
-      onTap: () {
-        unawaited(_toggleMute(player));
+    return Builder(
+      builder: (buttonContext) {
+        return IconButton(
+          tooltip: 'Volume',
+          splashRadius: 18,
+          iconSize: 22,
+          onPressed: () {
+            unawaited(_openDesktopVolumeMenu(buttonContext, btnColor));
+          },
+          icon: Icon(
+            volumeIcon,
+            color: volume <= 0.001 ? btnColor : Colors.grey[300],
+          ),
+        );
       },
-      activeColor: btnColor,
+    );
+  }
+
+  Future<void> _openDesktopVolumeMenu(
+    BuildContext buttonContext,
+    Color accentColor,
+  ) async {
+    final overlay = Overlay.of(buttonContext).context.findRenderObject()
+        as RenderBox;
+    final button = buttonContext.findRenderObject() as RenderBox;
+    final buttonRect = Rect.fromPoints(
+      button.localToGlobal(Offset.zero, ancestor: overlay),
+      button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+    );
+
+    await showGeneralDialog<void>(
+      context: buttonContext,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 120),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return _FullPlayerVolumeQuickPanel(
+          anchorRect: buttonRect,
+          overlaySize: overlay.size,
+          accentColor: accentColor,
+          onToggleMute: () {
+            final audio = dialogContext.read<global_audio_player.WispAudioHandler>();
+            unawaited(_toggleMute(audio));
+          },
+        );
+      },
     );
   }
 
@@ -5211,6 +5250,166 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
               initialLibraryView: navState.selectedLibraryView,
               initialNavIndex: navState.selectedNavIndex,
             ),
+      ),
+    );
+  }
+}
+
+class _FullPlayerVolumeQuickPanel extends StatelessWidget {
+  final Rect anchorRect;
+  final Size overlaySize;
+  final Color accentColor;
+  final VoidCallback onToggleMute;
+
+  const _FullPlayerVolumeQuickPanel({
+    required this.anchorRect,
+    required this.overlaySize,
+    required this.accentColor,
+    required this.onToggleMute,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const panelWidth = 228.0;
+    const panelHeight = 72.0;
+    const margin = 8.0;
+
+    final left = (anchorRect.right - panelWidth).clamp(
+      margin,
+      overlaySize.width - panelWidth - margin,
+    );
+    final top = (anchorRect.top - panelHeight - margin).clamp(
+      margin,
+      overlaySize.height - panelHeight - margin,
+    );
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+          ),
+        ),
+        Positioned(
+          left: left,
+          top: top,
+          width: panelWidth,
+          height: panelHeight,
+          child: Material(
+            color: const Color(0xFF171717),
+            borderRadius: BorderRadius.circular(12),
+            elevation: 10,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                child: Selector<global_audio_player.WispAudioHandler, double>(
+                  selector: (context, player) => player.volume,
+                  builder: (context, volume, child) {
+                    final audio = context
+                        .read<global_audio_player.WispAudioHandler>();
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          tooltip: volume <= 0.001 ? 'Unmute' : 'Mute',
+                          onPressed: onToggleMute,
+                          icon: Icon(
+                            volume <= 0.001
+                                ? Icons.volume_off
+                                : volume < 0.5
+                                ? Icons.volume_down
+                                : Icons.volume_up,
+                            color: Colors.grey[300],
+                            size: 18,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                          padding: EdgeInsets.zero,
+                        ),
+                        Expanded(
+                          child: _FullPlayerHoverVolumeSlider(
+                            value: volume,
+                            onChanged: (value) => audio.setVolume(value),
+                            primaryColor: accentColor,
+                          ),
+                        ),
+                        SizedBox(
+                          width: 32,
+                          child: Text(
+                            '${(volume * 100).round()}%',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              color: Colors.grey[300],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FullPlayerHoverVolumeSlider extends StatefulWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+  final Color primaryColor;
+
+  const _FullPlayerHoverVolumeSlider({
+    required this.value,
+    required this.onChanged,
+    required this.primaryColor,
+  });
+
+  @override
+  State<_FullPlayerHoverVolumeSlider> createState() =>
+      _FullPlayerHoverVolumeSliderState();
+}
+
+class _FullPlayerHoverVolumeSliderState
+    extends State<_FullPlayerHoverVolumeSlider> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = _isHovering ? widget.primaryColor : Colors.grey[500]!;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      cursor: SystemMouseCursors.click,
+      child: SliderTheme(
+        data: SliderThemeData(
+          trackHeight: 4,
+          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+          overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+          activeTrackColor: activeColor,
+          inactiveTrackColor: Colors.grey[700],
+          thumbColor: Colors.white,
+          overlayColor: widget.primaryColor.withValues(alpha: 0.2),
+        ),
+        child: Slider(
+          min: 0,
+          max: 1,
+          value: widget.value,
+          divisions: 100,
+          onChanged: widget.onChanged,
+        ),
       ),
     );
   }

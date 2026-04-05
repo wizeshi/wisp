@@ -1444,27 +1444,10 @@ class _DesktopRightControls extends StatelessWidget {
                         SizedBox(width: volumeSpacing),
                         SizedBox(
                           width: 100,
-                          child: SliderTheme(
-                            data: SliderThemeData(
-                              trackHeight: 4,
-                              thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 6,
-                              ),
-                              overlayShape: const RoundSliderOverlayShape(
-                                overlayRadius: 12,
-                              ),
-                              activeTrackColor:
-                                  Theme.of(context).colorScheme.primary,
-                              inactiveTrackColor: Colors.grey[800],
-                              thumbColor: Colors.white,
-                              overlayColor: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.2),
-                            ),
-                            child: Slider(
-                              value: volume,
-                              onChanged: (value) => player.setVolume(value),
-                            ),
+                          child: _HoverVolumeSlider(
+                            value: volume,
+                            onChanged: (value) => player.setVolume(value),
+                            primaryColor: activeColor,
                           ),
                         ),
                       ],
@@ -2128,8 +2111,8 @@ class _VolumeQuickPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themePrimary = accentColor ?? Theme.of(context).colorScheme.primary;
-    const panelWidth = 72.0;
-    const panelHeight = 210.0;
+    const panelWidth = 76.0;
+    const panelHeight = 196.0;
     const margin = 8.0;
 
     final left = (anchorRect.center.dx - (panelWidth / 2)).clamp(
@@ -2161,62 +2144,58 @@ class _VolumeQuickPanel extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: themePrimary.withValues(alpha: 0.35),
-                  width: 1,
-                ),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 10,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 16),
                 child: Selector<global_audio_player.WispAudioHandler, double>(
                   selector: (context, player) => player.volume,
                   builder: (context, volume, child) {
                     final player = context
                         .read<global_audio_player.WispAudioHandler>();
                     return Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          volume == 0
-                              ? Icons.volume_off
-                              : volume < 0.5
-                              ? Icons.volume_down
-                              : Icons.volume_up,
-                          color: themePrimary,
-                          size: 18,
+                        SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            '${(volume * 100).round()}%',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.grey[300],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 4),
                         Expanded(
                           child: RotatedBox(
                             quarterTurns: 3,
-                            child: SliderTheme(
-                              data: SliderThemeData(
-                                trackHeight: 4,
-                                thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 6,
-                                ),
-                                overlayShape: const RoundSliderOverlayShape(
-                                  overlayRadius: 12,
-                                ),
-                                activeTrackColor: themePrimary,
-                                inactiveTrackColor: Colors.grey[800],
-                                thumbColor: Colors.white,
-                                overlayColor: themePrimary.withValues(
-                                  alpha: 0.2,
-                                ),
-                              ),
-                              child: Slider(
-                                min: 0,
-                                max: 1,
-                                value: volume,
-                                label: '${(volume * 100).round()}%',
-                                divisions: 100,
-                                onChanged: (value) => player.setVolume(value),
-                              ),
+                            child: _HoverVolumeSlider(
+                              value: volume,
+                              onChanged: (value) => player.setVolume(value),
+                              primaryColor: themePrimary,
                             ),
                           ),
+                        ),
+                        IconButton(
+                          tooltip: volume == 0 ? 'Unmute' : 'Mute',
+                          onPressed: player.toggleMute,
+                          icon: Icon(
+                            volume == 0
+                                ? Icons.volume_off
+                                : volume < 0.5
+                                ? Icons.volume_down
+                                : Icons.volume_up,
+                            color: Colors.grey[300],
+                            size: 18,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(
+                            minWidth: 28,
+                            minHeight: 28,
+                          ),
+                          padding: EdgeInsets.zero,
                         ),
                       ],
                     );
@@ -2227,6 +2206,54 @@ class _VolumeQuickPanel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _HoverVolumeSlider extends StatefulWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+  final Color primaryColor;
+
+  const _HoverVolumeSlider({
+    required this.value,
+    required this.onChanged,
+    required this.primaryColor,
+  });
+
+  @override
+  State<_HoverVolumeSlider> createState() => _HoverVolumeSliderState();
+}
+
+class _HoverVolumeSliderState extends State<_HoverVolumeSlider> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = _isHovering ? widget.primaryColor : Colors.grey[500]!;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      cursor: SystemMouseCursors.click,
+      child: SliderTheme(
+        data: SliderThemeData(
+          trackHeight: 4,
+          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+          overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+          activeTrackColor: activeColor,
+          inactiveTrackColor: Colors.grey[800],
+          thumbColor: Colors.white,
+          overlayColor: widget.primaryColor.withValues(alpha: 0.2),
+        ),
+        child: Slider(
+          min: 0,
+          max: 1,
+          value: widget.value,
+          divisions: 100,
+          onChanged: widget.onChanged,
+        ),
+      ),
     );
   }
 }
