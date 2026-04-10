@@ -1,10 +1,26 @@
 Here's the TODOs for version v26.03.xx:
 
 - Bugs:
+    - [ ] New lyrics animation in the previews doesn't consider the delay. 
+    - [ ] Fix artist based sorting in list view: sort first by artist, then for each artist sort by album, then for each album sort alphabetically by song name.
+    - [ ] Fix scroll bar in list view not showing up in the correct position. 
+    - [ ] Fix scrolling in virtualized lists leaving the play button behind.
+    - [ ] Fix stream fetching not working when the app is in the background.
+    - [ ] Fix lyrics not automatiaclly centering on entering lyrics mode in the apple music full player.
+    - [ ] Fix song cover spacing in apple mobile full player
+    - [ ] Fix apple style queue mode showing all songs in the queue instead of just the next ones.
 - Future changes:
+    - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons.
+    - [ ] Make app font dynamic to the app style (e.g. Spotify's should use Spotify Mix UI, Apple Music's should use SF Pro, and so on)
+    - [ ] Make artist name clickable in the full player
 - Planned features:
-    - [ ] Add translation support (start with English & Portuguese)
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
-    - [ ] Add ability to follow/unfollow artists and save/remove albums.
-    - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
     - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
+    - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
+    - [ ] Add ability to follow/unfollow artists and save/remove albums.
+    - [ ] Add translation support (start with English & Portuguese)
+    - [ ] Improve song transitions:
+        - [ ] Add crossfade support, with a slider for the user to choose the duration of the crossfade.
+        - [ ] Add proper gapless playback support.
+        - [ ] Improve song loading state: make the player immediately show a loading state and deny any try to play (right now if the user is able to click the button, it just plays the previously loaded song)
+        - [ ] Add a transition in the full player when a new song starts, with the old song info (track name, artist, album, cover/canvas, background, lyrics) sliding out and the new song info sliding in. This also applies to skipping songs, going back to previous songs, and any other way a new song starts playing.

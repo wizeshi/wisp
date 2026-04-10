@@ -4,5 +4,6 @@ publisher_url: https://github.com/wizeshi/wisp
 display_name: wisp
 create_desktop_icon: true
 install_dir_name: wisp
+script_template: inno_setup.iss
 locales:
   - en
