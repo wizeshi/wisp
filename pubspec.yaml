@@ -127,6 +127,9 @@ flutter:
           weight: 800
         - asset: fonts/spotify_mix_ui_title_extrabold.otf
           weight: 900
+    - family: SF Pro
+      fonts:
+        - asset: fonts/sf_pro.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

@@ -12,7 +12,7 @@ class AppTheme {
   static const Color _scaffoldBackground = Color(0xFF121212);
   static const Color _surface = Color(0xFF181818);
 
-  static ThemeData dark({Color? primaryOverride}) {
+  static ThemeData dark({Color? primaryOverride, String appStyle = 'Spotify'}) {
     final primary = primaryOverride ?? brandColor;
     final colorScheme = ColorScheme.dark(
       primary: primary,
@@ -27,7 +27,7 @@ class AppTheme {
     );
 
     return ThemeData(
-      fontFamily: "SpotifyMixUI",
+      fontFamily: appStyle == 'Apple Music' ? 'SF Pro' : 'SpotifyMixUI',
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _scaffoldBackground,
       cardColor: _surface,

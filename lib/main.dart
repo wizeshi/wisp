@@ -164,12 +164,18 @@ class MyApp extends StatelessWidget {
           value: YtDlpReadinessCoordinator.instance,
         ),
       ],
-      child: Consumer<CoverArtPaletteProvider>(
-        builder: (context, palette, child) {
+      child: Consumer2<CoverArtPaletteProvider, PreferencesProvider>(
+        builder: (context, palette, preferences, child) {
           return MaterialApp(
             title: 'Wisp',
-            theme: AppTheme.dark(primaryOverride: palette.primaryColor),
-            darkTheme: AppTheme.dark(primaryOverride: palette.primaryColor),
+            theme: AppTheme.dark(
+              primaryOverride: palette.primaryColor,
+              appStyle: preferences.style,
+            ),
+            darkTheme: AppTheme.dark(
+              primaryOverride: palette.primaryColor,
+              appStyle: preferences.style,
+            ),
             themeMode: ThemeMode.dark,
             home: Consumer<YtDlpReadinessCoordinator>(
               builder: (context, ytDlp, child) {

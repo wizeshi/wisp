@@ -7,7 +7,6 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Fix scrolling in virtualized lists leaving the play button behind.
     - [ ] Fix stream fetching not working when the app is in the background.
     - [ ] Fix lyrics not automatiaclly centering on entering lyrics mode in the apple music full player.
-    - [ ] Fix song cover spacing in apple mobile full player
     - [ ] Fix apple style queue mode showing all songs in the queue instead of just the next ones.
     - [ ] Fix Spotify fullscreen player not caring about the "Animated Canvas" temporary setting from the three dot menu.
 - Future changes:
