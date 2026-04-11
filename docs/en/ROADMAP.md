@@ -9,6 +9,7 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Fix lyrics not automatiaclly centering on entering lyrics mode in the apple music full player.
     - [ ] Fix song cover spacing in apple mobile full player
     - [ ] Fix apple style queue mode showing all songs in the queue instead of just the next ones.
+    - [ ] Fix Spotify fullscreen player not caring about the "Animated Canvas" temporary setting from the three dot menu.
 - Future changes:
     - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons.
     - [ ] Make app font dynamic to the app style (e.g. Spotify's should use Spotify Mix UI, Apple Music's should use SF Pro, and so on)
