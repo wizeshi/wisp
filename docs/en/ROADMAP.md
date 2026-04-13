@@ -1,4 +1,4 @@
-Here's the TODOs for version v26.03.xx:
+Here's the TODOs for version v26.05.xx:
 
 - Bugs:
     - [ ] New lyrics animation in the previews doesn't consider the delay. 
@@ -9,9 +9,14 @@ Here's the TODOs for version v26.03.xx:
     - [ ] Fix lyrics not automatiaclly centering on entering lyrics mode in the apple music full player.
     - [ ] Fix apple style queue mode showing all songs in the queue instead of just the next ones.
     - [ ] Fix Spotify fullscreen player not caring about the "Animated Canvas" temporary setting from the three dot menu.
+    - [ ] Fix explicit icon showing up on the left side of the song name instead of the right side in the artist view.
+    - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
+    - [ ] Fix home screen artist card appearance. 
+    - [ ] Fix some home screen cards showing up as "Unknown Playlist/Artist/Album". Remove these whenever they exist, as they are not useful at all and just confuse the user. Add logging whenever thi happens so we can fix issues in dev. 
 - Future changes:
+    - [ ] Add special card from the home screen on mobile. 
+    - [ ] Add explicit icon to more elements in the app. 
     - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons.
-    - [ ] Make app font dynamic to the app style (e.g. Spotify's should use Spotify Mix UI, Apple Music's should use SF Pro, and so on)
     - [ ] Make artist name clickable in the full player
 - Planned features:
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
