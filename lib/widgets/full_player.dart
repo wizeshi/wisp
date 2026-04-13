@@ -4467,7 +4467,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                           .add(EdgeInsets.only(top: topInset)),
                                   child: _buildHeader(context),
                                 ),
-                                SizedBox(height: _isDesktop ? 0 : 56),
+                                SizedBox(height: _isDesktop || !isNowPlaying ? 0 : 56),
                                 Flexible(
                                   fit: FlexFit.tight,
                                   child: Padding(
