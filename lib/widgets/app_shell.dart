@@ -171,6 +171,7 @@ class _AppShellState extends State<AppShell> {
     final folderState = context.watch<LibraryFolderState>();
     final searchState = context.read<SearchState>();
     final searchController = searchState.controller;
+    final isDesktopImmersive = _isDesktop && navState.desktopImmersiveMode;
 
     final enableExitPrompt = !_isDesktop;
     final libraryItems = _getLibraryItems(
@@ -183,7 +184,7 @@ class _AppShellState extends State<AppShell> {
       color: const Color(0xFF121212),
       child: Column(
         children: [
-          if (_isDesktop)
+          if (_isDesktop && !isDesktopImmersive)
             WispTitleBar(
               onHomeTap: () => _pushTab(0),
               onSettingsTap: () => _pushTab(3),
@@ -199,7 +200,7 @@ class _AppShellState extends State<AppShell> {
           Expanded(
             child: Row(
               children: [
-                if (_isDesktop)
+                if (_isDesktop && !isDesktopImmersive)
                   WispNavigation(
                     selectedView: navState.selectedLibraryView,
                     onViewChanged: navState.setLibraryView,
@@ -212,7 +213,7 @@ class _AppShellState extends State<AppShell> {
                     onLibraryItemSelected: _handleLibraryItemSelected,
                     expandedWidth: navState.leftSidebarWidth,
                   ),
-                if (_isDesktop)
+                if (_isDesktop && !isDesktopImmersive)
                   _LeftResizeHandle(
                     onResize: navState.adjustLeftSidebarWidth,
                   ),
@@ -224,7 +225,7 @@ class _AppShellState extends State<AppShell> {
                     onGenerateRoute: _onGenerateRoute,
                   ),
                 ),
-                if (_isDesktop && navState.rightSidebarVisible)
+                if (_isDesktop && !isDesktopImmersive && navState.rightSidebarVisible)
                   RightSidebar(
                     width: navState.rightSidebarWidth,
                     onResize: navState.adjustRightSidebarWidth,
@@ -233,7 +234,7 @@ class _AppShellState extends State<AppShell> {
             ),
           ),
           if (navState.selectedNavIndex != 3 && !_isDesktop) const WispPlayerBar(),
-          if (_isDesktop) const WispPlayerBar(),
+          if (_isDesktop && !isDesktopImmersive) const WispPlayerBar(),
           if (!_isDesktop && navState.selectedNavIndex != 3)
             WispNavigation(
               selectedView: navState.selectedLibraryView,
