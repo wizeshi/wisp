@@ -829,6 +829,10 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         ? const <LyricsLine>[]
         : _getPreviewLines(lyrics, effectivePosition);
 
+    if (!state.isLoading && (lyrics == null || previewLines.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: bgColor,
@@ -867,11 +871,6 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           if (state.isLoading && lyrics == null)
             const Text(
               'Loading lyrics…',
-              style: TextStyle(color: Colors.white, fontSize: 13),
-            )
-          else if (previewLines.isEmpty)
-            const Text(
-              'No lyrics found',
               style: TextStyle(color: Colors.white, fontSize: 13),
             )
           else

@@ -18,11 +18,8 @@ Here's the TODOs for version v26.05.xx:
     - [ ] When a non-handoff device is connected (as above), show so in the Handoff Menu. Also, allow the user to change to the another speaker/headphone output from the Handoff menu too. (of course, allow changing back to the current device as well). 
     - [ ] On mobile, hide arrow indicators on element rows: instead, use a slight gradient on the right side of the element row to indicate that it has more content.
     - [ ] Make the marquee text infinitely loop to one side instead of bouncing back and forth.
+    - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
     - [ ] Improve primary color fetching from the cover art. Probably using a modified k-means.
-    - [ ] Rename window to be called "Artist Name - Song Name" when a song is playing. 
-    - [ ] When no lyrics preview is avaliable, hide the corresponding card in the right sidebar.
-    - [ ] Make song and artist names in the player bar's "Next Up" part clickable
-    - [ ] Home: when a playlist's author is "Spotify", use the Playlist description for the subtitle instead. 
     - [ ] Add a slight zoom + increase blur to the background when scrolling in the list view. 
     - [ ] Add play/pause overlay when a sidebar element is hovered (like in the home view)
     - [ ] Add sidebar searching 

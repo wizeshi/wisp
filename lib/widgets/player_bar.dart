@@ -967,6 +967,10 @@ class DesktopNextUpPreviewOverlay extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final album = nextUp.album;
+    final hasAlbum = album != null && album.id.isNotEmpty;
+    final artists = nextUp.artists;
+
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -1027,18 +1031,91 @@ class DesktopNextUpPreviewOverlay extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      nextUp.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white, fontSize: 12),
+                    HoverUnderline(
+                      cursor: hasAlbum
+                          ? SystemMouseCursors.click
+                          : SystemMouseCursors.basic,
+                      onTap: hasAlbum
+                          ? () {
+                              AppNavigation.instance.openSharedList(
+                                context,
+                                id: album.id,
+                                type: SharedListType.album,
+                                initialTitle: album.title,
+                                initialThumbnailUrl: album.thumbnailUrl,
+                              );
+                            }
+                          : null,
+                      onSecondaryTapDown: (details) {
+                        EntityContextMenus.showTrackMenu(
+                          context,
+                          track: nextUp,
+                          globalPosition: details.globalPosition,
+                        );
+                      },
+                      builder: (isHovering) => Text(
+                        nextUp.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          decoration: isHovering && hasAlbum
+                              ? TextDecoration.underline
+                              : TextDecoration.none,
+                        ),
+                      ),
                     ),
-                    Text(
-                      nextUp.artists.map((a) => a.name).join(', '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
-                    ),
+                    if (artists.isNotEmpty)
+                      Wrap(
+                        children: [
+                          for (int i = 0; i < artists.length; i++) ...[
+                            HoverUnderline(
+                              onTap: () {
+                                AppNavigation.instance.openArtist(
+                                  context,
+                                  artistId: artists[i].id,
+                                  initialArtist: artists[i],
+                                );
+                              },
+                              onSecondaryTapDown: (details) {
+                                EntityContextMenus.showArtistMenu(
+                                  context,
+                                  artist: artists[i],
+                                  globalPosition: details.globalPosition,
+                                );
+                              },
+                              builder: (isHovering) => Text(
+                                artists[i].name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 11,
+                                  decoration: isHovering
+                                      ? TextDecoration.underline
+                                      : TextDecoration.none,
+                                ),
+                              ),
+                            ),
+                            if (i < artists.length - 1)
+                              Text(
+                                ', ',
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 11,
+                                ),
+                              ),
+                          ],
+                        ],
+                      )
+                    else
+                      Text(
+                        'No Artist',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                      ),
                   ],
                 ),
               ],

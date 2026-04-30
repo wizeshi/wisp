@@ -34,6 +34,18 @@ bool _isLocalThumbnailPath(String path) {
   return path.startsWith('/') || path.startsWith('file://');
 }
 
+String _playlistSubtitle(GenericPlaylist playlist) {
+  final author = playlist.author.displayName.trim();
+  final description = playlist.description?.trim() ?? '';
+  if (author.toLowerCase() == 'spotify' && description.isNotEmpty) {
+    return description;
+  }
+  if (author.isEmpty && description.isNotEmpty) {
+    return description;
+  }
+  return author;
+}
+
 class HomePage extends StatefulWidget {
   final ValueListenable<int>? refreshSignal;
 
@@ -874,7 +886,7 @@ class HomePageState extends State<HomePage> {
       return _buildMobileGridItem(
         imageUrl: item.thumbnailUrl,
         title: item.title,
-        subtitle: item.author.displayName,
+        subtitle: _playlistSubtitle(item),
         customArt: isLikedSongsPlaylistId(item.id)
             ? const LikedSongsArt()
             : null,
@@ -1266,7 +1278,7 @@ class HomePageState extends State<HomePage> {
       return _HomeQuickTile(
         imageUrl: item.thumbnailUrl,
         title: item.title,
-        subtitle: item.author.displayName,
+        subtitle: _playlistSubtitle(item),
         isActive: isActive,
         isPlaying: isPlaying,
         showPlayingWaveform: true,
@@ -1428,7 +1440,7 @@ class HomePageState extends State<HomePage> {
       if (useSpecialCardStyle) {
         return _SpecialCard(
           title: item.title,
-          subtitle: item.author.displayName,
+          subtitle: _playlistSubtitle(item),
           id: item.id,
           thumbnailUrl: item.thumbnailUrl,
           onTap: () => _openSharedList(
@@ -2360,7 +2372,7 @@ class _PlaylistCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    playlist.author.displayName,
+                    _playlistSubtitle(playlist),
                     style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

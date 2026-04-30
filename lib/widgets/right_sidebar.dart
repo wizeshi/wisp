@@ -1463,6 +1463,9 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
         lyricsProvider.ensureDelayLoaded(track.id);
 
         final lyrics = state.lyrics;
+        if (!state.isLoading && (lyrics == null || lyrics.lines.isEmpty)) {
+          return const SizedBox.shrink();
+        }
 
         return ValueListenableBuilder<Route<dynamic>?>(
           valueListenable: NavigationHistory.instance.currentRoute,
@@ -1496,14 +1499,6 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                 fontSize: 13,
                               ),
                             )
-                          else if (lyrics == null)
-                            const Text(
-                              'No lyrics found',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 13,
-                              ),
-                            )
                           else
                             Selector2<
                               WispAudioHandler,
@@ -1520,7 +1515,7 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                               },
                               builder: (context, positionMs, child) {
                                 return AnimatedLyricsPreviewList(
-                                  lines: _getPreviewLines(lyrics, positionMs),
+                                  lines: _getPreviewLines(lyrics!, positionMs),
                                   resetKey: track.id,
                                   textStyle: const TextStyle(
                                     color: Colors.white,

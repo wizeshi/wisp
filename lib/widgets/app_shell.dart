@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
@@ -11,11 +12,13 @@ import '../providers/navigation_state.dart';
 import '../providers/search/search_state.dart';
 import '../services/navigation_history.dart';
 import '../services/tab_routes.dart';
+import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../widgets/navigation.dart';
 import '../widgets/player_bar.dart';
 import '../widgets/right_sidebar.dart';
 import '../widgets/title_bar.dart';
 import '../models/metadata_models.dart';
+import '../models/library_folder.dart';
 import '../views/home.dart';
 import '../views/library.dart';
 import '../views/search.dart';
@@ -35,6 +38,7 @@ class _AppShellState extends State<AppShell> {
   bool get _isDesktop => Platform.isLinux || Platform.isMacOS || Platform.isWindows;
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _searchAutoSwitchTimer;
+  String _lastWindowTitle = 'wisp';
 
   @override
   void initState() {
@@ -79,6 +83,37 @@ class _AppShellState extends State<AppShell> {
         });
       }
     });
+  }
+
+  String _buildWindowTitle(GenericSong? track) {
+    if (track == null || track.title.trim().isEmpty) {
+      return 'wisp';
+    }
+    final artistName = track.artists.isNotEmpty
+        ? track.artists.first.name.trim()
+        : '';
+    if (artistName.isEmpty) {
+      return track.title.trim();
+    }
+    return '$artistName - ${track.title.trim()}';
+  }
+
+  Widget _buildWindowTitleSync() {
+    if (!_isDesktop) {
+      return const SizedBox.shrink();
+    }
+
+    return Selector<global_audio_player.WispAudioHandler, GenericSong?>(
+      selector: (context, player) => player.currentTrack,
+      builder: (context, track, child) {
+        final title = _buildWindowTitle(track);
+        if (title != _lastWindowTitle) {
+          _lastWindowTitle = title;
+          unawaited(windowManager.setTitle(title));
+        }
+        return const SizedBox.shrink();
+      },
+    );
   }
 
   Future<void> _handlePop(BuildContext context, bool enableExitPrompt) async {
@@ -159,8 +194,75 @@ class _AppShellState extends State<AppShell> {
       case LibraryView.artists:
         return library.artists;
       case LibraryView.all:
-        // TODO: Handle this case.
-        throw UnimplementedError();
+        // If the selected view produced no items (or the `all` view was
+        // selected), fall back to the ordered `allOrganized` list (preserves
+        // the user's library ordering from the internal API). Convert entries
+        // into sidebar items where possible.
+        final ordered = library.allOrganized;
+        if (ordered == null || ordered.isEmpty) return [];
+        final entries = <LibrarySidebarEntry>[];
+        for (final e in ordered) {
+          if (e is LibrarySidebarEntry) {
+            if (e.type == LibrarySidebarEntryType.unassignedHeader) {
+              continue;
+            }
+            entries.add(e);
+            continue;
+          }
+          if (e is PlaylistFolder) {
+            entries.add(LibrarySidebarEntry.item(e));
+            continue;
+          }
+          if (e is GenericPlaylist) {
+            final folderId = folderState.folderIdForPlaylist(e.id);
+            if (folderId != null && folderState.isFolderCollapsed(folderId)) {
+              continue;
+            }
+            entries.add(LibrarySidebarEntry.item(e, folderId: folderId));
+            continue;
+          }
+          if (e is GenericAlbum) {
+            entries.add(LibrarySidebarEntry.item(e));
+            continue;
+          }
+          if (e is GenericSimpleArtist) {
+            entries.add(LibrarySidebarEntry.item(e));
+            continue;
+          }
+          if (e is Map<String, dynamic>) {
+            final t = e['__typename'] as String? ?? e['type'] as String?;
+            if (t == 'Folder') {
+              final uri = e['uri'] as String? ?? e['id'] as String? ?? '';
+              final id = uri.isNotEmpty ? uri : (e['id'] as String? ?? '');
+              final folder = folderState.getFolderById(id);
+              if (folder != null) {
+                entries.add(LibrarySidebarEntry.item(folder));
+                continue;
+              }
+            }
+            // Fallback: attempt to convert map to a simple playlist.
+            if (e['uri']?.toString().contains('playlist') == true) {
+              final p = GenericPlaylist(
+                id: e['uri'] as String? ?? e['id'] as String? ?? '',
+                source: SongSource.spotifyInternal,
+                title: e['name'] as String? ?? '',
+                thumbnailUrl: e['image']?['url'] as String? ?? '',
+                author: GenericSimpleUser(
+                  id: '',
+                  source: SongSource.spotifyInternal,
+                  displayName: '',
+                  avatarUrl: null,
+                  followerCount: null,
+                  profileUrl: null,
+                ),
+                songs: null,
+                durationSecs: 0,
+              );
+              entries.add(LibrarySidebarEntry.item(p));
+            }
+          }
+        }
+        return entries;
     }
   }
 
@@ -184,6 +286,7 @@ class _AppShellState extends State<AppShell> {
       color: const Color(0xFF121212),
       child: Column(
         children: [
+          _buildWindowTitleSync(),
           if (_isDesktop && !isDesktopImmersive)
             WispTitleBar(
               onHomeTap: () => _pushTab(0),
