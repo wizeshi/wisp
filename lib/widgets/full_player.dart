@@ -1271,22 +1271,27 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
-      builder: (context, player, lyricsProvider, child) {
-        final currentTrack = player.currentTrack;
-        final imageUrl = currentTrack?.thumbnailUrl ?? '';
-        final useCanvas = context.select<PreferencesProvider, bool>(
-          (prefs) => prefs.animatedCanvasEnabled,
-        );
-        final canUseCanvas =
-            useCanvas &&
-            currentTrack != null &&
-            (currentTrack.source == SongSource.spotifyInternal ||
-                currentTrack.source == SongSource.spotify);
-        final spotifyInternal = context.read<SpotifyInternalProvider>();
-        final Future<String?>? canvasFuture = canUseCanvas
-            ? spotifyInternal.getCanvasUrl(currentTrack.id)
-            : null;
+    return ValueListenableBuilder<bool>(
+      valueListenable:
+          AppleMusicFullScreenPlayer.animatedCanvasTemporarilyDisabledListenable,
+      builder: (context, animatedCanvasDisabled, _) {
+        return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
+          builder: (context, player, lyricsProvider, child) {
+            final currentTrack = player.currentTrack;
+            final imageUrl = currentTrack?.thumbnailUrl ?? '';
+            final useCanvas = context.select<PreferencesProvider, bool>(
+              (prefs) => prefs.animatedCanvasEnabled,
+            );
+            final allowCanvas = useCanvas && !animatedCanvasDisabled;
+            final canUseCanvas =
+                allowCanvas &&
+                currentTrack != null &&
+                (currentTrack.source == SongSource.spotifyInternal ||
+                    currentTrack.source == SongSource.spotify);
+            final spotifyInternal = context.read<SpotifyInternalProvider>();
+            final Future<String?>? canvasFuture = canUseCanvas
+                ? spotifyInternal.getCanvasUrl(currentTrack.id)
+                : null;
 
         final viewPadding = MediaQuery.of(context).viewPadding;
         final windowPadding = MediaQueryData.fromView(
@@ -1394,15 +1399,17 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           );
         }
 
-        if (!canUseCanvas) {
-          return buildPlayerScaffold();
-        }
+            if (!canUseCanvas) {
+              return buildPlayerScaffold();
+            }
 
-        return FutureBuilder<String?>(
-          future: spotifyInternal.getCanvasUrl(currentTrack!.id),
-          builder: (context, snapshot) {
-            final canvasUrl = snapshot.data ?? '';
-            return buildPlayerScaffold(canvasUrl: canvasUrl);
+            return FutureBuilder<String?>(
+              future: spotifyInternal.getCanvasUrl(currentTrack!.id),
+              builder: (context, snapshot) {
+                final canvasUrl = snapshot.data ?? '';
+                return buildPlayerScaffold(canvasUrl: canvasUrl);
+              },
+            );
           },
         );
       },

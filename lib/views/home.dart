@@ -277,7 +277,7 @@ class HomePageState extends State<HomePage> {
                 ),
               )
               .toList();
-          _homeSections = userHome.sections;
+          _homeSections = _sanitizeHomeSections(userHome.sections);
           _isLoading = false;
         });
       }
@@ -344,6 +344,69 @@ class HomePageState extends State<HomePage> {
     }
 
     return merged;
+  }
+
+  static const Set<String> _unknownHomeTitles = {
+    'unknown playlist',
+    'unknown artist',
+    'unknown album',
+  };
+
+  Map<String, List<dynamic>> _sanitizeHomeSections(
+    Map<String, List<dynamic>> sections,
+  ) {
+    final sanitized = <String, List<dynamic>>{};
+    sections.forEach((key, items) {
+      final filtered = <dynamic>[];
+      for (final item in items) {
+        if (_isUnknownHomeItem(item)) {
+          _logUnknownHomeItem(item, key);
+          continue;
+        }
+        filtered.add(item);
+      }
+      if (filtered.isNotEmpty) {
+        sanitized[key] = filtered;
+      }
+    });
+    return sanitized;
+  }
+
+  bool _isUnknownHomeItem(dynamic item) {
+    if (item is GenericPlaylist) {
+      return _unknownHomeTitles.contains(item.title.trim().toLowerCase());
+    }
+    if (item is GenericAlbum) {
+      return _unknownHomeTitles.contains(item.title.trim().toLowerCase());
+    }
+    if (item is GenericSimpleArtist) {
+      return _unknownHomeTitles.contains(item.name.trim().toLowerCase());
+    }
+    return false;
+  }
+
+  void _logUnknownHomeItem(dynamic item, String section) {
+    String type = item.runtimeType.toString();
+    String id = '';
+    String title = '';
+    if (item is GenericPlaylist) {
+      type = 'playlist';
+      id = item.id;
+      title = item.title;
+    } else if (item is GenericAlbum) {
+      type = 'album';
+      id = item.id;
+      title = item.title;
+    } else if (item is GenericSimpleArtist) {
+      type = 'artist';
+      id = item.id;
+      title = item.name;
+    }
+
+    logger.w(
+      '[Views/Home] Dropping unknown home card in "$section": '
+      'type=$type id=$id title="$title"',
+    );
   }
 
   @override
@@ -2003,7 +2066,7 @@ class _ArtistCard extends StatelessWidget {
       width: 180,
       child: ClipRect(
         child: Material(
-          color: Color(0xFF181818),
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           child: _HoverPlayCard(
             onTap: onTap,
@@ -2027,12 +2090,12 @@ class _ArtistCard extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(11.0),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ClipOval(
                     child: Container(
-                      width: 120,
-                      height: 120,
+                      width: 150,
+                      height: 150,
                       color: Colors.grey[900],
                       child: artist.thumbnailUrl.isNotEmpty
                           ? CachedNetworkImage(

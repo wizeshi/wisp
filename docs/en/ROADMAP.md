@@ -1,9 +1,11 @@
 Here's the TODOs for version v26.05.xx:
 
 - Bugs:
+    - [ ] Fix character encoding issues: e.g. recommended area shows the "ã" character as "Ã£". 
+    - [ ] Fix sidebar highlighting: highlight should be title-only (also add a colored sound icon to the right of that element).
     - [ ] New lyrics animation in the previews doesn't consider the delay. 
     - [ ] Fix artist based sorting in list view: sort first by artist, then for each artist sort by album, then for each album sort alphabetically by song name.
-    - [ ] Fix scroll bar in list view not showing up in the correct position. 
+    - [ ] Fix scroll bar in list view not showing up in the correct position (Apple Music Style). 
     - [ ] Fix scrolling in virtualized lists leaving the play button behind.
     - [ ] Fix stream fetching not working when the app is in the background.
     - [ ] Fix lyrics not automatiaclly centering on entering lyrics mode in the apple music full player.
@@ -12,13 +14,27 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Fix explicit icon showing up on the left side of the song name instead of the right side in the artist view.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
     - [ ] Fix home screen artist card appearance. 
-    - [ ] Fix some home screen cards showing up as "Unknown Playlist/Artist/Album". Remove these whenever they exist, as they are not useful at all and just confuse the user. Add logging whenever thi happens so we can fix issues in dev. 
+    - [ ] Fix some home screen cards showing up as "Unknown Playlist/Artist/Album". Remove these whenever they exist, as they are not useful at all and just confuse the user. Add logging whenever this happens so we can fix issues in dev. 
+    - [ ] Fix pre-fetching next song stream URL: right now, even though we do get it, we still take a long time to start playing. I suspect we are just re-fetching the stream URL when the song starts playing, which is what causes the delay. We should be able to just use the already fetched URL and start playing immediately. Also should consider the preference for pre-fetching, and only store it for the "expire" duration parameter specified in the recieved URL. When it expires, we should discard it and fetch a new one ASAP. 
 - Future changes:
+    - [ ] On mobile, if the user either has another device connected through Bluetooth, headphone jack or if they are connected with Handoff, the player bar's artists list should be replaced with something like this: "{dynamic icon} {device name} · {artists list}". The dynamic icon should change based on the type of device: headphone icon for wired, earbuds icon for Bluetooth, computer icon for Handoff - Desktop, and mobile phone icon for Handoff - Mobile.
+    - [ ] When a non-handoff device is connected (as above), show so in the Handoff Menu. Also, allow the user to change to the another speaker/headphone output from the Handoff menu too. (of course, allow changing back to the current device as well). 
+    - [ ] On mobile, hide arrow indicators on element rows: instead, use a slight gradient on the right side of the element row to indicate that it has more content.
+    - [ ] Make the marquee text infinitely loop to one side instead of bouncing back and forth.
+    - [ ] Improve primary color fetching from the cover art. Probably using a modified k-means.
+    - [ ] Rename window to be called "Artist Name - Song Name" when a song is playing. 
+    - [ ] When no lyrics preview is avaliable, hide the corresponding card in the right sidebar.
+    - [ ] Make song and artist names in the player bar's "Next Up" part clickable
+    - [ ] Home: when a playlist's author is "Spotify", use the Playlist description for the subtitle instead. 
+    - [ ] Add a slight zoom + increase blur to the background when scrolling in the list view. 
+    - [ ] Add play/pause overlay when a sidebar element is hovered (like in the home view)
+    - [ ] Add sidebar searching 
     - [ ] Add special card from the home screen on mobile. 
     - [ ] Add explicit icon to more elements in the app. 
     - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons.
     - [ ] Make artist name clickable in the full player
 - Planned features:
+    - [ ] Add element pinning to the sidebar/library
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
     - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
     - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
