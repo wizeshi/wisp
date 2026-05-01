@@ -10,12 +10,12 @@ import 'package:wisp/providers/metadata/spotify_internal.dart';
 import '../models/metadata_models.dart';
 import '../services/wisp_audio_handler.dart';
 import '../providers/lyrics/provider.dart';
-import '../providers/connect/connect_session_provider.dart';
 import '../providers/library/library_state.dart';
 import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../providers/theme/cover_art_palette_provider.dart';
 import '../services/app_navigation.dart';
+import '../services/playback/playback_coordinator.dart';
 import '../services/navigation_history.dart';
 import '../utils/lyrics_timing.dart';
 import '../views/list_detail.dart';
@@ -866,16 +866,9 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   @override
   Widget build(BuildContext context) {
-    final useLinkedState = context.select<ConnectSessionProvider, bool>(
-      (connect) => connect.isLinked && connect.isHost,
+    final shouldPlay = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.effectiveIsPlaying,
     );
-    final linkedShouldPlay = context.select<ConnectSessionProvider, bool>(
-      (connect) => connect.linkedIsPlaying,
-    );
-    final localShouldPlay = context.select<WispAudioHandler, bool>(
-      (player) => player.isPlaying,
-    );
-    final shouldPlay = useLinkedState ? linkedShouldPlay : localShouldPlay;
     final controller = _controller;
     final hasSize = widget.width != null || widget.height != null;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
@@ -993,16 +986,9 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
 
   @override
   Widget build(BuildContext context) {
-    final useLinkedState = context.select<ConnectSessionProvider, bool>(
-      (connect) => connect.isLinked && connect.isHost,
+    final shouldPlay = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.effectiveIsPlaying,
     );
-    final linkedShouldPlay = context.select<ConnectSessionProvider, bool>(
-      (connect) => connect.linkedIsPlaying,
-    );
-    final localShouldPlay = context.select<WispAudioHandler, bool>(
-      (player) => player.isPlaying,
-    );
-    final shouldPlay = useLinkedState ? linkedShouldPlay : localShouldPlay;
     final controller = _controller;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
       return const SizedBox.shrink();
@@ -1500,19 +1486,10 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                               ),
                             )
                           else
-                            Selector2<
-                              WispAudioHandler,
-                              ConnectSessionProvider,
-                              int
-                            >(
-                              selector: (context, player, connect) {
-                                final useHandoffState =
-                                    connect.isLinked && connect.isHost;
-                                final position = useHandoffState
-                                    ? connect.linkedInterpolatedPosition
-                                    : player.throttledPosition;
-                                return position.inMilliseconds;
-                              },
+                            Selector<PlaybackCoordinator, int>(
+                              selector: (context, coordinator) => coordinator
+                                  .effectiveThrottledPosition
+                                  .inMilliseconds,
                               builder: (context, positionMs, child) {
                                 final delaySeconds =
                                     lyricsProvider.getDelaySecondsCached(
@@ -1715,14 +1692,9 @@ class _LyricsPreviewLines extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector2<WispAudioHandler, ConnectSessionProvider, int>(
-      selector: (context, player, connect) {
-        final useHandoffState = connect.isLinked && connect.isHost;
-        final position = useHandoffState
-            ? connect.linkedInterpolatedPosition
-            : player.throttledPosition;
-        return position.inMilliseconds;
-      },
+    return Selector<PlaybackCoordinator, int>(
+      selector: (context, coordinator) =>
+          coordinator.effectiveThrottledPosition.inMilliseconds,
       builder: (context, positionMs, child) {
         final delaySeconds = context.select<LyricsProvider, double>(
           (provider) => provider.getDelaySecondsCached(resetKey),

@@ -20,6 +20,7 @@ import 'providers/search/search_state.dart';
 import 'providers/navigation_state.dart';
 import 'providers/theme/cover_art_palette_provider.dart';
 import 'theme/app_theme.dart';
+import 'services/playback/playback_coordinator.dart';
 import 'services/notification_service.dart';
 import 'services/cache_manager.dart';
 import 'services/download_foreground_service.dart';
@@ -35,9 +36,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isLinux) {
-    fvp.registerWith(options: {
-      'platforms': ['linux'],
-    });
+    fvp.registerWith(
+      options: {
+        'platforms': ['linux'],
+      },
+    );
   }
 
   // Initialize just_audio with media_kit backend for Linux
@@ -49,14 +52,18 @@ void main() async {
   }
 
   try {
-    final spotifyAudioEnabled = await PreferencesProvider.isAudioSpotifyEnabled();
+    final spotifyAudioEnabled =
+        await PreferencesProvider.isAudioSpotifyEnabled();
     if (spotifyAudioEnabled) {
       await SpotifyAudioKeySessionManager.instance.initializeOnStartup();
     } else {
       await SpotifyAudioKeySessionManager.instance.clear();
     }
   } catch (error) {
-    logger.w('[Main] Spotify AP key session startup initialization failed', error: error);
+    logger.w(
+      '[Main] Spotify AP key session startup initialization failed',
+      error: error,
+    );
   }
 
   final handler = await AudioService.init(
@@ -69,6 +76,8 @@ void main() async {
       androidNotificationOngoing: true,
     ),
   );
+  final playbackCoordinator = PlaybackCoordinator();
+  playbackCoordinator.bindAudioHandler(handler);
 
   // Initialize window manager for custom titlebar (desktop only)
   if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
@@ -108,7 +117,9 @@ void main() async {
   // Initialize Discord RPC (desktop only)
   await DiscordRpcService.instance.initialize();
 
-  runApp(MyApp(audioHandler: handler));
+  runApp(
+    MyApp(audioHandler: handler, playbackCoordinator: playbackCoordinator),
+  );
 
   // Request notification permission on Android 13+ after UI is ready
   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -118,8 +129,13 @@ void main() async {
 
 class MyApp extends StatelessWidget {
   final WispAudioHandler audioHandler;
+  final PlaybackCoordinator playbackCoordinator;
 
-  const MyApp({super.key, required this.audioHandler});
+  const MyApp({
+    super.key,
+    required this.audioHandler,
+    required this.playbackCoordinator,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -129,6 +145,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PreferencesProvider()),
         ChangeNotifierProvider(create: (_) => YouTubeMetadataProvider()),
         ChangeNotifierProvider.value(value: audioHandler),
+        ChangeNotifierProvider.value(value: playbackCoordinator),
         ChangeNotifierProxyProvider<WispAudioHandler, CoverArtPaletteProvider>(
           create: (_) => CoverArtPaletteProvider(),
           update: (_, player, palette) {
@@ -149,20 +166,23 @@ class MyApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider(create: (_) => LibraryFolderState()),
-        ChangeNotifierProxyProvider<WispAudioHandler, ConnectSessionProvider>(
+        ChangeNotifierProxyProvider2<
+          WispAudioHandler,
+          PlaybackCoordinator,
+          ConnectSessionProvider
+        >(
           create: (_) => ConnectSessionProvider(),
-          update: (_, audio, connect) {
+          update: (_, audio, playback, connect) {
             final provider = connect ?? ConnectSessionProvider();
             provider.bindAudioHandler(audio);
+            provider.bindPlaybackCoordinator(playback);
             return provider;
           },
         ),
         ChangeNotifierProvider(create: (_) => SearchState()),
         ChangeNotifierProvider(create: (_) => NavigationState()),
         ChangeNotifierProvider.value(value: DesktopNotificationCenter.instance),
-        ChangeNotifierProvider.value(
-          value: YtDlpReadinessCoordinator.instance,
-        ),
+        ChangeNotifierProvider.value(value: YtDlpReadinessCoordinator.instance),
       ],
       child: Consumer2<CoverArtPaletteProvider, PreferencesProvider>(
         builder: (context, palette, preferences, child) {

@@ -10,10 +10,10 @@ import '../providers/library/library_state.dart';
 import '../widgets/hover_underline.dart';
 import '../models/metadata_models.dart';
 import '../services/app_navigation.dart';
+import '../services/playback/playback_coordinator.dart';
 import 'list_detail.dart';
 import '../providers/navigation_state.dart';
 import '../widgets/navigation.dart';
-import '../providers/connect/connect_session_provider.dart';
 import '../widgets/entity_context_menus.dart';
 
 class QueueView extends StatefulWidget {
@@ -63,7 +63,7 @@ class _QueueViewState extends State<QueueView> {
               if (player.queueTracks.isEmpty) return const SizedBox.shrink();
               return TextButton(
                 onPressed: () {
-                  context.read<ConnectSessionProvider>().requestClearQueue();
+                  context.read<PlaybackCoordinator>().clearQueue();
                 },
                 child: Text(
                   'Clear',
@@ -153,7 +153,7 @@ class _QueueViewState extends State<QueueView> {
               if (_isDesktop && queueLength > 0)
                 TextButton.icon(
                   onPressed: () {
-                    context.read<ConnectSessionProvider>().requestClearQueue();
+                    context.read<PlaybackCoordinator>().clearQueue();
                   },
                   icon: const Icon(Icons.delete_outline, size: 20),
                   label: const Text('Clear queue'),
@@ -206,10 +206,7 @@ class _QueueViewState extends State<QueueView> {
       itemCount: queue.length,
       buildDefaultDragHandles: false,
       onReorder: (oldIndex, newIndex) {
-        context.read<ConnectSessionProvider>().requestReorderQueue(
-          oldIndex,
-          newIndex,
-        );
+        context.read<PlaybackCoordinator>().reorderQueue(oldIndex, newIndex);
       },
       proxyDecorator: (child, index, animation) {
         return Material(
@@ -270,7 +267,7 @@ class _QueueViewState extends State<QueueView> {
         child: InkWell(
           onTap: () {
             // Play this track from queue
-            context.read<ConnectSessionProvider>().requestPlayQueueIndex(index);
+            context.read<PlaybackCoordinator>().playQueueIndex(index);
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -420,9 +417,7 @@ class _QueueViewState extends State<QueueView> {
                   IconButton(
                     icon: Icon(Icons.close, color: Colors.grey[400], size: 20),
                     onPressed: () {
-                      context
-                          .read<ConnectSessionProvider>()
-                          .requestRemoveFromQueue(index);
+                      context.read<PlaybackCoordinator>().removeFromQueue(index);
                     },
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
@@ -516,9 +511,7 @@ void showMobileQueueSheet(BuildContext context) {
                         }
                         return TextButton(
                           onPressed: () {
-                            context
-                                .read<ConnectSessionProvider>()
-                                .requestClearQueue();
+                            context.read<PlaybackCoordinator>().clearQueue();
                           },
                           child: Text(
                             'Clear',

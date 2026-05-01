@@ -11,8 +11,8 @@ import 'package:provider/provider.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 
 import '../models/metadata_models.dart';
-import '../providers/connect/connect_session_provider.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
+import '../services/playback/playback_coordinator.dart';
 import '../providers/library/library_state.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/metadata_cache.dart';
@@ -125,10 +125,9 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Future<void> _playTopTracks(int index) async {
-    final connect = context.read<ConnectSessionProvider>();
     final tracks = _artist?.topSongs ?? [];
     if (tracks.isEmpty) return;
-    await connect.requestSetQueue(
+    await context.read<PlaybackCoordinator>().setQueue(
       tracks,
       startIndex: index,
       play: true,

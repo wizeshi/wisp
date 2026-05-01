@@ -7,12 +7,15 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/models/metadata_models.dart';
+import 'package:wisp/services/playback/playback_coordinator.dart';
+import 'package:wisp/services/playback/playback_transport.dart';
 import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/services/connect/lan_connect_service.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/utils/logger.dart';
 
-class ConnectSessionProvider extends ChangeNotifier {
+class ConnectSessionProvider extends ChangeNotifier
+    implements PlaybackTransport {
   static const String _keyLocalDeviceId = 'connect_local_device_id';
   static const String _keyTrustedIncomingDeviceIds =
       'connect_trusted_incoming_device_ids';
@@ -63,6 +66,7 @@ class ConnectSessionProvider extends ChangeNotifier {
 
   Duration _linkedPosition = Duration.zero;
   Duration get linkedPosition => _linkedPosition;
+  @override
   Duration get linkedInterpolatedPosition {
     final updatedAt = _linkedPositionUpdatedAt;
     if (!_linkedIsPlaying || updatedAt == null) {
@@ -76,6 +80,7 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   bool _linkedIsPlaying = false;
+  @override
   bool get linkedIsPlaying => _linkedIsPlaying;
 
   ConnectLinkMode _activeLinkMode = ConnectLinkMode.fullHandoff;
@@ -118,6 +123,7 @@ class ConnectSessionProvider extends ChangeNotifier {
   String? _linkedPeerAddress;
   int _hostCommandSequence = 0;
   WispAudioHandler? _audioHandler;
+  PlaybackCoordinator? _playbackCoordinator;
   bool _discoveryStarted = false;
   bool get discoveryStarted => _discoveryStarted;
   SharedPreferences? _prefs;
@@ -220,8 +226,13 @@ class ConnectSessionProvider extends ChangeNotifier {
     return '${Platform.operatingSystem} device';
   }
 
+  @override
   bool get isLinked => _linkedDeviceId != null;
+
+  @override
   bool get isHost => _role == ConnectRole.host;
+
+  @override
   bool get isTarget => _role == ConnectRole.target;
   String get localPlatform => Platform.operatingSystem;
 
@@ -229,7 +240,18 @@ class ConnectSessionProvider extends ChangeNotifier {
     _audioHandler = audioHandler;
   }
 
+  void bindPlaybackCoordinator(PlaybackCoordinator playbackCoordinator) {
+    _playbackCoordinator = playbackCoordinator;
+    playbackCoordinator.bindTransport(this);
+  }
+
   Future<void> requestPlay() async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.play();
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
     if (!isLinked) {
@@ -245,6 +267,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestPause() async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.pause();
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
     if (!isLinked) {
@@ -256,6 +284,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestSeek(Duration position) async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.seek(position);
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
     if (!isLinked) {
@@ -270,6 +304,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestSkipNext() async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.skipNext();
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
     if (!isLinked) {
@@ -281,6 +321,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestSkipPrevious() async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.skipPrevious();
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
     if (!isLinked) {
@@ -292,6 +338,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestToggleShuffle() async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.toggleShuffle();
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
     if (!isLinked) {
@@ -303,6 +355,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestToggleRepeat() async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.toggleRepeat();
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
     if (!isLinked) {
@@ -314,6 +372,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestPlayQueueIndex(int index) async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.playQueueIndex(index);
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
 
@@ -327,6 +391,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestRemoveFromQueue(int index) async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.removeFromQueue(index);
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
 
@@ -339,6 +409,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestClearQueue() async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.clearQueue();
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
 
@@ -351,6 +427,12 @@ class ConnectSessionProvider extends ChangeNotifier {
   }
 
   Future<void> requestReorderQueue(int oldIndex, int newIndex) async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.reorderQueue(oldIndex, newIndex);
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
 
@@ -376,6 +458,22 @@ class ConnectSessionProvider extends ChangeNotifier {
     bool shuffleEnabled = false,
     List<GenericSong>? originalQueue,
   }) async {
+    final coordinator = _playbackCoordinator;
+    if (coordinator != null) {
+      await coordinator.setQueue(
+        tracks,
+        startIndex: startIndex,
+        play: play,
+        contextType: contextType,
+        contextName: contextName,
+        contextID: contextID,
+        contextSource: contextSource,
+        shuffleEnabled: shuffleEnabled,
+        originalQueue: originalQueue,
+      );
+      return;
+    }
+
     final audio = _audioHandler;
     if (audio == null) return;
 
@@ -411,6 +509,87 @@ class ConnectSessionProvider extends ChangeNotifier {
       },
     );
   }
+
+  Future<void> _sendLinkedCommand(
+    String command, {
+    Map<String, dynamic> payload = const {},
+  }) async {
+    if (!isLinked) return;
+    await _requestCommand(command, payload: payload);
+  }
+
+  @override
+  Future<void> sendPlayCommand() => _sendLinkedCommand(_cmdPlay);
+
+  @override
+  Future<void> sendPauseCommand() => _sendLinkedCommand(_cmdPause);
+
+  @override
+  Future<void> sendSeekCommand(Duration position) => _sendLinkedCommand(
+    _cmdSeek,
+    payload: {'position_ms': position.inMilliseconds},
+  );
+
+  @override
+  Future<void> sendSkipNextCommand() => _sendLinkedCommand(_cmdSkipNext);
+
+  @override
+  Future<void> sendSkipPreviousCommand() =>
+      _sendLinkedCommand(_cmdSkipPrevious);
+
+  @override
+  Future<void> sendToggleShuffleCommand() =>
+      _sendLinkedCommand(_cmdToggleShuffle);
+
+  @override
+  Future<void> sendToggleRepeatCommand() =>
+      _sendLinkedCommand(_cmdToggleRepeat);
+
+  @override
+  Future<void> sendPlayQueueIndexCommand(int index) =>
+      _sendLinkedCommand(_cmdPlayQueueIndex, payload: {'index': index});
+
+  @override
+  Future<void> sendRemoveFromQueueCommand(int index) =>
+      _sendLinkedCommand(_cmdRemoveFromQueue, payload: {'index': index});
+
+  @override
+  Future<void> sendClearQueueCommand() => _sendLinkedCommand(_cmdClearQueue);
+
+  @override
+  Future<void> sendReorderQueueCommand(int oldIndex, int newIndex) =>
+      _sendLinkedCommand(
+        _cmdReorderQueue,
+        payload: {'old_index': oldIndex, 'new_index': newIndex},
+      );
+
+  @override
+  Future<void> sendSetQueueCommand(
+    List<GenericSong> tracks, {
+    int startIndex = 0,
+    bool play = true,
+    String? contextType,
+    String? contextName,
+    String? contextID,
+    SongSource? contextSource,
+    bool shuffleEnabled = false,
+    List<GenericSong>? originalQueue,
+  }) => _sendLinkedCommand(
+    _cmdSetQueue,
+    payload: {
+      'tracks': tracks.map((t) => t.toJson()).toList(growable: false),
+      'start_index': startIndex,
+      'play': play,
+      'context_type': contextType,
+      'context_name': contextName,
+      'context_id': contextID,
+      'context_source': contextSource?.toJson(),
+      'shuffle_enabled': shuffleEnabled,
+      'original_queue': originalQueue
+          ?.map((t) => t.toJson())
+          .toList(growable: false),
+    },
+  );
 
   void setNextOutgoingLinkMode(ConnectLinkMode mode) {
     if (_nextOutgoingLinkMode == mode) return;

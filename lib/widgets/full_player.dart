@@ -25,6 +25,7 @@ import '../models/metadata_models.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../providers/theme/cover_art_palette_provider.dart';
 import '../providers/connect/connect_session_provider.dart';
+import '../services/playback/playback_coordinator.dart';
 import '../views/lyrics.dart';
 import '../views/queue.dart';
 import '../views/artist_detail.dart';
@@ -633,11 +634,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
-    final basePosition = useHandoffState
-        ? connect.linkedInterpolatedPosition
-        : player.throttledPosition;
+    final basePosition = context.select<PlaybackCoordinator, Duration>(
+      (coordinator) => coordinator.effectiveThrottledPosition,
+    );
     final delayMs =
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
@@ -815,11 +814,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
 
     final lyrics = state.lyrics;
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
-    final basePosition = useHandoffState
-        ? connect.linkedInterpolatedPosition
-        : player.throttledPosition;
+    final basePosition = context.select<PlaybackCoordinator, Duration>(
+      (coordinator) => coordinator.effectiveThrottledPosition,
+    );
     final delayMs =
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
@@ -1004,13 +1001,14 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     global_audio_player.WispAudioHandler player,
     Color bgColor,
   ) {
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
+    final useHandoffState = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.useLinkedPlaybackState,
+    );
     final isLoading = _isUiLoading(player, useHandoffState);
     final colorScheme = Theme.of(context).colorScheme;
-    final position = useHandoffState
-        ? connect.linkedInterpolatedPosition
-        : player.interpolatedPosition;
+    final position = context.select<PlaybackCoordinator, Duration>(
+      (coordinator) => coordinator.effectiveInterpolatedPosition,
+    );
     final duration = player.duration;
     final clampedPosition = position > duration ? duration : position;
     final progress = duration.inMilliseconds > 0
@@ -1083,9 +1081,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                     final newPosition = Duration(
                       milliseconds: (value * duration.inMilliseconds).toInt(),
                     );
-                    context.read<ConnectSessionProvider>().requestSeek(
-                      newPosition,
-                    );
+                    context.read<PlaybackCoordinator>().seek(newPosition);
                   },
                 ),
               ),
@@ -1127,7 +1123,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           color: player.shuffleEnabled ? bgColor : Colors.grey[300],
           padding: const EdgeInsets.all(8),
           onPressed: () {
-            context.read<ConnectSessionProvider>().requestToggleShuffle();
+            context.read<PlaybackCoordinator>().toggleShuffle();
           },
         ),
         // Previous
@@ -1139,7 +1135,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           onPressed: player.queueTracks.isEmpty
               ? null
               : () {
-                  context.read<ConnectSessionProvider>().requestSkipPrevious();
+                  context.read<PlaybackCoordinator>().skipPrevious();
                 },
         ),
         // Play/Pause - Large circular button
@@ -1153,7 +1149,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           onPressed: player.queueTracks.isEmpty
               ? null
               : () {
-                  context.read<ConnectSessionProvider>().requestSkipNext();
+                  context.read<PlaybackCoordinator>().skipNext();
                 },
         ),
         // Repeat
@@ -1169,7 +1165,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
               : Colors.grey[300],
           padding: const EdgeInsets.all(8),
           onPressed: () {
-            context.read<ConnectSessionProvider>().requestToggleRepeat();
+            context.read<PlaybackCoordinator>().toggleRepeat();
           },
         ),
       ],
@@ -1181,8 +1177,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     global_audio_player.WispAudioHandler player,
     Color bgColor,
   ) {
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
+    final useHandoffState = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.useLinkedPlaybackState,
+    );
     final isLoading = _isUiLoading(player, useHandoffState);
 
     if (isLoading) {
@@ -1201,9 +1198,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       );
     }
 
-    final isPlaying = useHandoffState
-        ? connect.linkedIsPlaying
-        : player.isPlaying;
+    final isPlaying = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.effectiveIsPlaying,
+    );
 
     return Container(
       width: 64,
@@ -1216,9 +1213,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         padding: EdgeInsets.zero,
         onPressed: () {
           if (isPlaying) {
-            connect.requestPause();
+            context.read<PlaybackCoordinator>().pause();
           } else {
-            connect.requestPlay();
+            context.read<PlaybackCoordinator>().play();
           }
         },
       ),
@@ -1497,17 +1494,9 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   @override
   Widget build(BuildContext context) {
-    final useLinkedState = context.select<ConnectSessionProvider, bool>(
-      (connect) => connect.isLinked && connect.isHost,
+    final shouldPlay = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.effectiveIsPlaying,
     );
-    final linkedShouldPlay = context.select<ConnectSessionProvider, bool>(
-      (connect) => connect.linkedIsPlaying,
-    );
-    final localShouldPlay = context
-        .select<global_audio_player.WispAudioHandler, bool>(
-          (player) => player.isPlaying,
-        );
-    final shouldPlay = useLinkedState ? linkedShouldPlay : localShouldPlay;
     final controller = _controller;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
       return CachedNetworkImage(
@@ -2344,11 +2333,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       );
     }
 
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
-    final basePosition = useHandoffState
-        ? connect.linkedInterpolatedPosition
-        : player.throttledPosition;
+    final basePosition = context.select<PlaybackCoordinator, Duration>(
+      (coordinator) => coordinator.effectiveThrottledPosition,
+    );
     final delayMs =
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
@@ -2448,7 +2435,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                               .clamp(0, player.duration.inMilliseconds)
                               .toInt();
                           unawaited(
-                            context.read<ConnectSessionProvider>().requestSeek(
+                            context.read<PlaybackCoordinator>().seek(
                               Duration(milliseconds: seekMs),
                             ),
                           );
@@ -2585,9 +2572,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
               onPressed: queue.isEmpty
                   ? null
                   : () {
-                      context
-                          .read<ConnectSessionProvider>()
-                          .requestClearQueue();
+                      context.read<PlaybackCoordinator>().clearQueue();
                     },
               child: Text(
                 'Clear',
@@ -2620,7 +2605,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     final queueOldIndex = oldIndex + queueStartIndex;
                     final queueNewIndex = newIndex + queueStartIndex;
                     unawaited(
-                      context.read<ConnectSessionProvider>().requestReorderQueue(
+                      context.read<PlaybackCoordinator>().reorderQueue(
                         queueOldIndex,
                         queueNewIndex,
                       ),
@@ -2637,9 +2622,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         onTap: () {
                           unawaited(
-                            context
-                                .read<ConnectSessionProvider>()
-                                .requestPlayQueueIndex(queueIndex),
+                            context.read<PlaybackCoordinator>().playQueueIndex(
+                              queueIndex,
+                            ),
                           );
                         },
                         child: Row(
@@ -3179,11 +3164,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
-    final basePosition = useHandoffState
-        ? connect.linkedInterpolatedPosition
-        : player.throttledPosition;
+    final basePosition = context.select<PlaybackCoordinator, Duration>(
+      (coordinator) => coordinator.effectiveThrottledPosition,
+    );
     final delayMs =
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
@@ -3385,7 +3368,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     Color btnColor,
     _ApplePlayerViewMode mode,
   ) {
-    final connect = context.read<ConnectSessionProvider>();
     return Column(
       children: [
         _buildProgressBar(context, player),
@@ -3440,7 +3422,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       tooltip: 'Shuffle',
                       icon: CupertinoIcons.shuffle,
                       selected: player.shuffleEnabled,
-                      onTap: connect.requestToggleShuffle,
+                      onTap: () => context.read<PlaybackCoordinator>().toggleShuffle(),
                       activeColor: btnColor,
                     ),
                     const SizedBox(width: 6),
@@ -3454,7 +3436,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       selected:
                           player.repeatMode !=
                           global_audio_player.RepeatMode.off,
-                      onTap: connect.requestToggleRepeat,
+                      onTap: () => context.read<PlaybackCoordinator>().toggleRepeat(),
                       activeColor: btnColor,
                     ),
                     const SizedBox(width: 6),
@@ -3554,12 +3536,13 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     BuildContext context,
     global_audio_player.WispAudioHandler player,
   ) {
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
+    final useHandoffState = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.useLinkedPlaybackState,
+    );
     final isLoading = _isUiLoading(player, useHandoffState);
-    final isPlaying = useHandoffState
-        ? connect.linkedIsPlaying
-        : player.isPlaying;
+    final isPlaying = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.effectiveIsPlaying,
+    );
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -3573,7 +3556,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           onPressed: player.queueTracks.isEmpty
               ? null
               : () {
-                  context.read<ConnectSessionProvider>().requestSkipPrevious();
+                  context.read<PlaybackCoordinator>().skipPrevious();
                 },
         ),
         const SizedBox(width: 6),
@@ -3597,9 +3580,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
               ? null
               : () {
                   if (isPlaying) {
-                    connect.requestPause();
+                    context.read<PlaybackCoordinator>().pause();
                   } else {
-                    connect.requestPlay();
+                    context.read<PlaybackCoordinator>().play();
                   }
                 },
         ),
@@ -3613,7 +3596,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           onPressed: player.queueTracks.isEmpty
               ? null
               : () {
-                  context.read<ConnectSessionProvider>().requestSkipNext();
+                  context.read<PlaybackCoordinator>().skipNext();
                 },
         ),
       ],
@@ -3706,7 +3689,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     global_audio_player.WispAudioHandler player,
     Color btnColor,
   ) {
-    final connect = context.read<ConnectSessionProvider>();
     final repeatMode = player.repeatMode;
 
     return Row(
@@ -3716,7 +3698,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             icon: CupertinoIcons.shuffle,
             selected: player.shuffleEnabled,
             activeColor: btnColor,
-            onTap: () => _deferAsyncAction(connect.requestToggleShuffle),
+            onTap: () => _deferAsyncAction(
+              () => context.read<PlaybackCoordinator>().toggleShuffle(),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -3727,7 +3711,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 : CupertinoIcons.repeat,
             selected: repeatMode != global_audio_player.RepeatMode.off,
             activeColor: btnColor,
-            onTap: () => _deferAsyncAction(connect.requestToggleRepeat),
+            onTap: () => _deferAsyncAction(
+              () => context.read<PlaybackCoordinator>().toggleRepeat(),
+            ),
           ),
         ),
       ],
@@ -3845,13 +3831,14 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     BuildContext context,
     global_audio_player.WispAudioHandler player,
   ) {
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
+    final useHandoffState = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.useLinkedPlaybackState,
+    );
     final isLoading = _isUiLoading(player, useHandoffState);
     final colorScheme = Theme.of(context).colorScheme;
-    final position = useHandoffState
-        ? connect.linkedInterpolatedPosition
-        : player.interpolatedPosition;
+    final position = context.select<PlaybackCoordinator, Duration>(
+      (coordinator) => coordinator.effectiveInterpolatedPosition,
+    );
     final duration = player.duration;
     final clampedPosition = position > duration ? duration : position;
     final progress = duration.inMilliseconds > 0
@@ -3924,9 +3911,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     final newPosition = Duration(
                       milliseconds: (value * duration.inMilliseconds).toInt(),
                     );
-                    context.read<ConnectSessionProvider>().requestSeek(
-                      newPosition,
-                    );
+                    context.read<PlaybackCoordinator>().seek(newPosition);
                   },
                 ),
               ),
@@ -3969,7 +3954,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           onPressed: player.queueTracks.isEmpty
               ? null
               : () {
-                  context.read<ConnectSessionProvider>().requestSkipPrevious();
+                  context.read<PlaybackCoordinator>().skipPrevious();
                 },
         ),
         // Play/Pause - Large circular button
@@ -3983,7 +3968,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           onPressed: player.queueTracks.isEmpty
               ? null
               : () {
-                  context.read<ConnectSessionProvider>().requestSkipNext();
+                  context.read<PlaybackCoordinator>().skipNext();
                 },
         ),
       ],
@@ -3995,8 +3980,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     global_audio_player.WispAudioHandler player,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
+    final useHandoffState = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.useLinkedPlaybackState,
+    );
     final isLoading = _isUiLoading(player, useHandoffState);
     if (isLoading) {
       return SizedBox(
@@ -4014,9 +4000,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       );
     }
 
-    final isPlaying = useHandoffState
-        ? connect.linkedIsPlaying
-        : player.isPlaying;
+    final isPlaying = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.effectiveIsPlaying,
+    );
 
     return Container(
       width: 96,
@@ -4031,9 +4017,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         padding: EdgeInsets.zero,
         onPressed: () {
           if (isPlaying) {
-            connect.requestPause();
+            context.read<PlaybackCoordinator>().pause();
           } else {
-            connect.requestPlay();
+            context.read<PlaybackCoordinator>().play();
           }
         },
       ),
@@ -4691,7 +4677,6 @@ class _AppleWaveformPanelState extends State<_AppleWaveformPanel> {
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Waveform',

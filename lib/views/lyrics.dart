@@ -7,9 +7,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/metadata_models.dart';
-import '../providers/connect/connect_session_provider.dart';
 import '../providers/theme/cover_art_palette_provider.dart';
 import '../services/wisp_audio_handler.dart';
+import '../services/playback/playback_coordinator.dart';
 import '../providers/lyrics/provider.dart';
 import '../utils/logger.dart';
 import '../utils/lyrics_timing.dart';
@@ -124,17 +124,16 @@ class _LyricsViewState extends State<LyricsView> {
       final player = _playerRef;
       final lyrics = _activeLyrics;
       if (player == null || lyrics == null) return;
-      final positionMs = _effectivePositionMs(player);
+      final positionMs = _effectivePositionMs();
       _updateCurrentLine(lyrics, positionMs);
     });
   }
 
-  int _effectivePositionMs(WispAudioHandler player) {
-    final connect = context.read<ConnectSessionProvider>();
-    if (connect.isLinked && connect.isHost) {
-      return connect.linkedInterpolatedPosition.inMilliseconds;
-    }
-    return player.interpolatedPosition.inMilliseconds;
+  int _effectivePositionMs() {
+    return context
+        .read<PlaybackCoordinator>()
+        .effectiveInterpolatedPosition
+        .inMilliseconds;
   }
 
   void _stopPositionTimer() {
@@ -182,7 +181,7 @@ class _LyricsViewState extends State<LyricsView> {
     if (_didInitialCenter) return;
     _didInitialCenter = true;
     final timing = lyrics.synced
-        ? resolveSyncedLyricsTiming(lyrics.lines, _effectivePositionMs(player))
+      ? resolveSyncedLyricsTiming(lyrics.lines, _effectivePositionMs())
         : null;
     final initialIndex = lyrics.synced ? timing!.activeIndex : 0;
     _currentLineIndex = initialIndex;
@@ -225,7 +224,7 @@ class _LyricsViewState extends State<LyricsView> {
         if (syncedLyrics == null || !syncedLyrics.synced) return;
         final cleanedSyncedLyrics = removeEmptyLyricsLines(syncedLyrics);
         if (cleanedSyncedLyrics.lines.isEmpty) return;
-        final positionMs = _effectivePositionMs(player);
+        final positionMs = _effectivePositionMs();
         final timing = resolveSyncedLyricsTiming(
           cleanedSyncedLyrics.lines,
           positionMs,
@@ -423,7 +422,7 @@ class _LyricsViewState extends State<LyricsView> {
             ? _timingState ??
                 resolveSyncedLyricsTiming(
                   lyrics.lines,
-                  _effectivePositionMs(player),
+                  _effectivePositionMs(),
                 )
             : null;
 
@@ -658,7 +657,7 @@ class _LyricsViewState extends State<LyricsView> {
                     icon: const Icon(Icons.skip_previous, size: 28),
                     color: Colors.white,
                     onPressed: () {
-                      context.read<ConnectSessionProvider>().requestSkipPrevious();
+                      context.read<PlaybackCoordinator>().skipPrevious();
                     },
                   ),
                   _buildMobilePlayPauseButton(),
@@ -666,7 +665,7 @@ class _LyricsViewState extends State<LyricsView> {
                     icon: const Icon(Icons.skip_next, size: 28),
                     color: Colors.white,
                     onPressed: () {
-                      context.read<ConnectSessionProvider>().requestSkipNext();
+                      context.read<PlaybackCoordinator>().skipNext();
                     },
                   ),
                 ],
@@ -679,14 +678,17 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildMobileSeekBar() {
+    final useHandoffState = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.useLinkedPlaybackState,
+    );
+    final effectivePosition = context.select<PlaybackCoordinator, Duration>(
+      (coordinator) => coordinator.effectiveThrottledPosition,
+    );
+
     return Selector<WispAudioHandler, _LyricsMobilePositionData>(
       selector: (context, player) {
-        final connect = context.read<ConnectSessionProvider>();
-        final useHandoffState = connect.isLinked && connect.isHost;
         return _LyricsMobilePositionData(
-          position: useHandoffState
-              ? connect.linkedPosition
-              : player.throttledPosition,
+          position: effectivePosition,
           duration: player.duration,
           isLoading: !useHandoffState && (player.isLoading || player.isBuffering),
         );
@@ -732,7 +734,7 @@ class _LyricsViewState extends State<LyricsView> {
                   final newPosition = Duration(
                     milliseconds: (value * data.duration.inMilliseconds).round(),
                   );
-                  context.read<ConnectSessionProvider>().requestSeek(newPosition);
+                  context.read<PlaybackCoordinator>().seek(newPosition);
                 },
               ),
             ),
@@ -756,6 +758,13 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildMobilePlayPauseButton() {
+    final useHandoffState = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.useLinkedPlaybackState,
+    );
+    final effectiveIsPlaying = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.effectiveIsPlaying,
+    );
+
     return Selector<WispAudioHandler, _LyricsMobilePlaybackData>(
       selector: (context, player) {
         final track = player.currentTrack;
@@ -770,12 +779,6 @@ class _LyricsViewState extends State<LyricsView> {
         );
       },
       builder: (context, data, child) {
-        final connect = context.watch<ConnectSessionProvider>();
-        final useHandoffState = connect.isLinked && connect.isHost;
-        final effectiveIsPlaying = useHandoffState
-            ? connect.linkedIsPlaying
-            : data.isPlaying;
-
         if (data.isLoading || data.isBuffering) {
           return const SizedBox(
             width: 48,
@@ -798,9 +801,9 @@ class _LyricsViewState extends State<LyricsView> {
         VoidCallback? onPressed;
         if (!isOfflineBlocked) {
           if (effectiveIsPlaying) {
-            onPressed = () => connect.requestPause();
+            onPressed = () => context.read<PlaybackCoordinator>().pause();
           } else if (data.currentTrackId != null || data.queueNotEmpty) {
-            onPressed = () => connect.requestPlay();
+            onPressed = () => context.read<PlaybackCoordinator>().play();
           }
         }
 

@@ -14,10 +14,10 @@ import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
+import '../services/playback/playback_coordinator.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/metadata/spotify_internal.dart';
 import '../providers/library/local_playlists.dart';
-import '../providers/connect/connect_session_provider.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../providers/theme/cover_art_palette_provider.dart';
 import '../providers/library/library_state.dart';
@@ -590,9 +590,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (queue.isEmpty) return;
 
     final playlist = _playlist;
-    final connectSession = context.read<ConnectSessionProvider>();
     final libraryFolders = context.read<LibraryFolderState>();
-    await connectSession.requestSetQueue(
+    await context.read<PlaybackCoordinator>().setQueue(
       queue,
       startIndex: index,
       play: true,
@@ -926,7 +925,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       startIndex = 0;
     }
 
-    await context.read<ConnectSessionProvider>().requestSetQueue(
+    await context.read<PlaybackCoordinator>().setQueue(
       queue,
       startIndex: startIndex,
       play: true,
@@ -975,7 +974,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         ? _playlist?.source
         : _album?.source;
 
-    await context.read<ConnectSessionProvider>().requestSetQueue(
+    await context.read<PlaybackCoordinator>().setQueue(
       queue,
       startIndex: 0,
       play: true,
@@ -1159,7 +1158,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (tracks.isEmpty) return;
 
     final player = context.read<global_audio_player.WispAudioHandler>();
-    final connect = context.read<ConnectSessionProvider>();
     final mergedQueue = List<GenericSong>.from(player.queueTracks);
     final seen = mergedQueue
         .map((track) => '${track.source.name}:${track.id}')
@@ -1192,7 +1190,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       }
     }
 
-    await connect.requestSetQueue(
+    await context.read<PlaybackCoordinator>().setQueue(
       mergedQueue,
       startIndex: startIndex,
       play: player.currentTrack != null ? player.isPlaying : false,

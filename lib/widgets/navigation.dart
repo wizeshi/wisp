@@ -8,8 +8,8 @@ import '../models/metadata_models.dart';
 import '../models/library_folder.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/library_state.dart';
-import '../providers/connect/connect_session_provider.dart';
 import '../providers/metadata/spotify_internal.dart';
+import '../services/playback/playback_coordinator.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/navigation_history.dart';
 import 'playlist_folder_modals.dart';
@@ -137,7 +137,7 @@ class _WispNavigationState extends State<WispNavigation> {
                   .toList() ??
               const <GenericSong>[];
       if (queueTracks.isEmpty || !mounted) return;
-      await context.read<ConnectSessionProvider>().requestSetQueue(
+      await context.read<PlaybackCoordinator>().setQueue(
             queueTracks,
             startIndex: 0,
             play: true,
@@ -158,7 +158,7 @@ class _WispNavigationState extends State<WispNavigation> {
           );
       final tracks = fullAlbum.songs ?? const <GenericSong>[];
       if (tracks.isEmpty || !mounted) return;
-      await context.read<ConnectSessionProvider>().requestSetQueue(
+      await context.read<PlaybackCoordinator>().setQueue(
             tracks,
             startIndex: 0,
             play: true,
@@ -176,7 +176,7 @@ class _WispNavigationState extends State<WispNavigation> {
           );
       final tracks = artist.topSongs;
       if (tracks.isEmpty || !mounted) return;
-      await context.read<ConnectSessionProvider>().requestSetQueue(
+      await context.read<PlaybackCoordinator>().setQueue(
             tracks,
             startIndex: 0,
             play: true,

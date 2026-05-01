@@ -21,11 +21,11 @@ import 'list_detail.dart';
 import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
-import '../providers/connect/connect_session_provider.dart';
 import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../providers/theme/cover_art_palette_provider.dart';
 import '../services/app_navigation.dart';
+import '../services/playback/playback_coordinator.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
 import '../widgets/provider_disabled_state.dart';
@@ -1971,12 +1971,11 @@ class HomePageState extends State<HomePage> {
 
   Future<void> _playAlbum(String albumId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final connect = context.read<ConnectSessionProvider>();
     try {
       final album = await spotify.getAlbumInfo(albumId);
       final tracks = album.songs ?? [];
       if (tracks.isEmpty) return;
-      await connect.requestSetQueue(
+      await context.read<PlaybackCoordinator>().setQueue(
         tracks,
         startIndex: 0,
         play: true,
@@ -1993,7 +1992,6 @@ class HomePageState extends State<HomePage> {
     String? contextNameOverride,
   }) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final connect = context.read<ConnectSessionProvider>();
     try {
       final playlist = await spotify.getPlaylistInfo(playlistId);
       final items = playlist.songs ?? [];
@@ -2012,7 +2010,7 @@ class HomePageState extends State<HomePage> {
             ),
           )
           .toList();
-      await connect.requestSetQueue(
+      await context.read<PlaybackCoordinator>().setQueue(
         tracks,
         startIndex: 0,
         play: true,
@@ -2030,12 +2028,11 @@ class HomePageState extends State<HomePage> {
 
   Future<void> _playArtist(String artistId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final connect = context.read<ConnectSessionProvider>();
     try {
       final artist = await spotify.getArtistInfo(artistId);
       final tracks = artist.topSongs;
       if (tracks.isEmpty) return;
-      await connect.requestSetQueue(
+      await context.read<PlaybackCoordinator>().setQueue(
         tracks,
         startIndex: 0,
         play: true,

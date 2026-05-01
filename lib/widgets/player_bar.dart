@@ -21,6 +21,7 @@ import '../widgets/like_button.dart';
 import '../widgets/entity_context_menus.dart';
 import '../services/app_focus_service.dart';
 import '../providers/connect/connect_session_provider.dart';
+import '../services/playback/playback_coordinator.dart';
 import '../services/connect/connect_models.dart';
 
 class WispPlayerBar extends StatelessWidget {
@@ -71,15 +72,15 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
   void _onHorizontalDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
-    final connect = context.read<ConnectSessionProvider>();
+    final playback = context.read<PlaybackCoordinator>();
 
     if (velocity.abs() > 200 || _dragOffset.abs() > 50) {
       if (_dragOffset < 0 || velocity < -200) {
         // Swipe left -> skip next
-        connect.requestSkipNext();
+        playback.skipNext();
       } else {
         // Swipe right -> skip previous
-        connect.requestSkipPrevious();
+        playback.skipPrevious();
       }
     }
 
@@ -353,11 +354,12 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         );
       },
       builder: (context, data, child) {
-        final connect = context.watch<ConnectSessionProvider>();
-        final useHandoffState = connect.isLinked && connect.isHost;
-        final effectiveIsPlaying = useHandoffState
-            ? connect.linkedIsPlaying
-            : data.isPlaying;
+        final useHandoffState = context.select<PlaybackCoordinator, bool>(
+          (coordinator) => coordinator.useLinkedPlaybackState,
+        );
+        final effectiveIsPlaying = context.select<PlaybackCoordinator, bool>(
+          (coordinator) => coordinator.effectiveIsPlaying,
+        );
         if (data.isLoading || data.isBuffering) {
           return const SizedBox(
             width: 40,
@@ -395,15 +397,15 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         if (!isOfflineBlocked) {
           if (effectiveIsPlaying) {
             onPressed = () {
-              connect.requestPause();
+              context.read<PlaybackCoordinator>().pause();
             };
           } else if (data.currentTrackId != null) {
             onPressed = () {
-              connect.requestPlay();
+              context.read<PlaybackCoordinator>().play();
             };
           } else if (data.queueNotEmpty) {
             onPressed = () {
-              connect.requestPlay();
+              context.read<PlaybackCoordinator>().play();
             };
           }
         }
@@ -423,14 +425,16 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       builder: (context, trackId, child) {
         if (trackId == null) return const SizedBox.shrink();
 
-        final connect = context.watch<ConnectSessionProvider>();
-        final useHandoffState = connect.isLinked && connect.isHost;
+        final useHandoffState = context.select<PlaybackCoordinator, bool>(
+          (coordinator) => coordinator.useLinkedPlaybackState,
+        );
+        final effectivePosition = context.select<PlaybackCoordinator, Duration>(
+          (coordinator) => coordinator.effectiveThrottledPosition,
+        );
 
         return Selector<global_audio_player.WispAudioHandler, _PositionData>(
           selector: (context, player) => _PositionData(
-            position: useHandoffState
-                ? connect.linkedPosition
-                : player.throttledPosition,
+            position: effectivePosition,
             duration: player.duration,
             isLoading:
                 !useHandoffState && (player.isLoading || player.isBuffering),
@@ -730,9 +734,7 @@ class _DesktopProgressBar extends StatelessWidget {
                               milliseconds: (value * duration.inMilliseconds)
                                   .toInt(),
                             );
-                            context.read<ConnectSessionProvider>().requestSeek(
-                              newPosition,
-                            );
+                            context.read<PlaybackCoordinator>().seek(newPosition);
                           },
                         ),
                       ),
@@ -1205,7 +1207,6 @@ class _DesktopPlaybackControls extends StatelessWidget {
         );
       },
       builder: (context, data, child) {
-        final connect = context.watch<ConnectSessionProvider>();
         final isAppleStyle = appStyle == 'Apple Music';
         final controlSpacing = isAppleStyle ? 8.0 : 4.0;
         return Row(
@@ -1222,7 +1223,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
                 size: 20,
               ),
               onPressed: () {
-                connect.requestToggleShuffle();
+                context.read<PlaybackCoordinator>().toggleShuffle();
               },
             ),
 
@@ -1239,7 +1240,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               ),
               onPressed: data.queueNotEmpty
                   ? () {
-                      connect.requestSkipPrevious();
+                      context.read<PlaybackCoordinator>().skipPrevious();
                     }
                   : null,
             ),
@@ -1262,7 +1263,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               ),
               onPressed: data.queueNotEmpty
                   ? () {
-                      connect.requestSkipNext();
+                      context.read<PlaybackCoordinator>().skipNext();
                     }
                   : null,
             ),
@@ -1283,7 +1284,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
                 size: 20,
               ),
               onPressed: () {
-                connect.requestToggleRepeat();
+                context.read<PlaybackCoordinator>().toggleRepeat();
               },
             ),
           ],
@@ -1301,11 +1302,12 @@ class _DesktopPlayPauseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final connect = context.watch<ConnectSessionProvider>();
-    final useHandoffState = connect.isLinked && connect.isHost;
-    final effectiveIsPlaying = useHandoffState
-        ? connect.linkedIsPlaying
-        : data.isPlaying;
+    final useHandoffState = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.useLinkedPlaybackState,
+    );
+    final effectiveIsPlaying = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.effectiveIsPlaying,
+    );
 
     if (data.isLoading || data.isBuffering) {
       return Padding(
@@ -1341,15 +1343,15 @@ class _DesktopPlayPauseButton extends StatelessWidget {
     if (!isOfflineBlocked) {
       if (effectiveIsPlaying) {
         onPressed = () {
-          connect.requestPause();
+          context.read<PlaybackCoordinator>().pause();
         };
       } else if (data.currentTrackId != null) {
         onPressed = () {
-          connect.requestPlay();
+          context.read<PlaybackCoordinator>().play();
         };
       } else if (data.queueNotEmpty) {
         onPressed = () {
-          connect.requestPlay();
+          context.read<PlaybackCoordinator>().play();
         };
       }
     }

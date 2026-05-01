@@ -9,12 +9,12 @@ import 'package:wisp/views/list_detail.dart';
 import '../models/library_folder.dart';
 import '../models/metadata_models.dart';
 import '../providers/audio/youtube.dart';
-import '../providers/connect/connect_session_provider.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/library_state.dart';
 import '../providers/metadata/spotify_internal.dart';
 import '../services/app_navigation.dart';
 import '../services/cache_manager.dart';
+import '../services/playback/playback_coordinator.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../views/youtube_alternatives.dart';
 import 'adaptive_context_menu.dart';
@@ -133,7 +133,6 @@ class EntityContextMenus {
       return;
     }
     final player = context.read<global_audio_player.WispAudioHandler>();
-    final connect = context.read<ConnectSessionProvider>();
 
     final mergedQueue = List<GenericSong>.from(player.queueTracks);
     final seen = mergedQueue
@@ -163,7 +162,7 @@ class EntityContextMenus {
       if (found >= 0) startIndex = found;
     }
 
-    await connect.requestSetQueue(
+    await context.read<PlaybackCoordinator>().setQueue(
       mergedQueue,
       startIndex: startIndex,
       play: player.currentTrack != null ? player.isPlaying : false,

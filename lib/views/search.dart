@@ -9,13 +9,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
-import '../providers/connect/connect_session_provider.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/metadata/spotify_internal.dart';
 import '../providers/metadata/youtube.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../providers/search/search_state.dart';
 import '../services/app_navigation.dart';
+import '../services/playback/playback_coordinator.dart';
 import '../services/wisp_audio_handler.dart';
 import '../widgets/entity_context_menus.dart';
 import '../widgets/hover_underline.dart';
@@ -1595,11 +1595,11 @@ class _SearchViewState extends State<SearchView> {
   void _playSearchQueueWithTracks(List<GenericSong> queue, int index) {
     if (queue.isEmpty || index < 0 || index >= queue.length) return;
 
-    final connect = context.read<ConnectSessionProvider>();
+    final playback = context.read<PlaybackCoordinator>();
     setState(() => _activePlayContext = 'song:${queue[index].id}');
 
     unawaited(
-      connect.requestSetQueue(
+      playback.setQueue(
         queue,
         startIndex: index,
         play: true,
@@ -1612,13 +1612,13 @@ class _SearchViewState extends State<SearchView> {
   void _toggleTrackPlayback(GenericSong track) {
     final player = context.read<WispAudioHandler>();
     if (player.currentTrack?.id == track.id) {
-      final connect = context.read<ConnectSessionProvider>();
+      final playback = context.read<PlaybackCoordinator>();
       if (player.isPlaying) {
-        unawaited(connect.requestPause());
+        unawaited(playback.pause());
         return;
       }
       if (player.state == PlaybackState.paused) {
-        unawaited(connect.requestPlay());
+        unawaited(playback.play());
         return;
       }
     }
@@ -1631,15 +1631,15 @@ class _SearchViewState extends State<SearchView> {
     required Future<void> Function() playAction,
   }) {
     final player = context.read<WispAudioHandler>();
-    final connect = context.read<ConnectSessionProvider>();
+    final playback = context.read<PlaybackCoordinator>();
 
     if (_activePlayContext == contextKey) {
       if (player.isPlaying) {
-        unawaited(connect.requestPause());
+        unawaited(playback.pause());
         return;
       }
       if (player.state == PlaybackState.paused) {
-        unawaited(connect.requestPlay());
+        unawaited(playback.play());
         return;
       }
     }
@@ -1649,7 +1649,7 @@ class _SearchViewState extends State<SearchView> {
 
   Future<void> _playAlbum(BuildContext context, String albumId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final connect = context.read<ConnectSessionProvider>();
+    final playback = context.read<PlaybackCoordinator>();
 
     try {
       final album = await spotify.getAlbumInfo(albumId);
@@ -1660,7 +1660,7 @@ class _SearchViewState extends State<SearchView> {
         setState(() => _activePlayContext = 'album:$albumId');
       }
 
-      await connect.requestSetQueue(
+      await playback.setQueue(
         tracks,
         startIndex: 0,
         play: true,
@@ -1674,7 +1674,7 @@ class _SearchViewState extends State<SearchView> {
 
   Future<void> _playPlaylist(BuildContext context, String playlistId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final connect = context.read<ConnectSessionProvider>();
+    final playback = context.read<PlaybackCoordinator>();
 
     try {
       final playlist = await spotify.getPlaylistInfo(playlistId);
@@ -1700,7 +1700,7 @@ class _SearchViewState extends State<SearchView> {
           )
           .toList();
 
-      await connect.requestSetQueue(
+      await playback.setQueue(
         tracks,
         startIndex: 0,
         play: true,
@@ -1716,7 +1716,7 @@ class _SearchViewState extends State<SearchView> {
 
   Future<void> _playArtist(BuildContext context, String artistId) async {
     final spotify = context.read<SpotifyInternalProvider>();
-    final connect = context.read<ConnectSessionProvider>();
+    final playback = context.read<PlaybackCoordinator>();
 
     try {
       final artist = await spotify.getArtistInfo(artistId);
@@ -1727,7 +1727,7 @@ class _SearchViewState extends State<SearchView> {
         setState(() => _activePlayContext = 'artist:$artistId');
       }
 
-      await connect.requestSetQueue(
+      await playback.setQueue(
         tracks,
         startIndex: 0,
         play: true,
