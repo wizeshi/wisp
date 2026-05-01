@@ -1,7 +1,6 @@
 Here's the TODOs for version v26.05.xx:
 
 - Bugs:
-    - [ ] Fix character encoding issues: e.g. recommended area shows the "ã" character as "Ã£". 
     - [ ] Fix scroll bar in list view not showing up in the correct position (Apple Music Style). 
     - [ ] Fix stream fetching not working when the app is in the background.
     - [ ] Fix lyrics not automatiaclly centering on entering lyrics mode in the apple music full player.

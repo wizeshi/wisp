@@ -1154,7 +1154,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
     }
 
-    final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+    final jsonResponse = _decodeJsonResponse(response);
     final recommendedTracks = jsonResponse['recommendedTracks'] as List?;
     if (recommendedTracks == null || recommendedTracks.isEmpty) {
       return const [];
@@ -1241,6 +1241,24 @@ class SpotifyInternalProvider extends MetadataProvider {
       addedAt: DateTime.now(),
       trackNumber: trackNumber,
     );
+  }
+
+  Map<String, dynamic> _decodeJsonResponse(http.Response response) {
+    try {
+      final decodedUtf8 = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decodedUtf8 is Map<String, dynamic>) return decodedUtf8;
+    } catch (_) {
+      // Try Latin-1 as a fallback for endpoints that return ISO-8859-1 text.
+    }
+
+    try {
+      final decodedLatin1 = jsonDecode(latin1.decode(response.bodyBytes));
+      if (decodedLatin1 is Map<String, dynamic>) return decodedLatin1;
+    } catch (_) {
+      // Fall through to the existing body-based decode.
+    }
+
+    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   @override
