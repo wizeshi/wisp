@@ -2085,9 +2085,6 @@ class _ArtistCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: _HoverPlayCard(
             onTap: onTap,
-            onPlay: onPlay,
-            isActive: isActive,
-            isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
                     EntityContextMenus.showArtistMenu(
@@ -2107,28 +2104,34 @@ class _ArtistCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipOval(
-                    child: Container(
-                      width: 150,
-                      height: 150,
-                      color: Colors.grey[900],
-                      child: artist.thumbnailUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: artist.thumbnailUrl,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) =>
-                                  Container(color: Colors.grey[800]),
-                              errorWidget: (context, url, error) => const Icon(
+                  _HoverPlayThumbnail(
+                    borderRadius: 999,
+                    isActive: isActive,
+                    isPlaying: isPlaying,
+                    onPressed: onPlay,
+                    child: ClipOval(
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        color: Colors.grey[900],
+                        child: artist.thumbnailUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: artist.thumbnailUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) =>
+                                    Container(color: Colors.grey[800]),
+                                errorWidget: (context, url, error) => const Icon(
+                                  Icons.person,
+                                  size: 48,
+                                  color: Colors.grey,
+                                ),
+                              )
+                            : const Icon(
                                 Icons.person,
                                 size: 48,
                                 color: Colors.grey,
                               ),
-                            )
-                          : const Icon(
-                              Icons.person,
-                              size: 48,
-                              color: Colors.grey,
-                            ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -2196,9 +2199,6 @@ class _AlbumCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: _HoverPlayCard(
             onTap: onTap,
-            onPlay: onPlay,
-            isActive: isActive,
-            isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
                     EntityContextMenus.showAlbumMenu(
@@ -2218,29 +2218,35 @@ class _AlbumCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      width: 150,
-                      height: 150,
-                      color: Colors.transparent,
-                      child: album.thumbnailUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: album.thumbnailUrl,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) =>
-                                  Container(color: Colors.grey[800]),
-                              errorWidget: (context, url, error) => const Icon(
+                  _HoverPlayThumbnail(
+                    borderRadius: 6,
+                    isActive: isActive,
+                    isPlaying: isPlaying,
+                    onPressed: onPlay,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        color: Colors.transparent,
+                        child: album.thumbnailUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: album.thumbnailUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) =>
+                                    Container(color: Colors.grey[800]),
+                                errorWidget: (context, url, error) => const Icon(
+                                  Icons.album,
+                                  size: 48,
+                                  color: Colors.grey,
+                                ),
+                              )
+                            : const Icon(
                                 Icons.album,
                                 size: 48,
                                 color: Colors.grey,
                               ),
-                            )
-                          : const Icon(
-                              Icons.album,
-                              size: 48,
-                              color: Colors.grey,
-                            ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -2309,9 +2315,6 @@ class _PlaylistCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: _HoverPlayCard(
             onTap: onTap,
-            onPlay: onPlay,
-            isActive: isActive,
-            isPlaying: isPlaying,
             onSecondaryTapDown: isDesktop
                 ? (details) {
                     EntityContextMenus.showPlaylistMenu(
@@ -2334,32 +2337,38 @@ class _PlaylistCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      width: 150,
-                      height: 150,
-                      color: Colors.transparent,
-                      child: isLiked
-                          ? const LikedSongsArt()
-                          : (playlist.thumbnailUrl.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: playlist.thumbnailUrl,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) =>
-                                        Container(color: Colors.grey[800]),
-                                    errorWidget: (context, url, error) =>
-                                        const Icon(
-                                          Icons.playlist_play,
-                                          size: 48,
-                                          color: Colors.grey,
-                                        ),
-                                  )
-                                : const Icon(
-                                    Icons.playlist_play,
-                                    size: 48,
-                                    color: Colors.grey,
-                                  )),
+                  _HoverPlayThumbnail(
+                    borderRadius: 6,
+                    isActive: isActive,
+                    isPlaying: isPlaying,
+                    onPressed: onPlay,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        color: Colors.transparent,
+                        child: isLiked
+                            ? const LikedSongsArt()
+                            : (playlist.thumbnailUrl.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: playlist.thumbnailUrl,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) =>
+                                          Container(color: Colors.grey[800]),
+                                      errorWidget: (context, url, error) =>
+                                          const Icon(
+                                            Icons.playlist_play,
+                                            size: 48,
+                                            color: Colors.grey,
+                                          ),
+                                    )
+                                  : const Icon(
+                                      Icons.playlist_play,
+                                      size: 48,
+                                      color: Colors.grey,
+                                    )),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -2428,9 +2437,6 @@ class _SpecialCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             child: _HoverPlayCard(
               onTap: onTap,
-              onPlay: onPlay,
-              isActive: isActive,
-              isPlaying: isPlaying,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -2449,29 +2455,35 @@ class _SpecialCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.start,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: SizedBox(
-                            width: 120,
-                            height: 120,
-                            child: thumbnailUrl.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: thumbnailUrl,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) =>
-                                        Container(color: Colors.grey[800]),
-                                    errorWidget: (context, url, error) =>
-                                        const Icon(
-                                          Icons.music_note,
-                                          size: 48,
-                                          color: Colors.grey,
-                                        ),
-                                  )
-                                : const Icon(
-                                    Icons.music_note,
-                                    size: 48,
-                                    color: Colors.grey,
-                                  ),
+                        _HoverPlayThumbnail(
+                          borderRadius: 6,
+                          isActive: isActive,
+                          isPlaying: isPlaying,
+                          onPressed: onPlay,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: SizedBox(
+                              width: 120,
+                              height: 120,
+                              child: thumbnailUrl.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: thumbnailUrl,
+                                      fit: BoxFit.cover,
+                                      placeholder: (context, url) =>
+                                          Container(color: Colors.grey[800]),
+                                      errorWidget: (context, url, error) =>
+                                          const Icon(
+                                            Icons.music_note,
+                                            size: 48,
+                                            color: Colors.grey,
+                                          ),
+                                    )
+                                  : const Icon(
+                                      Icons.music_note,
+                                      size: 48,
+                                      color: Colors.grey,
+                                    ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -2810,21 +2822,31 @@ class _AnimatedQuickWaveformState extends State<_AnimatedQuickWaveform>
   }
 }
 
+class _HoverPlayScope extends InheritedWidget {
+  final bool hovering;
+
+  const _HoverPlayScope({required this.hovering, required Widget child})
+      : super(child: child);
+
+  static _HoverPlayScope? of(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<_HoverPlayScope>();
+  }
+
+  @override
+  bool updateShouldNotify(covariant _HoverPlayScope oldWidget) {
+    return oldWidget.hovering != hovering;
+  }
+}
+
 class _HoverPlayCard extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
-  final VoidCallback onPlay;
-  final bool isActive;
-  final bool isPlaying;
   final GestureTapDownCallback? onSecondaryTapDown;
   final VoidCallback? onLongPress;
 
   const _HoverPlayCard({
     required this.child,
     required this.onTap,
-    required this.onPlay,
-    required this.isActive,
-    required this.isPlaying,
     this.onSecondaryTapDown,
     this.onLongPress,
   });
@@ -2842,62 +2864,129 @@ class _HoverPlayCardState extends State<_HoverPlayCard> {
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     return MouseRegion(
       cursor: isDesktop ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: (_) => setState(() => _isHovering = true),
-      onExit: (_) => setState(() => _isHovering = false),
-      child: GestureDetector(
+      onEnter: (_) {
+        if (isDesktop) setState(() => _isHovering = true);
+      },
+      onExit: (_) {
+        if (isDesktop) setState(() => _isHovering = false);
+      },
+      child: InkWell(
+        mouseCursor: isDesktop ? SystemMouseCursors.click : null,
         onSecondaryTapDown: widget.onSecondaryTapDown,
         onLongPress: widget.onLongPress,
-        child: InkWell(
-          mouseCursor: isDesktop ? SystemMouseCursors.click : null,
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(8),
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: _HoverPlayScope(
+          hovering: _isHovering,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Stack(
-              clipBehavior: Clip.hardEdge,
-              children: [
-                widget.child,
-                Positioned(
-                  right: 8,
-                  bottom: 8,
-                  child: AnimatedOpacity(
-                    opacity: _isHovering ? 1 : 0,
-                    duration: const Duration(milliseconds: 120),
-                    child: IgnorePointer(
-                      ignoring: !_isHovering,
-                      child: Material(
-                        color: Colors.black.withOpacity(0.5),
-                        borderRadius: BorderRadius.circular(16),
-                        child: IconButton(
-                          icon: Icon(
-                            widget.isActive && widget.isPlaying
-                                ? Icons.pause
-                                : Icons.play_arrow,
-                            color: Colors.white,
-                          ),
-                          onPressed: () {
-                            final player = context.read<WispAudioHandler>();
-                            if (widget.isActive) {
-                              if (player.isPlaying) {
-                                player.pause();
-                              } else {
-                                player.play();
-                              }
-                              return;
-                            }
-                            widget.onPlay();
-                          },
-                          splashRadius: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            child: widget.child,
           ),
         ),
       ),
+    );
+  }
+}
+
+class _HoverPlayThumbnail extends StatefulWidget {
+  final Widget child;
+  final double borderRadius;
+  final bool isActive;
+  final bool isPlaying;
+  final VoidCallback onPressed;
+
+  const _HoverPlayThumbnail({
+    required this.child,
+    required this.borderRadius,
+    required this.isActive,
+    required this.isPlaying,
+    required this.onPressed,
+  });
+
+  @override
+  State<_HoverPlayThumbnail> createState() => _HoverPlayThumbnailState();
+}
+
+class _HoverPlayThumbnailState extends State<_HoverPlayThumbnail> {
+  bool _isHovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final icon = widget.isActive && widget.isPlaying
+        ? Icons.pause
+        : Icons.play_arrow;
+
+    // Clip only the image widget itself so the play button isn't clipped
+    final imageWidget = (widget.borderRadius >= 360)
+        ? ClipOval(child: widget.child)
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            child: widget.child,
+          );
+
+    final parentScope = _HoverPlayScope.of(context);
+    final parentHovering = parentScope?.hovering ?? false;
+
+    final thumbnail = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        imageWidget,
+        Positioned(
+          right: 8,
+          bottom: 8,
+          child: AnimatedOpacity(
+            opacity: isDesktop && (_isHovering || parentHovering) ? 1 : 0,
+            duration: const Duration(milliseconds: 120),
+            child: IgnorePointer(
+              ignoring: !(isDesktop && (_isHovering || parentHovering)),
+              child: Builder(
+                builder: (context) {
+                  final colorScheme = Theme.of(context).colorScheme;
+                  return SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Material(
+                      color: colorScheme.primary,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        iconSize: 22,
+                        icon: Icon(icon, color: colorScheme.onPrimary),
+                        onPressed: () {
+                          final player = context.read<WispAudioHandler>();
+                          if (widget.isActive) {
+                            if (player.isPlaying) {
+                              player.pause();
+                            } else {
+                              player.play();
+                            }
+                            return;
+                          }
+                          widget.onPressed();
+                        },
+                        splashRadius: 22,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    return MouseRegion(
+      cursor: isDesktop ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: (_) {
+        if (isDesktop) setState(() => _isHovering = true);
+      },
+      onExit: (_) {
+        if (isDesktop) setState(() => _isHovering = false);
+      },
+      child: thumbnail,
     );
   }
 }
