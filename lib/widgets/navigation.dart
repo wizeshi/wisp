@@ -511,10 +511,18 @@ class _WispNavigationState extends State<WispNavigation> {
     final titleColor = isCurrentPlaybackItem
         ? Theme.of(context).colorScheme.primary
         : Colors.white;
+    final isArtist = resolvedItem is GenericSimpleArtist;
     String? imageUrl;
     String? filePath;
     String title = '';
     String? subtitle;
+
+    final widgetForThumbnail = (Widget child) {
+      if (isArtist) {
+        return ClipOval(child: child);
+      }
+      return ClipRRect(child: child, borderRadius: BorderRadius.circular(4));
+    };
 
     final isLiked = resolvedItem is GenericPlaylist &&
         isLikedSongsPlaylistId(resolvedItem.id);
@@ -635,9 +643,8 @@ class _WispNavigationState extends State<WispNavigation> {
             mainAxisAlignment:
                 isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Container(
+              widgetForThumbnail(
+                Container(
                   width: 48,
                   height: 48,
                   color: Colors.grey[900],
