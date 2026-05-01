@@ -2094,28 +2094,25 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         // Title and info
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Text(
-                    widget.type == SharedListType.playlist
-                        ? 'PLAYLIST'
-                        : 'ALBUM',
+                    title,
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[600],
-                      letterSpacing: 1.5,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
                   ),
                   if (subtitle != null && subtitle.isNotEmpty) ...[
-                    Text(' • ', style: TextStyle(color: Colors.grey[500])),
+                    Text(' • ', style: TextStyle(color: Colors.grey[500], fontSize: 20)),
                     Expanded(
                       child: Text(
                         subtitle,
@@ -2143,7 +2140,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 ],
               ),
               if (hasDescription) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
                 Text(
                   descriptionText,
                   style: TextStyle(color: Colors.grey[300], fontSize: 13),
@@ -3827,60 +3824,77 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 0 : 10),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: isMobile
+                ? EdgeInsets.zero
+                : const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Expanded(
-                  child: Text(
-                    'Recommended',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Padding(
+                    padding: isMobile ? const EdgeInsets.fromLTRB(8, 12, 0, 8) : EdgeInsets.zero,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Recommended',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          "based on what's in this playlist",
+                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  )
+                ),
+                if (!isMobile)
+                  SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: Center(
+                      child: IconButton(
+                        onPressed: _isLoadingRecommendations
+                            ? null
+                            : _refreshRecommendations,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 34,
+                          minHeight: 34,
+                        ),
+                        icon: _isLoadingRecommendations
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.refresh),
+                        tooltip: 'Refresh recommendations',
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: 34,
-                  height: 34,
-                  child: IconButton(
-                    onPressed: _isLoadingRecommendations
-                        ? null
-                        : _refreshRecommendations,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 34,
-                      minHeight: 34,
-                    ),
-                    icon: _isLoadingRecommendations
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.refresh),
-                    tooltip: 'Refresh recommendations',
-                  ),
-                ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              "based on what's in this playlist",
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
-            ),
-          ),
-          const SizedBox(height: 8),
+          SizedBox(height: isMobile ? 0 : 4),
           if (_recommendationsError != null && songs.isEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              padding: isMobile
+                  ? const EdgeInsets.fromLTRB(0, 0, 0, 8)
+                  : const EdgeInsets.fromLTRB(12, 0, 12, 8),
               child: Text(
                 _recommendationsError!,
                 style: TextStyle(color: Colors.grey[500], fontSize: 12),
@@ -3895,7 +3909,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             )
           else if (songs.isEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              padding: isMobile
+                  ? const EdgeInsets.only(top: 8, bottom: 8)
+                  : const EdgeInsets.fromLTRB(12, 8, 12, 8),
               child: Text(
                 'No recommendations available right now.',
                 style: TextStyle(color: Colors.grey[500], fontSize: 12),
@@ -3903,10 +3919,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             )
           else
             ListView.separated(
+              padding: EdgeInsets.zero,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: songs.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 6),
+              separatorBuilder: (context, index) => SizedBox(height: isMobile ? 2 : 6),
               itemBuilder: (context, index) {
                 final item = songs[index];
                 return _buildRecommendedSongRow(
@@ -3917,6 +3934,37 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   isAppleStyle: isAppleStyle,
                 );
               },
+            ),
+          if (isMobile)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Center(
+                child: OutlinedButton(
+                  onPressed: _isLoadingRecommendations ? null : _refreshRecommendations,
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withOpacity(0.5),
+                    disabledForegroundColor: Colors.white70,
+                  ),
+                  child: _isLoadingRecommendations
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Refresh'),
+                ),
+              ),
             ),
         ],
       ),
@@ -3968,11 +4016,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 mouseCursor: SystemMouseCursors.click,
                 onTap: () => _playRecommendedAt(index),
                 onDoubleTap: isDesktop ? () => _playRecommendedAt(index) : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 9,
-                  ),
+                  child: Container(
+                  padding: isMobile
+                      ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
+                      : const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 9,
+                        ),
                   child: Row(
                     children: [
                       ClipRRect(
@@ -4057,97 +4107,135 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: isMobile ? 2 : 3,
-                        child:
-                            (isDesktop && album != null && album.id.isNotEmpty)
-                            ? HoverUnderline(
-                                onTap: () {
-                                  _openSharedList(
-                                    SharedListType.album,
-                                    album.id,
-                                    title: album.title,
-                                    thumbnailUrl: album.thumbnailUrl,
-                                  );
-                                },
-                                onSecondaryTapDown: (details) {
-                                  EntityContextMenus.showAlbumMenu(
-                                    context,
-                                    album: GenericAlbum(
-                                      id: album.id,
-                                      source: album.source,
+                      // On mobile we hide the album column and replace the Add button
+                      if (!isMobile) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: isMobile ? 2 : 3,
+                          child: (isDesktop && album != null && album.id.isNotEmpty)
+                              ? HoverUnderline(
+                                  onTap: () {
+                                    _openSharedList(
+                                      SharedListType.album,
+                                      album.id,
                                       title: album.title,
                                       thumbnailUrl: album.thumbnailUrl,
-                                      artists: album.artists,
-                                      label: album.label,
-                                      releaseDate: album.releaseDate,
-                                      explicit: song.explicit,
-                                      durationSecs: 0,
+                                    );
+                                  },
+                                  onSecondaryTapDown: (details) {
+                                    EntityContextMenus.showAlbumMenu(
+                                      context,
+                                      album: GenericAlbum(
+                                        id: album.id,
+                                        source: album.source,
+                                        title: album.title,
+                                        thumbnailUrl: album.thumbnailUrl,
+                                        artists: album.artists,
+                                        label: album.label,
+                                        releaseDate: album.releaseDate,
+                                        explicit: song.explicit,
+                                        durationSecs: 0,
+                                      ),
+                                      globalPosition: details.globalPosition,
+                                    );
+                                  },
+                                  builder: (isAlbumHovering) => Text(
+                                    album.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                      decoration: isAlbumHovering
+                                          ? TextDecoration.underline
+                                          : TextDecoration.none,
                                     ),
-                                    globalPosition: details.globalPosition,
-                                  );
-                                },
-                                builder: (isAlbumHovering) => Text(
-                                  album.title,
+                                  ),
+                                )
+                              : Text(
+                                  album?.title ?? '',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: Colors.grey[500],
                                     fontSize: 12,
-                                    decoration: isAlbumHovering
-                                        ? TextDecoration.underline
-                                        : TextDecoration.none,
                                   ),
                                 ),
-                              )
-                            : Text(
-                                album?.title ?? '',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.grey[500],
-                                  fontSize: 12,
-                                ),
-                              ),
-                      ),
-                      const SizedBox(width: 10),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+
                       SizedBox(
-                        width: isMobile ? 66 : 74,
+                        width: isMobile ? 44 : 74,
                         child: Align(
                           alignment: Alignment.centerRight,
-                          child: FilledButton(
-                            onPressed: (isAdding || isAdded)
-                                ? null
-                                : () => _addRecommendedTrack(item),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size(54, 34),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                              enabledMouseCursor: SystemMouseCursors.click,
-                              disabledMouseCursor: SystemMouseCursors.basic,
-                              backgroundColor: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.35),
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: 0.18),
-                              disabledForegroundColor: Colors.white70,
-                              elevation: 0,
-                            ),
-                            child: isAdding
-                                ? const SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
+                          child: isMobile
+                              ? (isAdding
+                                          ? SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : OutlinedButton(
+                                              onPressed: (isAdding || isAdded)
+                                                  ? null
+                                                  : () => _addRecommendedTrack(item),
+                                              style: OutlinedButton.styleFrom(
+                                                shape: const CircleBorder(),
+                                                side: BorderSide(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .primary,
+                                                ),
+                                                padding: const EdgeInsets.all(8),
+                                                minimumSize: const Size(36, 36),
+                                                backgroundColor: Theme.of(context).colorScheme.primary,
+                                                foregroundColor: Colors.white,
+                                                disabledBackgroundColor: Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withOpacity(0.5),
+                                                disabledForegroundColor: Colors.white70,
+                                              ),
+                                              child: isAdded
+                                                  ? const Icon(Icons.check, size: 18)
+                                                  : const Icon(Icons.add, size: 18),
+                                            ))
+                              : FilledButton(
+                                  onPressed: (isAdding || isAdded)
+                                      ? null
+                                      : () => _addRecommendedTrack(item),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size(54, 34),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
                                     ),
-                                  )
-                                : Text(isAdded ? 'Added' : 'Add'),
-                          ),
+                                    enabledMouseCursor: SystemMouseCursors.click,
+                                    disabledMouseCursor: SystemMouseCursors.basic,
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withValues(alpha: 0.35),
+                                    foregroundColor: Colors.white,
+                                    disabledBackgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withValues(alpha: 0.18),
+                                    disabledForegroundColor: Colors.white70,
+                                    elevation: 0,
+                                  ),
+                                  child: isAdding
+                                      ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : Text(isAdded ? 'Added' : 'Add'),
+                                ),
                         ),
                       ),
                     ],
@@ -4326,7 +4414,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = !isDesktop;
-    final padding = isMobile ? 20.0 : 24.0;
+    final padding = isMobile ? 12.0 : 24.0;
 
     if (isMobile) {
       view._scheduleStickyBarUpdate(view._mobileScrollController);
@@ -4342,12 +4430,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                       child: Container(
                         key: view._headerKey,
                         child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            padding,
-                            padding,
-                            padding,
-                            0,
-                          ),
+                          padding: EdgeInsets.fromLTRB(padding, padding, padding, 0),
                           child: view._buildMobileHeader(
                             title,
                             subtitle,
@@ -4361,10 +4444,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                     SliverToBoxAdapter(
                       child: Container(
                         key: view._mobileActionsKey,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: padding / 2,
-                          vertical: padding / 2,
-                        ),
+                        padding: EdgeInsets.symmetric(horizontal: padding / 2, vertical: 4),
                         color: const Color(0xFF121212),
                         child: view._buildMobileActionsRow(),
                       ),
@@ -4377,7 +4457,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                     ),
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(padding, 12, padding, 20),
+                        padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
                         child: view._buildRecommendedSection(isMobile: true),
                       ),
                     ),
@@ -4651,13 +4731,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   children: [
                     Transform.scale(
                       scale: backgroundScale,
-                      child: ImageFiltered(
-                        imageFilter: ImageFilter.blur(
-                          sigmaX: backgroundBlur,
-                          sigmaY: backgroundBlur,
-                        ),
-                        child: _buildHeaderArtwork(context),
-                      ),
+                      child: _buildHeaderArtwork(context),
                     ),
                     Container(
                       decoration: BoxDecoration(
@@ -4686,7 +4760,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                 child: Container(
                   key: view._mobileActionsKey,
                   child: _buildMobilePlaybackRow(),
@@ -4711,7 +4785,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
                 child: view._buildRecommendedSection(
                   isMobile: true,
                   visualStyle: _ListVisualStyle.apple,
