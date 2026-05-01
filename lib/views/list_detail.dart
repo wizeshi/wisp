@@ -19,6 +19,7 @@ import '../providers/metadata/spotify_internal.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/connect/connect_session_provider.dart';
 import '../providers/preferences/preferences_provider.dart';
+import '../providers/theme/cover_art_palette_provider.dart';
 import '../providers/library/library_state.dart';
 import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
@@ -228,11 +229,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
     if (_stickyCoverUrl == imageUrl) return;
     _stickyCoverUrl = imageUrl;
-    final provider = _imageProviderForUrl(imageUrl);
-    if (provider == null) return;
     ColorScheme? scheme;
     try {
-      scheme = await ColorScheme.fromImageProvider(provider: provider);
+      final paletteProvider = context.read<CoverArtPaletteProvider>();
+      scheme = await paletteProvider.paletteForImageUrl(imageUrl);
     } catch (_) {
       scheme = null;
     }
@@ -241,14 +241,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (nextColor != _stickyBarColor) {
       setState(() => _stickyBarColor = nextColor);
     }
-  }
-
-  ImageProvider? _imageProviderForUrl(String imageUrl) {
-    if (imageUrl.isEmpty) return null;
-    if (_isLocalImagePath(imageUrl)) {
-      return FileImage(File(imageUrl.replaceFirst('file://', '')));
-    }
-    return CachedNetworkImageProvider(imageUrl);
   }
 
   void _scheduleSongListOffsetUpdate(ScrollController controller) {

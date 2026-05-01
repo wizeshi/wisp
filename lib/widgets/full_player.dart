@@ -1674,8 +1674,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   static String? _lyricsLineKeysTrackId;
   static final Map<String, Future<GenericArtist?>> _artistInfoFutureCache =
       <String, Future<GenericArtist?>>{};
-  static final Map<String, Future<ColorScheme?>> _colorSchemeFutureCache =
-      <String, Future<ColorScheme?>>{};
   static final Map<String, Future<String?>> _canvasUrlFutureCache =
       <String, Future<String?>>{};
   static final ValueNotifier<bool> _animatedCanvasTemporarilyDisabledNotifier =
@@ -2970,19 +2968,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     }
   }
 
-  Future<ColorScheme?> _getColorSchemeFuture(String imageUrl) {
-    if (imageUrl.isEmpty) {
-      return Future.value(null);
-    }
-    final cached = _colorSchemeFutureCache[imageUrl];
-    if (cached != null) {
-      return cached;
-    }
-    _pruneFutureCache<ColorScheme?>(_colorSchemeFutureCache);
-    final future = _resolveColorScheme(CachedNetworkImageProvider(imageUrl));
-    _colorSchemeFutureCache[imageUrl] = future;
-    return future;
-  }
 
   Future<String?>? _getCanvasUrlFuture(
     SpotifyInternalProvider spotifyInternal,
@@ -4354,8 +4339,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             ? windowPadding.bottom
             : viewPadding.bottom;
 
+        final paletteProvider = context.read<CoverArtPaletteProvider>();
         return FutureBuilder<ColorScheme?>(
-          future: _getColorSchemeFuture(imageUrl),
+          future: paletteProvider.paletteForImageUrl(imageUrl),
           builder: (context, snapshot) {
             final palette = snapshot.data;
             var btnColor = HSLColor.fromColor(
@@ -4937,14 +4923,6 @@ class _MarqueeTextState extends State<_MarqueeText>
         );
       },
     );
-  }
-}
-
-Future<ColorScheme?> _resolveColorScheme(ImageProvider imageProvider) async {
-  try {
-    return await ColorScheme.fromImageProvider(provider: imageProvider);
-  } catch (_) {
-    return null;
   }
 }
 

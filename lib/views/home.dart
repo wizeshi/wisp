@@ -24,6 +24,7 @@ import '../providers/library/local_playlists.dart';
 import '../providers/connect/connect_session_provider.dart';
 import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
+import '../providers/theme/cover_art_palette_provider.dart';
 import '../services/app_navigation.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
@@ -2522,10 +2523,9 @@ class _SpecialCard extends StatelessWidget {
       return buildCard(fallbackColor);
     }
 
-    return FutureBuilder<ColorScheme>(
-      future: ColorScheme.fromImageProvider(
-        provider: CachedNetworkImageProvider(thumbnailUrl),
-      ),
+    final paletteProvider = context.read<CoverArtPaletteProvider>();
+    return FutureBuilder<ColorScheme?>(
+      future: paletteProvider.paletteForImageUrl(thumbnailUrl),
       builder: (context, snapshot) {
         final sourceColor = snapshot.data?.primary ?? fallbackColor;
         final backgroundColor = HSLColor.fromColor(

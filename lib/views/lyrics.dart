@@ -301,7 +301,7 @@ class _LyricsViewState extends State<LyricsView> {
 
   @override
   Widget build(BuildContext context) {
-    var color = Theme.of(context).colorScheme.primaryContainer;
+    var color = Theme.of(context).colorScheme.primary;
 
     final content = _buildLyricsContent();
 

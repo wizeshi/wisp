@@ -169,11 +169,11 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: 'Wisp',
             theme: AppTheme.dark(
-              primaryOverride: palette.primaryColor,
+              paletteOverride: palette.palette,
               appStyle: preferences.style,
             ),
             darkTheme: AppTheme.dark(
-              primaryOverride: palette.primaryColor,
+              paletteOverride: palette.palette,
               appStyle: preferences.style,
             ),
             themeMode: ThemeMode.dark,
