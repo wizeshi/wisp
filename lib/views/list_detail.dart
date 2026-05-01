@@ -89,11 +89,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   final ScrollController _desktopScrollController = ScrollController();
   final ScrollController _mobileScrollController = ScrollController();
   final GlobalKey _songListKey = GlobalKey();
+  final GlobalKey _mobileActionsKey = GlobalKey();
   VoidCallback? _likedTracksListener;
   late final SpotifyInternalProvider _spotifyInternal;
   bool _showStickyBar = false;
   Color _stickyBarColor = const Color(0xFF1E1E1E);
   String? _stickyCoverUrl;
+  double? _mobileHeaderExtent;
 
   bool _isLocalImagePath(String path) {
     return path.startsWith('/') || path.startsWith('file://');
@@ -200,12 +202,44 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   void _scheduleStickyBarUpdate(ScrollController controller) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (controller == _mobileScrollController) {
+        final headerContext = _headerKey.currentContext;
+        final headerBox = headerContext?.findRenderObject() as RenderBox?;
+        if (headerBox != null) {
+          _setMobileHeaderExtent(headerBox.size.height);
+        }
+      }
       _updateStickyBarVisibility(controller);
     });
   }
 
   void _updateStickyBarVisibility(ScrollController controller) {
     if (!controller.hasClients) return;
+    if (controller == _mobileScrollController && _mobileHeaderExtent != null) {
+      final actionsContext = _mobileActionsKey.currentContext;
+      final scrollable = actionsContext != null
+          ? Scrollable.of(actionsContext)
+          : null;
+      final actionsBox = actionsContext?.findRenderObject() as RenderBox?;
+      final scrollBox = scrollable?.context.findRenderObject() as RenderBox?;
+      if (actionsBox != null && scrollBox != null) {
+        final offset =
+            actionsBox.localToGlobal(Offset.zero, ancestor: scrollBox).dy;
+        final shouldShow = offset + actionsBox.size.height <= 0;
+        if (shouldShow != _showStickyBar && mounted) {
+          setState(() => _showStickyBar = shouldShow);
+        }
+        return;
+      }
+
+      final threshold =
+          (_mobileHeaderExtent! - kToolbarHeight).clamp(0.0, double.infinity);
+      final shouldShow = controller.offset >= threshold;
+      if (shouldShow != _showStickyBar && mounted) {
+        setState(() => _showStickyBar = shouldShow);
+      }
+      return;
+    }
     final headerContext = _headerKey.currentContext;
     if (headerContext == null) return;
     final scrollable = Scrollable.of(headerContext);
@@ -218,6 +252,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (shouldShow != _showStickyBar && mounted) {
       setState(() => _showStickyBar = shouldShow);
     }
+  }
+
+  void _setMobileHeaderExtent(double extent) {
+    if (_mobileHeaderExtent == extent) return;
+    _mobileHeaderExtent = extent;
   }
 
   Future<void> _updateStickyBarColor(String imageUrl) async {
@@ -1788,18 +1827,115 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF121212),
+        clipBehavior: Clip.none,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        title: AnimatedOpacity(
+          opacity: _showStickyBar ? 1 : 0,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          child: _showStickyBar
+              ? Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                )
+              : const SizedBox.shrink(),
         ),
-        actions: [_buildSortButton()],
+        actions: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: _showStickyBar
+                ? _buildStickyPlayAction(
+                    useAppleStyle: false,
+                    protrude: true,
+                  )
+                : const SizedBox.shrink(),
+          ),
+          if (!_showStickyBar) _buildSortButton(),
+        ],
       ),
       body: content,
+    );
+  }
+
+  Widget _buildStickyPlayAction({
+    required bool useAppleStyle,
+    required bool protrude,
+  }) {
+    return Consumer<global_audio_player.WispAudioHandler>(
+      builder: (context, player, child) {
+        final isPlayingList =
+            _isCurrentListPlaying(player) && player.isPlaying;
+        final colorScheme = Theme.of(context).colorScheme;
+        final icon = isPlayingList ? Icons.pause : Icons.play_arrow;
+        final onPressed = () {
+          if (_items.isEmpty) return;
+          if (_isCurrentListPlaying(player)) {
+            player.togglePlayPause();
+          } else {
+            _playFromStart();
+          }
+        };
+
+        final button = useAppleStyle
+            ? FilledButton(
+                onPressed: onPressed,
+                style: FilledButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(72, 44),
+                  shape: const StadiumBorder(),
+                ),
+                child: Icon(icon, size: 20),
+              )
+            : Material(
+                color: colorScheme.primary,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onPressed,
+                  child: SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: Icon(
+                      icon,
+                      color: colorScheme.onPrimary,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              );
+
+        if (!protrude) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: button,
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: SizedBox(
+            width: useAppleStyle ? 88 : 70,
+            height: kToolbarHeight,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                Positioned(
+                  bottom: -20,
+                  child: button,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -4216,17 +4352,15 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                         ),
                       ),
                     ),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _StickyActionBarDelegate(
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: padding / 2,
-                            vertical: padding / 2,
-                          ),
-                          color: const Color(0xFF121212),
-                          child: view._buildMobileActionsRow(),
+                    SliverToBoxAdapter(
+                      child: Container(
+                        key: view._mobileActionsKey,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: padding / 2,
+                          vertical: padding / 2,
                         ),
+                        color: const Color(0xFF121212),
+                        child: view._buildMobileActionsRow(),
                       ),
                     ),
                     SliverPadding(
@@ -4242,18 +4376,6 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 6,
-                  child: SafeArea(
-                    bottom: false,
-                    child: view._buildStickyNowPlayingBar(
-                      title: title,
-                      isDesktop: false,
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -4451,7 +4573,9 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
     final descriptionText = description?.trim();
     final hasDescription =
         descriptionText != null && descriptionText.isNotEmpty;
-
+    final expandedHeight =
+      MediaQuery.of(context).size.width - MediaQuery.of(context).padding.top;
+    view._setMobileHeaderExtent(expandedHeight);
     view._scheduleStickyBarUpdate(view._mobileScrollController);
 
     return Stack(
@@ -4463,23 +4587,43 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             SliverAppBar(
               key: view._headerKey,
               backgroundColor: Colors.black,
+              clipBehavior: Clip.none,
               pinned: true,
-              expandedHeight:
-                  MediaQuery.of(context).size.width -
-                  MediaQuery.of(context).padding.top,
+              expandedHeight: expandedHeight,
               leading: IconButton(
                 icon: const Icon(CupertinoIcons.back),
                 onPressed: () => Navigator.of(context).pop(),
               ),
+              title: AnimatedOpacity(
+                opacity: view._showStickyBar ? 1 : 0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                child: view._showStickyBar
+                    ? Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
               actions: [
-                IconButton(
-                  icon: const Icon(CupertinoIcons.arrow_down_to_line),
-                  onPressed: view._isLoading ? null : view._downloadAll,
-                ),
-                IconButton(
-                  icon: const Icon(CupertinoIcons.ellipsis_vertical),
-                  onPressed: view._showListContextMenu,
-                ),
+                if (view._showStickyBar)
+                  view._buildStickyPlayAction(
+                    useAppleStyle: true,
+                    protrude: true,
+                  )
+                else ...[
+                  IconButton(
+                    icon: const Icon(CupertinoIcons.arrow_down_to_line),
+                    onPressed: view._isLoading ? null : view._downloadAll,
+                  ),
+                  IconButton(
+                    icon: const Icon(CupertinoIcons.ellipsis_vertical),
+                    onPressed: view._showListContextMenu,
+                  ),
+                ],
               ],
               flexibleSpace: FlexibleSpaceBar(
                 background: Stack(
@@ -4514,7 +4658,10 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: _buildMobilePlaybackRow(),
+                child: Container(
+                  key: view._mobileActionsKey,
+                  child: _buildMobilePlaybackRow(),
+                ),
               ),
             ),
             if (hasDescription)
@@ -4543,18 +4690,6 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               ),
             ),
           ],
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 6,
-          child: SafeArea(
-            bottom: false,
-            child: view._buildStickyNowPlayingBar(
-              title: title,
-              isDesktop: false,
-            ),
-          ),
         ),
       ],
     );
