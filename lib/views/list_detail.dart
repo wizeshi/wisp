@@ -259,6 +259,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     _mobileHeaderExtent = extent;
   }
 
+  double _scrollBackgroundProgress(ScrollController controller) {
+    if (!controller.hasClients) return 0;
+    final normalized = (controller.offset / 180).clamp(0.0, 1.0);
+    return Curves.easeOutCubic.transform(normalized);
+  }
+
   Future<void> _updateStickyBarColor(String imageUrl) async {
     if (imageUrl.isEmpty) {
       if (_stickyBarColor != Colors.black && mounted) {
@@ -4385,27 +4391,37 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
     }
 
     view._scheduleStickyBarUpdate(view._desktopScrollController);
+    final backgroundProgress =
+        view._scrollBackgroundProgress(view._desktopScrollController);
+    final backgroundBlur = 20 + (backgroundProgress * 8);
+    final backgroundScale = 1 + (backgroundProgress * 0.08);
     return Stack(
       children: [
         if (imageUrl.isNotEmpty)
           Positioned.fill(
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Opacity(
-                opacity: 0.35,
-                child: view._isLocalImagePath(imageUrl)
-                    ? Image.file(
-                        File(imageUrl.replaceFirst('file://', '')),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, url, error) =>
-                            Container(color: Colors.grey[900]),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) =>
-                            Container(color: Colors.grey[900]),
-                      ),
+            child: Transform.scale(
+              scale: backgroundScale,
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(
+                  sigmaX: backgroundBlur,
+                  sigmaY: backgroundBlur,
+                ),
+                child: Opacity(
+                  opacity: 0.35,
+                  child: view._isLocalImagePath(imageUrl)
+                      ? Image.file(
+                          File(imageUrl.replaceFirst('file://', '')),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, url, error) =>
+                              Container(color: Colors.grey[900]),
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) =>
+                              Container(color: Colors.grey[900]),
+                        ),
+                ),
               ),
             ),
           ),
@@ -4575,6 +4591,10 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         descriptionText != null && descriptionText.isNotEmpty;
     final expandedHeight =
       MediaQuery.of(context).size.width - MediaQuery.of(context).padding.top;
+    final backgroundProgress =
+        view._scrollBackgroundProgress(view._mobileScrollController);
+    final backgroundBlur = 22 + (backgroundProgress * 8);
+    final backgroundScale = 1 + (backgroundProgress * 0.10);
     view._setMobileHeaderExtent(expandedHeight);
     view._scheduleStickyBarUpdate(view._mobileScrollController);
 
@@ -4629,7 +4649,16 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                 background: Stack(
                   fit: StackFit.expand,
                   children: [
-                    _buildHeaderArtwork(context),
+                    Transform.scale(
+                      scale: backgroundScale,
+                      child: ImageFiltered(
+                        imageFilter: ImageFilter.blur(
+                          sigmaX: backgroundBlur,
+                          sigmaY: backgroundBlur,
+                        ),
+                        child: _buildHeaderArtwork(context),
+                      ),
+                    ),
                     Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
@@ -4701,28 +4730,38 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         descriptionText != null && descriptionText.isNotEmpty;
 
     view._scheduleStickyBarUpdate(view._desktopScrollController);
+    final backgroundProgress =
+        view._scrollBackgroundProgress(view._desktopScrollController);
+    final backgroundBlur = 22 + (backgroundProgress * 8);
+    final backgroundScale = 1 + (backgroundProgress * 0.10);
 
     return Stack(
       children: [
         if (imageUrl.isNotEmpty)
           Positioned.fill(
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-              child: Opacity(
-                opacity: 0.24,
-                child: view._isLocalImagePath(imageUrl)
-                    ? Image.file(
-                        File(imageUrl.replaceFirst('file://', '')),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, url, error) =>
-                            Container(color: Colors.black),
-                      )
-                    : CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) =>
-                            Container(color: Colors.black),
-                      ),
+            child: Transform.scale(
+              scale: backgroundScale,
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(
+                  sigmaX: backgroundBlur,
+                  sigmaY: backgroundBlur,
+                ),
+                child: Opacity(
+                  opacity: 0.24,
+                  child: view._isLocalImagePath(imageUrl)
+                      ? Image.file(
+                          File(imageUrl.replaceFirst('file://', '')),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, url, error) =>
+                              Container(color: Colors.black),
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) =>
+                              Container(color: Colors.black),
+                        ),
+                ),
               ),
             ),
           ),

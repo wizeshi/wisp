@@ -72,6 +72,7 @@ class WispNavigation extends StatefulWidget {
 class _WispNavigationState extends State<WispNavigation> {
   bool _isCollapsed = false;
   bool _layoutCollapsed = false;
+  String? _hoveredSidebarItemKey;
 
   bool _isLocalPath(String? path) {
     if (path == null || path.isEmpty) return false;
@@ -80,6 +81,23 @@ class _WispNavigationState extends State<WispNavigation> {
 
   bool _isDesktop() {
     return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  }
+
+  String _sidebarItemHoverKey(dynamic resolvedItem) {
+    if (resolvedItem is PlaylistFolder) return 'folder:${resolvedItem.id}';
+    if (resolvedItem is GenericPlaylist) return 'playlist:${resolvedItem.id}';
+    if (resolvedItem is GenericAlbum) return 'album:${resolvedItem.id}';
+    if (resolvedItem is GenericSimpleArtist) return 'artist:${resolvedItem.id}';
+    try {
+      final dynamic obj = resolvedItem;
+      final id = obj.id;
+      if (id != null) return '${resolvedItem.runtimeType}:$id';
+      final title = obj.title ?? obj.name;
+      if (title != null) return '${resolvedItem.runtimeType}:$title';
+    } catch (_) {
+      // Ignore and fall back below.
+    }
+    return resolvedItem.runtimeType.toString();
   }
 
   Future<void> _playSidebarItem(dynamic resolvedItem) async {
@@ -559,6 +577,9 @@ class _WispNavigationState extends State<WispNavigation> {
         ? Theme.of(context).colorScheme.primary
         : Colors.white;
     final isArtist = resolvedItem is GenericSimpleArtist;
+    final hoverKey = _sidebarItemHoverKey(resolvedItem);
+    final showHoverPlayOverlay =
+      isDesktop && resolvedItem is! PlaylistFolder && _hoveredSidebarItemKey == hoverKey;
     String? imageUrl;
     String? filePath;
     String title = '';
@@ -601,9 +622,25 @@ class _WispNavigationState extends State<WispNavigation> {
       }
     }
 
-    Widget tile = Material(
-      color: Colors.transparent,
-      child: InkWell(
+    Widget tile = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: isDesktop
+          ? (_) {
+              if (resolvedItem is! PlaylistFolder) {
+                setState(() => _hoveredSidebarItemKey = hoverKey);
+              }
+            }
+          : null,
+      onExit: isDesktop
+          ? (_) {
+              if (_hoveredSidebarItemKey == hoverKey) {
+                setState(() => _hoveredSidebarItemKey = null);
+              }
+            }
+          : null,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
         mouseCursor: SystemMouseCursors.click,
         onSecondaryTapDown: (details) {
           if (!isDesktop) return;
@@ -683,51 +720,91 @@ class _WispNavigationState extends State<WispNavigation> {
                 isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
               widgetForThumbnail(
-                _SidebarHoverPlayThumbnail(
-                  isDesktop: isDesktop,
-                  isActive: isCurrentPlaybackItem,
-                  isPlaying: player.isPlaying,
-                  onPlayPressed: () => _handleSidebarPlay(resolvedItem),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    color: Colors.grey[900],
-                    child: filePath != null
-                        ? Image.file(
-                            File(filePath),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, url, error) => Icon(
-                              Icons.folder,
-                              color: Colors.grey[700],
-                            ),
-                          )
-                        : (isLiked
-                            ? const LikedSongsArt()
-                            : (imageUrl != null
-                                ? (_isLocalPath(imageUrl)
-                                    ? Image.file(
-                                        File(imageUrl.replaceFirst('file://', '')),
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, url, error) => Icon(
-                                          Icons.music_note,
-                                          color: Colors.grey[700],
-                                        ),
-                                      )
-                                    : CachedNetworkImage(
-                                        imageUrl: imageUrl,
-                                        fit: BoxFit.cover,
-                                        errorWidget: (context, url, error) {
-                                          return Icon(
-                                            Icons.music_note,
-                                            color: Colors.grey[700],
-                                          );
-                                        },
-                                        placeholder: (context, url) =>
-                                            Container(color: Colors.grey[800]),
-                                      ))
-                                : Icon(Icons.music_note, color: Colors.grey[700]))),
-                  ),
-                ),
+                showHoverPlayOverlay
+                    ? _SidebarHoverPlayThumbnail(
+                        showOverlay: true,
+                        isActive: isCurrentPlaybackItem,
+                        isPlaying: player.isPlaying,
+                        onPlayPressed: () => _handleSidebarPlay(resolvedItem),
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          color: Colors.grey[900],
+                          child: filePath != null
+                              ? Image.file(
+                                  File(filePath),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, url, error) => Icon(
+                                    Icons.folder,
+                                    color: Colors.grey[700],
+                                  ),
+                                )
+                              : (isLiked
+                                  ? const LikedSongsArt()
+                                  : (imageUrl != null
+                                      ? (_isLocalPath(imageUrl)
+                                          ? Image.file(
+                                              File(imageUrl.replaceFirst('file://', '')),
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, url, error) => Icon(
+                                                Icons.music_note,
+                                                color: Colors.grey[700],
+                                              ),
+                                            )
+                                          : CachedNetworkImage(
+                                              imageUrl: imageUrl,
+                                              fit: BoxFit.cover,
+                                              errorWidget: (context, url, error) {
+                                                return Icon(
+                                                  Icons.music_note,
+                                                  color: Colors.grey[700],
+                                                );
+                                              },
+                                              placeholder: (context, url) =>
+                                                  Container(color: Colors.grey[800]),
+                                            ))
+                                      : Icon(Icons.music_note, color: Colors.grey[700]))),
+                        ),
+                      )
+                    : Container(
+                        width: 48,
+                        height: 48,
+                        color: Colors.grey[900],
+                        child: filePath != null
+                            ? Image.file(
+                                File(filePath),
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, url, error) => Icon(
+                                  Icons.folder,
+                                  color: Colors.grey[700],
+                                ),
+                              )
+                            : (isLiked
+                                ? const LikedSongsArt()
+                                : (imageUrl != null
+                                    ? (_isLocalPath(imageUrl)
+                                        ? Image.file(
+                                            File(imageUrl.replaceFirst('file://', '')),
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, url, error) => Icon(
+                                              Icons.music_note,
+                                              color: Colors.grey[700],
+                                            ),
+                                          )
+                                        : CachedNetworkImage(
+                                            imageUrl: imageUrl,
+                                            fit: BoxFit.cover,
+                                            errorWidget: (context, url, error) {
+                                              return Icon(
+                                                Icons.music_note,
+                                                color: Colors.grey[700],
+                                              );
+                                            },
+                                            placeholder: (context, url) =>
+                                                Container(color: Colors.grey[800]),
+                                          ))
+                                    : Icon(Icons.music_note, color: Colors.grey[700]))),
+                      ),
                 isArtist,
               ),
               if (!isCollapsed) ...[
@@ -736,18 +813,18 @@ class _WispNavigationState extends State<WispNavigation> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                        Text(
-                              title,
-                              style: TextStyle(
-                                color: titleColor,
-                                fontSize: 14,
-                                fontWeight: resolvedItem is PlaylistFolder
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: titleColor,
+                          fontSize: 14,
+                          fontWeight: resolvedItem is PlaylistFolder
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       if (subtitle != null) ...[
                         SizedBox(height: 2),
                         Text(
@@ -786,6 +863,7 @@ class _WispNavigationState extends State<WispNavigation> {
               ],
             ],
           ),
+        ),
         ),
       ),
     );
@@ -1037,74 +1115,59 @@ class _SidebarUnassignedHeader extends StatelessWidget {
   }
 }
 
-class _SidebarHoverPlayThumbnail extends StatefulWidget {
+class _SidebarHoverPlayThumbnail extends StatelessWidget {
   final Widget child;
-  final bool isDesktop;
+  final bool showOverlay;
   final bool isActive;
   final bool isPlaying;
   final VoidCallback onPlayPressed;
 
   const _SidebarHoverPlayThumbnail({
     required this.child,
-    required this.isDesktop,
+    required this.showOverlay,
     required this.isActive,
     required this.isPlaying,
     required this.onPlayPressed,
   });
 
   @override
-  State<_SidebarHoverPlayThumbnail> createState() =>
-      _SidebarHoverPlayThumbnailState();
-}
-
-class _SidebarHoverPlayThumbnailState extends State<_SidebarHoverPlayThumbnail> {
-  bool _isHovering = false;
-
-  @override
   Widget build(BuildContext context) {
-    if (!widget.isDesktop) return widget.child;
-
-    final icon = widget.isActive && widget.isPlaying
+    final icon = isActive && isPlaying
         ? Icons.pause
         : Icons.play_arrow;
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _isHovering = true),
-      onExit: (_) => setState(() => _isHovering = false),
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: Stack(
-          fit: StackFit.expand,
-          clipBehavior: Clip.none,
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: Stack(
+        fit: StackFit.expand,
+        clipBehavior: Clip.none,
         children: [
-          widget.child,
+          child,
           Positioned.fill(
             child: AnimatedOpacity(
-              opacity: _isHovering ? 1 : 0,
+              opacity: showOverlay ? 1 : 0,
               duration: const Duration(milliseconds: 120),
               child: IgnorePointer(
-                ignoring: !_isHovering,
-                          child: Container(
-                            color: Colors.black.withOpacity(0.35),
-                            alignment: Alignment.center,
-                            child: IconButton(
-                              icon: Icon(icon, color: Colors.white, size: 28),
-                              onPressed: widget.onPlayPressed,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: 48,
-                                minHeight: 48,
-                              ),
-                              splashRadius: 24,
-                            ),
-                          ),
+                ignoring: !showOverlay,
+                child: Container(
+                  color: Colors.black.withOpacity(0.35),
+                  alignment: Alignment.center,
+                  child: IconButton(
+                    icon: Icon(icon, color: Colors.white, size: 28),
+                    onPressed: onPlayPressed,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
+                    splashRadius: 24,
+                  ),
+                ),
               ),
             ),
           ),
         ],
-        ),
       ),
     );
   }
