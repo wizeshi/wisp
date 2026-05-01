@@ -683,30 +683,7 @@ class _WispNavigationState extends State<WispNavigation> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                        isCurrentPlaybackItem
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                /* color: const Color(0xFF2A2A2A), */
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                title,
-                                style: TextStyle(
-                                  color: titleColor,
-                                  fontSize: 14,
-                                  fontWeight: resolvedItem is PlaylistFolder
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )
-                          : Text(
+                        Text(
                               title,
                               style: TextStyle(
                                 color: titleColor,

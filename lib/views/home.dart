@@ -745,9 +745,8 @@ class HomePageState extends State<HomePage> {
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -755,8 +754,8 @@ class HomePageState extends State<HomePage> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 44,
+                  height: 44,
                   color: Colors.grey[900],
                   child:
                       customArt ??
@@ -785,29 +784,32 @@ class HomePageState extends State<HomePage> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 14,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+                      const SizedBox(height: 2),
+                      /* Text(
+                        subtitle,
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ), */
+                    ],
+                  ),
+                )
               ),
             ],
           ),
@@ -2585,17 +2587,16 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
       child: Material(
         color: Colors.transparent,
         child: GestureDetector(
-          onSecondaryTapDown: widget.onSecondaryTapDown,
-          onLongPress: widget.onLongPress,
+          onSecondaryTapDown: isDesktop ? widget.onSecondaryTapDown : null,
+          onLongPress: isDesktop ? null : widget.onLongPress,
           behavior: HitTestBehavior.opaque,
           child: InkWell(
             mouseCursor: isDesktop ? SystemMouseCursors.click : null,
             onTap: widget.onTap,
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.025),
+                color: Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -2603,8 +2604,8 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: Container(
-                      width: 40,
-                      height: 40,
+                      width: 48,
+                      height: 48,
                       color: Colors.grey[900],
                       child:
                           widget.customArt ??
@@ -2643,81 +2644,90 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          widget.title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            fontSize: 14,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          widget.subtitle,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
+                          /* const SizedBox(height: 2),
+                          Text(
+                            widget.subtitle,
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ), */
+                        ],
+                      ),
+                    )
                   ),
-                  SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        AnimatedOpacity(
-                          opacity: widget.showPlayingWaveform &&
-                                  widget.isActive &&
-                                  widget.isPlaying
-                              ? 1
-                              : 0,
-                          duration: const Duration(milliseconds: 120),
-                          child: _AnimatedQuickWaveform(
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                        AnimatedOpacity(
-                          opacity: _isHovering ? 1 : 0,
-                          duration: const Duration(milliseconds: 120),
-                          child: IgnorePointer(
-                            ignoring: !_isHovering,
-                            child: IconButton(
-                              icon: Icon(
-                                widget.isActive && widget.isPlaying
-                                    ? Icons.pause
-                                    : Icons.play_arrow,
-                                color: Colors.white,
-                              ),
-                              onPressed: () {
-                                final player = context.read<WispAudioHandler>();
-                                if (widget.isActive) {
-                                  if (player.isPlaying) {
-                                    player.pause();
-                                  } else {
-                                    player.play();
-                                  }
-                                  return;
-                                }
-                                widget.onPlay();
-                              },
-                              splashRadius: 18,
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6.0),
+                    child: SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          AnimatedOpacity(
+                            opacity: widget.showPlayingWaveform &&
+                                    widget.isActive &&
+                                    widget.isPlaying
+                                ? 1
+                                : 0,
+                            duration: const Duration(milliseconds: 120),
+                            child: _AnimatedQuickWaveform(
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
-                        ),
-                      ],
+                          AnimatedOpacity(
+                            opacity: _isHovering ? 1 : 0,
+                            duration: const Duration(milliseconds: 120),
+                            child: IgnorePointer(
+                              ignoring: !_isHovering,
+                              child: IconButton(
+                                style: ButtonStyle(
+                                  backgroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.primary),
+                                ),
+                                icon: Icon(
+                                  widget.isActive && widget.isPlaying
+                                      ? Icons.pause
+                                      : Icons.play_arrow,
+                                  color: Colors.black,
+                                ),
+                                onPressed: () {
+                                  final player = context.read<WispAudioHandler>();
+                                  if (widget.isActive) {
+                                    if (player.isPlaying) {
+                                      player.pause();
+                                    } else {
+                                      player.play();
+                                    }
+                                    return;
+                                  }
+                                  widget.onPlay();
+                                },
+                                splashRadius: 18,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  )
                 ],
               ),
             ),
