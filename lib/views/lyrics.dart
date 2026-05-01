@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/metadata_models.dart';
 import '../providers/connect/connect_session_provider.dart';
+import '../providers/theme/cover_art_palette_provider.dart';
 import '../services/wisp_audio_handler.dart';
 import '../providers/lyrics/provider.dart';
 import '../utils/logger.dart';
@@ -36,9 +37,9 @@ class _LyricsViewState extends State<LyricsView> {
   Timer? _positionTimer;
   LyricsResult? _activeLyrics;
   WispAudioHandler? _playerRef;
-  bool _textCentered = true;
   bool _syncedLyricsAvailable = true;
   bool _didInitialCenter = false;
+  int _hoveredLineIndex = -1;
 
   bool get _isMobile => Platform.isAndroid || Platform.isIOS;
   bool get _isDesktop =>
@@ -301,12 +302,15 @@ class _LyricsViewState extends State<LyricsView> {
 
   @override
   Widget build(BuildContext context) {
-    var color = Theme.of(context).colorScheme.primary;
+    final theme = Theme.of(context);
+    final palette = context.watch<CoverArtPaletteProvider>();
+    final dominantColor = palette.primaryColor ?? theme.colorScheme.primary;
+    final backgroundColor = _tintedDominantColor(dominantColor);
 
-    final content = _buildLyricsContent();
+    final content = _buildLyricsContent(backgroundColor);
 
     if (_isDesktop) {
-      return Material(color: color, child: content);
+      return Material(color: backgroundColor, child: content);
     }
 
     return Scaffold(
@@ -318,18 +322,27 @@ class _LyricsViewState extends State<LyricsView> {
             child: _buildLyricsControls()
           )
         ],
-        backgroundColor: HSLColor.fromColor(color).withLightness(0.25).toColor(),
+        backgroundColor: _tintedDominantColor(dominantColor, blend: 0.55),
       ),
       body: Container(
         decoration: BoxDecoration(
-          color: color,
+          color: backgroundColor,
         ),
         child: content,
       ),
     );
   }
 
-  Widget _buildLyricsContent() {
+  Color _tintedDominantColor(Color color, {double blend = 0.4}) {
+    final hsl = HSLColor.fromColor(color);
+    final overlay = hsl
+        .withLightness(0.22)
+        .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+        .toColor();
+    return Color.lerp(color, overlay, blend) ?? color;
+  }
+
+  Widget _buildLyricsContent(Color backgroundColor) {
     return Consumer2<WispAudioHandler, LyricsProvider>(
       builder: (context, player, lyricsProvider, child) {
         final track = player.currentTrack;
@@ -350,6 +363,7 @@ class _LyricsViewState extends State<LyricsView> {
           _autoScrollEnabled = true;
           _syncedLyricsAvailable = true;
           _didInitialCenter = false;
+          _hoveredLineIndex = -1;
           lyricsProvider.ensureDelayLoaded(track.id);
           _loadLyricsDelay(lyricsProvider, track.id);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -414,7 +428,7 @@ class _LyricsViewState extends State<LyricsView> {
             : null;
 
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_isDesktop) Padding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
@@ -433,182 +447,167 @@ class _LyricsViewState extends State<LyricsView> {
                 ],
               ),
             ),
-            if (!_isDesktop)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                child: Text(
-                  'Lyrics provided by ${lyrics.provider.label}',
-                  style: TextStyle(color: Colors.grey[300], fontSize: 12),
-                  textAlign: TextAlign.left,
-                ),
-              ),
             Expanded(
               child: Stack(
                 children: [
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final edgeCenterPadding =
-                          ((constraints.maxHeight - 56.0) / 2).clamp(24.0, double.infinity).toDouble();
+                      final edgeCenterPadding = _isMobile
+                          ? 0.0
+                          : ((constraints.maxHeight - 56.0) / 4)
+                              .clamp(16.0, double.infinity)
+                              .toDouble();
+                      final horizontalPadding = _isDesktop
+                          ? (constraints.maxWidth * 0.2).clamp(24.0, 320.0)
+                          : (constraints.maxWidth * 0.08).clamp(12.0, 40.0);
 
-                      return AnimatedAlign(
-                        duration: const Duration(milliseconds: 260),
-                        curve: Curves.easeInOutCubic,
-                        alignment: _textCentered
-                            ? Alignment.topCenter
-                            : Alignment.topLeft,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 920),
-                          child: AnimatedPadding(
-                            duration: const Duration(milliseconds: 260),
-                            curve: Curves.easeInOutCubic,
+                      return Align(
+                        alignment: Alignment.topLeft,
+                        child: ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context).copyWith(
+                            scrollbars: false,
+                          ),
+                          child: ListView.builder(
+                            key: _listKey,
+                            controller: _scrollController,
                             padding: EdgeInsets.symmetric(
-                              horizontal: _textCentered ? 0 : 56,
+                              horizontal: horizontalPadding,
+                              vertical: edgeCenterPadding,
                             ),
-                            child: ScrollConfiguration(
-                              behavior: ScrollConfiguration.of(context).copyWith(
-                                scrollbars: false,
-                              ),
-                              child: ListView.builder(
-                                key: _listKey,
-                                controller: _scrollController,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: edgeCenterPadding,
-                                ),
-                                itemCount: lyrics.lines.length,
-                                itemBuilder: (context, index) {
-                                  final line = lyrics.lines[index];
-                                  final isSynced = lyrics.synced;
-                                  final timing = syncedTiming;
-                                  final anchorIndex = _currentLineIndex >= 0
-                                      ? _currentLineIndex
-                                      : (timing?.nextIndex ?? timing?.previousIndex ?? 0);
-                                  final distance = isSynced
-                                      ? (index - anchorIndex).abs()
-                                      : 0;
-                                  var blurSigma = isSynced
-                                      ? (distance * 1.05).clamp(0, 8).toDouble()
-                                      : 0.0;
-                                  var opacity = isSynced
-                                      ? (1 - (distance * 0.06)).clamp(0.35, 1.0)
-                                      : 1.0;
-                                  final isCurrent =
-                                      isSynced && index == _currentLineIndex;
-                                  final canSeek = line.startTimeMs > 0;
-                                  final delayMs =
-                                      (_lyricsDelaySeconds * 1000).round();
+                            itemCount: lyrics.lines.length + (_isMobile ? 1 : 0),
+                            itemBuilder: (context, index) {
+                              if (_isMobile && index == lyrics.lines.length) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 12, bottom: 12),
+                                  child: Text(
+                                    'Lyrics provided by ${lyrics.provider.label}',
+                                    style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                                    textAlign: TextAlign.left,
+                                  ),
+                                );
+                              }
+                              final line = lyrics.lines[index];
+                              final isSynced = lyrics.synced;
+                              final timing = syncedTiming;
+                              final anchorIndex = _currentLineIndex >= 0
+                                  ? _currentLineIndex
+                                  : (timing?.nextIndex ?? timing?.previousIndex ?? 0);
+                              final offset = isSynced ? (index - anchorIndex) : 0;
+                              var opacity = 1.0;
+                              if (isSynced && anchorIndex >= 0) {
+                                if (offset > 0) {
+                                  opacity = (0.75 - (offset * 0.05)).clamp(0.45, 0.75);
+                                } else if (offset < 0) {
+                                  opacity = (0.45 - (offset.abs() * 0.07)).clamp(0.2, 0.45);
+                                }
+                              }
+                              final isCurrent =
+                                  isSynced && index == _currentLineIndex;
+                              final canSeek = line.startTimeMs > 0;
+                              final delayMs =
+                                  (_lyricsDelaySeconds * 1000).round();
 
-                                  if (isSynced &&
+                              if (isSynced &&
+                                  timing != null &&
+                                  timing.shouldFadePreviousLine &&
+                                  timing.previousIndex == index &&
+                                  timing.nextIndex != null) {
+                                opacity = lerpDouble(1.0, 0.5, timing.fadeOutProgress)!;
+                              }
+
+                              final isActiveLine = isCurrent &&
+                                  !(isSynced &&
                                       timing != null &&
                                       timing.shouldFadePreviousLine &&
-                                      timing.previousIndex == index &&
-                                      timing.nextIndex != null) {
-                                    opacity = lerpDouble(1.0, 0.7, timing.fadeOutProgress)!;
-                                    blurSigma = lerpDouble(0.0, 1.6, timing.fadeOutProgress)!;
-                                  }
+                                    timing.fadeOutProgress > 0 &&
+                                      timing.previousIndex == index);
 
-                                  final isActiveLine = isCurrent &&
-                                      !(isSynced &&
-                                          timing != null &&
-                                          timing.shouldFadePreviousLine &&
-                                        timing.fadeOutProgress > 0 &&
-                                          timing.previousIndex == index);
+                              final fontSize = _isDesktop ? 42.0 : 30.0;
 
-                                  var fontSize = _isDesktop
-                                      ? (isCurrent ? 32.0 : 26.0)
-                                      : (isCurrent ? 25.0 : 20.0);
+                              final isHovered =
+                                  _isDesktop && _hoveredLineIndex == index;
+                              final underline = isHovered
+                                  ? TextDecoration.underline
+                                  : TextDecoration.none;
+                                final inactiveColor =
+                                  Color.lerp(Colors.white, backgroundColor, 0.6) ??
+                                    Colors.white70;
 
-                                  if (isSynced &&
-                                      timing != null &&
-                                      timing.shouldFadePreviousLine &&
-                                      timing.previousIndex == index &&
-                                      timing.nextIndex != null) {
-                                    final currentSize = _isDesktop ? 32.0 : 25.0;
-                                    final inactiveSize = _isDesktop ? 26.0 : 20.0;
-                                    fontSize = lerpDouble(
-                                      currentSize,
-                                      inactiveSize,
-                                      timing.fadeOutProgress,
-                                    )!;
-                                  }
-
-                                  final lineWidget = Padding(
-                                    key: _lineKeys[index],
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    child: Align(
-                                      alignment: _textCentered
-                                          ? Alignment.center
-                                          : Alignment.centerLeft,
-                                      child: MouseRegion(
-                                        cursor: canSeek
-                                            ? SystemMouseCursors.click
-                                            : MouseCursor.defer,
-                                        child: GestureDetector(
-                                          onTap: canSeek
-                                              ? () {
-                                                  final targetMs =
-                                                      line.startTimeMs + delayMs;
-                                                  final safeMs =
-                                                      targetMs < 0 ? 0 : targetMs;
-                                                  player.seek(
-                                                    Duration(milliseconds: safeMs),
-                                                  );
-                                                }
-                                              : null,
-                                          child: ImageFiltered(
-                                            imageFilter: ImageFilter.blur(
-                                              sigmaX: blurSigma,
-                                              sigmaY: blurSigma,
-                                            ),
-                                            child: Opacity(
-                                              opacity: opacity,
-                                              child: AnimatedDefaultTextStyle(
-                                                duration: const Duration(milliseconds: 250),
-                                                style: TextStyle(
-                                                  color: isActiveLine
-                                                      ? Colors.white
-                                                      : Colors.grey[200],
-                                                  fontSize: fontSize,
-                                                  fontWeight: isActiveLine
-                                                      ? FontWeight.w600
-                                                      : FontWeight.w500,
-                                                  height: 1.4,
-                                                ),
-                                                child: Text(
-                                                  line.content,
-                                                  textAlign: _textCentered
-                                                      ? TextAlign.center
-                                                      : TextAlign.left,
-                                                ),
-                                              ),
-                                            ),
+                              final lineWidget = Padding(
+                                key: _lineKeys[index],
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: MouseRegion(
+                                    cursor: canSeek
+                                        ? SystemMouseCursors.click
+                                        : MouseCursor.defer,
+                                    onEnter: (_) {
+                                      if (!_isDesktop) return;
+                                      setState(() => _hoveredLineIndex = index);
+                                    },
+                                    onExit: (_) {
+                                      if (!_isDesktop) return;
+                                      setState(() => _hoveredLineIndex = -1);
+                                    },
+                                    child: GestureDetector(
+                                      onTap: canSeek
+                                          ? () {
+                                              final targetMs =
+                                                  line.startTimeMs + delayMs;
+                                              final safeMs =
+                                                  targetMs < 0 ? 0 : targetMs;
+                                              player.seek(
+                                                Duration(milliseconds: safeMs),
+                                              );
+                                            }
+                                          : null,
+                                      child: Opacity(
+                                        opacity: opacity,
+                                        child: AnimatedDefaultTextStyle(
+                                          duration: const Duration(milliseconds: 250),
+                                          style: TextStyle(
+                                            color: isActiveLine
+                                                ? Colors.white
+                                                : inactiveColor,
+                                            fontSize: fontSize,
+                                            letterSpacing: -1.5,
+                                            fontWeight: FontWeight.w700,
+                                            height: 1.4,
+                                            decoration: underline,
+                                            decorationColor: Colors.white70,
+                                          ),
+                                          child: Text(
+                                            line.content,
+                                            textAlign: TextAlign.left,
                                           ),
                                         ),
                                       ),
                                     ),
-                                  );
+                                  ),
+                                ),
+                              );
 
-                                  final showWaitingDots = isSynced &&
-                                      timing != null &&
-                                      timing.showWaitingDots &&
-                                      timing.nextIndex == index;
+                              final showWaitingDots = isSynced &&
+                                  timing != null &&
+                                  timing.showWaitingDots &&
+                                  timing.nextIndex == index;
 
-                                  if (!showWaitingDots) {
-                                    return lineWidget;
-                                  }
+                              if (!showWaitingDots) {
+                                return lineWidget;
+                              }
 
-                                  return Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _buildWaitingDots(
-                                        progress: timing.progressToNext,
-                                      ),
-                                      lineWidget,
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
+                              return Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildWaitingDots(
+                                    progress: timing.progressToNext,
+                                  ),
+                                  lineWidget,
+                                ],
+                              );
+                            },
                           ),
                         ),
                       );
@@ -617,7 +616,7 @@ class _LyricsViewState extends State<LyricsView> {
                   if (_isDesktop)
                     Positioned(
                       left: 24,
-                      bottom: 10,
+                      bottom: 12,
                       child: Text(
                         'Lyrics provided by ${lyrics.provider.label}',
                         style: TextStyle(color: Colors.grey[300], fontSize: 12),
@@ -627,7 +626,191 @@ class _LyricsViewState extends State<LyricsView> {
                 ],
               ),
             ),
+            if (_isMobile) _buildMobileLyricsPlayer(backgroundColor),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileLyricsPlayer(Color backgroundColor) {
+    final surfaceColor =
+        Color.lerp(backgroundColor, Colors.black, 0.25) ?? backgroundColor;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border(top: BorderSide(color: Colors.black.withOpacity(0.2))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildMobileSeekBar(),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.skip_previous, size: 28),
+                    color: Colors.white,
+                    onPressed: () {
+                      context.read<ConnectSessionProvider>().requestSkipPrevious();
+                    },
+                  ),
+                  _buildMobilePlayPauseButton(),
+                  IconButton(
+                    icon: const Icon(Icons.skip_next, size: 28),
+                    color: Colors.white,
+                    onPressed: () {
+                      context.read<ConnectSessionProvider>().requestSkipNext();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileSeekBar() {
+    return Selector<WispAudioHandler, _LyricsMobilePositionData>(
+      selector: (context, player) {
+        final connect = context.read<ConnectSessionProvider>();
+        final useHandoffState = connect.isLinked && connect.isHost;
+        return _LyricsMobilePositionData(
+          position: useHandoffState
+              ? connect.linkedPosition
+              : player.throttledPosition,
+          duration: player.duration,
+          isLoading: !useHandoffState && (player.isLoading || player.isBuffering),
+        );
+      },
+      builder: (context, data, child) {
+        if (data.duration.inMilliseconds <= 0) {
+          return const SizedBox(height: 4);
+        }
+
+        if (data.isLoading) {
+          return const SizedBox(
+            height: 4,
+            child: LinearProgressIndicator(
+              backgroundColor: Colors.transparent,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          );
+        }
+
+        final progress = data.duration.inMilliseconds > 0
+            ? data.position.inMilliseconds / data.duration.inMilliseconds
+            : 0.0;
+
+        final positionText = _formatDuration(data.position);
+        final durationText = _formatDuration(data.duration);
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 3,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                activeTrackColor: Colors.white,
+                inactiveTrackColor: Colors.white24,
+                thumbColor: Colors.white,
+                overlayColor: Colors.white10,
+              ),
+              child: Slider(
+                value: progress.clamp(0.0, 1.0),
+                onChanged: (value) {
+                  final newPosition = Duration(
+                    milliseconds: (value * data.duration.inMilliseconds).round(),
+                  );
+                  context.read<ConnectSessionProvider>().requestSeek(newPosition);
+                },
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  positionText,
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+                Text(
+                  durationText,
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMobilePlayPauseButton() {
+    return Selector<WispAudioHandler, _LyricsMobilePlaybackData>(
+      selector: (context, player) {
+        final track = player.currentTrack;
+        return _LyricsMobilePlaybackData(
+          isPlaying: player.isPlaying,
+          isLoading: player.isLoading,
+          isBuffering: player.isBuffering,
+          isOnline: player.isOnline,
+          currentTrackId: track?.id,
+          currentTrackCached: track == null ? true : player.isTrackCached(track.id),
+          queueNotEmpty: player.queueTracks.isNotEmpty,
+        );
+      },
+      builder: (context, data, child) {
+        final connect = context.watch<ConnectSessionProvider>();
+        final useHandoffState = connect.isLinked && connect.isHost;
+        final effectiveIsPlaying = useHandoffState
+            ? connect.linkedIsPlaying
+            : data.isPlaying;
+
+        if (data.isLoading || data.isBuffering) {
+          return const SizedBox(
+            width: 48,
+            height: 48,
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          );
+        }
+
+        final isOfflineBlocked =
+            !useHandoffState &&
+            !data.isOnline &&
+            data.currentTrackId != null &&
+            !data.currentTrackCached;
+
+        VoidCallback? onPressed;
+        if (!isOfflineBlocked) {
+          if (effectiveIsPlaying) {
+            onPressed = () => connect.requestPause();
+          } else if (data.currentTrackId != null || data.queueNotEmpty) {
+            onPressed = () => connect.requestPlay();
+          }
+        }
+
+        return IconButton(
+          icon: Icon(
+            effectiveIsPlaying ? Icons.pause : Icons.play_arrow,
+            size: 32,
+            color: Colors.white,
+          ),
+          onPressed: onPressed,
         );
       },
     );
@@ -682,37 +865,6 @@ class _LyricsViewState extends State<LyricsView> {
           _isMobile
               ? _buildMobileSyncSelector()
               : _buildDesktopSyncSelector(),
-          const SizedBox(width: 12),
-          ToggleButtons(
-            isSelected: [
-              _textCentered == false,
-              _textCentered == true,
-            ],
-            onPressed: (index) {
-              if (index == 0) {
-                setState(() => _textCentered = false);
-                return;
-              }
-              if (index == 1) {
-                setState(() => _textCentered = true);
-              }
-            },
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.white,
-            selectedColor: Colors.white,
-            fillColor: Colors.black.withOpacity(0.1),
-            constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
-            children: const [
-              Icon(
-                Icons.format_align_left,
-                size: 16,
-              ),
-              Icon(
-                Icons.format_align_center,
-                size: 16,
-              )
-            ],
-          )
         ],
       ),
     );
@@ -793,7 +945,6 @@ class _LyricsViewState extends State<LyricsView> {
 
   Widget _buildWaitingDots({required double progress}) {
     final dotSize = _isDesktop ? 12.0 : 10.0;
-    final horizontalPadding = _textCentered ? 0.0 : 8.0;
 
     final dots = List<Widget>.generate(3, (index) {
       final start = index / 3;
@@ -818,9 +969,9 @@ class _LyricsViewState extends State<LyricsView> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 18),
       child: Align(
-        alignment: _textCentered ? Alignment.center : Alignment.centerLeft,
+        alignment: Alignment.centerLeft,
         child: Padding(
-          padding: EdgeInsets.only(left: horizontalPadding),
+          padding: EdgeInsets.zero,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: dots,
@@ -829,4 +980,82 @@ class _LyricsViewState extends State<LyricsView> {
       ),
     );
   }
+}
+
+class _LyricsMobilePositionData {
+  final Duration position;
+  final Duration duration;
+  final bool isLoading;
+
+  const _LyricsMobilePositionData({
+    required this.position,
+    required this.duration,
+    required this.isLoading,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is _LyricsMobilePositionData &&
+        other.position == position &&
+        other.duration == duration &&
+        other.isLoading == isLoading;
+  }
+
+  @override
+  int get hashCode => Object.hash(position, duration, isLoading);
+}
+
+class _LyricsMobilePlaybackData {
+  final bool isPlaying;
+  final bool isLoading;
+  final bool isBuffering;
+  final bool isOnline;
+  final String? currentTrackId;
+  final bool currentTrackCached;
+  final bool queueNotEmpty;
+
+  const _LyricsMobilePlaybackData({
+    required this.isPlaying,
+    required this.isLoading,
+    required this.isBuffering,
+    required this.isOnline,
+    required this.currentTrackId,
+    required this.currentTrackCached,
+    required this.queueNotEmpty,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is _LyricsMobilePlaybackData &&
+        other.isPlaying == isPlaying &&
+        other.isLoading == isLoading &&
+        other.isBuffering == isBuffering &&
+        other.isOnline == isOnline &&
+        other.currentTrackId == currentTrackId &&
+        other.currentTrackCached == currentTrackCached &&
+        other.queueNotEmpty == queueNotEmpty;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    isPlaying,
+    isLoading,
+    isBuffering,
+    isOnline,
+    currentTrackId,
+    currentTrackCached,
+    queueNotEmpty,
+  );
+}
+
+String _formatDuration(Duration duration) {
+  String twoDigits(int n) => n.toString().padLeft(2, '0');
+  final hours = duration.inHours;
+  final minutes = duration.inMinutes.remainder(60);
+  final seconds = duration.inSeconds.remainder(60);
+
+  if (hours > 0) {
+    return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
+  }
+  return '$minutes:${twoDigits(seconds)}';
 }
