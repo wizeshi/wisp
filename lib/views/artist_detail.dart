@@ -1242,7 +1242,22 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 children: [
                   Row(
                     children: [
+                      Expanded(
+                        child: Text(
+                          track.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isCurrentTrack
+                                ? colorScheme.primary
+                                : Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                       if (track.explicit) ...[
+                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 4,
@@ -1261,22 +1276,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 6),
                       ],
-                      Expanded(
-                        child: Text(
-                          track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isCurrentTrack
-                                ? colorScheme.primary
-                                : Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 2),

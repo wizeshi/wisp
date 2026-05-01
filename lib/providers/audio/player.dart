@@ -219,7 +219,6 @@ class AudioPlayerProvider extends ChangeNotifier {
   void _handleMprisTick() {
     if (_currentTrack == null) return;
     if (!isPlaying) return;
-    final position = _player.position;
   }
 
   void _ensureMprisTimer() {

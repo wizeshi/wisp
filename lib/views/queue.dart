@@ -511,8 +511,9 @@ void showMobileQueueSheet(BuildContext context) {
                     ),
                     Consumer<WispAudioHandler>(
                       builder: (context, player, child) {
-                        if (player.queueTracks.isEmpty)
+                        if (player.queueTracks.isEmpty) {
                           return const SizedBox.shrink();
+                        }
                         return TextButton(
                           onPressed: () {
                             context

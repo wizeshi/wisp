@@ -489,14 +489,6 @@ class _WispNavigationState extends State<WispNavigation> {
     }
 
     final resolvedItem = entry.item;
-    final routeName = NavigationHistory.instance.currentRoute.value?.settings.name;
-    final isCurrentRouteItem = switch (resolvedItem) {
-      GenericPlaylist playlist => routeName == '/playlist/${playlist.id}',
-      GenericAlbum album => routeName == '/album/${album.id}',
-      GenericSimpleAlbum album => routeName == '/album/${album.id}',
-      GenericSimpleArtist artist => routeName == '/artist/${artist.id}',
-      _ => false,
-    };
     final playbackType = player.playbackContextType;
     final playbackId = player.playbackContextID;
     final playbackName = player.playbackContextName?.trim();
@@ -630,9 +622,7 @@ class _WispNavigationState extends State<WispNavigation> {
         },
         child: Container(
           decoration: BoxDecoration(
-            color: isCurrentRouteItem
-                ? const Color(0xFF282828)
-                : Colors.transparent,
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           padding: EdgeInsets.symmetric(
@@ -693,18 +683,41 @@ class _WispNavigationState extends State<WispNavigation> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          color: titleColor,
-                          fontSize: 14,
-                          fontWeight: resolvedItem is PlaylistFolder
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        isCurrentPlaybackItem
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                /* color: const Color(0xFF2A2A2A), */
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  color: titleColor,
+                                  fontSize: 14,
+                                  fontWeight: resolvedItem is PlaylistFolder
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )
+                          : Text(
+                              title,
+                              style: TextStyle(
+                                color: titleColor,
+                                fontSize: 14,
+                                fontWeight: resolvedItem is PlaylistFolder
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                       if (subtitle != null) ...[
                         SizedBox(height: 2),
                         Text(
@@ -720,7 +733,14 @@ class _WispNavigationState extends State<WispNavigation> {
                     ],
                   ),
                 ),
-                if (resolvedItem is PlaylistFolder)
+                if (isCurrentPlaybackItem && player.isPlaying) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.volume_up,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 16,
+                  ),
+                ] else if (resolvedItem is PlaylistFolder)
                   Icon(
                     folderState.isFolderCollapsed(resolvedItem.id)
                         ? Icons.chevron_right
@@ -898,13 +918,6 @@ class _WispNavigationState extends State<WispNavigation> {
         ),
       ),
     );
-  }
-
-  List<T> _extractItems<T>() {
-    return widget.libraryItems
-        .map((item) => item is LibrarySidebarEntry ? item.item : item)
-        .whereType<T>()
-        .toList();
   }
 }
 

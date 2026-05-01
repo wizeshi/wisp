@@ -1514,8 +1514,19 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                 return position.inMilliseconds;
                               },
                               builder: (context, positionMs, child) {
+                                final delaySeconds =
+                                    lyricsProvider.getDelaySecondsCached(
+                                  track.id,
+                                );
+                                final delayMs = (delaySeconds * 1000).round();
+                                final adjustedPosition = positionMs - delayMs;
+                                final effectivePosition =
+                                    adjustedPosition < 0 ? 0 : adjustedPosition;
                                 return AnimatedLyricsPreviewList(
-                                  lines: _getPreviewLines(lyrics!, positionMs),
+                                  lines: _getPreviewLines(
+                                    lyrics!,
+                                    effectivePosition,
+                                  ),
                                   resetKey: track.id,
                                   textStyle: const TextStyle(
                                     color: Colors.white,

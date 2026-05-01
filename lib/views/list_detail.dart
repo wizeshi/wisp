@@ -29,7 +29,6 @@ import '../widgets/like_button.dart';
 import '../services/app_navigation.dart';
 import '../services/cache_manager.dart';
 import '../services/metadata_cache.dart';
-import '../providers/navigation_state.dart';
 import '../providers/audio/youtube.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
@@ -85,19 +84,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   static const double _rowHeightMobile = 64;
   static const int _windowBuffer = 6;
   double _songListTopOffset = 0;
+  final GlobalKey _headerKey = GlobalKey();
   final ScrollController _desktopScrollController = ScrollController();
   final ScrollController _mobileScrollController = ScrollController();
   final GlobalKey _songListKey = GlobalKey();
   VoidCallback? _likedTracksListener;
   late final SpotifyInternalProvider _spotifyInternal;
+  bool _showStickyBar = false;
+  Color _stickyBarColor = const Color(0xFF1E1E1E);
+  String? _stickyCoverUrl;
 
   bool _isLocalImagePath(String path) {
     return path.startsWith('/') || path.startsWith('file://');
   }
 
-  NavigationState get _navState => context.read<NavigationState>();
-  LibraryView get _currentLibraryView => _navState.selectedLibraryView;
-  int get _currentNavIndex => _navState.selectedNavIndex;
   bool _preShuffleEnabled = false;
   List<GenericSong> _preShuffledQueue = [];
   final Set<String> _hoveredSongIds = {};
@@ -149,10 +149,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     try {
       if (isSaved) {
         await spotifyInternal.unsaveAlbum(album.id);
-        context.read<LibraryState>().removeAlbum(album.id);
+        if (mounted) context.read<LibraryState>().removeAlbum(album.id);
       } else {
         await spotifyInternal.saveAlbum(album.id);
-        context.read<LibraryState>().addAlbum(album);
+        if (mounted) context.read<LibraryState>().addAlbum(album);
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -188,9 +188,67 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   void _handleScroll(ScrollController controller) {
     if (!controller.hasClients) return;
+    if (_hoveredSongIds.isNotEmpty) {
+      _hoveredSongIds.clear();
+    }
+    _updateStickyBarVisibility(controller);
     if (mounted) {
       setState(() {});
     }
+  }
+
+  void _scheduleStickyBarUpdate(ScrollController controller) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateStickyBarVisibility(controller);
+    });
+  }
+
+  void _updateStickyBarVisibility(ScrollController controller) {
+    if (!controller.hasClients) return;
+    final headerContext = _headerKey.currentContext;
+    if (headerContext == null) return;
+    final scrollable = Scrollable.of(headerContext);
+    if (scrollable == null) return;
+    final headerBox = headerContext.findRenderObject() as RenderBox?;
+    final scrollBox = scrollable.context.findRenderObject() as RenderBox?;
+    if (headerBox == null || scrollBox == null) return;
+    final offset = headerBox.localToGlobal(Offset.zero, ancestor: scrollBox).dy;
+    final shouldShow = offset <= 0;
+    if (shouldShow != _showStickyBar && mounted) {
+      setState(() => _showStickyBar = shouldShow);
+    }
+  }
+
+  Future<void> _updateStickyBarColor(String imageUrl) async {
+    if (imageUrl.isEmpty) {
+      if (_stickyBarColor != Colors.black && mounted) {
+        setState(() => _stickyBarColor = Colors.black);
+      }
+      return;
+    }
+    if (_stickyCoverUrl == imageUrl) return;
+    _stickyCoverUrl = imageUrl;
+    final provider = _imageProviderForUrl(imageUrl);
+    if (provider == null) return;
+    ColorScheme? scheme;
+    try {
+      scheme = await ColorScheme.fromImageProvider(provider: provider);
+    } catch (_) {
+      scheme = null;
+    }
+    if (!mounted || _stickyCoverUrl != imageUrl) return;
+    final nextColor = scheme?.primary ?? const Color(0xFF1E1E1E);
+    if (nextColor != _stickyBarColor) {
+      setState(() => _stickyBarColor = nextColor);
+    }
+  }
+
+  ImageProvider? _imageProviderForUrl(String imageUrl) {
+    if (imageUrl.isEmpty) return null;
+    if (_isLocalImagePath(imageUrl)) {
+      return FileImage(File(imageUrl.replaceFirst('file://', '')));
+    }
+    return CachedNetworkImageProvider(imageUrl);
   }
 
   void _scheduleSongListOffsetUpdate(ScrollController controller) {
@@ -631,7 +689,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           compare = _getTitle(items[a]).compareTo(_getTitle(items[b]));
           break;
         case _SortMethod.author:
-          compare = _getAuthor(items[a]).compareTo(_getAuthor(items[b]));
+          final authorA = _getAuthor(items[a]).toLowerCase();
+          final authorB = _getAuthor(items[b]).toLowerCase();
+          compare = authorA.compareTo(authorB);
+          if (compare == 0) {
+            final albumA = _getAlbumTitle(items[a]).toLowerCase();
+            final albumB = _getAlbumTitle(items[b]).toLowerCase();
+            compare = albumA.compareTo(albumB);
+            if (compare == 0) {
+              compare = _getTitle(items[a])
+                  .toLowerCase()
+                  .compareTo(_getTitle(items[b]).toLowerCase());
+            }
+          }
           break;
         case _SortMethod.album:
           compare = _getAlbumTitle(
@@ -724,11 +794,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   DateTime? _getAddedAt(_ListItem item) {
     if (item is PlaylistItem) return item.addedAt;
-    return null;
-  }
-
-  String? _getUid(_ListItem item) {
-    if (item is PlaylistItem) return item.uid;
     return null;
   }
 
@@ -836,7 +901,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       originalQueue: player.shuffleEnabled ? originalQueue : null,
     );
     if (widget.type == SharedListType.playlist) {
-      context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
+      if (mounted) context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
     }
     if (_preShuffleEnabled) {
       setState(() {
@@ -887,7 +952,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           : null,
     );
     if (widget.type == SharedListType.playlist) {
-      context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
+      if (mounted) context.read<LibraryFolderState>().markPlaylistPlayed(widget.id);
     }
     if (_preShuffleEnabled) {
       setState(() {
@@ -1691,6 +1756,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         ? _playlist?.description
         : null;
 
+    _updateStickyBarColor(imageUrl);
+
     final content = _isLoading
         ? const Center(child: CircularProgressIndicator())
         : _buildListContentByStyle(
@@ -2381,6 +2448,81 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildStickyNowPlayingBar({
+    required String title,
+    required bool isDesktop,
+  }) {
+    final textColor = _stickyBarColor.computeLuminance() < 0.45
+        ? Colors.white
+        : Colors.black;
+    final barMargin = isDesktop
+        ? const EdgeInsets.symmetric(horizontal: 28)
+        : const EdgeInsets.symmetric(horizontal: 16);
+
+    return AnimatedSlide(
+      offset: _showStickyBar ? Offset.zero : const Offset(0, -1),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      child: AnimatedOpacity(
+        opacity: _showStickyBar ? 1 : 0,
+        duration: const Duration(milliseconds: 140),
+        child: Container(
+          height: 52,
+          margin: barMargin,
+          decoration: BoxDecoration(
+            color: _stickyBarColor.withOpacity(0.92),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 10,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 6),
+              Consumer<global_audio_player.WispAudioHandler>(
+                builder: (context, player, child) {
+                  final isPlayingList = _isCurrentListPlaying(player);
+                  final isPlaying = isPlayingList && player.isPlaying;
+                  return IconButton(
+                    icon: Icon(
+                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      color: textColor,
+                    ),
+                    onPressed: () {
+                      if (_items.isEmpty) return;
+                      if (isPlayingList) {
+                        player.togglePlayPause();
+                      } else {
+                        _playFromStart();
+                      }
+                    },
+                  );
+                },
+              ),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -4053,47 +4195,72 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
     final padding = isMobile ? 20.0 : 24.0;
 
     if (isMobile) {
+      view._scheduleStickyBarUpdate(view._mobileScrollController);
       return Column(
         children: [
           Expanded(
-            child: CustomScrollView(
-              controller: view._mobileScrollController,
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(padding, padding, padding, 0),
-                    child: view._buildMobileHeader(
-                      title,
-                      subtitle,
-                      imageUrl,
-                      total,
-                      description,
-                    ),
-                  ),
-                ),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _StickyActionBarDelegate(
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: padding / 2,
-                        vertical: padding / 2,
+            child: Stack(
+              children: [
+                CustomScrollView(
+                  controller: view._mobileScrollController,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Container(
+                        key: view._headerKey,
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            padding,
+                            padding,
+                            padding,
+                            0,
+                          ),
+                          child: view._buildMobileHeader(
+                            title,
+                            subtitle,
+                            imageUrl,
+                            total,
+                            description,
+                          ),
+                        ),
                       ),
-                      color: const Color(0xFF121212),
-                      child: view._buildMobileActionsRow(),
                     ),
-                  ),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _StickyActionBarDelegate(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: padding / 2,
+                            vertical: padding / 2,
+                          ),
+                          color: const Color(0xFF121212),
+                          child: view._buildMobileActionsRow(),
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: EdgeInsets.zero,
+                      sliver: SliverToBoxAdapter(
+                        child: view._buildSongList(isMobile: true),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(padding, 12, padding, 20),
+                        child: view._buildRecommendedSection(isMobile: true),
+                      ),
+                    ),
+                  ],
                 ),
-                SliverPadding(
-                  padding: EdgeInsets.zero,
-                  sliver: SliverToBoxAdapter(
-                    child: view._buildSongList(isMobile: true),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(padding, 12, padding, 20),
-                    child: view._buildRecommendedSection(isMobile: true),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 6,
+                  child: SafeArea(
+                    bottom: false,
+                    child: view._buildStickyNowPlayingBar(
+                      title: title,
+                      isDesktop: false,
+                    ),
                   ),
                 ),
               ],
@@ -4103,6 +4270,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
       );
     }
 
+    view._scheduleStickyBarUpdate(view._desktopScrollController);
     return Stack(
       children: [
         if (imageUrl.isNotEmpty)
@@ -4151,6 +4319,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                   padding: EdgeInsets.all(padding),
                   children: [
                     Container(
+                      key: view._headerKey,
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.35),
                         borderRadius: BorderRadius.circular(10),
@@ -4198,6 +4367,18 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 8,
+          child: SafeArea(
+            bottom: false,
+            child: view._buildStickyNowPlayingBar(
+              title: title,
+              isDesktop: true,
+            ),
           ),
         ),
       ],
@@ -4279,6 +4460,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
     final hasDescription =
         descriptionText != null && descriptionText.isNotEmpty;
 
+    view._scheduleStickyBarUpdate(view._mobileScrollController);
+
     return Stack(
       children: [
         Positioned.fill(child: Container(color: Colors.black)),
@@ -4286,6 +4469,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
           controller: view._mobileScrollController,
           slivers: [
             SliverAppBar(
+              key: view._headerKey,
               backgroundColor: Colors.black,
               pinned: true,
               expandedHeight:
@@ -4368,6 +4552,18 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             ),
           ],
         ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 6,
+          child: SafeArea(
+            bottom: false,
+            child: view._buildStickyNowPlayingBar(
+              title: title,
+              isDesktop: false,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -4376,6 +4572,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
     final descriptionText = description?.trim();
     final hasDescription =
         descriptionText != null && descriptionText.isNotEmpty;
+
+    view._scheduleStickyBarUpdate(view._desktopScrollController);
 
     return Stack(
       children: [
@@ -4421,146 +4619,149 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             controller: view._desktopScrollController,
             padding: const EdgeInsets.fromLTRB(30, 30, 30, 18),
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  SizedBox(
-                    width: 210,
-                    height: 210,
-                    child: _buildArtwork(context),
-                  ),
-                  const SizedBox(width: 22),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 40,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          '$total items • ${view._formatDuration(view._totalDurationSecs())}',
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
-                        if ((subtitle != null && subtitle!.isNotEmpty) ||
-                            subtitleImageUrl != null) ...[
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              if (subtitleImageUrl != null) ...[
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child:
-                                      view._isLocalImagePath(subtitleImageUrl!)
-                                      ? Image.file(
-                                          File(
-                                            subtitleImageUrl!.replaceFirst(
-                                              'file://',
-                                              '',
-                                            ),
-                                          ),
-                                          width: 24,
-                                          height: 24,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, url, error) =>
-                                              Container(
-                                                width: 24,
-                                                height: 24,
-                                                color: Colors.grey[700],
-                                              ),
-                                        )
-                                      : CachedNetworkImage(
-                                          imageUrl: subtitleImageUrl!,
-                                          width: 24,
-                                          height: 24,
-                                          fit: BoxFit.cover,
-                                          errorWidget: (context, url, error) =>
-                                              Container(
-                                                width: 24,
-                                                height: 24,
-                                                color: Colors.grey[700],
-                                              ),
-                                        ),
-                                ),
-                                const SizedBox(width: 8),
-                              ],
-                              if (subtitle != null && subtitle!.isNotEmpty)
-                                Text(
-                                  subtitle!,
-                                  style: TextStyle(
-                                    color: Colors.grey[300],
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                        if (hasDescription) ...[
-                          const SizedBox(height: 4),
+              Container(
+                key: view._headerKey,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    SizedBox(
+                      width: 210,
+                      height: 210,
+                      child: _buildArtwork(context),
+                    ),
+                    const SizedBox(width: 22),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            descriptionText,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
+                            title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 40,
+                              fontWeight: FontWeight.w700,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          Text(
+                            '$total items • ${view._formatDuration(view._totalDurationSecs())}',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                          if ((subtitle != null && subtitle!.isNotEmpty) ||
+                              subtitleImageUrl != null) ...[
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                if (subtitleImageUrl != null) ...[
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: view._isLocalImagePath(
+                                            subtitleImageUrl!)
+                                        ? Image.file(
+                                            File(
+                                              subtitleImageUrl!.replaceFirst(
+                                                'file://',
+                                                '',
+                                              ),
+                                            ),
+                                            width: 24,
+                                            height: 24,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, url, error) =>
+                                                Container(
+                                                  width: 24,
+                                                  height: 24,
+                                                  color: Colors.grey[700],
+                                                ),
+                                          )
+                                        : CachedNetworkImage(
+                                            imageUrl: subtitleImageUrl!,
+                                            width: 24,
+                                            height: 24,
+                                            fit: BoxFit.cover,
+                                            errorWidget: (context, url, error) =>
+                                                Container(
+                                                  width: 24,
+                                                  height: 24,
+                                                  color: Colors.grey[700],
+                                                ),
+                                          ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                if (subtitle != null && subtitle!.isNotEmpty)
+                                  Text(
+                                    subtitle!,
+                                    style: TextStyle(
+                                      color: Colors.grey[300],
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                          if (hasDescription) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              descriptionText,
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          _buildDesktopPlaybackRow(),
                         ],
-                        const SizedBox(height: 16),
-                        _buildDesktopPlaybackRow(),
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          CupertinoIcons.share,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        onPressed: view._showShareDialog,
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          CupertinoIcons.pencil,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        onPressed: view._showEditDialog,
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          CupertinoIcons.arrow_down_to_line,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        onPressed: view._isLoading ? null : view._downloadAll,
-                      ),
-                      Builder(
-                        builder: (buttonContext) => IconButton(
+                    const SizedBox(width: 16),
+                    Row(
+                      children: [
+                        IconButton(
                           icon: Icon(
-                            CupertinoIcons.ellipsis,
+                            CupertinoIcons.share,
                             color: Theme.of(context).colorScheme.primary,
                           ),
-                          onPressed: () => view._showListContextMenu(
-                            anchorContext: buttonContext,
+                          onPressed: view._showShareDialog,
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            CupertinoIcons.pencil,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          onPressed: view._showEditDialog,
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            CupertinoIcons.arrow_down_to_line,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          onPressed: view._isLoading ? null : view._downloadAll,
+                        ),
+                        Builder(
+                          builder: (buttonContext) => IconButton(
+                            icon: Icon(
+                              CupertinoIcons.ellipsis,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            onPressed: () => view._showListContextMenu(
+                              anchorContext: buttonContext,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 26),
               Padding(
@@ -4580,6 +4781,18 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                 visualStyle: _ListVisualStyle.apple,
               ),
             ],
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 8,
+          child: SafeArea(
+            bottom: false,
+            child: view._buildStickyNowPlayingBar(
+              title: title,
+              isDesktop: true,
+            ),
           ),
         ),
       ],

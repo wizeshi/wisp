@@ -789,23 +789,6 @@ class _SearchViewState extends State<SearchView> {
     }
   }
 
-  int _countForTab(SearchTab tab, String effectiveSource) {
-    if (effectiveSource == 'YouTube') {
-      return tab == SearchTab.tracks ? _tracks.length : 0;
-    }
-
-    switch (tab) {
-      case SearchTab.tracks:
-        return _tracks.length;
-      case SearchTab.artists:
-        return _artists.length;
-      case SearchTab.albums:
-        return _albums.length;
-      case SearchTab.playlists:
-        return _playlists.length;
-    }
-  }
-
   Widget _buildDesktopContent() {
     final songs = _buildSuggestedSongs();
 
@@ -1106,16 +1089,15 @@ class _SearchViewState extends State<SearchView> {
                 ],
               ),
             ),
-            if (onPlay != null)
-              Positioned(
-                right: 10,
-                bottom: 10,
-                child: _HoverPlayFab(
-                  visible: _isBestMatchHovered,
-                  isPlaying: isPlaying,
-                  onPressed: onPlay,
-                ),
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: _HoverPlayFab(
+                visible: _isBestMatchHovered,
+                isPlaying: isPlaying,
+                onPressed: onPlay,
               ),
+            ),
           ],
         ),
       ),

@@ -714,7 +714,6 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
   ) {
     final title = currentTrack?.title ?? 'No track playing';
     final artists = currentTrack?.artists ?? [];
-    final thumbnailUrl = currentTrack?.thumbnailUrl;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1118,7 +1117,6 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     global_audio_player.WispAudioHandler player,
     Color bgColor,
   ) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1288,9 +1286,6 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 (currentTrack.source == SongSource.spotifyInternal ||
                     currentTrack.source == SongSource.spotify);
             final spotifyInternal = context.read<SpotifyInternalProvider>();
-            final Future<String?>? canvasFuture = canUseCanvas
-                ? spotifyInternal.getCanvasUrl(currentTrack.id)
-                : null;
 
         final viewPadding = MediaQuery.of(context).viewPadding;
         final windowPadding = MediaQueryData.fromView(
@@ -1403,7 +1398,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             }
 
             return FutureBuilder<String?>(
-              future: spotifyInternal.getCanvasUrl(currentTrack!.id),
+              future: spotifyInternal.getCanvasUrl(currentTrack.id),
               builder: (context, snapshot) {
                 final canvasUrl = snapshot.data ?? '';
                 return buildPlayerScaffold(canvasUrl: canvasUrl);
@@ -2703,34 +2698,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     );
   }
 
-  Widget _buildQueuePillButton({
-    required IconData icon,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: selected ? Colors.white.withValues(alpha: 0.2) : Colors.white12,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: selected ? Colors.white : Colors.grey[200],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildModeContent(
     BuildContext context,
     _ApplePlayerViewMode mode,
@@ -3381,7 +3348,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         LikeButton(
-          track: currentTrack as GenericSong?,
+          track: currentTrack,
           iconSize: 22,
           padding: const EdgeInsets.all(2),
           constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -4391,9 +4358,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           future: _getColorSchemeFuture(imageUrl),
           builder: (context, snapshot) {
             final palette = snapshot.data;
-            var bgColor = HSLColor.fromColor(
-              palette?.onSecondaryContainer ?? const Color(0xFF1A1A1A),
-            ).withLightness(0.6).withSaturation(0.65).toColor();
             var btnColor = HSLColor.fromColor(
               palette?.onPrimaryContainer ?? const Color(0xFF1A1A1A),
             ).withLightness(0.7).withSaturation(1).toColor();

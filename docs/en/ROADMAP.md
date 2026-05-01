@@ -2,15 +2,10 @@ Here's the TODOs for version v26.05.xx:
 
 - Bugs:
     - [ ] Fix character encoding issues: e.g. recommended area shows the "ã" character as "Ã£". 
-    - [ ] Fix sidebar highlighting: highlight should be title-only (also add a colored sound icon to the right of that element).
-    - [ ] New lyrics animation in the previews doesn't consider the delay. 
-    - [ ] Fix artist based sorting in list view: sort first by artist, then for each artist sort by album, then for each album sort alphabetically by song name.
     - [ ] Fix scroll bar in list view not showing up in the correct position (Apple Music Style). 
-    - [ ] Fix scrolling in virtualized lists leaving the play button behind.
     - [ ] Fix stream fetching not working when the app is in the background.
     - [ ] Fix lyrics not automatiaclly centering on entering lyrics mode in the apple music full player.
     - [ ] Fix apple style queue mode showing all songs in the queue instead of just the next ones.
-    - [ ] Fix explicit icon showing up on the left side of the song name instead of the right side in the artist view.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
     - [ ] Fix pre-fetching next song stream URL: right now, even though we do get it, we still take a long time to start playing. I suspect we are just re-fetching the stream URL when the song starts playing, which is what causes the delay. We should be able to just use the already fetched URL and start playing immediately. Also should consider the preference for pre-fetching, and only store it for the "expire" duration parameter specified in the recieved URL. When it expires, we should discard it and fetch a new one ASAP. 
 - Future changes:
