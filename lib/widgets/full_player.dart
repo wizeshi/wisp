@@ -1260,7 +1260,15 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     String canvasUrl,
     String fallbackUrl,
   ) {
-    return SizedBox.expand(child: _buildCanvasVideo(canvasUrl, fallbackUrl));
+    return SizedBox.expand(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _buildCanvasVideo(canvasUrl, fallbackUrl),
+          Container(color: Colors.black.withOpacity(0.08)),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1363,31 +1371,31 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             ),
           );
 
-          final foreground = hasCanvas
-              ? _CoverGradientContainer(
-                  background: _buildSpotifyTopCanvasBackground(
-                    context,
-                    canvasUrl,
-                    imageUrl,
-                  ),
-                  child: content,
-                )
-              : _CoverGradientContainer(child: content);
+            final foreground = hasCanvas
+                ? _CoverGradientContainer(
+                    background: _buildSpotifyTopCanvasBackground(
+                      context,
+                      canvasUrl,
+                      imageUrl,
+                    ),
+                    child: content,
+                  )
+                : _CoverGradientContainer(child: content);
 
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fill(
-                child: ClipRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                    child: Container(color: Colors.black.withOpacity(0.16)),
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  child: ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                      child: Container(color: Colors.black.withOpacity(0.16)),
+                    ),
                   ),
                 ),
-              ),
-              foreground,
-            ],
-          );
+                foreground,
+              ],
+            );
         }
 
             if (!canUseCanvas) {
