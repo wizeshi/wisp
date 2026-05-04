@@ -419,12 +419,9 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   }
 
   Widget _buildMiniProgressBar() {
-    // Use a Selector to read the current track id (safe inside builder)
-    return Selector<global_audio_player.WispAudioHandler, String?>(
-      selector: (context, player) => player.currentTrack?.id,
-      builder: (context, trackId, child) {
-        if (trackId == null) return const SizedBox.shrink();
-
+    // Simpler selection: read playback position and duration directly
+    return Builder(
+      builder: (context) {
         final useHandoffState = context.select<PlaybackCoordinator, bool>(
           (coordinator) => coordinator.useLinkedPlaybackState,
         );
@@ -432,41 +429,39 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           (coordinator) => coordinator.effectiveThrottledPosition,
         );
 
-        return Selector<global_audio_player.WispAudioHandler, _PositionData>(
-          selector: (context, player) => _PositionData(
-            position: effectivePosition,
-            duration: player.duration,
-            isLoading:
-                !useHandoffState && (player.isLoading || player.isBuffering),
-          ),
-          builder: (context, data, child) {
-            if (data.isLoading) {
-              return const SizedBox(
-                height: 3,
-                child: LinearProgressIndicator(
-                  backgroundColor: Colors.transparent,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              );
-            }
+        final duration = context.select<global_audio_player.WispAudioHandler, Duration>(
+          (player) => player.duration,
+        );
 
-            final progress = data.duration.inMilliseconds > 0
-                ? data.position.inMilliseconds / data.duration.inMilliseconds
-                : 0.0;
+        final isLoading = !useHandoffState && context.select<global_audio_player.WispAudioHandler, bool>(
+          (player) => player.isLoading || player.isBuffering,
+        );
 
-            return TweenAnimationBuilder<double>(
-              tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-              duration: const Duration(milliseconds: 200),
-              builder: (context, animatedProgress, child) {
-                return SizedBox(
-                  height: 3,
-                  child: LinearProgressIndicator(
-                    value: animatedProgress,
-                    backgroundColor: Colors.grey[850]?.withOpacity(0.4),
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                );
-              },
+        if (isLoading) {
+          return const SizedBox(
+            height: 3,
+            child: LinearProgressIndicator(
+              backgroundColor: Colors.transparent,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          );
+        }
+
+        final progress = duration.inMilliseconds > 0
+            ? effectivePosition.inMilliseconds / duration.inMilliseconds
+            : 0.0;
+
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+          duration: const Duration(milliseconds: 200),
+          builder: (context, animatedProgress, child) {
+            return SizedBox(
+              height: 3,
+              child: LinearProgressIndicator(
+                value: animatedProgress,
+                backgroundColor: Colors.grey[850]?.withOpacity(0.4),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
             );
           },
         );
