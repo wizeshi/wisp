@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/metadata_models.dart';
 import '../providers/theme/cover_art_palette_provider.dart';
+import '../widgets/sliding_track_background.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../providers/lyrics/provider.dart';
@@ -15,7 +16,9 @@ import '../utils/logger.dart';
 import '../utils/lyrics_timing.dart';
 
 class LyricsView extends StatefulWidget {
-  const LyricsView({super.key});
+  final bool hideHeader;
+
+  const LyricsView({super.key, this.hideHeader = false});
 
   @override
   State<LyricsView> createState() => _LyricsViewState();
@@ -39,7 +42,13 @@ class _LyricsViewState extends State<LyricsView> {
   WispAudioHandler? _playerRef;
   bool _syncedLyricsAvailable = true;
   bool _didInitialCenter = false;
+  bool _initialCenterScheduled = false;
+  int _pendingInitialCenterIndex = -1;
   int _hoveredLineIndex = -1;
+  String? _delaySyncTrackId;
+  double? _delaySyncValue;
+
+  static const Duration _lineScrollDuration = Duration(milliseconds: 620);
 
   bool get _isMobile => Platform.isAndroid || Platform.isIOS;
   bool get _isDesktop =>
@@ -103,9 +112,11 @@ class _LyricsViewState extends State<LyricsView> {
     }
 
     final timing = resolveSyncedLyricsTiming(lyrics.lines, effectivePosition);
+    final scrollIndex = _scrollTargetIndex(timing);
     final shouldScroll = _autoScrollEnabled &&
-        timing.activeIndex >= 0 &&
-        timing.activeIndex != _currentLineIndex;
+      scrollIndex != null &&
+      scrollIndex != _currentLineIndex;
+    final targetScrollIndex = scrollIndex ?? timing.activeIndex;
 
     setState(() {
       _currentLineIndex = timing.activeIndex;
@@ -113,8 +124,15 @@ class _LyricsViewState extends State<LyricsView> {
     });
 
     if (shouldScroll) {
-      _scrollToLine(timing.activeIndex);
+      _scrollToLine(targetScrollIndex);
     }
+  }
+
+  int? _scrollTargetIndex(LyricsTimingState timing) {
+    if (timing.activeIndex >= 0) {
+      return timing.activeIndex;
+    }
+    return timing.nextIndex ?? timing.previousIndex;
   }
 
   void _ensurePositionTimer() {
@@ -172,26 +190,118 @@ class _LyricsViewState extends State<LyricsView> {
 
     _scrollController.animateTo(
       clampedOffset,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOut,
+      duration: _lineScrollDuration,
+      curve: Curves.easeInOutCubic,
     );
   }
 
   void _centerCurrentLineOnOpen(WispAudioHandler player, LyricsResult lyrics) {
     if (_didInitialCenter) return;
-    _didInitialCenter = true;
     final timing = lyrics.synced
       ? resolveSyncedLyricsTiming(lyrics.lines, _effectivePositionMs())
         : null;
     final initialIndex = lyrics.synced ? timing!.activeIndex : 0;
     _currentLineIndex = initialIndex;
     _timingState = timing;
+    if (initialIndex < 0) {
+      _pendingInitialCenterIndex = timing == null
+          ? -1
+          : (timing.nextIndex ?? timing.previousIndex ?? -1);
+      _didInitialCenter = true;
+      return;
+    }
+    _pendingInitialCenterIndex = initialIndex;
+  }
+
+  void _scheduleInitialCenterIfNeeded(
+    LyricsResult lyrics,
+    double viewportWidth,
+    double viewportHeight,
+    double horizontalPadding,
+    double edgeCenterPadding,
+  ) {
+    if (_didInitialCenter || _initialCenterScheduled) return;
+    final index = _pendingInitialCenterIndex;
+    if (index < 0) return;
+    if (!_scrollController.hasClients) return;
+
+    _initialCenterScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (initialIndex >= 0) {
-        _scrollToLine(initialIndex);
-      }
+      _initialCenterScheduled = false;
+      if (!mounted || _didInitialCenter) return;
+      if (_trackId == null) return;
+      if (index >= lyrics.lines.length) return;
+
+      final targetOffset = _estimateInitialScrollOffset(
+        lyrics: lyrics,
+        index: index,
+        viewportWidth: viewportWidth,
+        viewportHeight: viewportHeight,
+        horizontalPadding: horizontalPadding,
+        edgeCenterPadding: edgeCenterPadding,
+      );
+
+      _didInitialCenter = true;
+      _pendingInitialCenterIndex = -1;
+      _scrollController.jumpTo(
+        targetOffset.clamp(
+          _scrollController.position.minScrollExtent,
+          _scrollController.position.maxScrollExtent,
+        ),
+      );
     });
+  }
+
+  double _estimateInitialScrollOffset({
+    required LyricsResult lyrics,
+    required int index,
+    required double viewportWidth,
+    required double viewportHeight,
+    required double horizontalPadding,
+    required double edgeCenterPadding,
+  }) {
+    final fontSize = _isDesktop ? 42.0 : 30.0;
+    final lineStyle = TextStyle(
+      fontSize: fontSize,
+      letterSpacing: _isDesktop ? -1.5 : 0.6,
+      fontWeight: FontWeight.w700,
+      height: _isDesktop ? 1.4 : 1.06,
+    );
+    final textMaxWidth = (viewportWidth - (horizontalPadding * 2)).clamp(
+      120.0,
+      viewportWidth,
+    );
+
+    double offset = edgeCenterPadding;
+    for (var i = 0; i < index; i++) {
+      offset += _estimateLyricsLineHeight(
+        lyrics.lines[i].content,
+        lineStyle,
+        textMaxWidth,
+      );
+    }
+
+    final targetLineHeight = _estimateLyricsLineHeight(
+      lyrics.lines[index].content,
+      lineStyle,
+      textMaxWidth,
+    );
+
+    return offset - ((viewportHeight - targetLineHeight) / 2);
+  }
+
+  double _estimateLyricsLineHeight(
+    String text,
+    TextStyle style,
+    double maxWidth,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: null,
+    )..layout(maxWidth: maxWidth);
+
+    return painter.height + 16.0;
   }
 
   void _onSyncModeChanged(LyricsSyncMode mode) {
@@ -291,6 +401,25 @@ class _LyricsViewState extends State<LyricsView> {
     }
   }
 
+  void _syncExternalDelay(LyricsProvider lyricsProvider, String trackId) {
+    final providerDelay = lyricsProvider.getDelaySecondsCached(trackId);
+    if (_delaySyncTrackId == trackId && _delaySyncValue == providerDelay) {
+      return;
+    }
+    _delaySyncTrackId = trackId;
+    _delaySyncValue = providerDelay;
+    if (_lyricsDelaySeconds == providerDelay) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _trackId != trackId) return;
+      setState(() {
+        _lyricsDelaySeconds = providerDelay;
+        _delayController.text = providerDelay.toStringAsFixed(1);
+      });
+    });
+  }
+
   /// Save lyrics delay for current track to persistence
   Future<void> _saveLyricsDelay() async {
     final trackId = _trackId;
@@ -308,27 +437,55 @@ class _LyricsViewState extends State<LyricsView> {
 
     final content = _buildLyricsContent(backgroundColor);
 
-    if (_isDesktop) {
-      return Material(color: backgroundColor, child: content);
-    }
+    return Consumer2<WispAudioHandler, LyricsProvider>(
+      builder: (context, player, lyricsProvider, child) {
+        final track = player.currentTrack;
+        if (track == null) {
+          _stopPositionTimer();
+          return const Center(
+            child: Text(
+              'No track playing',
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lyrics'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: _buildLyricsControls()
-          )
-        ],
-        backgroundColor: _tintedDominantColor(dominantColor, blend: 0.55),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-        ),
-        child: content,
-      ),
+        final backgroundLayer = SlidingTrackBackground(
+          transitionToken: player.trackChangeToken,
+          trackId: track.id,
+          queueIndex: player.currentIndex,
+          child: ColoredBox(color: backgroundColor),
+        );
+
+        final surface = _isDesktop
+            ? Material(type: MaterialType.transparency, child: content)
+            : Scaffold(
+                backgroundColor: Colors.transparent,
+                appBar: widget.hideHeader
+                    ? null
+                    : AppBar(
+                        title: const Text('Lyrics'),
+                        actions: [
+                          if (!widget.hideHeader)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _buildLyricsControls(),
+                            )
+                        ],
+                        backgroundColor:
+                            _tintedDominantColor(dominantColor, blend: 0.55),
+                      ),
+                body: content,
+              );
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            backgroundLayer,
+            surface,
+          ],
+        );
+      },
     );
   }
 
@@ -371,6 +528,8 @@ class _LyricsViewState extends State<LyricsView> {
             }
           });
         }
+
+        _syncExternalDelay(lyricsProvider, track.id);
 
         final state = lyricsProvider.getState(track, _syncMode);
         if (!state.isLoading && state.lyrics == null && state.error == null) {
@@ -427,9 +586,9 @@ class _LyricsViewState extends State<LyricsView> {
             : null;
 
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_isDesktop) Padding(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            if (_isDesktop && !widget.hideHeader) Padding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -451,14 +610,23 @@ class _LyricsViewState extends State<LyricsView> {
                 children: [
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final edgeCenterPadding = _isMobile
+                        final edgeCenterPadding = _isMobile
                           ? 0.0
                           : ((constraints.maxHeight - 56.0) / 4)
-                              .clamp(16.0, double.infinity)
-                              .toDouble();
-                      final horizontalPadding = _isDesktop
+                            .clamp(16.0, double.infinity)
+                            .toDouble();
+                        final horizontalPadding = _isDesktop
                           ? (constraints.maxWidth * 0.2).clamp(24.0, 320.0)
                           : (constraints.maxWidth * 0.08).clamp(12.0, 40.0);
+                        final topPadding = edgeCenterPadding + (_isMobile ? 32.0 : 0.0);
+
+                      _scheduleInitialCenterIfNeeded(
+                        lyrics,
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                        horizontalPadding,
+                        edgeCenterPadding,
+                      );
 
                       return Align(
                         alignment: Alignment.topLeft,
@@ -469,9 +637,11 @@ class _LyricsViewState extends State<LyricsView> {
                           child: ListView.builder(
                             key: _listKey,
                             controller: _scrollController,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: horizontalPadding,
-                              vertical: edgeCenterPadding,
+                            padding: EdgeInsets.fromLTRB(
+                              horizontalPadding,
+                              topPadding,
+                              horizontalPadding,
+                              edgeCenterPadding,
                             ),
                             itemCount: lyrics.lines.length + (_isMobile ? 1 : 0),
                             itemBuilder: (context, index) {
@@ -570,9 +740,9 @@ class _LyricsViewState extends State<LyricsView> {
                                                 ? Colors.white
                                                 : inactiveColor,
                                             fontSize: fontSize,
-                                            letterSpacing: -1.5,
+                                            letterSpacing: _isDesktop ? -1.5 : -0.7,
                                             fontWeight: FontWeight.w700,
-                                            height: 1.4,
+                                            height: _isDesktop ? 1.4 : 1.06,
                                             decoration: underline,
                                             decorationColor: Colors.white70,
                                           ),
@@ -626,7 +796,7 @@ class _LyricsViewState extends State<LyricsView> {
               ),
             ),
             if (_isMobile) _buildMobileLyricsPlayer(backgroundColor),
-          ],
+            ],
         );
       },
     );
@@ -678,22 +848,17 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildMobileSeekBar() {
-    final useHandoffState = context.select<PlaybackCoordinator, bool>(
-      (coordinator) => coordinator.useLinkedPlaybackState,
-    );
-    final effectivePosition = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveThrottledPosition,
-    );
+    return Consumer2<PlaybackCoordinator, WispAudioHandler>(
+      builder: (context, coordinator, player, child) {
+        final useHandoffState = coordinator.useLinkedPlaybackState;
+        final effectivePosition = coordinator.effectiveThrottledPosition;
 
-    return Selector<WispAudioHandler, _LyricsMobilePositionData>(
-      selector: (context, player) {
-        return _LyricsMobilePositionData(
+        final data = _LyricsMobilePositionData(
           position: effectivePosition,
           duration: player.duration,
           isLoading: !useHandoffState && (player.isLoading || player.isBuffering),
         );
-      },
-      builder: (context, data, child) {
+
         if (data.duration.inMilliseconds <= 0) {
           return const SizedBox(height: 4);
         }
@@ -758,17 +923,13 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildMobilePlayPauseButton() {
-    final useHandoffState = context.select<PlaybackCoordinator, bool>(
-      (coordinator) => coordinator.useLinkedPlaybackState,
-    );
-    final effectiveIsPlaying = context.select<PlaybackCoordinator, bool>(
-      (coordinator) => coordinator.effectiveIsPlaying,
-    );
+    return Consumer2<PlaybackCoordinator, WispAudioHandler>(
+      builder: (context, coordinator, player, child) {
+        final useHandoffState = coordinator.useLinkedPlaybackState;
+        final effectiveIsPlaying = coordinator.effectiveIsPlaying;
 
-    return Selector<WispAudioHandler, _LyricsMobilePlaybackData>(
-      selector: (context, player) {
         final track = player.currentTrack;
-        return _LyricsMobilePlaybackData(
+        final data = _LyricsMobilePlaybackData(
           isPlaying: player.isPlaying,
           isLoading: player.isLoading,
           isBuffering: player.isBuffering,
@@ -777,8 +938,7 @@ class _LyricsViewState extends State<LyricsView> {
           currentTrackCached: track == null ? true : player.isTrackCached(track.id),
           queueNotEmpty: player.queueTracks.isNotEmpty,
         );
-      },
-      builder: (context, data, child) {
+
         if (data.isLoading || data.isBuffering) {
           return const SizedBox(
             width: 48,
@@ -820,6 +980,7 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildLyricsControls() {
+    if (widget.hideHeader) return const SizedBox.shrink();
     return Material(
       color: Colors.transparent,
       child: Row(

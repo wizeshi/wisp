@@ -1397,7 +1397,7 @@ class _DesktopRightControls extends StatelessWidget {
         final isAppleStyle = appStyle == 'Apple Music';
         final controlSpacing = isAppleStyle ? 12.0 : 8.0;
         final volumeSpacing = isAppleStyle ? 6.0 : 4.0;
-        final isLyricsOpen = routeName == '/lyrics';
+        final isLyricsRouteOpen = routeName == '/lyrics';
         final isQueueOpen = routeName == '/queue';
         final isFullScreenOpen = routeName == '/fullplayer';
         final hasTrack = currentTrack != null;
@@ -1415,69 +1415,115 @@ class _DesktopRightControls extends StatelessWidget {
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: Icon(
-                    isAppleStyle
-                        ? CupertinoIcons.sidebar_right
-                        : Icons.view_sidebar_outlined,
-                    color: isSidebarOpen ? activeColor : inactiveColor,
-                    size: 20,
+                if (!isFullScreenOpen) ...[
+                  IconButton(
+                    icon: Icon(
+                      isAppleStyle
+                          ? CupertinoIcons.sidebar_right
+                          : Icons.view_sidebar_outlined,
+                      color: isSidebarOpen ? activeColor : inactiveColor,
+                      size: 20,
+                    ),
+                    onPressed: hasTrack ? navState.toggleRightSidebar : null,
                   ),
-                  onPressed: hasTrack ? navState.toggleRightSidebar : null,
+                  SizedBox(width: controlSpacing),
+                ],
+                ValueListenableBuilder<FullPlayerDesktopMode>(
+                  valueListenable: AppNavigation.instance.fullPlayerDesktopMode,
+                  builder: (context, fullPlayerMode, child) {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showLyricsButton) ...[
+                          IconButton(
+                            icon: Icon(
+                              isAppleStyle
+                                  ? CupertinoIcons.quote_bubble
+                                  : Icons.music_note,
+                              color: isFullScreenOpen
+                                  ? fullPlayerMode == FullPlayerDesktopMode.lyrics
+                                      ? activeColor
+                                      : inactiveColor
+                                  : isLyricsRouteOpen
+                                      ? activeColor
+                                      : inactiveColor,
+                              size: 20,
+                            ),
+                            onPressed: currentTrack == null
+                                ? null
+                                : () {
+                                    if (isFullScreenOpen) {
+                                      if (fullPlayerMode == FullPlayerDesktopMode.lyrics) {
+                                        AppNavigation.instance.restorePreviousFullPlayerDesktopMode();
+                                      } else {
+                                        AppNavigation.instance.setFullPlayerDesktopMode(
+                                          FullPlayerDesktopMode.lyrics,
+                                        );
+                                      }
+                                      return;
+                                    }
+
+                                    final currentScreen = NavigationHistory
+                                        .instance
+                                        .currentRoute
+                                        .value
+                                        ?.settings
+                                        .name;
+                                    if (currentScreen == '/lyrics') {
+                                      NavigationHistory.instance.goBack();
+                                    } else {
+                                      _openLyrics(context);
+                                    }
+                                  },
+                          ),
+                          SizedBox(width: controlSpacing),
+                        ],
+                        if (showQueueButton) ...[
+                          IconButton(
+                            icon: Icon(
+                              isAppleStyle
+                                  ? CupertinoIcons.list_bullet
+                                  : Icons.queue_music,
+                              color: isFullScreenOpen
+                                  ? fullPlayerMode == FullPlayerDesktopMode.queue
+                                      ? activeColor
+                                      : inactiveColor
+                                  : isQueueOpen
+                                      ? activeColor
+                                      : inactiveColor,
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              if (isFullScreenOpen) {
+                                if (fullPlayerMode == FullPlayerDesktopMode.queue) {
+                                  AppNavigation.instance.restorePreviousFullPlayerDesktopMode();
+                                } else {
+                                  AppNavigation.instance.setFullPlayerDesktopMode(
+                                    FullPlayerDesktopMode.queue,
+                                  );
+                                }
+                                return;
+                              }
+
+                              final currentScreen = NavigationHistory
+                                  .instance
+                                  .currentRoute
+                                  .value
+                                  ?.settings
+                                  .name;
+                              if (currentScreen == '/queue') {
+                                NavigationHistory.instance.goBack();
+                              } else {
+                                _openQueue(context);
+                              }
+                            },
+                          ),
+                          SizedBox(width: controlSpacing),
+                        ],
+                      ],
+                    );
+                  },
                 ),
-                SizedBox(width: controlSpacing),
-                if (showLyricsButton) ...[
-                  IconButton(
-                    icon: Icon(
-                      isAppleStyle
-                          ? CupertinoIcons.quote_bubble
-                          : Icons.music_note,
-                      color: isLyricsOpen ? activeColor : inactiveColor,
-                      size: 20,
-                    ),
-                    onPressed: currentTrack == null
-                        ? null
-                        : () {
-                            final currentScreen = NavigationHistory
-                                .instance
-                                .currentRoute
-                                .value
-                                ?.settings
-                                .name;
-                            if (currentScreen == '/lyrics') {
-                              NavigationHistory.instance.goBack();
-                            } else {
-                              _openLyrics(context);
-                            }
-                          },
-                  ),
-                  SizedBox(width: controlSpacing),
-                ],
-                if (showQueueButton) ...[
-                  IconButton(
-                    icon: Icon(
-                      isAppleStyle
-                          ? CupertinoIcons.list_bullet
-                          : Icons.queue_music,
-                      color: isQueueOpen ? activeColor : inactiveColor,
-                      size: 20,
-                    ),
-                    onPressed: () {
-                      final currentScreen = NavigationHistory
-                          .instance
-                          .currentRoute
-                          .value
-                          ?.settings
-                          .name;
-                      if (currentScreen == '/queue') {
-                        NavigationHistory.instance.goBack();
-                      } else {
-                        _openQueue(context);
-                      }
-                    },
-                  ),
-                  SizedBox(width: controlSpacing),
-                ],
                 _ConnectMenuButton(
                   iconSize: 20,
                   appStyle: appStyle,
@@ -1533,29 +1579,31 @@ class _DesktopRightControls extends StatelessWidget {
                     );
                   },
                 ),
-                SizedBox(width: controlSpacing),
-                IconButton(
-                  icon: Icon(
-                    isAppleStyle
-                        ? CupertinoIcons.arrow_up_left_arrow_down_right
-                        : Icons.fullscreen,
-                    color: isFullScreenOpen ? activeColor : inactiveColor,
-                    size: 20,
+                if (!isFullScreenOpen) ...[
+                  SizedBox(width: controlSpacing),
+                  IconButton(
+                    icon: Icon(
+                      isAppleStyle
+                          ? CupertinoIcons.arrow_up_left_arrow_down_right
+                          : Icons.fullscreen,
+                      color: inactiveColor,
+                      size: 20,
+                    ),
+                    onPressed: () async {
+                      final currentScreen = NavigationHistory
+                          .instance
+                          .currentRoute
+                          .value
+                          ?.settings
+                          .name;
+                      if (currentScreen == '/fullplayer') {
+                        await AppNavigation.instance.closeFullPlayer();
+                      } else {
+                        await _openFullPlayer(context);
+                      }
+                    },
                   ),
-                  onPressed: () async {
-                    final currentScreen = NavigationHistory
-                        .instance
-                        .currentRoute
-                        .value
-                        ?.settings
-                        .name;
-                    if (currentScreen == '/fullplayer') {
-                      await AppNavigation.instance.closeFullPlayer();
-                    } else {
-                      await _openFullPlayer(context);
-                    }
-                  },
-                ),
+                ],
               ],
             );
           },

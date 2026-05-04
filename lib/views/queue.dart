@@ -19,8 +19,15 @@ import '../widgets/entity_context_menus.dart';
 class QueueView extends StatefulWidget {
   /// If true, only returns the queue content without scaffold (for mobile bottom sheet)
   final bool contentOnly;
+  final bool hideHeader;
+  final Color backgroundColor;
 
-  const QueueView({super.key, this.contentOnly = false});
+  const QueueView({
+    super.key,
+    this.contentOnly = false,
+    this.hideHeader = false,
+    this.backgroundColor = const Color(0xFF121212),
+  });
 
   @override
   State<QueueView> createState() => _QueueViewState();
@@ -88,12 +95,11 @@ class _QueueViewState extends State<QueueView> {
         final currentIndex = player.currentIndex;
 
         return Container(
-          color: const Color(0xFF121212),
+          color: widget.backgroundColor,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              _buildHeader(contextName, queue.length, player),
+              if (!widget.hideHeader) _buildHeader(contextName, queue.length, player),
               // Queue list or empty state
               Expanded(
                 child: queue.isEmpty

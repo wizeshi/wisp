@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -117,13 +118,25 @@ void main() async {
   // Initialize Discord RPC (desktop only)
   await DiscordRpcService.instance.initialize();
 
-  runApp(
-    MyApp(audioHandler: handler, playbackCoordinator: playbackCoordinator),
-  );
+  // Install a Flutter framework error handler so we can log full stacks.
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.dumpErrorToConsole(details);
+    logger.e('[Main] Flutter framework error', error: details.exception, stackTrace: details.stack);
+  };
 
-  // Request notification permission on Android 13+ after UI is ready
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    NotificationService.instance.requestPermissionIfNeeded();
+  // Run the app inside a guarded zone to catch uncaught async errors.
+  runZonedGuarded(() {
+    runApp(MyApp(audioHandler: handler, playbackCoordinator: playbackCoordinator));
+
+    // Request notification permission on Android 13+ after UI is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.instance.requestPermissionIfNeeded();
+    });
+  }, (error, stack) {
+    logger.e('[Main] Uncaught async error', error: error, stackTrace: stack);
+    // Also print to stdout to ensure it appears in simple adb/logcat streams
+    print('[Main] Uncaught async error: $error');
+    print(stack);
   });
 }
 

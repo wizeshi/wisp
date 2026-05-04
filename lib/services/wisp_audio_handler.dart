@@ -93,6 +93,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   List<GenericSong> get originalQueueTracks =>
       List.unmodifiable(_originalQueue);
   int get currentIndex => _currentIndex;
+  int get trackChangeToken => _trackChangeToken;
   bool get shuffleEnabled => _shuffleEnabled;
   RepeatMode get repeatMode => _repeatMode;
   bool get isPlaying => _state == PlaybackState.playing;

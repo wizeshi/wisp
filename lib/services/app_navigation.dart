@@ -14,10 +14,36 @@ import '../views/artist_detail.dart';
 import '../views/list_detail.dart';
 import '../widgets/full_player.dart';
 
+enum FullPlayerDesktopMode { artwork, canvas, lyrics, queue }
+
 class AppNavigation {
   AppNavigation._();
 
   static final AppNavigation instance = AppNavigation._();
+
+  final ValueNotifier<bool> fullPlayerLyricsMode = ValueNotifier<bool>(false);
+  final ValueNotifier<FullPlayerDesktopMode> fullPlayerDesktopMode =
+      ValueNotifier<FullPlayerDesktopMode>(FullPlayerDesktopMode.artwork);
+  final ValueNotifier<FullPlayerDesktopMode?> fullPlayerDesktopPreviousMode =
+      ValueNotifier<FullPlayerDesktopMode?>(null);
+
+  void setFullPlayerDesktopMode(
+    FullPlayerDesktopMode mode, {
+    bool rememberPrevious = true,
+  }) {
+    final currentMode = fullPlayerDesktopMode.value;
+    if (rememberPrevious && currentMode != mode) {
+      fullPlayerDesktopPreviousMode.value = currentMode;
+    }
+    fullPlayerDesktopMode.value = mode;
+  }
+
+  void restorePreviousFullPlayerDesktopMode() {
+    final previousMode = fullPlayerDesktopPreviousMode.value;
+    if (previousMode != null) {
+      fullPlayerDesktopMode.value = previousMode;
+    }
+  }
 
   NavigatorState? get _shellNavigator =>
       NavigationHistory.instance.navigatorKey.currentState;
@@ -210,6 +236,9 @@ class AppNavigation {
     if (NavigationHistory.instance.currentRouteName == '/fullplayer') {
       return;
     }
+    fullPlayerLyricsMode.value = false;
+    fullPlayerDesktopMode.value = FullPlayerDesktopMode.artwork;
+    fullPlayerDesktopPreviousMode.value = null;
     AppleMusicFullScreenPlayer.resetTemporaryOptions();
     if (_isDesktop) {
       await _enterFullPlayerDesktopMode();
@@ -226,6 +255,9 @@ class AppNavigation {
   }
 
   Future<void> closeFullPlayer() async {
+    fullPlayerLyricsMode.value = false;
+    fullPlayerDesktopMode.value = FullPlayerDesktopMode.artwork;
+    fullPlayerDesktopPreviousMode.value = null;
     if (NavigationHistory.instance.currentRouteName == '/fullplayer') {
       await _shellNavigator?.maybePop();
     }
@@ -268,6 +300,9 @@ class AppNavigation {
     if (NavigationHistory.instance.currentRouteName == '/lyrics') {
       return;
     }
+    fullPlayerLyricsMode.value = false;
+    fullPlayerDesktopMode.value = FullPlayerDesktopMode.artwork;
+    fullPlayerDesktopPreviousMode.value = null;
     _shellNavigator?.push(
       PageRouteBuilder(
         transitionDuration: Duration.zero,
@@ -283,6 +318,9 @@ class AppNavigation {
     if (NavigationHistory.instance.currentRouteName == '/queue') {
       return;
     }
+    fullPlayerLyricsMode.value = false;
+    fullPlayerDesktopMode.value = FullPlayerDesktopMode.artwork;
+    fullPlayerDesktopPreviousMode.value = null;
     _shellNavigator?.push(
       PageRouteBuilder(
         transitionDuration: Duration.zero,
