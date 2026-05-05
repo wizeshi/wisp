@@ -97,8 +97,40 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   String? _stickyCoverUrl;
   double? _mobileHeaderExtent;
 
+  // Column visibility breakpoints (in pixels)
+  static const double _breakpointFullColumns = 600;     // All columns: # Song Artist Album Time (+ Added At for Spotify)
+  static const double _breakpointNoAddedAt = 500;       // Hide Added At (Spotify only): # Song Artist Album Time
+  static const double _breakpointNoAlbum = 450;         // Hide Album: # Song Artist Time
+  static const double _breakpointNoArtistColumn = 425;   // Hide Artist column, Artist inline: # Song Time
+  static const double _breakpointNoTime = 400;           // Hide Time: # Song (Artist inline)
+
   bool _isLocalImagePath(String path) {
     return path.startsWith('/') || path.startsWith('file://');
+  }
+
+  /// Determines which columns to show based on available width
+  /// For Apple Music desktop: Album disappears first -> Artist column disappears (goes inline) -> Time disappears
+  /// For Spotify desktop: Added At disappears -> Album disappears -> Artist column disappears (goes inline) -> Duration disappears
+  ({bool showAlbum, bool showArtistColumn, bool showTime, bool showArtistInline, bool showAddedAt}) _getVisibleColumns(double availableWidth) {
+    if (availableWidth >= _breakpointFullColumns) {
+      // All columns visible
+      return (showAlbum: true, showArtistColumn: true, showTime: true, showArtistInline: false, showAddedAt: true);
+    } else if (availableWidth >= _breakpointNoAddedAt) {
+      // Hide added at (Spotify), keep album and artist column
+      return (showAlbum: true, showArtistColumn: true, showTime: true, showArtistInline: false, showAddedAt: false);
+    } else if (availableWidth >= _breakpointNoAlbum) {
+      // Hide album, keep artist column
+      return (showAlbum: false, showArtistColumn: true, showTime: true, showArtistInline: false, showAddedAt: false);
+    } else if (availableWidth >= _breakpointNoArtistColumn) {
+      // Hide album and artist column, artist goes inline
+      return (showAlbum: false, showArtistColumn: false, showTime: true, showArtistInline: true, showAddedAt: false);
+    } else if (availableWidth >= _breakpointNoTime) {
+      // Hide time too, artist still inline
+      return (showAlbum: false, showArtistColumn: false, showTime: false, showArtistInline: true, showAddedAt: false);
+    } else {
+      // Minimal view
+      return (showAlbum: false, showArtistColumn: false, showTime: false, showArtistInline: true, showAddedAt: false);
+    }
   }
 
   bool _preShuffleEnabled = false;
@@ -2700,8 +2732,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   Widget _buildListHeaderContent({
     _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+    required double availableWidth,
   }) {
     final headerStyle = TextStyle(color: Colors.grey[400], fontSize: 12);
+    final visibleColumns = _getVisibleColumns(availableWidth);
 
     if (visualStyle == _ListVisualStyle.apple) {
       return Row(
@@ -2726,37 +2760,43 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               ),
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _buildSortableHeader(
-                text: 'Artist',
-                method: _SortMethod.author,
+          // Artist column - shown when artist column should be visible
+          if (visibleColumns.showArtistColumn)
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildSortableHeader(
+                  text: 'Artist',
+                  method: _SortMethod.author,
+                ),
               ),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _buildSortableHeader(
-                text: 'Album',
-                method: _SortMethod.album,
+          // Album column - hidden at smaller widths
+          if (visibleColumns.showAlbum)
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildSortableHeader(
+                  text: 'Album',
+                  method: _SortMethod.album,
+                ),
               ),
             ),
-          ),
-          SizedBox(
-            width: 70,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: _buildSortableHeader(
-                text: 'Time',
-                method: _SortMethod.duration,
-                textAlign: TextAlign.right,
+          // Time column - hidden at smallest width
+          if (visibleColumns.showTime)
+            SizedBox(
+              width: 70,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: _buildSortableHeader(
+                  text: 'Time',
+                  method: _SortMethod.duration,
+                  textAlign: TextAlign.right,
+                ),
               ),
             ),
-          ),
           const SizedBox(
             width: 48,
           ), // Adjusted space for more context menu room
@@ -2786,7 +2826,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             ),
           ),
         ),
-        if (widget.type == SharedListType.playlist)
+        // Spotify: Album column
+        if (widget.type == SharedListType.playlist && visibleColumns.showAlbum)
           Expanded(
             flex: 2,
             child: InkWell(
@@ -2798,9 +2839,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               ),
             ),
           )
+        else if (widget.type == SharedListType.playlist)
+          const SizedBox(width: 80)
         else
           const SizedBox(width: 80),
-        if (widget.type == SharedListType.playlist)
+        // Spotify: Added At column
+        if (widget.type == SharedListType.playlist && visibleColumns.showAddedAt)
           SizedBox(
             width: 120,
             child: Text(
@@ -2809,6 +2853,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               textAlign: TextAlign.center,
             ),
           )
+        else if (widget.type == SharedListType.playlist)
+          const SizedBox(width: 120)
         else
           const SizedBox(width: 120),
         const SizedBox(
@@ -2842,6 +2888,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   Widget _buildSongList({
     bool isMobile = false,
     _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+    required double availableWidth,
   }) {
     if (_isLoading) {
       return const Center(
@@ -2928,6 +2975,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               final isCurrentTrack = player.currentTrack?.id == song.id;
               final album = _getAlbum(item);
               final artists = _getArtists(item);
+              final visibleColumns = _getVisibleColumns(availableWidth);
 
               final isHovering = _hoveredSongIds.contains(song.id);
               return MouseRegion(
@@ -3118,7 +3166,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  if (!isAppleStyle || isMobile) ...[
+                                  if (!isAppleStyle || isMobile || visibleColumns.showArtistInline) ...[
                                     const SizedBox(height: 2),
                                     _buildArtistLine(
                                       artists,
@@ -3129,80 +3177,86 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               ),
                             ),
                             if (!isMobile && isAppleStyle) ...[
-                              Expanded(
-                                flex: 2,
-                                child: _buildArtistLine(
-                                  artists,
-                                  isDesktop: isDesktop,
+                              // Artist column - only shown when artist column should be visible
+                              if (visibleColumns.showArtistColumn)
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildArtistLine(
+                                    artists,
+                                    isDesktop: isDesktop,
+                                  ),
                                 ),
-                              ),
-                              Expanded(
-                                flex: 2,
-                                child:
-                                    (isDesktop &&
-                                        album != null &&
-                                        album.id.isNotEmpty)
-                                    ? HoverUnderline(
-                                        onTap: () {
-                                          _openSharedList(
-                                            SharedListType.album,
-                                            album.id,
-                                            title: album.title,
-                                            thumbnailUrl: album.thumbnailUrl,
-                                          );
-                                        },
-                                        onSecondaryTapDown: (details) {
-                                          EntityContextMenus.showAlbumMenu(
-                                            context,
-                                            album: GenericAlbum(
-                                              id: album.id,
-                                              source: album.source,
+                              // Album column - hidden when album is not visible
+                              if (visibleColumns.showAlbum)
+                                Expanded(
+                                  flex: 2,
+                                  child:
+                                      (isDesktop &&
+                                          album != null &&
+                                          album.id.isNotEmpty)
+                                      ? HoverUnderline(
+                                          onTap: () {
+                                            _openSharedList(
+                                              SharedListType.album,
+                                              album.id,
                                               title: album.title,
                                               thumbnailUrl: album.thumbnailUrl,
-                                              artists: album.artists,
-                                              label: album.label,
-                                              releaseDate: album.releaseDate,
-                                              explicit: song.explicit,
-                                              durationSecs: 0,
+                                            );
+                                          },
+                                          onSecondaryTapDown: (details) {
+                                            EntityContextMenus.showAlbumMenu(
+                                              context,
+                                              album: GenericAlbum(
+                                                id: album.id,
+                                                source: album.source,
+                                                title: album.title,
+                                                thumbnailUrl: album.thumbnailUrl,
+                                                artists: album.artists,
+                                                label: album.label,
+                                                releaseDate: album.releaseDate,
+                                                explicit: song.explicit,
+                                                durationSecs: 0,
+                                              ),
+                                              globalPosition:
+                                                  details.globalPosition,
+                                            );
+                                          },
+                                          builder: (isHovering) => Text(
+                                            _getAlbumTitle(item),
+                                            style: TextStyle(
+                                              color: Colors.grey[400],
+                                              fontSize: 12,
+                                              decoration: isHovering
+                                                  ? TextDecoration.underline
+                                                  : TextDecoration.none,
                                             ),
-                                            globalPosition:
-                                                details.globalPosition,
-                                          );
-                                        },
-                                        builder: (isHovering) => Text(
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        )
+                                      : Text(
                                           _getAlbumTitle(item),
                                           style: TextStyle(
                                             color: Colors.grey[400],
                                             fontSize: 12,
-                                            decoration: isHovering
-                                                ? TextDecoration.underline
-                                                : TextDecoration.none,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                      )
-                                    : Text(
-                                        _getAlbumTitle(item),
-                                        style: TextStyle(
-                                          color: Colors.grey[400],
-                                          fontSize: 12,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                              ),
-                              SizedBox(
-                                width: 70,
-                                child: Text(
-                                  _formatDuration(_getDuration(item)),
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
-                                  ),
-                                  textAlign: TextAlign.right,
                                 ),
-                              ),
+                              // Time column - hidden at smallest width
+                              if (visibleColumns.showTime)
+                                SizedBox(
+                                  width: 70,
+                                  child: Text(
+                                    _formatDuration(_getDuration(item)),
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                    ),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                ),
                               SizedBox(
                                 width: 48, // Updated width
                                 child: Align(
@@ -3232,8 +3286,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 ),
                               ),
                             ] else ...[
+                              // Spotify style - Album column
                               if (!isMobile &&
-                                  widget.type == SharedListType.playlist)
+                                  widget.type == SharedListType.playlist &&
+                                  visibleColumns.showAlbum)
                                 Expanded(
                                   flex: 2,
                                   child:
@@ -3281,10 +3337,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                           textAlign: TextAlign.center,
                                         ),
                                 )
-                              else if (!isMobile)
+                              else if (!isMobile && widget.type != SharedListType.playlist)
                                 const SizedBox(width: 80),
+                              // Spotify style - Added At column
                               if (!isMobile &&
-                                  widget.type == SharedListType.playlist)
+                                  widget.type == SharedListType.playlist &&
+                                  visibleColumns.showAddedAt)
                                 SizedBox(
                                   width: 120,
                                   child: Text(
@@ -3298,7 +3356,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 )
-                              else if (!isMobile)
+                              else if (!isMobile && widget.type != SharedListType.playlist)
                                 const SizedBox(width: 120),
                               SizedBox(
                                 width: 24,
@@ -3326,17 +3384,21 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 ),
                                 const SizedBox(width: 8),
                               ],
-                              SizedBox(
-                                width: isMobile ? 40 : 80,
-                                child: Text(
-                                  _formatDuration(_getDuration(item)),
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
+                              // Spotify style - Duration column
+                              if (visibleColumns.showTime)
+                                SizedBox(
+                                  width: isMobile ? 40 : 80,
+                                  child: Text(
+                                    _formatDuration(_getDuration(item)),
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                    ),
+                                    textAlign: TextAlign.right,
                                   ),
-                                  textAlign: TextAlign.right,
-                                ),
-                              ),
+                                )
+                              else if (!isMobile)
+                                const SizedBox(width: 80),
                               SizedBox(width: isMobile ? 0 : 12),
                               !isMobile
                                   ? SizedBox(
@@ -3382,6 +3444,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         final isCurrentTrack = player.currentTrack?.id == song.id;
         final album = _getAlbum(item);
         final artists = _getArtists(item);
+        final visibleColumns = _getVisibleColumns(availableWidth);
 
         final isHovering = _hoveredSongIds.contains(song.id);
         return MouseRegion(
@@ -3559,7 +3622,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if (!isAppleStyle || isMobile) ...[
+                            if (!isAppleStyle || isMobile || visibleColumns.showArtistInline) ...[
                               const SizedBox(height: 2),
                               _buildArtistLine(artists, isDesktop: isDesktop),
                             ],
@@ -3567,79 +3630,85 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         ),
                       ),
                       if (!isMobile && isAppleStyle) ...[
-                        Expanded(
-                          flex: 2,
-                          child: _buildArtistLine(
-                            artists,
-                            isDesktop: isDesktop,
+                        // Artist column - only shown when artist column should be visible
+                        if (visibleColumns.showArtistColumn)
+                          Expanded(
+                            flex: 2,
+                            child: _buildArtistLine(
+                              artists,
+                              isDesktop: isDesktop,
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child:
-                              (isDesktop &&
-                                  album != null &&
-                                  album.id.isNotEmpty)
-                              ? HoverUnderline(
-                                  onTap: () {
-                                    _openSharedList(
-                                      SharedListType.album,
-                                      album.id,
-                                      title: album.title,
-                                      thumbnailUrl: album.thumbnailUrl,
-                                    );
-                                  },
-                                  onSecondaryTapDown: (details) {
-                                    EntityContextMenus.showAlbumMenu(
-                                      context,
-                                      album: GenericAlbum(
-                                        id: album.id,
-                                        source: album.source,
+                        // Album column - hidden when album is not visible
+                        if (visibleColumns.showAlbum)
+                          Expanded(
+                            flex: 2,
+                            child:
+                                (isDesktop &&
+                                    album != null &&
+                                    album.id.isNotEmpty)
+                                ? HoverUnderline(
+                                    onTap: () {
+                                      _openSharedList(
+                                        SharedListType.album,
+                                        album.id,
                                         title: album.title,
                                         thumbnailUrl: album.thumbnailUrl,
-                                        artists: album.artists,
-                                        label: album.label,
-                                        releaseDate: album.releaseDate,
-                                        explicit: song.explicit,
-                                        durationSecs: 0,
+                                      );
+                                    },
+                                    onSecondaryTapDown: (details) {
+                                      EntityContextMenus.showAlbumMenu(
+                                        context,
+                                        album: GenericAlbum(
+                                          id: album.id,
+                                          source: album.source,
+                                          title: album.title,
+                                          thumbnailUrl: album.thumbnailUrl,
+                                          artists: album.artists,
+                                          label: album.label,
+                                          releaseDate: album.releaseDate,
+                                          explicit: song.explicit,
+                                          durationSecs: 0,
+                                        ),
+                                        globalPosition: details.globalPosition,
+                                      );
+                                    },
+                                    builder: (isHovering) => Text(
+                                      _getAlbumTitle(item),
+                                      style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 12,
+                                        decoration: isHovering
+                                            ? TextDecoration.underline
+                                            : TextDecoration.none,
                                       ),
-                                      globalPosition: details.globalPosition,
-                                    );
-                                  },
-                                  builder: (isHovering) => Text(
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  )
+                                : Text(
                                     _getAlbumTitle(item),
                                     style: TextStyle(
                                       color: Colors.grey[400],
                                       fontSize: 12,
-                                      decoration: isHovering
-                                          ? TextDecoration.underline
-                                          : TextDecoration.none,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                )
-                              : Text(
-                                  _getAlbumTitle(item),
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                        ),
-                        SizedBox(
-                          width: 70,
-                          child: Text(
-                            _formatDuration(_getDuration(item)),
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
-                            textAlign: TextAlign.right,
                           ),
-                        ),
+                        // Time column - hidden at smallest width
+                        if (visibleColumns.showTime)
+                          SizedBox(
+                            width: 70,
+                            child: Text(
+                              _formatDuration(_getDuration(item)),
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12,
+                              ),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
                         SizedBox(
                           width: 24,
                           child: Align(
@@ -3667,7 +3736,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           ),
                         ),
                       ] else ...[
-                        if (!isMobile && widget.type == SharedListType.playlist)
+                        // Spotify style - Album column
+                        if (!isMobile && 
+                            widget.type == SharedListType.playlist &&
+                            visibleColumns.showAlbum)
                           Expanded(
                             flex: 2,
                             child:
@@ -3725,9 +3797,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     textAlign: TextAlign.center,
                                   ),
                           )
-                        else if (!isMobile)
+                        else if (!isMobile && widget.type != SharedListType.playlist)
                           const SizedBox(width: 80),
-                        if (!isMobile && widget.type == SharedListType.playlist)
+                        // Spotify style - Added At column
+                        if (!isMobile && 
+                            widget.type == SharedListType.playlist &&
+                            visibleColumns.showAddedAt)
                           SizedBox(
                             width: 120,
                             child: Text(
@@ -3741,7 +3816,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           )
-                        else if (!isMobile)
+                        else if (!isMobile && widget.type != SharedListType.playlist)
                           const SizedBox(width: 120),
                         SizedBox(
                           width: 24,
@@ -3769,17 +3844,21 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           ),
                           const SizedBox(width: 8),
                         ],
-                        SizedBox(
-                          width: isMobile ? 40 : 80,
-                          child: Text(
-                            _formatDuration(_getDuration(item)),
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
+                        // Spotify style - Duration column
+                        if (visibleColumns.showTime)
+                          SizedBox(
+                            width: isMobile ? 40 : 80,
+                            child: Text(
+                              _formatDuration(_getDuration(item)),
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12,
+                              ),
+                              textAlign: TextAlign.right,
                             ),
-                            textAlign: TextAlign.right,
-                          ),
-                        ),
+                          )
+                        else if (!isMobile)
+                          const SizedBox(width: 80),
                         SizedBox(width: isMobile ? 0 : 12),
                         !isMobile
                             ? SizedBox(
@@ -4450,7 +4529,14 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                     SliverPadding(
                       padding: EdgeInsets.zero,
                       sliver: SliverToBoxAdapter(
-                        child: view._buildSongList(isMobile: true),
+                        child: LayoutBuilder(
+                          builder: (layoutContext, constraints) {
+                            return view._buildSongList(
+                              isMobile: true,
+                              availableWidth: constraints.maxWidth,
+                            );
+                          },
+                        ),
                       ),
                     ),
                     SliverToBoxAdapter(
@@ -4552,23 +4638,33 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                         color: Colors.black.withOpacity(0.35),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            child: view._buildListHeaderContent(),
-                          ),
-                          view._buildSongList(isMobile: false),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                            child: view._buildRecommendedSection(
-                              isMobile: false,
-                            ),
-                          ),
-                        ],
+                      child: LayoutBuilder(
+                        builder: (layoutContext, constraints) {
+                          final availableWidth = constraints.maxWidth;
+                          return Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                child: view._buildListHeaderContent(
+                                  availableWidth: availableWidth,
+                                ),
+                              ),
+                              view._buildSongList(
+                                isMobile: false,
+                                availableWidth: availableWidth,
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                                child: view._buildRecommendedSection(
+                                  isMobile: false,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -4776,9 +4872,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                 ),
               ),
             SliverToBoxAdapter(
-              child: view._buildSongList(
-                isMobile: true,
-                visualStyle: _ListVisualStyle.apple,
+              child: LayoutBuilder(
+                builder: (layoutContext, constraints) {
+                  return view._buildSongList(
+                    isMobile: true,
+                    visualStyle: _ListVisualStyle.apple,
+                    availableWidth: constraints.maxWidth,
+                  );
+                },
               ),
             ),
             SliverToBoxAdapter(
@@ -4857,21 +4958,24 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             controller: view._desktopScrollController,
             padding: const EdgeInsets.fromLTRB(30, 30, 30, 18),
             children: [
-              Container(
-                key: view._headerKey,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    SizedBox(
-                      width: 210,
-                      height: 210,
-                      child: _buildArtwork(context),
-                    ),
-                    const SizedBox(width: 22),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+              LayoutBuilder(
+                builder: (headerContext, headerConstraints) {
+                  final availableWidth = headerConstraints.maxWidth;
+                  return Container(
+                    key: view._headerKey,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        SizedBox(
+                          width: 210,
+                          height: 210,
+                          child: _buildArtwork(context),
+                        ),
+                        const SizedBox(width: 22),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                           Text(
                             title,
                             style: const TextStyle(
@@ -4956,62 +5060,40 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ],
-                          const SizedBox(height: 16),
-                          _buildDesktopPlaybackRow(),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            CupertinoIcons.share,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          onPressed: view._showShareDialog,
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            CupertinoIcons.pencil,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          onPressed: view._showEditDialog,
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            CupertinoIcons.arrow_down_to_line,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          onPressed: view._isLoading ? null : view._downloadAll,
-                        ),
-                        Builder(
-                          builder: (buttonContext) => IconButton(
-                            icon: Icon(
-                              CupertinoIcons.ellipsis,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            onPressed: () => view._showListContextMenu(
-                              anchorContext: buttonContext,
-                            ),
+                              const SizedBox(height: 16),
+                              _buildDesktopPlaybackRow(
+                                availableWidth: availableWidth,
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
               const SizedBox(height: 26),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: view._buildListHeaderContent(
-                  visualStyle: _ListVisualStyle.apple,
-                ),
-              ),
-              const SizedBox(height: 8),
-              view._buildSongList(
-                isMobile: false,
-                visualStyle: _ListVisualStyle.apple,
+              LayoutBuilder(
+                builder: (layoutContext, constraints) {
+                  final availableWidth = constraints.maxWidth;
+                  return Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: view._buildListHeaderContent(
+                          visualStyle: _ListVisualStyle.apple,
+                          availableWidth: availableWidth,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      view._buildSongList(
+                        isMobile: false,
+                        visualStyle: _ListVisualStyle.apple,
+                        availableWidth: availableWidth,
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 12),
               view._buildRecommendedSection(
@@ -5182,59 +5264,123 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
     );
   }
 
-  Widget _buildDesktopPlaybackRow() {
+  Widget _buildDesktopPlaybackRow({required double availableWidth}) {
     return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
         final isPlayingList =
             view._isCurrentListPlaying(player) && player.isPlaying;
-        return Row(
-          children: [
-            FilledButton.icon(
-              onPressed: view._items.isEmpty
-                  ? null
-                  : () {
-                      if (view._isCurrentListPlaying(player)) {
-                        player.togglePlayPause();
-                      } else {
-                        view._playFromStart();
-                      }
-                    },
-              icon: Icon(
-                isPlayingList
-                    ? CupertinoIcons.pause_fill
-                    : CupertinoIcons.play_fill,
-              ),
-              label: Text(isPlayingList ? 'Pause' : 'Play'),
+        final useCompactControls = availableWidth < 625;
+
+        Widget buildPlaybackButton({
+          required VoidCallback? onPressed,
+          required IconData icon,
+          required String label,
+          required bool isPrimary,
+        }) {
+          if (useCompactControls) {
+            return FilledButton(
+              onPressed: onPressed,
               style: FilledButton.styleFrom(
-                enabledMouseCursor: SystemMouseCursors.click,
-                disabledMouseCursor: SystemMouseCursors.basic,
-                minimumSize: const Size(118, 40),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(40, 40),
+                padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(6),
                 ),
+              ),
+              child: Icon(icon, size: 20),
+            );
+          }
+
+          return FilledButton.icon(
+            onPressed: onPressed,
+            icon: Icon(icon),
+            label: Text(label),
+            style: FilledButton.styleFrom(
+              enabledMouseCursor: SystemMouseCursors.click,
+              disabledMouseCursor: SystemMouseCursors.basic,
+              minimumSize: const Size(118, 40),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
               ),
             ),
-            const SizedBox(width: 10),
-            FilledButton.icon(
-              onPressed: view._items.isEmpty
-                  ? null
-                  : () {
-                      if (view._isCurrentListPlaying(player)) {
-                        view._toggleListShuffle(player);
-                      } else {
-                        view._playFromStart(shuffle: true);
-                      }
-                    },
-              icon: const Icon(CupertinoIcons.shuffle),
-              label: const Text('Shuffle'),
-              style: FilledButton.styleFrom(
-                enabledMouseCursor: SystemMouseCursors.click,
-                disabledMouseCursor: SystemMouseCursors.basic,
-                minimumSize: const Size(118, 40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                buildPlaybackButton(
+                  onPressed: view._items.isEmpty
+                      ? null
+                      : () {
+                          if (view._isCurrentListPlaying(player)) {
+                            player.togglePlayPause();
+                          } else {
+                            view._playFromStart();
+                          }
+                        },
+                  icon: isPlayingList
+                      ? CupertinoIcons.pause_fill
+                      : CupertinoIcons.play_fill,
+                  label: isPlayingList ? 'Pause' : 'Play',
+                  isPrimary: true,
                 ),
-              ),
+                SizedBox(width: useCompactControls ? 6 : 10),
+                buildPlaybackButton(
+                  onPressed: view._items.isEmpty
+                      ? null
+                      : () {
+                          if (view._isCurrentListPlaying(player)) {
+                            view._toggleListShuffle(player);
+                          } else {
+                            view._playFromStart(shuffle: true);
+                          }
+                        },
+                  icon: CupertinoIcons.shuffle,
+                  label: 'Shuffle',
+                  isPrimary: false,
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    CupertinoIcons.share,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  onPressed: view._showShareDialog,
+                ),
+                IconButton(
+                  icon: Icon(
+                    CupertinoIcons.pencil,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  onPressed: view._showEditDialog,
+                ),
+                IconButton(
+                  icon: Icon(
+                    CupertinoIcons.arrow_down_to_line,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  onPressed: view._isLoading ? null : view._downloadAll,
+                ),
+                Builder(
+                  builder: (buttonContext) => IconButton(
+                    icon: Icon(
+                      CupertinoIcons.ellipsis,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    onPressed: () => view._showListContextMenu(
+                      anchorContext: buttonContext,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         );
