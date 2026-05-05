@@ -648,14 +648,24 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final song = _toGenericSong(_recommendedSongs[index]);
     final isCurrentTrack = player.currentTrack?.id == song.id;
     if (isCurrentTrack) {
-      if (player.isPlaying) {
-        player.pause();
-      } else {
-        player.play();
-      }
+      _toggleCurrentTrackPlayback(player);
       return;
     }
     await _playRecommendedAt(index);
+  }
+
+  void _toggleCurrentTrackPlayback(global_audio_player.WispAudioHandler player) {
+    final coordinator = context.read<PlaybackCoordinator>();
+    if (player.isPlaying) {
+      unawaited(coordinator.pause());
+      return;
+    }
+
+    if (player.isLoading || player.isBuffering) {
+      return;
+    }
+
+    unawaited(coordinator.play());
   }
 
   Future<GenericPlaylist> _fetchSpotifyPlaylistWithTracks(
@@ -1913,7 +1923,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         final onPressed = () {
           if (_items.isEmpty) return;
           if (_isCurrentListPlaying(player)) {
-            player.togglePlayPause();
+            _toggleCurrentTrackPlayback(player);
           } else {
             _playFromStart();
           }
@@ -2433,7 +2443,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       onPressed: () {
                         if (!_isLoading) {
                           if (_isCurrentListPlaying(player)) {
-                            player.togglePlayPause();
+                            _toggleCurrentTrackPlayback(player);
                           } else {
                             _playFromStart();
                           }
@@ -2659,7 +2669,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     onPressed: () {
                       if (_items.isEmpty) return;
                       if (isPlayingList) {
-                        player.togglePlayPause();
+                        _toggleCurrentTrackPlayback(player);
                       } else {
                         _playFromStart();
                       }
@@ -3011,11 +3021,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           ? null
                           : () {
                               if (isCurrentTrack) {
-                                if (player.isPlaying) {
-                                  player.pause();
-                                } else {
-                                  player.play();
-                                }
+                                _toggleCurrentTrackPlayback(player);
                               } else {
                                 _playQueueAt(rowIndex);
                               }
@@ -3054,11 +3060,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                         ),
                                         onPressed: () {
                                           if (isCurrentTrack) {
-                                            if (player.isPlaying) {
-                                              player.pause();
-                                            } else {
-                                              player.play();
-                                            }
+                                            _toggleCurrentTrackPlayback(player);
                                           } else {
                                             _playQueueAt(rowIndex);
                                           }
@@ -3123,11 +3125,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                             child: InkWell(
                                               onTap: () {
                                                 if (isCurrentTrack) {
-                                                  if (player.isPlaying) {
-                                                    player.pause();
-                                                  } else {
-                                                    player.play();
-                                                  }
+                                                  _toggleCurrentTrackPlayback(
+                                                    player,
+                                                  );
                                                 } else {
                                                   _playQueueAt(rowIndex);
                                                 }
@@ -3480,11 +3480,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     ? null
                     : () {
                         if (isCurrentTrack) {
-                          if (player.isPlaying) {
-                            player.pause();
-                          } else {
-                            player.play();
-                          }
+                          _toggleCurrentTrackPlayback(player);
                         } else {
                           _playQueueAt(idx);
                         }
@@ -3521,11 +3517,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   ),
                                   onPressed: () {
                                     if (isCurrentTrack) {
-                                      if (player.isPlaying) {
-                                        player.pause();
-                                      } else {
-                                        player.play();
-                                      }
+                                      _toggleCurrentTrackPlayback(player);
                                     } else {
                                       _playQueueAt(idx);
                                     }
@@ -3581,11 +3573,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                       child: InkWell(
                                         onTap: () {
                                           if (isCurrentTrack) {
-                                            if (player.isPlaying) {
-                                              player.pause();
-                                            } else {
-                                              player.play();
-                                            }
+                                            _toggleCurrentTrackPlayback(player);
                                           } else {
                                             _playQueueAt(idx);
                                           }
@@ -5213,7 +5201,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                     ? null
                     : () {
                         if (view._isCurrentListPlaying(player)) {
-                          player.togglePlayPause();
+                          view._toggleCurrentTrackPlayback(player);
                         } else {
                           view._playFromStart();
                         }
@@ -5318,7 +5306,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                       ? null
                       : () {
                           if (view._isCurrentListPlaying(player)) {
-                            player.togglePlayPause();
+                            view._toggleCurrentTrackPlayback(player);
                           } else {
                             view._playFromStart();
                           }

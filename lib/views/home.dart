@@ -2719,11 +2719,14 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                                 ),
                                 onPressed: () {
                                   final player = context.read<WispAudioHandler>();
+                                  final coordinator = context
+                                      .read<PlaybackCoordinator>();
                                   if (widget.isActive) {
                                     if (player.isPlaying) {
-                                      player.pause();
-                                    } else {
-                                      player.play();
+                                      unawaited(coordinator.pause());
+                                    } else if (!player.isLoading &&
+                                        !player.isBuffering) {
+                                      unawaited(coordinator.play());
                                     }
                                     return;
                                   }
@@ -2953,11 +2956,13 @@ class _HoverPlayThumbnailState extends State<_HoverPlayThumbnail> {
                         icon: Icon(icon, color: colorScheme.onPrimary),
                         onPressed: () {
                           final player = context.read<WispAudioHandler>();
+                          final coordinator = context.read<PlaybackCoordinator>();
                           if (widget.isActive) {
                             if (player.isPlaying) {
-                              player.pause();
-                            } else {
-                              player.play();
+                              unawaited(coordinator.pause());
+                            } else if (!player.isLoading &&
+                                !player.isBuffering) {
+                              unawaited(coordinator.play());
                             }
                             return;
                           }

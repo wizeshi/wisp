@@ -74,6 +74,10 @@ class PlaybackCoordinator extends ChangeNotifier {
       return;
     }
 
+    if (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning) {
+      return;
+    }
+
     if (audio.currentTrack != null) {
       await audio.play();
     } else if (audio.queueTracks.isNotEmpty) {

@@ -344,6 +344,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           isPlaying: player.isPlaying,
           isLoading: player.isLoading,
           isBuffering: player.isBuffering,
+          isTransitioning: player.isTrackTransitioning,
           isOnline: player.isOnline,
           currentTrackId: track?.id,
           currentTrackCached: track == null
@@ -360,7 +361,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         final effectiveIsPlaying = context.select<PlaybackCoordinator, bool>(
           (coordinator) => coordinator.effectiveIsPlaying,
         );
-        if (data.isLoading || data.isBuffering) {
+        if (data.isLoading || data.isBuffering || data.isTransitioning) {
           return const SizedBox(
             width: 40,
             height: 40,
@@ -401,10 +402,20 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             };
           } else if (data.currentTrackId != null) {
             onPressed = () {
+              final audio = context.read<global_audio_player.WispAudioHandler>();
+              if (!useHandoffState &&
+                  (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning)) {
+                return;
+              }
               context.read<PlaybackCoordinator>().play();
             };
           } else if (data.queueNotEmpty) {
             onPressed = () {
+              final audio = context.read<global_audio_player.WispAudioHandler>();
+              if (!useHandoffState &&
+                  (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning)) {
+                return;
+              }
               context.read<PlaybackCoordinator>().play();
             };
           }
@@ -1190,6 +1201,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
           isPlaying: player.isPlaying,
           isLoading: player.isLoading,
           isBuffering: player.isBuffering,
+          isTransitioning: player.isTrackTransitioning,
           isOnline: player.isOnline,
           currentTrackId: track?.id,
           currentTrackCached: track == null
@@ -1304,7 +1316,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       (coordinator) => coordinator.effectiveIsPlaying,
     );
 
-    if (data.isLoading || data.isBuffering) {
+        if (data.isLoading || data.isBuffering || data.isTransitioning) {
       return Padding(
         padding: EdgeInsets.all(8),
         child: SizedBox(
@@ -1340,12 +1352,22 @@ class _DesktopPlayPauseButton extends StatelessWidget {
         onPressed = () {
           context.read<PlaybackCoordinator>().pause();
         };
-      } else if (data.currentTrackId != null) {
+          } else if (data.currentTrackId != null) {
         onPressed = () {
+          final audio = context.read<global_audio_player.WispAudioHandler>();
+              if (!useHandoffState &&
+                  (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning)) {
+            return;
+          }
           context.read<PlaybackCoordinator>().play();
         };
       } else if (data.queueNotEmpty) {
         onPressed = () {
+          final audio = context.read<global_audio_player.WispAudioHandler>();
+              if (!useHandoffState &&
+                  (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning)) {
+            return;
+          }
           context.read<PlaybackCoordinator>().play();
         };
       }
@@ -2440,6 +2462,7 @@ class _PlayPauseData {
   final bool isPlaying;
   final bool isLoading;
   final bool isBuffering;
+  final bool isTransitioning;
   final bool isOnline;
   final String? currentTrackId;
   final bool currentTrackCached;
@@ -2452,6 +2475,7 @@ class _PlayPauseData {
     required this.isPlaying,
     required this.isLoading,
     required this.isBuffering,
+    required this.isTransitioning,
     required this.isOnline,
     required this.currentTrackId,
     required this.currentTrackCached,
@@ -2467,6 +2491,7 @@ class _PlayPauseData {
       other.isPlaying == isPlaying &&
       other.isLoading == isLoading &&
       other.isBuffering == isBuffering &&
+      other.isTransitioning == isTransitioning &&
       other.isOnline == isOnline &&
       other.currentTrackId == currentTrackId &&
       other.currentTrackCached == currentTrackCached &&
@@ -2480,6 +2505,7 @@ class _PlayPauseData {
     isPlaying,
     isLoading,
     isBuffering,
+    isTransitioning,
     isOnline,
     currentTrackId,
     currentTrackCached,

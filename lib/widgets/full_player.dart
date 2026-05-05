@@ -1225,7 +1225,6 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       },
     );
   }
-
   Widget _buildPlaybackControls(
     BuildContext context,
     global_audio_player.WispAudioHandler player,
@@ -1333,6 +1332,13 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           if (isPlaying) {
             context.read<PlaybackCoordinator>().pause();
           } else {
+            final audio = context.read<global_audio_player.WispAudioHandler>();
+            if (!useHandoffState &&
+                (audio.isLoading ||
+                    audio.isBuffering ||
+                    audio.isTrackTransitioning)) {
+              return;
+            }
             context.read<PlaybackCoordinator>().play();
           }
         },
@@ -1360,7 +1366,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       return false;
     }
 
-    if (player.isLoading || player.isBuffering) {
+    if (player.isLoading || player.isBuffering || player.isTrackTransitioning) {
       return true;
     }
 
@@ -3824,6 +3830,14 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   if (isPlaying) {
                     context.read<PlaybackCoordinator>().pause();
                   } else {
+                    final audio =
+                        context.read<global_audio_player.WispAudioHandler>();
+                    if (!useHandoffState &&
+                        (audio.isLoading ||
+                            audio.isBuffering ||
+                            audio.isTrackTransitioning)) {
+                      return;
+                    }
                     context.read<PlaybackCoordinator>().play();
                   }
                 },
@@ -4261,6 +4275,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           if (isPlaying) {
             context.read<PlaybackCoordinator>().pause();
           } else {
+            final audio = context.read<global_audio_player.WispAudioHandler>();
+            if (!useHandoffState && (audio.isLoading || audio.isBuffering)) {
+              return;
+            }
             context.read<PlaybackCoordinator>().play();
           }
         },

@@ -1068,10 +1068,15 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     size: 30,
                   ),
                   color: colorScheme.onPrimary,
-                  onPressed: () {
+                  onPressed: () async {
                     if (_isLoading) return;
+                    final coordinator = context.read<PlaybackCoordinator>();
                     if (_isCurrentArtistPlaying(player)) {
-                      player.togglePlayPause();
+                      if (player.isPlaying) {
+                        await coordinator.pause();
+                      } else if (!player.isLoading && !player.isBuffering) {
+                        await coordinator.play();
+                      }
                     } else {
                       _playTopTracks(0);
                     }
@@ -1429,10 +1434,16 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: FilledButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (!_isLoading) {
+                          final coordinator = context.read<PlaybackCoordinator>();
                           if (_isCurrentArtistPlaying(player)) {
-                            player.togglePlayPause();
+                            if (player.isPlaying) {
+                              await coordinator.pause();
+                            } else if (!player.isLoading &&
+                                !player.isBuffering) {
+                              await coordinator.play();
+                            }
                           } else {
                             _playTopTracks(0);
                           }

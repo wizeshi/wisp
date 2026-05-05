@@ -27,5 +27,5 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Improve song transitions:
         - [ ] Add crossfade support, with a slider for the user to choose the duration of the crossfade.
         - [ ] Add proper gapless playback support.
-        - [ ] Improve song loading state: make the player immediately show a loading state and deny any try to play (right now if the user is able to click the button, it just plays the previously loaded song)
+        - [x] Improve song loading state: make the player immediately show a loading state and deny any try to play (right now if the user is able to click the button, it just plays the previously loaded song)
         - [x] Add a transition in the full player when a new song starts, with the old song info (track name, artist, album, cover/canvas, background, lyrics) sliding out and the new song info sliding in. This also applies to skipping songs, going back to previous songs, and any other way a new song starts playing.

@@ -84,6 +84,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   int _trackChangeToken = 0;
   bool _isHandlingCompletion = false;
+  bool _isTrackTransitioning = false;
   final Map<String, _StreamUrlCacheEntry> _streamUrlCache = {};
 
   // Getters
@@ -99,6 +100,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool get isPlaying => _state == PlaybackState.playing;
   bool get isLoading => _state == PlaybackState.loading;
   bool get isBuffering => _state == PlaybackState.loading;
+  bool get isTrackTransitioning => _isTrackTransitioning;
   Duration get position => _player.position;
   Duration get throttledPosition => _lastNotifiedPosition;
   Duration get interpolatedPosition => _getInterpolatedPosition();
@@ -398,6 +400,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
+  void _setTrackTransitioning(bool value) {
+    if (_isTrackTransitioning == value) return;
+    _isTrackTransitioning = value;
+    notifyListeners();
+  }
+
   void _broadcastPlaybackState() {
     try {
       playbackState.add(
@@ -537,6 +545,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final targetPosition = _player.position;
 
     _errorMessage = null;
+    _setTrackTransitioning(true);
     _setState(PlaybackState.loading);
 
     try {
@@ -580,6 +589,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       logger.e('[Audio/Player] Failed to reload current track source', error: e);
       _errorMessage = e.toString();
       _setState(PlaybackState.error);
+    } finally {
+      if (requestToken == _trackChangeToken) {
+        _setTrackTransitioning(false);
+      }
     }
   }
 
@@ -595,6 +608,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _currentIndex = index;
     _currentTrack = track;
     _errorMessage = null;
+    _setTrackTransitioning(true);
     _setState(PlaybackState.loading);
     _updateMediaItem();
 
@@ -633,6 +647,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         if (_state == PlaybackState.error) {
           await _advanceToNext();
         }
+      }
+    } finally {
+      if (requestToken == _trackChangeToken) {
+        _setTrackTransitioning(false);
       }
     }
   }
@@ -964,17 +982,30 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   // AUDIO_SERVICE OVERRIDES
   @override
   Future<void> play() async {
+    if (isLoading || isBuffering || isTrackTransitioning) {
+      logger.d('[Audio/Player] Ignoring play intent while track is loading');
+      return;
+    }
+
     if (_player.audioSource == null && _currentTrack != null) {
+      final requestToken = ++_trackChangeToken;
       _errorMessage = null;
+      _setTrackTransitioning(true);
       _setState(PlaybackState.loading);
       try {
         final source = await _getAudioSource(_currentTrack!);
+        if (requestToken != _trackChangeToken) return;
         if (source == null) return;
         await _player.setAudioSource(source);
+        if (requestToken != _trackChangeToken) return;
       } catch (e) {
         _errorMessage = e.toString();
         _setState(PlaybackState.error);
         return;
+      } finally {
+        if (requestToken == _trackChangeToken) {
+          _setTrackTransitioning(false);
+        }
       }
     }
     await _player.play();
@@ -991,7 +1022,21 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _updateDiscordPresence(force: true);
   }
 
-  Future<void> togglePlayPause() async => isPlaying ? pause() : play();
+  Future<void> togglePlayPause() async {
+    if (isPlaying) {
+      await pause();
+      return;
+    }
+
+    if (isLoading || isBuffering || isTrackTransitioning) {
+      logger.d(
+        '[Audio/Player] Ignoring toggle play intent while track is loading',
+      );
+      return;
+    }
+
+    await play();
+  }
 
   @override
   Future<void> seek(Duration position) async {

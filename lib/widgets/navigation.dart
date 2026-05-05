@@ -213,13 +213,17 @@ class _WispNavigationState extends State<WispNavigation> {
 
   Future<void> _handleSidebarPlay(dynamic resolvedItem) async {
     final player = context.read<WispAudioHandler>();
+    final coordinator = context.read<PlaybackCoordinator>();
     final isActive = _isSidebarItemActive(resolvedItem, player);
 
     if (isActive) {
       if (player.isPlaying) {
-        await player.pause();
+        await coordinator.pause();
       } else {
-        await player.play();
+        if (player.isLoading || player.isBuffering) {
+          return;
+        }
+        await coordinator.play();
       }
       return;
     }
