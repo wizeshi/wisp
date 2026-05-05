@@ -2,6 +2,7 @@
 library;
 
 import 'dart:io' show Platform, File;
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -162,6 +163,12 @@ class LibraryTabViewState extends State<LibraryTabView> {
       context
           .read<LibraryFolderState>()
           .syncPlaylists(context.read<LibraryState>().playlists);
+
+      final preferences = context.read<PreferencesProvider>();
+      final spotify = context.read<SpotifyInternalProvider>();
+      if (preferences.metadataSpotifyEnabled && spotify.isAuthenticated) {
+        unawaited(_refreshPlaylists(policy: MetadataFetchPolicy.refreshAlways));
+      }
     });
 
     _playlistScrollController.addListener(_onPlaylistScroll);
@@ -360,7 +367,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
   }
 
   Future<void> _refreshPlaylists({
-    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
   }) async {
     final likedTemplate = _resolveLikedPlaylistTemplate();
     setState(() {
@@ -372,7 +379,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
   }
 
   Future<void> _refreshAlbums({
-    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
   }) async {
     setState(() {
       _albums = [];
@@ -383,7 +390,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
   }
 
   Future<void> _refreshArtists({
-    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
   }) async {
     setState(() {
       _artists = [];

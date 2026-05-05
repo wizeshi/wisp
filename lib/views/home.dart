@@ -211,7 +211,7 @@ class HomePageState extends State<HomePage> {
         total: spotifyInternal.likedTracksTotalCount ?? cachedLiked.length,
       );
 
-      var userLibrary = await spotifyInternal.getUserLibrary();
+      var userLibrary = await spotifyInternal.getUserLibrary(policy: MetadataFetchPolicy.refreshAlways);
       final userHome = await spotifyInternal.getUserHome(policy: policy);
 
       // Import remote folders
