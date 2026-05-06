@@ -14,6 +14,7 @@ import '../providers/preferences/preferences_provider.dart';
 import '../services/cache_manager.dart';
 import '../services/metadata_cache.dart';
 import '../services/navigation_history.dart';
+import '../services/wisp_audio_handler.dart' as global_audio_player;
 import 'settings_downloads.dart';
 import '../utils/logger.dart';
 
@@ -400,6 +401,7 @@ class _SettingsPageState extends State<SettingsPage> {
       buildProviderCard: _buildProviderCard,
       buildCacheSettingsCard: _buildCacheSettingsCard,
       buildStylePreferenceRow: _buildStylePreferenceRow,
+      buildAudioPreferenceRow: _buildAudioPreferenceRow,
       buildAnimatedCanvasRow: _buildAnimatedCanvasPreferenceRow,
       buildAllowWritingRow: _buildAllowWritingPreferenceRow,
       showSnackBar: _showSnackBar,
@@ -877,6 +879,119 @@ class _SettingsPageState extends State<SettingsPage> {
     await context.read<PreferencesProvider>().setStyle(selected);
   }
 
+  Widget _buildAudioPreferenceRow() {
+    return Consumer<PreferencesProvider>(
+      builder: (context, prefs, child) {
+        final crossfadeEnabled = prefs.crossfadeEnabled;
+        final crossfadeDurationSeconds = prefs.crossfadeDurationSeconds;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF181818),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Gapless Playback',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ),
+                  Switch(
+                    value: prefs.gaplessPlaybackEnabled,
+                    onChanged: (value) async {
+                      await context
+                          .read<PreferencesProvider>()
+                          .setGaplessPlaybackEnabled(value);
+                      await context
+                          .read<global_audio_player.WispAudioHandler>()
+                          .setGaplessPlaybackEnabled(value);
+                    },
+                    activeThumbColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Crossfade',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ),
+                  Switch(
+                    value: crossfadeEnabled,
+                    onChanged: (value) async {
+                      await context
+                          .read<PreferencesProvider>()
+                          .setCrossfadeEnabled(value);
+                      await context
+                          .read<global_audio_player.WispAudioHandler>()
+                          .setCrossfadeEnabled(value);
+                    },
+                    activeThumbColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+              if (crossfadeEnabled) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Text(
+                      'Crossfade Duration',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${crossfadeDurationSeconds.toInt()}s',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: Theme.of(context).colorScheme.primary,
+                    inactiveTrackColor: Colors.grey[800],
+                    thumbColor: Theme.of(context).colorScheme.primary,
+                    overlayColor: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.2),
+                    trackHeight: 4,
+                  ),
+                  child: Slider(
+                    value: crossfadeDurationSeconds.clamp(1.0, 6.0),
+                    min: 1,
+                    max: 6,
+                    divisions: 5,
+                    onChanged: (value) async {
+                      await context
+                          .read<PreferencesProvider>()
+                          .setCrossfadeDurationSeconds(value);
+                      await context
+                          .read<global_audio_player.WispAudioHandler>()
+                          .setCrossfadeDurationSeconds(value);
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildAnimatedCanvasPreferenceRow() {
     return Selector<PreferencesProvider, bool>(
       selector: (context, prefs) => prefs.animatedCanvasEnabled,
@@ -949,6 +1064,7 @@ class SettingsContent extends StatelessWidget {
       buildProviderCard;
   final Widget Function(BuildContext) buildCacheSettingsCard;
   final Widget Function() buildStylePreferenceRow;
+  final Widget Function() buildAudioPreferenceRow;
   final Widget Function() buildAnimatedCanvasRow;
   final Widget Function() buildAllowWritingRow;
   final void Function(String) showSnackBar;
@@ -959,6 +1075,7 @@ class SettingsContent extends StatelessWidget {
     required this.buildProviderCard,
     required this.buildCacheSettingsCard,
     required this.buildStylePreferenceRow,
+    required this.buildAudioPreferenceRow,
     required this.buildAnimatedCanvasRow,
     required this.buildAllowWritingRow,
     required this.showSnackBar,
@@ -1029,6 +1146,18 @@ class SettingsContent extends StatelessWidget {
         buildAnimatedCanvasRow(),
         const SizedBox(height: 16),
         buildAllowWritingRow(),
+        const SizedBox(height: 16),
+        Text(
+          'AUDIO',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[600],
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 16),
+        buildAudioPreferenceRow(),
         const SizedBox(height: 16),
         Text(
           'CACHE',

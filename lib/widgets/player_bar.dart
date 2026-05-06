@@ -1549,7 +1549,7 @@ class _DesktopRightControls extends StatelessWidget {
                 ),
                 SizedBox(width: controlSpacing),
                 Selector<global_audio_player.WispAudioHandler, double>(
-                  selector: (context, player) => player.volume,
+                  selector: (context, player) => player.userVolume,
                   builder: (context, volume, child) {
                     final player = context
                         .read<global_audio_player.WispAudioHandler>();
@@ -2193,7 +2193,7 @@ class _VolumePopupButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Selector<global_audio_player.WispAudioHandler, double>(
-      selector: (context, player) => player.volume,
+      selector: (context, player) => player.userVolume,
       builder: (context, volume, child) {
         return IconButton(
           mouseCursor: SystemMouseCursors.click,
@@ -2292,7 +2292,7 @@ class _VolumeQuickPanel extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 16),
                 child: Selector<global_audio_player.WispAudioHandler, double>(
-                  selector: (context, player) => player.volume,
+                  selector: (context, player) => player.userVolume,
                   builder: (context, volume, child) {
                     final player = context
                         .read<global_audio_player.WispAudioHandler>();

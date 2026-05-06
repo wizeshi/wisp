@@ -9,6 +9,7 @@ import 'package:audio_service/audio_service.dart' as audio_service;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/metadata_models.dart';
@@ -38,11 +39,14 @@ class _StreamUrlCacheEntry {
 
 class WispAudioHandler extends audio_service.BaseAudioHandler
     with ChangeNotifier {
-  final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _primaryPlayer = AudioPlayer();
+  final AudioPlayer _secondaryPlayer = AudioPlayer();
   final YouTubeProvider _youtube = YouTubeProvider();
   final SpotifyAudioProvider _spotifyAudio = SpotifyAudioProvider();
   final SpotifyAudioDecryptor _spotifyDecryptor = const SpotifyAudioDecryptor();
   final Connectivity _connectivity = Connectivity();
+
+  bool _useSecondaryAsActivePlayer = false;
 
   double _lastVolume = 1.0;
   double? _savedVolume;
@@ -57,6 +61,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   RepeatMode _repeatMode = RepeatMode.off;
   bool _isOnline = true;
   String? _errorMessage;
+  bool _gaplessPlaybackEnabled = false;
+  bool _crossfadeEnabled = false;
+  double _crossfadeDurationSeconds = 3.0;
 
   // Playback context
   String? _playbackContextType;
@@ -68,8 +75,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   StreamSubscription? _positionSubscription;
   StreamSubscription? _processingStateSubscription;
   StreamSubscription? _playingSubscription;
+  StreamSubscription? _currentIndexSubscription;
   StreamSubscription? _connectivitySubscription;
   Timer? _rpcTimer;
+  Timer? _crossfadeTimer;
   int _rpcLastSecond = -1;
   Timer? _mprisTimer;
 
@@ -85,6 +94,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   int _trackChangeToken = 0;
   bool _isHandlingCompletion = false;
   bool _isTrackTransitioning = false;
+  bool _crossfadeFadeOutActive = false;
+  bool _crossfadeFadeInActive = false;
+  bool _isCrossfading = false;
+  double _crossfadeTargetVolume = 1.0;
+  int _crossfadePreloadGeneration = 0;
+  int? _preloadedNextIndex;
+  GenericSong? _preloadedNextTrack;
+  static const int _prefetchWindowSize = 5;
+  int _prefetchGeneration = 0;
+  final Map<String, AudioSource> _prefetchedAudioSources = {};
+  final Map<String, Future<AudioSource?>> _prefetchSourceTasks = {};
   final Map<String, _StreamUrlCacheEntry> _streamUrlCache = {};
 
   // Getters
@@ -101,11 +121,21 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool get isLoading => _state == PlaybackState.loading;
   bool get isBuffering => _state == PlaybackState.loading;
   bool get isTrackTransitioning => _isTrackTransitioning;
-  Duration get position => _player.position;
+  bool get gaplessPlaybackEnabled => _gaplessPlaybackEnabled;
+  bool get crossfadeEnabled => _crossfadeEnabled;
+  double get crossfadeDurationSeconds => _crossfadeDurationSeconds;
+    bool get _playlistPlaybackEnabled =>
+      _gaplessPlaybackEnabled || _crossfadeEnabled;
+    AudioPlayer get _player =>
+      _useSecondaryAsActivePlayer ? _secondaryPlayer : _primaryPlayer;
+    AudioPlayer get _inactivePlayer =>
+      _useSecondaryAsActivePlayer ? _primaryPlayer : _secondaryPlayer;
+    Duration get position => _player.position;
   Duration get throttledPosition => _lastNotifiedPosition;
   Duration get interpolatedPosition => _getInterpolatedPosition();
   Duration get duration => _player.duration ?? Duration.zero;
   double get volume => _player.volume;
+  double get userVolume => _savedVolume ?? _lastVolume;
   bool get isOnline => _isOnline;
   String? get errorMessage => _errorMessage;
   String? get playbackContextType => _playbackContextType;
@@ -189,45 +219,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> _init() async {
     await _loadQueue();
     await YouTubeProvider.loadVideoIdCache();
+    _gaplessPlaybackEnabled =
+        await PreferencesProvider.isGaplessPlaybackEnabled();
+    _crossfadeEnabled = await PreferencesProvider.isCrossfadeEnabled();
+    _crossfadeDurationSeconds =
+        await PreferencesProvider.isCrossfadeDurationSeconds();
+    JustAudioMediaKit.prefetchPlaylist = _gaplessPlaybackEnabled;
 
-    _processingStateSubscription = _player.processingStateStream.listen((
-      state,
-    ) {
-      if (state == ProcessingState.completed) {
-        _onCompleted();
-      } else if (state == ProcessingState.loading ||
-          state == ProcessingState.buffering) {
-        _setState(PlaybackState.loading);
-      } else if (state == ProcessingState.ready) {
-        if (_player.playing) {
-          _setState(PlaybackState.playing);
-        } else if (_state != PlaybackState.idle) {
-          _setState(PlaybackState.paused);
-        }
-      }
-      _broadcastPlaybackState();
-    });
-
-    _playingSubscription = _player.playingStream.listen((playing) {
-      final wasPlaying = _state == PlaybackState.playing;
-      if (_player.processingState == ProcessingState.ready) {
-        if (!playing && wasPlaying && _isAtTrackEnd()) {
-          logger.w(
-            '[Audio/Player] Fallback completion trigger: playing=false at track end',
-          );
-          _onCompleted();
-          _broadcastPlaybackState();
-          return;
-        }
-        _setState(playing ? PlaybackState.playing : PlaybackState.paused);
-      }
-      _broadcastPlaybackState();
-    });
-
-    _positionSubscription = _player.positionStream.listen((position) {
-      _handlePositionUpdate(position);
-      _handleRpcPositionTick();
-    });
+    _attachActivePlayerListeners();
+    _scheduleNextTrackPreload();
 
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
       result,
@@ -240,7 +240,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     if (_savedVolume != null) {
       final initialVolume = _savedVolume!.clamp(0.0, 1.0);
-      await _player.setVolume(initialVolume);
+      await _primaryPlayer.setVolume(initialVolume);
+      await _secondaryPlayer.setVolume(initialVolume);
       if (initialVolume > 0) {
         _lastVolume = initialVolume;
       }
@@ -261,6 +262,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   void _handlePositionUpdate(Duration position) {
     _lastRawPosition = position;
+    _updateCrossfadeVolume(position);
+    if (_crossfadeEnabled && !_isCrossfading) {
+      unawaited(_maybeStartCrossfade(position));
+    }
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     _updateMediaSessionPosition(position, nowMs);
     if (nowMs - _lastPositionNotifyMs <
@@ -406,6 +411,334 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     notifyListeners();
   }
 
+  void _attachActivePlayerListeners() {
+    _positionSubscription?.cancel();
+    _processingStateSubscription?.cancel();
+    _playingSubscription?.cancel();
+    _currentIndexSubscription?.cancel();
+
+    _currentIndexSubscription = _player.currentIndexStream.listen((index) {
+      if (!_playlistPlaybackEnabled || !(_player.hasNext || _player.hasPrevious)) {
+        return;
+      }
+      if (index == null || index == _currentIndex) {
+        return;
+      }
+      if (index < 0 || index >= _queue.length) {
+        return;
+      }
+      _currentIndex = index;
+      _currentTrack = _queue[index];
+      _errorMessage = null;
+      _updateMediaItem();
+      _saveQueue();
+      _queueCaching(_currentTrack!);
+      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: index));
+      notifyListeners();
+    });
+
+    _processingStateSubscription = _player.processingStateStream.listen((
+      state,
+    ) {
+      if (state == ProcessingState.completed) {
+        _onCompleted();
+      } else if (state == ProcessingState.loading ||
+          state == ProcessingState.buffering) {
+        _setState(PlaybackState.loading);
+      } else if (state == ProcessingState.ready) {
+        if (_player.playing) {
+          _setState(PlaybackState.playing);
+        } else if (_state != PlaybackState.idle) {
+          _setState(PlaybackState.paused);
+        }
+      }
+      _broadcastPlaybackState();
+    });
+
+    _playingSubscription = _player.playingStream.listen((playing) {
+      final wasPlaying = _state == PlaybackState.playing;
+      if (_player.processingState == ProcessingState.ready) {
+        if (!playing && wasPlaying && _isAtTrackEnd()) {
+          logger.w(
+            '[Audio/Player] Fallback completion trigger: playing=false at track end',
+          );
+          _onCompleted();
+          _broadcastPlaybackState();
+          return;
+        }
+        _setState(playing ? PlaybackState.playing : PlaybackState.paused);
+      }
+      _broadcastPlaybackState();
+    });
+
+    _positionSubscription = _player.positionStream.listen((position) {
+      _handlePositionUpdate(position);
+      _handleRpcPositionTick();
+    });
+  }
+
+  void _invalidateCrossfadePreload() {
+    _crossfadePreloadGeneration++;
+    _preloadedNextIndex = null;
+    _preloadedNextTrack = null;
+  }
+
+  void _invalidatePlaybackPrefetch({bool clearSources = false}) {
+    _prefetchGeneration++;
+    _prefetchSourceTasks.clear();
+    if (clearSources) {
+      _prefetchedAudioSources.clear();
+    }
+  }
+
+  int? _nextQueueIndex() {
+    if (_queue.isEmpty || _currentIndex < 0) {
+      return null;
+    }
+
+    final nextIndex = _currentIndex + 1;
+    if (nextIndex < _queue.length) {
+      return nextIndex;
+    }
+
+    if (_repeatMode == RepeatMode.all) {
+      return 0;
+    }
+
+    return null;
+  }
+
+  Future<void> _scheduleNextTrackPreload({int? token}) async {
+    if (!_crossfadeEnabled || _queue.isEmpty || _currentIndex < 0) {
+      return;
+    }
+
+    final nextIndex = _nextQueueIndex();
+    if (nextIndex == null) {
+      _invalidateCrossfadePreload();
+      return;
+    }
+
+    final generation = token ?? ++_crossfadePreloadGeneration;
+    final nextTrack = _queue[nextIndex];
+    _preloadedNextIndex = nextIndex;
+    _preloadedNextTrack = nextTrack;
+
+    try {
+      final source = await _getAudioSource(nextTrack);
+      if (generation != _crossfadePreloadGeneration ||
+          _preloadedNextIndex != nextIndex) {
+        return;
+      }
+
+      if (source == null) {
+        _invalidateCrossfadePreload();
+        return;
+      }
+
+      await _inactivePlayer.stop();
+      if (generation != _crossfadePreloadGeneration ||
+          _preloadedNextIndex != nextIndex) {
+        return;
+      }
+
+      await _inactivePlayer.setAudioSource(source);
+      await _inactivePlayer.setVolume(0);
+      if (generation != _crossfadePreloadGeneration) {
+        return;
+      }
+    } catch (e) {
+      logger.w('[Audio/Player] Crossfade preload failed', error: e);
+      _invalidateCrossfadePreload();
+      try {
+        await _inactivePlayer.stop();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _cancelCrossfade({bool stopInactive = true}) async {
+    if (!_isCrossfading && !_crossfadeFadeInActive && !_crossfadeFadeOutActive) {
+      return;
+    }
+
+    _stopCrossfadeTimer();
+    _isCrossfading = false;
+    _crossfadeFadeOutActive = false;
+    _crossfadeFadeInActive = false;
+    if (stopInactive) {
+      try {
+        await _inactivePlayer.stop();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _maybeStartCrossfade(Duration position) async {
+    if (!_crossfadeEnabled || _isCrossfading || _currentTrack == null) {
+      return;
+    }
+
+    final trackDuration = _player.duration;
+    if (trackDuration == null || trackDuration <= Duration.zero) {
+      return;
+    }
+
+    final crossfadeWindow = Duration(
+      milliseconds: (_crossfadeDurationSeconds * 1000).round(),
+    );
+    if (trackDuration <= crossfadeWindow) {
+      return;
+    }
+
+    const startLead = Duration(milliseconds: 600);
+
+    final remaining = trackDuration - position;
+    if (remaining > crossfadeWindow + startLead) {
+      return;
+    }
+
+    await _startFadeIn();
+  }
+
+  Future<void> _startFadeIn() async {
+    if (!_crossfadeEnabled || _isCrossfading || _currentTrack == null) {
+      return;
+    }
+
+    final nextIndex = _preloadedNextIndex;
+    final nextTrack = _preloadedNextTrack;
+    if (nextIndex == null || nextTrack == null) {
+      await _scheduleNextTrackPreload();
+      return;
+    }
+
+    if (_inactivePlayer.audioSource == null) {
+      await _scheduleNextTrackPreload();
+      if (_inactivePlayer.audioSource == null) {
+        return;
+      }
+    }
+
+    _isCrossfading = true;
+    _crossfadeFadeOutActive = true;
+    _crossfadeFadeInActive = true;
+    _crossfadeTargetVolume = _player.volume <= 0 ? 1.0 : _player.volume;
+
+    _useSecondaryAsActivePlayer = !_useSecondaryAsActivePlayer;
+    _attachActivePlayerListeners();
+
+    _currentIndex = nextIndex;
+    _currentTrack = nextTrack;
+    _updateMediaItem();
+    _broadcastPlaybackState();
+    _saveQueue();
+    notifyListeners();
+
+    try {
+      await _player.setVolume(0);
+      await _inactivePlayer.setVolume(_crossfadeTargetVolume);
+      await _player.play();
+      _startCrossfadeTimer();
+    } catch (e) {
+      logger.w('[Audio/Player] Failed to start crossfade', error: e);
+      _useSecondaryAsActivePlayer = !_useSecondaryAsActivePlayer;
+      _attachActivePlayerListeners();
+      _isCrossfading = false;
+      _crossfadeFadeOutActive = false;
+      _crossfadeFadeInActive = false;
+      try {
+        await _inactivePlayer.stop();
+      } catch (_) {}
+    }
+  }
+
+  void _startCrossfadeTimer() {
+    _stopCrossfadeTimer();
+
+    final fadeDurationMs =
+        (_crossfadeDurationSeconds * 1000).clamp(1, 6000).toInt();
+    final startTimeMs = DateTime.now().millisecondsSinceEpoch;
+    final targetVolume = _crossfadeTargetVolume <= 0 ? 1.0 : _crossfadeTargetVolume;
+
+    _crossfadeTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (!_isCrossfading) {
+        timer.cancel();
+        return;
+      }
+
+      final elapsedMs = DateTime.now().millisecondsSinceEpoch - startTimeMs;
+      final progress = (elapsedMs / fadeDurationMs).clamp(0.0, 1.0);
+      final curve = progress * (2.0 - progress);
+      final fadeOutVolume = targetVolume * (1.0 - curve);
+      final fadeInVolume = targetVolume * curve;
+
+      unawaited(_inactivePlayer.setVolume(fadeOutVolume.clamp(0.0, 1.0)));
+      unawaited(_player.setVolume(fadeInVolume.clamp(0.0, 1.0)));
+
+      if (progress >= 1.0) {
+        timer.cancel();
+        unawaited(_completeCrossfade());
+      }
+    });
+  }
+
+  Future<void> _completeCrossfade() async {
+    if (!_isCrossfading) {
+      return;
+    }
+
+    _stopCrossfadeTimer();
+    _isCrossfading = false;
+    _crossfadeFadeOutActive = false;
+    _crossfadeFadeInActive = false;
+
+    try {
+      await _inactivePlayer.stop();
+    } catch (_) {}
+
+    _invalidateCrossfadePreload();
+    _broadcastPlaybackState();
+    _ensureRpcTimer();
+    _ensureMprisTimer();
+    _updateDiscordPresence(force: true);
+    notifyListeners();
+    _saveQueue();
+    unawaited(_scheduleNextTrackPreload());
+  }
+
+  Future<void> setGaplessPlaybackEnabled(bool enabled) async {
+    if (_gaplessPlaybackEnabled == enabled) return;
+    _gaplessPlaybackEnabled = enabled;
+    JustAudioMediaKit.prefetchPlaylist =
+        _gaplessPlaybackEnabled || _crossfadeEnabled;
+    if (_gaplessPlaybackEnabled || _crossfadeEnabled) {
+      unawaited(_scheduleNextTrackPreload());
+    } else {
+      _invalidateCrossfadePreload();
+    }
+    notifyListeners();
+  }
+
+  Future<void> setCrossfadeEnabled(bool enabled) async {
+    if (_crossfadeEnabled == enabled) return;
+    _crossfadeEnabled = enabled;
+    JustAudioMediaKit.prefetchPlaylist =
+        _gaplessPlaybackEnabled || _crossfadeEnabled;
+    if (_crossfadeEnabled) {
+      unawaited(_scheduleNextTrackPreload());
+    } else {
+      _stopCrossfadeTimer();
+      _invalidateCrossfadePreload();
+    }
+    notifyListeners();
+  }
+
+  Future<void> setCrossfadeDurationSeconds(double seconds) async {
+    final normalized = seconds.clamp(1.0, 6.0).toDouble();
+    if (_crossfadeDurationSeconds == normalized) return;
+    _crossfadeDurationSeconds = normalized;
+    notifyListeners();
+  }
+
   void _broadcastPlaybackState() {
     try {
       playbackState.add(
@@ -515,12 +848,193 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       if (!_player.playing) {
         _setState(PlaybackState.paused);
       }
+      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: _currentIndex));
+      unawaited(_scheduleNextTrackPreload());
     } catch (e) {
       logger.w('[Audio/Player] Startup prepare failed', error: e);
     }
   }
 
+  Future<List<AudioSource>> _buildPlaylistSources() async {
+    final sources = <AudioSource>[];
+    for (final track in _queue) {
+      final source = await _getAudioSource(track);
+      if (source == null) {
+        throw Exception('Could not get audio source for ${track.title}');
+      }
+      sources.add(source);
+    }
+    return sources;
+  }
+
+  /// Load the current track into the player for gapless/lazy playlist playback
+  Future<AudioSource?> _buildSingleTrackSource(GenericSong track) async {
+    return await _getAudioSource(track);
+  }
+
+  Future<void> _schedulePlaybackPrefetchWindow({int? anchorIndex}) async {
+    if (_queue.isEmpty) return;
+
+    final currentIndex = anchorIndex ?? _currentIndex;
+    if (currentIndex < 0 || currentIndex >= _queue.length) return;
+
+    final generation = _prefetchGeneration;
+    final indices = <int>[];
+    final seen = <int>{};
+
+    for (var offset = 1; offset <= _prefetchWindowSize; offset++) {
+      final nextIndex = _queueIndexAfter(currentIndex, offset);
+      if (nextIndex == null) break;
+      if (nextIndex == currentIndex) continue;
+      if (!seen.add(nextIndex)) continue;
+      indices.add(nextIndex);
+    }
+
+    final keepIds = <String>{
+      for (final index in indices) _queue[index].id,
+    };
+    _prefetchedAudioSources.removeWhere(
+      (trackId, _) => !keepIds.contains(trackId),
+    );
+
+    for (final index in indices) {
+      if (generation != _prefetchGeneration) return;
+      final track = _queue[index];
+      if (_prefetchedAudioSources.containsKey(track.id) ||
+          _prefetchSourceTasks.containsKey(track.id)) {
+        continue;
+      }
+
+      final task = _prefetchTrackSource(track, generation);
+      _prefetchSourceTasks[track.id] = task;
+      final source = await task;
+      _prefetchSourceTasks.remove(track.id);
+      if (generation != _prefetchGeneration) return;
+      if (source != null) {
+        _prefetchedAudioSources[track.id] = source;
+      }
+    }
+  }
+
+  Future<AudioSource?> _prefetchTrackSource(
+    GenericSong track,
+    int generation,
+  ) async {
+    if (!_isOnline) return null;
+
+    try {
+      final source = await _getAudioSource(track, allowPrefetched: false);
+      if (generation != _prefetchGeneration) return null;
+      return source;
+    } catch (e) {
+      logger.w('[Audio/Player] Failed to prefetch track source', error: e);
+      return null;
+    }
+  }
+
+  int? _queueIndexAfter(int index, int offset) {
+    if (_queue.isEmpty || index < 0 || index >= _queue.length) {
+      return null;
+    }
+
+    final nextIndex = index + offset;
+    if (nextIndex < _queue.length) {
+      return nextIndex;
+    }
+
+    if (_repeatMode != RepeatMode.all) {
+      return null;
+    }
+
+    return nextIndex % _queue.length;
+  }
+
+  Future<void> _loadPlaylistPlayback(
+    int index, {
+    required bool play,
+    Duration initialPosition = Duration.zero,
+    int? token,
+  }) async {
+    if (_queue.isEmpty) return;
+
+    final requestToken = token ?? ++_trackChangeToken;
+    final safeIndex = index.clamp(0, _queue.length - 1);
+    final track = _queue[safeIndex];
+
+    _currentIndex = safeIndex;
+    _currentTrack = track;
+    _errorMessage = null;
+    _setTrackTransitioning(true);
+    _setState(PlaybackState.loading);
+    _updateMediaItem();
+
+    try {
+      await _player.stop();
+      if (requestToken != _trackChangeToken) return;
+
+      // Load just the current track to start
+      final currentSource = await _buildSingleTrackSource(track);
+      if (requestToken != _trackChangeToken) return;
+      if (currentSource == null) {
+        throw Exception('Could not get audio source for ${track.title}');
+      }
+
+      _crossfadeFadeOutActive = false;
+      _crossfadeFadeInActive = false;
+      _crossfadeTargetVolume = _lastVolume <= 0 ? 1.0 : _lastVolume;
+      _stopCrossfadeTimer();
+
+      // Set just the current track with lazy preparation enabled
+      await _player.setAudioSources(
+        [currentSource],
+        initialIndex: 0,
+        initialPosition: initialPosition,
+        preload: false, // Load each item just in time
+      );
+      if (requestToken != _trackChangeToken) return;
+
+      await _player.seek(initialPosition);
+      _forcePositionUpdate(initialPosition);
+      if (requestToken != _trackChangeToken) return;
+
+      if (play) {
+        await _player.play();
+        if (requestToken != _trackChangeToken) return;
+        _setState(PlaybackState.playing);
+      } else {
+        _setState(PlaybackState.paused);
+      }
+
+      _broadcastPlaybackState();
+      _ensureRpcTimer();
+      if (play) {
+        _ensureMprisTimer();
+      } else {
+        _stopMprisTimer();
+      }
+      _updateDiscordPresence(force: true);
+      _saveQueue();
+      _queueCaching(track);
+      _invalidateCrossfadePreload();
+      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: safeIndex));
+      unawaited(_scheduleNextTrackPreload(token: requestToken));
+    } catch (e) {
+      logger.e('[Audio/Player] Playlist playback load error', error: e);
+      _errorMessage = e.toString();
+      _setState(PlaybackState.error);
+    } finally {
+      if (requestToken == _trackChangeToken) {
+        _setTrackTransitioning(false);
+      }
+    }
+  }
+
   Future<void> _advanceToNext({int? token}) async {
+    if (_playlistPlaybackEnabled && _player.hasNext) {
+      await _player.seekToNext();
+      return;
+    }
+
     int nextIndex = _currentIndex + 1;
 
     if (nextIndex >= _queue.length) {
@@ -549,6 +1063,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _setState(PlaybackState.loading);
 
     try {
+      if (_playlistPlaybackEnabled) {
+        await _loadPlaylistPlayback(
+          _currentIndex,
+          play: wasPlaying,
+          initialPosition: targetPosition,
+          token: requestToken,
+        );
+        return;
+      }
+
       await _player.stop();
       if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
         return;
@@ -585,6 +1109,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _ensureRpcTimer();
       _ensureMprisTimer();
       _updateDiscordPresence(force: true);
+      _invalidateCrossfadePreload();
+      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: _currentIndex));
+      unawaited(_scheduleNextTrackPreload(token: requestToken));
     } catch (e) {
       logger.e('[Audio/Player] Failed to reload current track source', error: e);
       _errorMessage = e.toString();
@@ -605,14 +1132,24 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       '[Audio/Player] Playing [${index + 1}/${_queue.length}]: ${track.title}',
     );
 
-    _currentIndex = index;
-    _currentTrack = track;
     _errorMessage = null;
     _setTrackTransitioning(true);
     _setState(PlaybackState.loading);
     _updateMediaItem();
 
     try {
+      if (_playlistPlaybackEnabled) {
+        await _loadPlaylistPlayback(
+          index,
+          play: true,
+          token: requestToken,
+        );
+        return;
+      }
+
+      _currentIndex = index;
+      _currentTrack = track;
+
       await _player.stop();
       if (requestToken != _trackChangeToken) return;
 
@@ -632,11 +1169,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await _player.play();
       if (requestToken != _trackChangeToken) return;
 
+      _currentIndex = index;
+      _currentTrack = track;
       _broadcastPlaybackState();
       _ensureRpcTimer();
       _updateDiscordPresence(force: true);
       _saveQueue();
       _queueCaching(track);
+      _invalidateCrossfadePreload();
+      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: index));
+      unawaited(_scheduleNextTrackPreload(token: requestToken));
     } catch (e) {
       logger.e('[Audio/Player] Error', error: e);
       _errorMessage = e.toString();
@@ -655,7 +1197,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
-  Future<AudioSource?> _getAudioSource(GenericSong track) async {
+  Future<AudioSource?> _getAudioSource(
+    GenericSong track, {
+    bool allowPrefetched = true,
+  }) async {
+    if (allowPrefetched) {
+      final prefetched = _prefetchedAudioSources[track.id];
+      if (prefetched != null) {
+        logger.d('[Audio/Player] Using prefetched source');
+        return prefetched;
+      }
+    }
+
     final cacheManager = AudioCacheManager.instance;
     final audioSpotifyEnabled =
         await PreferencesProvider.isAudioSpotifyEnabled();
@@ -993,6 +1546,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _setTrackTransitioning(true);
       _setState(PlaybackState.loading);
       try {
+        if (_playlistPlaybackEnabled) {
+          await _loadPlaylistPlayback(
+            _currentIndex < 0 ? 0 : _currentIndex,
+            play: true,
+            token: requestToken,
+          );
+          return;
+        }
+
         final source = await _getAudioSource(_currentTrack!);
         if (requestToken != _trackChangeToken) return;
         if (source == null) return;
@@ -1012,10 +1574,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _ensureRpcTimer();
     _ensureMprisTimer();
     _updateDiscordPresence(force: true);
+    unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: _currentIndex));
+    unawaited(_scheduleNextTrackPreload());
   }
 
   @override
   Future<void> pause() async {
+    await _cancelCrossfade(stopInactive: false);
+    try {
+      await _inactivePlayer.pause();
+    } catch (_) {}
     await _player.pause();
     _ensureRpcTimer();
     _stopMprisTimer();
@@ -1040,15 +1608,20 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   @override
   Future<void> seek(Duration position) async {
+    await _cancelCrossfade(stopInactive: true);
     await _player.seek(position);
     _forcePositionUpdate(position);
     _ensureRpcTimer();
     _ensureMprisTimer();
     _updateDiscordPresence(force: true);
+    _invalidateCrossfadePreload();
+    unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: _currentIndex));
+    unawaited(_scheduleNextTrackPreload());
   }
 
   Future<void> setVolume(double volume) async {
-    await _player.setVolume(volume);
+    await _primaryPlayer.setVolume(volume);
+    await _secondaryPlayer.setVolume(volume);
     _savedVolume = volume;
     if (volume > 0) {
       _lastVolume = volume;
@@ -1076,13 +1649,52 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   Future<void> skipNext() async {
     if (_queue.isEmpty) return;
+    await _cancelCrossfade(stopInactive: true);
     final token = ++_trackChangeToken;
+    if (_playlistPlaybackEnabled && _player.hasNext) {
+      await _player.seekToNext();
+      // Explicitly update UI state after seek
+      final newIndex = _player.currentIndex;
+      if (newIndex != null && newIndex >= 0 && newIndex < _queue.length) {
+        _currentIndex = newIndex;
+        _currentTrack = _queue[newIndex];
+        _errorMessage = null;
+        _updateMediaItem();
+        _broadcastPlaybackState();
+        _saveQueue();
+        notifyListeners();
+        unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: newIndex));
+      }
+      return;
+    }
     await _advanceToNext(token: token);
   }
 
   Future<void> skipPrevious() async {
     if (_queue.isEmpty) return;
+    await _cancelCrossfade(stopInactive: true);
     final token = ++_trackChangeToken;
+    if (_playlistPlaybackEnabled && _player.hasPrevious) {
+      if (position.inSeconds > 3) {
+        await _player.seek(Duration.zero);
+        return;
+      } else {
+        await _player.seekToPrevious();
+        // Explicitly update UI state after seek
+        final newIndex = _player.currentIndex;
+        if (newIndex != null && newIndex >= 0 && newIndex < _queue.length) {
+          _currentIndex = newIndex;
+          _currentTrack = _queue[newIndex];
+          _errorMessage = null;
+          _updateMediaItem();
+          _broadcastPlaybackState();
+          _saveQueue();
+          unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: newIndex));
+          notifyListeners();
+        }
+      }
+      return;
+    }
     if (position.inSeconds > 3) {
       await _player.seek(Duration.zero);
       return;
@@ -1110,13 +1722,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     switch (repeatMode) {
       case audio_service.AudioServiceRepeatMode.one:
         setRepeatModeUi(RepeatMode.one);
+        await _player.setLoopMode(LoopMode.one);
         break;
       case audio_service.AudioServiceRepeatMode.all:
         setRepeatModeUi(RepeatMode.all);
+        await _player.setLoopMode(LoopMode.all);
         break;
       case audio_service.AudioServiceRepeatMode.none:
       default:
         setRepeatModeUi(RepeatMode.off);
+        await _player.setLoopMode(LoopMode.off);
         break;
     }
   }
@@ -1141,6 +1756,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (addToQueue && !_queue.any((t) => t.id == track.id)) {
       _queue.add(track);
       _broadcastQueue();
+      _invalidatePlaybackPrefetch();
     }
     final index = _queue.indexWhere((t) => t.id == track.id);
     if (index >= 0) {
@@ -1164,6 +1780,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     List<GenericSong>? originalQueue,
   }) async {
     final token = ++_trackChangeToken;
+    _invalidateCrossfadePreload();
+    _invalidatePlaybackPrefetch(clearSources: true);
     _queue = List.from(tracks);
     _originalQueue = originalQueue ?? [];
     _shuffleEnabled = shuffleEnabled;
@@ -1176,6 +1794,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (_queue.isEmpty) {
       _currentIndex = -1;
       _currentTrack = null;
+      _invalidatePlaybackPrefetch(clearSources: true);
       _saveQueue();
       notifyListeners();
       return;
@@ -1196,13 +1815,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _queue.add(track);
     _broadcastQueue();
     _saveQueue();
+    _invalidateCrossfadePreload();
+    _invalidatePlaybackPrefetch();
     notifyListeners();
   }
 
   void removeFromQueue(int index) {
     if (index < 0 || index >= _queue.length) return;
     if (index == _currentIndex) {
-      _player.stop();
+      _primaryPlayer.stop();
+      _secondaryPlayer.stop();
+      _invalidateCrossfadePreload();
+      _invalidatePlaybackPrefetch(clearSources: true);
       _currentTrack = null;
       _currentIndex = -1;
       _setState(PlaybackState.idle);
@@ -1210,9 +1834,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     } else if (index < _currentIndex) {
       _currentIndex--;
     }
+    final removedTrack = _queue[index];
     _queue.removeAt(index);
     _broadcastQueue();
     _saveQueue();
+    _invalidateCrossfadePreload();
+    _prefetchedAudioSources.remove(removedTrack.id);
+    _prefetchSourceTasks.remove(removedTrack.id);
+    _invalidatePlaybackPrefetch();
     notifyListeners();
   }
 
@@ -1220,7 +1849,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _queue.clear();
     _currentIndex = -1;
     _currentTrack = null;
-    _player.stop();
+    _primaryPlayer.stop();
+    _secondaryPlayer.stop();
+    _invalidateCrossfadePreload();
+    _invalidatePlaybackPrefetch(clearSources: true);
     _setState(PlaybackState.idle);
     _broadcastQueue();
     _saveQueue();
@@ -1243,6 +1875,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     _broadcastQueue();
     _saveQueue();
+    _invalidateCrossfadePreload();
+    _invalidatePlaybackPrefetch();
     notifyListeners();
   }
 
@@ -1275,6 +1909,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _broadcastQueue();
     _saveQueue();
     notifyListeners();
+    _invalidateCrossfadePreload();
+    _invalidatePlaybackPrefetch();
     _broadcastPlaybackState();
   }
 
@@ -1292,6 +1928,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _repeatMode = mode;
     _saveQueue();
     notifyListeners();
+    _invalidateCrossfadePreload();
+    _invalidatePlaybackPrefetch();
     _broadcastPlaybackState();
   }
 
@@ -1382,6 +2020,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     String? previousVideoId,
   }) async {
     await removeFromCache(trackId);
+    _prefetchedAudioSources.remove(trackId);
+    _prefetchSourceTasks.remove(trackId);
 
     if (previousVideoId != null && previousVideoId.isNotEmpty) {
       _streamUrlCache.remove(previousVideoId);
@@ -1502,6 +2142,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
+  void _updateCrossfadeVolume(Duration position) {
+    // Stub: crossfade volume transition logic to be implemented
+    // When enabled, will fade out current track and fade in next track
+  }
+
+  void _stopCrossfadeTimer() {
+    _crossfadeTimer?.cancel();
+    _crossfadeTimer = null;
+  }
+
   audio_service.AudioServiceRepeatMode _repeatModeFromString(String value) {
     switch (value) {
       case 'RepeatMode.one':
@@ -1516,7 +2166,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   @override
   Future<void> stop() async {
-    await _player.stop();
+    _stopCrossfadeTimer();
+    await _primaryPlayer.stop();
+    await _secondaryPlayer.stop();
+    _invalidateCrossfadePreload();
     _setState(PlaybackState.idle);
   }
 
@@ -1526,10 +2179,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _positionSubscription?.cancel();
     _processingStateSubscription?.cancel();
     _playingSubscription?.cancel();
+    _currentIndexSubscription?.cancel();
     _connectivitySubscription?.cancel();
+    _stopCrossfadeTimer();
     _stopRpcTimer();
     DiscordRpcService.instance.dispose();
-    _player.dispose();
+    _primaryPlayer.dispose();
+    _secondaryPlayer.dispose();
     _youtube.dispose();
     super.dispose();
   }

@@ -9,6 +9,9 @@ class PreferencesProvider extends ChangeNotifier {
   static const _keyMetadataYouTubeEnabled = 'metadata_youtube_enabled';
   static const _keyAudioSpotifyEnabled = 'audio_spotify_enabled';
   static const _keyAudioYouTubeEnabled = 'audio_youtube_enabled';
+  static const _keyGaplessPlaybackEnabled = 'gapless_playback_enabled';
+  static const _keyCrossfadeEnabled = 'crossfade_enabled';
+  static const _keyCrossfadeDurationSeconds = 'crossfade_duration_seconds';
   static const _keyLyricsLrclibEnabled = 'lyrics_lrclib_enabled';
   static const _keyLyricsSpotifyEnabled = 'lyrics_spotify_enabled';
 
@@ -17,6 +20,9 @@ class PreferencesProvider extends ChangeNotifier {
   static const bool _defaultMetadataYouTubeEnabled = true;
   static const bool _defaultAudioSpotifyEnabled = false;
   static const bool _defaultAudioYouTubeEnabled = true;
+  static const bool _defaultGaplessPlaybackEnabled = true;
+  static const bool _defaultCrossfadeEnabled = false;
+  static const double _defaultCrossfadeDurationSeconds = 3.0;
   static const bool _defaultLyricsLrclibEnabled = true;
   static const bool _defaultLyricsSpotifyEnabled = true;
 
@@ -40,6 +46,15 @@ class PreferencesProvider extends ChangeNotifier {
 
     bool _audioYouTubeEnabled = _defaultAudioYouTubeEnabled;
     bool get audioYouTubeEnabled => _audioYouTubeEnabled;
+
+    bool _gaplessPlaybackEnabled = _defaultGaplessPlaybackEnabled;
+    bool get gaplessPlaybackEnabled => _gaplessPlaybackEnabled;
+
+    bool _crossfadeEnabled = _defaultCrossfadeEnabled;
+    bool get crossfadeEnabled => _crossfadeEnabled;
+
+    double _crossfadeDurationSeconds = _defaultCrossfadeDurationSeconds;
+    double get crossfadeDurationSeconds => _crossfadeDurationSeconds;
 
     bool _lyricsLrclibEnabled = _defaultLyricsLrclibEnabled;
     bool get lyricsLrclibEnabled => _lyricsLrclibEnabled;
@@ -76,6 +91,14 @@ class PreferencesProvider extends ChangeNotifier {
           prefs.getBool(_keyAudioSpotifyEnabled) ?? _defaultAudioSpotifyEnabled;
         _audioYouTubeEnabled =
           prefs.getBool(_keyAudioYouTubeEnabled) ?? _defaultAudioYouTubeEnabled;
+        _gaplessPlaybackEnabled =
+          prefs.getBool(_keyGaplessPlaybackEnabled) ??
+          _defaultGaplessPlaybackEnabled;
+        _crossfadeEnabled =
+          prefs.getBool(_keyCrossfadeEnabled) ?? _defaultCrossfadeEnabled;
+        _crossfadeDurationSeconds =
+          prefs.getDouble(_keyCrossfadeDurationSeconds) ??
+          _defaultCrossfadeDurationSeconds;
         _lyricsLrclibEnabled =
           prefs.getBool(_keyLyricsLrclibEnabled) ??
           _defaultLyricsLrclibEnabled;
@@ -113,6 +136,23 @@ class PreferencesProvider extends ChangeNotifier {
   static Future<bool> isAudioYouTubeEnabled() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_keyAudioYouTubeEnabled) ?? _defaultAudioYouTubeEnabled;
+  }
+
+  static Future<bool> isGaplessPlaybackEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyGaplessPlaybackEnabled) ??
+        _defaultGaplessPlaybackEnabled;
+  }
+
+  static Future<bool> isCrossfadeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyCrossfadeEnabled) ?? _defaultCrossfadeEnabled;
+  }
+
+  static Future<double> isCrossfadeDurationSeconds() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble(_keyCrossfadeDurationSeconds) ??
+        _defaultCrossfadeDurationSeconds;
   }
 
   static Future<bool> isLyricsLrclibEnabled() async {
@@ -200,6 +240,37 @@ class PreferencesProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyAudioYouTubeEnabled, enabled);
+    } catch (_) {}
+  }
+
+  Future<void> setGaplessPlaybackEnabled(bool enabled) async {
+    if (enabled == _gaplessPlaybackEnabled) return;
+    _gaplessPlaybackEnabled = enabled;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyGaplessPlaybackEnabled, enabled);
+    } catch (_) {}
+  }
+
+  Future<void> setCrossfadeEnabled(bool enabled) async {
+    if (enabled == _crossfadeEnabled) return;
+    _crossfadeEnabled = enabled;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyCrossfadeEnabled, enabled);
+    } catch (_) {}
+  }
+
+  Future<void> setCrossfadeDurationSeconds(double seconds) async {
+    final normalized = seconds.clamp(1.0, 6.0).toDouble();
+    if (normalized == _crossfadeDurationSeconds) return;
+    _crossfadeDurationSeconds = normalized;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_keyCrossfadeDurationSeconds, normalized);
     } catch (_) {}
   }
 
