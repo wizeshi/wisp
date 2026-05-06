@@ -523,7 +523,7 @@ class LibraryFolderState extends ChangeNotifier {
     List<T> items,
     List<String> order,
   ) {
-    final idFor = (T item) {
+    String idFor(T item) {
       if (item is PlaylistFolder) return item.id;
       if (item is GenericPlaylist) return item.id;
       return '';

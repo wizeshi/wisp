@@ -296,7 +296,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
       child: InkWell(
         mouseCursor: SystemMouseCursors.click,
         onTap: onPressed,
-        hoverColor: isClose ? Colors.red.withOpacity(0.8) : Colors.grey[800],
+        hoverColor: isClose ? Colors.red.withValues(alpha: 0.8) : Colors.grey[800],
         child: SizedBox(
           width: 48,
           height: 48,
@@ -443,7 +443,7 @@ class _NotificationDropdown extends StatelessWidget {
             border: Border.all(color: Colors.white10),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.35),
+                color: Colors.black.withValues(alpha: 0.35),
                 blurRadius: 18,
                 offset: const Offset(0, 6),
               ),
@@ -504,7 +504,7 @@ class _NotificationDropdown extends StatelessWidget {
                         padding: const EdgeInsets.all(12),
                         shrinkWrap: true,
                         itemCount: items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final item = items[index];
                           final hasProgress =

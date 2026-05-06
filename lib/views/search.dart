@@ -452,7 +452,7 @@ class _SearchViewState extends State<SearchView> {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.04),
+            color: Colors.white.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -555,7 +555,7 @@ class _SearchViewState extends State<SearchView> {
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
               label: Text(
-                '${_labelForTab(tab)}',
+                _labelForTab(tab),
                 style: TextStyle(
                   color: isSelected
                       ? Theme.of(context).colorScheme.onPrimary
@@ -758,7 +758,7 @@ class _SearchViewState extends State<SearchView> {
           if (isPlaying)
             Positioned.fill(
               child: Container(
-                color: Colors.black.withOpacity(0.45),
+                color: Colors.black.withValues(alpha: 0.45),
                 alignment: Alignment.center,
                 child: _AnimatedQuickWaveform(
                   color: Theme.of(context).colorScheme.primary,
@@ -1036,7 +1036,7 @@ class _SearchViewState extends State<SearchView> {
               height: double.infinity,
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.045),
+                color: Colors.white.withValues(alpha: 0.045),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
@@ -1059,7 +1059,7 @@ class _SearchViewState extends State<SearchView> {
                             opacity: _isBestMatchHovered ? 1 : 0,
                             duration: const Duration(milliseconds: 170),
                             child: Container(
-                              color: Colors.black.withOpacity(0.4),
+                              color: Colors.black.withValues(alpha: 0.4),
                             ),
                           ),
                         ],
@@ -1150,7 +1150,7 @@ class _SearchViewState extends State<SearchView> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: isHovered
-                      ? Colors.white.withOpacity(0.085)
+                      ? Colors.white.withValues(alpha: 0.085)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -1173,7 +1173,7 @@ class _SearchViewState extends State<SearchView> {
                               opacity: isHovered ? 1 : 0,
                               duration: const Duration(milliseconds: 130),
                               child: Container(
-                                color: Colors.black.withOpacity(0.45),
+                                color: Colors.black.withValues(alpha: 0.45),
                               ),
                             ),
                             if (isHovered)
@@ -1409,7 +1409,7 @@ class _SearchViewState extends State<SearchView> {
                           end: Alignment.centerRight,
                           colors: [
                             Colors.transparent,
-                            const Color(0xFF121212).withOpacity(0.78),
+                            const Color(0xFF121212).withValues(alpha: 0.78),
                           ],
                         ),
                       ),
@@ -1540,7 +1540,7 @@ class _SearchViewState extends State<SearchView> {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(label, style: TextStyle(color: Colors.grey[400])),
@@ -1842,7 +1842,7 @@ class _ArtworkImage extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: imageUrl,
         fit: BoxFit.cover,
-        errorWidget: (_, __, ___) => Container(
+        errorWidget: (_, _, _) => Container(
           color: Colors.grey[900],
           child: Icon(icon, color: Colors.grey[600]),
         ),
@@ -1943,7 +1943,7 @@ class _MobileResultRow extends StatelessWidget {
           if (isPlaying)
             Positioned.fill(
               child: Container(
-                color: Colors.black.withOpacity(0.45),
+                color: Colors.black.withValues(alpha: 0.45),
                 alignment: Alignment.center,
                 child: _AnimatedQuickWaveform(
                   color: Theme.of(context).colorScheme.primary,
@@ -2164,7 +2164,7 @@ class _RailCardState extends State<_RailCard> {
                                   opacity: _isHovered ? 1 : 0,
                                   duration: const Duration(milliseconds: 150),
                                   child: Container(
-                                    color: Colors.black.withOpacity(0.35),
+                                    color: Colors.black.withValues(alpha: 0.35),
                                   ),
                                 ),
                               ],

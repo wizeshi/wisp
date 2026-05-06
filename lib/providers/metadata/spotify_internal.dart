@@ -2189,8 +2189,9 @@ class SpotifyInternalProvider extends MetadataProvider {
   @override
   Future<void> toggleTrackLike(GenericSong track) async {
     if (track.source != SongSource.spotifyInternal &&
-        track.source != SongSource.spotify)
+        track.source != SongSource.spotify) {
       return;
+    }
     if (!await _isWritingAllowed()) return;
     if (isTrackLiked(track.id)) {
       await unlikeTrack(track);
@@ -2683,8 +2684,9 @@ class SpotifyInternalProvider extends MetadataProvider {
   @override
   Future<void> likeTrack(GenericSong track) async {
     if (track.source != SongSource.spotifyInternal &&
-        track.source != SongSource.spotify)
-      return;
+        track.source != SongSource.spotify) {
+          return;
+    }
     if (!await _isWritingAllowed()) return;
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
@@ -2745,8 +2747,9 @@ class SpotifyInternalProvider extends MetadataProvider {
   @override
   Future<void> unlikeTrack(GenericSong track) async {
     if (track.source != SongSource.spotifyInternal &&
-        track.source != SongSource.spotify)
+        track.source != SongSource.spotify) {
       return;
+    }
     if (!await _isWritingAllowed()) return;
     if (_bearerToken == null || _clientToken == null) {
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
@@ -3266,12 +3269,6 @@ String _randomHex(int length) {
     buffer.write(hex[rand.nextInt(16)]);
   }
   return buffer.toString();
-}
-
-String _normalizeCookie(String cookie) {
-  final trimmed = cookie.trim();
-  if (trimmed.startsWith('sp_dc=')) return trimmed;
-  return 'sp_dc=$trimmed';
 }
 
 http.Client _createHttpClient({required bool allowInsecureSpotifySecretsTls}) {

@@ -470,7 +470,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
               height: 3,
               child: LinearProgressIndicator(
                 value: animatedProgress,
-                backgroundColor: Colors.grey[850]?.withOpacity(0.4),
+                backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
               ),
             );
@@ -520,7 +520,7 @@ class _DesktopPlayerBar extends StatelessWidget {
     ).withLightness(0.6).withSaturation(0.65).toColor();
 
     if (buttonColor.computeLuminance() > 0.5) {
-      buttonColor = buttonColor.withOpacity(0.65);
+      buttonColor = buttonColor.withValues(alpha: 0.65);
     }
 
     final handoffMessage = context.select<ConnectSessionProvider, String?>(
@@ -731,7 +731,7 @@ class _DesktopProgressBar extends StatelessWidget {
                           inactiveTrackColor: Colors.grey[800],
                           thumbColor: Colors.white,
                           overlayColor:
-                              (Theme.of(context).colorScheme.primary).withOpacity(0.2),
+                              (Theme.of(context).colorScheme.primary).withValues(alpha: 0.2),
                         ),
                         child: Slider(
                           value: animatedProgress,
@@ -989,7 +989,7 @@ class DesktopNextUpPreviewOverlay extends StatelessWidget {
           border: Border.all(color: Colors.white10),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.35),
+              color: Colors.black.withValues(alpha: 0.35),
               blurRadius: 10,
               offset: Offset(0, 4),
             ),

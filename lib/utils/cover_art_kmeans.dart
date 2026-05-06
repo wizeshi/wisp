@@ -258,9 +258,9 @@ class CoverArtKMeans {
   }
 
   static double _rgbDistanceSquared(Color a, Color b) {
-    final dr = a.red - b.red;
-    final dg = a.green - b.green;
-    final db = a.blue - b.blue;
+    final dr = ((a.r * 255.0).round().clamp(0, 255)) - ((b.r * 255.0).round().clamp(0, 255));
+    final dg = ((a.g * 255.0).round().clamp(0, 255)) - ((b.g * 255.0).round().clamp(0, 255));
+    final db = ((a.b * 255.0).round().clamp(0, 255)) - ((b.b * 255.0).round().clamp(0, 255));
     return (dr * dr + dg * dg + db * db).toDouble();
   }
 
@@ -327,9 +327,9 @@ class CoverArtKMeans {
 
   static _UnitRgb _toUnitRgb(Color color) {
     return _UnitRgb(
-      color.red / 255.0,
-      color.green / 255.0,
-      color.blue / 255.0,
+      ((color.r * 255.0).round().clamp(0, 255)) / 255.0,
+      ((color.g * 255.0).round().clamp(0, 255)) / 255.0,
+      ((color.b * 255.0).round().clamp(0, 255)) / 255.0,
     );
   }
 

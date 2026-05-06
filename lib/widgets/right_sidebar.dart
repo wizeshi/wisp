@@ -224,7 +224,6 @@ class _NowPlayingCard extends StatelessWidget {
           (prefs) => prefs.animatedCanvasEnabled,
         );
         final libraryState = context.read<LibraryState>();
-        final navState = context.read<NavigationState>();
         final track = data.track;
         final resolvedContextName = _resolvePlaybackContextName(
           data,
@@ -727,54 +726,6 @@ class _TrackArtwork extends StatelessWidget {
   }
 }
 
-class _TrackArtworkWithCanvas extends StatelessWidget {
-  final GenericSong track;
-  final double? width;
-  final double? height;
-
-  const _TrackArtworkWithCanvas({required this.track, this.width, this.height});
-
-  @override
-  Widget build(BuildContext context) {
-    final useCanvas = context.select<PreferencesProvider, bool>(
-      (prefs) => prefs.animatedCanvasEnabled,
-    );
-    final canUseCanvas =
-        useCanvas &&
-        (track.source == SongSource.spotifyInternal ||
-            track.source == SongSource.spotify);
-
-    if (!canUseCanvas) {
-      return _TrackArtwork(
-        url: track.thumbnailUrl,
-        width: width,
-        height: height,
-      );
-    }
-
-    final spotifyInternal = context.read<SpotifyInternalProvider>();
-    return FutureBuilder<String?>(
-      future: spotifyInternal.getCanvasUrl(track.id),
-      builder: (context, snapshot) {
-        final canvasUrl = snapshot.data ?? '';
-        if (canvasUrl.isNotEmpty) {
-          return _CanvasVideo(
-            url: canvasUrl,
-            width: width,
-            height: height,
-            fallbackUrl: track.thumbnailUrl,
-          );
-        }
-        return _TrackArtwork(
-          url: track.thumbnailUrl,
-          width: width,
-          height: height,
-        );
-      },
-    );
-  }
-}
-
 class _CanvasVideo extends StatefulWidget {
   final String url;
   final double? width;
@@ -1008,7 +959,7 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
             child: VideoPlayer(controller),
           ),
         ),
-        Container(color: Colors.black.withOpacity(0.35)),
+        Container(color: Colors.black.withValues(alpha: 0.35)),
       ],
     );
   }
@@ -1681,47 +1632,6 @@ class _QueuePreviewCard extends StatelessWidget {
 
   void _openQueue() {
     AppNavigation.instance.openQueue();
-  }
-}
-
-class _LyricsPreviewLines extends StatelessWidget {
-  final LyricsResult lyrics;
-  final String resetKey;
-
-  const _LyricsPreviewLines({required this.lyrics, required this.resetKey});
-
-  @override
-  Widget build(BuildContext context) {
-    return Selector<PlaybackCoordinator, int>(
-      selector: (context, coordinator) =>
-          coordinator.effectiveThrottledPosition.inMilliseconds,
-      builder: (context, positionMs, child) {
-        final delaySeconds = context.select<LyricsProvider, double>(
-          (provider) => provider.getDelaySecondsCached(resetKey),
-        );
-        final delayMs = (delaySeconds * 1000).round();
-        final adjustedPosition = positionMs - delayMs;
-        final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
-        final previewLines = _getPreviewLines(lyrics, effectivePosition);
-        if (previewLines.isEmpty) {
-          return const Text(
-            'No lyrics found',
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-          );
-        }
-
-        return AnimatedLyricsPreviewList(
-          lines: previewLines,
-          resetKey: resetKey,
-          maxLines: 2,
-          textStyle: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        );
-      },
-    );
   }
 }
 

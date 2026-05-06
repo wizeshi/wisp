@@ -128,7 +128,7 @@ class YtDlpManager {
     final installDir = await _getInstallDir();
     await installDir.create(recursive: true);
 
-    final tempPath = '${installPath}.download';
+    final tempPath = '$installPath.download';
     final tempFile = File(tempPath);
 
     if (await tempFile.exists()) {

@@ -12,8 +12,8 @@ abstract class MetadataProvider extends ChangeNotifier {
   String get name => "base";
 
   // State
-  bool _isAuthenticated = false;
-  bool _isLoading = false;
+  final _isAuthenticated = false;
+  final _isLoading = false;
   String? _errorMessage;
   String? _userDisplayName;
   String? _userId;

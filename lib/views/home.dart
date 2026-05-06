@@ -746,7 +746,7 @@ class HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(8),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -972,7 +972,7 @@ class HomePageState extends State<HomePage> {
           width: 160,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(
@@ -1555,7 +1555,7 @@ class HomePageState extends State<HomePage> {
   Widget _buildTopTracksTable() {
     return Container(
       decoration: BoxDecoration(
-        color: Color(0xFF181818).withOpacity(0.4),
+        color: Color(0xFF181818).withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListView.builder(
@@ -1631,7 +1631,7 @@ class HomePageState extends State<HomePage> {
               decoration: BoxDecoration(
                 color: isEven
                     ? Colors.transparent
-                    : Colors.black.withOpacity(0.1),
+                    : Colors.black.withValues(alpha: 0.1),
               ),
               child: Row(
                 children: [
@@ -1838,7 +1838,7 @@ class HomePageState extends State<HomePage> {
   Widget _buildTopArtistsTable() {
     return Container(
       decoration: BoxDecoration(
-        color: Color(0xFF181818).withOpacity(0.4),
+        color: Color(0xFF181818).withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListView.builder(
@@ -1875,7 +1875,7 @@ class HomePageState extends State<HomePage> {
                   decoration: BoxDecoration(
                     color: isEven
                         ? Colors.transparent
-                        : Colors.black.withOpacity(0.1),
+                        : Colors.black.withValues(alpha: 0.1),
                   ),
                   child: Row(
                     children: [
@@ -2605,7 +2605,7 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
             borderRadius: BorderRadius.circular(8),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -3148,7 +3148,7 @@ class _ScrollArrowButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withOpacity(0.5),
+      color: Colors.black.withValues(alpha: 0.5),
       shape: const CircleBorder(),
       child: IconButton(
         icon: Icon(icon, color: Colors.white),

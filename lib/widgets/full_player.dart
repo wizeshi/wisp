@@ -126,7 +126,7 @@ class _DesktopLyricsPreviewWidget extends StatelessWidget {
         color: bgColor,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: (btnColor ?? Colors.white).withOpacity(0.12),
+          color: (btnColor ?? Colors.white).withValues(alpha: 0.12),
         ),
       ),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
@@ -1191,7 +1191,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                   activeTrackColor: bgColor,
                   inactiveTrackColor: Colors.grey[800],
                   thumbColor: Colors.white,
-                  overlayColor: colorScheme.primary.withOpacity(0.2),
+                  overlayColor: colorScheme.primary.withValues(alpha: 0.2),
                 ),
                 child: Slider(
                   value: animatedProgress,
@@ -1389,7 +1389,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           _buildCanvasVideo(canvasUrl, fallbackUrl),
-          Container(color: Colors.black.withOpacity(0.08)),
+          Container(color: Colors.black.withValues(alpha: 0.08)),
         ],
       ),
     );
@@ -1440,7 +1440,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         Widget buildPlayerScaffold(BuildContext ctx, {String? canvasUrl}) {
           final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
           final content = Container(
-            decoration: BoxDecoration(color: Colors.black.withOpacity(0.45)),
+            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45)),
             child: Padding(
               padding: EdgeInsets.only(top: topInset, bottom: bottomInset),
               child: Column(
@@ -1513,7 +1513,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                   child: ClipRect(
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                      child: Container(color: Colors.black.withOpacity(0.16)),
+                      child: Container(color: Colors.black.withValues(alpha: 0.16)),
                     ),
                   ),
                 ),
@@ -1844,7 +1844,7 @@ class _InlineDelayEditorState extends State<_InlineDelayEditor> {
         ignoring: !widget.visible,
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
+            color: Colors.black.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: Colors.white12),
           ),
@@ -2741,7 +2741,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           width: 13,
           height: 13,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(opacity),
+            color: Colors.white.withValues(alpha: opacity),
             shape: BoxShape.circle,
           ),
         ),
@@ -3079,7 +3079,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                   : CachedNetworkImage(
                                       imageUrl: artistImage,
                                       fit: BoxFit.cover,
-                                      errorWidget: (context, _, __) =>
+                                      errorWidget: (context, _, _) =>
                                           Container(color: Colors.grey[850]),
                                     ),
                             ),
@@ -3222,8 +3222,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }
 
   String _formatLargeNumber(int value) {
-    if (value >= 1000000000)
+    if (value >= 1000000000) {
       return '${(value / 1000000000).toStringAsFixed(1)}B';
+    }
     if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
     if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
     return value.toString();
@@ -4006,8 +4007,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }) {
     final color = selected ? Colors.white : Colors.grey[200]!;
     final background = selected
-        ? activeColor.withOpacity(0.34)
-        : Colors.white.withOpacity(0.13);
+        ? activeColor.withValues(alpha: 0.34)
+        : Colors.white.withValues(alpha: 0.13);
 
     return SizedBox(
       height: 48,
@@ -4016,7 +4017,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           color: background,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: Colors.white.withOpacity(selected ? 0.26 : 0.14),
+            color: Colors.white.withValues(alpha: selected ? 0.26 : 0.14),
             width: 1,
           ),
         ),
@@ -4159,7 +4160,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   activeTrackColor: Colors.grey[300],
                   inactiveTrackColor: Colors.grey[400],
                   thumbColor: Colors.white,
-                  overlayColor: colorScheme.primary.withOpacity(0.2),
+                  overlayColor: colorScheme.primary.withValues(alpha: 0.2),
                 ),
                 child: Slider(
                   value: animatedProgress,
@@ -4602,7 +4603,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
                 return ValueListenableBuilder<bool>(
                   valueListenable: _animatedCanvasTemporarilyDisabledNotifier,
-                  builder: (context, animatedCanvasDisabled, __) {
+                  builder: (context, animatedCanvasDisabled, _) {
                     return ValueListenableBuilder<_ApplePlayerViewMode>(
                       valueListenable: _modeNotifier,
                       builder: (context, mode, _) {
@@ -4653,7 +4654,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                             ),
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.45),
+                            color: Colors.black.withValues(alpha: 0.45),
                           ),
                           child: Padding(
                             padding: EdgeInsets.only(bottom: bottomInset),
@@ -5190,11 +5191,11 @@ class _CoverGradientContainer extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            dominantColor.withOpacity(0.9),
-            dominantColor.withOpacity(0.7),
-            dominantColor.withOpacity(0.5),
-            dominantColor.withOpacity(0.4),
-            Colors.black.withOpacity(0.2),
+            dominantColor.withValues(alpha: 0.9),
+            dominantColor.withValues(alpha: 0.7),
+            dominantColor.withValues(alpha: 0.5),
+            dominantColor.withValues(alpha: 0.4),
+            Colors.black.withValues(alpha: 0.2),
           ],
           stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
         ),
@@ -5250,7 +5251,7 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
 
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A).withOpacity(0.85),
+            color: const Color(0xFF1A1A1A).withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
@@ -5285,7 +5286,7 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
                           fontWeight: FontWeight.w600,
                           shadows: [
                             Shadow(
-                              color: Colors.black.withOpacity(0.4),
+                              color: Colors.black.withValues(alpha: 0.4),
                               blurRadius: 6,
                             ),
                           ],
@@ -6058,8 +6059,8 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withOpacity(0.65),
-                      Colors.black.withOpacity(0.45),
+                      Colors.black.withValues(alpha: 0.65),
+                      Colors.black.withValues(alpha: 0.45),
                     ],
                   ),
           ),
@@ -6364,7 +6365,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
             decoration: BoxDecoration(
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.5),
+                  color: Colors.black.withValues(alpha: 0.5),
                   blurRadius: 36,
                   spreadRadius: -10,
                   offset: const Offset(0, 18),
@@ -6420,7 +6421,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                 _buildDesktopSpotifyCard(
                   title: 'Next in queue',
                   trailing: Icons.queue_music,
-                  background: const Color(0xFF1A1A1A).withOpacity(0.85),
+                  background: const Color(0xFF1A1A1A).withValues(alpha: 0.85),
                   child: Row(
                     children: [
                       ClipRRect(
@@ -6517,7 +6518,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     VoidCallback? onTrailingPressed,
     Color? background,
   }) {
-    final bg = background ?? const Color(0xFF0F0F0F).withOpacity(0.85);
+    final bg = background ?? const Color(0xFF0F0F0F).withValues(alpha: 0.85);
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(

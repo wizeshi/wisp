@@ -275,7 +275,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final headerContext = _headerKey.currentContext;
     if (headerContext == null) return;
     final scrollable = Scrollable.of(headerContext);
-    if (scrollable == null) return;
     final headerBox = headerContext.findRenderObject() as RenderBox?;
     final scrollBox = scrollable.context.findRenderObject() as RenderBox?;
     if (headerBox == null || scrollBox == null) return;
@@ -1920,14 +1919,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             _isCurrentListPlaying(player) && player.isPlaying;
         final colorScheme = Theme.of(context).colorScheme;
         final icon = isPlayingList ? Icons.pause : Icons.play_arrow;
-        final onPressed = () {
+        void onPressed() {
           if (_items.isEmpty) return;
           if (_isCurrentListPlaying(player)) {
             _toggleCurrentTrackPlayback(player);
           } else {
             _playFromStart();
           }
-        };
+        }
 
         final button = useAppleStyle
             ? FilledButton(
@@ -2537,7 +2536,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           hintText: 'Search in list',
                           isDense: true,
                           filled: true,
-                          fillColor: Colors.black.withOpacity(0.4),
+                          fillColor: Colors.black.withValues(alpha: 0.4),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                             borderSide: BorderSide.none,
@@ -2644,7 +2643,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           height: 52,
           margin: barMargin,
           decoration: BoxDecoration(
-            color: _stickyBarColor.withOpacity(0.92),
+            color: _stickyBarColor.withValues(alpha: 0.92),
             borderRadius: BorderRadius.circular(14),
             boxShadow: const [
               BoxShadow(
@@ -3039,7 +3038,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               ? Colors.transparent
                               : (isEven
                                     ? Colors.transparent
-                                    : Colors.black.withOpacity(0.15)),
+                                    : Colors.black.withValues(alpha: 0.15)),
                           borderRadius: isAppleStyle
                               ? BorderRadius.zero
                               : BorderRadius.circular(8),
@@ -3496,7 +3495,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         ? Colors.transparent
                         : (isEven
                               ? Colors.transparent
-                              : Colors.black.withOpacity(0.15)),
+                              : Colors.black.withValues(alpha: 0.15)),
                     borderRadius: isAppleStyle
                         ? BorderRadius.zero
                         : BorderRadius.circular(8),
@@ -4015,7 +4014,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     disabledBackgroundColor: Theme.of(context)
                         .colorScheme
                         .primary
-                        .withOpacity(0.5),
+                        .withValues(alpha: 0.5),
                     disabledForegroundColor: Colors.white70,
                   ),
                   child: _isLoadingRecommendations
@@ -4262,7 +4261,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                                 disabledBackgroundColor: Theme.of(context)
                                                     .colorScheme
                                                     .primary
-                                                    .withOpacity(0.5),
+                                                    .withValues(alpha: 0.5),
                                                 disabledForegroundColor: Colors.white70,
                                               ),
                                               child: isAdded
@@ -4429,32 +4428,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 }
 
-class _StickyActionBarDelegate extends SliverPersistentHeaderDelegate {
-  final Widget child;
-
-  _StickyActionBarDelegate({required this.child});
-
-  @override
-  double get minExtent => 72.0;
-
-  @override
-  double get maxExtent => 72.0;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return child;
-  }
-
-  @override
-  bool shouldRebuild(_StickyActionBarDelegate oldDelegate) {
-    return child != oldDelegate.child;
-  }
-}
-
 class _SpotifyListDetailRenderer extends StatelessWidget {
   final _SharedListDetailViewState view;
   final String title;
@@ -4584,8 +4557,8 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.4),
-                  Colors.black.withOpacity(0.9),
+                  Colors.black.withValues(alpha: 0.4),
+                  Colors.black.withValues(alpha: 0.9),
                 ],
               ),
             ),
@@ -4603,7 +4576,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                     Container(
                       key: view._headerKey,
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
+                        color: Colors.black.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Column(
@@ -4623,7 +4596,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                     const SizedBox(height: 16),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
+                        color: Colors.black.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: LayoutBuilder(
@@ -4755,7 +4728,6 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
       MediaQuery.of(context).size.width - MediaQuery.of(context).padding.top;
     final backgroundProgress =
         view._scrollBackgroundProgress(view._mobileScrollController);
-    final backgroundBlur = 22 + (backgroundProgress * 8);
     final backgroundScale = 1 + (backgroundProgress * 0.10);
     view._setMobileHeaderExtent(expandedHeight);
     view._scheduleStickyBarUpdate(view._mobileScrollController);
@@ -4821,9 +4793,9 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.black.withOpacity(0.4),
+                            Colors.black.withValues(alpha: 0.4),
                             Colors.transparent,
-                            Colors.black.withOpacity(0.6),
+                            Colors.black.withValues(alpha: 0.6),
                             Colors.black,
                           ],
                           stops: const [0.0, 0.25, 0.75, 1.0],
@@ -4933,8 +4905,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.45),
-                  Colors.black.withOpacity(0.78),
+                  Colors.black.withValues(alpha: 0.45),
+                  Colors.black.withValues(alpha: 0.78),
                 ],
               ),
             ),

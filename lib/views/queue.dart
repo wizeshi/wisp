@@ -12,8 +12,6 @@ import '../models/metadata_models.dart';
 import '../services/app_navigation.dart';
 import '../services/playback/playback_coordinator.dart';
 import 'list_detail.dart';
-import '../providers/navigation_state.dart';
-import '../widgets/navigation.dart';
 import '../widgets/entity_context_menus.dart';
 
 class QueueView extends StatefulWidget {
@@ -34,9 +32,6 @@ class QueueView extends StatefulWidget {
 }
 
 class _QueueViewState extends State<QueueView> {
-  NavigationState get _navState => context.read<NavigationState>();
-  LibraryView get _currentLibraryView => _navState.selectedLibraryView;
-  int get _currentNavIndex => _navState.selectedNavIndex;
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
@@ -218,7 +213,7 @@ class _QueueViewState extends State<QueueView> {
         return Material(
           color: Colors.transparent,
           elevation: 4,
-          shadowColor: Colors.black.withOpacity(0.5),
+          shadowColor: Colors.black.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(8),
           child: child,
         );
@@ -279,16 +274,16 @@ class _QueueViewState extends State<QueueView> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: isCurrentTrack
-                  ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
                   : isEven
                   ? Colors.transparent
-                  : Colors.black.withOpacity(0.15),
+                  : Colors.black.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
               border: isCurrentTrack
                   ? Border.all(
                       color: Theme.of(
                         context,
-                      ).colorScheme.primary.withOpacity(0.3),
+                      ).colorScheme.primary.withValues(alpha: 0.3),
                     )
                   : null,
             ),

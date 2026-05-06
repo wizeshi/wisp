@@ -12,7 +12,6 @@ import '../models/library_folder.dart';
 import '../models/metadata_models.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
-import '../providers/metadata/spotify.dart';
 import '../providers/metadata/spotify_internal.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/navigation_history.dart';
@@ -144,7 +143,7 @@ class PlaylistFolderModals {
       _showSyncErrorSnack(context, 'Failed to create on Spotify: $e');
       return;
     }
-    if (linkedId == null || linkedId.isEmpty) {
+    if (linkedId.isEmpty) {
       _showSyncErrorSnack(context, 'Failed to create Spotify playlist.');
       return;
     }

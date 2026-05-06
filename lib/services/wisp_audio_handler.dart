@@ -855,18 +855,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
-  Future<List<AudioSource>> _buildPlaylistSources() async {
-    final sources = <AudioSource>[];
-    for (final track in _queue) {
-      final source = await _getAudioSource(track);
-      if (source == null) {
-        throw Exception('Could not get audio source for ${track.title}');
-      }
-      sources.add(source);
-    }
-    return sources;
-  }
-
   /// Load the current track into the player for gapless/lazy playlist playback
   Future<AudioSource?> _buildSingleTrackSource(GenericSong track) async {
     return await _getAudioSource(track);

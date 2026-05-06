@@ -809,7 +809,7 @@ class _LyricsViewState extends State<LyricsView> {
     return Container(
       decoration: BoxDecoration(
         color: surfaceColor,
-        border: Border(top: BorderSide(color: Colors.black.withOpacity(0.2))),
+        border: Border(top: BorderSide(color: Colors.black.withValues(alpha: 0.2))),
       ),
       child: SafeArea(
         top: false,
@@ -1001,7 +1001,7 @@ class _LyricsViewState extends State<LyricsView> {
                 hintStyle: TextStyle(color: Colors.grey[500], fontSize: 12),
                 isDense: true,
                 filled: true,
-                fillColor: Colors.black.withOpacity(0.35),
+                fillColor: Colors.black.withValues(alpha: 0.35),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 8,
@@ -1091,7 +1091,7 @@ class _LyricsViewState extends State<LyricsView> {
       disabledColor: Colors.grey[600],
       disabledBorderColor: Colors.grey[700],
       selectedColor: Colors.white,
-      fillColor: Colors.black.withOpacity(0.1),
+      fillColor: Colors.black.withValues(alpha: 0.1),
       constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
       children: [
         Icon(
@@ -1123,7 +1123,7 @@ class _LyricsViewState extends State<LyricsView> {
           width: dotSize,
           height: dotSize,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(opacity),
+            color: Colors.white.withValues(alpha: opacity),
             shape: BoxShape.circle,
           ),
         ),

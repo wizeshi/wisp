@@ -88,6 +88,7 @@ dependencies:
   flutter_discord_rpc: ^1.1.0
   audio_service_win: ^0.0.3
   flutter_inappwebview: 6.2.0-beta.3
+  image: ^4.8.0
 
 dev_dependencies:
   flutter_test:

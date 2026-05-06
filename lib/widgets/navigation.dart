@@ -240,7 +240,7 @@ class _WispNavigationState extends State<WispNavigation> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: _isCollapsed ? widget.collapsedWidth : widget.expandedWidth,
-      color: Colors.grey[900]?.withOpacity(0.3),
+      color: Colors.grey[900]?.withValues(alpha: 0.3),
       onEnd: () {
         if (_layoutCollapsed != _isCollapsed) {
           setState(() => _layoutCollapsed = _isCollapsed);
@@ -1155,7 +1155,7 @@ class _SidebarHoverPlayThumbnail extends StatelessWidget {
               child: IgnorePointer(
                 ignoring: !showOverlay,
                 child: Container(
-                  color: Colors.black.withOpacity(0.35),
+                  color: Colors.black.withValues(alpha: 0.35),
                   alignment: Alignment.center,
                   child: IconButton(
                     icon: Icon(icon, color: Colors.white, size: 28),
