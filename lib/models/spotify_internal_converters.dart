@@ -94,6 +94,13 @@ List<Map<String, dynamic>> _extractImageSources(dynamic obj) {
   return [];
 }
 
+dynamic _mapValueAtPath(Map<String, dynamic> map, String key, [String? nestedKey]) {
+  final value = map[key];
+  if (value is! Map<String, dynamic>) return null;
+  if (nestedKey == null) return value;
+  return value[nestedKey];
+}
+
 String? _extractPlaylistDescription(Map<String, dynamic> playlist) {
   final raw = playlist['description'];
   if (raw is String) return raw;
@@ -333,6 +340,156 @@ GenericSimpleUser spotifyInternalOwnerToGeneric(Map<String, dynamic> owner) {
     avatarUrl: _getLargestImage(avatarSources),
     followerCount: o['followers']?['total'] as int?,
     profileUrl: o['external_urls']?['spotify'] as String?,
+  );
+}
+
+String _spotifyInternalUserIdFromUri(String? uri) {
+  if (uri == null || uri.isEmpty) return '';
+  return uri.split(':').last;
+}
+
+GenericSimpleUser spotifyInternalUserToGeneric(Map<String, dynamic> user) {
+  final payload = (user['data'] as Map<String, dynamic>?) ??
+    (user['profile'] as Map<String, dynamic>?) ??
+    user;
+  final uri = payload['uri'] as String? ?? payload['id'] as String? ?? '';
+  final profile = payload['profile'] as Map<String, dynamic>?;
+  final imageUrl =
+    (payload['image_url'] as String?) ??
+      (profile?['image_url'] as String?) ??
+    _getLargestImage(_extractImageSources(payload));
+
+  return GenericSimpleUser(
+    id: _spotifyInternalUserIdFromUri(uri),
+    source: SongSource.spotifyInternal,
+    displayName:
+    (payload['name'] as String?) ??
+        (profile?['name'] as String?) ??
+    (payload['display_name'] as String?) ??
+        'Unknown User',
+    avatarUrl: imageUrl.isNotEmpty ? imageUrl : null,
+  followerCount:
+    payload['followers_count'] as int? ?? payload['follower_count'] as int?,
+  isFollowing: payload['is_following'] as bool?,
+  isFollowed: payload['is_followed'] as bool?,
+  color: payload['color'] as int?,
+    profileUrl: uri.isNotEmpty ? uri : payload['profile_url'] as String?,
+  );
+}
+
+GenericSimplePlaylist spotifyInternalSimplePlaylistToGeneric(
+  Map<String, dynamic> playlist,
+) {
+  final uri = playlist['uri'] as String? ?? playlist['id'] as String? ?? '';
+  final ownerName = playlist['owner_name'] as String?;
+  final ownerUri = playlist['owner_uri'] as String?;
+
+  GenericSimpleUser? owner;
+  if (ownerName != null || ownerUri != null) {
+    owner = GenericSimpleUser(
+      id: _spotifyInternalUserIdFromUri(ownerUri),
+      source: SongSource.spotifyInternal,
+      displayName: ownerName ?? 'Unknown User',
+      avatarUrl: null,
+      followerCount: null,
+      profileUrl: ownerUri,
+    );
+  }
+
+  return GenericSimplePlaylist(
+    id: _spotifyInternalUserIdFromUri(uri),
+    source: SongSource.spotifyInternal,
+    title: playlist['name'] as String? ?? 'Unknown Playlist',
+    thumbnailUrl: playlist['image_url'] as String?,
+    owner: owner,
+    followerCount: playlist['followers_count'] as int?,
+    profileUrl: uri.isNotEmpty ? uri : null,
+  );
+}
+
+GenericUser spotifyInternalUserProfileToGeneric(
+  Map<String, dynamic> profile, {
+  List<GenericSimpleUser> followers = const [],
+  List<GenericSimpleUser> following = const [],
+}) {
+  final uri = profile['uri'] as String? ?? profile['id'] as String? ?? '';
+  final recentArtists =
+      (profile['recently_played_artists'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(spotifyInternalUserToGenericArtist)
+          .toList();
+  final publicPlaylists = (profile['public_playlists'] as List? ?? const [])
+      .whereType<Map<String, dynamic>>()
+      .map(spotifyInternalSimplePlaylistToGeneric)
+      .toList();
+
+  return GenericUser(
+    id: _spotifyInternalUserIdFromUri(uri),
+    source: SongSource.spotifyInternal,
+    displayName:
+        (profile['name'] as String?) ??
+        (profile['display_name'] as String?) ??
+        'Unknown User',
+    avatarUrl:
+        (profile['image_url'] as String?) ??
+        _getLargestImage(_extractImageSources(profile)),
+    followerCount: profile['followers_count'] as int?,
+    followingCount: profile['following_count'] as int?,
+    recentArtists: recentArtists,
+    publicPlaylists: publicPlaylists,
+    followers: followers,
+    following: following,
+  );
+}
+
+List<GenericSimpleUser> spotifyInternalUserListToGeneric(dynamic response) {
+  final root = response is Map<String, dynamic>
+      ? (response['data'] as Map<String, dynamic>?) ?? response
+      : response;
+
+  final candidates = <dynamic>[
+    if (root is Map<String, dynamic>) ...[
+      root['items'],
+      root['profiles'],
+      root['followers'],
+      root['following'],
+      _mapValueAtPath(root, 'users', 'items'),
+      _mapValueAtPath(root, 'profiles', 'items'),
+      _mapValueAtPath(root, 'followers', 'items'),
+      _mapValueAtPath(root, 'following', 'items'),
+    ] else if (root is List) ...[
+      root,
+    ],
+  ];
+
+  List<dynamic> items = const [];
+  for (final candidate in candidates) {
+    if (candidate is List && candidate.isNotEmpty) {
+      items = candidate;
+      break;
+    }
+  }
+
+  return items.whereType<Map<String, dynamic>>().map((item) {
+    final payload = item['data'] as Map<String, dynamic>? ?? item;
+    return spotifyInternalUserToGeneric(payload);
+  }).toList();
+}
+
+GenericSimpleArtist spotifyInternalUserToGenericArtist(
+  Map<String, dynamic> artist,
+) {
+  final uri = artist['uri'] as String? ?? artist['id'] as String? ?? '';
+  final imageUrl =
+      (artist['image_url'] as String?) ??
+      (artist['thumbnail_url'] as String?) ??
+      _getLargestImage(_extractImageSources(artist));
+
+  return GenericSimpleArtist(
+    id: _spotifyInternalUserIdFromUri(uri),
+    source: SongSource.spotifyInternal,
+    name: (artist['name'] as String?) ?? 'Unknown Artist',
+    thumbnailUrl: imageUrl,
   );
 }
 
@@ -1117,7 +1274,9 @@ SearchBestMatch? spotifyInternalSearchBestMatch(Map<String, dynamic> response) {
         return SearchBestMatch.album(spotifyInternalFullAlbumToGeneric(data));
       case 'PlaylistResponseWrapper':
       case 'Playlist':
-        return SearchBestMatch.playlist(spotifyInternalFullPlaylistToGeneric(data));
+        return SearchBestMatch.playlist(
+          spotifyInternalFullPlaylistToGeneric(data),
+        );
     }
   } catch (_) {
     return null;

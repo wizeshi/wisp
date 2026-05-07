@@ -53,24 +53,24 @@ class SearchBestMatch {
   });
 
   const SearchBestMatch.track(GenericSong track)
-      : this._(kind: SearchBestMatchKind.track, track: track);
+    : this._(kind: SearchBestMatchKind.track, track: track);
 
   const SearchBestMatch.artist(GenericSimpleArtist artist)
-      : this._(kind: SearchBestMatchKind.artist, artist: artist);
+    : this._(kind: SearchBestMatchKind.artist, artist: artist);
 
   const SearchBestMatch.album(GenericAlbum album)
-      : this._(kind: SearchBestMatchKind.album, album: album);
+    : this._(kind: SearchBestMatchKind.album, album: album);
 
   const SearchBestMatch.playlist(GenericPlaylist playlist)
-      : this._(kind: SearchBestMatchKind.playlist, playlist: playlist);
+    : this._(kind: SearchBestMatchKind.playlist, playlist: playlist);
 
   Map<String, dynamic> toJson() => {
-        'kind': kind.toJson(),
-        'track': track?.toJson(),
-        'artist': artist?.toJson(),
-        'album': album?.toJson(),
-        'playlist': playlist?.toJson(),
-      };
+    'kind': kind.toJson(),
+    'track': track?.toJson(),
+    'artist': artist?.toJson(),
+    'album': album?.toJson(),
+    'playlist': playlist?.toJson(),
+  };
 
   factory SearchBestMatch.fromJson(Map<String, dynamic> json) {
     final kind = SearchBestMatchKind.fromJson(json['kind'] as String);
@@ -120,12 +120,12 @@ class SearchResults {
   });
 
   Map<String, dynamic> toJson() => {
-        'tracks': tracks.map((t) => t.toJson()).toList(),
-        'artists': artists.map((a) => a.toJson()).toList(),
-        'albums': albums.map((a) => a.toJson()).toList(),
-        'playlists': playlists.map((p) => p.toJson()).toList(),
-        'best_match': bestMatch?.toJson(),
-      };
+    'tracks': tracks.map((t) => t.toJson()).toList(),
+    'artists': artists.map((a) => a.toJson()).toList(),
+    'albums': albums.map((a) => a.toJson()).toList(),
+    'playlists': playlists.map((p) => p.toJson()).toList(),
+    'best_match': bestMatch?.toJson(),
+  };
 
   factory SearchResults.fromJson(Map<String, dynamic> json) {
     final bestMatchJson = json['best_match'] as Map<String, dynamic>?;
@@ -168,11 +168,11 @@ class GenericSimpleArtist {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'source': source.toJson(),
-        'name': name,
-        'thumbnail_url': thumbnailUrl,
-      };
+    'id': id,
+    'source': source.toJson(),
+    'name': name,
+    'thumbnail_url': thumbnailUrl,
+  };
 
   factory GenericSimpleArtist.fromJson(Map<String, dynamic> json) {
     return GenericSimpleArtist(
@@ -218,14 +218,14 @@ class GenericSimpleAlbum {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'source': source.toJson(),
-        'title': title,
-        'thumbnail_url': thumbnailUrl,
-        'artists': artists.map((a) => a.toJson()).toList(),
-        'label': label,
-        'release_date': releaseDate.toIso8601String(),
-      };
+    'id': id,
+    'source': source.toJson(),
+    'title': title,
+    'thumbnail_url': thumbnailUrl,
+    'artists': artists.map((a) => a.toJson()).toList(),
+    'label': label,
+    'release_date': releaseDate.toIso8601String(),
+  };
 
   factory GenericSimpleAlbum.fromJson(Map<String, dynamic> json) {
     return GenericSimpleAlbum(
@@ -275,15 +275,15 @@ class GenericSong {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'source': source.toJson(),
-        'title': title,
-        'artists': artists.map((a) => a.toJson()).toList(),
-        'thumbnail_url': thumbnailUrl,
-        'explicit': explicit,
-        'album': album?.toJson(),
-        'duration_secs': durationSecs,
-      };
+    'id': id,
+    'source': source.toJson(),
+    'title': title,
+    'artists': artists.map((a) => a.toJson()).toList(),
+    'thumbnail_url': thumbnailUrl,
+    'explicit': explicit,
+    'album': album?.toJson(),
+    'duration_secs': durationSecs,
+  };
 
   factory GenericSong.fromJson(Map<String, dynamic> json) {
     return GenericSong(
@@ -344,19 +344,19 @@ class GenericAlbum {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'source': source.toJson(),
-        'title': title,
-        'thumbnail_url': thumbnailUrl,
-        'artists': artists.map((a) => a.toJson()).toList(),
-        'label': label,
-        'release_date': releaseDate.toIso8601String(),
-        'explicit': explicit,
-        'songs': songs?.map((s) => s.toJson()).toList(),
-        'duration_secs': durationSecs,
-        'total': total,
-        'has_more': hasMore,
-      };
+    'id': id,
+    'source': source.toJson(),
+    'title': title,
+    'thumbnail_url': thumbnailUrl,
+    'artists': artists.map((a) => a.toJson()).toList(),
+    'label': label,
+    'release_date': releaseDate.toIso8601String(),
+    'explicit': explicit,
+    'songs': songs?.map((s) => s.toJson()).toList(),
+    'duration_secs': durationSecs,
+    'total': total,
+    'has_more': hasMore,
+  };
 
   factory GenericAlbum.fromJson(Map<String, dynamic> json) {
     return GenericAlbum(
@@ -372,8 +372,8 @@ class GenericAlbum {
       explicit: json['explicit'] as bool,
       songs: json['songs'] != null
           ? (json['songs'] as List)
-              .map((s) => GenericSong.fromJson(s as Map<String, dynamic>))
-              .toList()
+                .map((s) => GenericSong.fromJson(s as Map<String, dynamic>))
+                .toList()
           : null,
       durationSecs: json['duration_secs'] as int,
       total: json['total'] as int?,
@@ -388,6 +388,9 @@ class GenericSimpleUser {
   final String displayName;
   final String? avatarUrl;
   final int? followerCount;
+  final bool? isFollowing;
+  final bool? isFollowed;
+  final int? color;
   final String? profileUrl;
 
   GenericSimpleUser({
@@ -396,17 +399,23 @@ class GenericSimpleUser {
     required this.displayName,
     this.avatarUrl,
     this.followerCount,
+    this.isFollowing,
+    this.isFollowed,
+    this.color,
     this.profileUrl,
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'source': source.toJson(),
-        'display_name': displayName,
-        'avatar_url': avatarUrl,
-        'follower_count': followerCount,
-        'profile_url': profileUrl,
-      };
+    'id': id,
+    'source': source.toJson(),
+    'display_name': displayName,
+    'avatar_url': avatarUrl,
+    'follower_count': followerCount,
+    'is_following': isFollowing,
+    'is_followed': isFollowed,
+    'color': color,
+    'profile_url': profileUrl,
+  };
 
   factory GenericSimpleUser.fromJson(Map<String, dynamic> json) {
     return GenericSimpleUser(
@@ -415,9 +424,176 @@ class GenericSimpleUser {
       displayName: json['display_name'] as String,
       avatarUrl: json['avatar_url'] as String?,
       followerCount: json['follower_count'] as int?,
+      isFollowing: json['is_following'] as bool?,
+      isFollowed: json['is_followed'] as bool?,
+      color: json['color'] as int?,
       profileUrl: json['profile_url'] as String?,
     );
   }
+}
+
+class GenericSimplePlaylist {
+  final String id;
+  final SongSource source;
+  final String title;
+  final String? thumbnailUrl;
+  final GenericSimpleUser? owner;
+  final int? followerCount;
+  final String? profileUrl;
+
+  GenericSimplePlaylist({
+    required this.id,
+    required this.source,
+    required this.title,
+    this.thumbnailUrl,
+    this.owner,
+    this.followerCount,
+    this.profileUrl,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'source': source.toJson(),
+    'title': title,
+    'thumbnail_url': thumbnailUrl,
+    'owner': owner?.toJson(),
+    'follower_count': followerCount,
+    'profile_url': profileUrl,
+  };
+
+  factory GenericSimplePlaylist.fromJson(Map<String, dynamic> json) {
+    return GenericSimplePlaylist(
+      id: json['id'] as String,
+      source: SongSource.fromJson(json['source'] as String),
+      title: json['title'] as String,
+      thumbnailUrl: json['thumbnail_url'] as String?,
+      owner: json['owner'] != null
+          ? GenericSimpleUser.fromJson(json['owner'] as Map<String, dynamic>)
+          : null,
+      followerCount: json['follower_count'] as int?,
+      profileUrl: json['profile_url'] as String?,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GenericSimplePlaylist &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          source == other.source &&
+          title == other.title &&
+          thumbnailUrl == other.thumbnailUrl &&
+          owner == other.owner &&
+          followerCount == other.followerCount &&
+          profileUrl == other.profileUrl;
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      source.hashCode ^
+      title.hashCode ^
+      thumbnailUrl.hashCode ^
+      owner.hashCode ^
+      followerCount.hashCode ^
+      profileUrl.hashCode;
+}
+
+class GenericUser {
+  final String id;
+  final SongSource source;
+  final String displayName;
+  final String? avatarUrl;
+  final int? followerCount;
+  final int? followingCount;
+  final List<GenericSimpleArtist> recentArtists;
+  final List<GenericSimplePlaylist> publicPlaylists;
+  final List<GenericSimpleUser> followers;
+  final List<GenericSimpleUser> following;
+
+  GenericUser({
+    required this.id,
+    required this.source,
+    required this.displayName,
+    this.avatarUrl,
+    this.followerCount,
+    this.followingCount,
+    required this.recentArtists,
+    required this.publicPlaylists,
+    required this.followers,
+    required this.following,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'source': source.toJson(),
+    'display_name': displayName,
+    'avatar_url': avatarUrl,
+    'follower_count': followerCount,
+    'following_count': followingCount,
+    'recent_artists': recentArtists.map((artist) => artist.toJson()).toList(),
+    'public_playlists': publicPlaylists
+        .map((playlist) => playlist.toJson())
+        .toList(),
+    'followers': followers.map((user) => user.toJson()).toList(),
+    'following': following.map((user) => user.toJson()).toList(),
+  };
+
+  factory GenericUser.fromJson(Map<String, dynamic> json) {
+    return GenericUser(
+      id: json['id'] as String,
+      source: SongSource.fromJson(json['source'] as String),
+      displayName: json['display_name'] as String,
+      avatarUrl: json['avatar_url'] as String?,
+      followerCount: json['follower_count'] as int?,
+      followingCount: json['following_count'] as int?,
+      recentArtists: (json['recent_artists'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(GenericSimpleArtist.fromJson)
+          .toList(),
+      publicPlaylists: (json['public_playlists'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(GenericSimplePlaylist.fromJson)
+          .toList(),
+      followers: (json['followers'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(GenericSimpleUser.fromJson)
+          .toList(),
+      following: (json['following'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(GenericSimpleUser.fromJson)
+          .toList(),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GenericUser &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          source == other.source &&
+          displayName == other.displayName &&
+          avatarUrl == other.avatarUrl &&
+          followerCount == other.followerCount &&
+          followingCount == other.followingCount &&
+          recentArtists == other.recentArtists &&
+          publicPlaylists == other.publicPlaylists &&
+          followers == other.followers &&
+          following == other.following;
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      source.hashCode ^
+      displayName.hashCode ^
+      avatarUrl.hashCode ^
+      followerCount.hashCode ^
+      followingCount.hashCode ^
+      recentArtists.hashCode ^
+      publicPlaylists.hashCode ^
+      followers.hashCode ^
+      following.hashCode;
 }
 
 class PlaylistItem {
@@ -448,18 +624,18 @@ class PlaylistItem {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-      'uid': uid,
-        'source': source.toJson(),
-        'title': title,
-        'artists': artists.map((a) => a.toJson()).toList(),
-        'thumbnail_url': thumbnailUrl,
-        'explicit': explicit,
-        'album': album?.toJson(),
-        'duration_secs': durationSecs,
-        'added_at': addedAt.toIso8601String(),
-        'track_number': trackNumber,
-      };
+    'id': id,
+    'uid': uid,
+    'source': source.toJson(),
+    'title': title,
+    'artists': artists.map((a) => a.toJson()).toList(),
+    'thumbnail_url': thumbnailUrl,
+    'explicit': explicit,
+    'album': album?.toJson(),
+    'duration_secs': durationSecs,
+    'added_at': addedAt.toIso8601String(),
+    'track_number': trackNumber,
+  };
 
   factory PlaylistItem.fromJson(Map<String, dynamic> json) {
     return PlaylistItem(
@@ -508,17 +684,17 @@ class GenericPlaylist {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'source': source.toJson(),
-        'title': title,
-        'description': description,
-        'thumbnail_url': thumbnailUrl,
-        'author': author.toJson(),
-        'songs': songs?.map((s) => s.toJson()).toList(),
-        'duration_secs': durationSecs,
-        'total': total,
-        'has_more': hasMore,
-      };
+    'id': id,
+    'source': source.toJson(),
+    'title': title,
+    'description': description,
+    'thumbnail_url': thumbnailUrl,
+    'author': author.toJson(),
+    'songs': songs?.map((s) => s.toJson()).toList(),
+    'duration_secs': durationSecs,
+    'total': total,
+    'has_more': hasMore,
+  };
 
   factory GenericPlaylist.fromJson(Map<String, dynamic> json) {
     return GenericPlaylist(
@@ -527,12 +703,13 @@ class GenericPlaylist {
       title: json['title'] as String,
       description: json['description'] as String?,
       thumbnailUrl: json['thumbnail_url'] as String,
-      author:
-          GenericSimpleUser.fromJson(json['author'] as Map<String, dynamic>),
+      author: GenericSimpleUser.fromJson(
+        json['author'] as Map<String, dynamic>,
+      ),
       songs: json['songs'] != null
           ? (json['songs'] as List)
-              .map((s) => PlaylistItem.fromJson(s as Map<String, dynamic>))
-              .toList()
+                .map((s) => PlaylistItem.fromJson(s as Map<String, dynamic>))
+                .toList()
           : null,
       durationSecs: json['duration_secs'] as int,
       total: json['total'] as int?,
@@ -565,16 +742,16 @@ class GenericArtist {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'source': source.toJson(),
-        'name': name,
-        'thumbnail_url': thumbnailUrl,
-        'monthly_listeners': monthlyListeners,
-        'top_songs': topSongs.map((s) => s.toJson()).toList(),
-        'albums': albums.map((a) => a.toJson()).toList(),
-        'description': description,
-        'followers': followers,
-      };
+    'id': id,
+    'source': source.toJson(),
+    'name': name,
+    'thumbnail_url': thumbnailUrl,
+    'monthly_listeners': monthlyListeners,
+    'top_songs': topSongs.map((s) => s.toJson()).toList(),
+    'albums': albums.map((a) => a.toJson()).toList(),
+    'description': description,
+    'followers': followers,
+  };
 
   factory GenericArtist.fromJson(Map<String, dynamic> json) {
     return GenericArtist(
@@ -613,10 +790,7 @@ class LyricsLine {
   final String content;
   final int startTimeMs;
 
-  const LyricsLine({
-    required this.content,
-    required this.startTimeMs,
-  });
+  const LyricsLine({required this.content, required this.startTimeMs});
 }
 
 class LyricsResult {
@@ -635,7 +809,7 @@ class GenericLibrary {
   final List<GenericAlbum> saved_albums;
   final List<GenericPlaylist> saved_playlists;
   final List<GenericArtist> saved_artists;
-  
+
   final List<dynamic>? all_organized;
   final Map<String, String>? folderAssignments;
 
@@ -645,15 +819,13 @@ class GenericLibrary {
     required this.saved_artists,
     this.all_organized,
     this.folderAssignments,
-   });
+  });
 
   Map<String, dynamic> toJson() => {
     'saved_albums': saved_albums.map((a) => a.toJson()).toList(),
     'saved_playlists': saved_playlists.map((p) => p.toJson()).toList(),
     'saved_artists': saved_artists.map((a) => a.toJson()).toList(),
-    'all_organized': all_organized
-        ?.map(_serializeLibraryItem)
-        .toList(),
+    'all_organized': all_organized?.map(_serializeLibraryItem).toList(),
     'folderAssignments': folderAssignments,
   };
 
@@ -716,7 +888,7 @@ class GenericLibrary {
       all_organized: (json['all_organized'] as List?)
           ?.map(_deserializeLibraryItem)
           .toList(),
-      folderAssignments: json['folderAssignments'] != null 
+      folderAssignments: json['folderAssignments'] != null
           ? Map<String, String>.from(json['folderAssignments'] as Map)
           : null,
     );
@@ -726,9 +898,7 @@ class GenericLibrary {
 class GenericHome {
   final Map<String, List<dynamic>> sections;
 
-  const GenericHome({
-    required this.sections,
-  });
+  const GenericHome({required this.sections});
 
   Map<String, dynamic> toJson() => {
     'sections': sections.map((key, value) => MapEntry(key, value)),
@@ -736,7 +906,9 @@ class GenericHome {
 
   factory GenericHome.fromJson(Map<String, dynamic> json) {
     return GenericHome(
-      sections: (json['sections'] as Map<String, dynamic>).map((key, value) => MapEntry(key, value as List<dynamic>)),
+      sections: (json['sections'] as Map<String, dynamic>).map(
+        (key, value) => MapEntry(key, value as List<dynamic>),
+      ),
     );
   }
 }

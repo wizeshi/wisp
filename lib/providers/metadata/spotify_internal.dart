@@ -502,22 +502,16 @@ class SpotifyInternalProvider extends MetadataProvider {
     );
   }
 
-  Map<String, String> _buildInternalHeaders({String? cookieHeader}) {
+  Map<String, String> _buildInternalHeaders() {
     final headers = {
+      'App-Platform': 'WebPlayer',
       'Authorization': 'Bearer $_bearerToken',
-      'client-token': _clientToken ?? '',
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'Client-Token': _clientToken ?? '',
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
-      'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
-      'Accept-Language': 'en',
+      'Spotify-App-Version': _spotifyAppVersion,
+      'User-Agent': _spotifyUserAgent,
     };
-    if (cookieHeader != null && cookieHeader.isNotEmpty) {
-      headers['Cookie'] = cookieHeader;
-    }
     return headers;
   }
 
@@ -571,6 +565,49 @@ class SpotifyInternalProvider extends MetadataProvider {
       final client = _createSpotifyHttpClient();
       try {
         final response = await client.post(url, headers: headers, body: body);
+
+        if (response.statusCode == 429 ||
+            (response.statusCode >= 500 && response.statusCode <= 504)) {
+          if (retryCount >= maxRetries) {
+            return response;
+          }
+
+          retryCount++;
+          var waitTime = backoffSeconds;
+
+          final retryAfter = response.headers['retry-after'];
+          if (retryAfter != null) {
+            waitTime = int.tryParse(retryAfter) ?? backoffSeconds;
+          }
+
+          logger.w(
+            '[Metadata/Spotify-Internal] Got ${response.statusCode} for $url, retrying in $waitTime seconds (Attempt $retryCount of $maxRetries)',
+          );
+          await Future.delayed(Duration(seconds: waitTime));
+
+          backoffSeconds *= 2;
+          continue;
+        }
+
+        return response;
+      } finally {
+        client.close();
+      }
+    }
+  }
+
+  Future<http.Response> _getWithRetry(
+    Uri url, {
+    required Map<String, String> headers,
+  }) async {
+    const maxRetries = 3;
+    var retryCount = 0;
+    var backoffSeconds = 2;
+
+    while (true) {
+      final client = _createSpotifyHttpClient();
+      try {
+        final response = await client.get(url, headers: headers);
 
         if (response.statusCode == 429 ||
             (response.statusCode >= 500 && response.statusCode <= 504)) {
@@ -1125,8 +1162,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       throw StateError('[Metadata/Spotify-Internal] Missing Spotify tokens');
     }
 
-    final cookieHeader = await _credentialsService.getSpotifyLyricsCookie();
-    final headers = _buildInternalHeaders(cookieHeader: cookieHeader);
+    final headers = _buildInternalHeaders();
 
     final normalizedPlaylistId = _playlistIdFromUri(playlistId);
     final normalizedSkipped = skippedTrackIDs
@@ -2220,8 +2256,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         throw StateError('[Metadata/Spotify-Internal] Missing Spotify user ID');
       }
 
-      final cookieHeader = await _credentialsService.getSpotifyLyricsCookie();
-      final headers = _buildInternalHeaders(cookieHeader: cookieHeader);
+      final headers = _buildInternalHeaders();
 
       final createBody = {
         'ops': [
@@ -2315,8 +2350,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         );
       }
       await _ensureTokens();
-      final cookieHeader = await _credentialsService.getSpotifyLyricsCookie();
-      final headers = _buildInternalHeaders(cookieHeader: cookieHeader);
+      final headers = _buildInternalHeaders();
 
       final body = {
         'deltas': [
@@ -2374,8 +2408,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       if (userId == null || userId.isEmpty) {
         throw StateError('[Metadata/Spotify-Internal] Missing Spotify user ID');
       }
-      final cookieHeader = await _credentialsService.getSpotifyLyricsCookie();
-      final headers = _buildInternalHeaders(cookieHeader: cookieHeader);
+      final headers = _buildInternalHeaders();
 
       final body = {
         'deltas': [
@@ -2681,11 +2714,167 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
   }
 
+  Future<GenericUser> getUserProfile(
+    String userId, {
+    int playlistLimit = 10,
+    int artistLimit = 10,
+    int episodeLimit = 10,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    return _getWithCache(
+      type: 'user_profile',
+      id: userId,
+      policy: policy,
+      fetcher: () async {
+        if (!_isAuthenticated) {
+          throw StateError(
+            '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+          );
+        }
+
+        await _ensureTokens();
+        if (_bearerToken == null || _clientToken == null) {
+          throw StateError(
+            '[Metadata/Spotify-Internal] Missing Spotify tokens',
+          );
+        }
+
+        final normalizedUserId = userId.startsWith('spotify:user:')
+            ? userId.split(':').last
+            : userId;
+
+        final url = Uri.parse(
+          'https://spclient.wg.spotify.com/user-profile-view/v3/profile/$normalizedUserId?playlist_limit=$playlistLimit&artist_limit=$artistLimit&episode_limit=$episodeLimit&market=from_token',
+        );
+        final headers = _buildInternalHeaders();
+
+        final response = await _getWithRetry(url, headers: headers);
+        if (response.statusCode != 200) {
+          throw Exception(
+            '[Metadata/Spotify-Internal] Failed to fetch user profile: '
+            '${response.statusCode} ${response.body}',
+          );
+        }
+
+        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        return spotifyInternalUserProfileToGeneric(
+          jsonResponse['data']?['profile'] as Map<String, dynamic>? ??
+              jsonResponse['profile'] as Map<String, dynamic>? ??
+              jsonResponse,
+        );
+      },
+      toJson: (user) => user.toJson(),
+      fromJson: GenericUser.fromJson,
+    );
+  }
+
+  Future<List<GenericSimpleUser>> getUserFollowers(
+    String userId, {
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    return _getListWithCache(
+      type: 'user_followers',
+      id: userId,
+      policy: policy,
+      fetcher: () async {
+        if (!_isAuthenticated) {
+          throw StateError(
+            '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+          );
+        }
+
+        await _ensureTokens();
+        if (_bearerToken == null || _clientToken == null) {
+          throw StateError(
+            '[Metadata/Spotify-Internal] Missing Spotify tokens',
+          );
+        }
+
+        final normalizedUserId = userId.startsWith('spotify:user:')
+            ? userId.split(':').last
+            : userId;
+        final url = Uri.parse(
+          'https://spclient.wg.spotify.com/user-profile-view/v3/profile/$normalizedUserId/followers?market=from_token',
+        );
+        final headers = _buildInternalHeaders();
+
+        final response = await _getWithRetry(url, headers: headers);
+        if (response.statusCode != 200) {
+          throw Exception(
+            '[Metadata/Spotify-Internal] Failed to fetch user followers: '
+            '${response.statusCode} ${response.body}',
+          );
+        }
+
+        final jsonResponse = jsonDecode(response.body);
+        return spotifyInternalUserListToGeneric(jsonResponse);
+      },
+      itemToJson: (item) => item.toJson(),
+      itemFromJson: GenericSimpleUser.fromJson,
+    );
+  }
+
+  Future<List<GenericSimpleUser>> getUserFollowing(
+    String userId, {
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    return _getListWithCache(
+      type: 'user_following',
+      id: userId,
+      policy: policy,
+      fetcher: () async {
+        if (!_isAuthenticated) {
+          throw StateError(
+            '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+          );
+        }
+
+        await _ensureTokens();
+        if (_bearerToken == null || _clientToken == null) {
+          throw StateError(
+            '[Metadata/Spotify-Internal] Missing Spotify tokens',
+          );
+        }
+
+        final normalizedUserId = userId.startsWith('spotify:user:')
+            ? userId.split(':').last
+            : userId;
+        final url = Uri.parse(
+          'https://spclient.wg.spotify.com/user-profile-view/v3/profile/$normalizedUserId/following?market=from_token',
+        );
+        final headers = _buildInternalHeaders();
+
+        try {
+          final response = await _getWithRetry(url, headers: headers);
+
+          if (response.statusCode != 200) {
+            throw Exception(
+              '[Metadata/Spotify-Internal] Failed to fetch user following: '
+              '${response.statusCode} ${response.body}',
+            );
+          }
+
+            final jsonResponse = jsonDecode(response.body);
+          return spotifyInternalUserListToGeneric(jsonResponse);
+        } catch (e) {
+          logger.w(
+            '[Metadata/Spotify-Internal] User following request failed '
+            '(user=$normalizedUserId)',
+            error: e,
+          );
+          rethrow;
+        }
+      },
+      itemToJson: (item) => item.toJson(),
+      itemFromJson: GenericSimpleUser.fromJson,
+    );
+  }
+
   @override
   Future<void> likeTrack(GenericSong track) async {
     if (track.source != SongSource.spotifyInternal &&
         track.source != SongSource.spotify) {
-          return;
+      return;
     }
     if (!await _isWritingAllowed()) return;
     if (_bearerToken == null || _clientToken == null) {
@@ -3067,7 +3256,7 @@ const _spotifyClientTokenUrl = 'https://clienttoken.spotify.com/v1/clienttoken';
 const _spotifyUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     '(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36';
-const _spotifyAppVersion = "1.2.87.317.g32ca400d";
+const _spotifyAppVersion = "1.2.90.144.g49777e86";
 const _allowInsecureSpotifyTls = bool.fromEnvironment(
   'WISP_ALLOW_INSECURE_SPOTIFY_TLS',
   defaultValue: true,

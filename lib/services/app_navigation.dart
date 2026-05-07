@@ -11,6 +11,7 @@ import '../services/tab_routes.dart';
 import '../views/lyrics.dart';
 import '../views/queue.dart';
 import '../views/artist_detail.dart';
+import '../views/user_detail.dart';
 import '../views/list_detail.dart';
 import '../widgets/full_player.dart';
 
@@ -136,6 +137,26 @@ class AppNavigation {
 
     if (item is GenericSimpleArtist) {
       openArtist(context, artistId: item.id, initialArtist: item);
+      return;
+    }
+
+    if (item is GenericSimpleUser) {
+      openUser(
+        context,
+        userId: item.id,
+        initialUser: GenericUser(
+          id: item.id,
+          source: item.source,
+          displayName: item.displayName,
+          avatarUrl: item.avatarUrl,
+          followerCount: item.followerCount,
+          followingCount: null,
+          recentArtists: const [],
+          publicPlaylists: const [],
+          followers: const [],
+          following: const [],
+        ),
+      );
     }
   }
 
@@ -205,6 +226,26 @@ class AppNavigation {
               initialLibraryView: navState.selectedLibraryView,
               initialNavIndex: navState.selectedNavIndex,
             ),
+      ),
+    );
+  }
+
+  void openUser(
+    BuildContext context, {
+    required String userId,
+    GenericUser? initialUser,
+    UserPageStyle style = UserPageStyle.spotify,
+  }) {
+    _shellNavigator?.push(
+      PageRouteBuilder(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        settings: RouteSettings(name: '/user/$userId'),
+        pageBuilder: (context, animation, secondaryAnimation) => UserDetailView(
+          userId: userId,
+          initialUser: initialUser,
+          style: style,
+        ),
       ),
     );
   }
