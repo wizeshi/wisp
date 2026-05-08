@@ -175,14 +175,12 @@ class _UserDetailViewState extends State<UserDetailView> {
       builder: (context, snapshot) {
         final palette = snapshot.data;
         final dominantColor = palette?.primary ?? const Color(0xFF0F0F0F);
-        final topColor = HSLColor.fromColor(dominantColor)
-            .withLightness(0.60)
-            .withSaturation(0.6)
-            .toColor();
-        final bottomColor = HSLColor.fromColor(dominantColor)
-            .withLightness(0.04)
-            .withSaturation(0.9)
-            .toColor();
+        final topColor = HSLColor.fromColor(
+          dominantColor,
+        ).withLightness(0.60).withSaturation(0.6).toColor();
+        final bottomColor = HSLColor.fromColor(
+          dominantColor,
+        ).withLightness(0.04).withSaturation(0.9).toColor();
 
         final decoratedContent = Stack(
           children: [
@@ -250,40 +248,49 @@ class _UserDetailViewState extends State<UserDetailView> {
 
     if (user.publicPlaylists.isNotEmpty) {
       children.add(const SizedBox(height: 20));
-      children.add(_buildHorizontalSection(
-        title: 'Public Playlists',
-        children: user.publicPlaylists.map(_buildPlaylistCard).toList(growable: false),
-      ));
+      children.add(
+        _buildHorizontalSection(
+          title: 'Public Playlists',
+          children: user.publicPlaylists
+              .map(_buildPlaylistCard)
+              .toList(growable: false),
+        ),
+      );
     }
 
     if (user.recentArtists.isNotEmpty) {
       children.add(const SizedBox(height: 20));
-      children.add(_buildHorizontalSection(
-        title: 'Recently Played Artists',
-        children: user.recentArtists.map(_buildArtistCard).toList(growable: false),
-      ));
+      children.add(
+        _buildHorizontalSection(
+          title: 'Recently Played Artists',
+          children: user.recentArtists
+              .map(_buildArtistCard)
+              .toList(growable: false),
+        ),
+      );
     }
 
     if (user.followers.isNotEmpty) {
       children.add(const SizedBox(height: 20));
-      children.add(_buildHorizontalSection(
-        title: 'Followers',
-        children: user.followers.map(_buildUserCard).toList(growable: false),
-      ));
+      children.add(
+        _buildHorizontalSection(
+          title: 'Followers',
+          children: user.followers.map(_buildUserCard).toList(growable: false),
+        ),
+      );
     }
 
     if (user.following.isNotEmpty) {
       children.add(const SizedBox(height: 20));
-      children.add(_buildHorizontalSection(
-        title: 'Following',
-        children: user.following.map(_buildUserCard).toList(growable: false),
-      ));
+      children.add(
+        _buildHorizontalSection(
+          title: 'Following',
+          children: user.following.map(_buildUserCard).toList(growable: false),
+        ),
+      );
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: children,
-    );
+    return ListView(padding: const EdgeInsets.all(24), children: children);
   }
 
   Widget _buildAppleContent(GenericUser user) {
@@ -292,44 +299,53 @@ class _UserDetailViewState extends State<UserDetailView> {
 
     if (user.publicPlaylists.isNotEmpty) {
       children.add(const SizedBox(height: 18));
-      children.add(_buildHorizontalSection(
-        title: 'Public Playlists',
-        useAppleTitleStyle: true,
-        children: user.publicPlaylists.map(_buildPlaylistCard).toList(growable: false),
-      ));
+      children.add(
+        _buildHorizontalSection(
+          title: 'Public Playlists',
+          useAppleTitleStyle: true,
+          children: user.publicPlaylists
+              .map(_buildPlaylistCard)
+              .toList(growable: false),
+        ),
+      );
     }
 
     if (user.recentArtists.isNotEmpty) {
       children.add(const SizedBox(height: 18));
-      children.add(_buildHorizontalSection(
-        title: 'Recently Played Artists',
-        useAppleTitleStyle: true,
-        children: user.recentArtists.map(_buildArtistCard).toList(growable: false),
-      ));
+      children.add(
+        _buildHorizontalSection(
+          title: 'Recently Played Artists',
+          useAppleTitleStyle: true,
+          children: user.recentArtists
+              .map(_buildArtistCard)
+              .toList(growable: false),
+        ),
+      );
     }
 
     if (user.followers.isNotEmpty) {
       children.add(const SizedBox(height: 18));
-      children.add(_buildHorizontalSection(
-        title: 'Followers',
-        useAppleTitleStyle: true,
-        children: user.followers.map(_buildUserCard).toList(growable: false),
-      ));
+      children.add(
+        _buildHorizontalSection(
+          title: 'Followers',
+          useAppleTitleStyle: true,
+          children: user.followers.map(_buildUserCard).toList(growable: false),
+        ),
+      );
     }
 
     if (user.following.isNotEmpty) {
       children.add(const SizedBox(height: 18));
-      children.add(_buildHorizontalSection(
-        title: 'Following',
-        useAppleTitleStyle: true,
-        children: user.following.map(_buildUserCard).toList(growable: false),
-      ));
+      children.add(
+        _buildHorizontalSection(
+          title: 'Following',
+          useAppleTitleStyle: true,
+          children: user.following.map(_buildUserCard).toList(growable: false),
+        ),
+      );
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: children,
-    );
+    return ListView(padding: const EdgeInsets.all(24), children: children);
   }
 
   Widget _buildHeroCard(GenericUser user, {required bool useAppleChrome}) {
@@ -392,10 +408,7 @@ class _UserDetailViewState extends State<UserDetailView> {
               ),
             ),
             const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _buildFollowButton(),
-            ),
+            Align(alignment: Alignment.centerLeft, child: _buildFollowButton()),
           ],
         ),
       );
@@ -489,37 +502,18 @@ class _UserDetailViewState extends State<UserDetailView> {
     if (children.isEmpty) {
       return const SizedBox.shrink();
     }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Text(
-            title,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: useAppleTitleStyle ? 20 : 20,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        SizedBox(
-          height: 236,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: children.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 12),
-            itemBuilder: (context, index) => children[index],
-          ),
-        ),
-      ],
+    return _HorizontalScrollableSection(
+      title: title,
+      children: children,
+      useAppleTitleStyle: useAppleTitleStyle,
     );
   }
 
   Widget _buildPlaylistCard(GenericSimplePlaylist playlist) {
     final player = context.watch<WispAudioHandler>();
-    final isActive = player.playbackContextType == 'playlist' && player.playbackContextID == playlist.id;
+    final isActive =
+        player.playbackContextType == 'playlist' &&
+        player.playbackContextID == playlist.id;
     final isPlaying = player.isPlaying;
 
     return _buildCard(
@@ -555,11 +549,13 @@ class _UserDetailViewState extends State<UserDetailView> {
           source: playlist.source,
           title: playlist.title,
           thumbnailUrl: playlist.thumbnailUrl ?? '',
-          author: playlist.owner ?? GenericSimpleUser(
-            id: '',
-            source: playlist.source,
-            displayName: '',
-          ),
+          author:
+              playlist.owner ??
+              GenericSimpleUser(
+                id: '',
+                source: playlist.source,
+                displayName: '',
+              ),
           songs: null,
           durationSecs: 0,
         ),
@@ -572,7 +568,9 @@ class _UserDetailViewState extends State<UserDetailView> {
 
   Widget _buildArtistCard(GenericSimpleArtist artist) {
     final player = context.watch<WispAudioHandler>();
-    final isActive = player.playbackContextType == 'artist' && player.playbackContextID == artist.id;
+    final isActive =
+        player.playbackContextType == 'artist' &&
+        player.playbackContextID == artist.id;
     final isPlaying = player.isPlaying;
 
     return _buildCard(
@@ -603,8 +601,8 @@ class _UserDetailViewState extends State<UserDetailView> {
     final subtitle = isArtist
         ? 'Artist'
         : user.isFollowed == true
-            ? 'Follows you'
-            : '${_formatNumber(user.followerCount)} followers';
+        ? 'Follows you'
+        : '${_formatNumber(user.followerCount)} followers';
 
     return _buildCard(
       width: 180,
@@ -638,15 +636,15 @@ class _UserDetailViewState extends State<UserDetailView> {
       onPlay: null,
       onSecondaryTapDown: isArtist
           ? (details) => EntityContextMenus.showArtistMenu(
-                context,
-                artist: GenericSimpleArtist(
-                  id: user.id,
-                  source: user.source,
-                  name: user.displayName,
-                  thumbnailUrl: user.avatarUrl ?? '',
-                ),
-                globalPosition: details.globalPosition,
-              )
+              context,
+              artist: GenericSimpleArtist(
+                id: user.id,
+                source: user.source,
+                name: user.displayName,
+                thumbnailUrl: user.avatarUrl ?? '',
+              ),
+              globalPosition: details.globalPosition,
+            )
           : null,
       isActive: false,
       isPlaying: false,
@@ -829,11 +827,182 @@ class _UserDetailViewState extends State<UserDetailView> {
       fit: BoxFit.cover,
       placeholder: (context, url) => Container(
         color: Colors.grey[800],
-        child: const Center(
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
       errorWidget: (context, url, error) => placeholder,
+    );
+  }
+}
+
+class _HorizontalScrollableSection extends StatefulWidget {
+  final String title;
+  final List<Widget> children;
+  final bool useAppleTitleStyle;
+
+  const _HorizontalScrollableSection({
+    required this.title,
+    required this.children,
+    required this.useAppleTitleStyle,
+  });
+
+  @override
+  State<_HorizontalScrollableSection> createState() =>
+      _HorizontalScrollableSectionState();
+}
+
+class _HorizontalScrollableSectionState
+    extends State<_HorizontalScrollableSection> {
+  final ScrollController _controller = ScrollController();
+  bool _canScrollLeft = false;
+  bool _canScrollRight = false;
+  bool _isHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_updateScrollState);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateScrollState());
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_updateScrollState);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _updateScrollState() {
+    if (!_controller.hasClients) return;
+    final maxExtent = _controller.position.maxScrollExtent;
+    final offset = _controller.offset;
+    final canLeft = offset > 4;
+    final canRight = offset < (maxExtent - 4);
+    if (canLeft == _canScrollLeft && canRight == _canScrollRight) return;
+    setState(() {
+      _canScrollLeft = canLeft;
+      _canScrollRight = canRight;
+    });
+  }
+
+  void _scrollBy(double delta) {
+    if (!_controller.hasClients) return;
+    final target = (_controller.offset + delta).clamp(
+      0.0,
+      _controller.position.maxScrollExtent,
+    );
+    _controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final showArrows = isDesktop && _isHovered;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(
+            widget.title,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: widget.useAppleTitleStyle ? 20 : 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 236,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.basic,
+            onEnter: isDesktop
+                ? (_) => setState(() => _isHovered = true)
+                : null,
+            onExit: isDesktop
+                ? (_) => setState(() => _isHovered = false)
+                : null,
+            child: Stack(
+              children: [
+                ListView.separated(
+                  controller: _controller,
+                  scrollDirection: Axis.horizontal,
+                  itemCount: widget.children.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 12),
+                  itemBuilder: (context, index) => widget.children[index],
+                ),
+                if (_canScrollRight)
+                  Positioned(
+                    top: 0,
+                    bottom: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: 52,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Colors.transparent,
+                              const Color(0xFF121212).withValues(alpha: 0.78),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (showArrows && _canScrollLeft)
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Material(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.chevron_left,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => _scrollBy(-240),
+                          splashRadius: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (showArrows && _canScrollRight)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: Material(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.chevron_right,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => _scrollBy(240),
+                          splashRadius: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -865,7 +1034,9 @@ class _HoverCardState extends State<_HoverCard> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      cursor: widget.onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
+      cursor: widget.onTap == null
+          ? MouseCursor.defer
+          : SystemMouseCursors.click,
       onEnter: (_) {
         if (_isDesktop) setState(() => _hovering = true);
       },
@@ -932,51 +1103,53 @@ class _HoverCardArtwork extends StatelessWidget {
                   errorWidget: (context, url, error) => placeholder,
                 ),
         ),
-        Builder(builder: (context) {
-          if (onPlayPressed == null) return const SizedBox.shrink();
-          final isDesktop =
-              Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-          final icon = isActive && isPlaying ? Icons.pause : Icons.play_arrow;
-          final visible = isDesktop && (showPlayButton || isActive);
-          return Positioned(
-            right: 10,
-            bottom: 10,
-            child: AnimatedOpacity(
-              opacity: visible ? 1 : 0,
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeInOut,
-              child: IgnorePointer(
-                ignoring: !visible,
-                child: Material(
-                  color: Theme.of(context).colorScheme.primary,
-                  shape: const CircleBorder(),
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    iconSize: 22,
-                    icon: Icon(
-                      icon,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                    onPressed: () {
-                      final player = context.read<WispAudioHandler>();
-                      final coordinator = context.read<PlaybackCoordinator>();
-                      if (isActive) {
-                        if (player.isPlaying) {
-                          unawaited(coordinator.pause());
-                        } else if (!player.isLoading && !player.isBuffering) {
-                          unawaited(coordinator.play());
+        Builder(
+          builder: (context) {
+            if (onPlayPressed == null) return const SizedBox.shrink();
+            final isDesktop =
+                Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+            final icon = isActive && isPlaying ? Icons.pause : Icons.play_arrow;
+            final visible = isDesktop && (showPlayButton || isActive);
+            return Positioned(
+              right: 10,
+              bottom: 10,
+              child: AnimatedOpacity(
+                opacity: visible ? 1 : 0,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeInOut,
+                child: IgnorePointer(
+                  ignoring: !visible,
+                  child: Material(
+                    color: Theme.of(context).colorScheme.primary,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      iconSize: 22,
+                      icon: Icon(
+                        icon,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                      onPressed: () {
+                        final player = context.read<WispAudioHandler>();
+                        final coordinator = context.read<PlaybackCoordinator>();
+                        if (isActive) {
+                          if (player.isPlaying) {
+                            unawaited(coordinator.pause());
+                          } else if (!player.isLoading && !player.isBuffering) {
+                            unawaited(coordinator.play());
+                          }
+                          return;
                         }
-                        return;
-                      }
-                      onPlayPressed!();
-                    },
-                    splashRadius: 22,
+                        onPlayPressed!();
+                      },
+                      splashRadius: 22,
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        }),
+            );
+          },
+        ),
       ],
     );
   }

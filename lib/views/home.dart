@@ -211,7 +211,9 @@ class HomePageState extends State<HomePage> {
         total: spotifyInternal.likedTracksTotalCount ?? cachedLiked.length,
       );
 
-      var userLibrary = await spotifyInternal.getUserLibrary(policy: MetadataFetchPolicy.refreshAlways);
+      var userLibrary = await spotifyInternal.getUserLibrary(
+        policy: MetadataFetchPolicy.refreshAlways,
+      );
       final userHome = await spotifyInternal.getUserHome(policy: policy);
 
       // Import remote folders
@@ -809,7 +811,7 @@ class HomePageState extends State<HomePage> {
                       ), */
                     ],
                   ),
-                )
+                ),
               ),
             ],
           ),
@@ -1067,12 +1069,13 @@ class HomePageState extends State<HomePage> {
     final viewWidth = MediaQuery.sizeOf(context).width;
     const minWidthForSpecialCard = 1600.0;
     final canShowSpecialCard = viewWidth >= minWidthForSpecialCard;
-  
+
     final quickRows = _buildDesktopQuickRows();
-    final dynamicEntries = ((quickRows != null)
-            ? _homeSections.entries.skip(1)
-            : _homeSections.entries)
-        .toList(growable: false);
+    final dynamicEntries =
+        ((quickRows != null)
+                ? _homeSections.entries.skip(1)
+                : _homeSections.entries)
+            .toList(growable: false);
 
     final newMusicIndex = dynamicEntries.indexWhere(
       (entry) => entry.key.trim().toLowerCase() == 'new music',
@@ -1081,27 +1084,27 @@ class HomePageState extends State<HomePage> {
         canShowSpecialCard &&
         newMusicIndex >= 0 &&
         dynamicEntries[newMusicIndex].value.isNotEmpty;
-    final rightSectionIndex =
-      (newMusicIndex == 0 && dynamicEntries.length > 1) ? 1 : 0;
+    final rightSectionIndex = (newMusicIndex == 0 && dynamicEntries.length > 1)
+        ? 1
+        : 0;
 
     final firstDynamicSectionCards =
-      (dynamicEntries.isNotEmpty && rightSectionIndex < dynamicEntries.length)
-      ? dynamicEntries[rightSectionIndex].value
+        (dynamicEntries.isNotEmpty && rightSectionIndex < dynamicEntries.length)
+        ? dynamicEntries[rightSectionIndex].value
               .map<Widget?>((item) => _buildHomeCard(item))
               .whereType<Widget>()
               .toList()
         : const <Widget>[];
     final firstDynamicSectionWidget =
         dynamicEntries.isNotEmpty && firstDynamicSectionCards.isNotEmpty
-      ? _buildSection(
-        dynamicEntries[rightSectionIndex].key,
-        firstDynamicSectionCards,
-        showTitle: !shouldShowNewMusicSpecialCard,
-        )
+        ? _buildSection(
+            dynamicEntries[rightSectionIndex].key,
+            firstDynamicSectionCards,
+            showTitle: !shouldShowNewMusicSpecialCard,
+          )
         : null;
 
-    final newMusicSpecialCard =
-      shouldShowNewMusicSpecialCard
+    final newMusicSpecialCard = shouldShowNewMusicSpecialCard
         ? _buildHomeCard(
             dynamicEntries[newMusicIndex].value.first,
             useSpecialCardStyle: true,
@@ -1401,10 +1404,9 @@ class HomePageState extends State<HomePage> {
     if (_homeSections.isEmpty) return const [];
     final widgets = <Widget>[];
 
-    var entries = (skipFirst
-        ? _homeSections.entries.skip(1)
-        : _homeSections.entries)
-        .toList(growable: false);
+    var entries =
+        (skipFirst ? _homeSections.entries.skip(1) : _homeSections.entries)
+            .toList(growable: false);
     for (var i = 0; i < entries.length; i++) {
       if (skipEntryIndexes.contains(i)) continue;
       final entry = entries[i];
@@ -1414,10 +1416,8 @@ class HomePageState extends State<HomePage> {
           entry.key.trim().toLowerCase() == 'new music';
       final cards = entry.value
           .map<Widget?>(
-            (item) => _buildHomeCard(
-              item,
-              useSpecialCardStyle: useSpecialCardStyle,
-            ),
+            (item) =>
+                _buildHomeCard(item, useSpecialCardStyle: useSpecialCardStyle),
           )
           .whereType<Widget>()
           .toList();
@@ -2117,11 +2117,12 @@ class _ArtistCard extends StatelessWidget {
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) =>
                                     Container(color: Colors.grey[800]),
-                                errorWidget: (context, url, error) => const Icon(
-                                  Icons.person,
-                                  size: 48,
-                                  color: Colors.grey,
-                                ),
+                                errorWidget: (context, url, error) =>
+                                    const Icon(
+                                      Icons.person,
+                                      size: 48,
+                                      color: Colors.grey,
+                                    ),
                               )
                             : const Icon(
                                 Icons.person,
@@ -2232,11 +2233,12 @@ class _AlbumCard extends StatelessWidget {
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) =>
                                     Container(color: Colors.grey[800]),
-                                errorWidget: (context, url, error) => const Icon(
-                                  Icons.album,
-                                  size: 48,
-                                  color: Colors.grey,
-                                ),
+                                errorWidget: (context, url, error) =>
+                                    const Icon(
+                                      Icons.album,
+                                      size: 48,
+                                      color: Colors.grey,
+                                    ),
                               )
                             : const Icon(
                                 Icons.album,
@@ -2444,7 +2446,7 @@ class _SpecialCard extends StatelessWidget {
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 24,
-                        fontWeight: FontWeight.bold
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -2509,15 +2511,12 @@ class _SpecialCard extends StatelessWidget {
                             ),
                           ],
                         ),
-                      ]
+                      ],
                     ),
                     const SizedBox(height: 9),
                     Text(
                       "Listen to this brand new release from $subtitle",
-                      style: TextStyle(
-                        color: Colors.grey[300],
-                        fontSize: 16,
-                      ),
+                      style: TextStyle(color: Colors.grey[300], fontSize: 16),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -2681,7 +2680,7 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                           ), */
                         ],
                       ),
-                    )
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(right: 6.0),
@@ -2692,7 +2691,8 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                         alignment: Alignment.center,
                         children: [
                           AnimatedOpacity(
-                            opacity: widget.showPlayingWaveform &&
+                            opacity:
+                                widget.showPlayingWaveform &&
                                     widget.isActive &&
                                     widget.isPlaying
                                 ? 1
@@ -2709,7 +2709,9 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                               ignoring: !_isHovering,
                               child: IconButton(
                                 style: ButtonStyle(
-                                  backgroundColor: WidgetStatePropertyAll(Theme.of(context).colorScheme.primary),
+                                  backgroundColor: WidgetStatePropertyAll(
+                                    Theme.of(context).colorScheme.primary,
+                                  ),
                                 ),
                                 icon: Icon(
                                   widget.isActive && widget.isPlaying
@@ -2718,7 +2720,8 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                                   color: Colors.black,
                                 ),
                                 onPressed: () {
-                                  final player = context.read<WispAudioHandler>();
+                                  final player = context
+                                      .read<WispAudioHandler>();
                                   final coordinator = context
                                       .read<PlaybackCoordinator>();
                                   if (widget.isActive) {
@@ -2739,7 +2742,7 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                         ],
                       ),
                     ),
-                  )
+                  ),
                 ],
               ),
             ),
@@ -2826,7 +2829,7 @@ class _HoverPlayScope extends InheritedWidget {
   final bool hovering;
 
   const _HoverPlayScope({required this.hovering, required Widget child})
-      : super(child: child);
+    : super(child: child);
 
   static _HoverPlayScope? of(BuildContext context) {
     return context.dependOnInheritedWidgetOfExactType<_HoverPlayScope>();
@@ -2956,7 +2959,8 @@ class _HoverPlayThumbnailState extends State<_HoverPlayThumbnail> {
                         icon: Icon(icon, color: colorScheme.onPrimary),
                         onPressed: () {
                           final player = context.read<WispAudioHandler>();
-                          final coordinator = context.read<PlaybackCoordinator>();
+                          final coordinator = context
+                              .read<PlaybackCoordinator>();
                           if (widget.isActive) {
                             if (player.isPlaying) {
                               unawaited(coordinator.pause());
@@ -3014,6 +3018,7 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
   final ScrollController _controller = ScrollController();
   bool _canScrollLeft = false;
   bool _canScrollRight = false;
+  bool _isHovered = false;
 
   @override
   void initState() {
@@ -3058,6 +3063,9 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
   @override
   Widget build(BuildContext context) {
     if (widget.cards.isEmpty) return const SizedBox.shrink();
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final showArrows = isDesktop && _isHovered;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3073,34 +3081,64 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
         SizedBox(height: widget.showTitle ? 16 : 0),
         LayoutBuilder(
           builder: (context, constraints) {
-            return SizedBox(
-              height: widget.expandCardsToRowWidth ? 170 : 230,
-              child: Stack(
-                children: [
-                  ListView.separated(
-                    controller: _controller,
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.only(bottom: 4),
-                    itemCount: widget.cards.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: 16),
-                    itemBuilder: (context, index) {
-                      final card = widget.cards[index];
-                      if (!widget.expandCardsToRowWidth) {
-                        return card;
-                      }
-                      return SizedBox(width: constraints.maxWidth, child: card);
-                    },
-                  ),
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: AnimatedOpacity(
-                      opacity: _canScrollLeft ? 1 : 0,
-                      duration: const Duration(milliseconds: 120),
-                      child: IgnorePointer(
-                        ignoring: !_canScrollLeft,
+            return MouseRegion(
+              cursor: SystemMouseCursors.basic,
+              onEnter: isDesktop
+                  ? (_) => setState(() => _isHovered = true)
+                  : null,
+              onExit: isDesktop
+                  ? (_) => setState(() => _isHovered = false)
+                  : null,
+              child: SizedBox(
+                height: widget.expandCardsToRowWidth ? 170 : 230,
+                child: Stack(
+                  children: [
+                    ListView.separated(
+                      controller: _controller,
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.only(bottom: 4),
+                      itemCount: widget.cards.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(width: 16),
+                      itemBuilder: (context, index) {
+                        final card = widget.cards[index];
+                        if (!widget.expandCardsToRowWidth) {
+                          return card;
+                        }
+                        return SizedBox(
+                          width: constraints.maxWidth,
+                          child: card,
+                        );
+                      },
+                    ),
+                    if (_canScrollRight)
+                      Positioned(
+                        top: 0,
+                        bottom: 0,
+                        right: 0,
+                        child: IgnorePointer(
+                          child: Container(
+                            width: 52,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                                colors: [
+                                  Colors.transparent,
+                                  const Color(
+                                    0xFF121212,
+                                  ).withValues(alpha: 0.78),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (showArrows && _canScrollLeft)
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
                         child: Center(
                           child: _ScrollArrowButton(
                             icon: Icons.chevron_left,
@@ -3108,17 +3146,11 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: AnimatedOpacity(
-                      opacity: _canScrollRight ? 1 : 0,
-                      duration: const Duration(milliseconds: 120),
-                      child: IgnorePointer(
-                        ignoring: !_canScrollRight,
+                    if (showArrows && _canScrollRight)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        bottom: 0,
                         child: Center(
                           child: _ScrollArrowButton(
                             icon: Icons.chevron_right,
@@ -3126,9 +3158,8 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },

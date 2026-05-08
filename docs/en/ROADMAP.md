@@ -8,10 +8,9 @@ Here's the TODOs for version v26.05.xx:
     - [ ] In the same spirit as the above, fix the queue view's first element not being the currently playing song, and instead being the first song in the queue.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
 - Future changes:
+    - [ ] Add background blur on top of the animated canvas in the spotify mobile full player, while the user is in the cards area. 
     - [ ] On mobile, if the user either has another device connected through Bluetooth, headphone jack or if they are connected with Handoff, the player bar's artists list should be replaced with something like this: "{dynamic icon} {device name} · {artists list}". The dynamic icon should change based on the type of device: headphone icon for wired, earbuds icon for Bluetooth, computer icon for Handoff - Desktop, and mobile phone icon for Handoff - Mobile.
     - [ ] When a non-handoff device is connected (as above), show so in the Handoff Menu. Also, allow the user to change to the another speaker/headphone output from the Handoff menu too. (of course, allow changing back to the current device as well). 
-    - [ ] On mobile, hide arrow indicators on element rows: instead, use a slight gradient on the right side of the element row to indicate that it has more content. Do the same on desktop, but still show the arrow indicators when the row is hovered.
-    - [ ] Similarly, in the desktop app, only show the arrow indicators when the row is hovered. Apply a similar gradient (regardless of the hover state) as the one mentioned above to indicate that there is more content.
     - [ ] Make the marquee text infinitely loop to one side instead of bouncing back and forth.
     - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
     - [ ] Add special card from the home screen on mobile. 

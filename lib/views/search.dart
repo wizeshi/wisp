@@ -81,6 +81,112 @@ class _SearchViewState extends State<SearchView> {
     return panelVerticalPadding + (rowTotalHeight * _desktopTopSongsCount);
   }
 
+  Widget _buildRailItem(
+    BuildContext context,
+    dynamic item,
+    WispAudioHandler player,
+  ) {
+    if (item is GenericSimpleArtist) {
+      final contextKey = 'artist:${item.id}';
+      return _RailCard(
+        title: item.name,
+        subtitle: 'Artist',
+        imageUrl: item.thumbnailUrl,
+        circularImage: true,
+        isPlaying: _activePlayContext == contextKey && player.isPlaying,
+        onTap: () {
+          AppNavigation.instance.openArtist(
+            context,
+            artistId: item.id,
+            initialArtist: item,
+          );
+        },
+        onPlay: () => _toggleContextPlayback(
+          contextKey: contextKey,
+          playAction: () => _playArtist(context, item.id),
+        ),
+        onSecondaryTapDown: (details) {
+          EntityContextMenus.showArtistMenu(
+            context,
+            artist: item,
+            globalPosition: details.globalPosition,
+          );
+        },
+        onLongPress: () {
+          EntityContextMenus.showArtistMenu(context, artist: item);
+        },
+      );
+    }
+
+    if (item is GenericAlbum) {
+      final contextKey = 'album:${item.id}';
+      return _RailCard(
+        title: item.title,
+        subtitle: item.artists.map((a) => a.name).join(', '),
+        imageUrl: item.thumbnailUrl,
+        isPlaying: _activePlayContext == contextKey && player.isPlaying,
+        onTap: () {
+          AppNavigation.instance.openSharedList(
+            context,
+            id: item.id,
+            type: SharedListType.album,
+            initialTitle: item.title,
+            initialThumbnailUrl: item.thumbnailUrl,
+          );
+        },
+        onPlay: () => _toggleContextPlayback(
+          contextKey: contextKey,
+          playAction: () => _playAlbum(context, item.id),
+        ),
+        onSecondaryTapDown: (details) {
+          EntityContextMenus.showAlbumMenu(
+            context,
+            album: item,
+            globalPosition: details.globalPosition,
+          );
+        },
+        onLongPress: () {
+          EntityContextMenus.showAlbumMenu(context, album: item);
+        },
+      );
+    }
+
+    if (item is GenericPlaylist) {
+      final contextKey = 'playlist:${item.id}';
+      return _RailCard(
+        title: item.title,
+        subtitle: item.author.displayName,
+        imageUrl: item.thumbnailUrl,
+        isPlaying: _activePlayContext == contextKey && player.isPlaying,
+        onTap: () {
+          AppNavigation.instance.openSharedList(
+            context,
+            id: item.id,
+            type: SharedListType.playlist,
+            initialTitle: item.title,
+            initialThumbnailUrl: item.thumbnailUrl,
+          );
+        },
+        onPlay: () => _toggleContextPlayback(
+          contextKey: contextKey,
+          playAction: () => _playPlaylist(context, item.id),
+        ),
+        onSecondaryTapDown: (details) {
+          EntityContextMenus.showPlaylistMenu(
+            context,
+            playlist: item,
+            globalPosition: details.globalPosition,
+          );
+        },
+        onLongPress: () {
+          EntityContextMenus.showPlaylistMenu(context, playlist: item);
+        },
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -165,8 +271,9 @@ class _SearchViewState extends State<SearchView> {
       return;
     }
 
-    final selectedSource = availableSources.contains(_searchState.selectedSource)
-      ? _searchState.selectedSource
+    final selectedSource =
+        availableSources.contains(_searchState.selectedSource)
+        ? _searchState.selectedSource
         : availableSources.first;
 
     setState(() {
@@ -286,9 +393,7 @@ class _SearchViewState extends State<SearchView> {
               ),
             ),
           const SizedBox(height: 4),
-          Expanded(
-            child: _buildContent(isDesktop, effectiveSource),
-          ),
+          Expanded(child: _buildContent(isDesktop, effectiveSource)),
         ],
       ),
     );
@@ -343,7 +448,10 @@ class _SearchViewState extends State<SearchView> {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
       ),
       textInputAction: TextInputAction.search,
       onSubmitted: (_) => _searchState.submit(),
@@ -400,7 +508,8 @@ class _SearchViewState extends State<SearchView> {
         title = artist.name;
         subtitle = 'Artist';
         imageUrl = artist.thumbnailUrl;
-        isPlaying = _activePlayContext == 'artist:${artist.id}' && player.isPlaying;
+        isPlaying =
+            _activePlayContext == 'artist:${artist.id}' && player.isPlaying;
         onTap = () {
           AppNavigation.instance.openArtist(
             context,
@@ -413,7 +522,8 @@ class _SearchViewState extends State<SearchView> {
         title = album.title;
         subtitle = album.artists.map((a) => a.name).join(', ');
         imageUrl = album.thumbnailUrl;
-        isPlaying = _activePlayContext == 'album:${album.id}' && player.isPlaying;
+        isPlaying =
+            _activePlayContext == 'album:${album.id}' && player.isPlaying;
         onTap = () {
           AppNavigation.instance.openSharedList(
             context,
@@ -570,9 +680,7 @@ class _SearchViewState extends State<SearchView> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              side: BorderSide(
-                color: Colors.transparent
-              )
+              side: BorderSide(color: Colors.transparent),
             ),
           );
         }).toList(),
@@ -644,7 +752,8 @@ class _SearchViewState extends State<SearchView> {
 
   Widget _buildMobileArtistRow(GenericSimpleArtist artist) {
     final player = context.watch<WispAudioHandler>();
-    final isPlaying = _activePlayContext == 'artist:${artist.id}' && player.isPlaying;
+    final isPlaying =
+        _activePlayContext == 'artist:${artist.id}' && player.isPlaying;
 
     return _MobileResultRow(
       title: artist.name,
@@ -676,7 +785,8 @@ class _SearchViewState extends State<SearchView> {
 
   Widget _buildMobileAlbumRow(GenericAlbum album) {
     final player = context.watch<WispAudioHandler>();
-    final isPlaying = _activePlayContext == 'album:${album.id}' && player.isPlaying;
+    final isPlaying =
+        _activePlayContext == 'album:${album.id}' && player.isPlaying;
 
     return _MobileResultRow(
       title: album.title,
@@ -944,9 +1054,9 @@ class _SearchViewState extends State<SearchView> {
           );
         };
         onPlay = () => _toggleContextPlayback(
-              contextKey: 'artist:${artist.id}',
-              playAction: () => _playArtist(context, artist.id),
-            );
+          contextKey: 'artist:${artist.id}',
+          playAction: () => _playArtist(context, artist.id),
+        );
         isPlaying =
             _activePlayContext == 'artist:${artist.id}' && player.isPlaying;
       case SearchBestMatchKind.album:
@@ -964,10 +1074,11 @@ class _SearchViewState extends State<SearchView> {
           );
         };
         onPlay = () => _toggleContextPlayback(
-              contextKey: 'album:${album.id}',
-              playAction: () => _playAlbum(context, album.id),
-            );
-        isPlaying = _activePlayContext == 'album:${album.id}' && player.isPlaying;
+          contextKey: 'album:${album.id}',
+          playAction: () => _playAlbum(context, album.id),
+        );
+        isPlaying =
+            _activePlayContext == 'album:${album.id}' && player.isPlaying;
       case SearchBestMatchKind.playlist:
         final playlist = best.playlist!;
         title = playlist.title;
@@ -983,9 +1094,9 @@ class _SearchViewState extends State<SearchView> {
           );
         };
         onPlay = () => _toggleContextPlayback(
-              contextKey: 'playlist:${playlist.id}',
-              playAction: () => _playPlaylist(context, playlist.id),
-            );
+          contextKey: 'playlist:${playlist.id}',
+          playAction: () => _playPlaylist(context, playlist.id),
+        );
         isPlaying =
             _activePlayContext == 'playlist:${playlist.id}' && player.isPlaying;
     }
@@ -1124,311 +1235,167 @@ class _SearchViewState extends State<SearchView> {
             final listIndex = entry.key;
             final track = entry.value;
             final isHovered = _hoveredSongIndex == listIndex;
-          final isCurrent = player.currentTrack?.id == track.id;
-          final isPlaying = isCurrent && player.isPlaying;
+            final isCurrent = player.currentTrack?.id == track.id;
+            final isPlaying = isCurrent && player.isPlaying;
 
-          return MouseRegion(
-            onEnter: (_) => setState(() => _hoveredSongIndex = listIndex),
-            onExit: (_) => setState(() => _hoveredSongIndex = -1),
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: () => _playSearchTrack(track),
-              onSecondaryTapDown: (details) {
-                if (_suppressRowTrackContextMenu) {
-                  _suppressRowTrackContextMenu = false;
-                  return;
-                }
-                EntityContextMenus.showTrackMenu(
-                  context,
-                  track: track,
-                  globalPosition: details.globalPosition,
-                );
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 130),
-                margin: const EdgeInsets.symmetric(vertical: 3),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isHovered
-                      ? Colors.white.withValues(alpha: 0.085)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: _ArtworkImage(
-                                imageUrl: track.thumbnailUrl,
-                                icon: Icons.music_note,
-                              ),
-                            ),
-                            AnimatedOpacity(
-                              opacity: isHovered ? 1 : 0,
-                              duration: const Duration(milliseconds: 130),
-                              child: Container(
-                                color: Colors.black.withValues(alpha: 0.45),
-                              ),
-                            ),
-                            if (isHovered)
+            return MouseRegion(
+              onEnter: (_) => setState(() => _hoveredSongIndex = listIndex),
+              onExit: (_) => setState(() => _hoveredSongIndex = -1),
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => _playSearchTrack(track),
+                onSecondaryTapDown: (details) {
+                  if (_suppressRowTrackContextMenu) {
+                    _suppressRowTrackContextMenu = false;
+                    return;
+                  }
+                  EntityContextMenus.showTrackMenu(
+                    context,
+                    track: track,
+                    globalPosition: details.globalPosition,
+                  );
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 130),
+                  margin: const EdgeInsets.symmetric(vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isHovered
+                        ? Colors.white.withValues(alpha: 0.085)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Stack(
+                            children: [
                               Positioned.fill(
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () => _toggleTrackPlayback(track),
-                                    child: Icon(
-                                      isPlaying ? Icons.pause : Icons.play_arrow,
-                                      color: Colors.white,
-                                      size: 20,
+                                child: _ArtworkImage(
+                                  imageUrl: track.thumbnailUrl,
+                                  icon: Icons.music_note,
+                                ),
+                              ),
+                              AnimatedOpacity(
+                                opacity: isHovered ? 1 : 0,
+                                duration: const Duration(milliseconds: 130),
+                                child: Container(
+                                  color: Colors.black.withValues(alpha: 0.45),
+                                ),
+                              ),
+                              if (isHovered)
+                                Positioned.fill(
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: () => _toggleTrackPlayback(track),
+                                      child: Icon(
+                                        isPlaying
+                                            ? Icons.pause
+                                            : Icons.play_arrow,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
                                     ),
                                   ),
                                 ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              track.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isCurrent
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 29 / 2,
                               ),
+                            ),
+                            const SizedBox(height: 2),
+                            _buildSongArtistsLine(track.artists),
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            track.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isCurrent
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 29 / 2,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          _buildSongArtistsLine(track.artists),
-                        ],
+                      const SizedBox(width: 12),
+                      LikeButton(
+                        track: track,
+                        showTooltip: false,
+                        showIfUnliked: isHovered,
+                        iconSize: 16,
+                        padding: const EdgeInsets.all(2),
+                        constraints: const BoxConstraints(
+                          minWidth: 24,
+                          minHeight: 24,
+                        ),
+                        color: Theme.of(context).colorScheme.primary,
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    LikeButton(
-                      track: track,
-                      showTooltip: false,
-                      showIfUnliked: isHovered,
-                      iconSize: 16,
-                      padding: const EdgeInsets.all(2),
-                      constraints:
-                          const BoxConstraints(minWidth: 24, minHeight: 24),
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      _formatDuration(track.durationSecs),
-                      style: TextStyle(color: Colors.grey[400], fontSize: 22 / 2),
-                    ),
-                    const SizedBox(width: 4),
-                    AnimatedOpacity(
-                      opacity: isHovered ? 1 : 0.65,
-                      duration: const Duration(milliseconds: 130),
-                      child: Builder(
-                        builder: (buttonContext) => IconButton(
-                          mouseCursor: SystemMouseCursors.click,
-                          iconSize: 18,
-                          constraints:
-                              const BoxConstraints(minWidth: 28, minHeight: 28),
-                          padding: EdgeInsets.zero,
-                          tooltip: 'More actions',
-                          onPressed: () =>
-                              _openTrackMenuFromButton(buttonContext, track),
-                          icon: Icon(Icons.more_horiz, color: Colors.grey[500]),
+                      const SizedBox(width: 10),
+                      Text(
+                        _formatDuration(track.durationSecs),
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 22 / 2,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      AnimatedOpacity(
+                        opacity: isHovered ? 1 : 0.65,
+                        duration: const Duration(milliseconds: 130),
+                        child: Builder(
+                          builder: (buttonContext) => IconButton(
+                            mouseCursor: SystemMouseCursors.click,
+                            iconSize: 18,
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
+                            padding: EdgeInsets.zero,
+                            tooltip: 'More actions',
+                            onPressed: () =>
+                                _openTrackMenuFromButton(buttonContext, track),
+                            icon: Icon(
+                              Icons.more_horiz,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
+            );
           }),
         ],
       ),
     );
   }
 
-  Widget _buildRailSection({required String title, required List<dynamic> items}) {
+  Widget _buildRailSection({
+    required String title,
+    required List<dynamic> items,
+  }) {
     final player = context.watch<WispAudioHandler>();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 32,
-            fontWeight: FontWeight.w700,
-            height: 1,
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 264,
-          child: Stack(
-            children: [
-              ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 18),
-                itemBuilder: (context, index) {
-                  final item = items[index];
-
-                  if (item is GenericSimpleArtist) {
-                    final contextKey = 'artist:${item.id}';
-                    return _RailCard(
-                      title: item.name,
-                      subtitle: 'Artist',
-                      imageUrl: item.thumbnailUrl,
-                      circularImage: true,
-                      isPlaying:
-                          _activePlayContext == contextKey && player.isPlaying,
-                      onTap: () {
-                        AppNavigation.instance.openArtist(
-                          context,
-                          artistId: item.id,
-                          initialArtist: item,
-                        );
-                      },
-                      onPlay: () => _toggleContextPlayback(
-                        contextKey: contextKey,
-                        playAction: () => _playArtist(context, item.id),
-                      ),
-                      onSecondaryTapDown: (details) {
-                        EntityContextMenus.showArtistMenu(
-                          context,
-                          artist: item,
-                          globalPosition: details.globalPosition,
-                        );
-                      },
-                      onLongPress: () {
-                        EntityContextMenus.showArtistMenu(context, artist: item);
-                      },
-                    );
-                  }
-
-                  if (item is GenericAlbum) {
-                    final contextKey = 'album:${item.id}';
-                    return _RailCard(
-                      title: item.title,
-                      subtitle: item.artists.map((a) => a.name).join(', '),
-                      imageUrl: item.thumbnailUrl,
-                      isPlaying:
-                          _activePlayContext == contextKey && player.isPlaying,
-                      onTap: () {
-                        AppNavigation.instance.openSharedList(
-                          context,
-                          id: item.id,
-                          type: SharedListType.album,
-                          initialTitle: item.title,
-                          initialThumbnailUrl: item.thumbnailUrl,
-                        );
-                      },
-                      onPlay: () => _toggleContextPlayback(
-                        contextKey: contextKey,
-                        playAction: () => _playAlbum(context, item.id),
-                      ),
-                      onSecondaryTapDown: (details) {
-                        EntityContextMenus.showAlbumMenu(
-                          context,
-                          album: item,
-                          globalPosition: details.globalPosition,
-                        );
-                      },
-                      onLongPress: () {
-                        EntityContextMenus.showAlbumMenu(context, album: item);
-                      },
-                    );
-                  }
-
-                  if (item is GenericPlaylist) {
-                    final contextKey = 'playlist:${item.id}';
-                    return _RailCard(
-                      title: item.title,
-                      subtitle: item.author.displayName,
-                      imageUrl: item.thumbnailUrl,
-                      isPlaying:
-                          _activePlayContext == contextKey && player.isPlaying,
-                      onTap: () {
-                        AppNavigation.instance.openSharedList(
-                          context,
-                          id: item.id,
-                          type: SharedListType.playlist,
-                          initialTitle: item.title,
-                          initialThumbnailUrl: item.thumbnailUrl,
-                        );
-                      },
-                      onPlay: () => _toggleContextPlayback(
-                        contextKey: contextKey,
-                        playAction: () => _playPlaylist(context, item.id),
-                      ),
-                      onSecondaryTapDown: (details) {
-                        EntityContextMenus.showPlaylistMenu(
-                          context,
-                          playlist: item,
-                          globalPosition: details.globalPosition,
-                        );
-                      },
-                      onLongPress: () {
-                        EntityContextMenus.showPlaylistMenu(
-                          context,
-                          playlist: item,
-                        );
-                      },
-                    );
-                  }
-
-                  return const SizedBox.shrink();
-                },
-              ),
-              if (items.length > 1)
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  right: 0,
-                  child: IgnorePointer(
-                    child: Container(
-                      width: 52,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                          colors: [
-                            Colors.transparent,
-                            const Color(0xFF121212).withValues(alpha: 0.78),
-                          ],
-                        ),
-                      ),
-                      alignment: Alignment.centerRight,
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Icon(
-                          Icons.chevron_right,
-                          color: Colors.grey[400],
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
+    return _HorizontalRailSection(
+      title: title,
+      items: items,
+      itemBuilder: (context, item) => _buildRailItem(context, item, player),
     );
   }
 
@@ -1450,11 +1417,8 @@ class _SearchViewState extends State<SearchView> {
           iconEnabledColor: Colors.grey[400],
           selectedItemBuilder: (_) => availableSources
               .map(
-                (source) => Icon(
-                  _sourceIcon(source),
-                  size: 18,
-                  color: Colors.white,
-                ),
+                (source) =>
+                    Icon(_sourceIcon(source), size: 18, color: Colors.white),
               )
               .toList(),
           items: availableSources
@@ -1568,8 +1532,9 @@ class _SearchViewState extends State<SearchView> {
 
   List<GenericSong> _buildSuggestedSongs() {
     if (_tracks.isEmpty) return const [];
-    final bestTrack =
-        _bestMatch?.kind == SearchBestMatchKind.track ? _bestMatch?.track : null;
+    final bestTrack = _bestMatch?.kind == SearchBestMatchKind.track
+        ? _bestMatch?.track
+        : null;
     if (bestTrack == null) {
       return _tracks.take(8).toList();
     }
@@ -1996,7 +1961,10 @@ class _MobileResultRow extends StatelessWidget {
                           subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -2084,6 +2052,145 @@ class _AnimatedQuickWaveformState extends State<_AnimatedQuickWaveform>
         color: color,
         borderRadius: BorderRadius.circular(2),
       ),
+    );
+  }
+}
+
+class _HorizontalRailSection extends StatefulWidget {
+  final String title;
+  final List<dynamic> items;
+  final Widget Function(BuildContext context, dynamic item) itemBuilder;
+
+  const _HorizontalRailSection({
+    required this.title,
+    required this.items,
+    required this.itemBuilder,
+  });
+
+  @override
+  State<_HorizontalRailSection> createState() => _HorizontalRailSectionState();
+}
+
+class _HorizontalRailSectionState extends State<_HorizontalRailSection> {
+  final ScrollController _controller = ScrollController();
+  bool _canScrollRight = false;
+  bool _isHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_updateScrollState);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateScrollState());
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_updateScrollState);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _updateScrollState() {
+    if (!_controller.hasClients) return;
+    final maxExtent = _controller.position.maxScrollExtent;
+    final canScrollRight = _controller.offset < (maxExtent - 4);
+    if (canScrollRight == _canScrollRight) return;
+    setState(() => _canScrollRight = canScrollRight);
+  }
+
+  void _scrollBy(double delta) {
+    if (!_controller.hasClients) return;
+    final target = (_controller.offset + delta).clamp(
+      0.0,
+      _controller.position.maxScrollExtent,
+    );
+    _controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.items.isEmpty) return const SizedBox.shrink();
+
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final showArrow = isDesktop && _isHovered && _canScrollRight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+            height: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 264,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.basic,
+            onEnter: isDesktop ? (_) => setState(() => _isHovered = true) : null,
+            onExit: isDesktop ? (_) => setState(() => _isHovered = false) : null,
+            child: Stack(
+              children: [
+                ListView.separated(
+                  controller: _controller,
+                  scrollDirection: Axis.horizontal,
+                  itemCount: widget.items.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 18),
+                  itemBuilder: (context, index) =>
+                      widget.itemBuilder(context, widget.items[index]),
+                ),
+                if (_canScrollRight)
+                  Positioned(
+                    top: 0,
+                    bottom: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: 52,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Colors.transparent,
+                              const Color(0xFF121212).withValues(alpha: 0.78),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (showArrow)
+                  Positioned(
+                    top: 0,
+                    bottom: 0,
+                    right: 0,
+                    child: Center(
+                      child: Material(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          icon: const Icon(Icons.chevron_right, color: Colors.white),
+                          onPressed: () => _scrollBy(240),
+                          splashRadius: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
