@@ -444,8 +444,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         _onCompleted();
       } else if (state == ProcessingState.loading ||
           state == ProcessingState.buffering) {
-        _setState(PlaybackState.loading);
+        if (_isTrackTransitioning || !_player.playing) {
+          _setState(PlaybackState.loading);
+        }
       } else if (state == ProcessingState.ready) {
+        if (_isTrackTransitioning) {
+          _setTrackTransitioning(false);
+        }
         if (_player.playing) {
           _setState(PlaybackState.playing);
         } else if (_state != PlaybackState.idle) {
@@ -1640,18 +1645,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     await _cancelCrossfade(stopInactive: true);
     final token = ++_trackChangeToken;
     if (_playlistPlaybackEnabled && _player.hasNext) {
-      await _player.seekToNext();
-      // Explicitly update UI state after seek
-      final newIndex = _player.currentIndex;
-      if (newIndex != null && newIndex >= 0 && newIndex < _queue.length) {
-        _currentIndex = newIndex;
-        _currentTrack = _queue[newIndex];
-        _errorMessage = null;
-        _updateMediaItem();
-        _broadcastPlaybackState();
-        _saveQueue();
-        notifyListeners();
-        unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: newIndex));
+      final currentIndex = _player.currentIndex ?? _currentIndex;
+      final nextIndex = currentIndex + 1;
+      if (nextIndex >= 0 && nextIndex < _queue.length) {
+        await _playAtIndex(nextIndex, token: token);
       }
       return;
     }
@@ -1667,18 +1664,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         await _player.seek(Duration.zero);
         return;
       } else {
-        await _player.seekToPrevious();
-        // Explicitly update UI state after seek
-        final newIndex = _player.currentIndex;
-        if (newIndex != null && newIndex >= 0 && newIndex < _queue.length) {
-          _currentIndex = newIndex;
-          _currentTrack = _queue[newIndex];
-          _errorMessage = null;
-          _updateMediaItem();
-          _broadcastPlaybackState();
-          _saveQueue();
-          unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: newIndex));
-          notifyListeners();
+        final currentIndex = _player.currentIndex ?? _currentIndex;
+        var prevIndex = currentIndex - 1;
+        if (prevIndex < 0) {
+          prevIndex = _repeatMode == RepeatMode.all ? _queue.length - 1 : 0;
+        }
+        if (prevIndex >= 0 && prevIndex < _queue.length) {
+          await _playAtIndex(prevIndex, token: token);
         }
       }
       return;
