@@ -1,16 +1,17 @@
 Here's the TODOs for version v26.05.xx:
 
 - Bugs:
-    - [ ] Fix scroll bar in list view not showing up in the correct position (Apple Music Style). 
+    - [x] Fix scroll bar in list view not showing up in the correct position (Apple Music Style). 
     - [ ] Fix stream fetching not working when the app is in the background.
     - [ ] Fix lyrics not automatiaclly centering on entering lyrics mode in the apple music full player.
-    - [ ] Fix apple style queue mode showing all songs in the queue instead of just the next ones.
+    - [ ] Fix apple style queue mode showing all songs in the queue instead of starting from the current one and showing the next ones (should account for queue looping, AKA wrapping around to the start of the queue when it reaches the end).
+    - [ ] In the same spirit as the above, fix the queue view's first element not being the currently playing song, and instead being the first song in the queue.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
-    - [ ] Fix pre-fetching next song stream URL: right now, even though we do get it, we still take a long time to start playing. I suspect we are just re-fetching the stream URL when the song starts playing, which is what causes the delay. We should be able to just use the already fetched URL and start playing immediately. Also should consider the preference for pre-fetching, and only store it for the "expire" duration parameter specified in the recieved URL. When it expires, we should discard it and fetch a new one ASAP. 
 - Future changes:
     - [ ] On mobile, if the user either has another device connected through Bluetooth, headphone jack or if they are connected with Handoff, the player bar's artists list should be replaced with something like this: "{dynamic icon} {device name} · {artists list}". The dynamic icon should change based on the type of device: headphone icon for wired, earbuds icon for Bluetooth, computer icon for Handoff - Desktop, and mobile phone icon for Handoff - Mobile.
     - [ ] When a non-handoff device is connected (as above), show so in the Handoff Menu. Also, allow the user to change to the another speaker/headphone output from the Handoff menu too. (of course, allow changing back to the current device as well). 
     - [ ] On mobile, hide arrow indicators on element rows: instead, use a slight gradient on the right side of the element row to indicate that it has more content. Do the same on desktop, but still show the arrow indicators when the row is hovered.
+    - [ ] Similarly, in the desktop app, only show the arrow indicators when the row is hovered. Apply a similar gradient (regardless of the hover state) as the one mentioned above to indicate that there is more content.
     - [ ] Make the marquee text infinitely loop to one side instead of bouncing back and forth.
     - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
     - [ ] Add special card from the home screen on mobile. 
@@ -18,15 +19,9 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons. It should be replaced with the normal play/pause icon on hover, though. For apple music, should show it as an overlay on top of the song cover. Spotify's is in the index of the song. 
     - [ ] Make artist name clickable in the full player
 - Planned features:
-    - [ ] Add a user profile view. 
     - [ ] Add element pinning to the sidebar/library
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
     - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
     - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
-    - [ ] Add ability to follow/unfollow artists and save/remove albums.
+    - [ ] Add ability to follow/unfollow artists, save/remove albums and follow/unfollow users.
     - [ ] Add translation support (start with English & Portuguese)
-    - [x] Improve song transitions:
-        - [x] Add crossfade support, with a slider for the user to choose the duration of the crossfade.
-        - [x] Add proper gapless playback support.
-        - [x] Improve song loading state: make the player immediately show a loading state and deny any try to play (right now if the user is able to click the button, it just plays the previously loaded song)
-        - [x] Add a transition in the full player when a new song starts, with the old song info (track name, artist, album, cover/canvas, background, lyrics) sliding out and the new song info sliding in. This also applies to skipping songs, going back to previous songs, and any other way a new song starts playing.

@@ -3086,6 +3086,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           ListView.builder(
             padding: EdgeInsets.zero,
             shrinkWrap: true,
+            primary: false,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: visibleCount,
             itemBuilder: (context, idx) {
@@ -3553,6 +3554,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     return ListView.builder(
       padding: EdgeInsets.zero,
       shrinkWrap: true,
+      primary: false,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: totalCount,
       itemBuilder: (context, idx) {
@@ -4115,6 +4117,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             ListView.separated(
               padding: EdgeInsets.zero,
               shrinkWrap: true,
+              primary: false,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: songs.length,
               separatorBuilder: (context, index) =>
@@ -4525,15 +4528,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     required bool isDesktop,
   }) {
     if (artists.isEmpty) {
-      return Text(
-        'Unknown artist',
-        style: TextStyle(color: Colors.grey[500], fontSize: 12),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      );
-    }
-
-    if (!isDesktop) {
       return Text(
         artists.map((a) => a.name).join(', '),
         style: TextStyle(color: Colors.grey[500], fontSize: 12),
@@ -5242,12 +5236,12 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   );
                 },
               ),
-              const SizedBox(height: 26),
               LayoutBuilder(
                 builder: (layoutContext, constraints) {
                   final availableWidth = constraints.maxWidth;
                   return Column(
                     children: [
+                      const SizedBox(height: 26),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
                         child: view._buildListHeaderContent(
@@ -5256,19 +5250,29 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      view._buildSongList(
-                        isMobile: false,
-                        visualStyle: _ListVisualStyle.apple,
-                        availableWidth: availableWidth,
+                      ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(
+                          layoutContext,
+                        ).copyWith(scrollbars: false),
+                        child: view._buildSongList(
+                          isMobile: false,
+                          visualStyle: _ListVisualStyle.apple,
+                          availableWidth: availableWidth,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(
+                          layoutContext,
+                        ).copyWith(scrollbars: false),
+                        child: view._buildRecommendedSection(
+                          isMobile: false,
+                          visualStyle: _ListVisualStyle.apple,
+                        ),
                       ),
                     ],
                   );
                 },
-              ),
-              const SizedBox(height: 12),
-              view._buildRecommendedSection(
-                isMobile: false,
-                visualStyle: _ListVisualStyle.apple,
               ),
             ],
           ),
