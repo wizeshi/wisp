@@ -1384,11 +1384,29 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     String canvasUrl,
     String fallbackUrl,
   ) {
+    final canvas = _buildCanvasVideo(canvasUrl, fallbackUrl);
+    
     return SizedBox.expand(
       child: Stack(
         fit: StackFit.expand,
         children: [
-          _buildCanvasVideo(canvasUrl, fallbackUrl),
+          AnimatedBuilder(
+            animation: scrollController,
+            builder: (context, child) {
+              final scrollOffset = scrollController.hasClients 
+                  ? scrollController.offset 
+                  : 0.0;
+              // Apply blur when scrolling down into cards area
+              final blurAmount = (scrollOffset * 0.2).clamp(0.0, 25.0);
+              
+              // Always wrap in ImageFiltered to prevent widget tree changes that cause flicker
+              return ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+                child: child,
+              );
+            },
+            child: canvas,
+          ),
           Container(color: Colors.black.withValues(alpha: 0.08)),
         ],
       ),
