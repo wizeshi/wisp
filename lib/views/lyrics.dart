@@ -7,7 +7,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/metadata_models.dart';
-import '../providers/theme/cover_art_palette_provider.dart';
 import '../widgets/sliding_track_background.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/playback/playback_coordinator.dart';
@@ -431,8 +430,7 @@ class _LyricsViewState extends State<LyricsView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final palette = context.watch<CoverArtPaletteProvider>();
-    final dominantColor = palette.primaryColor ?? theme.colorScheme.primary;
+    final dominantColor = theme.colorScheme.primary;
     final backgroundColor = _tintedDominantColor(dominantColor);
 
     final content = _buildLyricsContent(backgroundColor);

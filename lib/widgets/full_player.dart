@@ -22,7 +22,6 @@ import '../providers/library/library_state.dart';
 import '../providers/navigation_state.dart';
 import '../models/metadata_models.dart';
 import '../providers/preferences/preferences_provider.dart';
-import '../providers/theme/cover_art_palette_provider.dart';
 import '../providers/connect/connect_session_provider.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../views/lyrics.dart';
@@ -1444,16 +1443,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         final bottomInset = viewPadding.bottom == 0
             ? windowPadding.bottom
             : viewPadding.bottom;
-
-        final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
-          (provider) => provider.palette,
-        );
-        final bgColor = HSLColor.fromColor(
-          palette?.onSecondaryContainer ?? const Color(0xFF1A1A1A),
-        ).withLightness(0.6).withSaturation(0.65).toColor();
-        final btnColor = HSLColor.fromColor(
-          palette?.onPrimaryContainer ?? const Color(0xFF1A1A1A),
-        ).withLightness(0.7).withSaturation(1).toColor();
+          
+        final bgColor = Theme.of(context).colorScheme.primary;
+        final btnColor = bgColor;
 
         Widget buildPlayerScaffold(BuildContext ctx, {String? canvasUrl}) {
           final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
@@ -4596,7 +4588,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
       builder: (context, player, lyricsProvider, child) {
         final currentTrack = player.currentTrack;
-        final imageUrl = currentTrack?.thumbnailUrl ?? '';
         final useCanvas = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.animatedCanvasEnabled,
         );
@@ -4623,187 +4614,179 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             ? windowPadding.bottom
             : viewPadding.bottom;
 
-        final paletteProvider = context.read<CoverArtPaletteProvider>();
-        return FutureBuilder<ColorScheme?>(
-          future: paletteProvider.paletteForImageUrl(imageUrl),
-          builder: (context, snapshot) {
-            final palette = snapshot.data;
-            var btnColor = HSLColor.fromColor(
-              palette?.onPrimaryContainer ?? const Color(0xFF1A1A1A),
-            ).withLightness(0.7).withSaturation(1).toColor();
+        final imageUrl = currentTrack?.thumbnailUrl ?? '';
+        final btnColor = Theme.of(context).colorScheme.primary;
 
-            return FutureBuilder<String?>(
-              future: canvasFuture,
-              builder: (context, canvasSnapshot) {
-                final canvasUrl = canvasSnapshot.data ?? '';
-                final hasCanvas = canvasUrl.isNotEmpty;
+        return FutureBuilder<String?>(
+          future: canvasFuture,
+          builder: (context, canvasSnapshot) {
+            final canvasUrl = canvasSnapshot.data ?? '';
+            final hasCanvas = canvasUrl.isNotEmpty;
 
-                return ValueListenableBuilder<bool>(
-                  valueListenable: _animatedCanvasTemporarilyDisabledNotifier,
-                  builder: (context, animatedCanvasDisabled, _) {
-                    return ValueListenableBuilder<_ApplePlayerViewMode>(
-                      valueListenable: _modeNotifier,
-                      builder: (context, mode, _) {
-                        final isNowPlaying =
-                            mode == _ApplePlayerViewMode.nowPlaying;
-                        final useNowPlayingCanvas = !animatedCanvasDisabled &&
-                            (_isDesktop
-                                ? hasCanvas
-                                : (isNowPlaying && hasCanvas));
+            return ValueListenableBuilder<bool>(
+              valueListenable: _animatedCanvasTemporarilyDisabledNotifier,
+              builder: (context, animatedCanvasDisabled, _) {
+                return ValueListenableBuilder<_ApplePlayerViewMode>(
+                  valueListenable: _modeNotifier,
+                  builder: (context, mode, _) {
+                    final isNowPlaying =
+                        mode == _ApplePlayerViewMode.nowPlaying;
+                    final useNowPlayingCanvas = !animatedCanvasDisabled &&
+                        (_isDesktop
+                            ? hasCanvas
+                            : (isNowPlaying && hasCanvas));
 
-                        return Stack(
-                          clipBehavior: Clip.hardEdge,
-                          children: [
-                            Positioned.fill(
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 420),
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeInCubic,
-                                transitionBuilder: (child, animation) {
-                                  final moveAnimation = Tween<Offset>(
-                                    begin: const Offset(0, 0.06),
-                                    end: Offset.zero,
-                                  ).animate(animation);
-                                  return FadeTransition(
-                                    opacity: animation,
-                                    child: SlideTransition(
-                                      position: moveAnimation,
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                                child: KeyedSubtree(
-                                  key: ValueKey<bool>(useNowPlayingCanvas),
-                                  child: useNowPlayingCanvas
-                                      ? _buildCanvasBackground(
-                                          context,
-                                          canvasUrl,
-                                          imageUrl,
-                                          topInset,
-                                        )
-                                      : _buildFallbackBackground(
-                                          context,
-                                          imageUrl,
-                                          topInset,
-                                        ),
+                    return Stack(
+                      clipBehavior: Clip.hardEdge,
+                      children: [
+                        Positioned.fill(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 420),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (child, animation) {
+                              final moveAnimation = Tween<Offset>(
+                                begin: const Offset(0, 0.06),
+                                end: Offset.zero,
+                              ).animate(animation);
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: moveAnimation,
+                                  child: child,
                                 ),
-                              ),
-                            ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
-                          ),
-                          child: Padding(
-                            padding: EdgeInsets.only(bottom: bottomInset),
-                            child: Column(
-                              children: [
-                                Padding(
-                                  padding:
-                                      (_isDesktop
-                                              ? const EdgeInsets.only(right: 0)
-                                              : const EdgeInsets.symmetric(
-                                                  horizontal: 24.0,
-                                                ))
-                                          .add(EdgeInsets.only(top: topInset)),
-                                  child: _buildHeader(context),
-                                ),
-                                SizedBox(height: _isDesktop || !isNowPlaying ? 0 : 56),
-                                Flexible(
-                                  fit: FlexFit.tight,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24.0,
-                                    ),
-                                    child: _isDesktop
-                                        ? _buildDesktopBody(
-                                            context,
-                                            player,
-                                            lyricsProvider,
-                                            currentTrack,
-                                            imageUrl,
-                                            mode,
-                                            btnColor,
-                                          )
-                                        : Column(
-                                            mainAxisSize: MainAxisSize.max,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              _buildAnimatedCoverSection(
-                                                context,
-                                                mode,
-                                                currentTrack,
-                                                imageUrl,
-                                                useNowPlayingCanvas,
-                                              ),
-                                              SizedBox(
-                                                height: isNowPlaying ? 10 : 4,
-                                              ),
-                                              if (isNowPlaying) ...[
-                                                const Spacer(),
-                                                _buildSingleLyricsLine(
-                                                  context,
-                                                  player,
-                                                  lyricsProvider,
-                                                ),
-                                                const SizedBox(height: 12),
-                                                _buildTrackInfo(
-                                                  currentTrack,
-                                                  btnColor,
-                                                  false,
-                                                ),
-                                                const SizedBox(height: 24),
-                                              ] else ...[
-                                                Expanded(
-                                                  child: AnimatedSwitcher(
-                                                    duration: const Duration(
-                                                      milliseconds: 280,
-                                                    ),
-                                                    switchInCurve:
-                                                        Curves.easeOut,
-                                                    switchOutCurve:
-                                                        Curves.easeIn,
-                                                    child: KeyedSubtree(
-                                                      key:
-                                                          ValueKey<
-                                                            _ApplePlayerViewMode
-                                                          >(mode),
-                                                      child: _buildModeContent(
-                                                        context,
-                                                        mode,
-                                                        player,
-                                                        lyricsProvider,
-                                                        true,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                  ),
-                                ),
-                                if (!_isDesktop) ...[
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24.0,
-                                    ),
-                                    child: _buildPlayerControls(
+                              );
+                            },
+                            child: KeyedSubtree(
+                              key: ValueKey<bool>(useNowPlayingCanvas),
+                              child: useNowPlayingCanvas
+                                  ? _buildCanvasBackground(
                                       context,
-                                      player,
-                                      btnColor,
-                                      mode,
+                                      canvasUrl,
+                                      imageUrl,
+                                      topInset,
+                                    )
+                                  : _buildFallbackBackground(
+                                      context,
+                                      imageUrl,
+                                      topInset,
                                     ),
-                                  ),
-                                  const SizedBox(height: 18),
-                                ],
-                              ],
                             ),
                           ),
                         ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: bottomInset),
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding:
+                                  (_isDesktop
+                                          ? const EdgeInsets.only(right: 0)
+                                          : const EdgeInsets.symmetric(
+                                              horizontal: 24.0,
+                                            ))
+                                      .add(EdgeInsets.only(top: topInset)),
+                              child: _buildHeader(context),
+                            ),
+                            SizedBox(height: _isDesktop || !isNowPlaying ? 0 : 56),
+                            Flexible(
+                              fit: FlexFit.tight,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24.0,
+                                ),
+                                child: _isDesktop
+                                    ? _buildDesktopBody(
+                                        context,
+                                        player,
+                                        lyricsProvider,
+                                        currentTrack,
+                                        imageUrl,
+                                        mode,
+                                        btnColor,
+                                      )
+                                    : Column(
+                                        mainAxisSize: MainAxisSize.max,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          _buildAnimatedCoverSection(
+                                            context,
+                                            mode,
+                                            currentTrack,
+                                            imageUrl,
+                                            useNowPlayingCanvas,
+                                          ),
+                                          SizedBox(
+                                            height: isNowPlaying ? 10 : 4,
+                                          ),
+                                          if (isNowPlaying) ...[
+                                            const Spacer(),
+                                            _buildSingleLyricsLine(
+                                              context,
+                                              player,
+                                              lyricsProvider,
+                                            ),
+                                            const SizedBox(height: 12),
+                                            _buildTrackInfo(
+                                              currentTrack,
+                                              btnColor,
+                                              false,
+                                            ),
+                                            const SizedBox(height: 24),
+                                          ] else ...[
+                                            Expanded(
+                                              child: AnimatedSwitcher(
+                                                duration: const Duration(
+                                                  milliseconds: 280,
+                                                ),
+                                                switchInCurve:
+                                                    Curves.easeOut,
+                                                switchOutCurve:
+                                                    Curves.easeIn,
+                                                child: KeyedSubtree(
+                                                  key:
+                                                      ValueKey<
+                                                        _ApplePlayerViewMode
+                                                      >(mode),
+                                                  child: _buildModeContent(
+                                                    context,
+                                                    mode,
+                                                    player,
+                                                    lyricsProvider,
+                                                    true,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                              ),
+                            ),
+                            if (!_isDesktop) ...[
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24.0,
+                                ),
+                                child: _buildPlayerControls(
+                                  context,
+                                  player,
+                                  btnColor,
+                                  mode,
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                            ],
                           ],
-                        );
-                      },
+                        ),
+                      ),
+                    ),
+                      ],
                     );
                   },
                 );
@@ -5217,10 +5200,7 @@ class _CoverGradientContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
-      (provider) => provider.palette,
-    );
-    var dominantColor = palette?.primary ?? Colors.black;
+    var dominantColor = Theme.of(context).colorScheme.primary;
 
     final gradientLayer = Container(
       decoration: BoxDecoration(
@@ -5836,11 +5816,6 @@ class _SpotifyDesktopFullScreenPlayerState
             (currentTrack.source == SongSource.spotifyInternal ||
                 currentTrack.source == SongSource.spotify);
 
-        // Get palette colors
-        final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
-          (provider) => provider.palette,
-        );
-
         return ChangeNotifierProvider<_SpotifyDesktopFullScreenState>.value(
           value: _desktopState,
                 child: MouseRegion(
@@ -5852,7 +5827,6 @@ class _SpotifyDesktopFullScreenPlayerState
                     currentTrack: currentTrack,
                     canUseCanvas: canUseCanvas,
                     spotifyInternal: spotifyInternal,
-                    palette: palette,
                     scrollController: _scrollController,
                   ),
           ),
@@ -5879,7 +5853,6 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
   final dynamic currentTrack;
   final bool canUseCanvas;
   final SpotifyInternalProvider spotifyInternal;
-  final ColorScheme? palette;
   final ScrollController scrollController;
 
   const _SpotifyDesktopFullScreenBody({
@@ -5888,7 +5861,6 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     required this.currentTrack,
     required this.canUseCanvas,
     required this.spotifyInternal,
-    required this.palette,
     required this.scrollController,
   });
 
@@ -5908,7 +5880,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageUrl = currentTrack?.thumbnailUrl ?? '';
-    final dominantColor = palette?.primary ?? Colors.black;
+    final dominantColor = Theme.of(context).colorScheme.primary;
     final song = currentTrack as GenericSong?;
     final trackId = song?.id;
     final canvasUrlFuture = canUseCanvas && trackId != null

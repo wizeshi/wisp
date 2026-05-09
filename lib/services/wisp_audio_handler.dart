@@ -1578,9 +1578,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await _inactivePlayer.pause();
     } catch (_) {}
     await _player.pause();
-    _ensureRpcTimer();
-    _stopMprisTimer();
-    _updateDiscordPresence(force: true);
+    _setState(PlaybackState.paused);
   }
 
   Future<void> togglePlayPause() async {

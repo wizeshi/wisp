@@ -13,7 +13,6 @@ import '../providers/lyrics/provider.dart';
 import '../providers/library/library_state.dart';
 import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
-import '../providers/theme/cover_art_palette_provider.dart';
 import '../services/app_navigation.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../services/navigation_history.dart';
@@ -1380,13 +1379,8 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
       );
     }
 
-    final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
-      (provider) => provider.palette,
-    );
     final bgColor = Theme.of(context).colorScheme.primary;
-    final btnColor = HSLColor.fromColor(
-      palette?.onPrimaryContainer ?? const Color(0xFF1A1A1A),
-    ).withLightness(0.7).withSaturation(1).toColor();
+    final btnColor = bgColor;
 
     return Consumer<LyricsProvider>(
       builder: (context, lyricsProvider, child) {

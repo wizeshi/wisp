@@ -74,7 +74,10 @@ void main() async {
       androidNotificationChannelName: 'wisp',
       androidNotificationChannelDescription: 'Media playback controls',
       androidNotificationIcon: 'drawable/ic_stat_wisp',
-      androidNotificationOngoing: true,
+      androidNotificationOngoing: false,
+      // Keep the service in foreground while paused/loading so Android
+      // doesn't block restarting it during delayed stream URL resolution.
+      androidStopForegroundOnPause: false,
     ),
   );
   final playbackCoordinator = PlaybackCoordinator();

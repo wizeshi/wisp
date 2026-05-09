@@ -9,7 +9,6 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
-import '../providers/theme/cover_art_palette_provider.dart';
 import '../models/metadata_models.dart';
 import 'full_player.dart';
 import '../services/app_navigation.dart';
@@ -512,16 +511,7 @@ class _DesktopPlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = context.select<CoverArtPaletteProvider, ColorScheme?>(
-      (provider) => provider.palette,
-    );
-    var buttonColor = HSLColor.fromColor(
-      palette?.onSecondaryContainer ?? const Color(0xFF1A1A1A),
-    ).withLightness(0.6).withSaturation(0.65).toColor();
-
-    if (buttonColor.computeLuminance() > 0.5) {
-      buttonColor = buttonColor.withValues(alpha: 0.65);
-    }
+    final buttonColor = Theme.of(context).colorScheme.primary;
 
     final handoffMessage = context.select<ConnectSessionProvider, String?>(
       (connect) => _handoffStatusMessage(connect),

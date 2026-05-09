@@ -2533,17 +2533,7 @@ class _SpecialCard extends StatelessWidget {
       return buildCard(fallbackColor);
     }
 
-    final paletteProvider = context.read<CoverArtPaletteProvider>();
-    return FutureBuilder<ColorScheme?>(
-      future: paletteProvider.paletteForImageUrl(thumbnailUrl),
-      builder: (context, snapshot) {
-        final sourceColor = snapshot.data?.primary ?? fallbackColor;
-        final backgroundColor = HSLColor.fromColor(
-          sourceColor,
-        ).withLightness(0.5).withSaturation(0.65).toColor();
-        return buildCard(backgroundColor);
-      },
-    );
+    return buildCard(Theme.of(context).colorScheme.primary);
   }
 }
 
