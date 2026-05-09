@@ -35,6 +35,18 @@ class _QueueViewState extends State<QueueView> {
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
+  List<int> _buildWrappedQueueIndices(int queueLength, int currentIndex) {
+    if (queueLength <= 0) return const <int>[];
+    if (currentIndex < 0 || currentIndex >= queueLength) {
+      return List<int>.generate(queueLength, (index) => index);
+    }
+
+    return List<int>.generate(
+      queueLength,
+      (index) => (currentIndex + index) % queueLength,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDesktop =
@@ -201,13 +213,26 @@ class _QueueViewState extends State<QueueView> {
     int currentIndex,
   ) {
     final libraryState = context.read<LibraryState>();
+    final visibleQueueIndices = _buildWrappedQueueIndices(
+      queue.length,
+      currentIndex,
+    );
 
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      itemCount: queue.length,
+      itemCount: visibleQueueIndices.length,
       buildDefaultDragHandles: false,
       onReorder: (oldIndex, newIndex) {
-        context.read<PlaybackCoordinator>().reorderQueue(oldIndex, newIndex);
+        if (visibleQueueIndices.isEmpty || oldIndex == newIndex) return;
+
+        final queueOldIndex = visibleQueueIndices[oldIndex];
+        final queueNewIndex = visibleQueueIndices[
+          newIndex.clamp(0, visibleQueueIndices.length - 1)
+        ];
+        context.read<PlaybackCoordinator>().reorderQueue(
+          queueOldIndex,
+          queueNewIndex,
+        );
       },
       proxyDecorator: (child, index, animation) {
         return Material(
@@ -219,14 +244,15 @@ class _QueueViewState extends State<QueueView> {
         );
       },
       itemBuilder: (context, index) {
-        final track = queue[index];
-        final isCurrentTrack = index == currentIndex;
+        final queueIndex = visibleQueueIndices[index];
+        final track = queue[queueIndex];
+        final isCurrentTrack = queueIndex == currentIndex;
         final isEven = index % 2 == 0;
 
         return _buildQueueItem(
-          key: ValueKey('${track.id}_$index'),
+          key: ValueKey('${track.id}_$queueIndex'),
           track: track,
-          index: index,
+          index: queueIndex,
           isCurrentTrack: isCurrentTrack,
           isEven: isEven,
           player: player,

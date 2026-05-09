@@ -1,11 +1,8 @@
 Here's the TODOs for version v26.05.xx:
 
 - Bugs:
-    - [x] Fix scroll bar in list view not showing up in the correct position (Apple Music Style). 
     - [ ] Fix stream fetching not working when the app is in the background.
-    - [ ] Fix lyrics not automatiaclly centering on entering lyrics mode in the apple music full player.
-    - [ ] Fix apple style queue mode showing all songs in the queue instead of starting from the current one and showing the next ones (should account for queue looping, AKA wrapping around to the start of the queue when it reaches the end).
-    - [ ] In the same spirit as the above, fix the queue view's first element not being the currently playing song, and instead being the first song in the queue.
+    - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
 - Future changes:
     - [ ] Add background blur on top of the animated canvas in the spotify mobile full player, while the user is in the cards area. 

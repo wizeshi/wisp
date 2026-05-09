@@ -2770,9 +2770,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     final contextName = player.playbackContextName;
     final continuePlayingSource =
         contextName != null && contextName.isNotEmpty ? contextName : 'Queue';
-    final hideLeadingCurrent = currentIndex == 0 && queue.length > 1;
-    final queueStartIndex = hideLeadingCurrent ? 1 : 0;
-    final visibleQueueCount = queue.length - queueStartIndex;
+    final visibleQueueIndices = _buildWrappedQueueIndices(queue, currentIndex);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2847,11 +2845,13 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       child: child,
                     );
                   },
-                  itemCount: visibleQueueCount,
+                  itemCount: visibleQueueIndices.length,
                   onReorder: (oldIndex, newIndex) {
                     if (oldIndex == newIndex) return;
-                    final queueOldIndex = oldIndex + queueStartIndex;
-                    final queueNewIndex = newIndex + queueStartIndex;
+                    final queueOldIndex = visibleQueueIndices[oldIndex];
+                    final queueNewIndex = visibleQueueIndices[
+                      newIndex.clamp(0, visibleQueueIndices.length - 1)
+                    ];
                     unawaited(
                       context.read<PlaybackCoordinator>().reorderQueue(
                         queueOldIndex,
@@ -2860,7 +2860,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     );
                   },
                   itemBuilder: (context, index) {
-                    final queueIndex = index + queueStartIndex;
+                    final queueIndex = visibleQueueIndices[index];
                     final track = queue[queueIndex];
                     final isCurrent = queueIndex == currentIndex;
                     return Padding(
@@ -2926,6 +2926,25 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 ),
         ),
       ],
+    );
+  }
+
+  List<int> _buildWrappedQueueIndices(
+    List<GenericSong> queue,
+    int currentIndex,
+  ) {
+    if (queue.isEmpty) return const <int>[];
+    if (currentIndex < 0 || currentIndex >= queue.length) {
+      return List<int>.generate(queue.length, (index) => index);
+    }
+
+    if (queue.length == 1) {
+      return const <int>[];
+    }
+
+    return List<int>.generate(
+      queue.length - 1,
+      (index) => (currentIndex + 1 + index) % queue.length,
     );
   }
 
