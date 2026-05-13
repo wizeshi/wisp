@@ -3,22 +3,29 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/models/metadata_models.dart';
+import 'package:wisp/providers/preferences/preferences_provider.dart';
+import 'package:wisp/services/connect/connect_packet_models.dart';
+import 'package:wisp/services/playback/audio_command_applier.dart';
 import 'package:wisp/services/playback/playback_coordinator.dart';
 import 'package:wisp/services/playback/playback_transport.dart';
 import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/services/connect/lan_connect_service.dart';
+import 'package:wisp/services/connect/connect_transport.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/utils/logger.dart';
+
+// Structured error codes so the UI can react without brittle string matching.
+// Add new codes here as needed.
+enum ConnectErrorCode { generic, securityLevelTooLow }
 
 class ConnectSessionProvider extends ChangeNotifier
     implements PlaybackTransport {
   static const String _keyLocalDeviceId = 'connect_local_device_id';
-  static const String _keyTrustedIncomingDeviceIds =
-      'connect_trusted_incoming_device_ids';
   static const String _keyPreferredModesByDevice =
       'connect_preferred_modes_by_device';
   static const String _cmdPlay = 'play';
@@ -43,6 +50,8 @@ class ConnectSessionProvider extends ChangeNotifier
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
+  ConnectErrorCode? _errorCode;
+  ConnectErrorCode? get errorCode => _errorCode;
 
   String _localDeviceId = '';
   String get localDeviceId => _localDeviceId;
@@ -58,11 +67,19 @@ class ConnectSessionProvider extends ChangeNotifier
   String? _linkedDeviceId;
   String? get linkedDeviceId => _linkedDeviceId;
 
+  String? _linkedPeerName;
+  String? get linkedPeerName => _linkedPeerName;
+
+  String? _linkedPeerAddress;
+  String? get linkedPeerAddress => _linkedPeerAddress;
+
   int _lastAppliedSequence = -1;
   int get lastAppliedSequence => _lastAppliedSequence;
 
   int _lastAckedSequence = -1;
   int get lastAckedSequence => _lastAckedSequence;
+
+  int _nextPositionPulseSeq = 0;
 
   Duration _linkedPosition = Duration.zero;
   Duration get linkedPosition => _linkedPosition;
@@ -91,6 +108,21 @@ class ConnectSessionProvider extends ChangeNotifier
   ConnectLinkMode _nextOutgoingLinkMode = ConnectLinkMode.fullHandoff;
   ConnectLinkMode get nextOutgoingLinkMode => _nextOutgoingLinkMode;
 
+  ConnectOutputKind _activeOutputKind = ConnectOutputKind.local;
+  ConnectOutputKind get activeOutputKind => _activeOutputKind;
+
+  String? _activeOutputDeviceName;
+  String? get activeOutputDeviceName => _activeOutputDeviceName;
+
+  List<ConnectOutputDevice> _availableOutputDevices = const [];
+  List<ConnectOutputDevice> get availableOutputDevices =>
+      List.unmodifiable(_availableOutputDevices);
+
+  ConnectOutputKind? _manualOutputKind;
+  String? _manualOutputDeviceName;
+
+  bool get hasExternalOutput => _activeOutputKind.isExternal;
+
   bool _rememberModeForNextLink = false;
   bool get rememberModeForNextLink => _rememberModeForNextLink;
 
@@ -98,47 +130,73 @@ class ConnectSessionProvider extends ChangeNotifier
   Map<String, String> get sessionResolvedYoutubeIds =>
       Map.unmodifiable(_sessionResolvedYoutubeIds);
 
-  final LanConnectService _lanConnectService = LanConnectService();
+  late final ConnectTransport _transport;
+  final AudioCommandApplier _audioCommandApplier = const AudioCommandApplier();
   Future<void>? _initFuture;
   StreamSubscription<ConnectDevice>? _deviceSubscription;
   StreamSubscription<ConnectPairRequest>? _pairRequestSubscription;
+  Timer? _pairingTimeoutTimer;
   StreamSubscription<ConnectPairResponse>? _pairResponseSubscription;
   StreamSubscription<ConnectSnapshotSync>? _snapshotSubscription;
+  StreamSubscription<ConnectStateDeltaSync>? _stateDeltaSubscription;
+  StreamSubscription<ConnectPositionPulseSync>? _positionPulseSubscription;
   StreamSubscription<ConnectCommandIntent>? _commandIntentSubscription;
   StreamSubscription<ConnectCommandApply>? _commandApplySubscription;
   StreamSubscription<ConnectCommandAck>? _commandAckSubscription;
   StreamSubscription<ConnectUnlinkEvent>? _unlinkSubscription;
-  StreamSubscription<ConnectPlaybackPulse>? _playbackPulseSubscription;
+  // legacy playback pulse subscription removed
+  StreamSubscription<Set<AudioDevice>>? _audioDevicesSubscription;
   Timer? _pruneTimer;
   Timer? _targetPulseTimer;
   Timer? _hostInterpolationTimer;
   String? _lastTargetSnapshotTrackId;
   int _lastTargetSnapshotIndex = -1;
   DateTime? _lastTargetSnapshotSentAt;
+  int _lastHostDeltaSeq = -1;
+  int _lastHostDeltaTs = -1;
+  int? _lastHostSnapshotAckSequence;
+  int _lastHostSnapshotFingerprint = -1;
+  DateTime? _lastHostSnapshotAppliedAt;
   DateTime? _linkedPositionUpdatedAt;
   ConnectPairRequest? _pendingPairRequest;
   ConnectPairRequest? get pendingPairRequest => _pendingPairRequest;
+  String? get pairingTargetDeviceId => _pairingTargetDeviceId;
   String? _pairingTargetDeviceId;
   String? _pairingTargetAddress;
-  String? _linkedPeerAddress;
+  String? _lastRejectedPairingTargetDeviceId;
   int _hostCommandSequence = 0;
   WispAudioHandler? _audioHandler;
   PlaybackCoordinator? _playbackCoordinator;
   bool _discoveryStarted = false;
   bool get discoveryStarted => _discoveryStarted;
   SharedPreferences? _prefs;
-  final Set<String> _trustedIncomingDeviceIds = <String>{};
   final Map<String, ConnectLinkMode> _preferredModesByDevice =
       <String, ConnectLinkMode>{};
+    PreferencesProvider? _preferences;
   String? _pendingTrustPromptDeviceId;
   String? _pendingTrustPromptDeviceName;
+    String? _pendingTrustPromptDevicePlatform;
+    String? _pendingSecurityWarningMessage;
   String? get pendingTrustPromptDeviceId => _pendingTrustPromptDeviceId;
   String? get pendingTrustPromptDeviceName => _pendingTrustPromptDeviceName;
+    String? get pendingTrustPromptDevicePlatform =>
+      _pendingTrustPromptDevicePlatform;
+    String? get pendingSecurityWarningMessage => _pendingSecurityWarningMessage;
+    bool get hasPendingSecurityWarning => _pendingSecurityWarningMessage != null;
+  String? get lastRejectedPairingTargetDeviceId =>
+      _lastRejectedPairingTargetDeviceId;
   bool get hasPendingTrustPrompt =>
       _pendingTrustPromptDeviceId != null &&
       _pendingTrustPromptDeviceName != null;
 
-  ConnectSessionProvider() {
+  Future<void>? _discoveryStartFuture;
+
+  ConnectSessionProvider({
+    PreferencesProvider? preferences,
+    ConnectTransport? transport,
+  }) {
+    _preferences = preferences;
+    _transport = transport ?? LanConnectService();
     _initFuture = _initialize();
     unawaited(
       Future<void>(() async {
@@ -149,6 +207,14 @@ class ConnectSessionProvider extends ChangeNotifier
         startDiscovery();
       }),
     );
+  }
+
+  void bindPreferencesProvider(PreferencesProvider preferences) {
+    if (identical(_preferences, preferences)) {
+      return;
+    }
+    _preferences = preferences;
+    notifyListeners();
   }
 
   Future<void> _initialize() async {
@@ -174,13 +240,6 @@ class ConnectSessionProvider extends ChangeNotifier
       _localDeviceName = '${Platform.operatingSystem} device';
     }
 
-    final trustedIds = prefs.getStringList(_keyTrustedIncomingDeviceIds);
-    if (trustedIds != null) {
-      _trustedIncomingDeviceIds
-        ..clear()
-        ..addAll(trustedIds.where((id) => id.trim().isNotEmpty));
-    }
-
     final preferredJson = prefs.getString(_keyPreferredModesByDevice);
     if (preferredJson != null && preferredJson.isNotEmpty) {
       try {
@@ -203,6 +262,7 @@ class ConnectSessionProvider extends ChangeNotifier
     logger.d(
       '[Handoff] Initialized local device id=$_localDeviceId name=$_localDeviceName platform=$localPlatform',
     );
+    await _startOutputRouteMonitoring();
     notifyListeners();
   }
 
@@ -597,6 +657,23 @@ class ConnectSessionProvider extends ChangeNotifier
     notifyListeners();
   }
 
+  void setActiveOutputDestination(
+    ConnectOutputKind kind, {
+    String? deviceName,
+  }) {
+    final nextName = kind == ConnectOutputKind.local ? null : deviceName;
+    if (_activeOutputKind == kind && _activeOutputDeviceName == nextName) {
+      return;
+    }
+    _activeOutputKind = kind;
+    _activeOutputDeviceName = nextName;
+    if (!isLinked) {
+      _manualOutputKind = kind;
+      _manualOutputDeviceName = nextName;
+    }
+    notifyListeners();
+  }
+
   void setRememberModeForNextLink(bool remember) {
     if (_rememberModeForNextLink == remember) return;
     _rememberModeForNextLink = remember;
@@ -607,31 +684,52 @@ class ConnectSessionProvider extends ChangeNotifier
     return _preferredModesByDevice[deviceId] ?? ConnectLinkMode.fullHandoff;
   }
 
+  HandoffSecurityLevel get _localSecurityLevel {
+    return _preferences?.handoffSecurityLevel ??
+        HandoffSecurityLevel.keyExchange;
+  }
+
   bool isTrustedIncomingDevice(String deviceId) {
-    return _trustedIncomingDeviceIds.contains(deviceId);
+    final trustedDevices = _preferences?.trustedDevices ?? const <TrustedDevice>[];
+    return trustedDevices.any((device) => device.id == deviceId);
   }
 
   Future<void> setTrustedIncomingDevice(
     String deviceId, {
     required bool trusted,
+    String? name,
+    String? platform,
   }) async {
     if (deviceId.trim().isEmpty) return;
-    if (trusted) {
-      _trustedIncomingDeviceIds.add(deviceId);
-    } else {
-      _trustedIncomingDeviceIds.remove(deviceId);
+    final preferences = _preferences;
+    if (preferences == null) {
+      return;
     }
-    await _prefs?.setStringList(
-      _keyTrustedIncomingDeviceIds,
-      _trustedIncomingDeviceIds.toList(growable: false),
-    );
+    if (trusted) {
+      await preferences.upsertTrustedDevice(
+        TrustedDevice(
+          id: deviceId,
+          name: name ?? deviceId,
+          platform: platform ?? 'unknown',
+          trustedAt: DateTime.now(),
+          lastConnectionAt: DateTime.now(),
+        ),
+      );
+    } else {
+      await preferences.forgetTrustedDevice(deviceId);
+    }
     notifyListeners();
   }
 
   Future<void> trustPendingIncomingDevice() async {
     final deviceId = _pendingTrustPromptDeviceId;
     if (deviceId == null) return;
-    await setTrustedIncomingDevice(deviceId, trusted: true);
+    await setTrustedIncomingDevice(
+      deviceId,
+      trusted: true,
+      name: _pendingTrustPromptDeviceName,
+      platform: _pendingTrustPromptDevicePlatform,
+    );
     clearPendingTrustPrompt();
   }
 
@@ -642,7 +740,40 @@ class ConnectSessionProvider extends ChangeNotifier
     }
     _pendingTrustPromptDeviceId = null;
     _pendingTrustPromptDeviceName = null;
+    _pendingTrustPromptDevicePlatform = null;
     notifyListeners();
+  }
+
+  void clearPendingSecurityWarning() {
+    if (_pendingSecurityWarningMessage == null) {
+      return;
+    }
+    _pendingSecurityWarningMessage = null;
+    notifyListeners();
+  }
+
+  Future<void> retryRejectedPairingWithLowerSecurity() async {
+    final targetDeviceId = _lastRejectedPairingTargetDeviceId;
+    if (targetDeviceId == null) {
+      return;
+    }
+    if (!_discoveredById.containsKey(targetDeviceId)) {
+      setError('Target device is no longer available.');
+      return;
+    }
+
+    final preferences = _preferences;
+    if (preferences != null) {
+      await preferences.setHandoffSecurityLevel(
+        HandoffSecurityLevel.keyExchange,
+      );
+    }
+
+    beginPairing(
+      targetDeviceId,
+      mode: preferredModeForDevice(targetDeviceId),
+      rememberForDevice: _rememberModeForNextLink,
+    );
   }
 
   void startDiscovery() {
@@ -657,8 +788,21 @@ class ConnectSessionProvider extends ChangeNotifier
     unawaited(_refreshDiscoveryInternal());
   }
 
+  void refreshOutputDevices() {
+    unawaited(_refreshOutputDevicesInternal());
+  }
+
+  void refreshConnectMenuData() {
+    refreshDiscovery();
+    refreshOutputDevices();
+  }
+
   void upsertDiscoveredDevice(ConnectDevice device) {
     _discoveredById[device.id] = device;
+    if (_linkedDeviceId == device.id) {
+      _linkedPeerName = device.name;
+      _linkedPeerAddress = device.address ?? _linkedPeerAddress;
+    }
     notifyListeners();
   }
 
@@ -702,13 +846,59 @@ class ConnectSessionProvider extends ChangeNotifier
       '[Handoff] Begin pairing targetId=$deviceId targetName=${target.name} targetAddress=${target.address} mode=${selectedMode.toJson()}',
     );
 
-    _lanConnectService.requestPair(
+    _transport.requestPair(
       target: target,
       fromDeviceId: _localDeviceId,
       fromDeviceName: _localDeviceName,
       fromPlatform: localPlatform,
       mode: selectedMode,
+      securityLevel: _localSecurityLevel,
     );
+
+    // Start a 15s timeout for the pairing request; if no response, cancel.
+    _pairingTimeoutTimer?.cancel();
+    _pairingTimeoutTimer = Timer(const Duration(seconds: 15), () {
+      logger.d('[Handoff] Pairing request timed out for device=$deviceId');
+      // Cancel pairing locally and return to idle.
+      _pairingTimeoutTimer?.cancel();
+      _pairingTimeoutTimer = null;
+      _pairingTargetDeviceId = null;
+      _pairingTargetAddress = null;
+      _linkedPeerName = null;
+      _setPhase(ConnectPhase.idle);
+      notifyListeners();
+    });
+  }
+
+  /// Cancel an in-flight pairing request initiated by this device.
+  void cancelPairing({bool notifyRemote = true}) {
+    if (_pairingTargetDeviceId == null && _pairingTargetAddress == null) {
+      return;
+    }
+
+    final address = _pairingTargetAddress;
+    // Optionally notify the remote device that we cancelled the request.
+    if (notifyRemote && address != null && address.isNotEmpty) {
+      try {
+        _transport.respondPair(
+          targetAddress: address,
+          accepted: false,
+          localDeviceId: _localDeviceId,
+          localDeviceName: _localDeviceName,
+          localPlatform: localPlatform,
+          mode: ConnectLinkMode.fullHandoff,
+          rejectionReason: 'cancelled',
+        );
+      } catch (_) {}
+    }
+
+    _pairingTimeoutTimer?.cancel();
+    _pairingTimeoutTimer = null;
+    _pairingTargetDeviceId = null;
+    _pairingTargetAddress = null;
+    _linkedPeerName = null;
+    _setPhase(ConnectPhase.idle);
+    notifyListeners();
   }
 
   void acceptIncomingPair() {
@@ -721,17 +911,20 @@ class ConnectSessionProvider extends ChangeNotifier
     final request = _pendingPairRequest;
     if (request == null) return;
 
-    _lanConnectService.respondPair(
+    _transport.respondPair(
       targetAddress: request.fromAddress,
       accepted: false,
       localDeviceId: _localDeviceId,
       localDeviceName: _localDeviceName,
       localPlatform: localPlatform,
       mode: request.requestedMode,
+      rejectionReason: '', // User declined (not a security issue)
     );
     _pendingPairRequest = null;
+    _pendingSecurityWarningMessage = null;
     _pairingTargetAddress = null;
     _linkedPeerAddress = null;
+    _linkedPeerName = null;
     _pairingTargetDeviceId = null;
     logger.d('[Handoff] Rejected incoming pair request.');
     if (_phase == ConnectPhase.pairing) {
@@ -741,21 +934,27 @@ class ConnectSessionProvider extends ChangeNotifier
     }
   }
 
-  void markLinkedSyncingAsHost(String targetDeviceId) {
+  void markLinkedSyncingAsHost(String targetDeviceId, String targetDeviceName) {
     _role = ConnectRole.host;
     _linkedDeviceId = targetDeviceId;
+    _linkedPeerName = targetDeviceName;
     logger.d('[Handoff] Role=host linkedDeviceId=$targetDeviceId');
     _stopTargetPulseTimer();
     _clearError();
+    _syncLinkedOutputDestination();
+    _audioHandler?.setIsHandoffHost(true);
     _setPhase(ConnectPhase.linkedSyncing);
   }
 
-  void markLinkedSyncingAsTarget(String hostDeviceId) {
+  void markLinkedSyncingAsTarget(String hostDeviceId, String hostDeviceName) {
     _role = ConnectRole.target;
     _linkedDeviceId = hostDeviceId;
+    _linkedPeerName = hostDeviceName;
     logger.d('[Handoff] Role=target linkedDeviceId=$hostDeviceId');
     _ensureTargetPulseTimer();
     _clearError();
+    _syncLinkedOutputDestination();
+    _audioHandler?.setIsHandoffHost(false);
     _setPhase(ConnectPhase.linkedSyncing);
   }
 
@@ -823,7 +1022,7 @@ class ConnectSessionProvider extends ChangeNotifier
         peerAddress != null &&
         peerAddress.isNotEmpty &&
         peerDeviceId != null) {
-      _lanConnectService.sendUnlink(
+      _transport.sendUnlink(
         targetAddress: peerAddress,
         fromDeviceId: _localDeviceId,
       );
@@ -835,8 +1034,10 @@ class ConnectSessionProvider extends ChangeNotifier
     logger.d(
       '[Handoff] Unlink localResumed=$localResumed resumePositionMs=${resumePosition.inMilliseconds} resumePlaying=$resumePlaying',
     );
+    _audioHandler?.setIsHandoffHost(false);
     _setPhase(ConnectPhase.unlinking);
     _linkedDeviceId = null;
+    _linkedPeerName = null;
     _role = ConnectRole.none;
     _pairingTargetDeviceId = null;
     _pairingTargetAddress = null;
@@ -846,11 +1047,22 @@ class ConnectSessionProvider extends ChangeNotifier
     _linkedPosition = resumePosition;
     _linkedIsPlaying = resumePlaying;
     _linkedPositionUpdatedAt = DateTime.now();
+    if (!isLinked) {
+      _activeOutputKind = ConnectOutputKind.local;
+      _activeOutputDeviceName = null;
+      _manualOutputKind = null;
+      _manualOutputDeviceName = null;
+    }
     _lastAppliedSequence = -1;
     _lastAckedSequence = -1;
     _lastTargetSnapshotTrackId = null;
     _lastTargetSnapshotIndex = -1;
     _lastTargetSnapshotSentAt = null;
+    _lastHostDeltaSeq = -1;
+    _lastHostDeltaTs = -1;
+    _lastHostSnapshotAckSequence = null;
+    _lastHostSnapshotFingerprint = -1;
+    _lastHostSnapshotAppliedAt = null;
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
 
@@ -875,19 +1087,39 @@ class ConnectSessionProvider extends ChangeNotifier
     _pairingTargetDeviceId = null;
     _pairingTargetAddress = null;
     _linkedPeerAddress = null;
+    _linkedPeerName = null;
     _activeLinkMode = ConnectLinkMode.fullHandoff;
     _lastTargetSnapshotTrackId = null;
     _lastTargetSnapshotIndex = -1;
     _lastTargetSnapshotSentAt = null;
+    _lastHostDeltaSeq = -1;
+    _lastHostDeltaTs = -1;
+    _lastHostSnapshotAckSequence = null;
+    _lastHostSnapshotFingerprint = -1;
+    _lastHostSnapshotAppliedAt = null;
     _clearError();
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
+    _pairingTimeoutTimer?.cancel();
+    _pairingTimeoutTimer = null;
+    _activeOutputKind = ConnectOutputKind.local;
+    _activeOutputDeviceName = null;
+    _activeOutputKind = ConnectOutputKind.local;
+    _activeOutputDeviceName = null;
+    _manualOutputKind = null;
+    _manualOutputDeviceName = null;
     notifyListeners();
   }
 
-  void setError(String message) {
+  void setError(String message, [ConnectErrorCode? code]) {
     _errorMessage = message;
+    _errorCode = code ?? ConnectErrorCode.generic;
     _phase = ConnectPhase.error;
+    notifyListeners();
+  }
+
+  void clearErrorMessage() {
+    _clearError();
     notifyListeners();
   }
 
@@ -896,6 +1128,7 @@ class ConnectSessionProvider extends ChangeNotifier
       return;
     }
     _errorMessage = null;
+    _errorCode = null;
     if (_phase == ConnectPhase.error) {
       _phase = isLinked ? ConnectPhase.linkedPlaying : ConnectPhase.idle;
     }
@@ -924,6 +1157,12 @@ class ConnectSessionProvider extends ChangeNotifier
     if (_phase == ConnectPhase.unlinking) return;
     _clearError();
 
+    final activeStart = _discoveryStartFuture;
+    if (activeStart != null) {
+      await activeStart;
+      return;
+    }
+
     if (_discoveryStarted) {
       _pruneTimer ??= Timer.periodic(const Duration(seconds: 5), (_) {
         pruneDiscoveredDevicesOlderThan(const Duration(seconds: 8));
@@ -939,42 +1178,49 @@ class ConnectSessionProvider extends ChangeNotifier
       await initFuture;
     }
 
-    _deviceSubscription ??= _lanConnectService.discoveredDeviceStream.listen(
+    _deviceSubscription ??= _transport.discoveredDeviceStream.listen(
       upsertDiscoveredDevice,
     );
-    _pairRequestSubscription ??= _lanConnectService.pairRequestStream.listen(
+    _pairRequestSubscription ??= _transport.pairRequestStream.listen(
       _onPairRequest,
     );
-    _pairResponseSubscription ??= _lanConnectService.pairResponseStream.listen(
+    _pairResponseSubscription ??= _transport.pairResponseStream.listen(
       _onPairResponse,
     );
-    _snapshotSubscription ??= _lanConnectService.snapshotStream.listen(
+    _snapshotSubscription ??= _transport.snapshotStream.listen(
       _onSnapshotSync,
     );
-    _commandIntentSubscription ??= _lanConnectService.commandIntentStream
+    _stateDeltaSubscription ??= _transport.stateDeltaStream.listen(
+      _onStateDelta,
+    );
+    _positionPulseSubscription ??= _transport.positionPulseStream.listen(
+      _onPositionPulse,
+    );
+    _commandIntentSubscription ??= _transport.commandIntentStream
         .listen(_onCommandIntent);
-    _commandApplySubscription ??= _lanConnectService.commandApplyStream.listen(
+    _commandApplySubscription ??= _transport.commandApplyStream.listen(
       _onCommandApply,
     );
-    _commandAckSubscription ??= _lanConnectService.commandAckStream.listen(
+    _commandAckSubscription ??= _transport.commandAckStream.listen(
       _onCommandAck,
     );
-    _unlinkSubscription ??= _lanConnectService.unlinkStream.listen(
+    _unlinkSubscription ??= _transport.unlinkStream.listen(
       _onUnlinkEvent,
     );
-    _playbackPulseSubscription ??= _lanConnectService.playbackPulseStream
-        .listen(_onPlaybackPulse);
+    // legacy playback pulse removed
 
     _pruneTimer ??= Timer.periodic(const Duration(seconds: 5), (_) {
       pruneDiscoveredDevicesOlderThan(const Duration(seconds: 8));
     });
 
+    final startFuture = _transport.start(
+      localDeviceId: _localDeviceId,
+      localDeviceName: _localDeviceName,
+      localPlatform: localPlatform,
+    );
+    _discoveryStartFuture = startFuture;
     try {
-      await _lanConnectService.start(
-        localDeviceId: _localDeviceId,
-        localDeviceName: _localDeviceName,
-        localPlatform: localPlatform,
-      );
+      await startFuture;
       _discoveryStarted = true;
       logger.d('[Handoff] Discovery started.');
       if (!isLinked && _phase != ConnectPhase.pairing) {
@@ -985,6 +1231,10 @@ class ConnectSessionProvider extends ChangeNotifier
     } catch (_) {
       setError('Could not start LAN discovery.');
       logger.e('[Handoff] Could not start LAN discovery.');
+    } finally {
+      if (identical(_discoveryStartFuture, startFuture)) {
+        _discoveryStartFuture = null;
+      }
     }
   }
 
@@ -994,8 +1244,9 @@ class ConnectSessionProvider extends ChangeNotifier
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
 
-    await _lanConnectService.stop();
+    await _transport.stop();
     _discoveryStarted = false;
+    _discoveryStartFuture = null;
     logger.d('[Handoff] Discovery stopped.');
 
     if (_phase == ConnectPhase.discovering || _phase == ConnectPhase.pairing) {
@@ -1009,8 +1260,9 @@ class ConnectSessionProvider extends ChangeNotifier
     notifyListeners();
 
     if (_discoveryStarted) {
-      await _lanConnectService.stop();
+      await _transport.stop();
       _discoveryStarted = false;
+      _discoveryStartFuture = null;
     }
 
     await _startDiscoveryInternal();
@@ -1020,6 +1272,38 @@ class ConnectSessionProvider extends ChangeNotifier
     logger.d(
       '[Handoff] Incoming pair request from ${request.fromDeviceName} (${request.fromDeviceId}) @ ${request.fromAddress} mode=${request.requestedMode.toJson()}',
     );
+
+    final localSecurity = _localSecurityLevel;
+    final remoteSecurity = request.securityLevel;
+
+    // Correct semantic: if the remote device's security is LOWER than our
+    // configured local security, reject the incoming pair.
+    // Use explicit index comparison but keep tests small and obvious.
+    if (remoteSecurity.index > localSecurity.index) {
+      logger.d(
+        '[Handoff] Rejected incoming pair from ${request.fromDeviceId} due to lower security level ${remoteSecurity.toJson()} < ${localSecurity.toJson()}.',
+      );
+      _transport.respondPair(
+        targetAddress: request.fromAddress,
+        accepted: false,
+        localDeviceId: _localDeviceId,
+        localDeviceName: _localDeviceName,
+        localPlatform: localPlatform,
+        mode: request.requestedMode,
+        rejectionReason: 'security_level_too_low',
+      );
+      return;
+    }
+
+    // If remote security is stronger than our configured level, no warning is
+    // necessary. If remote security is weaker (but not rejected), surface a
+    // non-blocking warning to the user.
+    if (remoteSecurity.index < localSecurity.index) {
+      _pendingSecurityWarningMessage =
+          'Connection is less secure than your configured level.';
+    } else {
+      _pendingSecurityWarningMessage = null;
+    }
 
     if (isTrustedIncomingDevice(request.fromDeviceId)) {
       logger.d(
@@ -1039,31 +1323,48 @@ class ConnectSessionProvider extends ChangeNotifier
       return;
     }
 
+    // Cancel any outstanding pairing timeout
+    _pairingTimeoutTimer?.cancel();
+    _pairingTimeoutTimer = null;
+
     if (response.accepted) {
       logger.d(
         '[Handoff] Pair accepted by ${response.fromDeviceName} (${response.fromDeviceId}) @ ${response.fromAddress} mode=${response.linkMode.toJson()}',
       );
       _activeLinkMode = response.linkMode;
-      markLinkedSyncingAsHost(response.fromDeviceId);
+      markLinkedSyncingAsHost(response.fromDeviceId, response.fromDeviceName);
       _pairingTargetAddress = response.fromAddress;
       _linkedPeerAddress = response.fromAddress;
+      _linkedPeerName = response.fromDeviceName;
+      _syncLinkedOutputDestination();
+      
+      // For full handoff: Host sends its snapshot to Target
+      // For control-only: Target will send its snapshot to Host, so don't send
       if (response.linkMode == ConnectLinkMode.fullHandoff) {
         _sendCurrentSnapshotToTarget(response.fromAddress);
-      } else {
-        unawaited(_requestCommand(_cmdRequestSnapshot));
       }
+      
       unawaited(_pauseLocalPlaybackAsHost());
     } else {
       logger.d(
         '[Handoff] Pair rejected by ${response.fromDeviceName} (${response.fromDeviceId})',
       );
+      _lastRejectedPairingTargetDeviceId = response.fromDeviceId;
       _linkedDeviceId = null;
+      _linkedPeerName = null;
       _activeLinkMode = ConnectLinkMode.fullHandoff;
       _pairingTargetDeviceId = null;
       _pairingTargetAddress = null;
       _linkedPeerAddress = null;
       _setPhase(ConnectPhase.idle);
-      setError('Pair request rejected by target device.');
+      if (response.rejectionReason == 'security_level_too_low') {
+        setError(
+          'Target device\'s connection security level is too low. Want to try again with lower, but equal, level security?',
+          ConnectErrorCode.securityLevelTooLow,
+        );
+      } else {
+        setError('Pair request rejected by target device.');
+      }
     }
   }
 
@@ -1071,16 +1372,92 @@ class ConnectSessionProvider extends ChangeNotifier
     if (sync.fromDeviceId == _localDeviceId) return;
 
     logger.d(
-      '[Handoff] Snapshot sync from ${sync.fromDeviceId} @ ${sync.fromAddress} queue=${sync.snapshot.queue.length} index=${sync.snapshot.currentIndex} playing=${sync.snapshot.isPlaying}',
+      '[Handoff] Snapshot sync from ${sync.fromDeviceId} queue=${sync.snapshot.queue.length} index=${sync.snapshot.currentIndex}',
     );
 
     _linkedPeerAddress = sync.fromAddress;
-    if (isHost) {
+    final isHostSnapshot = isHost ||
+        (_pairingTargetDeviceId != null &&
+            sync.fromDeviceId == _pairingTargetDeviceId &&
+            _role != ConnectRole.target);
+    if (isHostSnapshot) {
+      if (!isHost) {
+        markLinkedSyncingAsHost(
+          sync.fromDeviceId,
+          _discoveredById[sync.fromDeviceId]?.name ?? sync.fromDeviceId,
+        );
+      }
+      if (!_shouldApplyHostSnapshot(sync.snapshot)) {
+        logger.d('[Handoff] Ignored duplicate snapshot_sync from target.');
+        return;
+      }
       unawaited(_applyIncomingSnapshotAsHost(sync));
       return;
     }
 
     _applyIncomingSnapshot(sync);
+  }
+
+  void _onStateDelta(ConnectStateDeltaSync deltasync) {
+    if (deltasync.delta.deviceId == _localDeviceId) return;
+
+    _linkedPeerAddress = deltasync.fromAddress;
+    if (isHost) {
+      if (_linkedDeviceId != null && deltasync.fromDeviceId != _linkedDeviceId) {
+        return;
+      }
+
+      if (_isStaleHostDelta(deltasync.delta)) {
+        logger.d(
+          '[Handoff] Ignored stale state delta seq=${deltasync.delta.seq} ts=${deltasync.delta.ts}',
+        );
+        return;
+      }
+
+      // Host receives deltas from Target to update UI.
+      final mergedPlaying = deltasync.delta.isPlaying ?? _linkedIsPlaying;
+      final mergedPosition = Duration(
+        milliseconds: deltasync.delta.positionMs ?? _linkedPosition.inMilliseconds,
+      );
+      _setLinkedPlaybackState(
+        isPlaying: mergedPlaying,
+        position: mergedPosition,
+        notify: true,
+      );
+
+      final audio = _audioHandler;
+      if (_activeLinkMode == ConnectLinkMode.controlOnly && audio != null) {
+        _applyHostDeltaToPassiveSnapshot(audio, deltasync.delta);
+      }
+      return;
+    }
+
+    // Target should not typically receive deltas; this is for future use
+    logger.d('[Handoff] Target received delta (unexpected)');
+  }
+
+  void _onPositionPulse(ConnectPositionPulseSync pulsesync) {
+    if (pulsesync.pulse.deviceId == _localDeviceId) return;
+
+    _linkedPeerAddress = pulsesync.fromAddress;
+    if (!isHost) return; // Only Host processes position pulses from Target
+
+    final pulse = pulsesync.pulse;
+
+    // Update host UI with target's current position for interpolation
+    // Apply pulse to linked playback state
+    _setLinkedPlaybackState(
+      isPlaying: _linkedIsPlaying,
+      position: Duration(milliseconds: pulse.positionMs),
+      notify: true,
+    );
+
+    // Ensure audio handler is in sync with pulse state
+    final audio = _audioHandler;
+    if (audio != null && _activeLinkMode == ConnectLinkMode.controlOnly) {
+      // In control-only, Host should reflect target's position for UI
+      notifyListeners();
+    }
   }
 
   void _onCommandIntent(ConnectCommandIntent intent) {
@@ -1090,9 +1467,23 @@ class ConnectSessionProvider extends ChangeNotifier
     }
 
     logger.d(
-      '[Handoff] Command intent from target ${intent.fromDeviceId}: ${intent.command} payload=${intent.payload}',
+      '[Handoff] Command intent from target ${intent.fromDeviceId}: ${intent.command}',
     );
     _linkedPeerAddress = intent.fromAddress;
+    _linkedPeerName ??= _discoveredById[intent.fromDeviceId]?.name;
+
+    // In control-only mode: Target is the authority. Don't re-issue commands.
+    // Instead, just acknowledge and update UI state for sync.
+    if (_activeLinkMode == ConnectLinkMode.controlOnly) {
+      logger.d(
+        '[Handoff] Control-only mode: Host received target command ${intent.command} - acknowledging without re-issuing',
+      );
+      // Request snapshot from target to sync UI
+      unawaited(_requestCommand(_cmdRequestSnapshot));
+      return;
+    }
+
+    // In full handoff mode: Host is the authority. Re-issue the command to target.
     _issueHostCommand(intent.command, intent.payload);
   }
 
@@ -1102,10 +1493,11 @@ class ConnectSessionProvider extends ChangeNotifier
       return;
     }
 
-    logger.d(
-      '[Handoff] Command apply from host ${apply.fromDeviceId}: seq=${apply.sequence} cmd=${apply.command} payload=${apply.payload}',
+    logger.i(
+      '[Handoff] Command apply from host seq=${apply.sequence} cmd=${apply.command}',
     );
     _linkedPeerAddress = apply.fromAddress;
+    _linkedPeerName ??= _discoveredById[apply.fromDeviceId]?.name;
     _applyCommandAsTarget(apply);
   }
 
@@ -1116,17 +1508,32 @@ class ConnectSessionProvider extends ChangeNotifier
     }
 
     logger.d(
-      '[Handoff] Command ack from target ${ack.fromDeviceId}: seq=${ack.sequence} playing=${ack.isPlaying} posMs=${ack.positionMs}',
+      '[Handoff] Command ack from target seq=${ack.sequence}',
     );
     _linkedPeerAddress = ack.fromAddress;
+    _linkedPeerName ??= _discoveredById[ack.fromDeviceId]?.name;
     markCommandAcked(ack.sequence);
     _setLinkedPlaybackState(
       isPlaying: ack.isPlaying,
       position: Duration(milliseconds: ack.positionMs),
-      notify: false,
+      notify: true,
     );
     if (ack.snapshot != null) {
+      logger.d(
+        '[Handoff] Command ack has snapshot: queue=${ack.snapshot!.queue.length} index=${ack.snapshot!.currentIndex} playing=${ack.snapshot!.isPlaying}',
+      );
       if (isHost && _activeLinkMode == ConnectLinkMode.controlOnly) {
+        if (_lastHostSnapshotAckSequence == ack.sequence ||
+            !_shouldApplyHostSnapshot(ack.snapshot!, sequence: ack.sequence)) {
+          logger.d(
+            '[Handoff] Ignored duplicate command_ack snapshot seq=${ack.sequence}.',
+          );
+          return;
+        }
+        _lastHostSnapshotAckSequence = ack.sequence;
+        logger.d(
+          '[Handoff] Applying ack snapshot in control-only mode to sync Host UI',
+        );
         unawaited(
           _applyIncomingSnapshotAsHost(
             ConnectSnapshotSync(
@@ -1147,24 +1554,12 @@ class ConnectSessionProvider extends ChangeNotifier
     }
   }
 
-  void _onPlaybackPulse(ConnectPlaybackPulse pulse) {
-    if (!isHost) return;
-    if (_linkedDeviceId == null || pulse.fromDeviceId != _linkedDeviceId) {
-      return;
-    }
-
-    _linkedPeerAddress = pulse.fromAddress;
-    _setLinkedPlaybackState(
-      isPlaying: pulse.isPlaying,
-      position: Duration(milliseconds: pulse.positionMs),
-    );
-    if (_phase == ConnectPhase.linkedSyncing) {
-      _setPhase(ConnectPhase.linkedPlaying);
-    }
-  }
+  // legacy playback pulse handler removed; use position_pulse instead
 
   void _onUnlinkEvent(ConnectUnlinkEvent event) {
-    if (_linkedDeviceId == null || event.fromDeviceId != _linkedDeviceId) {
+    final matchesLinkedPeer = event.fromDeviceId == _linkedDeviceId ||
+        event.fromDeviceId == _pairingTargetDeviceId;
+    if (!matchesLinkedPeer) {
       return;
     }
 
@@ -1183,20 +1578,190 @@ class ConnectSessionProvider extends ChangeNotifier
     );
   }
 
+  void _syncLinkedOutputDestination() {
+    final linkedId = _linkedDeviceId;
+    if (linkedId == null || linkedId.isEmpty) {
+      setActiveOutputDestination(ConnectOutputKind.local);
+      return;
+    }
+
+    final device = _discoveredById[linkedId];
+    final name = device?.name ?? _linkedPeerName ?? linkedId;
+    final platform = (device?.platform ?? '').trim().toLowerCase();
+    final kind = switch (platform) {
+      'android' || 'ios' || 'iphone' || 'ipad' =>
+        ConnectOutputKind.handoffMobile,
+      'linux' || 'macos' || 'windows' => ConnectOutputKind.handoffDesktop,
+      _ => ConnectOutputKind.handoffDesktop,
+    };
+    setActiveOutputDestination(kind, deviceName: name);
+  }
+
+  Future<void> _startOutputRouteMonitoring() async {
+    try {
+      final session = await AudioSession.instance;
+      _audioDevicesSubscription ??= session.devicesStream.listen(
+        _updateAvailableOutputDevices,
+      );
+      final devices = await session.getDevices(
+        includeInputs: false,
+        includeOutputs: true,
+      );
+      _updateAvailableOutputDevices(devices);
+    } catch (error) {
+      logger.w('[Handoff] Output route monitoring unavailable.', error: error);
+      _availableOutputDevices = [
+        ConnectOutputDevice(
+          kind: ConnectOutputKind.local,
+          name: _localDeviceName,
+        ),
+      ];
+    }
+  }
+
+  Future<void> _refreshOutputDevicesInternal() async {
+    try {
+      final session = await AudioSession.instance;
+      final devices = await session.getDevices(
+        includeInputs: false,
+        includeOutputs: true,
+      );
+      _updateAvailableOutputDevices(devices);
+    } catch (error) {
+      logger.w('[Handoff] Failed to refresh output routes.', error: error);
+    }
+  }
+
+  void _updateAvailableOutputDevices(Set<AudioDevice> devices) {
+    final localName = _localDeviceName.trim().isEmpty
+        ? 'This Device'
+        : _localDeviceName;
+    final nextDevices = <ConnectOutputDevice>[
+      ConnectOutputDevice(kind: ConnectOutputKind.local, name: localName),
+    ];
+
+    for (final device in devices) {
+      if (!device.isOutput) continue;
+      final kind = _mapAudioDeviceToOutputKind(device);
+      if (kind == null) continue;
+      final name = device.name.trim().isEmpty
+          ? kind.label
+          : device.name.trim();
+      nextDevices.add(ConnectOutputDevice(kind: kind, name: name));
+    }
+
+    final dedupedDevices = <ConnectOutputDevice>[];
+    final seen = <String>{};
+    for (final device in nextDevices) {
+      final key = '${device.kind.name}|${device.name ?? ''}'.toLowerCase();
+      if (!seen.add(key)) continue;
+      dedupedDevices.add(device);
+    }
+
+    final nextPreferredExternal = dedupedDevices.firstWhere(
+      (device) => device.kind == ConnectOutputKind.bluetooth,
+      orElse: () => dedupedDevices.firstWhere(
+        (device) => device.kind == ConnectOutputKind.wired,
+        orElse: () => const ConnectOutputDevice(kind: ConnectOutputKind.local),
+      ),
+    );
+
+    final wasChanged = !_sameOutputDevices(
+      _availableOutputDevices,
+      dedupedDevices,
+    );
+    _availableOutputDevices = dedupedDevices;
+
+    var activeChanged = false;
+    if (!isLinked) {
+      ConnectOutputDevice nextOutput = nextPreferredExternal;
+      final manualKind = _manualOutputKind;
+      if (manualKind != null) {
+        final manualName = _manualOutputDeviceName;
+        final manualMatch = dedupedDevices.where((device) {
+          if (device.kind != manualKind) {
+            return false;
+          }
+          if (manualKind == ConnectOutputKind.local) {
+            return true;
+          }
+          return (device.name ?? '').trim().toLowerCase() ==
+              (manualName ?? '').trim().toLowerCase();
+        });
+        if (manualMatch.isNotEmpty) {
+          nextOutput = manualMatch.first;
+        } else {
+          _manualOutputKind = null;
+          _manualOutputDeviceName = null;
+        }
+      }
+
+      final nextKind = nextOutput.kind;
+      final nextName =
+          nextKind == ConnectOutputKind.local ? null : nextOutput.name;
+      if (_activeOutputKind != nextKind || _activeOutputDeviceName != nextName) {
+        _activeOutputKind = nextKind;
+        _activeOutputDeviceName = nextName;
+        activeChanged = true;
+      }
+    }
+
+    if (wasChanged || activeChanged) {
+      notifyListeners();
+    }
+  }
+
+  ConnectOutputKind? _mapAudioDeviceToOutputKind(AudioDevice device) {
+    final typeName = '${device.type}'.toLowerCase();
+    if (typeName.contains('bluetooth') || typeName.contains('hearingaid')) {
+      return ConnectOutputKind.bluetooth;
+    }
+    if (typeName.contains('wired') ||
+        typeName.contains('line') ||
+        typeName.contains('aux') ||
+        typeName.contains('usb') ||
+        typeName.contains('dock')) {
+      return ConnectOutputKind.wired;
+    }
+    return null;
+  }
+
+  bool _sameOutputDevices(
+    List<ConnectOutputDevice> previous,
+    List<ConnectOutputDevice> next,
+  ) {
+    if (previous.length != next.length) {
+      return false;
+    }
+    for (var i = 0; i < previous.length; i++) {
+      if (previous[i].kind != next[i].kind || previous[i].name != next[i].name) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   Future<void> _applyIncomingSnapshot(ConnectSnapshotSync sync) async {
     try {
       logger.d(
         '[Handoff] Applying incoming snapshot from ${sync.fromDeviceId}.',
       );
-      markLinkedSyncingAsTarget(sync.fromDeviceId);
+      markLinkedSyncingAsTarget(
+        sync.fromDeviceId,
+        _discoveredById[sync.fromDeviceId]?.name ?? sync.fromDeviceId,
+      );
       applyResolvedYoutubeIds(sync.snapshot.resolvedYoutubeIds);
 
       final audioHandler = _audioHandler;
       if (audioHandler != null) {
-        await audioHandler.applyConnectSnapshot(
+        await _audioCommandApplier.applySnapshot(
+          audioHandler,
           sync.snapshot,
           autoPlay: true,
           preserveVolume: true,
+        );
+        logger.d(
+          '[Handoff] _applyIncomingSnapshot: applied snapshot -> audio.currentIndex=${audioHandler.currentIndex} isPlaying=${audioHandler.isPlaying} positionMs=${audioHandler.position.inMilliseconds}',
         );
       }
 
@@ -1215,12 +1780,21 @@ class ConnectSessionProvider extends ChangeNotifier
     final audioHandler = _audioHandler;
     if (audioHandler != null) {
       try {
-        await audioHandler.applyConnectSnapshot(
-          sync.snapshot,
-          autoPlay: false,
-          preserveVolume: true,
+        logger.d(
+          '[Handoff] Applying incoming snapshot as host: queue=${sync.snapshot.queue.length} index=${sync.snapshot.currentIndex} isPlaying=${sync.snapshot.isPlaying}',
         );
-      } catch (_) {}
+        audioHandler.applyPassiveConnectSnapshot(sync.snapshot);
+        logger.d(
+          '[Handoff] Applied snapshot successfully. Audio handler currentIndex=${audioHandler.currentIndex}',
+        );
+      } catch (e) {
+        logger.e(
+          '[Handoff] Failed to apply incoming snapshot as host',
+          error: e,
+        );
+      }
+    } else {
+      logger.w('[Handoff] Audio handler is null, cannot apply snapshot');
     }
 
     applyResolvedYoutubeIds(sync.snapshot.resolvedYoutubeIds);
@@ -1229,6 +1803,73 @@ class ConnectSessionProvider extends ChangeNotifier
       position: Duration(milliseconds: sync.snapshot.positionMs),
     );
     unawaited(_pauseLocalPlaybackAsHost());
+  }
+
+  bool _isStaleHostDelta(ConnectStateDelta delta) {
+    if (delta.seq <= _lastHostDeltaSeq) {
+      return true;
+    }
+    if (_lastHostDeltaTs >= 0 && delta.ts > 0 && delta.ts < _lastHostDeltaTs) {
+      return true;
+    }
+    _lastHostDeltaSeq = delta.seq;
+    if (delta.ts > 0) {
+      _lastHostDeltaTs = delta.ts;
+    }
+    return false;
+  }
+
+  bool _shouldApplyHostSnapshot(
+    ConnectPlaybackSnapshot snapshot, {
+    int? sequence,
+  }) {
+    if (sequence != null && _lastHostSnapshotAckSequence == sequence) {
+      return false;
+    }
+
+    final fingerprint = Object.hash(
+      snapshot.queue.length,
+      snapshot.currentIndex,
+      snapshot.isPlaying,
+      snapshot.positionMs,
+      snapshot.durationMs,
+    );
+    final now = DateTime.now();
+    final lastAppliedAt = _lastHostSnapshotAppliedAt;
+    final appliedRecently =
+        lastAppliedAt != null && now.difference(lastAppliedAt).inMilliseconds < 900;
+
+    if (appliedRecently && fingerprint == _lastHostSnapshotFingerprint) {
+      return false;
+    }
+
+    _lastHostSnapshotFingerprint = fingerprint;
+    _lastHostSnapshotAppliedAt = now;
+    return true;
+  }
+
+  void _applyHostDeltaToPassiveSnapshot(
+    WispAudioHandler audio,
+    ConnectStateDelta delta,
+  ) {
+    final base = audio.buildConnectSnapshot();
+    final merged = ConnectPlaybackSnapshot(
+      queue: delta.queue ?? base.queue,
+      originalQueue: base.originalQueue,
+      currentIndex: delta.currentIndex ?? base.currentIndex,
+      positionMs: delta.positionMs ?? base.positionMs,
+      durationMs: delta.durationMs ?? base.durationMs,
+      isPlaying: delta.isPlaying ?? base.isPlaying,
+      shuffleEnabled: delta.shuffleEnabled ?? base.shuffleEnabled,
+      repeatMode: delta.repeatMode ?? base.repeatMode,
+      contextType: base.contextType,
+      contextName: base.contextName,
+      contextId: base.contextId,
+      contextSource: base.contextSource,
+      volume: delta.volume ?? base.volume,
+      resolvedYoutubeIds: base.resolvedYoutubeIds,
+    );
+    audio.applyPassiveConnectSnapshot(merged);
   }
 
   void _ensureTargetPulseTimer() {
@@ -1265,23 +1906,35 @@ class ConnectSessionProvider extends ChangeNotifier
   void _sendTargetPlaybackPulse() {
     if (!isTarget) return;
     final peerAddress = _linkedPeerAddress ?? _pairingTargetAddress;
-    if (peerAddress == null || peerAddress.isEmpty) return;
+    if (peerAddress == null || peerAddress.isEmpty) {
+      logger.w('[Handoff] _sendTargetPlaybackPulse: no valid peer address (linked=$_linkedPeerAddress, pairing=$_pairingTargetAddress)');
+      return;
+    }
 
     final audio = _audioHandler;
     if (audio == null) return;
 
-    final snapshot = audio.buildConnectSnapshot();
+    logger.d('[Handoff] _sendTargetPlaybackPulse to=$peerAddress');
+    // Get current position and playing state
+    final positionMs = audio.position.inMilliseconds;
+    final isPlaying = audio.isPlaying;
+
     _setLinkedPlaybackState(
-      isPlaying: snapshot.isPlaying,
-      position: Duration(milliseconds: snapshot.positionMs),
+      isPlaying: isPlaying,
+      position: Duration(milliseconds: positionMs),
       notify: false,
     );
 
-    _lanConnectService.sendPlaybackPulse(
+    // Send new format position pulse with seq and ts
+    _transport.sendPositionPulse(
       targetAddress: peerAddress,
       fromDeviceId: _localDeviceId,
-      isPlaying: snapshot.isPlaying,
-      positionMs: snapshot.positionMs,
+      pulse: ConnectPositionPulse(
+        deviceId: _localDeviceId,
+        seq: _nextPositionPulseSeq++,
+        ts: DateTime.now().millisecondsSinceEpoch,
+        positionMs: positionMs,
+      ),
     );
 
     final currentTrackId = audio.currentTrack?.id;
@@ -1312,10 +1965,13 @@ class ConnectSessionProvider extends ChangeNotifier
       '[Handoff] Sending snapshot to target=$address queue=${snapshot.queue.length} index=${snapshot.currentIndex} playing=${snapshot.isPlaying}',
     );
     applyResolvedYoutubeIds(snapshot.resolvedYoutubeIds);
-    _lanConnectService.sendSnapshot(
+    // Use lean parameters to avoid oversized UDP datagrams on target (Windows UDP limit)
+    _transport.sendSnapshot(
       targetAddress: address,
       fromDeviceId: _localDeviceId,
       snapshot: snapshot,
+      includeOriginalQueue: false,
+      includeResolvedYoutubeIds: false,
     );
 
     markLinkedPlaying(
@@ -1330,8 +1986,9 @@ class ConnectSessionProvider extends ChangeNotifier
   }) async {
     if (!isLinked) return;
 
+    final payloadSummary = _summarizePayload(command, payload);
     logger.d(
-      '[Handoff] Request command role=$_role linked=$isLinked cmd=$command payload=$payload peer=$_linkedPeerAddress pairTarget=$_pairingTargetAddress',
+      '[Handoff] Request command role=$_role linked=$isLinked cmd=$command $payloadSummary peer=$_linkedPeerAddress pairTarget=$_pairingTargetAddress',
     );
 
     if (isHost) {
@@ -1344,7 +2001,7 @@ class ConnectSessionProvider extends ChangeNotifier
       return;
     }
 
-    _lanConnectService.sendCommandIntent(
+    _transport.sendCommandIntent(
       targetAddress: peerAddress,
       fromDeviceId: _localDeviceId,
       command: command,
@@ -1361,11 +2018,12 @@ class ConnectSessionProvider extends ChangeNotifier
     if (peerAddress == null || peerAddress.isEmpty) return;
 
     final sequence = ++_hostCommandSequence;
+    final payloadSummary = _summarizePayload(command, payload);
     logger.d(
-      '[Handoff] Host issue seq=$sequence cmd=$command payload=$payload target=$peerAddress',
+      '[Handoff] Host issue seq=$sequence cmd=$command $payloadSummary target=$peerAddress',
     );
     markCommandApplied(sequence);
-    _lanConnectService.sendCommandApply(
+    _transport.sendCommandApply(
       targetAddress: peerAddress,
       fromDeviceId: _localDeviceId,
       sequence: sequence,
@@ -1374,87 +2032,20 @@ class ConnectSessionProvider extends ChangeNotifier
     );
   }
 
-  Future<void> _executeCommandOnAudio(
-    WispAudioHandler audio,
-    String command,
-    Map<String, dynamic> payload,
-  ) async {
+  String _summarizePayload(String command, Map<String, dynamic> payload) {
+    if (payload.isEmpty) return 'payload={}';
+    
     switch (command) {
-      case _cmdPlay:
-        if (audio.currentTrack != null) {
-          await audio.play();
-        } else if (audio.queueTracks.isNotEmpty) {
-          await audio.playTrack(audio.queueTracks.first);
-        }
-        break;
-      case _cmdPause:
-        await audio.pause();
-        break;
-      case _cmdSeek:
-        final positionMs = (payload['position_ms'] as int?) ?? 0;
-        await audio.seek(Duration(milliseconds: positionMs));
-        break;
-      case _cmdSkipNext:
-        await audio.skipNext();
-        break;
-      case _cmdSkipPrevious:
-        await audio.skipPrevious();
-        break;
-      case _cmdToggleShuffle:
-        audio.toggleShuffle();
-        break;
-      case _cmdToggleRepeat:
-        audio.toggleRepeat();
-        break;
-      case _cmdPlayQueueIndex:
-        final index = (payload['index'] as int?) ?? -1;
-        if (index >= 0 && index < audio.queueTracks.length) {
-          await audio.playTrack(audio.queueTracks[index], addToQueue: false);
-        }
-        break;
-      case _cmdRemoveFromQueue:
-        final index = (payload['index'] as int?) ?? -1;
-        audio.removeFromQueue(index);
-        break;
-      case _cmdClearQueue:
-        audio.clearQueue();
-        break;
-      case _cmdReorderQueue:
-        final oldIndex = (payload['old_index'] as int?) ?? -1;
-        final newIndex = (payload['new_index'] as int?) ?? -1;
-        if (oldIndex >= 0 && newIndex >= 0) {
-          audio.reorderQueue(oldIndex, newIndex);
-        }
-        break;
-      case _cmdSetQueue:
-        final tracksJson =
-            (payload['tracks'] as List<dynamic>? ?? const <dynamic>[])
-                .whereType<Map<String, dynamic>>()
-                .toList(growable: false);
-        final tracks = tracksJson.map(GenericSong.fromJson).toList();
-        final originalQueueJson =
-            (payload['original_queue'] as List<dynamic>? ?? const <dynamic>[])
-                .whereType<Map<String, dynamic>>()
-                .toList(growable: false);
-        final originalQueue = originalQueueJson
-            .map(GenericSong.fromJson)
-            .toList();
-        await audio.setQueue(
-          tracks,
-          startIndex: (payload['start_index'] as int?) ?? 0,
-          play: (payload['play'] as bool?) ?? true,
-          contextType: payload['context_type'] as String?,
-          contextName: payload['context_name'] as String?,
-          contextID: payload['context_id'] as String?,
-          contextSource: SongSource.fromJson(
-            payload['context_source'] as String? ?? SongSource.spotify.toJson(),
-          ),
-          shuffleEnabled: (payload['shuffle_enabled'] as bool?) ?? false,
-          originalQueue: originalQueue.isEmpty ? null : originalQueue,
-        );
-        break;
+      case 'set_queue':
+        final trackCount = (payload['tracks'] is List) 
+            ? (payload['tracks'] as List).length 
+            : 0;
+        return 'payloadSize=set_queue(tracks=$trackCount)';
+      case 'seek':
+        final posMs = payload['position_ms'];
+        return 'payloadSize=seek(posMs=$posMs)';
       default:
-        break;
+        return 'payloadSize=${command}(keys=${payload.keys.length})';
     }
   }
 
@@ -1479,22 +2070,23 @@ class ConnectSessionProvider extends ChangeNotifier
 
   Future<void> _applyCommandAsTarget(ConnectCommandApply apply) async {
     final audio = _audioHandler;
-    if (audio == null) return;
+    if (audio == null) {
+      logger.w('[Handoff] Target cannot apply command: audio handler null');
+      return;
+    }
 
     try {
       if (apply.command == _cmdRequestSnapshot) {
         final snapshot = audio.buildConnectSnapshot();
-        _lanConnectService.sendCommandAck(
+        logger.d(
+          '[Handoff] Target responding to snapshot request seq=${apply.sequence}',
+        );
+        _transport.sendCommandAck(
           targetAddress: apply.fromAddress,
           fromDeviceId: _localDeviceId,
           sequence: apply.sequence,
           isPlaying: snapshot.isPlaying,
           positionMs: snapshot.positionMs,
-          snapshot: snapshot,
-        );
-        _lanConnectService.sendSnapshot(
-          targetAddress: apply.fromAddress,
-          fromDeviceId: _localDeviceId,
           snapshot: snapshot,
         );
         markLinkedPlaying(
@@ -1504,33 +2096,66 @@ class ConnectSessionProvider extends ChangeNotifier
         return;
       }
 
+      var applyFailed = false;
       logger.d(
         '[Handoff] Target apply seq=${apply.sequence} cmd=${apply.command} payload=${apply.payload}',
       );
-      await _executeCommandOnAudio(audio, apply.command, apply.payload);
+      try {
+        await _audioCommandApplier.apply(
+          audio: audio,
+          command: apply.command,
+          payload: apply.payload,
+        );
+      } catch (e, st) {
+        applyFailed = true;
+        setError('Failed to apply remote command.');
+        logger.e(
+          '[Handoff] Failed to apply remote command seq=${apply.sequence} cmd=${apply.command} error=$e',
+          error: e,
+          stackTrace: st,
+        );
+      }
 
       markCommandApplied(apply.sequence);
       final snapshot = audio.buildConnectSnapshot();
       logger.d(
-        '[Handoff] Target ack seq=${apply.sequence} playing=${snapshot.isPlaying} posMs=${snapshot.positionMs} to=${apply.fromAddress}',
+        '[Handoff] Target ack seq=${apply.sequence} applied=${!applyFailed} playing=${snapshot.isPlaying} posMs=${snapshot.positionMs} to=${apply.fromAddress}',
       );
-      _lanConnectService.sendCommandAck(
-        targetAddress: apply.fromAddress,
-        fromDeviceId: _localDeviceId,
-        sequence: apply.sequence,
-        isPlaying: snapshot.isPlaying,
-        positionMs: snapshot.positionMs,
-        snapshot: snapshot,
-      );
+      // Resolve a safe target address to reply to. Prefer the packet's
+      // source address, but fall back to our linked peer or discovered
+      // device entry if the source looks invalid (eg. 0.0.0.0).
+      String? targetAddr = apply.fromAddress;
+      logger.d('[Handoff] Preparing command_ack: packet.fromAddress=${apply.fromAddress} linkedPeer=$_linkedPeerAddress discovered=${_discoveredById[apply.fromDeviceId]?.address} pairingTarget=$_pairingTargetAddress');
+      if (targetAddr == null || targetAddr.isEmpty || targetAddr == '0.0.0.0') {
+        targetAddr = _linkedPeerAddress;
+      }
+      if (targetAddr == null || targetAddr.isEmpty || targetAddr == '0.0.0.0') {
+        targetAddr = _discoveredById[apply.fromDeviceId]?.address ?? _pairingTargetAddress;
+      }
+
+      if (targetAddr == null || targetAddr.isEmpty || targetAddr == '0.0.0.0') {
+        logger.w('[Handoff] No valid address to send command_ack for seq=${apply.sequence} to ${apply.fromDeviceId}; resolved targetAddr=$targetAddr');
+      } else {
+        logger.d('[Handoff] Sending command_ack seq=${apply.sequence} to $targetAddr (fromDevice=${apply.fromDeviceId})');
+        _transport.sendCommandAck(
+          targetAddress: targetAddr,
+          fromDeviceId: _localDeviceId,
+          sequence: apply.sequence,
+          isPlaying: snapshot.isPlaying,
+          positionMs: snapshot.positionMs,
+          snapshot: snapshot,
+        );
+      }
       markLinkedPlaying(
         isPlaying: snapshot.isPlaying,
         position: Duration(milliseconds: snapshot.positionMs),
       );
       _sendTargetPlaybackPulse();
-    } catch (_) {
-      setError('Failed to apply remote command.');
+    } catch (e, st) {
       logger.e(
-        '[Handoff] Failed to apply remote command seq=${apply.sequence} cmd=${apply.command}',
+        '[Handoff] Target command ack failed seq=${apply.sequence} cmd=${apply.command}',
+        error: e,
+        stackTrace: st,
       );
     }
   }
@@ -1539,8 +2164,9 @@ class ConnectSessionProvider extends ChangeNotifier
     ConnectPairRequest request, {
     required bool manual,
   }) {
+    _pendingSecurityWarningMessage = null;
     _activeLinkMode = request.requestedMode;
-    _lanConnectService.respondPair(
+    _transport.respondPair(
       targetAddress: request.fromAddress,
       accepted: true,
       localDeviceId: _localDeviceId,
@@ -1548,14 +2174,23 @@ class ConnectSessionProvider extends ChangeNotifier
       localPlatform: localPlatform,
       mode: request.requestedMode,
     );
-    markLinkedSyncingAsTarget(request.fromDeviceId);
+    markLinkedSyncingAsTarget(request.fromDeviceId, request.fromDeviceName);
     _pairingTargetAddress = request.fromAddress;
     _linkedPeerAddress = request.fromAddress;
+    _linkedPeerName = request.fromDeviceName;
+    unawaited(
+      _preferences?.recordTrustedDeviceConnection(
+        id: request.fromDeviceId,
+        name: request.fromDeviceName,
+        platform: request.fromPlatform,
+      ),
+    );
     logger.d(
       '[Handoff] Accepted incoming pair from ${request.fromDeviceName} (${request.fromDeviceId}) @ ${request.fromAddress} mode=${request.requestedMode.toJson()} manual=$manual',
     );
     _pendingPairRequest = null;
 
+    // For control-only: Target sends its snapshot to Host for UI sync
     if (request.requestedMode == ConnectLinkMode.controlOnly) {
       _sendCurrentSnapshotToHost(request.fromAddress);
     }
@@ -1563,6 +2198,7 @@ class ConnectSessionProvider extends ChangeNotifier
     if (manual && !isTrustedIncomingDevice(request.fromDeviceId)) {
       _pendingTrustPromptDeviceId = request.fromDeviceId;
       _pendingTrustPromptDeviceName = request.fromDeviceName;
+      _pendingTrustPromptDevicePlatform = request.fromPlatform;
     }
     notifyListeners();
   }
@@ -1573,15 +2209,29 @@ class ConnectSessionProvider extends ChangeNotifier
       return;
     }
     final snapshot = audioHandler.buildConnectSnapshot();
-    _lanConnectService.sendSnapshot(
-      targetAddress: targetAddress,
-      fromDeviceId: _localDeviceId,
-      snapshot: snapshot,
-    );
-    markLinkedPlaying(
-      isPlaying: snapshot.isPlaying,
-      position: Duration(milliseconds: snapshot.positionMs),
-    );
+    try {
+      logger.d(
+        '[Handoff] Sending snapshot to host target=$targetAddress queue=${snapshot.queue.length} index=${snapshot.currentIndex} playing=${snapshot.isPlaying}',
+      );
+      _transport.sendSnapshot(
+        targetAddress: targetAddress,
+        fromDeviceId: _localDeviceId,
+        snapshot: snapshot,
+        includeOriginalQueue: false,
+        includeResolvedYoutubeIds: false,
+      );
+      markLinkedPlaying(
+        isPlaying: snapshot.isPlaying,
+        position: Duration(milliseconds: snapshot.positionMs),
+      );
+    } catch (error, stackTrace) {
+      logger.e(
+        '[Handoff] Failed to send initial snapshot to host target=$targetAddress queue=${snapshot.queue.length} index=${snapshot.currentIndex}',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      setError('Failed to send initial sync snapshot.');
+    }
   }
 
   Future<void> _persistPreferredModesByDevice() async {
@@ -1603,14 +2253,17 @@ class ConnectSessionProvider extends ChangeNotifier
     _pairRequestSubscription?.cancel();
     _pairResponseSubscription?.cancel();
     _snapshotSubscription?.cancel();
+    _stateDeltaSubscription?.cancel();
+    _positionPulseSubscription?.cancel();
     _commandIntentSubscription?.cancel();
     _commandApplySubscription?.cancel();
     _commandAckSubscription?.cancel();
     _unlinkSubscription?.cancel();
-    _playbackPulseSubscription?.cancel();
+    // legacy playback pulse subscription removed
+    _audioDevicesSubscription?.cancel();
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
-    _lanConnectService.dispose();
+    _transport.dispose();
     super.dispose();
   }
 }

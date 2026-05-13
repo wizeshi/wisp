@@ -23,7 +23,6 @@ import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
-import '../providers/theme/cover_art_palette_provider.dart';
 import '../services/app_navigation.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../utils/liked_songs.dart';
@@ -654,9 +653,12 @@ class HomePageState extends State<HomePage> {
                           title: track.title,
                           subtitle: track.artists.map((a) => a.name).join(', '),
                           onTap: () async {
-                            final player = context.read<WispAudioHandler>();
-                            player.clearQueue();
-                            await player.playTrack(track);
+                            final coordinator = context.read<PlaybackCoordinator>();
+                            await coordinator.setQueue(
+                              [track],
+                              startIndex: 0,
+                              play: true,
+                            );
                           },
                           onLongPress: () {
                             EntityContextMenus.showTrackMenu(
@@ -942,9 +944,12 @@ class HomePageState extends State<HomePage> {
         title: item.title,
         subtitle: item.artists.map((a) => a.name).join(', '),
         onTap: () async {
-          final player = context.read<WispAudioHandler>();
-          player.clearQueue();
-          await player.playTrack(item);
+          final coordinator = context.read<PlaybackCoordinator>();
+          await coordinator.setQueue(
+            [item],
+            startIndex: 0,
+            play: true,
+          );
         },
         onLongPress: () {
           EntityContextMenus.showTrackMenu(context, track: item);
@@ -1371,14 +1376,20 @@ class HomePageState extends State<HomePage> {
         isActive: isActive,
         isPlaying: isPlaying,
         onTap: () async {
-          final player = context.read<WispAudioHandler>();
-          player.clearQueue();
-          await player.playTrack(item);
+          final coordinator = context.read<PlaybackCoordinator>();
+          await coordinator.setQueue(
+            [item],
+            startIndex: 0,
+            play: true,
+          );
         },
         onPlay: () async {
-          final player = context.read<WispAudioHandler>();
-          player.clearQueue();
-          await player.playTrack(item);
+          final coordinator = context.read<PlaybackCoordinator>();
+          await coordinator.setQueue(
+            [item],
+            startIndex: 0,
+            play: true,
+          );
         },
         onSecondaryTapDown: (details) {
           EntityContextMenus.showTrackMenu(
@@ -1608,13 +1619,14 @@ class HomePageState extends State<HomePage> {
           child: InkWell(
             mouseCursor: SystemMouseCursors.click,
             onTap: () async {
-              final player = context.read<WispAudioHandler>();
-
-              // Clear queue and play just this track
-              player.clearQueue();
+              final coordinator = context.read<PlaybackCoordinator>();
 
               try {
-                await player.playTrack(track);
+                await coordinator.setQueue(
+                  [track],
+                  startIndex: 0,
+                  play: true,
+                );
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(

@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/services/connect/connect_models.dart';
+import 'package:wisp/widgets/connect/connect_menu.dart';
 import '../services/app_navigation.dart';
 import '../services/cache_manager.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
@@ -330,6 +331,11 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
   }
 
   String? _resolveHandoffPeerName(ConnectSessionProvider connect) {
+    final cachedName = connect.linkedPeerName;
+    if (cachedName != null && cachedName.trim().isNotEmpty) {
+      return cachedName;
+    }
+
     final peerId = connect.linkedDeviceId;
     if (peerId == null) return null;
     for (final device in connect.discoveredDevices) {
@@ -361,296 +367,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 top: Radius.circular(16),
               ),
             ),
-            child: Consumer<ConnectSessionProvider>(
-              builder: (context, connect, child) {
-                final devices = connect.discoveredDevices
-                    .where((device) => device.id != connect.localDeviceId)
-                    .toList();
-                final linkedName = _resolveHandoffPeerName(connect);
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.cast_connected,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Handoff',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: connect.refreshDiscovery,
-                            icon: const Icon(
-                              Icons.refresh,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (connect.isLinked)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF212121),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.link,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  connect.isHost
-                                      ? 'Listening on ${linkedName ?? 'linked device'}'
-                                      : 'Controlling from ${linkedName ?? 'host device'}',
-                                  style: const TextStyle(color: Colors.white),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  connect.unlink(localResumed: true);
-                                  Navigator.of(sheetContext).pop();
-                                },
-                                child: const Text('Unlink'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    if (connect.pendingPairRequest != null)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF212121),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${connect.pendingPairRequest!.fromDeviceName} wants to pair',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: connect.rejectIncomingPair,
-                                      child: const Text('Decline'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: connect.acceptIncomingPair,
-                                      child: const Text('Accept'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                      child: Text(
-                        'Available devices',
-                        style: TextStyle(
-                          color: Colors.grey[300],
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF212121),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Next link mode:',
-                              style: TextStyle(
-                                color: Colors.grey[300],
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SegmentedButton<ConnectLinkMode>(
-                              showSelectedIcon: false,
-                              style: ButtonStyle(
-                                backgroundColor:
-                                    WidgetStateProperty.resolveWith(
-                                      (states) =>
-                                          states.contains(WidgetState.selected)
-                                          ? Colors.white.withValues(alpha: 0.12)
-                                          : Colors.transparent,
-                                    ),
-                                foregroundColor: WidgetStateProperty.all<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                              segments: const [
-                                ButtonSegment<ConnectLinkMode>(
-                                  value: ConnectLinkMode.fullHandoff,
-                                  label: Text('Full'),
-                                ),
-                                ButtonSegment<ConnectLinkMode>(
-                                  value: ConnectLinkMode.controlOnly,
-                                  label: Text('Controls'),
-                                ),
-                              ],
-                              selected: {connect.nextOutgoingLinkMode},
-                              onSelectionChanged: (selection) {
-                                connect.setNextOutgoingLinkMode(
-                                  selection.first,
-                                );
-                              },
-                            ),
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: connect.rememberModeForNextLink,
-                                  onChanged: (value) {
-                                    connect.setRememberModeForNextLink(
-                                      value ?? false,
-                                    );
-                                  },
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    'Remember for next session',
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: devices.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No devices found on this network.',
-                                style: TextStyle(color: Colors.grey[500]),
-                              ),
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                              itemCount: devices.length,
-                              separatorBuilder: (context, index) =>
-                                  const SizedBox(height: 6),
-                              itemBuilder: (context, index) {
-                                final device = devices[index];
-                                final isLinkedDevice =
-                                    connect.linkedDeviceId == device.id;
-                                return Material(
-                                  color: const Color(0xFF202020),
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(10),
-                                    onTap: isLinkedDevice
-                                        ? null
-                                        : () {
-                                            connect.beginPairing(
-                                              device.id,
-                                              mode:
-                                                  connect.nextOutgoingLinkMode,
-                                              rememberForDevice: connect
-                                                  .rememberModeForNextLink,
-                                            );
-                                            Navigator.of(sheetContext).pop();
-                                          },
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 10,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.devices,
-                                            size: 16,
-                                            color: Colors.white,
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Text(
-                                              device.name,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                          if (isLinkedDevice)
-                                            const Text(
-                                              'Linked',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            )
-                                          else
-                                            const Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.white70,
-                                              size: 18,
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                );
-              },
+            child: ConnectMenu(
+              compact: true,
+              onClose: () => Navigator.of(sheetContext).pop(),
             ),
           ),
         );
@@ -1977,17 +1696,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     _modeNotifier.value = mode;
   }
 
-  String? _resolveHandoffPeerName(ConnectSessionProvider connect) {
-    final peerId = connect.linkedDeviceId;
-    if (peerId == null) return null;
-    for (final device in connect.discoveredDevices) {
-      if (device.id == peerId) {
-        return device.name;
-      }
-    }
-    return null;
-  }
-
   Future<void> _openHandoffSheet(BuildContext context) async {
     final connect = context.read<ConnectSessionProvider>();
     connect.startDiscovery();
@@ -2009,330 +1717,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 top: Radius.circular(16),
               ),
             ),
-            child: Consumer<ConnectSessionProvider>(
-              builder: (context, connect, child) {
-                final devices = connect.discoveredDevices
-                    .where((device) => device.id != connect.localDeviceId)
-                    .toList();
-                final linkedName = _resolveHandoffPeerName(connect);
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.cast_connected,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Handoff',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            tooltip: 'Refresh devices',
-                            splashRadius: 18,
-                            onPressed: connect.refreshDiscovery,
-                            icon: const Icon(
-                              Icons.refresh,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (connect.isLinked)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF212121),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.link,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  connect.isHost
-                                      ? 'Listening on ${linkedName ?? 'Linked device'}'
-                                      : 'Controlling from ${linkedName ?? 'Host device'}',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  connect.unlink(localResumed: true);
-                                  Navigator.of(sheetContext).pop();
-                                },
-                                child: const Text('Unlink'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    if (connect.pendingPairRequest != null)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF212121),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${connect.pendingPairRequest!.fromDeviceName} wants to pair via Handoff',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton(
-                                      onPressed: connect.rejectIncomingPair,
-                                      style: OutlinedButton.styleFrom(
-                                        side: BorderSide(
-                                          color: Colors.grey[700]!,
-                                        ),
-                                      ),
-                                      child: const Text('Decline'),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: connect.acceptIncomingPair,
-                                      child: const Text('Accept'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: Text(
-                        'Available devices',
-                        style: TextStyle(
-                          color: Colors.grey[300],
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF212121),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white24),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Next link mode:',
-                              style: TextStyle(
-                                color: Colors.grey[300],
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SegmentedButton<ConnectLinkMode>(
-                              showSelectedIcon: false,
-                              style: ButtonStyle(
-                                backgroundColor:
-                                    WidgetStateProperty.resolveWith(
-                                      (states) =>
-                                          states.contains(WidgetState.selected)
-                                          ? Colors.white.withValues(alpha: 0.12)
-                                          : Colors.transparent,
-                                    ),
-                                foregroundColor: WidgetStateProperty.all<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                              segments: const [
-                                ButtonSegment<ConnectLinkMode>(
-                                  value: ConnectLinkMode.fullHandoff,
-                                  label: Text('Full'),
-                                ),
-                                ButtonSegment<ConnectLinkMode>(
-                                  value: ConnectLinkMode.controlOnly,
-                                  label: Text('Controls'),
-                                ),
-                              ],
-                              selected: {connect.nextOutgoingLinkMode},
-                              onSelectionChanged: (selection) {
-                                connect.setNextOutgoingLinkMode(
-                                  selection.first,
-                                );
-                              },
-                            ),
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: connect.rememberModeForNextLink,
-                                  onChanged: (value) {
-                                    connect.setRememberModeForNextLink(
-                                      value ?? false,
-                                    );
-                                  },
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    'Remember for next session',
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: devices.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No devices found on this network.',
-                                style: TextStyle(
-                                  color: Colors.grey[500],
-                                  fontSize: 13,
-                                ),
-                              ),
-                            )
-                          : ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                              itemCount: devices.length,
-                              separatorBuilder: (context, index) =>
-                                  const SizedBox(height: 6),
-                              itemBuilder: (context, index) {
-                                final device = devices[index];
-                                final isLinkedDevice =
-                                    connect.linkedDeviceId == device.id;
-                                return Material(
-                                  color: const Color(0xFF202020),
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(10),
-                                    onTap: isLinkedDevice
-                                        ? null
-                                        : () {
-                                            connect.beginPairing(
-                                              device.id,
-                                              mode:
-                                                  connect.nextOutgoingLinkMode,
-                                              rememberForDevice: connect
-                                                  .rememberModeForNextLink,
-                                            );
-                                            Navigator.of(sheetContext).pop();
-                                          },
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 10,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.devices,
-                                            size: 16,
-                                            color: Colors.white,
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  device.name,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 2),
-                                                Text(
-                                                  device.platform,
-                                                  style: TextStyle(
-                                                    color: Colors.grey[500],
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          if (isLinkedDevice)
-                                            const Text(
-                                              'Linked',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            )
-                                          else
-                                            const Icon(
-                                              Icons.chevron_right,
-                                              color: Colors.white70,
-                                              size: 18,
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                );
-              },
+            child: ConnectMenu(
+              compact: true,
+              onClose: () => Navigator.of(sheetContext).pop(),
             ),
           ),
         );
@@ -3287,16 +2674,16 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             secondLine = 'Waiting for device...';
           }
         } else if (connect.isLinked) {
-          String? peerName;
-          final peerId = connect.linkedDeviceId;
-          if (peerId != null) {
+          final peerName = connect.linkedPeerName ?? (() {
+            final peerId = connect.linkedDeviceId;
+            if (peerId == null) return null;
             for (final device in connect.discoveredDevices) {
               if (device.id == peerId) {
-                peerName = device.name;
-                break;
+                return device.name;
               }
             }
-          }
+            return null;
+          })();
 
           if (connect.isHost) {
             firstLine = 'Handoff | Listening on';
@@ -3308,7 +2695,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         }
 
         final centerInfo = secondLine.isNotEmpty
-            ? Column(
+          ? Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
@@ -3330,6 +2717,50 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              )
+            : const SizedBox.shrink();
+
+        final mobileInfo = secondLine.isNotEmpty
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    firstLine,
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 11,
+                      fontWeight: FontWeight.w300,
+                      height: 1.3,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        connect.isLinked
+                            ? Icons.cast_connected
+                            : Icons.play_circle_outline,
+                        size: 14,
+                        color: Colors.white70,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          secondLine,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w400,
+                            height: 1.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               )
@@ -3391,7 +2822,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ),
-            Expanded(child: centerInfo),
+            Expanded(child: _isDesktop ? centerInfo : mobileInfo),
             SizedBox(
               width: 40,
               child: IconButton(

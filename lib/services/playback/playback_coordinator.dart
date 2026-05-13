@@ -69,7 +69,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendPlayCommand();
       return;
     }
@@ -90,7 +90,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendPauseCommand();
       return;
     }
@@ -103,7 +103,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendSeekCommand(position);
       return;
     }
@@ -116,7 +116,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendSkipNextCommand();
       return;
     }
@@ -129,7 +129,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendSkipPreviousCommand();
       return;
     }
@@ -142,7 +142,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendToggleShuffleCommand();
       return;
     }
@@ -155,7 +155,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendToggleRepeatCommand();
       return;
     }
@@ -168,7 +168,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendPlayQueueIndexCommand(index);
       return;
     }
@@ -182,7 +182,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendRemoveFromQueueCommand(index);
       return;
     }
@@ -195,7 +195,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendClearQueueCommand();
       return;
     }
@@ -208,7 +208,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendReorderQueueCommand(oldIndex, newIndex);
       return;
     }
@@ -231,7 +231,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     if (audio == null) return;
 
     final transport = _transport;
-    if (transport?.isLinked ?? false) {
+    if (transport?.isHost ?? false) {
       await transport!.sendSetQueueCommand(
         tracks,
         startIndex: startIndex,

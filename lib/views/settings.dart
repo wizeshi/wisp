@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/models/metadata_provider.dart';
 import 'package:wisp/providers/audio/youtube.dart';
+import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/providers/lyrics/provider.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import '../providers/library/local_playlists.dart';
@@ -188,6 +189,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 );
               },
+
             ),
           ),
           actions: [
@@ -340,6 +342,222 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  String _handoffSecurityPageLabel(HandoffSecurityLevel level) {
+    switch (level) {
+      case HandoffSecurityLevel.keyExchange:
+        return 'Key-Exchange';
+      case HandoffSecurityLevel.pinBased:
+        return 'PIN-based';
+    }
+  }
+
+  String _handoffSecuritySheetDescription(HandoffSecurityLevel level) {
+    switch (level) {
+      case HandoffSecurityLevel.keyExchange:
+        return 'Easiest, Recommended';
+      case HandoffSecurityLevel.pinBased:
+        return 'Safer, Inconvenient';
+    }
+  }
+
+  String _handoffSecurityTooltip(HandoffSecurityLevel level) {
+    switch (level) {
+      case HandoffSecurityLevel.keyExchange:
+        return 'Easiest, Recommended';
+      case HandoffSecurityLevel.pinBased:
+        return 'Safer, Inconvenient';
+    }
+  }
+
+  Future<void> _showTrustedDevicesDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF282828),
+          title: const Text(
+            'Trusted Devices',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SizedBox(
+            width: 620,
+            child: Consumer<PreferencesProvider>(
+              builder: (context, prefs, child) {
+                final devices = prefs.trustedDevices;
+                if (devices.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'No trusted devices yet.',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  );
+                }
+
+                return ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(dialogContext).size.height * 0.6,
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: devices.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final device = devices[index];
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1F1F1F),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                _trustedDeviceIcon(device.platform),
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    device.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    device.platform,
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Trusted: ${_formatDateTime(context, device.trustedAt)}',
+                                    style: TextStyle(
+                                      color: Colors.grey[350],
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Last connection: ${_formatDateTime(context, device.lastConnectionAt)}',
+                                    style: TextStyle(
+                                      color: Colors.grey[350],
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: () async {
+                                final confirmed = await showDialog<bool>(
+                                      context: dialogContext,
+                                      builder: (confirmContext) {
+                                        return AlertDialog(
+                                          backgroundColor:
+                                              const Color(0xFF282828),
+                                          title: const Text(
+                                            'Forget device?',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          content: Text(
+                                            'Remove ${device.name} from trusted devices?',
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                            ),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.of(
+                                                confirmContext,
+                                              ).pop(false),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () => Navigator.of(
+                                                confirmContext,
+                                              ).pop(true),
+                                              child: const Text('Forget'),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ) ??
+                                    false;
+                                if (!confirmed) {
+                                  return;
+                                }
+                                await prefs.forgetTrustedDevice(device.id);
+                              },
+                              child: const Text('Forget'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  IconData _trustedDeviceIcon(String platform) {
+    final normalized = platform.toLowerCase();
+    if (normalized.contains('android') || normalized.contains('ios')) {
+      return Icons.smartphone;
+    }
+    if (normalized.contains('windows') ||
+        normalized.contains('macos') ||
+        normalized.contains('linux')) {
+      return Icons.computer;
+    }
+    return Icons.devices;
+  }
+
+  String _formatDateTime(BuildContext context, DateTime value) {
+    final localizations = MaterialLocalizations.of(context);
+    final date = localizations.formatMediumDate(value);
+    final time = TimeOfDay.fromDateTime(value).format(context);
+    return '$date $time';
+  }
+
   void _showSnackBar(String message) {
     if (!mounted) return;
     final localMessenger = ScaffoldMessenger.maybeOf(context);
@@ -402,6 +620,7 @@ class _SettingsPageState extends State<SettingsPage> {
       buildCacheSettingsCard: _buildCacheSettingsCard,
       buildStylePreferenceRow: _buildStylePreferenceRow,
       buildAudioPreferenceRow: _buildAudioPreferenceRow,
+      buildHandoffPreferenceRow: _buildHandoffPreferenceRow,
       buildAnimatedCanvasRow: _buildAnimatedCanvasPreferenceRow,
       buildAllowWritingRow: _buildAllowWritingPreferenceRow,
       showSnackBar: _showSnackBar,
@@ -992,6 +1211,180 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildHandoffPreferenceRow() {
+    return Consumer<PreferencesProvider>(
+      builder: (context, prefs, child) {
+        final options = const [
+          HandoffSecurityLevel.keyExchange,
+          HandoffSecurityLevel.pinBased,
+        ];
+        final selectedLevel = prefs.handoffSecurityLevel;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF181818),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Security Level',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ),
+                  if (_isMobile)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => _showHandoffSecuritySelectionSheet(
+                        selectedLevel,
+                        options,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _handoffSecurityPageLabel(selectedLevel),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.keyboard_arrow_down,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    SegmentedButton<HandoffSecurityLevel>(
+                      segments: options
+                          .map(
+                            (level) => ButtonSegment<HandoffSecurityLevel>(
+                              value: level,
+                              label: Tooltip(
+                                message: _handoffSecurityTooltip(level),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 2,
+                                  ),
+                                  child: Text(level.label),
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(growable: false),
+                      selected: {selectedLevel},
+                      onSelectionChanged: (selection) async {
+                        await context
+                            .read<PreferencesProvider>()
+                            .setHandoffSecurityLevel(selection.first);
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Trusted Devices',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _showTrustedDevicesDialog,
+                    child: const Text('View'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showHandoffSecuritySelectionSheet(
+    HandoffSecurityLevel selectedLevel,
+    List<HandoffSecurityLevel> options,
+  ) async {
+    final selected = await showModalBottomSheet<HandoffSecurityLevel>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: const Color(0xFF282828),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[600],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...options.map(
+                (level) => ListTile(
+                  title: Text(
+                    _handoffSecurityPageLabel(level),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      _handoffSecuritySheetDescription(level),
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  trailing: level == selectedLevel
+                      ? Icon(
+                          Icons.check,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.of(sheetContext).pop(level),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || selected == null || selected == selectedLevel) {
+      return;
+    }
+
+    await context.read<PreferencesProvider>().setHandoffSecurityLevel(selected);
+  }
+
   Widget _buildAnimatedCanvasPreferenceRow() {
     return Selector<PreferencesProvider, bool>(
       selector: (context, prefs) => prefs.animatedCanvasEnabled,
@@ -1065,6 +1458,7 @@ class SettingsContent extends StatelessWidget {
   final Widget Function(BuildContext) buildCacheSettingsCard;
   final Widget Function() buildStylePreferenceRow;
   final Widget Function() buildAudioPreferenceRow;
+  final Widget Function() buildHandoffPreferenceRow;
   final Widget Function() buildAnimatedCanvasRow;
   final Widget Function() buildAllowWritingRow;
   final void Function(String) showSnackBar;
@@ -1076,6 +1470,7 @@ class SettingsContent extends StatelessWidget {
     required this.buildCacheSettingsCard,
     required this.buildStylePreferenceRow,
     required this.buildAudioPreferenceRow,
+    required this.buildHandoffPreferenceRow,
     required this.buildAnimatedCanvasRow,
     required this.buildAllowWritingRow,
     required this.showSnackBar,
@@ -1158,6 +1553,18 @@ class SettingsContent extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         buildAudioPreferenceRow(),
+        const SizedBox(height: 16),
+        Text(
+          'HANDOFF',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[600],
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 16),
+        buildHandoffPreferenceRow(),
         const SizedBox(height: 16),
         Text(
           'CACHE',

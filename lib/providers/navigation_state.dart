@@ -2,11 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/navigation.dart';
 
+enum RightSidebarContent { library, connect }
+
 class NavigationState extends ChangeNotifier {
   int _selectedNavIndex = 0;
   int _lastNonSettingsNavIndex = 0;
   LibraryView _selectedLibraryView = LibraryView.playlists;
   bool _rightSidebarVisible = true;
+  RightSidebarContent _rightSidebarContent = RightSidebarContent.library;
   bool _desktopImmersiveMode = false;
   bool? _rightSidebarVisibleBeforeImmersive;
   double _rightSidebarWidth = 320;
@@ -20,6 +23,7 @@ class NavigationState extends ChangeNotifier {
   int get lastNonSettingsNavIndex => _lastNonSettingsNavIndex;
   LibraryView get selectedLibraryView => _selectedLibraryView;
   bool get rightSidebarVisible => _rightSidebarVisible;
+  RightSidebarContent get rightSidebarContent => _rightSidebarContent;
   bool get desktopImmersiveMode => _desktopImmersiveMode;
   double get rightSidebarWidth => _rightSidebarWidth;
   double get leftSidebarWidth => _leftSidebarWidth;
@@ -42,6 +46,24 @@ class NavigationState extends ChangeNotifier {
   void toggleRightSidebar() {
     if (_desktopImmersiveMode) return;
     _rightSidebarVisible = !_rightSidebarVisible;
+    notifyListeners();
+  }
+
+  void setRightSidebarVisible(bool visible) {
+    if (_rightSidebarVisible == visible) return;
+    _rightSidebarVisible = visible;
+    notifyListeners();
+  }
+
+  void showConnectSidebar() {
+    _rightSidebarContent = RightSidebarContent.connect;
+    _rightSidebarVisible = true;
+    notifyListeners();
+  }
+
+  void showLibrarySidebar() {
+    if (_rightSidebarContent == RightSidebarContent.library) return;
+    _rightSidebarContent = RightSidebarContent.library;
     notifyListeners();
   }
 

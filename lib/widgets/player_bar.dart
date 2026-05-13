@@ -22,6 +22,7 @@ import '../services/app_focus_service.dart';
 import '../providers/connect/connect_session_provider.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../services/connect/connect_models.dart';
+import 'connect/connect_menu.dart';
 
 class WispPlayerBar extends StatelessWidget {
   const WispPlayerBar({super.key});
@@ -38,7 +39,10 @@ class WispPlayerBar extends StatelessWidget {
     final appStyle = context.watch<PreferencesProvider>().style;
 
     if (_isMobile) {
-      return _MobilePlayerBarAnimated(currentTrack: currentTrack, appStyle: appStyle);
+      return _MobilePlayerBarAnimated(
+        currentTrack: currentTrack,
+        appStyle: appStyle,
+      );
     }
 
     return _DesktopPlayerBar(currentTrack: currentTrack, appStyle: appStyle);
@@ -75,10 +79,8 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
     if (velocity.abs() > 200 || _dragOffset.abs() > 50) {
       if (_dragOffset < 0 || velocity < -200) {
-        // Swipe left -> skip next
         playback.skipNext();
       } else {
-        // Swipe right -> skip previous
         playback.skipPrevious();
       }
     }
@@ -296,6 +298,54 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       return Text(
         'No track playing',
         style: TextStyle(color: Colors.grey[600], fontSize: 14),
+      );
+    }
+
+    final output = context.select<ConnectSessionProvider, _MobileOutputInfo>(
+      (connect) => _MobileOutputInfo.fromProvider(connect),
+    );
+
+    if (output.isExternal) {
+      final artists = currentTrack.artists.map((artist) => artist.name).join(', ');
+      final songLine = artists.isEmpty
+          ? currentTrack.title
+          : '${currentTrack.title}  ·  $artists';
+
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _MarqueeText(
+            text: songLine,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                output.icon,
+                size: 14,
+                color: Colors.white70,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: _MarqueeText(
+                  text: output.deviceName,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       );
     }
 
@@ -582,7 +632,7 @@ class _DesktopPlayerBar extends StatelessWidget {
           ),
           if (handoffMessage != null)
             Positioned(
-              top: -26,
+              top: -32,
               right: 16,
               child: _HandoffStatusIndicator(
                 message: handoffMessage,
@@ -623,7 +673,7 @@ class _HandoffStatusIndicator extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cast_connected, size: 14, color: Colors.white),
+            const Icon(Icons.cast, size: 14, color: Colors.white),
             const SizedBox(width: 6),
             Text(
               message,
@@ -1644,17 +1694,13 @@ void _openQueue(BuildContext context) {
   AppNavigation.instance.openQueue();
 }
 
-Future<void> _openConnectMenuWithAccent(
-  BuildContext context,
-  Color? accentColor,
-) async {
+Future<void> _openConnectMenuWithAccent(BuildContext context) async {
   final connect = context.read<ConnectSessionProvider>();
   connect.startDiscovery();
 
   final isMobile = Platform.isAndroid || Platform.isIOS;
 
   if (isMobile) {
-    final themePrimary = accentColor ?? Theme.of(context).colorScheme.primary;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1671,15 +1717,10 @@ Future<void> _openConnectMenuWithAccent(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
               ),
-              border: Border.all(
-                color: themePrimary.withValues(alpha: 0.35),
-                width: 1,
-              ),
             ),
-            child: _ConnectPanelContent(
-              accentColor: themePrimary,
+            child: ConnectMenu(
+              compact: true,
               onClose: () => Navigator.of(sheetContext).pop(),
-              isMobileSheet: true,
             ),
           ),
         );
@@ -1688,50 +1729,35 @@ Future<void> _openConnectMenuWithAccent(
     return;
   }
 
-  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-  final button = context.findRenderObject() as RenderBox;
-  final buttonRect = Rect.fromPoints(
-    button.localToGlobal(Offset.zero, ancestor: overlay),
-    button.localToGlobal(
-      button.size.bottomRight(Offset.zero),
-      ancestor: overlay,
-    ),
-  );
-
-  await showGeneralDialog<void>(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: 'Dismiss',
-    barrierColor: Colors.transparent,
-    transitionDuration: const Duration(milliseconds: 150),
-    pageBuilder: (dialogContext, animation, secondaryAnimation) {
-      return _ConnectQuickPanel(
-        anchorRect: buttonRect,
-        overlaySize: overlay.size,
-        accentColor: accentColor,
-      );
-    },
-  );
+  final navigation = context.read<NavigationState>();
+  final isConnectSidebarOpen =
+      navigation.rightSidebarVisible &&
+      navigation.rightSidebarContent == RightSidebarContent.connect;
+  if (isConnectSidebarOpen) {
+    navigation.showLibrarySidebar();
+    return;
+  }
+  navigation.showConnectSidebar();
 }
 
+// ignore: unused_element
 class _ConnectQuickPanel extends StatelessWidget {
   final Rect anchorRect;
   final Size overlaySize;
-  final Color? accentColor;
+  final Color accentColor;
 
   const _ConnectQuickPanel({
     required this.anchorRect,
     required this.overlaySize,
-    this.accentColor,
+    required this.accentColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final themePrimary = accentColor ?? Theme.of(context).colorScheme.primary;
+    final themePrimary = accentColor;
     const panelWidth = 340.0;
     const panelHeight = 360.0;
     const margin = 8.0;
-
     final left = (anchorRect.center.dx - (panelWidth / 2)).clamp(
       margin,
       overlaySize.width - panelWidth - margin,
@@ -1769,6 +1795,7 @@ class _ConnectQuickPanel extends StatelessWidget {
               child: _ConnectPanelContent(
                 accentColor: themePrimary,
                 onClose: () => Navigator.of(context).pop(),
+                isMobileSheet: true,
               ),
             ),
           ),
@@ -2157,17 +2184,23 @@ class _ConnectMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final activeColor =
         activeColorOverride ?? Theme.of(context).colorScheme.primary;
-    return Selector<ConnectSessionProvider, bool>(
-      selector: (context, connect) => connect.isLinked,
-      builder: (context, isLinked, child) {
+    return Selector2<ConnectSessionProvider, NavigationState, bool>(
+      selector: (context, connect, navigation) {
+        final isDesktopConnectMenuOpen =
+            !(Platform.isAndroid || Platform.isIOS) &&
+            navigation.rightSidebarVisible &&
+            navigation.rightSidebarContent == RightSidebarContent.connect;
+        return connect.isLinked || isDesktopConnectMenuOpen;
+      },
+      builder: (context, isActive, child) {
         return IconButton(
           icon: Icon(
             icon,
-            color: isLinked ? activeColor : (inactiveColor ?? Colors.grey[400]),
+            color: isActive ? activeColor : (inactiveColor ?? Colors.grey[400]),
             size: iconSize,
           ),
           tooltip: 'Handoff',
-          onPressed: () => _openConnectMenuWithAccent(context, activeColor),
+          onPressed: () => _openConnectMenuWithAccent(context),
         );
       },
     );
@@ -2393,6 +2426,11 @@ class _HoverVolumeSliderState extends State<_HoverVolumeSlider> {
 }
 
 String? _linkedDeviceLabel(ConnectSessionProvider connect) {
+  final cachedName = connect.linkedPeerName;
+  if (cachedName != null && cachedName.trim().isNotEmpty) {
+    return cachedName;
+  }
+
   final linkedId = connect.linkedDeviceId;
   if (linkedId == null || linkedId.isEmpty) return null;
 
@@ -2504,6 +2542,39 @@ class _PlayPauseData {
     shuffleEnabled,
     repeatMode,
   );
+}
+
+class _MobileOutputInfo {
+  final ConnectOutputKind kind;
+  final String deviceName;
+
+  const _MobileOutputInfo({required this.kind, required this.deviceName});
+
+  bool get isExternal => kind.isExternal;
+
+  IconData get icon {
+    switch (kind) {
+      case ConnectOutputKind.wired:
+        return CupertinoIcons.headphones;
+      case ConnectOutputKind.bluetooth:
+        return CupertinoIcons.bluetooth;
+      case ConnectOutputKind.handoffDesktop:
+        return CupertinoIcons.desktopcomputer;
+      case ConnectOutputKind.handoffMobile:
+        return CupertinoIcons.device_phone_portrait;
+      case ConnectOutputKind.local:
+        return CupertinoIcons.device_phone_portrait;
+    }
+  }
+
+  factory _MobileOutputInfo.fromProvider(ConnectSessionProvider connect) {
+    final kind = connect.activeOutputKind;
+    final name = connect.activeOutputDeviceName?.trim();
+    return _MobileOutputInfo(
+      kind: kind,
+      deviceName: (name == null || name.isEmpty) ? kind.label : name,
+    );
+  }
 }
 
 class _MarqueeText extends StatefulWidget {

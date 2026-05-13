@@ -8,10 +8,10 @@ import 'package:video_player/video_player.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 
 import '../models/metadata_models.dart';
+import '../providers/navigation_state.dart';
 import '../services/wisp_audio_handler.dart';
 import '../providers/lyrics/provider.dart';
 import '../providers/library/library_state.dart';
-import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/app_navigation.dart';
 import '../services/playback/playback_coordinator.dart';
@@ -20,6 +20,7 @@ import '../utils/lyrics_timing.dart';
 import '../views/list_detail.dart';
 import 'full_player.dart';
 import 'animated_lyrics_preview.dart';
+import 'connect/connect_menu.dart';
 import 'entity_context_menus.dart';
 import 'hover_underline.dart';
 import 'like_button.dart';
@@ -46,6 +47,8 @@ class _RightSidebarState extends State<RightSidebar> {
       return const SizedBox.shrink();
     }
 
+    final navState = context.watch<NavigationState>();
+
     return SizedBox(
       width: widget.width,
       child: MouseRegion(
@@ -68,28 +71,53 @@ class _RightSidebarState extends State<RightSidebar> {
                     right: true,
                     top: false,
                     bottom: false,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _NowPlayingCard(
-                            showHoverControls: _isHoveringSidebar,
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _LyricsPreviewCard(),
-                                SizedBox(height: 16),
-                                _ArtistInfoCard(),
-                                SizedBox(height: 16),
-                                _QueuePreviewCard(),
-                              ],
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 240),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        final offset = Tween<Offset>(
+                          begin: const Offset(0, 0.08),
+                          end: Offset.zero,
+                        ).animate(animation);
+                        return ClipRect(
+                          child: SlideTransition(position: offset, child: child),
+                        );
+                      },
+                      child: navState.rightSidebarContent ==
+                              RightSidebarContent.connect
+                          ? ConnectMenu(
+                              key: const ValueKey('connect-sidebar-content'),
+                              compact: false,
+                              onClose: () {
+                                context.read<NavigationState>().showLibrarySidebar();
+                              },
+                            )
+                          : SingleChildScrollView(
+                              key: const ValueKey('library-sidebar-content'),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _NowPlayingCard(
+                                    showHoverControls: _isHoveringSidebar,
+                                  ),
+                                  const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        _LyricsPreviewCard(),
+                                        SizedBox(height: 16),
+                                        _ArtistInfoCard(),
+                                        SizedBox(height: 16),
+                                        _QueuePreviewCard(),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),

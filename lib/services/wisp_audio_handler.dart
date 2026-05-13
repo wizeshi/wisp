@@ -90,6 +90,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   int _lastPositionUpdateMs = 0;
   int _lastMediaPositionMs = -1;
   int _lastMediaUpdateMs = 0;
+  Duration? _lastKnownDuration;
 
   int _trackChangeToken = 0;
   bool _isHandlingCompletion = false;
@@ -106,6 +107,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   final Map<String, AudioSource> _prefetchedAudioSources = {};
   final Map<String, Future<AudioSource?>> _prefetchSourceTasks = {};
   final Map<String, _StreamUrlCacheEntry> _streamUrlCache = {};
+
+  // Handoff state: true when this device is the host (requesting) device in a handoff link
+  bool _isHandoffHost = false;
 
   // Getters
   PlaybackState get state => _state;
@@ -133,7 +137,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     Duration get position => _player.position;
   Duration get throttledPosition => _lastNotifiedPosition;
   Duration get interpolatedPosition => _getInterpolatedPosition();
-  Duration get duration => _player.duration ?? Duration.zero;
+  Duration get duration => _isHandoffHost
+      ? _lastKnownDuration ?? _player.duration ?? Duration.zero
+      : _player.duration ?? _lastKnownDuration ?? Duration.zero;
   double get volume => _player.volume;
   double get userVolume => _savedVolume ?? _lastVolume;
   bool get isOnline => _isOnline;
@@ -149,6 +155,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       originalQueue: List<GenericSong>.from(_originalQueue),
       currentIndex: _currentIndex,
       positionMs: _player.position.inMilliseconds,
+      durationMs: duration.inMilliseconds,
       isPlaying: isPlaying,
       shuffleEnabled: _shuffleEnabled,
       repeatMode: _repeatMode.toString(),
@@ -177,6 +184,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     bool autoPlay = true,
     bool preserveVolume = false,
   }) async {
+    logger.d(
+      '[Handoff] WispAudioHandler.applyConnectSnapshot: incoming snapshot queue=${snapshot.queue.length} index=${snapshot.currentIndex} playing=${snapshot.isPlaying}',
+    );
     await YouTubeProvider.mergeVideoIdCache(snapshot.resolvedYoutubeIds);
 
     await setQueue(
@@ -206,6 +216,191 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await pause();
     } else if (autoPlay) {
       await play();
+    }
+    logger.d(
+      '[Handoff] WispAudioHandler.applyConnectSnapshot: applied snapshot currentIndex=$_currentIndex isPlaying=${isPlaying} positionMs=${_player.position.inMilliseconds}',
+    );
+  }
+
+  /// Applies remote snapshot metadata without reloading audio sources.
+  ///
+  /// Used by host/controller devices in linked modes so UI stays in sync
+  /// without triggering stream URL fetching on every snapshot refresh.
+  void applyPassiveConnectSnapshot(ConnectPlaybackSnapshot snapshot) {
+    logger.d(
+      '[Handoff] WispAudioHandler.applyPassiveConnectSnapshot: incoming passive snapshot queue=${snapshot.queue.length} index=${snapshot.currentIndex} playing=${snapshot.isPlaying}',
+    );
+    bool sameQueueById(List<GenericSong> a, List<GenericSong> b) {
+      if (identical(a, b)) return true;
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (a[i].id != b[i].id) return false;
+      }
+      return true;
+    }
+
+    var changed = false;
+
+    if (!sameQueueById(_queue, snapshot.queue)) {
+      _queue = List<GenericSong>.from(snapshot.queue);
+      changed = true;
+    }
+
+    if (!sameQueueById(_originalQueue, snapshot.originalQueue)) {
+      _originalQueue = List<GenericSong>.from(snapshot.originalQueue);
+      changed = true;
+    }
+
+    final nextIndex = _queue.isEmpty
+        ? -1
+        : snapshot.currentIndex.clamp(0, _queue.length - 1);
+    if (_currentIndex != nextIndex) {
+      _currentIndex = nextIndex;
+      changed = true;
+    }
+
+    final nextTrack = (_currentIndex >= 0 && _currentIndex < _queue.length)
+        ? _queue[_currentIndex]
+        : null;
+    if (_currentTrack?.id != nextTrack?.id) {
+      _currentTrack = nextTrack;
+      changed = true;
+    }
+
+    if (_shuffleEnabled != snapshot.shuffleEnabled) {
+      _shuffleEnabled = snapshot.shuffleEnabled;
+      changed = true;
+    }
+
+    final serviceRepeatMode = _repeatModeFromString(snapshot.repeatMode);
+    final repeatMode = switch (serviceRepeatMode) {
+      audio_service.AudioServiceRepeatMode.one => RepeatMode.one,
+      audio_service.AudioServiceRepeatMode.all => RepeatMode.all,
+      audio_service.AudioServiceRepeatMode.none => RepeatMode.off,
+      _ => RepeatMode.off,
+    };
+    if (_repeatMode != repeatMode) {
+      _repeatMode = repeatMode;
+      changed = true;
+    }
+
+    if (_playbackContextType != snapshot.contextType ||
+        _playbackContextName != snapshot.contextName ||
+        _playbackContextID != snapshot.contextId ||
+        _playbackContextSource != snapshot.contextSource) {
+      _playbackContextType = snapshot.contextType;
+      _playbackContextName = snapshot.contextName;
+      _playbackContextID = snapshot.contextId;
+      _playbackContextSource = snapshot.contextSource;
+      changed = true;
+    }
+
+    final nextDuration = snapshot.durationMs != null && snapshot.durationMs! > 0
+        ? Duration(milliseconds: snapshot.durationMs!)
+        : null;
+    if (_lastKnownDuration != nextDuration) {
+      _lastKnownDuration = nextDuration;
+      changed = true;
+    }
+
+    _forcePositionUpdate(Duration(milliseconds: snapshot.positionMs));
+    if (changed) {
+      _broadcastQueue();
+      _broadcastPlaybackState();
+      _updateMediaItem();
+      notifyListeners();
+      logger.d(
+        '[Handoff] WispAudioHandler.applyPassiveConnectSnapshot: applied passive snapshot updated currentIndex=$_currentIndex isPlaying=${isPlaying}',
+      );
+    }
+  }
+
+  /// Applies a delta (partial state update) to reduce unnecessary reloads.
+  /// Only updates fields that are present in the delta.
+  Future<void> applyDelta(ConnectStateDelta delta) async {
+    bool changed = false;
+
+    // Apply position if present
+    if (delta.positionMs != null) {
+      final targetPosition = Duration(milliseconds: delta.positionMs!);
+      await seek(targetPosition);
+      changed = true;
+    }
+
+    // Apply current index if present
+    if (delta.currentIndex != null) {
+      if (delta.currentIndex != _currentIndex &&
+          delta.currentIndex! >= 0 &&
+          delta.currentIndex! < _queue.length) {
+        await skipToQueueItem(delta.currentIndex!);
+        changed = true;
+      }
+    }
+
+    // Apply playing state if present
+    if (delta.isPlaying != null) {
+      if (delta.isPlaying!) {
+        if (!isPlaying) {
+          await play();
+          changed = true;
+        }
+      } else {
+        if (isPlaying) {
+          await pause();
+          changed = true;
+        }
+      }
+    }
+
+    // Apply shuffle if present
+    if (delta.shuffleEnabled != null) {
+      if (delta.shuffleEnabled != _shuffleEnabled) {
+        setShuffleEnabled(delta.shuffleEnabled!);
+        changed = true;
+      }
+    }
+
+    // Apply repeat mode if present
+    if (delta.repeatMode != null) {
+      final mode = _repeatModeFromString(delta.repeatMode!);
+      if (mode != _repeatMode) {
+        await setRepeatMode(mode);
+        changed = true;
+      }
+    }
+
+    // Apply queue if present (fallback to full snapshot)
+    if (delta.queue != null) {
+      await setQueue(
+        delta.queue!,
+        startIndex: delta.currentIndex ?? _currentIndex.clamp(0, delta.queue!.length - 1),
+        play: delta.isPlaying ?? isPlaying,
+      );
+      changed = true;
+    }
+
+    // Apply volume if present
+    if (delta.volume != null) {
+      await setVolume(delta.volume!.clamp(0.0, 1.0));
+      changed = true;
+    }
+
+    // Apply duration if present (for UI sync)
+    if (delta.durationMs != null) {
+      final nextDuration = delta.durationMs! > 0
+          ? Duration(milliseconds: delta.durationMs!)
+          : null;
+      if (_lastKnownDuration != nextDuration) {
+        _lastKnownDuration = nextDuration;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      _broadcastQueue();
+      _broadcastPlaybackState();
+      _updateMediaItem();
+      notifyListeners();
     }
   }
 
@@ -827,6 +1022,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   /// Handle track completion
   void _onCompleted() {
     if (_isHandlingCompletion) return;
+    if (_isCrossfading ||
+        _crossfadeFadeOutActive ||
+        _crossfadeFadeInActive ||
+        _isTrackTransitioning ||
+        _player.playing) {
+      return;
+    }
     _isHandlingCompletion = true;
     final token = _trackChangeToken;
     () async {
@@ -870,6 +1072,27 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     final currentIndex = anchorIndex ?? _currentIndex;
     if (currentIndex < 0 || currentIndex >= _queue.length) return;
+
+    // When in handoff host mode, only prefetch the current track (for smooth unlinking).
+    // Skip prefetching the full window since playback happens on the target device.
+    if (_isHandoffHost) {
+      if (currentIndex >= 0 && currentIndex < _queue.length) {
+        final currentTrack = _queue[currentIndex];
+        if (!_prefetchedAudioSources.containsKey(currentTrack.id) &&
+            !_prefetchSourceTasks.containsKey(currentTrack.id)) {
+          final generation = _prefetchGeneration;
+          final task = _prefetchTrackSource(currentTrack, generation);
+          _prefetchSourceTasks[currentTrack.id] = task;
+          final source = await task;
+          _prefetchSourceTasks.remove(currentTrack.id);
+          if (generation != _prefetchGeneration) return;
+          if (source != null) {
+            _prefetchedAudioSources[currentTrack.id] = source;
+          }
+        }
+      }
+      return;
+    }
 
     final generation = _prefetchGeneration;
     final indices = <int>[];
@@ -1023,11 +1246,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   Future<void> _advanceToNext({int? token}) async {
-    if (_playlistPlaybackEnabled && _player.hasNext) {
-      await _player.seekToNext();
-      return;
-    }
-
     int nextIndex = _currentIndex + 1;
 
     if (nextIndex >= _queue.length) {
@@ -1038,6 +1256,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         _setState(PlaybackState.idle);
         return;
       }
+    }
+
+    // Use the same explicit transition path as manual skip to avoid
+    // desynchronization between currentIndex/UI and audible track.
+    if (_playlistPlaybackEnabled) {
+      await _playAtIndex(nextIndex, token: token ?? ++_trackChangeToken);
+      return;
     }
 
     await _playAtIndex(nextIndex, token: token);
@@ -1197,7 +1422,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (allowPrefetched) {
       final prefetched = _prefetchedAudioSources[track.id];
       if (prefetched != null) {
-        logger.d('[Audio/Player] Using prefetched source');
         return prefetched;
       }
     }
@@ -1214,7 +1438,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     final cachedPath = cacheManager.getCachedPath(track.id);
     if (cachedPath != null && File(cachedPath).existsSync()) {
-      logger.d('[Audio/Player] From cache');
       await cacheManager.updateLastPlayed(track.id);
       return AudioSource.file(cachedPath);
     }
@@ -1264,7 +1487,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
             );
           }
 
-          logger.d('[Audio/Player] Streaming from Spotify');
           return AudioSource.uri(
             Uri.parse(spotify.streamUrl),
             headers: {
@@ -1304,7 +1526,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       YouTubeProvider.cacheVideoId(track.id, videoId);
     }
 
-    logger.d('[Audio/Player] Streaming from YouTube');
     final streamUrl = await _getStreamUrlWithCache(videoId);
 
     final userAgent = Platform.isAndroid
@@ -1643,8 +1864,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     await _cancelCrossfade(stopInactive: true);
     final token = ++_trackChangeToken;
     if (_playlistPlaybackEnabled && _player.hasNext) {
-      final currentIndex = _player.currentIndex ?? _currentIndex;
-      final nextIndex = currentIndex + 1;
+      final nextIndex = _currentIndex + 1;
       if (nextIndex >= 0 && nextIndex < _queue.length) {
         await _playAtIndex(nextIndex, token: token);
       }
@@ -1662,8 +1882,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         await _player.seek(Duration.zero);
         return;
       } else {
-        final currentIndex = _player.currentIndex ?? _currentIndex;
-        var prevIndex = currentIndex - 1;
+        var prevIndex = _currentIndex - 1;
         if (prevIndex < 0) {
           prevIndex = _repeatMode == RepeatMode.all ? _queue.length - 1 : 0;
         }
@@ -1758,6 +1977,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     List<GenericSong>? originalQueue,
   }) async {
     final token = ++_trackChangeToken;
+    await _cancelCrossfade(stopInactive: true);
+    try {
+      await _primaryPlayer.stop();
+    } catch (_) {}
+    try {
+      await _secondaryPlayer.stop();
+    } catch (_) {}
+    _useSecondaryAsActivePlayer = false;
     _invalidateCrossfadePreload();
     _invalidatePlaybackPrefetch(clearSources: true);
     _queue = List.from(tracks);
@@ -1827,8 +2054,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _queue.clear();
     _currentIndex = -1;
     _currentTrack = null;
-    _primaryPlayer.stop();
-    _secondaryPlayer.stop();
+    unawaited(_cancelCrossfade(stopInactive: true));
+    unawaited(_primaryPlayer.stop());
+    unawaited(_secondaryPlayer.stop());
+    _useSecondaryAsActivePlayer = false;
     _invalidateCrossfadePreload();
     _invalidatePlaybackPrefetch(clearSources: true);
     _setState(PlaybackState.idle);
@@ -1858,6 +2087,19 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     notifyListeners();
   }
 
+  /// Set whether this device is the host (requesting) device in a handoff link.
+  /// When true, stream URL prefetching for the queue is skipped (playback happens
+  /// on the target device). Only the current track is prefetched to smooth unlinking.
+  void setIsHandoffHost(bool value) {
+    if (_isHandoffHost != value) {
+      _isHandoffHost = value;
+      if (value) {
+        // Clear prefetched sources when entering handoff host mode
+        _invalidatePlaybackPrefetch(clearSources: true);
+      }
+    }
+  }
+
   void toggleShuffle() => setShuffleEnabled(!_shuffleEnabled);
 
   void setShuffleEnabled(bool enabled) {
@@ -1866,25 +2108,51 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return;
     }
 
+    if (_queue.isEmpty) {
+      _shuffleEnabled = enabled;
+      _saveQueue();
+      notifyListeners();
+      _broadcastPlaybackState();
+      return;
+    }
+
+    // Resolve a stable current track first so queue mutations cannot throw.
+    final currentTrack = (_currentIndex >= 0 && _currentIndex < _queue.length)
+        ? _queue[_currentIndex]
+        : _currentTrack;
+
     _shuffleEnabled = enabled;
     if (_shuffleEnabled && _queue.length > 1) {
       _originalQueue = List.from(_queue);
-      final current = _currentIndex >= 0 ? _queue[_currentIndex] : null;
       final others = List<GenericSong>.from(_queue);
-      if (current != null) others.removeAt(_currentIndex);
+      if (currentTrack != null) {
+        others.removeWhere((track) => track.id == currentTrack.id);
+      }
       others.shuffle();
-      _queue = current != null ? [current, ...others] : others;
-      _currentIndex = current != null ? 0 : _currentIndex;
+      _queue = currentTrack != null ? [currentTrack, ...others] : others;
+      _currentIndex = currentTrack != null ? 0 : 0;
     } else if (!_shuffleEnabled && _originalQueue.isNotEmpty) {
-      final current = _currentIndex >= 0 ? _queue[_currentIndex] : null;
       _queue = List.from(_originalQueue);
-      _currentIndex = current != null
-          ? _queue.indexWhere((t) => t.id == current.id)
-          : 0;
-      if (_currentIndex < 0) _currentIndex = 0;
+      if (currentTrack != null) {
+        _currentIndex = _queue.indexWhere((t) => t.id == currentTrack.id);
+      } else {
+        _currentIndex = 0;
+      }
+      if (_currentIndex < 0 || _currentIndex >= _queue.length) {
+        _currentIndex = 0;
+      }
       _originalQueue = [];
     }
+
+    if (_currentIndex >= 0 && _currentIndex < _queue.length) {
+      _currentTrack = _queue[_currentIndex];
+    } else {
+      _currentTrack = _queue.isNotEmpty ? _queue.first : null;
+      _currentIndex = _currentTrack == null ? -1 : 0;
+    }
+
     _broadcastQueue();
+    _updateMediaItem();
     _saveQueue();
     notifyListeners();
     _invalidateCrossfadePreload();

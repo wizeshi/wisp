@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wisp/services/connect/connect_models.dart';
 
 class PreferencesProvider extends ChangeNotifier {
   static const _keyStyle = 'preferred_style';
@@ -14,6 +17,8 @@ class PreferencesProvider extends ChangeNotifier {
   static const _keyCrossfadeDurationSeconds = 'crossfade_duration_seconds';
   static const _keyLyricsLrclibEnabled = 'lyrics_lrclib_enabled';
   static const _keyLyricsSpotifyEnabled = 'lyrics_spotify_enabled';
+  static const _keyHandoffSecurityLevel = 'handoff_security_level';
+  static const _keyTrustedDevices = 'handoff_trusted_devices';
 
   static const bool _defaultAllowWriting = true;
   static const bool _defaultMetadataSpotifyEnabled = true;
@@ -25,6 +30,8 @@ class PreferencesProvider extends ChangeNotifier {
   static const double _defaultCrossfadeDurationSeconds = 3.0;
   static const bool _defaultLyricsLrclibEnabled = true;
   static const bool _defaultLyricsSpotifyEnabled = true;
+  static const HandoffSecurityLevel _defaultHandoffSecurityLevel =
+      HandoffSecurityLevel.keyExchange;
 
   String _style = 'Spotify';
   String get style => _style;
@@ -35,38 +42,44 @@ class PreferencesProvider extends ChangeNotifier {
   bool _allowWriting = _defaultAllowWriting;
   bool get allowWriting => _allowWriting;
 
-    bool _metadataSpotifyEnabled = _defaultMetadataSpotifyEnabled;
-    bool get metadataSpotifyEnabled => _metadataSpotifyEnabled;
+  bool _metadataSpotifyEnabled = _defaultMetadataSpotifyEnabled;
+  bool get metadataSpotifyEnabled => _metadataSpotifyEnabled;
 
-    bool _metadataYouTubeEnabled = _defaultMetadataYouTubeEnabled;
-    bool get metadataYouTubeEnabled => _metadataYouTubeEnabled;
+  bool _metadataYouTubeEnabled = _defaultMetadataYouTubeEnabled;
+  bool get metadataYouTubeEnabled => _metadataYouTubeEnabled;
 
-    bool _audioSpotifyEnabled = _defaultAudioSpotifyEnabled;
-    bool get audioSpotifyEnabled => _audioSpotifyEnabled;
+  bool _audioSpotifyEnabled = _defaultAudioSpotifyEnabled;
+  bool get audioSpotifyEnabled => _audioSpotifyEnabled;
 
-    bool _audioYouTubeEnabled = _defaultAudioYouTubeEnabled;
-    bool get audioYouTubeEnabled => _audioYouTubeEnabled;
+  bool _audioYouTubeEnabled = _defaultAudioYouTubeEnabled;
+  bool get audioYouTubeEnabled => _audioYouTubeEnabled;
 
-    bool _gaplessPlaybackEnabled = _defaultGaplessPlaybackEnabled;
-    bool get gaplessPlaybackEnabled => _gaplessPlaybackEnabled;
+  bool _gaplessPlaybackEnabled = _defaultGaplessPlaybackEnabled;
+  bool get gaplessPlaybackEnabled => _gaplessPlaybackEnabled;
 
-    bool _crossfadeEnabled = _defaultCrossfadeEnabled;
-    bool get crossfadeEnabled => _crossfadeEnabled;
+  bool _crossfadeEnabled = _defaultCrossfadeEnabled;
+  bool get crossfadeEnabled => _crossfadeEnabled;
 
-    double _crossfadeDurationSeconds = _defaultCrossfadeDurationSeconds;
-    double get crossfadeDurationSeconds => _crossfadeDurationSeconds;
+  double _crossfadeDurationSeconds = _defaultCrossfadeDurationSeconds;
+  double get crossfadeDurationSeconds => _crossfadeDurationSeconds;
 
-    bool _lyricsLrclibEnabled = _defaultLyricsLrclibEnabled;
-    bool get lyricsLrclibEnabled => _lyricsLrclibEnabled;
+  bool _lyricsLrclibEnabled = _defaultLyricsLrclibEnabled;
+  bool get lyricsLrclibEnabled => _lyricsLrclibEnabled;
 
-    bool _lyricsSpotifyEnabled = _defaultLyricsSpotifyEnabled;
-    bool get lyricsSpotifyEnabled => _lyricsSpotifyEnabled;
+  bool _lyricsSpotifyEnabled = _defaultLyricsSpotifyEnabled;
+  bool get lyricsSpotifyEnabled => _lyricsSpotifyEnabled;
 
-    bool get hasMetadataProviderEnabled =>
+  HandoffSecurityLevel _handoffSecurityLevel = _defaultHandoffSecurityLevel;
+  HandoffSecurityLevel get handoffSecurityLevel => _handoffSecurityLevel;
+
+  List<TrustedDevice> _trustedDevices = <TrustedDevice>[];
+  List<TrustedDevice> get trustedDevices =>
+      List.unmodifiable(_trustedDevices);
+
+  bool get hasMetadataProviderEnabled =>
       _metadataSpotifyEnabled || _metadataYouTubeEnabled;
-    bool get hasAudioProviderEnabled =>
-      _audioSpotifyEnabled || _audioYouTubeEnabled;
-    bool get hasLyricsProviderEnabled =>
+  bool get hasAudioProviderEnabled => _audioSpotifyEnabled || _audioYouTubeEnabled;
+  bool get hasLyricsProviderEnabled =>
       _lyricsLrclibEnabled || _lyricsSpotifyEnabled;
 
   PreferencesProvider() {
@@ -79,32 +92,37 @@ class PreferencesProvider extends ChangeNotifier {
       _style = prefs.getString(_keyStyle) ?? _style;
       _animatedCanvasEnabled =
           prefs.getBool(_keyAnimatedCanvas) ?? _animatedCanvasEnabled;
-      _allowWriting =
-          prefs.getBool(_keyAllowWriting) ?? _defaultAllowWriting;
-        _metadataSpotifyEnabled =
+      _allowWriting = prefs.getBool(_keyAllowWriting) ?? _defaultAllowWriting;
+      _metadataSpotifyEnabled =
           prefs.getBool(_keyMetadataSpotifyEnabled) ??
           _defaultMetadataSpotifyEnabled;
-        _metadataYouTubeEnabled =
+      _metadataYouTubeEnabled =
           prefs.getBool(_keyMetadataYouTubeEnabled) ??
           _defaultMetadataYouTubeEnabled;
-        _audioSpotifyEnabled =
+      _audioSpotifyEnabled =
           prefs.getBool(_keyAudioSpotifyEnabled) ?? _defaultAudioSpotifyEnabled;
-        _audioYouTubeEnabled =
+      _audioYouTubeEnabled =
           prefs.getBool(_keyAudioYouTubeEnabled) ?? _defaultAudioYouTubeEnabled;
-        _gaplessPlaybackEnabled =
+      _gaplessPlaybackEnabled =
           prefs.getBool(_keyGaplessPlaybackEnabled) ??
           _defaultGaplessPlaybackEnabled;
-        _crossfadeEnabled =
+      _crossfadeEnabled =
           prefs.getBool(_keyCrossfadeEnabled) ?? _defaultCrossfadeEnabled;
-        _crossfadeDurationSeconds =
+      _crossfadeDurationSeconds =
           prefs.getDouble(_keyCrossfadeDurationSeconds) ??
           _defaultCrossfadeDurationSeconds;
-        _lyricsLrclibEnabled =
+      _lyricsLrclibEnabled =
           prefs.getBool(_keyLyricsLrclibEnabled) ??
           _defaultLyricsLrclibEnabled;
-        _lyricsSpotifyEnabled =
+      _lyricsSpotifyEnabled =
           prefs.getBool(_keyLyricsSpotifyEnabled) ??
           _defaultLyricsSpotifyEnabled;
+      _handoffSecurityLevel = HandoffSecurityLevelJson.fromJson(
+        prefs.getString(_keyHandoffSecurityLevel),
+      );
+      _trustedDevices = _decodeTrustedDevices(
+        prefs.getString(_keyTrustedDevices),
+      );
       notifyListeners();
     } catch (_) {
       // Ignore load errors; keep default
@@ -292,5 +310,96 @@ class PreferencesProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyLyricsSpotifyEnabled, enabled);
     } catch (_) {}
+  }
+
+  Future<void> setHandoffSecurityLevel(
+    HandoffSecurityLevel level,
+  ) async {
+    if (level == _handoffSecurityLevel) return;
+    _handoffSecurityLevel = level;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyHandoffSecurityLevel, level.toJson());
+    } catch (_) {}
+  }
+
+  Future<void> setTrustedDevices(List<TrustedDevice> devices) async {
+    _trustedDevices = List<TrustedDevice>.from(devices);
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyTrustedDevices, _encodeTrustedDevices(devices));
+    } catch (_) {}
+  }
+
+  Future<void> upsertTrustedDevice(TrustedDevice device) async {
+    final nextDevices = <TrustedDevice>[
+      for (final existing in _trustedDevices)
+        if (existing.id != device.id) existing,
+      device,
+    ];
+    nextDevices.sort(
+      (a, b) => b.lastConnectionAt.compareTo(a.lastConnectionAt),
+    );
+    await setTrustedDevices(nextDevices);
+  }
+
+  Future<void> forgetTrustedDevice(String deviceId) async {
+    final nextDevices = _trustedDevices
+        .where((device) => device.id != deviceId)
+        .toList(growable: false);
+    await setTrustedDevices(nextDevices);
+  }
+
+  Future<void> recordTrustedDeviceConnection({
+    required String id,
+    required String name,
+    required String platform,
+  }) async {
+    final now = DateTime.now();
+    final existing = _trustedDevices.where((device) => device.id == id);
+    if (existing.isNotEmpty) {
+      await upsertTrustedDevice(
+        existing.first.copyWith(
+          name: name,
+          platform: platform,
+          lastConnectionAt: now,
+        ),
+      );
+      return;
+    }
+    await upsertTrustedDevice(
+      TrustedDevice(
+        id: id,
+        name: name,
+        platform: platform,
+        trustedAt: now,
+        lastConnectionAt: now,
+      ),
+    );
+  }
+
+  String _encodeTrustedDevices(List<TrustedDevice> devices) {
+    final jsonList = devices.map((device) => device.toJson()).toList();
+    return json.encode(jsonList);
+  }
+
+  List<TrustedDevice> _decodeTrustedDevices(String? value) {
+    if (value == null || value.isEmpty) {
+      return <TrustedDevice>[];
+    }
+    try {
+      final decoded = json.decode(value);
+      if (decoded is! List<dynamic>) {
+        return <TrustedDevice>[];
+      }
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(TrustedDevice.fromJson)
+          .toList(growable: false);
+    } catch (_) {
+      return <TrustedDevice>[];
+    }
   }
 }

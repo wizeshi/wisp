@@ -182,14 +182,17 @@ class MyApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider(create: (_) => LibraryFolderState()),
-        ChangeNotifierProxyProvider2<
+        ChangeNotifierProxyProvider3<
           WispAudioHandler,
           PlaybackCoordinator,
+          PreferencesProvider,
           ConnectSessionProvider
         >(
           create: (_) => ConnectSessionProvider(),
-          update: (_, audio, playback, connect) {
-            final provider = connect ?? ConnectSessionProvider();
+          update: (_, audio, playback, preferences, connect) {
+            final provider =
+                connect ?? ConnectSessionProvider();
+            provider.bindPreferencesProvider(preferences);
             provider.bindAudioHandler(audio);
             provider.bindPlaybackCoordinator(playback);
             return provider;
