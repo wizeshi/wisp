@@ -53,6 +53,10 @@ class SpotifyInternalProvider extends MetadataProvider {
   bool _lastAuthInitFailed = false;
   int _startupAuthRetryCount = 0;
   bool _startupAuthRetryScheduled = false;
+  
+  // Guard against concurrent token refresh attempts
+  Future<void>? _tokenRefreshInProgress;
+  bool _tokenRefreshFailed = false;
 
   static const Duration _authInitCooldown = Duration(seconds: 45);
   static const Duration _authInitFailureCooldown = Duration(seconds: 4);
@@ -212,6 +216,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       _bearerToken = null;
       _clientToken = null;
       _bearerTokenExpiresAt = null;
+      _tokenRefreshInProgress = null;
+      _tokenRefreshFailed = false;
     } catch (e) {
       _errorMessage = '[Metadata/Spotify-Internal] Logout failed: $e';
       logger.d(_errorMessage);
@@ -470,6 +476,17 @@ class SpotifyInternalProvider extends MetadataProvider {
   }
 
   Future<void> _ensureTokens() async {
+    // Wait for any in-progress token refresh to complete
+    if (_tokenRefreshInProgress != null) {
+      await _tokenRefreshInProgress;
+      if (_tokenRefreshFailed) {
+        throw StateError(
+          '[Metadata/Spotify-Internal] Previous token refresh failed. Please log in again.',
+        );
+      }
+      return;
+    }
+
     final expiresAt = _bearerTokenExpiresAt;
     if (_bearerToken != null &&
         _clientToken != null &&
@@ -478,13 +495,29 @@ class SpotifyInternalProvider extends MetadataProvider {
       return;
     }
 
-    final cookie = await _credentialsService.getSpotifyLyricsCookie();
-    if (cookie == null || cookie.isEmpty) {
-      throw StateError(
-        '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
-      );
+    // Start token refresh and guard against concurrent attempts
+    _tokenRefreshInProgress = _performTokenRefresh();
+    try {
+      await _tokenRefreshInProgress;
+    } finally {
+      _tokenRefreshInProgress = null;
     }
-    await _acquireTokensFromCookie(cookie);
+  }
+
+  Future<void> _performTokenRefresh() async {
+    try {
+      _tokenRefreshFailed = false;
+      final cookie = await _credentialsService.getSpotifyLyricsCookie();
+      if (cookie == null || cookie.isEmpty) {
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+        );
+      }
+      await _acquireTokensFromCookie(cookie);
+    } catch (e) {
+      _tokenRefreshFailed = true;
+      rethrow;
+    }
   }
 
   Future<void> _syncAudioSessionContext({required String cookie}) async {
@@ -697,9 +730,30 @@ class SpotifyInternalProvider extends MetadataProvider {
       _bearerToken = null;
       _clientToken = null;
       _bearerTokenExpiresAt = null;
+      _tokenRefreshFailed = false;
     }
 
-    await _ensureTokens();
+    try {
+      await _ensureTokens();
+    } catch (e) {
+      // If token refresh fails due to invalid/expired cookie, return a 401-like error
+      logger.w(
+        '[Metadata/Spotify-Internal] Token refresh failed: $e',
+      );
+      if (forceTokenRefresh) {
+        // Already tried to refresh, no point retrying
+        throw StateError(
+          '[Metadata/Spotify-Internal] Authentication failed. Please log in again.',
+        );
+      }
+      // First attempt failed, try refreshing tokens
+      return _makeWebApiRequestWithBody(
+        path,
+        method: method,
+        body: body,
+        forceTokenRefresh: true,
+      );
+    }
 
     final url = Uri.parse('https://api.spotify.com/v1$path');
     final headers = {
@@ -722,6 +776,9 @@ class SpotifyInternalProvider extends MetadataProvider {
       }
 
       if (response.statusCode == 401 && !forceTokenRefresh) {
+        logger.d(
+          '[Metadata/Spotify-Internal] Got 401, attempting token refresh and retry',
+        );
         return _makeWebApiRequestWithBody(
           path,
           method: method,
