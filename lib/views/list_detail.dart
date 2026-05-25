@@ -3,8 +3,8 @@ library;
 
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui';
 import 'dart:io' show Platform, File;
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
@@ -38,7 +38,7 @@ import '../views/youtube_alternatives.dart';
 
 enum SharedListType { playlist, album }
 
-enum _SortMethod { position, title, author, album, duration, source }
+enum _SortMethod { position, title, author, album, addedAt, duration, source }
 
 enum _ListVisualStyle { spotify, apple }
 
@@ -190,6 +190,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   final Set<String> _addingRecommendationTrackIDs = {};
   bool _isLoadingRecommendations = false;
   String? _recommendationsError;
+  double? _desktopHeaderExtent;
 
   @override
   void initState() {
@@ -282,11 +283,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   void _scheduleStickyBarUpdate(ScrollController controller) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (controller == _mobileScrollController) {
-        final headerContext = _headerKey.currentContext;
-        final headerBox = headerContext?.findRenderObject() as RenderBox?;
-        if (headerBox != null) {
+      if (!mounted) return;
+      final headerContext = _headerKey.currentContext;
+      final headerBox = headerContext?.findRenderObject() as RenderBox?;
+      if (headerBox != null) {
+        if (controller == _mobileScrollController) {
           _setMobileHeaderExtent(headerBox.size.height);
+        } else if (controller == _desktopScrollController) {
+          _setDesktopHeaderExtent(headerBox.size.height);
         }
       }
       _updateStickyBarVisibility(controller);
@@ -306,7 +310,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         final offset = actionsBox
             .localToGlobal(Offset.zero, ancestor: scrollBox)
             .dy;
-        final shouldShow = offset + actionsBox.size.height <= 0;
+        final shouldShow = offset + actionsBox.size.height <= 0 && mounted;
         if (shouldShow != _showStickyBar && mounted) {
           setState(() => _showStickyBar = shouldShow);
         }
@@ -323,6 +327,15 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       }
       return;
     }
+    final desktopHeaderExtent = _desktopHeaderExtent;
+    if (desktopHeaderExtent != null) {
+      final shouldShow = controller.offset >= desktopHeaderExtent && mounted;
+      if (shouldShow != _showStickyBar && mounted) {
+        setState(() => _showStickyBar = shouldShow);
+      }
+      return;
+    }
+
     final headerContext = _headerKey.currentContext;
     if (headerContext == null) return;
     final scrollable = Scrollable.of(headerContext);
@@ -330,7 +343,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final scrollBox = scrollable.context.findRenderObject() as RenderBox?;
     if (headerBox == null || scrollBox == null) return;
     final offset = headerBox.localToGlobal(Offset.zero, ancestor: scrollBox).dy;
-    final shouldShow = offset <= 0;
+    final shouldShow = offset + headerBox.size.height <= 0 && mounted;
     if (shouldShow != _showStickyBar && mounted) {
       setState(() => _showStickyBar = shouldShow);
     }
@@ -339,6 +352,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   void _setMobileHeaderExtent(double extent) {
     if (_mobileHeaderExtent == extent) return;
     _mobileHeaderExtent = extent;
+  }
+
+  void _setDesktopHeaderExtent(double? extent) {
+    if (_desktopHeaderExtent == extent) return;
+    _desktopHeaderExtent = extent;
   }
 
   double _scrollBackgroundProgress(ScrollController controller) {
@@ -837,6 +855,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           compare = _getAlbumTitle(
             items[a],
           ).compareTo(_getAlbumTitle(items[b]));
+          break;
+        case _SortMethod.addedAt:
+          final addedA = _getAddedAt(items[a]);
+          final addedB = _getAddedAt(items[b]);
+          if (addedA == null && addedB == null) {
+            compare = 0;
+          } else if (addedA == null) {
+            compare = -1;
+          } else if (addedB == null) {
+            compare = 1;
+          } else {
+            compare = addedA.compareTo(addedB);
+          }
           break;
         case _SortMethod.duration:
           compare = _getDuration(items[a]).compareTo(_getDuration(items[b]));
@@ -1933,12 +1964,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
 
     if (style == 'Apple Music') {
+      final contentSurfaceColor = Theme.of(context).colorScheme.surface;
       return Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: contentSurfaceColor,
         extendBodyBehindAppBar: true,
         appBar: _isLoading
             ? AppBar(
-                backgroundColor: Colors.transparent,
+                backgroundColor: contentSurfaceColor,
                 elevation: 0,
                 leading: IconButton(
                   icon: const Icon(CupertinoIcons.back),
@@ -2064,6 +2096,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           _buildSortMenuItem(_SortMethod.author, 'Artist'),
           if (widget.type == SharedListType.playlist)
             _buildSortMenuItem(_SortMethod.album, 'Album'),
+          if (widget.type == SharedListType.playlist)
+            _buildSortMenuItem(_SortMethod.addedAt, 'Date Added'),
         ],
       ),
     );
@@ -2359,16 +2393,17 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         widget.type == SharedListType.playlist &&
         isLikedSongsPlaylistId(widget.id);
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16)),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      decoration: const BoxDecoration(),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              width: 140,
-              height: 140,
+              width: 176,
+              height: 176,
               color: Colors.grey[900],
               child: isLiked
                   ? const LikedSongsArt()
@@ -2404,10 +2439,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 Text(
                   widget.type == SharedListType.playlist ? 'PLAYLIST' : 'ALBUM',
                   style: TextStyle(
-                    color: Colors.grey[600],
+                    color: Colors.grey[300],
                     fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.1,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -2415,9 +2450,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   title,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 38,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 52,
+                    height: 0.95,
+                    fontWeight: FontWeight.w700,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 if (hasDescription) const SizedBox(height: 4),
                 if (hasDescription)
@@ -2481,7 +2519,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 subtitle,
                                 style: TextStyle(
                                   color: Colors.grey[300],
-                                  fontSize: 14,
+                                  fontSize: 15,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -2492,7 +2530,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   subtitle,
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 14,
+                                    fontSize: 15,
                                     decoration: isHovering
                                         ? TextDecoration.underline
                                         : TextDecoration.none,
@@ -2512,7 +2550,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       ),
                     Text(
                       '$total songs',
-                      style: TextStyle(color: Colors.grey[300], fontSize: 14),
+                      style: TextStyle(color: Colors.grey[300], fontSize: 15),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -2523,7 +2561,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     ),
                     Text(
                       _formatDuration(_totalDurationSecs()),
-                      style: TextStyle(color: Colors.grey[300], fontSize: 14),
+                      style: TextStyle(color: Colors.grey[300], fontSize: 15),
                     ),
                   ],
                 ),
@@ -2535,200 +2573,230 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
-  Widget _buildActionsRow(bool isDesktop) {
+  Widget _buildActionsRow(bool isDesktop, {Gradient? backgroundGradient}) {
     return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
         final colorScheme = Theme.of(context).colorScheme;
+        final shuffleActive = (_isCurrentListPlaying(player)
+            ? player.shuffleEnabled
+            : _preShuffleEnabled);
+        final repeatActive =
+            player.repeatMode != global_audio_player.RepeatMode.off;
         return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          decoration: BoxDecoration(gradient: backgroundGradient),
           alignment: Alignment.bottomLeft,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: FilledButton(
-                      onPressed: () {
-                        if (!_isLoading) {
-                          if (_isCurrentListPlaying(player)) {
-                            _toggleCurrentTrackPlayback(player);
-                          } else {
-                            _playFromStart();
-                          }
-                        }
-                      },
-                      style: FilledButton.styleFrom(
-                        enabledMouseCursor: SystemMouseCursors.click,
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: colorScheme.onPrimary,
-                        padding: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final rowWidth = math.max(constraints.maxWidth, 920.0);
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: SizedBox(
+                    width: rowWidth,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 54,
+                              height: 54,
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: FilledButton(
+                                  onPressed: () {
+                                    if (!_isLoading) {
+                                      if (_isCurrentListPlaying(player)) {
+                                        _toggleCurrentTrackPlayback(player);
+                                      } else {
+                                        _playFromStart();
+                                      }
+                                    }
+                                  },
+                                  style: FilledButton.styleFrom(
+                                    enabledMouseCursor:
+                                        SystemMouseCursors.click,
+                                    backgroundColor: colorScheme.primary,
+                                    foregroundColor: colorScheme.onPrimary,
+                                    padding: EdgeInsets.zero,
+                                    shape: const CircleBorder(),
+                                  ),
+                                  child: Icon(
+                                    _isCurrentListPlaying(player) &&
+                                            player.isPlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow,
+                                    size: 30,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: () {
+                                _toggleListShuffle(player);
+                              },
+                              icon: Icon(
+                                Icons.shuffle,
+                                color: shuffleActive
+                                    ? colorScheme.primary
+                                    : Colors.white70,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: player.toggleRepeat,
+                              icon: Icon(
+                                player.repeatMode ==
+                                        global_audio_player.RepeatMode.one
+                                    ? Icons.repeat_one
+                                    : Icons.repeat,
+                                color: repeatActive
+                                    ? colorScheme.primary
+                                    : Colors.white70,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _isLoading ? null : _downloadAll,
+                              icon: const Icon(
+                                Icons.download,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            Builder(
+                              builder: (buttonContext) {
+                                return IconButton(
+                                  onPressed: () {
+                                    if (isDesktop) {
+                                      _showListContextMenu(
+                                        anchorContext: buttonContext,
+                                      );
+                                    } else {
+                                      _showListContextMenu();
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.more_horiz,
+                                    color: Colors.white70,
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                      ),
-                      child: Icon(
-                        _isCurrentListPlaying(player) && player.isPlaying
-                            ? Icons.pause
-                            : Icons.play_arrow,
-                        size: 24,
-                      ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              width: _showSearch ? 12 : 0,
+                            ),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutCubic,
+                              width: _showSearch ? (isDesktop ? 240 : 160) : 0,
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 160),
+                                opacity: _showSearch ? 1 : 0,
+                                child: IgnorePointer(
+                                  ignoring: !_showSearch,
+                                  child: TextField(
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _searchQuery = value;
+                                        _rebuildIndices();
+                                      });
+                                    },
+                                    decoration: InputDecoration(
+                                      hintText: 'Search in list',
+                                      isDense: true,
+                                      filled: true,
+                                      fillColor: Colors.black.withValues(
+                                        alpha: 0.4,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _showSearch = !_showSearch;
+                                  if (!_showSearch) {
+                                    _searchQuery = '';
+                                    _rebuildIndices();
+                                  }
+                                });
+                              },
+                              icon: Icon(
+                                Icons.search,
+                                color: _showSearch
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.grey[300],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: DropdownButton<_SortMethod>(
+                                value: _sortMethod,
+                                mouseCursor: SystemMouseCursors.click,
+                                dropdownColor: Colors.grey[900],
+                                underline: const SizedBox.shrink(),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: _SortMethod.position,
+                                    child: Text('Index'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: _SortMethod.title,
+                                    child: Text('Title'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: _SortMethod.author,
+                                    child: Text('Author'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: _SortMethod.album,
+                                    child: Text('Album'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: _SortMethod.addedAt,
+                                    child: Text('Date Added'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: _SortMethod.duration,
+                                    child: Text('Duration'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: _SortMethod.source,
+                                    child: Text('Source'),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    _sortBy(value);
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                IconButton(
-                  onPressed: () {
-                    _toggleListShuffle(player);
-                  },
-                  icon: Icon(
-                    Icons.shuffle,
-                    color:
-                        (_isCurrentListPlaying(player)
-                            ? player.shuffleEnabled
-                            : _preShuffleEnabled)
-                        ? colorScheme.primary
-                        : Colors.grey[300],
-                  ),
-                ),
-                IconButton(
-                  onPressed: player.toggleRepeat,
-                  icon: Icon(
-                    player.repeatMode == global_audio_player.RepeatMode.one
-                        ? Icons.repeat_one
-                        : Icons.repeat,
-                    color:
-                        player.repeatMode == global_audio_player.RepeatMode.off
-                        ? Colors.grey[300]
-                        : colorScheme.primary,
-                  ),
-                ),
-                IconButton(
-                  onPressed: _isLoading ? null : _downloadAll,
-                  icon: const Icon(Icons.download, color: Colors.grey),
-                ),
-                Builder(
-                  builder: (buttonContext) {
-                    return IconButton(
-                      onPressed: () {
-                        if (isDesktop) {
-                          _showListContextMenu(anchorContext: buttonContext);
-                        } else {
-                          _showListContextMenu();
-                        }
-                      },
-                      icon: const Icon(Icons.more_horiz, color: Colors.grey),
-                    );
-                  },
-                ),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  width: _showSearch ? 12 : 0,
-                ),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  width: _showSearch ? (isDesktop ? 240 : 160) : 0,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 160),
-                    opacity: _showSearch ? 1 : 0,
-                    child: IgnorePointer(
-                      ignoring: !_showSearch,
-                      child: TextField(
-                        onChanged: (value) {
-                          setState(() {
-                            _searchQuery = value;
-                            _rebuildIndices();
-                          });
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Search in list',
-                          isDense: true,
-                          filled: true,
-                          fillColor: Colors.black.withValues(alpha: 0.4),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {
-                    setState(() {
-                      _showSearch = !_showSearch;
-                      if (!_showSearch) {
-                        _searchQuery = '';
-                        _rebuildIndices();
-                      }
-                    });
-                  },
-                  icon: Icon(
-                    Icons.search,
-                    color: _showSearch
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey[300],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: DropdownButton<_SortMethod>(
-                    value: _sortMethod,
-                    mouseCursor: SystemMouseCursors.click,
-                    dropdownColor: Colors.grey[900],
-                    underline: const SizedBox.shrink(),
-                    items: const [
-                      DropdownMenuItem(
-                        value: _SortMethod.position,
-                        child: Text('Index'),
-                      ),
-                      DropdownMenuItem(
-                        value: _SortMethod.title,
-                        child: Text('Title'),
-                      ),
-                      DropdownMenuItem(
-                        value: _SortMethod.author,
-                        child: Text('Author'),
-                      ),
-                      DropdownMenuItem(
-                        value: _SortMethod.album,
-                        child: Text('Album'),
-                      ),
-                      DropdownMenuItem(
-                        value: _SortMethod.duration,
-                        child: Text('Duration'),
-                      ),
-                      DropdownMenuItem(
-                        value: _SortMethod.source,
-                        child: Text('Source'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        _sortBy(value);
-                      }
-                    },
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => _sortBy(_sortMethod),
-                  icon: Icon(
-                    _ascending
-                        ? Icons.keyboard_double_arrow_up
-                        : Icons.keyboard_double_arrow_down,
-                    color: Colors.grey[300],
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
         );
       },
@@ -2742,8 +2810,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final textColor = _stickyBarColor.computeLuminance() < 0.45
         ? Colors.white
         : Colors.black;
+    final colorScheme = Theme.of(context).colorScheme;
     final barMargin = isDesktop
-        ? const EdgeInsets.symmetric(horizontal: 28)
+        ? EdgeInsets.zero
         : const EdgeInsets.symmetric(horizontal: 16);
 
     return AnimatedSlide(
@@ -2754,49 +2823,62 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         opacity: _showStickyBar ? 1 : 0,
         duration: const Duration(milliseconds: 140),
         child: Container(
-          height: 52,
+          height: isDesktop ? 58 : 52,
           margin: barMargin,
           decoration: BoxDecoration(
-            color: _stickyBarColor.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 10,
-                offset: Offset(0, 6),
-              ),
-            ],
+            color: _stickyBarColor.withValues(alpha: isDesktop ? 0.96 : 0.92),
+            borderRadius: BorderRadius.circular(isDesktop ? 0 : 14),
+            boxShadow: isDesktop
+                ? const []
+                : const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 10,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
           ),
           child: Row(
             children: [
-              const SizedBox(width: 6),
+              SizedBox(width: isDesktop ? 14 : 6),
               Consumer<global_audio_player.WispAudioHandler>(
                 builder: (context, player, child) {
                   final isPlayingList = _isCurrentListPlaying(player);
                   final isPlaying = isPlayingList && player.isPlaying;
-                  return IconButton(
-                    icon: Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
-                      color: textColor,
+                  return SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Material(
+                      color: colorScheme.primary,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () {
+                          if (_items.isEmpty) return;
+                          if (isPlayingList) {
+                            _toggleCurrentTrackPlayback(player);
+                          } else {
+                            _playFromStart();
+                          }
+                        },
+                        child: Icon(
+                          isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: colorScheme.onPrimary,
+                          size: 22,
+                        ),
+                      ),
                     ),
-                    onPressed: () {
-                      if (_items.isEmpty) return;
-                      if (isPlayingList) {
-                        _toggleCurrentTrackPlayback(player);
-                      } else {
-                        _playFromStart();
-                      }
-                    },
                   );
                 },
               ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
                   style: TextStyle(
                     color: textColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    fontSize: isDesktop ? 24 : 14,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -2846,9 +2928,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap ?? () => _sortBy(method),
-        child: content,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: onTap ?? () => _sortBy(method),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: content,
+          ),
+        ),
       ),
     );
   }
@@ -2857,7 +2946,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
     required double availableWidth,
   }) {
-    final headerStyle = TextStyle(color: Colors.grey[400], fontSize: 12);
     final visibleColumns = _getVisibleColumns(availableWidth);
 
     if (visualStyle == _ListVisualStyle.apple) {
@@ -2927,85 +3015,101 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       );
     }
 
-    return Row(
-      children: [
-        SizedBox(
-          width: 40,
-          child: InkWell(
-            onTap: () => _sortBy(_SortMethod.position),
-            child: Text('#', style: headerStyle, textAlign: TextAlign.center),
-          ),
-        ),
-        const SizedBox(width: 8),
-        const SizedBox(width: 44),
-        const SizedBox(width: 12),
-        Expanded(
-          flex: 3,
-          child: InkWell(
-            onTap: _handleTitleHeaderTap,
-            child: Text(
-              _sortMethod == _SortMethod.author ? 'Author' : 'Title',
-              style: headerStyle,
-            ),
-          ),
-        ),
-        // Spotify: Album column
-        if (widget.type == SharedListType.playlist && visibleColumns.showAlbum)
-          Expanded(
-            flex: 2,
-            child: InkWell(
-              onTap: () => _sortBy(_SortMethod.album),
-              child: Text(
-                'Album',
-                style: headerStyle,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 40,
+            child: Align(
+              alignment: Alignment.center,
+              child: _buildSortableHeader(
+                text: '#',
+                method: _SortMethod.position,
                 textAlign: TextAlign.center,
               ),
             ),
-          )
-        else if (widget.type == SharedListType.playlist)
-          const SizedBox(width: 80)
-        else
-          const SizedBox(width: 80),
-        // Spotify: Added At column
-        if (widget.type == SharedListType.playlist &&
-            visibleColumns.showAddedAt)
-          SizedBox(
-            width: 120,
-            child: Text(
-              'Added',
-              style: headerStyle,
-              textAlign: TextAlign.center,
+          ),
+          const SizedBox(width: 8),
+          const SizedBox(width: 44),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _buildSortableHeader(
+                text: _sortMethod == _SortMethod.author ? 'Author' : 'Title',
+                method: _SortMethod.author == _sortMethod
+                    ? _SortMethod.author
+                    : _SortMethod.title,
+                onTap: _handleTitleHeaderTap,
+              ),
             ),
-          )
-        else if (widget.type == SharedListType.playlist)
-          const SizedBox(width: 120)
-        else
-          const SizedBox(width: 120),
-        const SizedBox(
-          width: 24,
-          child: Icon(Icons.download_done, size: 14, color: Colors.grey),
-        ),
-        const SizedBox(width: 28),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 80,
-          child: InkWell(
-            onTap: () => _sortBy(_SortMethod.duration),
+          ),
+          if (widget.type == SharedListType.playlist && visibleColumns.showAlbum)
+            Expanded(
+              flex: 2,
+              child: Align(
+                alignment: Alignment.center,
+                child: _buildSortableHeader(
+                  text: 'Album',
+                  method: _SortMethod.album,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          else if (widget.type == SharedListType.playlist)
+            const SizedBox(width: 80)
+          else
+            const SizedBox(width: 80),
+          if (widget.type == SharedListType.playlist &&
+              visibleColumns.showAddedAt)
+            SizedBox(
+              width: 120,
+              child: Align(
+                alignment: Alignment.center,
+                child: _buildSortableHeader(
+                  text: 'Added',
+                  method: _SortMethod.addedAt,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          else if (widget.type == SharedListType.playlist)
+            const SizedBox(width: 120)
+          else
+            const SizedBox(width: 120),
+          const SizedBox(
+            width: 24,
+            child: Icon(Icons.download_done, size: 14, color: Colors.grey),
+          ),
+          const SizedBox(width: 28),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 80,
             child: Align(
               alignment: Alignment.centerRight,
-              child: Icon(Icons.access_time, size: 14, color: Colors.grey),
+              child: _buildSortableHeader(
+                text: 'Time',
+                method: _SortMethod.duration,
+                textAlign: TextAlign.right,
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 32,
-          child: InkWell(
-            onTap: () => _sortBy(_SortMethod.source),
-            child: Text('', style: headerStyle),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 32,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _buildSortableHeader(
+                text: '',
+                method: _SortMethod.source,
+                textAlign: TextAlign.right,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -3095,7 +3199,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               final rowIndex = startIndex + idx;
               final index = _sortedIndices[rowIndex];
               final item = _items[index];
-              final isEven = rowIndex % 2 == 0;
               final song = _toGenericSong(item);
               final isCurrentTrack = player.currentTrack?.id == song.id;
               final album = _getAlbum(item);
@@ -3150,14 +3253,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: isAppleStyle
-                              ? Colors.transparent
-                              : (isEven
-                                    ? Colors.transparent
-                                    : Colors.black.withValues(alpha: 0.15)),
-                          borderRadius: isAppleStyle
-                              ? BorderRadius.zero
-                              : BorderRadius.circular(8),
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.zero,
                         ),
                         child: Row(
                           children: [
@@ -4668,41 +4765,16 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
     }
 
     view._scheduleStickyBarUpdate(view._desktopScrollController);
-    final backgroundProgress = view._scrollBackgroundProgress(
-      view._desktopScrollController,
-    );
-    final backgroundBlur = 20 + (backgroundProgress * 8);
-    final backgroundScale = 1 + (backgroundProgress * 0.08);
+    final stickyHeaderColor = view._stickyBarColor;
+    final stickyHeaderColorHSL = HSLColor.fromColor(stickyHeaderColor);
+    final actionsRowColor = 
+      stickyHeaderColorHSL.withLightness(
+        stickyHeaderColorHSL.lightness * 0.5
+      ).toColor();
+
+    final contentSurfaceColor = Theme.of(context).colorScheme.surface;
     return Stack(
       children: [
-        if (imageUrl.isNotEmpty)
-          Positioned.fill(
-            child: Transform.scale(
-              scale: backgroundScale,
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(
-                  sigmaX: backgroundBlur,
-                  sigmaY: backgroundBlur,
-                ),
-                child: Opacity(
-                  opacity: 0.35,
-                  child: view._isLocalImagePath(imageUrl)
-                      ? Image.file(
-                          File(imageUrl.replaceFirst('file://', '')),
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, url, error) =>
-                              Container(color: Colors.grey[900]),
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) =>
-                              Container(color: Colors.grey[900]),
-                        ),
-                ),
-              ),
-            ),
-          ),
         Positioned.fill(
           child: Container(
             decoration: BoxDecoration(
@@ -4710,8 +4782,8 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.4),
-                  Colors.black.withValues(alpha: 0.9),
+                  Colors.black.withValues(alpha: 0.36),
+                  Colors.black.withValues(alpha: 0.82),
                 ],
               ),
             ),
@@ -4724,13 +4796,21 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
               Expanded(
                 child: ListView(
                   controller: view._desktopScrollController,
-                  padding: EdgeInsets.all(padding),
+                  padding: EdgeInsets.fromLTRB(0, 0, 0, 0),
                   children: [
                     Container(
                       key: view._headerKey,
+                      width: double.infinity,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(10),
+                        color: stickyHeaderColor,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                        borderRadius: BorderRadius.zero,
                       ),
                       child: Column(
                         children: [
@@ -4743,48 +4823,50 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                             total,
                             description,
                           ),
-                          view._buildActionsRow(isDesktop),
+                          const SizedBox(height: 12),
+                          view._buildActionsRow(
+                            isDesktop,
+                            backgroundGradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              stops: [0, 1],
+                              colors: [actionsRowColor, contentSurfaceColor],
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
                     Container(
+                      width: double.infinity,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.35),
-                        borderRadius: BorderRadius.circular(10),
+                        color: contentSurfaceColor,
+                        borderRadius: BorderRadius.zero,
                       ),
-                      child: LayoutBuilder(
-                        builder: (layoutContext, constraints) {
-                          final availableWidth = constraints.maxWidth;
-                          return Column(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 10,
-                                ),
-                                child: view._buildListHeaderContent(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                        child: LayoutBuilder(
+                          builder: (layoutContext, constraints) {
+                            final availableWidth = constraints.maxWidth;
+                            return Column(
+                              children: [
+                                view._buildListHeaderContent(
                                   availableWidth: availableWidth,
                                 ),
-                              ),
-                              view._buildSongList(
-                                isMobile: false,
-                                availableWidth: availableWidth,
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  12,
-                                  0,
-                                  12,
-                                  12,
-                                ),
-                                child: view._buildRecommendedSection(
+                                const SizedBox(height: 6),
+                                view._buildSongList(
                                   isMobile: false,
+                                  availableWidth: availableWidth,
                                 ),
-                              ),
-                            ],
-                          );
-                        },
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: view._buildRecommendedSection(
+                                    isMobile: false,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ],
@@ -4796,7 +4878,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
         Positioned(
           left: 0,
           right: 0,
-          top: 8,
+          top: 0,
           child: SafeArea(
             bottom: false,
             child: view._buildStickyNowPlayingBar(
@@ -4887,6 +4969,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         descriptionText != null && descriptionText.isNotEmpty;
     final expandedHeight =
         MediaQuery.of(context).size.width - MediaQuery.of(context).padding.top;
+    final contentSurfaceColor = Theme.of(context).colorScheme.surface;
     final backgroundProgress = view._scrollBackgroundProgress(
       view._mobileScrollController,
     );
@@ -4896,13 +4979,13 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
 
     return Stack(
       children: [
-        Positioned.fill(child: Container(color: Colors.black)),
+        Positioned.fill(child: Container(color: contentSurfaceColor)),
         CustomScrollView(
           controller: view._mobileScrollController,
           slivers: [
             SliverAppBar(
               key: view._headerKey,
-              backgroundColor: Colors.black,
+              backgroundColor: contentSurfaceColor,
               clipBehavior: Clip.none,
               pinned: true,
               expandedHeight: expandedHeight,
@@ -5023,56 +5106,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
     final descriptionText = description?.trim();
     final hasDescription =
         descriptionText != null && descriptionText.isNotEmpty;
+    final contentSurfaceColor = Theme.of(context).colorScheme.surface;
 
     view._scheduleStickyBarUpdate(view._desktopScrollController);
-    final backgroundProgress = view._scrollBackgroundProgress(
-      view._desktopScrollController,
-    );
-    final backgroundBlur = 22 + (backgroundProgress * 8);
-    final backgroundScale = 1 + (backgroundProgress * 0.10);
-
     return Stack(
       children: [
-        if (imageUrl.isNotEmpty)
-          Positioned.fill(
-            child: Transform.scale(
-              scale: backgroundScale,
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(
-                  sigmaX: backgroundBlur,
-                  sigmaY: backgroundBlur,
-                ),
-                child: Opacity(
-                  opacity: 0.24,
-                  child: view._isLocalImagePath(imageUrl)
-                      ? Image.file(
-                          File(imageUrl.replaceFirst('file://', '')),
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, url, error) =>
-                              Container(color: Colors.black),
-                        )
-                      : CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) =>
-                              Container(color: Colors.black),
-                        ),
-                ),
-              ),
-            ),
-          ),
         Positioned.fill(
           child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.45),
-                  Colors.black.withValues(alpha: 0.78),
-                ],
-              ),
-            ),
+            color: contentSurfaceColor,
           ),
         ),
         SafeArea(
@@ -5280,7 +5321,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         Positioned(
           left: 0,
           right: 0,
-          top: 8,
+          top: 0,
           child: SafeArea(
             bottom: false,
             child: view._buildStickyNowPlayingBar(
@@ -5489,7 +5530,11 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             style: FilledButton.styleFrom(
               enabledMouseCursor: SystemMouseCursors.click,
               disabledMouseCursor: SystemMouseCursors.basic,
-              minimumSize: const Size(118, 40),
+              minimumSize: const Size(112, 40),
+              textStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(6),
               ),
