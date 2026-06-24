@@ -382,7 +382,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       scheme = null;
     }
     if (!mounted || _stickyCoverUrl != imageUrl) return;
-    final nextColor = scheme?.primary ?? const Color(0xFF1E1E1E);
+
+    final fakeColor = HSLColor.fromColor(scheme?.primary ?? const Color(0xFF1E1E1E));
+    final nextColor = fakeColor.withLightness(
+      log(fakeColor.lightness + 1) / log(3)
+    ).toColor();
+
     if (nextColor != _stickyBarColor) {
       setState(() => _stickyBarColor = nextColor);
     }
@@ -4775,7 +4780,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
     final contentSurfaceColor = Theme.of(context).colorScheme.surface;
     return Stack(
       children: [
-        Positioned.fill(
+        /* Positioned.fill(
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -4788,7 +4793,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
               ),
             ),
           ),
-        ),
+        ), */
         SafeArea(
           bottom: false,
           child: Column(
