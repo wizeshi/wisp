@@ -396,7 +396,7 @@ class _LyricsViewState extends State<LyricsView> {
         _delayController.text = delay.toStringAsFixed(1);
       });
     } catch (e) {
-      logger.e('Error loading lyrics delay', error: e);
+      logger.e('[Views/Lyrics] Error loading lyrics delay', error: e);
     }
   }
 

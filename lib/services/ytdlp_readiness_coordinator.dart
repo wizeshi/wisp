@@ -120,7 +120,7 @@ class YtDlpReadinessCoordinator extends ChangeNotifier {
         title: 'YT-DLP failed',
         body: 'Failed to initialize YT-DLP. Restart the app to retry.',
       );
-      logger.e('[YT-DLP] Initialization failed', error: e);
+      logger.e('[Services/YT-DLP-ReadinessCoordinator] Initialization failed', error: e);
     }
   }
 

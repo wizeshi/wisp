@@ -62,7 +62,7 @@ class YtDlpManager {
       }
       return null;
     } catch (e) {
-      logger.e('[yt-dlp] Failed to prepare binary', error: e);
+      logger.e('[Services/YT-DLP-Manager] Failed to prepare binary', error: e);
       if (notifyOnFailure) {
         await _notifyFailure();
       }
@@ -76,14 +76,14 @@ class YtDlpManager {
       if (await _verifyExecutable(installPath)) {
         return true;
       }
-      logger.w('[yt-dlp] Existing binary failed verification, re-downloading');
+      logger.w('[Services/YT-DLP-Manager] Existing binary failed verification, re-downloading');
     }
 
     try {
       await _downloadLatestBinary(installPath);
       return await _verifyExecutable(installPath);
     } catch (e) {
-      logger.e('[yt-dlp] Download failed', error: e);
+      logger.e('[Services/YT-DLP-Manager] Download failed', error: e);
       return false;
     }
   }
@@ -95,11 +95,11 @@ class YtDlpManager {
     if (!await _isUpdateDue()) return;
 
     try {
-      logger.i('[yt-dlp] Checking for updates...');
+      logger.i('[Services/YT-DLP-Manager] Checking for updates...');
       await _downloadLatestBinary(installPath);
-      logger.i('[yt-dlp] ✓ Update complete');
+      logger.i('[Services/YT-DLP-Manager] ✓ Update complete');
     } catch (e) {
-      logger.w('[yt-dlp] Update failed', error: e);
+      logger.w('[Services/YT-DLP-Manager] Update failed', error: e);
     } finally {
       await _recordUpdateAttempt();
     }
@@ -135,7 +135,7 @@ class YtDlpManager {
       await tempFile.delete();
     }
 
-    logger.i('[yt-dlp] Downloading $assetName...');
+    logger.i('[Services/YT-DLP-Manager] Downloading $assetName...');
 
     final client = HttpClient();
     try {
@@ -161,7 +161,7 @@ class YtDlpManager {
       }
 
       await _ensureExecutablePermissions(installPath);
-      logger.i('[yt-dlp] ✓ Installed to $installPath');
+      logger.i('[Services/YT-DLP-Manager] ✓ Installed to $installPath');
     } finally {
       client.close(force: true);
     }
@@ -172,7 +172,7 @@ class YtDlpManager {
     try {
       await Process.run('chmod', ['+x', path]);
     } catch (e) {
-      logger.w('[yt-dlp] Failed to set executable bit', error: e);
+      logger.w('[Services/YT-DLP-Manager] Failed to set executable bit', error: e);
     }
   }
 

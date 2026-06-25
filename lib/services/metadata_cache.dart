@@ -84,9 +84,9 @@ class MetadataCacheStore {
         await cacheDir.create(recursive: true);
       }
       _baseDir = cacheDir;
-      logger.d('[MetadataCache] Initialized at ${cacheDir.path}');
+      logger.d('[Services/MetadataCache] Initialized at ${cacheDir.path}');
     } catch (e) {
-      logger.e('[MetadataCache] Initialization error', error: e);
+      logger.e('[Services/MetadataCache] Initialization error', error: e);
     } finally {
       _initializing = false;
     }
@@ -143,7 +143,7 @@ class MetadataCacheStore {
       final jsonData = jsonDecode(content) as Map<String, dynamic>;
       return MetadataCacheEntry.fromJson(jsonData);
     } catch (e) {
-      logger.w('[MetadataCache] Failed to read entry', error: e);
+      logger.w('[Services/MetadataCache] Failed to read entry', error: e);
       return null;
     }
   }
@@ -184,7 +184,7 @@ class MetadataCacheStore {
 
       await file.writeAsString(jsonEncode(entry.toJson()));
     } catch (e) {
-      logger.w('[MetadataCache] Failed to write entry', error: e);
+      logger.w('[Services/MetadataCache] Failed to write entry', error: e);
     }
   }
 

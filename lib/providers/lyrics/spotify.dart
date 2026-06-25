@@ -46,16 +46,16 @@ class SpotifyLyricsProvider {
 
   Future<void> _initialize() async {
     try {
-      logger.i("Initializing Spotify lyrics provider...");
+      logger.i("[Lyrics/Spotify] Initializing Spotify lyrics provider...");
 
-      logger.i("Fetching Spotify lyrics cookie...");
+      logger.i("[Lyrics/Spotify] Fetching Spotify lyrics cookie...");
 
       final cookie = await _credentialsService.getSpotifyLyricsCookie();
       if (cookie == null || cookie.isEmpty) {
         throw StateError('Spotify lyrics cookie (sp_dc) not configured');
       }
 
-      logger.i("Got Spotify cookie, requesting access token...");
+      logger.i("[Lyrics/Spotify] Got Spotify cookie, requesting access token...");
 
       final accessJson = await _requestAccessToken(cookie);
       final accessToken = accessJson['accessToken'] as String?;
@@ -64,7 +64,7 @@ class SpotifyLyricsProvider {
         throw StateError('Invalid access token response');
       }
 
-      logger.i("Access token obtained, requesting client token...");
+      logger.i("[Lyrics/Spotify] Access token obtained, requesting client token...");
 
       _accessToken = accessToken;
 
@@ -107,7 +107,7 @@ class SpotifyLyricsProvider {
       }
 
       logger.i(
-        "Client token obtained, Spotify lyrics provider initialized successfully",
+        "[Lyrics/Spotify] Client token obtained, Spotify lyrics provider initialized successfully",
       );
 
       final clientJson =
@@ -126,7 +126,7 @@ class SpotifyLyricsProvider {
     } catch (e, stackTrace) {
       _initFuture = null;
       logger.e(
-        'Failed to initialize Spotify lyrics provider',
+        '[Lyrics/Spotify] Failed to initialize Spotify lyrics provider',
         error: e,
         stackTrace: stackTrace,
       );
@@ -174,7 +174,7 @@ class SpotifyLyricsProvider {
 
     if (response.statusCode == 404) return null;
     if (response.statusCode != 200) {
-      logger.w('Spotify lyrics request failed: ${response.statusCode}');
+      logger.w('[Lyrics/Spotify] Spotify lyrics request failed: ${response.statusCode}');
       return null;
     }
 
@@ -206,7 +206,7 @@ class SpotifyLyricsProvider {
       );
     } catch (e, stackTrace) {
       logger.e(
-        'Failed to parse Spotify lyrics response',
+        '[Lyrics/Spotify] Failed to parse Spotify lyrics response',
         error: e,
         stackTrace: stackTrace,
       );
@@ -255,7 +255,7 @@ Future<Map<String, dynamic>> _requestAccessToken(String cookie) async {
       final body = accessTokenResponse.body;
       final snippet = body.length > 300 ? body.substring(0, 300) : body;
       throw StateError(
-        'Spotify access token request failed: '
+        '[Lyrics/Spotify] Spotify access token request failed: '
         '${accessTokenResponse.statusCode} ${snippet.isEmpty ? '' : snippet}',
       );
     }
@@ -292,11 +292,13 @@ Future<_TotpPayload> _generateTotp() async {
     client.close();
   }
   if (response.statusCode != 200) {
+    logger.e('[Lyrics/Spotify] Failed to fetch TOTP secrets');
     throw StateError('Failed to fetch TOTP secrets');
   }
 
   final secrets = jsonDecode(response.body) as List<dynamic>;
   if (secrets.isEmpty) {
+    logger.e('[Lyrics/Spotify] No secrets available for TOTP');
     throw StateError('No secrets available for TOTP');
   }
 
@@ -304,6 +306,7 @@ Future<_TotpPayload> _generateTotp() async {
   final version = mostRecent['version'] as int? ?? 0;
   final secretValue = mostRecent['secret'] as String? ?? '';
   if (secretValue.isEmpty) {
+    logger.e('[Lyrics/Spotify] Invalid TOTP secret payload');
     throw StateError('Invalid TOTP secret payload');
   }
 

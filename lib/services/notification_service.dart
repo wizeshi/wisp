@@ -74,9 +74,9 @@ class NotificationService {
       }
       
       _initialized = true;
-      logger.i('[Notification] Service initialized successfully');
+      logger.i('[Services/Notification] Service initialized successfully');
     } catch (e) {
-      logger.e('[Notification] Error initializing notifications', error: e);
+      logger.e('[Services/Notification] Error initializing notifications', error: e);
     }
   }
 
@@ -92,7 +92,7 @@ class NotificationService {
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       await androidPlugin?.requestNotificationsPermission();
     } catch (e) {
-      logger.e('[Notification] Error requesting permission', error: e);
+      logger.e('[Services/Notification] Error requesting permission', error: e);
     }
   }
   
@@ -121,11 +121,11 @@ class NotificationService {
       return;
     }
     if (!_initialized || (!Platform.isAndroid && !Platform.isIOS)) {
-      logger.d('[Notification] Not showing (initialized=$_initialized, platform=${Platform.isAndroid ? 'Android' : Platform.isIOS ? 'iOS' : 'Other'})');
+      logger.d('[Services/Notification] Not showing (initialized=$_initialized, platform=${Platform.isAndroid ? 'Android' : Platform.isIOS ? 'iOS' : 'Other'})');
       return;
     }
     
-    logger.d('[Notification] Showing progress: $title ($progress/$maxProgress)');
+    logger.d('[Services/Notification] Showing progress: $title ($progress/$maxProgress)');
     try {
       final androidDetails = AndroidNotificationDetails(
         _downloadChannelId,
@@ -159,9 +159,9 @@ class NotificationService {
       );
       
       await _notifications.show(id, title, body, details);
-      logger.d('[Notification] Progress notification shown (id=$id)');
+      logger.d('[Services/Notification] Progress notification shown (id=$id)');
     } catch (e) {
-      logger.e('[Notification] Error showing progress notification', error: e);
+      logger.e('[Services/Notification] Error showing progress notification', error: e);
     }
   }
   
@@ -187,7 +187,7 @@ class NotificationService {
     }
     if (!_initialized || (!Platform.isAndroid && !Platform.isIOS)) return;
     
-    logger.d('[Notification] Showing completion: $title');
+    logger.d('[Services/Notification] Showing completion: $title');
     try {
       final androidDetails = AndroidNotificationDetails(
         _downloadChannelId,
@@ -217,14 +217,14 @@ class NotificationService {
       );
       
       await _notifications.show(id, title, body, details);
-      logger.d('[Notification] Complete notification shown (id=$id)');
+      logger.d('[Services/Notification] Complete notification shown (id=$id)');
       
       // Auto dismiss after 3 seconds
       Future.delayed(const Duration(seconds: 3), () {
         cancelNotification(id);
       });
     } catch (e) {
-      logger.e('[Notification] Error showing complete notification', error: e);
+      logger.e('[Services/Notification] Error showing complete notification', error: e);
     }
   }
 
@@ -280,7 +280,7 @@ class NotificationService {
 
       await _notifications.show(id, title, body, details);
     } catch (e) {
-      logger.e('[Notification] Error showing alert notification', error: e);
+      logger.e('[Services/Notification] Error showing alert notification', error: e);
     }
   }
   
@@ -298,7 +298,7 @@ class NotificationService {
     try {
       await _notifications.cancel(id);
     } catch (e) {
-      logger.e('Error cancelling notification', error: e);
+      logger.e('[Services/Notification] Error cancelling notification', error: e);
     }
   }
 
@@ -334,7 +334,7 @@ class NotificationService {
       final details = NotificationDetails(android: androidDetails);
       await _notifications.show(_downloadSummaryId, title, body, details);
     } catch (e) {
-      logger.e('[Notification] Error showing download summary', error: e);
+      logger.e('[Services/Notification] Error showing download summary', error: e);
     }
   }
 
@@ -357,7 +357,7 @@ class NotificationService {
     try {
       await _notifications.cancelAll();
     } catch (e) {
-      logger.e('Error cancelling all notifications', error: e);
+      logger.e('[Services/Notification] Error cancelling all notifications', error: e);
     }
   }
 }
