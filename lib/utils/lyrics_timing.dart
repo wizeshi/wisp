@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
+
 import '../models/metadata_models.dart';
 
 const int kLyricsWaitingGapThresholdMs = 5000;
@@ -32,6 +34,20 @@ class LyricsTimingState {
       gapMs <= kLyricsWaitingGapThresholdMs;
 }
 
+class LyricsWordTimingState {
+  final int activeIndex;
+  final int? previousIndex;
+  final int? nextIndex;
+
+  const LyricsWordTimingState({
+    required this.activeIndex,
+    required this.previousIndex,
+    required this.nextIndex,
+  });
+
+  bool get hasActiveWord => activeIndex >= 0;
+}
+
 List<LyricsLine> nonEmptyLyricsLines(List<LyricsLine> lines) {
   final filtered = <({LyricsLine line, int index})>[];
   for (var i = 0; i < lines.length; i++) {
@@ -48,6 +64,97 @@ List<LyricsLine> nonEmptyLyricsLines(List<LyricsLine> lines) {
   });
 
   return filtered.map((entry) => entry.line).toList(growable: false);
+}
+
+LyricsWordTimingState resolveWordLyricsTiming(
+  List<LyricsWord> words,
+  int positionMs,
+) {
+  final safePositionMs = positionMs < 0 ? 0 : positionMs;
+
+  if (words.isEmpty) {
+    return const LyricsWordTimingState(
+      activeIndex: -1,
+      previousIndex: null,
+      nextIndex: null,
+    );
+  }
+
+  int? previousIndex;
+  int? nextIndex;
+
+  for (var i = 0; i < words.length; i++) {
+    if (words[i].startTimeMs <= safePositionMs) {
+      previousIndex = i;
+      continue;
+    }
+    nextIndex = i;
+    break;
+  }
+
+  if (previousIndex == null) {
+    return LyricsWordTimingState(
+      activeIndex: -1,
+      previousIndex: null,
+      nextIndex: nextIndex,
+    );
+  }
+
+  return LyricsWordTimingState(
+    activeIndex: previousIndex,
+    previousIndex: previousIndex,
+    nextIndex: nextIndex,
+  );
+}
+
+InlineSpan buildLyricsLineSpan({
+  required LyricsLine line,
+  required LyricsSyncMode syncMode,
+  required int positionMs,
+  required TextStyle baseStyle,
+  required Color activeWordColor,
+  required Color inactiveWordColor,
+  required bool highlightWords,
+}) {
+  if (!highlightWords || syncMode != LyricsSyncMode.word || !line.hasWordTiming) {
+    return TextSpan(text: line.content, style: baseStyle);
+  }
+
+  final wordTiming = resolveWordLyricsTiming(line.words, positionMs);
+  if (line.words.isEmpty) {
+    return TextSpan(text: line.content, style: baseStyle);
+  }
+
+  final spans = <InlineSpan>[];
+  for (var index = 0; index < line.words.length; index++) {
+    final word = line.words[index];
+    final isActiveWord = wordTiming.activeIndex == index;
+    spans.add(
+      WidgetSpan(
+        alignment: PlaceholderAlignment.baseline,
+        baseline: TextBaseline.alphabetic,
+        child: AnimatedDefaultTextStyle(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          style: baseStyle.copyWith(
+            color: isActiveWord ? activeWordColor : inactiveWordColor,
+          ),
+          child: Text(word.content),
+        ),
+      ),
+    );
+
+    if (index < line.words.length - 1) {
+      spans.add(
+        TextSpan(
+          text: ' ',
+          style: baseStyle.copyWith(color: inactiveWordColor),
+        ),
+      );
+    }
+  }
+
+  return TextSpan(style: baseStyle, children: spans);
 }
 
 bool _shouldKeepLyricsLine(LyricsLine line) {
@@ -69,7 +176,7 @@ LyricsResult removeEmptyLyricsLines(LyricsResult lyrics) {
 
   return LyricsResult(
     provider: lyrics.provider,
-    synced: lyrics.synced,
+    syncMode: lyrics.syncMode,
     lines: cleanedLines,
   );
 }

@@ -201,7 +201,7 @@ class SpotifyLyricsProvider {
 
       return LyricsResult(
         provider: LyricsProviderType.spotify,
-        synced: syncType == 'LINE_SYNCED',
+        syncMode: syncType == 'LINE_SYNCED' ? LyricsSyncMode.line : LyricsSyncMode.unsynced,
         lines: lines,
       );
     } catch (e, stackTrace) {

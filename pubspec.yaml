@@ -90,6 +90,7 @@ dependencies:
   audio_service_win: ^0.0.3
   flutter_inappwebview: 6.2.0-beta.3
   image: ^4.8.0
+  xml: ^6.6.1
 
 dev_dependencies:
   flutter_test:

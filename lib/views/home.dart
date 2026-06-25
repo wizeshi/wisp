@@ -9,6 +9,7 @@ import 'dart:io' show Platform, File;
 import 'dart:math';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
+import 'package:wisp/utils/text_parser.dart';
 import '../models/library_folder.dart';
 import '../utils/logger.dart';
 import '../services/wisp_audio_handler.dart';
@@ -1034,7 +1035,8 @@ class HomePageState extends State<HomePage> {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
-              Text(
+              buildParsedText(
+                context,
                 subtitle,
                 style: TextStyle(color: Colors.grey[400], fontSize: 12),
                 maxLines: 1,
@@ -2394,7 +2396,8 @@ class _PlaylistCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  buildParsedText(
+                    context,
                     _playlistSubtitle(playlist),
                     style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     maxLines: 1,
@@ -2512,7 +2515,8 @@ class _SpecialCard extends StatelessWidget {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            Text(
+                            buildParsedText(
+                              context,
                               subtitle,
                               style: TextStyle(
                                 color: Colors.grey[200],
@@ -2526,7 +2530,8 @@ class _SpecialCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 9),
-                    Text(
+                    buildParsedText(
+                      context,
                       "Listen to this brand new release from $subtitle",
                       style: TextStyle(color: Colors.grey[300], fontSize: 16),
                       maxLines: 2,

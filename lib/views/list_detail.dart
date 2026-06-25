@@ -11,6 +11,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/utils/text_parser.dart';
 
 import '../models/metadata_models.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
@@ -2305,8 +2306,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               ),
               if (hasDescription) ...[
                 const SizedBox(height: 6),
-                Text(
+                buildParsedText(
+                  context,
                   descriptionText,
+                  linkStyle: TextStyle(
+                    color: Colors.grey[300],
+                    fontSize: 13,
+                  ),
                   style: TextStyle(color: Colors.grey[300], fontSize: 13),
                 ),
               ],
@@ -2464,9 +2470,15 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 ),
                 if (hasDescription) const SizedBox(height: 4),
                 if (hasDescription)
-                  Text(
+                  buildParsedText(
+                    context,
                     descriptionText,
                     style: TextStyle(
+                      color: Colors.grey[300],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w300,
+                    ),
+                    linkStyle: TextStyle(
                       color: Colors.grey[300],
                       fontSize: 12,
                       fontWeight: FontWeight.w300,
@@ -5075,9 +5087,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 6),
-                  child: Text(
+                  child: buildParsedText(
+                    context,
                     descriptionText,
                     style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                    linkStyle: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
@@ -5260,9 +5277,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                               ],
                               if (hasDescription) ...[
                                 const SizedBox(height: 4),
-                                Text(
+                                buildParsedText(
+                                  context,
                                   descriptionText,
                                   style: TextStyle(
+                                    color: Colors.grey[400],
+                                    fontSize: 12,
+                                  ),
+                                  linkStyle: TextStyle(
                                     color: Colors.grey[400],
                                     fontSize: 12,
                                   ),

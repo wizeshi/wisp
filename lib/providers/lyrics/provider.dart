@@ -4,6 +4,7 @@ library;
 import 'package:flutter/foundation.dart';
 import '../../models/metadata_models.dart';
 import '../../services/metadata_cache.dart';
+import 'betterlyrics.dart';
 import '../preferences/preferences_provider.dart';
 import 'lrclib.dart';
 import 'spotify.dart';
@@ -39,10 +40,11 @@ class LyricsFetchState {
 }
 
 class LyricsProvider extends ChangeNotifier {
+  final BetterLyricsProvider _betterLyricsProvider = BetterLyricsProvider();
   final LrcLibLyricsProvider _lrcLibProvider = LrcLibLyricsProvider();
   final SpotifyLyricsProvider _spotifyProvider = SpotifyLyricsProvider();
   final MetadataCacheStore _cacheStore = MetadataCacheStore.instance;
-  static const String _cacheProvider = 'lyrics';
+  static const String _cacheProvider = 'lyrics_v2';
   static const String _delayCacheType = 'delay';
   static const Duration _errorRetryCooldown = Duration(seconds: 30);
 
@@ -157,6 +159,11 @@ class LyricsProvider extends ChangeNotifier {
   }
 
   Future<LyricsResult?> _fetchLyrics(GenericSong track, LyricsSyncMode mode) async {
+    final betterLyricsResult = await _betterLyricsProvider.getLyrics(track, mode);
+    if (betterLyricsResult != null) {
+      return _normalizeResult(betterLyricsResult, mode);
+    }
+
     final spotifyEnabled = await PreferencesProvider.isLyricsSpotifyEnabled();
     final lrclibEnabled = await PreferencesProvider.isLyricsLrclibEnabled();
 
@@ -183,15 +190,32 @@ class LyricsProvider extends ChangeNotifier {
   }
 
   LyricsResult _normalizeResult(LyricsResult result, LyricsSyncMode mode) {
-    if (mode == LyricsSyncMode.unsynced && result.synced) {
+    if (mode == LyricsSyncMode.unsynced && result.syncMode != LyricsSyncMode.unsynced) {
       return LyricsResult(
         provider: result.provider,
-        synced: false,
+        syncMode: LyricsSyncMode.unsynced,
         lines: result.lines
             .map((line) => LyricsLine(content: line.content, startTimeMs: 0))
             .toList(),
       );
     }
+
+    if (mode == LyricsSyncMode.line && result.syncMode == LyricsSyncMode.word) {
+      return LyricsResult(
+        provider: result.provider,
+        syncMode: LyricsSyncMode.line,
+        lines: result.lines
+            .map(
+              (line) => LyricsLine(
+                content: line.content,
+                startTimeMs: line.startTimeMs,
+                endTimeMs: line.endTimeMs,
+              ),
+            )
+            .toList(),
+      );
+    }
+
     return result;
   }
 
@@ -232,12 +256,22 @@ class LyricsProvider extends ChangeNotifier {
 
   Map<String, dynamic> _lyricsToJson(LyricsResult result) => {
         'provider': result.provider.name,
-        'synced': result.synced,
+        'syncMode': result.syncMode.name,
         'lines': result.lines
             .map(
               (line) => {
                 'content': line.content,
                 'startTimeMs': line.startTimeMs,
+                'endTimeMs': line.endTimeMs,
+                'words': line.words
+                    .map(
+                      (word) => {
+                        'content': word.content,
+                        'startTimeMs': word.startTimeMs,
+                        'endTimeMs': word.endTimeMs,
+                      },
+                    )
+                    .toList(),
               },
             )
             .toList(),
@@ -249,7 +283,10 @@ class LyricsProvider extends ChangeNotifier {
         (p) => p.name == json['provider'],
         orElse: () => LyricsProviderType.lrclib,
       );
-      final synced = json['synced'] as bool? ?? false;
+      final syncMode = LyricsSyncMode.values.firstWhere(
+        (m) => m.name == json['syncMode'],
+        orElse: () => LyricsSyncMode.unsynced,
+      );
       final linesJson = (json['lines'] as List?) ?? const [];
       final lines = linesJson
           .whereType<Map<String, dynamic>>()
@@ -257,10 +294,21 @@ class LyricsProvider extends ChangeNotifier {
             (line) => LyricsLine(
               content: line['content'] as String? ?? '',
               startTimeMs: line['startTimeMs'] as int? ?? 0,
+              endTimeMs: line['endTimeMs'] as int?,
+              words: ((line['words'] as List?) ?? const [])
+                  .whereType<Map<String, dynamic>>()
+                  .map(
+                    (word) => LyricsWord(
+                      content: word['content'] as String? ?? '',
+                      startTimeMs: word['startTimeMs'] as int? ?? 0,
+                      endTimeMs: word['endTimeMs'] as int?,
+                    ),
+                  )
+                  .toList(),
             ),
           )
           .toList();
-      return LyricsResult(provider: provider, synced: synced, lines: lines);
+      return LyricsResult(provider: provider, syncMode: syncMode, lines: lines);
     } catch (_) {
       return null;
     }

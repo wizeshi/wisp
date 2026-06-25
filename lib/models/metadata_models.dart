@@ -773,6 +773,7 @@ class GenericArtist {
 }
 
 enum LyricsProviderType {
+  betterlyrics,
   spotify,
   lrclib;
 
@@ -780,29 +781,53 @@ enum LyricsProviderType {
 }
 
 enum LyricsSyncMode {
-  synced,
+  word,
+  line,
   unsynced;
 
-  String get label => this == LyricsSyncMode.synced ? 'Synced' : 'Unsynced';
+  String get label => this == LyricsSyncMode.word ? 'Word' : this == LyricsSyncMode.line ? 'Line' : 'Unsynced';
+}
+
+class LyricsWord {
+  final String content;
+  final int startTimeMs;
+  final int? endTimeMs;
+
+  const LyricsWord({
+    required this.content,
+    required this.startTimeMs,
+    this.endTimeMs,
+  });
 }
 
 class LyricsLine {
   final String content;
   final int startTimeMs;
+  final int? endTimeMs;
+  final List<LyricsWord> words;
 
-  const LyricsLine({required this.content, required this.startTimeMs});
+  const LyricsLine({
+    required this.content,
+    required this.startTimeMs,
+    this.endTimeMs,
+    this.words = const [],
+  });
+
+  bool get hasWordTiming => words.isNotEmpty;
 }
 
 class LyricsResult {
   final LyricsProviderType provider;
-  final bool synced;
+  final LyricsSyncMode syncMode;
   final List<LyricsLine> lines;
 
   const LyricsResult({
     required this.provider,
-    required this.synced,
+    required this.syncMode,
     required this.lines,
   });
+
+  bool get hasWordTiming => lines.any((line) => line.hasWordTiming);
 }
 
 class GenericLibrary {

@@ -43,11 +43,11 @@ class LrcLibLyricsProvider {
 			final hasSynced = syncedLyrics.trim().isNotEmpty;
 			final hasPlain = plainLyrics.trim().isNotEmpty;
 
-			if (mode == LyricsSyncMode.synced && hasSynced) {
+			if (mode == LyricsSyncMode.line && hasSynced) {
 				final lines = _parseSyncedLyrics(syncedLyrics);
 				return LyricsResult(
 					provider: LyricsProviderType.lrclib,
-					synced: true,
+					syncMode: LyricsSyncMode.line,
 					lines: lines,
 				);
 			}
@@ -56,7 +56,7 @@ class LrcLibLyricsProvider {
 				final lines = _parsePlainLyrics(plainLyrics);
 				return LyricsResult(
 					provider: LyricsProviderType.lrclib,
-					synced: false,
+					syncMode: LyricsSyncMode.unsynced,
 					lines: lines,
 				);
 			}
@@ -65,7 +65,7 @@ class LrcLibLyricsProvider {
 				final lines = _parseSyncedLyrics(syncedLyrics);
 				return LyricsResult(
 					provider: LyricsProviderType.lrclib,
-					synced: true,
+					syncMode: LyricsSyncMode.line,
 					lines: lines,
 				);
 			}
@@ -74,7 +74,7 @@ class LrcLibLyricsProvider {
 				final lines = _parsePlainLyrics(plainLyrics);
 				return LyricsResult(
 					provider: LyricsProviderType.lrclib,
-					synced: false,
+					syncMode: LyricsSyncMode.unsynced,
 					lines: lines,
 				);
 			}

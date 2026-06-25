@@ -56,10 +56,10 @@ class _DesktopLyricsPreviewWidget extends StatelessWidget {
     final currentTrack = player.currentTrack;
     if (currentTrack == null) return const SizedBox.shrink();
 
-    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.synced);
+    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.word);
     if (!state.isLoading && state.lyrics == null && state.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.synced);
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.word);
       });
     }
 
@@ -81,7 +81,7 @@ class _DesktopLyricsPreviewWidget extends StatelessWidget {
         : (() {
             final lines = nonEmptyLyricsLines(lyrics.lines);
             if (lines.isEmpty) return const <LyricsLine>[];
-            if (!lyrics.synced) return lines.take(5).toList();
+            if (lyrics.syncMode != LyricsSyncMode.line) return lines.take(5).toList();
             final timing = resolveSyncedLyricsTiming(lines, effectivePosition);
             final startIndex = timing.activeIndex >= 0
                 ? timing.activeIndex
@@ -451,10 +451,10 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.synced);
+    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
     if (!state.isLoading && state.lyrics == null && state.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.synced);
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
       });
     }
 
@@ -477,12 +477,12 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final timing = lyrics.synced
+        final timing = lyrics.syncMode == LyricsSyncMode.line
             ? resolveSyncedLyricsTiming(lines, effectivePosition)
             : null;
         final line = _getSingleLine(lyrics, effectivePosition);
         final showWaitingPlaceholder =
-            lyrics.synced && timing != null && timing.activeIndex < 0 && timing.nextIndex != null;
+            lyrics.syncMode == LyricsSyncMode.line && timing != null && timing.activeIndex < 0 && timing.nextIndex != null;
         if ((line == null || line.content.trim().isEmpty) && !showWaitingPlaceholder) {
           return const SizedBox.shrink();
         }
@@ -637,10 +637,10 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.synced);
+    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
     if (!state.isLoading && state.lyrics == null && state.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.synced);
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
       });
     }
 
@@ -743,7 +743,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
   List<LyricsLine> _getPreviewLines(LyricsResult lyrics, int positionMs) {
     final lines = nonEmptyLyricsLines(lyrics.lines);
     if (lines.isEmpty) return const [];
-    if (!lyrics.synced) {
+    if (lyrics.syncMode != LyricsSyncMode.line) {
       return lines.take(5).toList();
     }
     final timing = resolveSyncedLyricsTiming(lines, positionMs);
@@ -756,7 +756,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
   LyricsLine? _getSingleLine(LyricsResult lyrics, int positionMs) {
     final lines = nonEmptyLyricsLines(lyrics.lines);
     if (lines.isEmpty) return null;
-    if (!lyrics.synced) {
+    if (lyrics.syncMode != LyricsSyncMode.line) {
       return lines.first;
     }
     final timing = resolveSyncedLyricsTiming(lines, positionMs);
@@ -1920,29 +1920,24 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
     final syncedState = lyricsProvider.getState(
       currentTrack,
-      LyricsSyncMode.synced,
+      LyricsSyncMode.word,
     );
     if (!syncedState.isLoading &&
         syncedState.lyrics == null &&
         syncedState.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.synced);
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.word);
       });
     }
 
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
 
     final syncedLyrics = syncedState.lyrics;
-    final hasSyncedLyrics =
-        syncedLyrics != null &&
-        syncedLyrics.lines.isNotEmpty &&
-        syncedLyrics.synced;
-
     final unsyncedState = lyricsProvider.getState(
       currentTrack,
       LyricsSyncMode.unsynced,
     );
-    if (!hasSyncedLyrics &&
+    if (syncedLyrics == null &&
         !unsyncedState.isLoading &&
         unsyncedState.lyrics == null &&
         unsyncedState.error == null) {
@@ -1951,10 +1946,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       });
     }
 
-    final lyrics = hasSyncedLyrics ? syncedLyrics : unsyncedState.lyrics;
-    final isLoading = hasSyncedLyrics
-        ? syncedState.isLoading && lyrics == null
-        : (syncedState.isLoading || unsyncedState.isLoading) && lyrics == null;
+    final lyrics = syncedLyrics ?? unsyncedState.lyrics;
+    final isLoading = (syncedState.isLoading || unsyncedState.isLoading) && lyrics == null;
 
     if (isLoading) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
@@ -1985,10 +1978,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
-    final timing = normalizedLyrics.synced
+    final timing = normalizedLyrics.syncMode != LyricsSyncMode.unsynced
       ? resolveSyncedLyricsTiming(normalizedLyrics.lines, effectivePosition)
       : null;
-    final currentIndex = normalizedLyrics.synced
+    final currentIndex = normalizedLyrics.syncMode != LyricsSyncMode.unsynced
       ? timing!.activeIndex
         : 0;
 
@@ -2036,8 +2029,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           padding: const EdgeInsets.only(top: 8, bottom: 8),
           itemBuilder: (context, index) {
             final lyricLine = normalizedLyrics.lines[index];
-            final line = lyricLine.content.trim();
-
             final anchorIndex = currentIndex >= 0
                 ? currentIndex
                 : (timing?.nextIndex ?? timing?.previousIndex ?? 0);
@@ -2048,9 +2039,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 : (1.0 - (distance * 0.22)).clamp(0.16, 0.72);
             var fontSize = isCurrent ? 34.0 : 30.0;
             var fontWeight = isCurrent ? FontWeight.w700 : FontWeight.w600;
-            var color = isCurrent ? Colors.white : Colors.grey[500];
+            var color = isCurrent ? Colors.white : Colors.grey[500]!;
 
-            if (normalizedLyrics.synced &&
+            if (normalizedLyrics.syncMode != LyricsSyncMode.unsynced &&
                 timing != null &&
                 timing.shouldFadePreviousLine &&
                 timing.previousIndex == index &&
@@ -2071,10 +2062,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  mouseCursor: normalizedLyrics.synced
+                    mouseCursor: normalizedLyrics.syncMode != LyricsSyncMode.unsynced
                       ? SystemMouseCursors.click
                       : SystemMouseCursors.basic,
-                  onTap: normalizedLyrics.synced
+                    onTap: normalizedLyrics.syncMode != LyricsSyncMode.unsynced
                       ? () {
                           final seekMs = (lyricLine.startTimeMs + delayMs)
                               .clamp(0, player.duration.inMilliseconds)
@@ -2088,21 +2079,29 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       : null,
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(
-                      line,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: fontSize,
-                        fontWeight: fontWeight,
-                        height: 1.1,
+                    child: Text.rich(
+                      buildLyricsLineSpan(
+                        line: lyricLine,
+                        syncMode: normalizedLyrics.syncMode,
+                        positionMs: effectivePosition,
+                        baseStyle: TextStyle(
+                          color: color,
+                          fontSize: fontSize,
+                          fontWeight: fontWeight,
+                          height: 1.1,
+                        ),
+                        activeWordColor: Colors.white,
+                        inactiveWordColor: color,
+                        highlightWords: isCurrent,
                       ),
+                      textAlign: TextAlign.left,
                     ),
                   ),
                 ),
               ),
             );
 
-            final showWaitingDots = normalizedLyrics.synced &&
+            final showWaitingDots = normalizedLyrics.syncMode != LyricsSyncMode.unsynced &&
                 timing != null &&
                 timing.showWaitingDots &&
                 timing.nextIndex == index;
@@ -2859,10 +2858,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.synced);
+    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
     if (!state.isLoading && state.lyrics == null && state.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.synced);
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
       });
     }
 
@@ -2885,12 +2884,12 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final timing = lyrics.synced
+    final timing = lyrics.syncMode != LyricsSyncMode.unsynced
         ? resolveSyncedLyricsTiming(lines, effectivePosition)
         : null;
     final line = _getSingleLine(lyrics, effectivePosition);
     final showWaitingPlaceholder =
-        lyrics.synced && timing != null && timing.activeIndex < 0 && timing.nextIndex != null;
+        lyrics.syncMode != LyricsSyncMode.unsynced && timing != null && timing.activeIndex < 0 && timing.nextIndex != null;
     if ((line == null || line.content.trim().isEmpty) && !showWaitingPlaceholder) {
       return const SizedBox.shrink();
     }
@@ -2930,16 +2929,24 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 width: double.infinity,
                 height: 18,
               )
-            : Text(
-                line.content.trim(),
+            : Text.rich(
+                buildLyricsLineSpan(
+                  line: line,
+                  syncMode: lyrics.syncMode,
+                  positionMs: effectivePosition,
+                  baseStyle: TextStyle(
+                    color: Colors.grey[300],
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  activeWordColor: Colors.white,
+                  inactiveWordColor: Colors.grey[400]!,
+                  highlightWords: true,
+                ),
                 key: ValueKey<String>(line.content.trim()),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.grey[300],
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                textAlign: TextAlign.left,
               ),
       ),
     );
@@ -3040,7 +3047,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   LyricsLine? _getSingleLine(LyricsResult lyrics, int positionMs) {
     final lines = nonEmptyLyricsLines(lyrics.lines);
     if (lines.isEmpty) return null;
-    if (!lyrics.synced) {
+    if (lyrics.syncMode != LyricsSyncMode.line) {
       return lines.first;
     }
     final timing = resolveSyncedLyricsTiming(lines, positionMs);

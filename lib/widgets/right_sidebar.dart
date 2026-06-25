@@ -1412,10 +1412,10 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
 
     return Consumer<LyricsProvider>(
       builder: (context, lyricsProvider, child) {
-        final state = lyricsProvider.getState(track, LyricsSyncMode.synced);
+        final state = lyricsProvider.getState(track, LyricsSyncMode.line);
         if (!state.isLoading && state.lyrics == null && state.error == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            lyricsProvider.ensureLyrics(track, LyricsSyncMode.synced);
+            lyricsProvider.ensureLyrics(track, LyricsSyncMode.line);
           });
         }
 
@@ -1660,7 +1660,7 @@ class _QueuePreviewCard extends StatelessWidget {
 List<LyricsLine> _getPreviewLines(LyricsResult lyrics, int positionMs) {
   final lines = nonEmptyLyricsLines(lyrics.lines);
   if (lines.isEmpty) return const [];
-  if (!lyrics.synced) {
+  if (lyrics.syncMode != LyricsSyncMode.line) {
     return lines.take(3).toList();
   }
   final timing = resolveSyncedLyricsTiming(lines, positionMs);
