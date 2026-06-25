@@ -296,7 +296,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 delegate: _StickyActionBarDelegate(
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: padding / 2,
+                      horizontal: padding,
                       vertical: padding / 2,
                     ),
                     color: const Color(0xFF121212),
@@ -307,7 +307,6 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               SliverToBoxAdapter(
                 child: Column(
                   children: [
-                    const SizedBox(height: 8),
                     _buildTopTracksSection(),
                     const SizedBox(height: 24),
                     const Padding(
@@ -318,8 +317,13 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                       padding: const EdgeInsets.symmetric(horizontal: padding),
                       child: _buildAlbumsGrid(false),
                     ),
-                    const SizedBox(height: 24),
                   ],
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: padding),
+                  child: _buildAboutSection(isMobile: true),
                 ),
               ),
             ],
@@ -1043,11 +1047,11 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     int? monthlyListeners,
   ) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Avatar - 70% width as per old design
         Center(
           child: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.7,
+            width: MediaQuery.of(context).size.width * 0.8,
             child: AspectRatio(
               aspectRatio: 1,
               child: ClipRRect(
@@ -2143,7 +2147,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     );
   }
 
-  Widget _buildAboutSection() {
+  Widget _buildAboutSection({bool isMobile = false}) {
     final description = _artist?.description?.trim() ?? '';
     final displayDescription = description.isEmpty
         ? 'No description available for this artist yet.'
@@ -2155,7 +2159,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.22),
         borderRadius: BorderRadius.circular(14),
@@ -2171,8 +2175,33 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 18),
-          Row(
+          const SizedBox(height: 16),
+          if (isMobile) Column(
+            children: [
+              Row(
+                spacing: 16,
+                children: [
+                  if (listeners != null && listeners > 0)
+                    _buildAboutStat(
+                      'MONTHLY LISTENERS',
+                      _formatNumber(listeners),
+                    ),
+                  _buildAboutStat('FOLLOWERS', _formatNumber(followers)),
+                  _buildAboutStat('ALBUMS', '${_artist?.albums.length ?? 0}'),
+                ]
+              ),
+              buildParsedText(
+                context,
+                displayDescription,
+                style: TextStyle(
+                  color: Colors.grey[300],
+                  fontSize: 15,
+                  height: 1.45,
+                ),
+                softWrap: true,
+              ),
+            ]
+          ) else Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(

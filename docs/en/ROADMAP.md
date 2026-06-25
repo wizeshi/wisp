@@ -4,6 +4,7 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Fix stream fetching not working when the app is in the background.
     - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
+    - [ ] Fix word-synced lyrics: when a word is split into syllables, the highlighting splits the word like this: "wo rd", instead of "word" (and the highlighting should stay on each syllable until the next one is reached).
 - Future changes: 
     - [ ] Make the marquee text infinitely loop to one side instead of bouncing back and forth.
     - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
