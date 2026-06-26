@@ -2,6 +2,7 @@ library;
 
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:math';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
@@ -155,6 +156,20 @@ class _UserDetailViewState extends State<UserDetailView> {
     return number.toString();
   }
 
+  Future<List<Color>> _getActionsRowColor(CoverArtPaletteProvider paletteProvider, String imageUrl) async {
+    final palette = await paletteProvider.paletteForImageUrl(imageUrl);
+    final fakeColor = HSLColor.fromColor(palette?.primary ?? const Color(0xFF1E1E1E));
+    final color = fakeColor.withLightness(
+      log(fakeColor.lightness + 1) / log(3)
+    ).toColor();
+    final colorHSL = HSLColor.fromColor(color);
+    final trueColor = colorHSL.withLightness(
+      colorHSL.lightness * 0.5
+    ).toColor();
+
+    return [color, trueColor];
+  }
+
   @override
   Widget build(BuildContext context) {
     final preferences = context.watch<PreferencesProvider>();
@@ -165,60 +180,30 @@ class _UserDetailViewState extends State<UserDetailView> {
     final user = _user;
     final imageUrl = user?.avatarUrl ?? '';
     final title = user?.displayName ?? 'User';
-    final content = _isLoading && user == null
+
+    Widget body = () {
+      final content = _isLoading && user == null
         ? const Center(child: CircularProgressIndicator())
         : _buildContent(user);
 
-    final paletteProvider = context.read<CoverArtPaletteProvider>();
-    final body = FutureBuilder<ColorScheme?>(
-      future: paletteProvider.paletteForImageUrl(imageUrl),
-      builder: (context, snapshot) {
-        final palette = snapshot.data;
-        final dominantColor = palette?.primary ?? const Color(0xFF0F0F0F);
-        final topColor = HSLColor.fromColor(
-          dominantColor,
-        ).withLightness(0.60).withSaturation(0.6).toColor();
-        final bottomColor = HSLColor.fromColor(
-          dominantColor,
-        ).withLightness(0.04).withSaturation(0.9).toColor();
+      if (_isDesktop) {
+        return content;
+      }
 
-        final decoratedContent = Stack(
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [topColor, bottomColor],
-                    stops: const [0, 0.3],
-                  ),
-                ),
-              ),
-            ),
-            SafeArea(bottom: false, child: content),
-          ],
-        );
-
-        if (_isDesktop) {
-          return decoratedContent;
-        }
-
-        return Scaffold(
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
           backgroundColor: Colors.transparent,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            title: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
+          elevation: 0,
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          extendBodyBehindAppBar: true,
-          body: decoratedContent,
-        );
-      },
-    );
+        ),
+        extendBodyBehindAppBar: true,
+        body: content,
+      );
+    }();
 
     if (_errorMessage != null && user == null) {
       return Scaffold(
@@ -244,7 +229,6 @@ class _UserDetailViewState extends State<UserDetailView> {
 
   Widget _buildSpotifyContent(GenericUser user) {
     final children = <Widget>[];
-    children.add(_buildHeroCard(user, useAppleChrome: false));
 
     if (user.publicPlaylists.isNotEmpty) {
       children.add(const SizedBox(height: 20));
@@ -289,8 +273,19 @@ class _UserDetailViewState extends State<UserDetailView> {
         ),
       );
     }
-
-    return ListView(padding: const EdgeInsets.all(24), children: children);
+    
+    return ListView(
+      shrinkWrap: true,
+      children: [
+        _buildHeroCard(user, useAppleChrome: false),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            children: children
+          )
+        )
+      ]
+    );
   }
 
   Widget _buildAppleContent(GenericUser user) {
@@ -351,7 +346,7 @@ class _UserDetailViewState extends State<UserDetailView> {
   Widget _buildHeroCard(GenericUser user, {required bool useAppleChrome}) {
     final followerLabel = '${_formatNumber(user.followerCount)} followers';
     final followingLabel = '${_formatNumber(user.followingCount)} following';
-
+    
     if (!_isDesktop) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -414,63 +409,87 @@ class _UserDetailViewState extends State<UserDetailView> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _buildAvatar(user.avatarUrl, size: 124),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'PROFILE',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontSize: 12,
-                        letterSpacing: 1.6,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      user.displayName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: useAppleChrome ? 36 : 38,
-                        height: 1.05,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '$followerLabel • $followingLabel',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.82),
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                  ],
+    final paletteProvider = context.watch<CoverArtPaletteProvider>();
+    return FutureBuilder<List<Color>>(
+      future: _getActionsRowColor(paletteProvider, user.avatarUrl ?? ''),
+      builder: (context, snapshot) {
+        final headerColor = snapshot.data?[0] ?? Color(0xFF1E1E1E);
+        final actionsRowColor = snapshot.data?[1] ?? const Color(0xFF1E1E1E);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: headerColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _buildAvatar(user.avatarUrl, size: 180),
+                      const SizedBox(width: 16),
+                      Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user.displayName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: useAppleChrome ? 36 : 38,
+                                height: 1.05,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '$followerLabel • $followingLabel',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.82),
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0, 1],
+                  colors: [actionsRowColor, Colors.transparent],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildFollowButton(),
-        ],
-      ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: IntrinsicWidth(
+                  child: _buildFollowButton(),
+                ),
+              ),
+            )
+          ]
+        );
+      },
     );
   }
 
@@ -504,8 +523,8 @@ class _UserDetailViewState extends State<UserDetailView> {
     }
     return _HorizontalScrollableSection(
       title: title,
-      children: children,
       useAppleTitleStyle: useAppleTitleStyle,
+      children: children,
     );
   }
 
