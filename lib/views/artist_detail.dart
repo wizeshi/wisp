@@ -1538,7 +1538,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         return Container(
           alignment: Alignment.bottomLeft,
           decoration: BoxDecoration(gradient: backgroundGradient),
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+          padding: useAppleIcons ? EdgeInsets.all(0) : EdgeInsets.all(24),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
