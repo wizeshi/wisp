@@ -35,6 +35,8 @@ import 'package:wisp/utils/logger.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+
+  // Initialize Flutter Video Player (FVP) for Linux platform
   if (Platform.isLinux) {
     fvp.registerWith(
       options: {
@@ -51,6 +53,8 @@ void main() async {
     AudioServiceMpris.registerWith();
   }
 
+
+  // Initialize Spotify Audio Key Session Manager if Spotify audio is enabled (experimental)
   try {
     final spotifyAudioEnabled =
         await PreferencesProvider.isAudioSpotifyEnabled();
@@ -66,6 +70,8 @@ void main() async {
     );
   }
 
+
+  // Initialize audio_service for background audio playback
   final handler = await AudioService.init(
     builder: () => WispAudioHandler(),
     config: const AudioServiceConfig(
@@ -82,7 +88,7 @@ void main() async {
   final playbackCoordinator = PlaybackCoordinator();
   playbackCoordinator.bindAudioHandler(handler);
 
-  // Initialize window manager for custom titlebar (desktop only)
+  // Initialize window manager with custom titlebar (desktop only)
   if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
     try {
       await windowManager.ensureInitialized();
@@ -128,7 +134,7 @@ void main() async {
 
   // Run the app inside a guarded zone to catch uncaught async errors.
   runZonedGuarded(() {
-    runApp(MyApp(audioHandler: handler, playbackCoordinator: playbackCoordinator));
+    runApp(WispApp(audioHandler: handler, playbackCoordinator: playbackCoordinator));
 
     // Request notification permission on Android 13+ after UI is ready
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -142,11 +148,11 @@ void main() async {
   });
 }
 
-class MyApp extends StatelessWidget {
+class WispApp extends StatelessWidget {
   final WispAudioHandler audioHandler;
   final PlaybackCoordinator playbackCoordinator;
 
-  const MyApp({
+  const WispApp({
     super.key,
     required this.audioHandler,
     required this.playbackCoordinator,
@@ -156,6 +162,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // Providers for various services and state management
         ChangeNotifierProvider(create: (_) => SpotifyInternalProvider()),
         ChangeNotifierProvider(create: (_) => PreferencesProvider()),
         ChangeNotifierProvider(create: (_) => YouTubeMetadataProvider()),
@@ -219,6 +226,7 @@ class MyApp extends StatelessWidget {
               builder: (context, ytDlp, child) {
                 final shouldGateMobile =
                     (Platform.isAndroid || Platform.isIOS) && !ytDlp.isReady;
+                // Wait until yt-dlp is ready to show the app shell on mobile.  
                 if (shouldGateMobile) {
                   return const Scaffold(
                     body: Center(
