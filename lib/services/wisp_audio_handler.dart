@@ -539,6 +539,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     return position >= threshold;
   }
 
+  // RPC and MPRIS timers to update Discord and MPRIS every second
   void _ensureRpcTimer() {
     if (!isPlaying || _currentTrack == null || _rpcTimer != null) return;
     _rpcTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -1977,6 +1978,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     List<GenericSong>? originalQueue,
   }) async {
     final token = ++_trackChangeToken;
+    // Stop any crossfade and playback before changing queue.
     await _cancelCrossfade(stopInactive: true);
     try {
       await _primaryPlayer.stop();
@@ -1984,9 +1986,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     try {
       await _secondaryPlayer.stop();
     } catch (_) {}
+
     _useSecondaryAsActivePlayer = false;
+    
+    // Invalidate any preloaded crossfade or prefetched sources since the queue is going to change.
     _invalidateCrossfadePreload();
     _invalidatePlaybackPrefetch(clearSources: true);
+    
+    // Overwrite the new queue and context info.
     _queue = List.from(tracks);
     _originalQueue = originalQueue ?? [];
     _shuffleEnabled = shuffleEnabled;
@@ -1994,6 +2001,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _playbackContextName = contextName;
     _playbackContextID = contextID;
     _playbackContextSource = contextSource;
+    
     _broadcastQueue();
 
     if (_queue.isEmpty) {
