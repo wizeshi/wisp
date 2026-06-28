@@ -30,7 +30,6 @@ import 'services/discord_rpc_service.dart';
 import 'services/spotify/spotify_audio_key_session_manager.dart';
 import 'services/ytdlp_readiness_coordinator.dart';
 import 'widgets/app_shell.dart';
-import 'views/ytdlp_initializing.dart';
 import 'package:wisp/utils/logger.dart';
 
 void main() async {
@@ -221,7 +220,18 @@ class MyApp extends StatelessWidget {
                 final shouldGateMobile =
                     (Platform.isAndroid || Platform.isIOS) && !ytDlp.isReady;
                 if (shouldGateMobile) {
-                  return const YtDlpInitializingView();
+                  return const Scaffold(
+                    body: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('YT-DLP is initializing...'),
+                        ],
+                      ),
+                    ),
+                  );
                 }
                 return const AppShell();
               },
