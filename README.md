@@ -2,8 +2,6 @@
 
 wisp is a Flutter-based music player, with (pretty much) modular support for multiple extractors from services such as Spotify and Youtube.
 
-### This branch is currently in development, more specifically, it's for cleaning up the codebase (getting rid of spaghetti code, mostly originating from overly vibe-coding). The main, stable-ish branch is `main`.
-
 ## Features
 
 * Easy to use UI, with styles to ensure you feel right at home, no matter the service you're coming from. 

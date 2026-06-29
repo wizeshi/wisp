@@ -107,6 +107,50 @@ LyricsWordTimingState resolveWordLyricsTiming(
   );
 }
 
+/// Aligns timed [words] against [lineContent] and returns whether each word
+/// should be preceded by a space. Syllables of the same word stay unspaced.
+List<bool> resolveWordLeadingSpaces(String lineContent, List<LyricsWord> words) {
+  if (words.isEmpty) {
+    return const [];
+  }
+
+  final leadingSpaces = List<bool>.filled(words.length, false);
+  var pos = 0;
+
+  for (var i = 0; i < words.length; i++) {
+    if (i > 0) {
+      final spaceStart = pos;
+      while (pos < lineContent.length && lineContent[pos] == ' ') {
+        pos++;
+      }
+      leadingSpaces[i] = pos > spaceStart;
+    }
+
+    final word = words[i].content;
+    if (word.isEmpty) {
+      continue;
+    }
+
+    if (lineContent.startsWith(word, pos)) {
+      pos += word.length;
+      continue;
+    }
+
+    final idx = lineContent.indexOf(word, pos);
+    if (idx >= 0) {
+      if (idx > pos) {
+        leadingSpaces[i] = lineContent.substring(pos, idx).contains(' ');
+      }
+      pos = idx + word.length;
+      continue;
+    }
+
+    pos += word.length;
+  }
+
+  return leadingSpaces;
+}
+
 InlineSpan buildLyricsLineSpan({
   required LyricsLine line,
   required LyricsSyncMode syncMode,
@@ -125,10 +169,21 @@ InlineSpan buildLyricsLineSpan({
     return TextSpan(text: line.content, style: baseStyle);
   }
 
+  final leadingSpaces = resolveWordLeadingSpaces(line.content, line.words);
   final spans = <InlineSpan>[];
   for (var index = 0; index < line.words.length; index++) {
     final word = line.words[index];
     final isActiveWord = wordTiming.activeIndex == index;
+
+    if (leadingSpaces[index]) {
+      spans.add(
+        TextSpan(
+          text: ' ',
+          style: baseStyle.copyWith(color: inactiveWordColor),
+        ),
+      );
+    }
+
     spans.add(
       WidgetSpan(
         alignment: PlaceholderAlignment.baseline,
@@ -143,15 +198,6 @@ InlineSpan buildLyricsLineSpan({
         ),
       ),
     );
-
-    if (index < line.words.length - 1) {
-      spans.add(
-        TextSpan(
-          text: ' ',
-          style: baseStyle.copyWith(color: inactiveWordColor),
-        ),
-      );
-    }
   }
 
   return TextSpan(style: baseStyle, children: spans);
