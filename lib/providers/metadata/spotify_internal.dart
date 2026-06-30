@@ -1,10 +1,10 @@
 // New implementation of the Spotify provider.
 // This one uses Spotify's internal API, since the SDK is unusable as of March 9th, 2026.
 // This one is more flexible, faster and more reliable than the old one,
-// but it also requires more work to implement.
+// but it also requires way more work to implement.
 // This one requires the user to log in to their Spotify account in-app (through a webview),
-// instead of opening the browser, which is a bit of a hassle, but we need it to
-// get the proper cookies, to then fetch tokens to access the internal API.
+// instead of opening the browser, which is a bit of a hassle, and slightly less trustworthy, 
+// but we need it to "steal" the cookies, to then fetch tokens to access the internal API.
 
 import 'dart:async';
 import 'dart:convert';
@@ -35,7 +35,6 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   String? _bearerToken;
   String? _clientToken;
-  DateTime? _bearerTokenExpiresAt;
   String? _userId;
   String? _userDisplayName;
 
@@ -55,13 +54,14 @@ class SpotifyInternalProvider extends MetadataProvider {
   bool _startupAuthRetryScheduled = false;
   
   // Guard against concurrent token refresh attempts
+  DateTime? _lastTokenRefreshAt;
   Future<void>? _tokenRefreshInProgress;
   bool _tokenRefreshFailed = false;
 
   static const Duration _authInitCooldown = Duration(seconds: 45);
   static const Duration _authInitFailureCooldown = Duration(seconds: 4);
   static const Duration _tokenRequestTimeout = Duration(seconds: 12);
-  static const Duration _tokenRefreshSkew = Duration(minutes: 1);
+  static const Duration _estimatedTokenLifetime = Duration(minutes: 30);
   static const int _tokenRequestMaxAttempts = 2;
   static const int _maxStartupAuthRetries = 2;
 
@@ -215,7 +215,6 @@ class SpotifyInternalProvider extends MetadataProvider {
       _isAuthenticated = false;
       _bearerToken = null;
       _clientToken = null;
-      _bearerTokenExpiresAt = null;
       _tokenRefreshInProgress = null;
       _tokenRefreshFailed = false;
     } catch (e) {
@@ -292,7 +291,6 @@ class SpotifyInternalProvider extends MetadataProvider {
           _isAuthenticated = false;
           _bearerToken = null;
           _clientToken = null;
-          _bearerTokenExpiresAt = null;
           _lastAuthInitFailed = true;
           _scheduleStartupAuthRetry(e);
         }
@@ -393,7 +391,6 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
 
     _bearerToken = accessToken;
-    _bearerTokenExpiresAt = expiresAt;
 
     final deviceId = _randomHex(32);
     final clientTokenPayload = {
@@ -475,8 +472,13 @@ class SpotifyInternalProvider extends MetadataProvider {
     await _credentialsService.saveSpotifyToken(token);
   }
 
-  Future<void> _ensureTokens() async {
-    // Wait for any in-progress token refresh to complete
+  Future<void> _ensureTokens({bool forceRefresh = false}) async {
+    if (forceRefresh) {
+      _bearerToken = null;
+      _clientToken = null;
+      _tokenRefreshFailed = false;
+    }
+
     if (_tokenRefreshInProgress != null) {
       await _tokenRefreshInProgress;
       if (_tokenRefreshFailed) {
@@ -484,18 +486,20 @@ class SpotifyInternalProvider extends MetadataProvider {
           '[Metadata/Spotify-Internal] Previous token refresh failed. Please log in again.',
         );
       }
+      if (!forceRefresh) return;
+    }
+
+    final tokenTimestamp = _lastTokenRefreshAt ?? _lastAuthInitAttemptAt;
+    final hasUsableTokens = _bearerToken != null && _clientToken != null;
+    final estimatedTokenStillValid = tokenTimestamp != null &&
+        DateTime.now().isBefore(
+          tokenTimestamp.add(_estimatedTokenLifetime),
+        );
+
+    if (!forceRefresh && hasUsableTokens && estimatedTokenStillValid) {
       return;
     }
 
-    final expiresAt = _bearerTokenExpiresAt;
-    if (_bearerToken != null &&
-        _clientToken != null &&
-        expiresAt != null &&
-        DateTime.now().isBefore(expiresAt.subtract(_tokenRefreshSkew))) {
-      return;
-    }
-
-    // Start token refresh and guard against concurrent attempts
     _tokenRefreshInProgress = _performTokenRefresh();
     try {
       await _tokenRefreshInProgress;
@@ -514,6 +518,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         );
       }
       await _acquireTokensFromCookie(cookie);
+      _lastTokenRefreshAt = DateTime.now();
     } catch (e) {
       _tokenRefreshFailed = true;
       rethrow;
@@ -585,6 +590,14 @@ class SpotifyInternalProvider extends MetadataProvider {
     return parts.isNotEmpty ? parts.last : uri;
   }
 
+  void _refreshAuthHeaders(Map<String, String> headers) {
+    headers['Authorization'] = 'Bearer $_bearerToken';
+    if (_clientToken != null) {
+      headers['client-token'] = _clientToken!;
+      headers['Client-Token'] = _clientToken!;
+    }
+  }
+
   Future<http.Response> _postWithRetry(
     Uri url, {
     required Map<String, String> headers,
@@ -598,6 +611,16 @@ class SpotifyInternalProvider extends MetadataProvider {
       final client = _createSpotifyHttpClient();
       try {
         final response = await client.post(url, headers: headers, body: body);
+
+        if (response.statusCode == 401 && retryCount == 0) {
+          logger.d(
+            '[Metadata/Spotify-Internal] Got 401 for $url, refreshing tokens and retrying',
+          );
+          await _ensureTokens(forceRefresh: true);
+          _refreshAuthHeaders(headers);
+          retryCount++;
+          continue;
+        }
 
         if (response.statusCode == 429 ||
             (response.statusCode >= 500 && response.statusCode <= 504)) {
@@ -641,6 +664,16 @@ class SpotifyInternalProvider extends MetadataProvider {
       final client = _createSpotifyHttpClient();
       try {
         final response = await client.get(url, headers: headers);
+
+        if (response.statusCode == 401 && retryCount == 0) {
+          logger.d(
+            '[Metadata/Spotify-Internal] Got 401 for $url, refreshing tokens and retrying',
+          );
+          await _ensureTokens(forceRefresh: true);
+          _refreshAuthHeaders(headers);
+          retryCount++;
+          continue;
+        }
 
         if (response.statusCode == 429 ||
             (response.statusCode >= 500 && response.statusCode <= 504)) {
@@ -729,12 +762,11 @@ class SpotifyInternalProvider extends MetadataProvider {
     if (forceTokenRefresh) {
       _bearerToken = null;
       _clientToken = null;
-      _bearerTokenExpiresAt = null;
       _tokenRefreshFailed = false;
     }
 
     try {
-      await _ensureTokens();
+      await _ensureTokens(forceRefresh: forceTokenRefresh);
     } catch (e) {
       // If token refresh fails due to invalid/expired cookie, return a 401-like error
       logger.w(

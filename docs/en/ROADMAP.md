@@ -4,7 +4,6 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Fix stream fetching not working when the app is in the background.
     - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
-    - [ ] Fix word-synced lyrics: when a word is split into syllables, the highlighting splits the word like this: "wo rd", instead of "word" (and the highlighting should stay on each syllable until the next one is reached).
 - Future changes: 
     - [ ] Make the marquee text infinitely loop to one side instead of bouncing back and forth.
     - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
@@ -13,9 +12,15 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons. It should be replaced with the normal play/pause icon on hover, though. For apple music, should show it as an overlay on top of the song cover. Spotify's is in the index of the song. 
     - [ ] Make artist name clickable in the full player
 - Planned features:
-    - [ ] Add element pinning to the sidebar/library
+    - [ ] Finish Spotify integration
+        - [ ] Add following/unfollowing artists
+        - [ ] Add saving/removing playlists
+        - [ ] Add saving/removing albums
+        - [ ] Add following/unfollowing users
+        - [ ] Improve saved songs, notably the way we store them and the long wait times in the Liked Songs view.
+        - [ ] Add endpoints for state-checking: is song saved, is album saved, is playlist saved, is artist followed, is user followed, is playlist pinned, etc.
+    - [ ] Add element pinning to the sidebar/library (client-side)
     - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
     - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
     - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
-    - [ ] Add ability to follow/unfollow artists, save/remove albums and follow/unfollow users.
     - [ ] Add translation support (start with English & Portuguese)
