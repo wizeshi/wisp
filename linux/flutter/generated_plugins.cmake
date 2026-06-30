@@ -7,6 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_inappwebview_linux
   flutter_secure_storage_linux
   fvp
+  gtk
   media_kit_libs_linux
   screen_retriever_linux
   url_launcher_linux
@@ -15,7 +16,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
-  flutter_discord_rpc
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

@@ -264,7 +264,7 @@ class PlaylistFolderModals {
     File? selectedFile;
 
     Future<void> pickThumbnail(StateSetter setModalState) async {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.image,
         allowMultiple: false,
       );
@@ -445,7 +445,7 @@ class PlaylistFolderModals {
     File? selectedFile;
 
     Future<void> pickThumbnail(StateSetter setModalState) async {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.image,
         allowMultiple: false,
       );
@@ -803,7 +803,7 @@ class PlaylistFolderModals {
     BuildContext context,
     PlaylistFolder folder,
   ) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: false,
     );
@@ -819,7 +819,7 @@ class PlaylistFolderModals {
     BuildContext context,
     GenericPlaylist playlist,
   ) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: false,
     );

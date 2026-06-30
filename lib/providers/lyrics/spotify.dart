@@ -39,6 +39,8 @@ class SpotifyLyricsProvider {
   String? _clientToken;
   String? _accessToken;
 
+  DateTime? _lastTokenRefresh;
+
   Future<void> _ensureInitialized() {
     _initFuture ??= _initialize();
     return _initFuture!;
@@ -118,6 +120,8 @@ class SpotifyLyricsProvider {
             (clientJson['granted_token'] as Map<String, dynamic>?)?['token']
                 as String?;
         _clientToken = grantedToken;
+
+        _lastTokenRefresh = DateTime.now();
       }
 
       if (_clientToken == null || _clientToken!.isEmpty) {
@@ -132,6 +136,21 @@ class SpotifyLyricsProvider {
       );
       rethrow;
     }
+  }
+
+  Future<void> _refreshTokens() async {
+    logger.i("[Lyrics/Spotify] Trying to refresh Spotify lyrics tokens...");
+    if (_lastTokenRefresh != null &&
+      DateTime.now().isBefore(_lastTokenRefresh!.add(const Duration(minutes: 30)))
+    ) {
+      logger.i("[Lyrics/Spotify] Tokens are still within validity period (30 minutes), skipping refresh.");
+      return;
+    }
+    _accessToken = null;
+    _clientToken = null;
+    _lastTokenRefresh = null;
+    
+    await _initialize();
   }
 
   Future<LyricsResult?> getLyrics(String trackId) async {
@@ -170,6 +189,17 @@ class SpotifyLyricsProvider {
       );
     } finally {
       client.close();
+    }
+
+    if (response.statusCode == 401) {
+      logger.w('[Lyrics/Spotify] Spotify lyrics request unauthorized, refreshing token...');
+      _initFuture = null;
+      try {
+        await _refreshTokens();
+      } catch (_) {
+        return null;
+      }
+      return getLyrics(trackId);
     }
 
     if (response.statusCode == 404) return null;

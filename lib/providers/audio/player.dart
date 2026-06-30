@@ -479,6 +479,7 @@ class AudioPlayerProvider extends ChangeNotifier {
       isPlaying: isPlaying,
       position: position,
       duration: duration,
+      contextId: _playbackContextID
     );
   }
 

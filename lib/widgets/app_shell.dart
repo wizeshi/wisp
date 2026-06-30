@@ -422,7 +422,7 @@ class _AppShellState extends State<AppShell> {
           transitionDuration: Duration.zero,
           reverseTransitionDuration: Duration.zero,
           pageBuilder: (context, animation, secondaryAnimation) =>
-              SharedListDetailView(
+          SharedListDetailView(
             id: item.id,
             type: SharedListType.playlist,
             initialTitle: item.title,

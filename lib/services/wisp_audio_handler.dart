@@ -1772,6 +1772,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       isPlaying: isPlaying,
       position: position,
       duration: duration,
+      contextId: _playbackContextID
     );
   }
 

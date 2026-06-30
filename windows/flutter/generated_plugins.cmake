@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  app_links
   audio_service_win
   connectivity_plus
   desktop_webview_window
@@ -18,7 +19,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
-  flutter_discord_rpc
   flutter_local_notifications_windows
 )
 
