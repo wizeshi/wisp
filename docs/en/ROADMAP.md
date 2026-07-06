@@ -6,6 +6,7 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
     - [x] Fix a bug where the player requests multiple URL resolvers at once (for the same song), which leads to the song not playing due to rate limiting. (should implement some sort of tracking for this)
+    - [ ] Sometimes crossfade doesn't work due to the next song being loaded incorrectly (maybe expired URL? ExoPlayer reports Source Error: 403 so).
 - Future changes: 
     - [x] Make the marquee text infinitely loop to one side instead of bouncing back and forth.
     - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 

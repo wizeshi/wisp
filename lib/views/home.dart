@@ -597,10 +597,14 @@ class HomePageState extends State<HomePage> {
             ),
           ),
 
+          SliverToBoxAdapter(
+            child: const SizedBox(height: 16),
+          ),
+
           ...dynamicSections.map(
             (section) => SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: section,
               ),
             ),
@@ -3077,15 +3081,17 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.showTitle)
-          Text(
-            widget.title,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              widget.title,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ),
-        SizedBox(height: widget.showTitle ? 16 : 0),
         LayoutBuilder(
           builder: (context, constraints) {
             return MouseRegion(
@@ -3106,7 +3112,7 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
                       padding: const EdgeInsets.only(bottom: 4),
                       itemCount: widget.cards.length,
                       separatorBuilder: (context, index) =>
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 12),
                       itemBuilder: (context, index) {
                         final card = widget.cards[index];
                         if (!widget.expandCardsToRowWidth) {
@@ -3171,7 +3177,7 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
             );
           },
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
       ],
     );
   }
