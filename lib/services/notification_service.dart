@@ -53,7 +53,7 @@ class NotificationService {
         iOS: iosSettings,
       );
       
-      await _notifications.initialize(initSettings);
+      await _notifications.initialize(settings: initSettings);
       
       // Create Android notification channel
       if (Platform.isAndroid) {
@@ -158,7 +158,7 @@ class NotificationService {
         iOS: iosDetails,
       );
       
-      await _notifications.show(id, title, body, details);
+      await _notifications.show(id: id, title: title, body: body, notificationDetails: details);
       logger.d('[Services/Notification] Progress notification shown (id=$id)');
     } catch (e) {
       logger.e('[Services/Notification] Error showing progress notification', error: e);
@@ -216,7 +216,7 @@ class NotificationService {
         iOS: iosDetails,
       );
       
-      await _notifications.show(id, title, body, details);
+      await _notifications.show(id: id, title: title, body: body, notificationDetails: details);
       logger.d('[Services/Notification] Complete notification shown (id=$id)');
       
       // Auto dismiss after 3 seconds
@@ -278,7 +278,7 @@ class NotificationService {
         iOS: iosDetails,
       );
 
-      await _notifications.show(id, title, body, details);
+      await _notifications.show(id: id, title: title, body: body, notificationDetails: details);
     } catch (e) {
       logger.e('[Services/Notification] Error showing alert notification', error: e);
     }
@@ -296,7 +296,7 @@ class NotificationService {
     if (!_initialized || (!Platform.isAndroid && !Platform.isIOS)) return;
     
     try {
-      await _notifications.cancel(id);
+      await _notifications.cancel(id: id);
     } catch (e) {
       logger.e('[Services/Notification] Error cancelling notification', error: e);
     }
@@ -332,7 +332,7 @@ class NotificationService {
       );
 
       final details = NotificationDetails(android: androidDetails);
-      await _notifications.show(_downloadSummaryId, title, body, details);
+      await _notifications.show(id: _downloadSummaryId, title: title, body: body, notificationDetails: details);
     } catch (e) {
       logger.e('[Services/Notification] Error showing download summary', error: e);
     }

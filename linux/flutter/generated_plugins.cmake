@@ -3,19 +3,17 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  desktop_webview_window
   flutter_inappwebview_linux
   flutter_secure_storage_linux
   fvp
   gtk
   media_kit_libs_linux
   screen_retriever_linux
-  url_launcher_linux
   window_manager
-  window_to_front
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
+  jni
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

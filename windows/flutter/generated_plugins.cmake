@@ -6,20 +6,18 @@ list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   audio_service_win
   connectivity_plus
-  desktop_webview_window
   flutter_inappwebview_windows
   flutter_secure_storage_windows
   fvp
   media_kit_libs_windows_audio
   screen_retriever_windows
-  url_launcher_windows
   video_player_win
   window_manager
-  window_to_front
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   flutter_local_notifications_windows
+  jni
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

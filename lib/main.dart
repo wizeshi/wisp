@@ -39,10 +39,16 @@ import 'package:wisp/utils/logger.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final isRegistered = await ProtocolRegistrar.isRegistered('wisp');
-  if (!isRegistered) {
-    await ProtocolRegistrar.register(scheme: 'wisp');
+  bool isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
+  if (isDesktop) {
+    // Register the custom protocol handler for desktop platforms 
+    final isRegistered = await ProtocolRegistrar.isRegistered('wisp');
+    if (!isRegistered) {
+      await ProtocolRegistrar.register(scheme: 'wisp');
+    }
   }
+
 
   final appLinks = AppLinks();
 

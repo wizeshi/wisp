@@ -4,6 +4,7 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Fix stream fetching not working when the app is in the background.
     - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
+    - [ ] Fix a bug where the player requests multiple URL resolvers at once (for the same song), which leads to the song not playing due to rate limiting. (should implement some sort of tracking for this)
 - Future changes: 
     - [ ] Make the marquee text infinitely loop to one side instead of bouncing back and forth.
     - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
@@ -12,6 +13,7 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons. It should be replaced with the normal play/pause icon on hover, though. For apple music, should show it as an overlay on top of the song cover. Spotify's is in the index of the song. 
     - [ ] Make artist name clickable in the full player
 - Planned features:
+    - [ ] Show search results as the user types. Also show search suggestions based on search history and popular searches (we'll need to get this info from the provider platforms).
     - [ ] Finish Spotify integration
         - [ ] Add following/unfollowing artists
         - [ ] Add saving/removing playlists
