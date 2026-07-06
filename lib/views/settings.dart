@@ -983,7 +983,21 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text('Style', style: TextStyle(color: Colors.white, fontSize: 14)),
+          const Expanded(
+            child:  Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Style',
+                  style: TextStyle(color: Colors.white, fontSize: 14),
+                ),
+                Text(
+                  "Replicates a style you're familiar with",
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                )
+              ],
+            )
+          ),
           Selector<PreferencesProvider, String>(
             selector: (context, prefs) => prefs.style,
             builder: (context, selectedStyle, child) {
@@ -1116,11 +1130,20 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   const Expanded(
-                    child: Text(
-                      'Gapless Playback',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                  ),
+                  child:  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Gapless Playback',
+                        style: TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                      Text(
+                        'Minimizes empty space between tracks',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      )
+                    ],
+                  )
+                ),
                   Switch(
                     value: prefs.gaplessPlaybackEnabled,
                     onChanged: (value) async {
@@ -1139,11 +1162,20 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   const Expanded(
-                    child: Text(
-                      'Crossfade',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                  ),
+                  child:  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Crossfade',
+                        style: TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                      Text(
+                        'Seamlessly transition between songs',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      )
+                    ],
+                  )
+                ),
                   Switch(
                     value: crossfadeEnabled,
                     onChanged: (value) async {
@@ -1162,11 +1194,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Text(
-                      'Crossfade Duration',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    const Expanded(
+                      child:  Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Crossfade Duration',
+                            style: TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                          Text(
+                            'How long the crossfade lasts',
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          )
+                        ],
+                      )
                     ),
-                    const Spacer(),
+                    /* const Spacer(), */
                     Text(
                       '${crossfadeDurationSeconds.toInt()}s',
                       style: TextStyle(
@@ -1232,10 +1275,19 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   const Expanded(
-                    child: Text(
-                      'Security Level',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                    ),
+                    child:  Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Security Level',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        Text(
+                          'Determines how securely devices are authenticated for handoff',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        )
+                      ],
+                    )
                   ),
                   if (_isMobile)
                     InkWell(
@@ -1300,10 +1352,19 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   const Expanded(
-                    child: Text(
-                      'Trusted Devices',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                    ),
+                    child:  Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Trusted Devices',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        Text(
+                          'Devices that are auto-allowed for handoff',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        )
+                      ],
+                    )
                   ),
                   TextButton(
                     onPressed: _showTrustedDevicesDialog,
@@ -1398,10 +1459,19 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Row(
             children: [
               const Expanded(
-                child: Text(
-                  'Animated Canvas',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
-                ),
+                child:  Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Animated Canvas',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                    Text(
+                      'Enable animated canvas rendering',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    )
+                  ],
+                )
               ),
               Switch(
                 value: enabled,
@@ -1432,10 +1502,19 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Row(
             children: [
               const Expanded(
-                child: Text(
-                  'Allow Writing',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
-                ),
+                child:  Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Allow Writing',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                    Text(
+                      'Allow modifications to playlists/library',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    )
+                  ],
+                )
               ),
               Switch(
                 value: enabled,
@@ -1693,12 +1772,22 @@ class SettingsContent extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Expanded(
-                child: Text(
-                  'Recover a provider playlist by ID',
-                  style: TextStyle(color: Colors.grey[300]),
-                ),
+              const Expanded(
+                child:  Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Recover a provider playlist by ID',
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                    Text(
+                      'If you accidentally hid (not deleted) a playlist, and you know its provider ID, you can unhide it here. This is inteded for advanced users.',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    )
+                  ],
+                )
               ),
+              const SizedBox(width: 12),
               OutlinedButton(
                 onPressed: () async {
                   final idController = TextEditingController();
