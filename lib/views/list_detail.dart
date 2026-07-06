@@ -3651,6 +3651,35 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     )
                                   : const SizedBox.shrink(),
                             ],
+                            if (isMobile && isAppleStyle)
+                              SizedBox(
+                                width: 40,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Builder(
+                                    builder: (buttonContext) => IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 24,
+                                        minHeight: 24,
+                                      ),
+                                      icon: Icon(
+                                        CupertinoIcons.ellipsis,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        size: 18,
+                                      ),
+                                      onPressed: () {
+                                        _showSongContextMenu(
+                                          song,
+                                          anchorContext: buttonContext,
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),

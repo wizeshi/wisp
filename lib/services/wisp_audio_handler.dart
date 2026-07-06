@@ -98,6 +98,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool _crossfadeFadeOutActive = false;
   bool _crossfadeFadeInActive = false;
   bool _isCrossfading = false;
+  bool _isCrossfadePreloadInProgress = false;
   double _crossfadeTargetVolume = 1.0;
   int _crossfadePreloadGeneration = 0;
   int? _preloadedNextIndex;
@@ -768,6 +769,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return;
     }
 
+    if (_isCrossfadePreloadInProgress) {
+      return;
+    }
+
     final nextIndex = _nextQueueIndex();
     if (nextIndex == null) {
       _invalidateCrossfadePreload();
@@ -779,6 +784,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final nextTrack = _queue[nextIndex];
     _preloadedNextIndex = nextIndex;
     _preloadedNextTrack = nextTrack;
+    _isCrossfadePreloadInProgress = true;
 
     try {
       final source = await _getAudioSource(nextTrack);
@@ -820,6 +826,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       logger.w('[Audio/Player] Crossfade preload failed', error: e);
       _invalidateCrossfadePreload();
       await _clearInactivePlayer();
+    } finally {
+      _isCrossfadePreloadInProgress = false;
     }
   }
 
