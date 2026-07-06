@@ -108,6 +108,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   final Map<String, AudioSource> _prefetchedAudioSources = {};
   final Map<String, Future<AudioSource?>> _prefetchSourceTasks = {};
   final Map<String, _StreamUrlCacheEntry> _streamUrlCache = {};
+  // In-flight tasks to avoid duplicate resolver requests for same id
+  final Map<String, Future<String>> _streamUrlTasks = {};
+  final Map<String, Future<String?>> _videoIdTasks = {};
 
   // Handoff state: true when this device is the host (requesting) device in a handoff link
   bool _isHandoffHost = false;
@@ -1574,15 +1577,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     String? videoId = YouTubeProvider.getCachedVideoId(track.id);
     if (videoId == null) {
-      final artistNames = track.artists.map((a) => a.name).join(', ');
-      final result = await _youtube.searchYouTube(
-        artistNames,
-        track.title,
-        durationSecs: track.durationSecs,
-      );
-      if (result == null) return null;
-      videoId = result.videoId;
-      YouTubeProvider.cacheVideoId(track.id, videoId);
+      videoId = await _getVideoIdForTrack(track);
+      if (videoId == null) return null;
     }
 
     final streamUrl = await _getStreamUrlWithCache(videoId);
@@ -1648,14 +1644,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     try {
       final artistNames = track.artists.map((a) => a.name).join(', ');
       if (videoId == null) {
-        final result = await _youtube.searchYouTube(
-          artistNames,
-          track.title,
-          durationSecs: track.durationSecs,
-        );
-        if (result == null) return;
-        videoId = result.videoId;
-        YouTubeProvider.cacheVideoId(track.id, videoId);
+        videoId = await _getVideoIdForTrack(track);
+        if (videoId == null) return;
       }
 
       await _getStreamUrlWithCache(videoId);
@@ -1719,14 +1709,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
         String? videoId = YouTubeProvider.getCachedVideoId(track.id);
         if (videoId == null) {
-          final result = await _youtube.searchYouTube(
-            artistNames,
-            track.title,
-            durationSecs: track.durationSecs,
-          );
-          if (result == null) throw Exception('Could not find video');
-          videoId = result.videoId;
-          YouTubeProvider.cacheVideoId(track.id, videoId);
+          videoId = await _getVideoIdForTrack(track);
+          if (videoId == null) throw Exception('Could not find video');
         }
         final streamUrl = await _getStreamUrlWithCache(videoId);
         return (videoId, streamUrl);
@@ -1748,12 +1732,54 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final cached = _getCachedStreamUrl(videoId);
     if (cached != null) return cached;
 
-    final streamUrl = await _youtube.getStreamUrl(videoId);
-    _streamUrlCache[videoId] = _StreamUrlCacheEntry(
-      url: streamUrl,
-      expiresAt: DateTime.now().add(_streamUrlTtl),
-    );
-    return streamUrl;
+    // Deduplicate simultaneous requests for the same videoId
+    var task = _streamUrlTasks[videoId];
+    if (task != null) return await task;
+
+    final completer = Completer<String>();
+    _streamUrlTasks[videoId] = completer.future;
+    try {
+      final streamUrl = await _youtube.getStreamUrl(videoId);
+      _streamUrlCache[videoId] = _StreamUrlCacheEntry(
+        url: streamUrl,
+        expiresAt: DateTime.now().add(_streamUrlTtl),
+      );
+      completer.complete(streamUrl);
+      return streamUrl;
+    } catch (e) {
+      completer.completeError(e);
+      rethrow;
+    } finally {
+      _streamUrlTasks.remove(videoId);
+    }
+  }
+
+  Future<String?> _getVideoIdForTrack(GenericSong track) async {
+    // Deduplicate simultaneous video search requests per track id
+    var task = _videoIdTasks[track.id];
+    if (task != null) return await task;
+
+    final completer = Completer<String?>();
+    _videoIdTasks[track.id] = completer.future;
+    try {
+      final artistNames = track.artists.map((a) => a.name).join(', ');
+      final result = await _youtube.searchYouTube(
+        artistNames,
+        track.title,
+        durationSecs: track.durationSecs,
+      );
+      final videoId = result?.videoId;
+      if (videoId != null) {
+        YouTubeProvider.cacheVideoId(track.id, videoId);
+      }
+      completer.complete(videoId);
+      return videoId;
+    } catch (e) {
+      completer.completeError(e);
+      rethrow;
+    } finally {
+      _videoIdTasks.remove(track.id);
+    }
   }
 
   Future<void> _updateDiscordPresence({bool force = false}) async {
