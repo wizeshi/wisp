@@ -91,6 +91,15 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     });
   }
 
+  Color _tintedDominantColor(Color color, {double blend = 0.4}) {
+    final hsl = HSLColor.fromColor(color);
+    final overlay = hsl
+        .withLightness(0.22)
+        .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+        .toColor();
+    return Color.lerp(color, overlay, blend) ?? color;
+  }
+
   @override
   Widget build(BuildContext context) {
     final offset = Offset(_dragOffset / 300, 0);
@@ -122,7 +131,9 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         ? swipePreview.nextTrack
         : swipePreview.previousTrack;
 
-    var bgColor = Theme.of(context).colorScheme.primary;
+    var bgColor = _tintedDominantColor(
+      Theme.of(context).colorScheme.primary,  
+    );
 
     var btnColor = HSLColor.fromColor(
       bgColor,
@@ -131,30 +142,6 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     final handoffMessage = context.select<ConnectSessionProvider, String?>(
       (connect) => _handoffStatusMessage(connect),
     );
-
-    // Test Results:
-    //  Nights - Frank Ocean
-    //    Native - White-ish
-    //    Flutter -
-    //       onPrimary - White as hell
-    //       primary - Dark Orange
-    //       primaryContainer - Very Light Orange
-    //       onPrimaryContainer - Darker Orange
-    //       onSecondary - Pure White
-    //       secondary - Dead Brown
-    //       secondaryContainer - Very Light Orange (again)
-    //       onSecondaryContainer - Pretty Brown
-    //  Airplane Mode - Limbo
-    //    Native - Blue
-    //    Flutter -
-    //       onPrimary - White as hell
-    //       primary - Dark Blue (pretty close to native)
-    //       primaryContainer - Baby Blue
-    //       onPrimaryContainer - Same as primary
-    //       onSecondary - Pure White
-    //       secondary - Grey
-    //       secondaryContainer - Light Grey (blueish)
-    //       onSecondaryContainer - Dead Cyan
 
     return Stack(
       clipBehavior: Clip.none,
