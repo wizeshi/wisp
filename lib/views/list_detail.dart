@@ -4792,20 +4792,22 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
     final contentSurfaceColor = Theme.of(context).colorScheme.surface;
     return Stack(
       children: [
-        /* Positioned.fill(
+        Positioned.fill(
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
+                stops: const [0, 0.2, 1],
                 colors: [
+                  Colors.black.withValues(alpha: 0.82),
                   Colors.black.withValues(alpha: 0.36),
                   Colors.black.withValues(alpha: 0.82),
                 ],
               ),
             ),
           ),
-        ), */
+        ),
         SafeArea(
           bottom: false,
           child: Column(

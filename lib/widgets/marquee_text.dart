@@ -1,190 +1,416 @@
 import 'dart:async';
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
 import '../services/app_focus_service.dart';
 
 class MarqueeText extends StatefulWidget {
-  final String text;
-  final TextStyle style;
-  final bool pauseWhenUnfocused;
+	const MarqueeText({
+		super.key,
+		required this.text,
+		required this.style,
+		this.pauseWhenUnfocused = false,
+	});
 
-  const MarqueeText({
-    required this.text,
-    required this.style,
-    this.pauseWhenUnfocused = false,
-    super.key,
-  });
+	final String text;
+	final TextStyle style;
+	final bool pauseWhenUnfocused;
 
-  @override
-  State<MarqueeText> createState() => _MarqueeTextState();
+	@override
+	State<MarqueeText> createState() => _MarqueeTextState();
 }
 
+enum _MarqueePhase { entering, holding, exiting }
+
 class _MarqueeTextState extends State<MarqueeText>
-    with SingleTickerProviderStateMixin {
-  AnimationController? _controller;
-  double _scrollDistance = 0;
-  bool _needsMarquee = false;
-  Timer? _pauseTimer;
-  AppFocusService? _focusService;
-  bool _isFocused = true;
+		with SingleTickerProviderStateMixin {
+	static const Duration _pauseDuration = Duration(seconds: 3);
+	static const double _scrollSpeed = 40.0;
+	static const double _gap = 24.0;
 
-  bool get _shouldPauseForFocus =>
-      widget.pauseWhenUnfocused && _isFocused == false;
+	late final AnimationController _controller = AnimationController(
+		vsync: this,
+		lowerBound: 0,
+		upperBound: 1,
+	)..addStatusListener(_handleAnimationStatus);
 
-  @override
-  void initState() {
-    super.initState();
-    _syncFocusListener();
-  }
+	final Stopwatch _pauseStopwatch = Stopwatch();
 
-  @override
-  void didUpdateWidget(covariant MarqueeText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.pauseWhenUnfocused != widget.pauseWhenUnfocused) {
-      _syncFocusListener();
-    }
-    if (oldWidget.text != widget.text || oldWidget.style != widget.style) {
-      _configureController(forceStop: true);
-    }
-  }
+	Timer? _pauseTimer;
+	_MarqueePhase _phase = _MarqueePhase.entering;
+	double _viewportWidth = 0;
+	double _textWidth = 0;
+	double _textHeight = 0;
+	double _pendingViewportWidth = 0;
+	double _pendingTextWidth = 0;
+	double _pendingTextHeight = 0;
+	bool _pendingHasOverflow = false;
+	bool _hasOverflow = false;
+	bool _metricsUpdateScheduled = false;
+	bool _focusListenerAttached = false;
 
-  @override
-  void dispose() {
-    _focusService?.isFocused.removeListener(_handleFocusChange);
-    _pauseTimer?.cancel();
-    _controller?.dispose();
-    super.dispose();
-  }
+	bool get _canAnimate => _hasOverflow && mounted;
 
-  void _syncFocusListener() {
-    if (!widget.pauseWhenUnfocused) {
-      _focusService?.isFocused.removeListener(_handleFocusChange);
-      _focusService = null;
-      _isFocused = true;
-      return;
-    }
+	bool get _shouldPauseForFocus =>
+			widget.pauseWhenUnfocused && !AppFocusService.instance.isFocused.value;
 
-    final focusService = AppFocusService.instance;
-    if (_focusService == focusService) {
-      _isFocused = focusService.isFocused.value;
-      return;
-    }
+	@override
+	void initState() {
+		super.initState();
+		_attachFocusListenerIfNeeded();
+	}
 
-    _focusService?.isFocused.removeListener(_handleFocusChange);
-    _focusService = focusService;
-    _isFocused = focusService.isFocused.value;
-    focusService.isFocused.addListener(_handleFocusChange);
-  }
+	@override
+	void didUpdateWidget(covariant MarqueeText oldWidget) {
+		super.didUpdateWidget(oldWidget);
 
-  void _handleFocusChange() {
-    final focusService = _focusService;
-    if (focusService == null) return;
+		if (oldWidget.pauseWhenUnfocused != widget.pauseWhenUnfocused) {
+			_attachFocusListenerIfNeeded();
+			_applyFocusState();
+		}
 
-    final focused = focusService.isFocused.value;
-    if (focused == _isFocused) return;
-    _isFocused = focused;
-    if (!_isFocused) {
-      _pauseTimer?.cancel();
-      _controller?.stop();
-      return;
-    }
-    _configureController();
-  }
+		if (oldWidget.text != widget.text || oldWidget.style != widget.style) {
+			_resetAnimationState();
+		}
+	}
 
-  void _configureController({bool forceStop = false}) {
-    if (!_needsMarquee || forceStop || _shouldPauseForFocus) {
-      _pauseTimer?.cancel();
-      _controller?.stop();
-      if (_controller != null) {
-        _controller!.value = 0;
-      }
-    }
-    if (!_needsMarquee || _shouldPauseForFocus) return;
+	@override
+	void dispose() {
+		if (_focusListenerAttached) {
+			AppFocusService.instance.isFocused.removeListener(_handleFocusChanged);
+		}
+		_pauseTimer?.cancel();
+		_controller
+			..removeStatusListener(_handleAnimationStatus)
+			..dispose();
+		_pauseStopwatch.stop();
+		super.dispose();
+	}
 
-    _controller ??= AnimationController(vsync: this)
-      ..addStatusListener(_handleStatusChange);
-    final ms = ((_scrollDistance / 24) * 1000).clamp(2400, 12000).toInt();
-    _controller!.duration = Duration(milliseconds: ms);
-    _scheduleStart();
-  }
+	void _attachFocusListenerIfNeeded() {
+		if (widget.pauseWhenUnfocused) {
+			if (!_focusListenerAttached) {
+				AppFocusService.instance.isFocused.addListener(_handleFocusChanged);
+				_focusListenerAttached = true;
+			}
+		} else if (_focusListenerAttached) {
+			AppFocusService.instance.isFocused.removeListener(_handleFocusChanged);
+			_focusListenerAttached = false;
+		}
+	}
 
-  void _handleStatusChange(AnimationStatus status) {
-    if (!_needsMarquee) return;
-    if (status == AnimationStatus.completed) {
-      _pauseThen(() => _controller?.reverse());
-    } else if (status == AnimationStatus.dismissed) {
-      _pauseThen(() => _controller?.forward());
-    }
-  }
+	void _handleFocusChanged() {
+		_applyFocusState();
+	}
 
-  void _pauseThen(VoidCallback action) {
-    _pauseTimer?.cancel();
-    _pauseTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (!mounted || !_needsMarquee || _shouldPauseForFocus) return;
-      action();
-    });
-  }
+	void _handleAnimationStatus(AnimationStatus status) {
+		if (status == AnimationStatus.completed) {
+			_handlePhaseCompleted();
+		}
+	}
 
-  void _scheduleStart() {
-    if (_controller == null) return;
-    _pauseTimer?.cancel();
-    _controller!.value = 0;
-    _pauseThen(() => _controller?.forward(from: 0));
-  }
+	void _handlePhaseCompleted() {
+		switch (_phase) {
+			case _MarqueePhase.entering:
+				_beginHoldingPhase();
+				break;
+			case _MarqueePhase.holding:
+				_beginExitingPhase();
+				break;
+			case _MarqueePhase.exiting:
+				_beginEnteringPhase();
+				break;
+		}
+	}
 
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final textPainter = TextPainter(
-          text: TextSpan(text: widget.text, style: widget.style),
-          maxLines: 1,
-          textDirection: TextDirection.ltr,
-        )..layout();
+	void _applyFocusState() {
+		if (!mounted) {
+			return;
+		}
 
-        final maxWidth = constraints.maxWidth;
-        final textWidth = textPainter.width;
-        final needsMarquee = textWidth > maxWidth;
-        const endPadding = 8.0;
-        final scrollDistance = (textWidth - maxWidth + endPadding)
-            .clamp(0, textWidth)
-            .toDouble();
+		if (_shouldPauseForFocus) {
+			_pauseForFocusLoss();
+			return;
+		}
 
-        if (_needsMarquee != needsMarquee ||
-            _scrollDistance != scrollDistance) {
-          _needsMarquee = needsMarquee;
-          _scrollDistance = scrollDistance;
-          _configureController();
-        }
+		switch (_phase) {
+			case _MarqueePhase.entering:
+			case _MarqueePhase.exiting:
+				_startScrollingIfNeeded();
+				break;
+			case _MarqueePhase.holding:
+				_startOrResumeHold();
+				break;
+		}
+	}
 
-        if (!needsMarquee) {
-          return Text(
-            widget.text,
-            style: widget.style,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          );
-        }
+	void _beginEnteringPhase() {
+		if (!mounted) {
+			return;
+		}
 
-        return ClipRect(
-          child: AnimatedBuilder(
-            animation: _controller ?? const AlwaysStoppedAnimation<double>(0),
-            builder: (context, child) {
-              final value = _controller?.value ?? 0;
-              final dx = -value * _scrollDistance;
-              return Transform.translate(offset: Offset(dx, 0), child: child);
-            },
-            child: Text(
-              widget.text,
-              style: widget.style,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
-            ),
-          ),
-        );
-      },
-    );
-  }
+		_phase = _MarqueePhase.entering;
+		_controller.duration = _durationForDistance(_viewportWidth);
+		_pauseTimer?.cancel();
+		_pauseTimer = null;
+		_pauseStopwatch
+			..reset()
+			..stop();
+		_controller
+			..stop(canceled: false)
+			..value = 0;
+		_startScrollingIfNeeded();
+	}
+
+	void _beginHoldingPhase() {
+		if (!mounted) {
+			return;
+		}
+
+		_phase = _MarqueePhase.holding;
+		_pauseTimer?.cancel();
+		_pauseTimer = null;
+		_pauseStopwatch
+			..reset()
+			..start();
+		_startOrResumeHold();
+	}
+
+	void _beginExitingPhase() {
+		if (!mounted) {
+			return;
+		}
+
+		_phase = _MarqueePhase.exiting;
+		_controller.duration = _durationForDistance(_textWidth + _gap);
+		_pauseTimer?.cancel();
+		_pauseTimer = null;
+		_pauseStopwatch
+			..reset()
+			..stop();
+		_controller
+			..stop(canceled: false)
+			..value = 0;
+		_startScrollingIfNeeded();
+	}
+
+	void _startOrResumeHold() {
+		if (_shouldPauseForFocus) {
+			return;
+		}
+
+		_pauseTimer?.cancel();
+		_pauseTimer = Timer(_remainingHoldDuration, _finishHold);
+	}
+
+	Duration get _remainingHoldDuration {
+		if (_phase != _MarqueePhase.holding) {
+			return _pauseDuration;
+		}
+
+		final remaining = _pauseDuration - _pauseStopwatch.elapsed;
+		if (remaining.isNegative || remaining == Duration.zero) {
+			return Duration.zero;
+		}
+
+		return remaining;
+	}
+
+	void _finishHold() {
+		if (!mounted) {
+			return;
+		}
+
+		_pauseTimer?.cancel();
+		_pauseTimer = null;
+		_pauseStopwatch
+			..stop()
+			..reset();
+		if (_phase != _MarqueePhase.holding) {
+			return;
+		}
+
+		if (!_canAnimate || _shouldPauseForFocus) {
+			return;
+		}
+
+		_beginExitingPhase();
+	}
+
+	void _pauseForFocusLoss() {
+		if (_phase == _MarqueePhase.holding) {
+			if (_pauseTimer != null) {
+				_pauseTimer?.cancel();
+				_pauseTimer = null;
+				_pauseStopwatch.stop();
+			}
+			return;
+		}
+
+		if (_controller.isAnimating) {
+			_controller.stop(canceled: false);
+		}
+	}
+
+	void _startScrollingIfNeeded() {
+		if (!_canAnimate || _phase == _MarqueePhase.holding || _controller.isAnimating) {
+			return;
+		}
+
+		_controller.forward(from: _controller.value);
+	}
+
+	Duration _durationForDistance(double distance) {
+		final durationMs = (distance / _scrollSpeed * 1000).round();
+		return Duration(milliseconds: durationMs < 1 ? 1 : durationMs);
+	}
+
+	void _resetAnimationState() {
+		_pauseTimer?.cancel();
+		_pauseTimer = null;
+		_pauseStopwatch
+			..stop()
+			..reset();
+		_phase = _MarqueePhase.entering;
+		_controller
+			..stop(canceled: false)
+			..value = 0;
+	}
+
+	void _scheduleMetricsUpdate({
+		required double viewportWidth,
+		required double textWidth,
+		required double textHeight,
+		required bool hasOverflow,
+	}) {
+		final unchanged = _viewportWidth == viewportWidth &&
+				_textWidth == textWidth &&
+				_textHeight == textHeight &&
+				_hasOverflow == hasOverflow;
+		if (unchanged) {
+			return;
+		}
+
+		_pendingViewportWidth = viewportWidth;
+		_pendingTextWidth = textWidth;
+		_pendingTextHeight = textHeight;
+		_pendingHasOverflow = hasOverflow;
+
+		if (_metricsUpdateScheduled) {
+			return;
+		}
+
+		_metricsUpdateScheduled = true;
+		WidgetsBinding.instance.addPostFrameCallback((_) {
+			_metricsUpdateScheduled = false;
+			if (!mounted) {
+				return;
+			}
+
+			final changed = _viewportWidth != _pendingViewportWidth ||
+					_textWidth != _pendingTextWidth ||
+					_textHeight != _pendingTextHeight ||
+					_hasOverflow != _pendingHasOverflow;
+			if (!changed) {
+				return;
+			}
+
+			_viewportWidth = _pendingViewportWidth;
+			_textWidth = _pendingTextWidth;
+			_textHeight = _pendingTextHeight;
+			_hasOverflow = _pendingHasOverflow;
+			_resetAnimationState();
+			setState(() {});
+			_beginEnteringPhase();
+		});
+	}
+
+	Text _buildText(BuildContext context) {
+		return Text(
+			widget.text,
+			maxLines: 1,
+			overflow: TextOverflow.visible,
+			softWrap: false,
+			style: widget.style,
+			textScaler: MediaQuery.textScalerOf(context),
+			textDirection: Directionality.of(context),
+		);
+	}
+
+	@override
+	Widget build(BuildContext context) {
+		return LayoutBuilder(
+			builder: (context, constraints) {
+				final textPainter = TextPainter(
+					text: TextSpan(
+						text: widget.text,
+						style: widget.style,
+					),
+					maxLines: 1,
+					textDirection: Directionality.of(context),
+					textScaler: MediaQuery.textScalerOf(context),
+				)..layout();
+
+				final viewportWidth = constraints.hasBoundedWidth
+						? constraints.maxWidth
+						: textPainter.width;
+				final hasOverflow = constraints.hasBoundedWidth &&
+						textPainter.width > viewportWidth;
+
+				_scheduleMetricsUpdate(
+					viewportWidth: viewportWidth,
+					textWidth: textPainter.width,
+					textHeight: textPainter.height,
+					hasOverflow: hasOverflow,
+				);
+
+				if (!hasOverflow) {
+					return _buildText(context);
+				}
+
+				return AnimatedBuilder(
+					animation: _controller,
+					child: _buildText(context),
+					builder: (context, child) {
+						double startX;
+						double endX;
+						switch (_phase) {
+							case _MarqueePhase.entering:
+								startX = viewportWidth;
+								endX = 0.0;
+								break;
+							case _MarqueePhase.holding:
+								startX = 0.0;
+								endX = 0.0;
+								break;
+							case _MarqueePhase.exiting:
+								startX = 0.0;
+								endX = -(textPainter.width + _gap);
+								break;
+						}
+						final currentX = lerpDouble(startX, endX, _controller.value) ??
+								startX;
+
+						return SizedBox(
+							width: viewportWidth,
+							height: textPainter.height,
+							child: ClipRect(
+								child: Stack(
+									clipBehavior: Clip.hardEdge,
+									children: [
+										Positioned(
+											left: currentX,
+											top: -2,
+											child: child!,
+										),
+									],
+								),
+							),
+						);
+					},
+				);
+			},
+		);
+	}
 }

@@ -884,8 +884,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     notifyListeners();
 
     try {
-      await _player.setVolume(0);
-      await _inactivePlayer.setVolume(_crossfadeTargetVolume);
+      await _player.setVolume(_crossfadeTargetVolume);
+      await _inactivePlayer.setVolume(0);
       await _player.play();
       _startCrossfadeTimer();
     } catch (e) {
