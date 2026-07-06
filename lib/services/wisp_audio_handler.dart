@@ -463,6 +463,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _lastRawPosition = position;
     _updateCrossfadeVolume(position);
     if (_crossfadeEnabled && !_isCrossfading) {
+      unawaited(_maybeScheduleCrossfadePreload(position));
       unawaited(_maybeStartCrossfade(position));
     }
     final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -475,6 +476,27 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _lastPositionNotifyMs = nowMs;
     _lastPositionUpdateMs = nowMs;
     notifyListeners();
+  }
+
+  Future<void> _maybeScheduleCrossfadePreload(Duration position) async {
+    if (!_crossfadeEnabled || _currentTrack == null || _currentIndex < 0) {
+      return;
+    }
+
+    final trackDuration = _player.duration;
+    if (trackDuration == null || trackDuration <= Duration.zero) {
+      return;
+    }
+
+    final crossfadeWindow = Duration(
+      milliseconds: (_crossfadeDurationSeconds * 1000).round(),
+    );
+    final preloadLead = crossfadeWindow + const Duration(seconds: 10);
+    final remaining = trackDuration - position;
+
+    if (remaining <= preloadLead) {
+      unawaited(_scheduleNextTrackPreload());
+    }
   }
 
   void _forcePositionUpdate(Duration position) {
@@ -861,7 +883,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await _clearInactivePlayer();
       await _scheduleNextTrackPreload();
       if (!_isInactivePreloadReady(nextIndex, nextTrack)) {
-        return;
+        final deadline = DateTime.now().add(const Duration(seconds: 5));
+        while (DateTime.now().isBefore(deadline)) {
+          await Future.delayed(const Duration(milliseconds: 150));
+          if (_isInactivePreloadReady(nextIndex, nextTrack)) {
+            break;
+          }
+        }
+        if (!_isInactivePreloadReady(nextIndex, nextTrack)) {
+          return;
+        }
       }
     }
 
