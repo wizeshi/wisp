@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
+import 'package:wisp/widgets/marquee_text.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../models/metadata_models.dart';
 import 'full_player.dart';
@@ -315,13 +316,14 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _MarqueeText(
+          MarqueeText(
             text: songLine,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
+            pauseWhenUnfocused: true,
           ),
           const SizedBox(height: 2),
           Row(
@@ -334,7 +336,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
               ),
               const SizedBox(width: 6),
               Flexible(
-                child: _MarqueeText(
+                child: MarqueeText(
                   text: output.deviceName,
                   style: TextStyle(
                     color: Colors.white,
@@ -353,7 +355,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _MarqueeText(
+        MarqueeText(
           text: currentTrack.title,
           style: const TextStyle(
             color: Colors.white,
@@ -361,7 +363,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        _MarqueeText(
+        MarqueeText(
           text: currentTrack.artists.map((a) => a.name).join(', '),
           style: TextStyle(
             color: Colors.grey[250],
@@ -919,7 +921,7 @@ class _DesktopTrackInfo extends StatelessWidget {
                             globalPosition: details.globalPosition,
                           );
                         },
-                        builder: (isHovering) => _MarqueeText(
+                        builder: (isHovering) => MarqueeText(
                           text: track.title,
                           style: TextStyle(
                             color: Colors.white,
@@ -973,7 +975,7 @@ class _DesktopTrackInfo extends StatelessWidget {
                           ],
                         ],
                       )
-                    : _MarqueeText(
+                    : MarqueeText(
                         text: currentTrack!.artists
                             .map((a) => a.name)
                             .join(', '),
@@ -2573,158 +2575,6 @@ class _MobileOutputInfo {
     return _MobileOutputInfo(
       kind: kind,
       deviceName: (name == null || name.isEmpty) ? kind.label : name,
-    );
-  }
-}
-
-class _MarqueeText extends StatefulWidget {
-  final String text;
-  final TextStyle style;
-
-  const _MarqueeText({required this.text, required this.style});
-
-  @override
-  State<_MarqueeText> createState() => _MarqueeTextState();
-}
-
-class _MarqueeTextState extends State<_MarqueeText>
-    with SingleTickerProviderStateMixin {
-  AnimationController? _controller;
-  double _scrollDistance = 0;
-  bool _needsMarquee = false;
-  Timer? _pauseTimer;
-  late final AppFocusService _focusService;
-  bool _isFocused = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _focusService = AppFocusService.instance;
-    _isFocused = _focusService.isFocused.value;
-    _focusService.isFocused.addListener(_handleFocusChange);
-  }
-
-  @override
-  void didUpdateWidget(covariant _MarqueeText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text || oldWidget.style != widget.style) {
-      _configureController(forceStop: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _focusService.isFocused.removeListener(_handleFocusChange);
-    _pauseTimer?.cancel();
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  void _handleFocusChange() {
-    final focused = _focusService.isFocused.value;
-    if (focused == _isFocused) return;
-    _isFocused = focused;
-    if (!_isFocused) {
-      _pauseTimer?.cancel();
-      _controller?.stop();
-      return;
-    }
-    _configureController();
-  }
-
-  void _configureController({bool forceStop = false}) {
-    if (!_needsMarquee || forceStop || !_isFocused) {
-      _pauseTimer?.cancel();
-      _controller?.stop();
-      if (_controller != null) {
-        _controller!.value = 0;
-      }
-    }
-    if (!_needsMarquee || !_isFocused) return;
-
-    _controller ??= AnimationController(vsync: this)
-      ..addStatusListener(_handleStatusChange);
-    final ms = ((_scrollDistance / 24) * 1000).clamp(2400, 12000).toInt();
-    _controller!.duration = Duration(milliseconds: ms);
-    _scheduleStart();
-  }
-
-  void _handleStatusChange(AnimationStatus status) {
-    if (!_needsMarquee) return;
-    if (status == AnimationStatus.completed) {
-      _pauseThen(() => _controller?.reverse());
-    } else if (status == AnimationStatus.dismissed) {
-      _pauseThen(() => _controller?.forward());
-    }
-  }
-
-  void _pauseThen(VoidCallback action) {
-    _pauseTimer?.cancel();
-    _pauseTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (!mounted || !_needsMarquee || !_isFocused) return;
-      action();
-    });
-  }
-
-  void _scheduleStart() {
-    if (_controller == null) return;
-    _pauseTimer?.cancel();
-    _controller!.value = 0;
-    _pauseThen(() => _controller?.forward(from: 0));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final textPainter = TextPainter(
-          text: TextSpan(text: widget.text, style: widget.style),
-          maxLines: 1,
-          textDirection: TextDirection.ltr,
-        )..layout();
-
-        final maxWidth = constraints.maxWidth;
-        final textWidth = textPainter.width;
-        final needsMarquee = textWidth > maxWidth;
-        const endPadding = 8.0;
-        final scrollDistance = (textWidth - maxWidth + endPadding)
-            .clamp(0, textWidth)
-            .toDouble();
-
-        if (_needsMarquee != needsMarquee ||
-            _scrollDistance != scrollDistance) {
-          _needsMarquee = needsMarquee;
-          _scrollDistance = scrollDistance;
-          _configureController();
-        }
-
-        if (!needsMarquee) {
-          return Text(
-            widget.text,
-            style: widget.style,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          );
-        }
-
-        return ClipRect(
-          child: AnimatedBuilder(
-            animation: _controller ?? const AlwaysStoppedAnimation<double>(0),
-            builder: (context, child) {
-              final value = _controller?.value ?? 0;
-              final dx = -value * _scrollDistance;
-              return Transform.translate(offset: Offset(dx, 0), child: child);
-            },
-            child: Text(
-              widget.text,
-              style: widget.style,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
-            ),
-          ),
-        );
-      },
     );
   }
 }

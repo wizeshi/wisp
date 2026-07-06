@@ -14,6 +14,7 @@ import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/widgets/connect/connect_menu.dart';
+import 'package:wisp/widgets/marquee_text.dart';
 import '../services/app_navigation.dart';
 import '../services/cache_manager.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
@@ -567,7 +568,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 },
                 child: SizedBox(
                   width: double.infinity,
-                  child: _MarqueeText(
+                  child: MarqueeText(
                     text: title,
                     style: const TextStyle(
                       color: Colors.white,
@@ -2974,7 +2975,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 },
                 child: SizedBox(
                   width: double.infinity,
-                  child: _MarqueeText(
+                  child: MarqueeText(
+                    pauseWhenUnfocused: true,
                     text: title,
                     style: const TextStyle(
                       color: Colors.white,
@@ -4501,134 +4503,6 @@ class YouTubeMusicFullScreenPlayer extends StatelessWidget {
   }
 }
 
-class _MarqueeText extends StatefulWidget {
-  final String text;
-  final TextStyle style;
-
-  const _MarqueeText({required this.text, required this.style});
-
-  @override
-  State<_MarqueeText> createState() => _MarqueeTextState();
-}
-
-class _MarqueeTextState extends State<_MarqueeText>
-    with SingleTickerProviderStateMixin {
-  AnimationController? _controller;
-  double _scrollDistance = 0;
-  bool _needsMarquee = false;
-  Timer? _pauseTimer;
-
-  @override
-  void didUpdateWidget(covariant _MarqueeText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.text != widget.text || oldWidget.style != widget.style) {
-      _configureController(forceStop: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _pauseTimer?.cancel();
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  void _configureController({bool forceStop = false}) {
-    if (!_needsMarquee || forceStop) {
-      _pauseTimer?.cancel();
-      _controller?.stop();
-      if (_controller != null) {
-        _controller!.value = 0;
-      }
-    }
-    if (!_needsMarquee) return;
-
-    _controller ??= AnimationController(vsync: this)
-      ..addStatusListener(_handleStatusChange);
-    final ms = ((_scrollDistance / 24) * 1000).clamp(2400, 12000).toInt();
-    _controller!.duration = Duration(milliseconds: ms);
-    _scheduleStart();
-  }
-
-  void _handleStatusChange(AnimationStatus status) {
-    if (!_needsMarquee) return;
-    if (status == AnimationStatus.completed) {
-      _pauseThen(() => _controller?.reverse());
-    } else if (status == AnimationStatus.dismissed) {
-      _pauseThen(() => _controller?.forward());
-    }
-  }
-
-  void _pauseThen(VoidCallback action) {
-    _pauseTimer?.cancel();
-    _pauseTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (!mounted || !_needsMarquee) return;
-      action();
-    });
-  }
-
-  void _scheduleStart() {
-    if (_controller == null) return;
-    _pauseTimer?.cancel();
-    _controller!.value = 0;
-    _pauseThen(() => _controller?.forward(from: 0));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final textPainter = TextPainter(
-          text: TextSpan(text: widget.text, style: widget.style),
-          maxLines: 1,
-          textDirection: TextDirection.ltr,
-        )..layout();
-
-        final maxWidth = constraints.maxWidth;
-        final textWidth = textPainter.width;
-        final needsMarquee = textWidth > maxWidth;
-        const endPadding = 8.0;
-        final scrollDistance = (textWidth - maxWidth + endPadding)
-            .clamp(0, textWidth)
-            .toDouble();
-
-        if (_needsMarquee != needsMarquee ||
-            _scrollDistance != scrollDistance) {
-          _needsMarquee = needsMarquee;
-          _scrollDistance = scrollDistance;
-          _configureController();
-        }
-
-        if (!needsMarquee) {
-          return Text(
-            widget.text,
-            style: widget.style,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          );
-        }
-
-        return ClipRect(
-          child: AnimatedBuilder(
-            animation: _controller ?? const AlwaysStoppedAnimation<double>(0),
-            builder: (context, child) {
-              final value = _controller?.value ?? 0;
-              final dx = -value * _scrollDistance;
-              return Transform.translate(offset: Offset(dx, 0), child: child);
-            },
-            child: Text(
-              widget.text,
-              style: widget.style,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
 
 class _CoverGradientContainer extends StatelessWidget {
   final Widget child;
