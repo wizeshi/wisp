@@ -15,7 +15,7 @@ Here's the TODOs for version v26.05.xx:
     - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons. It should be replaced with the normal play/pause icon on hover, though. For apple music, should show it as an overlay on top of the song cover. Spotify's is in the index of the song. 
     - [ ] Make artist name clickable in the full player
     - [ ] Make the playerbar on mobile see-through, so that the user can see the content behind it.
-    - [ ] Add the three dots button to the right of every row on the AM style list view (mobile).
+    - [x] Add the three dots button to the right of every row on the AM style list view (mobile).
 - Planned features:
     - [ ] Show search results as the user types (careful to not spam the API). Also show search suggestions based on search history and popular searches (we'll need to get this info from the provider platforms).
     - [ ] Finish Spotify integration

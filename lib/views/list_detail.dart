@@ -5494,55 +5494,76 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         final isPlayingList =
             view._isCurrentListPlaying(player) && player.isPlaying;
         return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: view._items.isEmpty
-                    ? null
-                    : () {
-                        if (view._isCurrentListPlaying(player)) {
-                          view._toggleCurrentTrackPlayback(player);
-                        } else {
-                          view._playFromStart();
-                        }
-                      },
-                icon: Icon(
-                  isPlayingList
-                      ? CupertinoIcons.pause_fill
-                      : CupertinoIcons.play_fill,
-                  size: 20,
-                ),
-                label: Text(
-                  isPlayingList ? 'Pause' : 'Play',
-                  style: const TextStyle(fontSize: 20),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: const StadiumBorder(),
-                  minimumSize: const Size(0, 44),
+            SizedBox(
+              height: 44,
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: IconButton.filled(
+                  onPressed: view._items.isEmpty
+                      ? null
+                      : () {
+                          view._toggleListShuffle(player);
+                        },
+                  icon: const Icon(CupertinoIcons.shuffle, size: 20),
+                  style: IconButton.styleFrom(
+                    backgroundColor: view._preShuffleEnabled || (view._isCurrentListPlaying(player) && player.shuffleEnabled)
+                        ? Colors.white
+                        : Theme.of(context).colorScheme.primary,
+                    foregroundColor: view._preShuffleEnabled || (view._isCurrentListPlaying(player) && player.shuffleEnabled)
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.white,
+                    shape: const StadiumBorder(),
+                    minimumSize: const Size(0, 44),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: view._items.isEmpty
-                    ? null
-                    : () {
-                        if (view._isCurrentListPlaying(player)) {
-                          view._toggleListShuffle(player);
-                        } else {
-                          view._playFromStart(shuffle: true);
-                        }
-                      },
-                icon: const Icon(CupertinoIcons.shuffle, size: 20),
-                label: const Text('Shuffle', style: TextStyle(fontSize: 20)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  shape: const StadiumBorder(),
-                  minimumSize: const Size(0, 44),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: view._items.isEmpty
+                  ? null
+                  : () {
+                      if (view._isCurrentListPlaying(player)) {
+                        view._toggleCurrentTrackPlayback(player);
+                      } else {
+                        view._playFromStart();
+                      }
+                    },
+              icon: Icon(
+                isPlayingList
+                    ? CupertinoIcons.pause_fill
+                    : CupertinoIcons.play_fill,
+                size: 20,
+              ),
+              label: Text(
+                isPlayingList ? 'Pause' : 'Play',
+                style: const TextStyle(fontSize: 20),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+                shape: const StadiumBorder(),
+                minimumSize: const Size(0, 44),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 44,
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: IconButton.filled(
+                  onPressed: view._items.isEmpty
+                      ? null
+                      : view._showListContextMenu,
+                  icon: const Icon(CupertinoIcons.ellipsis_vertical, size: 20),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: const StadiumBorder(),
+                    minimumSize: const Size(0, 44),
+                  ),
                 ),
               ),
             ),
