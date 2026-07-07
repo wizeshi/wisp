@@ -144,6 +144,12 @@ void main() async {
 
   // Install a Flutter framework error handler so we can log full stacks.
   FlutterError.onError = (FlutterErrorDetails details) {
+    // Don't know why this happens, but regardless, the app functions normally even
+    // with this error being spammed in the console, so let's ignore it for now.
+    if (details.exception.toString().contains("RawTooltipState")) {
+      return;
+    }
+
     FlutterError.dumpErrorToConsole(details);
     logger.e('[Main] Flutter framework error', error: details.exception, stackTrace: details.stack);
   };

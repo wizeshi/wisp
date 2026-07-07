@@ -739,6 +739,89 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         _inactivePreloadTrackId == nextTrack.id;
   }
 
+  Future<bool> _waitForInactivePreloadReady(
+    int nextIndex,
+    GenericSong nextTrack, {
+    Duration timeout = const Duration(seconds: 5),
+    Duration pollInterval = const Duration(milliseconds: 150),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (_isInactivePreloadReady(nextIndex, nextTrack)) {
+        return true;
+      }
+      await Future.delayed(pollInterval);
+    }
+    return _isInactivePreloadReady(nextIndex, nextTrack);
+  }
+
+  bool _shouldRefreshSourceOnLoadError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('403') ||
+        message.contains('forbidden') ||
+        message.contains('expired');
+  }
+
+  Future<void> _invalidateTrackSourceCaches(GenericSong track) async {
+    _prefetchedAudioSources.remove(track.id);
+    _prefetchSourceTasks.remove(track.id);
+
+    final cachedVideoId = YouTubeProvider.getCachedVideoId(track.id);
+    if (cachedVideoId != null && cachedVideoId.isNotEmpty) {
+      _streamUrlCache.remove(cachedVideoId);
+    }
+
+    if (track.source == SongSource.spotify ||
+        track.source == SongSource.spotifyInternal) {
+      /* SpotifyAudioProvider.invalidateStreamCacheForTrack(track.id); */
+    }
+  }
+
+  Future<AudioSource?> _getAudioSourceWithRetry(
+    GenericSong track, {
+    bool allowPrefetched = true,
+  }) async {
+    try {
+      return await _getAudioSource(track, allowPrefetched: allowPrefetched);
+    } catch (e) {
+      if (!_shouldRefreshSourceOnLoadError(e)) {
+        rethrow;
+      }
+
+      await _invalidateTrackSourceCaches(track);
+      return await _getAudioSource(track, allowPrefetched: false);
+    }
+  }
+
+  Future<void> _loadTrackIntoPlayerWithRetry(
+    Future<void> Function(AudioSource source) loadSource,
+    GenericSong track, {
+    bool allowPrefetched = true,
+  }) async {
+    final source = await _getAudioSourceWithRetry(
+      track,
+      allowPrefetched: allowPrefetched,
+    );
+    if (source == null) {
+      throw Exception('Could not get audio source for ${track.title}');
+    }
+
+    try {
+      await loadSource(source);
+    } catch (e) {
+      if (!_shouldRefreshSourceOnLoadError(e)) {
+        rethrow;
+      }
+
+      await _invalidateTrackSourceCaches(track);
+      final refreshedSource = await _getAudioSource(track, allowPrefetched: false);
+      if (refreshedSource == null) {
+        throw Exception('Could not get audio source for ${track.title}');
+      }
+      await loadSource(refreshedSource);
+    }
+  }
+
   void _invalidatePlaybackPrefetch({bool clearSources = false}) {
     _prefetchGeneration++;
     _prefetchSourceTasks.clear();
@@ -787,30 +870,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _isCrossfadePreloadInProgress = true;
 
     try {
-      final source = await _getAudioSource(nextTrack);
-      if (!_isCrossfadePreloadStillValid(
-        generation,
-        nextIndex,
-        trackChangeToken,
-      )) {
-        return;
-      }
-
-      if (source == null) {
-        _invalidateCrossfadePreload();
-        return;
-      }
-
-      await _inactivePlayer.stop();
-      if (!_isCrossfadePreloadStillValid(
-        generation,
-        nextIndex,
-        trackChangeToken,
-      )) {
-        return;
-      }
-
-      await _inactivePlayer.setAudioSource(source);
+      await _loadTrackIntoPlayerWithRetry(
+        (source) => _inactivePlayer.setAudioSource(source),
+        nextTrack,
+      );
       await _inactivePlayer.setVolume(0);
       if (!_isCrossfadePreloadStillValid(
         generation,
@@ -888,19 +951,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (!_isInactivePreloadReady(nextIndex, nextTrack)) {
       _preloadedNextIndex = nextIndex;
       _preloadedNextTrack = nextTrack;
-      await _clearInactivePlayer();
       await _scheduleNextTrackPreload();
-      if (!_isInactivePreloadReady(nextIndex, nextTrack)) {
-        final deadline = DateTime.now().add(const Duration(seconds: 5));
-        while (DateTime.now().isBefore(deadline)) {
-          await Future.delayed(const Duration(milliseconds: 150));
-          if (_isInactivePreloadReady(nextIndex, nextTrack)) {
-            break;
-          }
-        }
-        if (!_isInactivePreloadReady(nextIndex, nextTrack)) {
-          return;
-        }
+      if (!await _waitForInactivePreloadReady(nextIndex, nextTrack)) {
+        return;
       }
     }
 
@@ -1129,6 +1182,23 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     () async {
       logger.i('[Audio/Player] Track completed: ${_currentTrack?.title}');
 
+      if (_crossfadeEnabled) {
+        final nextIndex = _nextQueueIndex();
+        if (nextIndex != null) {
+          final nextTrack = _queue[nextIndex];
+          if (_isInactivePreloadReady(nextIndex, nextTrack)) {
+            await _startFadeIn();
+            return;
+          }
+
+          unawaited(_scheduleNextTrackPreload());
+          if (await _waitForInactivePreloadReady(nextIndex, nextTrack)) {
+            await _startFadeIn();
+            return;
+          }
+        }
+      }
+
       if (_repeatMode == RepeatMode.one) {
         await _player.seek(Duration.zero);
         if (token != _trackChangeToken) return;
@@ -1144,9 +1214,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> _prepareCurrentTrackOnStartup() async {
     if (_currentTrack == null || _player.audioSource != null) return;
     try {
-      final source = await _getAudioSource(_currentTrack!);
-      if (source == null) return;
-      await _player.setAudioSource(source);
+      await _loadTrackIntoPlayerWithRetry(
+        (source) => _player.setAudioSource(source),
+        _currentTrack!,
+      );
       if (!_player.playing) {
         _setState(PlaybackState.paused);
       }
@@ -1394,16 +1465,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
         return;
       }
-
-      final source = await _getAudioSource(track);
-      if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
-        return;
-      }
-      if (source == null) {
-        throw Exception('Could not get audio source');
-      }
-
-      await _player.setAudioSource(source);
+      await _loadTrackIntoPlayerWithRetry(
+        (source) => _player.setAudioSource(source),
+        track,
+      );
       if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
         return;
       }
@@ -1894,10 +1959,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           return;
         }
 
-        final source = await _getAudioSource(_currentTrack!);
-        if (requestToken != _trackChangeToken) return;
-        if (source == null) return;
-        await _player.setAudioSource(source);
+        await _loadTrackIntoPlayerWithRetry(
+          (source) => _player.setAudioSource(source),
+          _currentTrack!,
+        );
         if (requestToken != _trackChangeToken) return;
       } catch (e) {
         _errorMessage = e.toString();
