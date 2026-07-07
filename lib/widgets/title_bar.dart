@@ -261,26 +261,25 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Future<void> _showNotificationMenu(BuildContext context) async {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final box = context.findRenderObject() as RenderBox;
-    final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final menuTopLeft = topLeft + Offset(0, box.size.height + 8);
-    final menuBottomRight =
-        menuTopLeft + Offset(box.size.width, box.size.height);
+    // Show the notification dropdown menu centered below the notification button
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final Offset buttonPosition = button.localToGlobal(Offset.zero);
 
-    await showMenu<void>(
-      context: context,
+    showMenu(
       color: Colors.transparent,
       elevation: 0,
-      position: RelativeRect.fromRect(
-        Rect.fromPoints(menuTopLeft, menuBottomRight),
-        Offset.zero & overlay.size,
+      context: context,
+      // Center the menu below the button
+      position: RelativeRect.fromLTRB(
+        buttonPosition.dx,
+        buttonPosition.dy + button.size.height,
+        buttonPosition.dx + button.size.width,
+        buttonPosition.dy,
       ),
       items: [
-        PopupMenuItem<void>(
+        PopupMenuItem(
           enabled: false,
-          padding: EdgeInsets.zero,
-          child: const _NotificationDropdown(),
+          child: _NotificationDropdown(),
         ),
       ],
     );
@@ -319,13 +318,14 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
         ),
         child: TextField(
           focusNode: searchFocusNode,
+          textAlignVertical: TextAlignVertical.center,
           style: TextStyle(color: Colors.white, fontSize: 14),
           decoration: InputDecoration(
             hintText: 'Search songs, albums, artists...',
             hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
             prefixIcon: Icon(Icons.search, color: Colors.grey[600], size: 20),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 8),
+            contentPadding: EdgeInsets.zero,
             isDense: true,
           ),
         ),
@@ -345,6 +345,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
           child: TextField(
             controller: controller,
             focusNode: searchFocusNode,
+            textAlignVertical: TextAlignVertical.center,
             style: TextStyle(color: Colors.white, fontSize: 14),
             decoration: InputDecoration(
               hintText: 'Search songs, albums, artists...',
@@ -455,7 +456,7 @@ class _NotificationDropdown extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 10,
+                  vertical: 6,
                 ),
                 child: Row(
                   children: [
@@ -517,19 +518,20 @@ class _NotificationDropdown extends StatelessWidget {
                               : 1.0;
 
                           return Container(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                             decoration: BoxDecoration(
                               color: const Color(0xFF1F1F1F),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: Colors.white10),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
                                         item.title,
                                         style:
                                             (textTheme.labelMedium ??
@@ -542,52 +544,61 @@ class _NotificationDropdown extends StatelessWidget {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.close,
-                                        size: 16,
-                                        color: Colors.grey,
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        item.body,
+                                        style:
+                                            (textTheme.bodySmall ??
+                                                    const TextStyle())
+                                                .copyWith(
+                                                  color: Colors.grey[400],
+                                                  fontSize: 11,
+                                                ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      onPressed: () => center.dismiss(item.id),
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  item.body,
-                                  style:
-                                      (textTheme.bodySmall ?? const TextStyle())
-                                          .copyWith(
-                                            color: Colors.grey[400],
-                                            fontSize: 11,
+                                      if (hasProgress) ...[
+                                        const SizedBox(height: 8),
+                                        LinearProgressIndicator(
+                                          value: progress,
+                                          backgroundColor: Colors.grey[850],
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                            Theme.of(context).colorScheme.primary,
                                           ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                      if (item.isComplete) ...[
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Completed',
+                                          style:
+                                              (textTheme.labelSmall ??
+                                                      const TextStyle())
+                                                  .copyWith(
+                                                    color: Colors.grey[500],
+                                                    fontSize: 10,
+                                                  ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                 ),
-                                if (hasProgress) ...[
-                                  const SizedBox(height: 8),
-                                  LinearProgressIndicator(
-                                    value: progress,
-                                    backgroundColor: Colors.grey[850],
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Theme.of(context).colorScheme.primary,
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: IconButton(
+                                    padding: EdgeInsets.zero,
+                                    icon: const Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: Colors.grey,
                                     ),
+                                    onPressed: () => center.dismiss(item.id),
                                   ),
-                                ],
-                                if (item.isComplete) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Completed',
-                                    style:
-                                        (textTheme.labelSmall ??
-                                                const TextStyle())
-                                            .copyWith(
-                                              color: Colors.grey[500],
-                                              fontSize: 10,
-                                            ),
-                                  ),
-                                ],
-                              ],
+                                ),
+                              ]
                             ),
                           );
                         },

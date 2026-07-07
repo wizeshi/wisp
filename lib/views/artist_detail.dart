@@ -2206,7 +2206,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             children: [
               Expanded(
                 flex: 3,
-                child: Text(
+                child: buildParsedText(
+                  context,
                   displayDescription,
                   style: TextStyle(
                     color: Colors.grey[300],
