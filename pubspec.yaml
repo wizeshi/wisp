@@ -93,6 +93,8 @@ dependencies:
   app_links: 7.2.0
   win32_registry: ^3.0.0
 
+  flutter_svg: 2.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
 import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/services/app_navigation.dart';
 import '../services/navigation_history.dart';
 import '../services/desktop_notification_center.dart';
 
@@ -126,6 +127,10 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
 
               const SizedBox(width: 8),
 
+              _buildDebugButton(context),
+
+              const SizedBox(width: 8),
+
               // Settings button
               _buildActionButton(Icons.settings_outlined, () {
                 if (onSettingsTap != null) {
@@ -154,6 +159,13 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDebugButton(BuildContext context) {
+    return _buildActionButton(
+      Icons.bug_report_outlined, 
+      () { AppNavigation.instance.openDebug(context); }
     );
   }
 

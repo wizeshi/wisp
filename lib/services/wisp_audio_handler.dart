@@ -24,9 +24,31 @@ import '../services/spotify/spotify_audio_decryptor.dart';
 import '../services/spotify/spotify_decrypt_streaming_proxy.dart';
 import '../services/ytdlp_readiness_coordinator.dart';
 
-enum PlaybackState { idle, loading, playing, paused, error }
+enum PlaybackState { 
+  idle, loading, playing, paused, error;
 
-enum RepeatMode { off, all, one }
+  String toJson() => name;
+
+  static PlaybackState fromJson(String json) {
+    return PlaybackState.values.firstWhere(
+      (e) => e.name == json,
+      orElse: () => PlaybackState.idle,
+    );
+  }
+}
+
+enum RepeatMode { 
+  off, all, one; 
+
+  String toJson() => name;
+
+  static RepeatMode fromJson(String json) {
+    return RepeatMode.values.firstWhere(
+      (e) => e.name == json,
+      orElse: () => RepeatMode.off,
+    );
+  }
+}
 
 class _StreamUrlCacheEntry {
   final String url;
@@ -104,6 +126,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   int? _preloadedNextIndex;
   GenericSong? _preloadedNextTrack;
   String? _inactivePreloadTrackId;
+  String? _lastFailedPreloadTrackId;
+  int _lastPreloadFailureMs = 0;
+  static const Duration _preloadRetryCooldown = Duration(seconds: 2);
   static const int _prefetchWindowSize = 5;
   int _prefetchGeneration = 0;
   final Map<String, AudioSource> _prefetchedAudioSources = {};
@@ -495,9 +520,35 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final preloadLead = crossfadeWindow + const Duration(seconds: 10);
     final remaining = trackDuration - position;
 
-    if (remaining <= preloadLead) {
-      unawaited(_scheduleNextTrackPreload());
+    if (remaining > preloadLead) {
+      return;
     }
+
+    final nextIndex = _nextQueueIndex();
+    if (nextIndex == null) {
+      return;
+    }
+    final nextTrack = _queue[nextIndex];
+
+    // Without these checks this function re-ran the ENTIRE preload — a
+    // fresh setAudioSource() against the network — on every single position
+    // tick for the whole ~10s preload window (many times a second), which
+    // is what made _isCrossfadePreloadInProgress flicker constantly and
+    // hammered the decoder with repeated overlapping loads of the same
+    // stream (surfacing as mpv's "Failed to create file cache").
+    if (_isInactivePreloadReady(nextIndex, nextTrack)) {
+      return;
+    }
+    if (_isCrossfadePreloadInProgress) {
+      return;
+    }
+    if (_lastFailedPreloadTrackId == nextTrack.id &&
+        DateTime.now().millisecondsSinceEpoch - _lastPreloadFailureMs <
+            _preloadRetryCooldown.inMilliseconds) {
+      return;
+    }
+
+    unawaited(_scheduleNextTrackPreload());
   }
 
   void _forcePositionUpdate(Duration position) {
@@ -865,30 +916,50 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final generation = _crossfadePreloadGeneration;
     final trackChangeToken = _trackChangeToken;
     final nextTrack = _queue[nextIndex];
+    // Capture the physical player now. `_inactivePlayer` is a getter that
+    // flips with `_useSecondaryAsActivePlayer`, so if a crossfade starts
+    // while we're awaiting network I/O below, re-reading `_inactivePlayer`
+    // later could resolve to the player that is now actively fading out —
+    // calling setAudioSource/setVolume on it would stop or mute it outright.
+    final targetPlayer = _inactivePlayer;
     _preloadedNextIndex = nextIndex;
     _preloadedNextTrack = nextTrack;
     _isCrossfadePreloadInProgress = true;
 
     try {
       await _loadTrackIntoPlayerWithRetry(
-        (source) => _inactivePlayer.setAudioSource(source),
+        (source) => targetPlayer.setAudioSource(source),
         nextTrack,
       );
-      await _inactivePlayer.setVolume(0);
-      if (!_isCrossfadePreloadStillValid(
-        generation,
-        nextIndex,
-        trackChangeToken,
-      )) {
-        await _clearInactivePlayer();
+
+      // Validate BEFORE mutating further. If a crossfade started (or the
+      // queue changed) while we awaited above, this preload is stale and
+      // `targetPlayer` may no longer be safe to touch.
+      final stillValid = _isCrossfadePreloadStillValid(
+            generation,
+            nextIndex,
+            trackChangeToken,
+          ) &&
+          identical(targetPlayer, _inactivePlayer);
+
+      if (!stillValid) {
+        try {
+          await targetPlayer.stop();
+        } catch (_) {}
+        _inactivePreloadTrackId = null;
         return;
       }
 
+      await targetPlayer.setVolume(0);
       _inactivePreloadTrackId = nextTrack.id;
     } catch (e) {
       logger.w('[Audio/Player] Crossfade preload failed', error: e);
       _invalidateCrossfadePreload();
-      await _clearInactivePlayer();
+      _lastFailedPreloadTrackId = nextTrack.id;
+      _lastPreloadFailureMs = DateTime.now().millisecondsSinceEpoch;
+      try {
+        await targetPlayer.stop();
+      } catch (_) {}
     } finally {
       _isCrossfadePreloadInProgress = false;
     }
@@ -976,9 +1047,47 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     notifyListeners();
 
     try {
-      await _player.setVolume(_crossfadeTargetVolume);
-      await _inactivePlayer.setVolume(0);
+      // Defensive re-check: `_isInactivePreloadReady` above only trusted our
+      // own bookkeeping (ids/flags), which can go stale if this player sat
+      // idle for the ~10+ second preload window and lost its source for any
+      // reason. Verify the actual player state right before playing and
+      // self-heal exactly like the public play() method does, instead of
+      // silently no-op'ing on play() with nothing audible happening.
+      if (_player.audioSource == null) {
+        logger.w(
+          '[Audio/Player] Crossfade target lost its audio source before '
+          'playback started; reloading ${nextTrack.title} fresh.',
+        );
+        await _loadTrackIntoPlayerWithRetry(
+          (source) => _player.setAudioSource(source),
+          nextTrack,
+        );
+      }
+
+      // Start the outgoing (now-inactive) track at full/target volume and the
+      // incoming (now-active) track silent, so the values match what
+      // _startCrossfadeTimer's first tick computes at progress = 0. Setting
+      // these the other way round (as before) snaps the old track to 0 and
+      // the new one to full instantly, before any fade has a chance to run.
+      await _inactivePlayer.setVolume(_crossfadeTargetVolume);
+      await _player.setVolume(0);
       await _player.play();
+
+      if (!_player.playing) {
+        // Still not actually playing after play() returned — one more
+        // attempt with a fresh source before giving up and rolling back.
+        logger.w(
+          '[Audio/Player] play() returned without starting playback for '
+          '${nextTrack.title}; retrying with a fresh source.',
+        );
+        await _loadTrackIntoPlayerWithRetry(
+          (source) => _player.setAudioSource(source),
+          nextTrack,
+        );
+        await _player.setVolume(0);
+        await _player.play();
+      }
+
       _startCrossfadeTimer();
     } catch (e) {
       logger.w('[Audio/Player] Failed to start crossfade', error: e);
@@ -2595,6 +2704,108 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   void _stopCrossfadeTimer() {
     _crossfadeTimer?.cancel();
     _crossfadeTimer = null;
+  }
+
+  Map<String, dynamic> dumpInfo() {
+    return {
+      'state': _state.toJson(),
+      'isPlaying': isPlaying,
+      'isLoading': isLoading,
+      'isBuffering': isBuffering,
+      'isOnline': _isOnline,
+      'errorMessage': _errorMessage,
+      'currentTrack': _currentTrack?.toJson(),
+      'queue': _queue.map((track) => track.toJson()).toList(),
+      'originalQueue': _originalQueue.map((track) => track.toJson()).toList(),
+      'currentIndex': _currentIndex,
+      'trackChangeToken': _trackChangeToken,
+      'shuffleEnabled': _shuffleEnabled,
+      'repeatMode': _repeatMode.toString(),
+      'gaplessPlaybackEnabled': _gaplessPlaybackEnabled,
+      'crossfadeEnabled': _crossfadeEnabled,
+      'crossfadeDurationSeconds': _crossfadeDurationSeconds,
+      'crossfadeTargetVolume': _crossfadeTargetVolume,
+      'isCrossfading': _isCrossfading,
+      'isTrackTransitioning': _isTrackTransitioning,
+      'crossfadeFadeOutActive': _crossfadeFadeOutActive,
+      'crossfadeFadeInActive': _crossfadeFadeInActive,
+      'isCrossfadePreloadInProgress': _isCrossfadePreloadInProgress,
+      'crossfadePreloadGeneration': _crossfadePreloadGeneration,
+      'preloadedNextIndex': _preloadedNextIndex,
+      'preloadedNextTrack': _preloadedNextTrack?.toJson(),
+      'inactivePreloadTrackId': _inactivePreloadTrackId,
+      'useSecondaryAsActivePlayer': _useSecondaryAsActivePlayer,
+      'activePlayer': {
+        'volume': _player.volume,
+        'positionMs': _player.position.inMilliseconds,
+        'durationMs': _player.duration?.inMilliseconds,
+        'playing': _player.playing,
+        'processingState': _player.processingState.toString(),
+        'currentIndex': _player.currentIndex,
+        'hasNext': _player.hasNext,
+        'hasPrevious': _player.hasPrevious,
+        'audioSourceSet': _player.audioSource != null,
+      },
+      'primaryPlayer': {
+        'volume': _primaryPlayer.volume,
+        'positionMs': _primaryPlayer.position.inMilliseconds,
+        'durationMs': _primaryPlayer.duration?.inMilliseconds,
+        'playing': _primaryPlayer.playing,
+        'processingState': _primaryPlayer.processingState.toString(),
+        'currentIndex': _primaryPlayer.currentIndex,
+        'audioSourceSet': _primaryPlayer.audioSource != null,
+      },
+      'secondaryPlayer': {
+        'volume': _secondaryPlayer.volume,
+        'positionMs': _secondaryPlayer.position.inMilliseconds,
+        'durationMs': _secondaryPlayer.duration?.inMilliseconds,
+        'playing': _secondaryPlayer.playing,
+        'processingState': _secondaryPlayer.processingState.toString(),
+        'currentIndex': _secondaryPlayer.currentIndex,
+        'audioSourceSet': _secondaryPlayer.audioSource != null,
+      },
+      'savedVolume': _savedVolume,
+      'lastVolume': _lastVolume,
+      'lastRawPositionMs': _lastRawPosition.inMilliseconds,
+      'lastNotifiedPositionMs': _lastNotifiedPosition.inMilliseconds,
+      'lastPositionNotifyMs': _lastPositionNotifyMs,
+      'lastPositionUpdateMs': _lastPositionUpdateMs,
+      'lastMediaPositionMs': _lastMediaPositionMs,
+      'lastMediaUpdateMs': _lastMediaUpdateMs,
+      'lastKnownDurationMs': _lastKnownDuration?.inMilliseconds,
+      'rpcLastSecond': _rpcLastSecond,
+      'playlistPlaybackEnabled': _playlistPlaybackEnabled,
+      'playbackContextType': _playbackContextType,
+      'playbackContextName': _playbackContextName,
+      'playbackContextID': _playbackContextID,
+      'playbackContextSource': _playbackContextSource?.toString(),
+      'isHandoffHost': _isHandoffHost,
+      'prefetchWindowSize': _prefetchWindowSize,
+      'prefetchGeneration': _prefetchGeneration,
+      'prefetchedAudioSources': _prefetchedAudioSources.keys.toList(),
+      'prefetchSourceTasks': _prefetchSourceTasks.keys.toList(),
+      'streamUrlCache': _streamUrlCache.map(
+        (key, value) => MapEntry(key, {
+          'url': value.url,
+          'expiresAt': value.expiresAt.toIso8601String(),
+          'isValid': value.isValid,
+        }),
+      ),
+      'streamUrlTasks': _streamUrlTasks.keys.toList(),
+      'videoIdTasks': _videoIdTasks.keys.toList(),
+      'subscriptions': {
+        'position': _positionSubscription != null,
+        'processingState': _processingStateSubscription != null,
+        'playing': _playingSubscription != null,
+        'currentIndex': _currentIndexSubscription != null,
+        'connectivity': _connectivitySubscription != null,
+      },
+      'timers': {
+        'rpc': _rpcTimer != null,
+        'crossfade': _crossfadeTimer != null,
+        'mpris': _mprisTimer != null,
+      },
+    };
   }
 
   audio_service.AudioServiceRepeatMode _repeatModeFromString(String value) {

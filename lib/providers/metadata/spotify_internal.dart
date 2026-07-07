@@ -29,6 +29,18 @@ class SpotifyInternalProvider extends MetadataProvider {
   @override
   String get name => 'Spotify (Internal)';
 
+  @override
+  String get displayName => 'Spotify (Internal)';
+
+  @override
+  String get description => 'Spotify internal API metadata provider. Requires login.';
+
+  @override
+  String get logoURL => 'https://upload.wikimedia.org/wikipedia/commons/d/d0/2024_Spotify_Logo_%28black%29.svg';
+  
+  @override
+  String get iconURL => 'https://upload.wikimedia.org/wikipedia/commons/5/54/2024_Spotify_logo_without_text.svg';
+
   final CredentialsService _credentialsService = CredentialsService();
   final MetadataCacheStore _metadataCache = MetadataCacheStore.instance;
   static const String _metadataProvider = "spotify_internal";
@@ -3336,6 +3348,42 @@ class SpotifyInternalProvider extends MetadataProvider {
     final genericLibrary = spotifyInternalLibraryToGeneric(jsonResponse);
 
     return genericLibrary;
+  }
+
+  @override
+  Map<String, dynamic> dumpJson() {
+    return {
+      'name': name,
+      'metadataProvider': _metadataProvider,
+      'isAuthenticated': _isAuthenticated,
+      'isLoading': _isLoading,
+      'errorMessage': _errorMessage,
+      'userId': _userId,
+      'userDisplayName': _userDisplayName,
+      'bearerTokenPresent': _bearerToken != null,
+      'bearerTokenLength': _bearerToken?.length ?? 0,
+      'clientTokenPresent': _clientToken != null,
+      'clientTokenLength': _clientToken?.length ?? 0,
+      'likedTracksLoaded': _likedTracksLoaded,
+      'likedTracksTotalCount': _likedTracksTotalCount,
+      'likedTrackIdsCount': _likedTrackIds.length,
+      'isRefreshingLikedTracks': _isRefreshingLikedTracks,
+      'canvasUrlCacheSize': _canvasUrlCache.length,
+      'authInitInFlight': _authInitInFlight != null,
+      'lastAuthInitAttemptAt': _lastAuthInitAttemptAt?.toIso8601String(),
+      'lastAuthInitFailed': _lastAuthInitFailed,
+      'startupAuthRetryCount': _startupAuthRetryCount,
+      'startupAuthRetryScheduled': _startupAuthRetryScheduled,
+      'lastTokenRefreshAt': _lastTokenRefreshAt?.toIso8601String(),
+      'tokenRefreshInProgress': _tokenRefreshInProgress != null,
+      'tokenRefreshFailed': _tokenRefreshFailed,
+      'estimatedTokenLifetimeSeconds': _estimatedTokenLifetime.inSeconds,
+      'authInitCooldownSeconds': _authInitCooldown.inSeconds,
+      'authInitFailureCooldownSeconds': _authInitFailureCooldown.inSeconds,
+      'tokenRequestTimeoutSeconds': _tokenRequestTimeout.inSeconds,
+      'tokenRequestMaxAttempts': _tokenRequestMaxAttempts,
+      'maxStartupAuthRetries': _maxStartupAuthRetries,
+    };
   }
 }
 

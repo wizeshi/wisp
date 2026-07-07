@@ -11,7 +11,15 @@ import '../audio/youtube.dart';
 class YouTubeMetadataProvider extends ChangeNotifier {
 	final MetadataCacheStore _metadataCache = MetadataCacheStore.instance;
 	final YouTubeProvider _youtube = YouTubeProvider();
+  
 	static const String _metadataProvider = 'youtube';
+
+  String get displayName => 'YouTube';
+
+  String get description => 'YouTube metadata provider.';
+
+  String get logoURL => 'https://upload.wikimedia.org/wikipedia/commons/2/20/YouTube_2024.svg';
+  String get iconURL => 'https://upload.wikimedia.org/wikipedia/commons/f/fd/YouTube_full-color_icon_%282024%29.svg';
 
 	Future<MetadataCacheEntry?> _readCacheEntry({
 		required String type,

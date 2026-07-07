@@ -543,6 +543,13 @@ class YouTubeProvider {
 
     return score;
   }
+
+  Map<String, dynamic> dumpJson() {
+    logger.d("[Audio/YouTube] dumpJson not implemented.");
+    return {
+      "error": "Provider not implemented"
+    };
+  }
   
   /// Dispose resources
   void dispose() {

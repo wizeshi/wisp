@@ -10,6 +10,10 @@ import 'package:wisp/utils/logger.dart';
 
 abstract class MetadataProvider extends ChangeNotifier {
   String get name => "base";
+  String get displayName => "Base Metadata Provider";
+  String get description => "Base metadata provider. Not implemented.";
+  String get logoURL => "about:blank";
+  String get iconURL => "about:blank";
 
   // State
   final _isAuthenticated = false;
@@ -258,6 +262,13 @@ abstract class MetadataProvider extends ChangeNotifier {
       playlists: const [],
       bestMatch: null,
     );
+  }
+
+  Map<String, dynamic> dumpJson() {
+    logger.d("[Models/Metadata-Provider] dumpJson not implemented.");
+    return {
+      "error": "Provider not implemented"
+    };
   }
 }
 

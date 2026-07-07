@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:wisp/views/debug.dart';
 import 'dart:io' show Platform;
 
 import '../models/metadata_models.dart';
@@ -191,6 +192,20 @@ class AppNavigation {
               initialLibraryView: navState.selectedLibraryView,
               initialNavIndex: navState.selectedNavIndex,
             ),
+      ),
+    );
+  }
+
+  void openDebug(
+    BuildContext context
+  ) {
+    _shellNavigator?.push(
+      PageRouteBuilder(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        settings: const RouteSettings(name: '/debug'),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            DebugView(),
       ),
     );
   }
