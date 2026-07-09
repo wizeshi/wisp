@@ -1,13 +1,12 @@
 // Debug View for the app. Shows internal info about app state, player state, whatever needed.
 
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/models/metadata_models.dart';
-import 'package:wisp/providers/audio/spotify_audio.dart';
-import 'package:wisp/providers/audio/youtube.dart';
-import 'package:wisp/providers/lyrics/betterlyrics.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/providers/metadata/youtube.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
@@ -56,114 +55,209 @@ const int _sidebarPercentage = 15;
 
 class _DebugViewState extends State<DebugView> {
   DebugViewTab _selectedTab = DebugViewTab.NavigationHistory;
+  bool _isSidebarExpanded = false;
 
   void _selectTab(DebugViewTab tab) {
     setState(() {
       _selectedTab = tab;
+
+      final isMobile = MediaQuery.of(context).size.width < 700;
+      if (isMobile) {
+        _isSidebarExpanded = false;
+      }
     });
+  }
+
+  void _toggleSidebar() {
+    setState(() {
+      _isSidebarExpanded = !_isSidebarExpanded;
+    });
+  }
+
+  Widget _buildSidebar(Color highlightColor) {
+    Widget buildButton(String text, DebugViewTab tab) {
+      return ClickableText(
+        text: text,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w500,
+          color: _selectedTab == tab ? highlightColor : null,
+        ),
+        onTap: () => _selectTab(tab),
+      );
+    }
+
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 8,
+      child: SizedBox(
+        width: 250,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    buildButton(
+                      "Navigation",
+                      DebugViewTab.NavigationHistory,
+                    ),
+                    const SizedBox(height: 6),
+                    buildButton(
+                      "Player",
+                      DebugViewTab.PlayerState,
+                    ),
+                    const SizedBox(height: 6),
+                    buildButton(
+                      "Providers",
+                      DebugViewTab.ProviderState,
+                    ),
+                    const SizedBox(height: 6),
+                    buildButton(
+                      "Handoff",
+                      DebugViewTab.Handoff,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 16),
+
+              SizedBox(
+                width: 1,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final highlightColor = Theme.of(context).colorScheme.primary;
+    final isMobile = Platform.isAndroid || Platform.isIOS;
 
-    return Container(
-      color: Theme.of(context).colorScheme.surface,
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Debug View',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const Divider(),
-
-          Expanded(
-            child: Row(
+    return SafeArea(
+      top: true,
+      bottom: false,
+      left: false,
+      right: false,
+      child: Container(
+        color: Theme.of(context).colorScheme.surface,
+        padding: isMobile
+            ? const EdgeInsets.fromLTRB(12, 8, 12, 12)
+            : const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: isMobile
+                  ? MainAxisAlignment.spaceBetween
+                  : MainAxisAlignment.start,
               children: [
-                Expanded(
-                  flex: _sidebarPercentage,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        spacing: 6,
-                        children: [
-                          ClickableText(
-                            text: "Navigation",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                              color: _selectedTab == DebugViewTab.NavigationHistory ? highlightColor : null,
-                            ),
-                            onTap: () => _selectTab(DebugViewTab.NavigationHistory)
-                          ),
-                          ClickableText(
-                            text: "Player",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                              color: _selectedTab == DebugViewTab.PlayerState ? highlightColor : null,
-                            ),
-                            onTap: () => _selectTab(DebugViewTab.PlayerState)
-                          ),
-                          ClickableText(
-                            text: "Providers",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                              color: _selectedTab == DebugViewTab.ProviderState ? highlightColor : null,
-                            ),
-                            onTap: () => _selectTab(DebugViewTab.ProviderState)
-                          ),
-                          ClickableText(
-                            text: "Handoff",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                              color: _selectedTab == DebugViewTab.Handoff ? highlightColor : null,
-                            ),
-                            onTap: () => _selectTab(DebugViewTab.Handoff)
-                          ),
-                        ]
+                if (isMobile)
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 100),
+                        child: Icon(
+                          _isSidebarExpanded
+                              ? Icons.chevron_left
+                              : Icons.chevron_right,
+                          key: ValueKey(_isSidebarExpanded),
+                          size: 32,
+                        ),
                       ),
+                      onPressed: _toggleSidebar,
+                    ),
+                  ),
 
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 1,
-                            height: double.infinity,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(color: Colors.grey[800]),
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                        ]
-                      )
-                    ]
-                  )
+                const SizedBox(width: 8),
+
+                const Text(
+                  "Debug View",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                
-                Expanded(
-                  flex: 100 - _sidebarPercentage,
-                  child: switch (_selectedTab) {
-                    DebugViewTab.NavigationHistory => NavigationHistoryView(),
-                    DebugViewTab.PlayerState => PlayerStateView(),
-                    DebugViewTab.ProviderState => ProviderStateView(),
-                    DebugViewTab.Handoff => HandoffView(),
-                  }
-                )
-              ]
+              ],
             ),
-          )
-        ]
-      )
+
+            const Divider(),
+
+            Expanded(
+              child: Stack(
+                children: [
+                  Row(
+                    children: [
+                      if (!isMobile)
+                        Expanded(
+                          flex: _sidebarPercentage,
+                          child: _buildSidebar(highlightColor),
+                        ),
+
+                      Expanded(
+                        flex: isMobile ? 1 : 100 - _sidebarPercentage,
+                        child: switch (_selectedTab) {
+                          DebugViewTab.NavigationHistory =>
+                            NavigationHistoryView(),
+
+                          DebugViewTab.PlayerState =>
+                            PlayerStateView(),
+
+                          DebugViewTab.ProviderState =>
+                            ProviderStateView(),
+
+                          DebugViewTab.Handoff =>
+                            HandoffView(),
+                        },
+                      ),
+                    ],
+                  ),
+
+                  if (isMobile) ...[
+                    IgnorePointer(
+                      ignoring: !_isSidebarExpanded,
+                      child: AnimatedOpacity(
+                        opacity: _isSidebarExpanded ? 1 : 0,
+                        duration: const Duration(milliseconds: 250),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: _toggleSidebar,
+                          child: Container(
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOut,
+                      top: 0,
+                      bottom: 0,
+                      left: _isSidebarExpanded ? 0 : -260,
+                      child: _buildSidebar(highlightColor),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -184,6 +278,8 @@ class PlayerStateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = Platform.isAndroid || Platform.isIOS;
+
     final player = context.watch<WispAudioHandler>();
 
     final playerInfo = player.dumpInfo();
@@ -208,36 +304,71 @@ class PlayerStateView extends StatelessWidget {
                       value: _uppercaseFirstLetter(playerState.toJson()),
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Playing?",
-                            value: _uppercaseFirstLetter(playerInfo['isPlaying'].toString()),
-                          ),
+                    isMobile 
+                    // Mobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Is Playing?",
+                              value: _uppercaseFirstLetter(playerInfo['isPlaying'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Loading?",
-                            value: _uppercaseFirstLetter(playerInfo['isLoading'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Is Loading?",
+                              value: _uppercaseFirstLetter(playerInfo['isLoading'].toString()),
+                            ),
+                          ]
+                        ),
+                        
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Is Buffering?",
+                              value: _uppercaseFirstLetter(playerInfo['isBuffering'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Buffering?",
-                            value: _uppercaseFirstLetter(playerInfo['isBuffering'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Is Online?",
+                              value: _uppercaseFirstLetter(playerInfo['isOnline'].toString()),
+                            ),
+                          ]
+                        ),
+                      ],
+                    ) 
+                    // Desktop
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Playing?",
+                          value: _uppercaseFirstLetter(playerInfo['isPlaying'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Online?",
-                            value: _uppercaseFirstLetter(playerInfo['isOnline'].toString()),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Loading?",
+                          value: _uppercaseFirstLetter(playerInfo['isLoading'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Buffering?",
+                          value: _uppercaseFirstLetter(playerInfo['isBuffering'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Online?",
+                          value: _uppercaseFirstLetter(playerInfo['isOnline'].toString()),
+                        ),
+                      ],
                     ),
 
                     PlayerStateViewRow(
@@ -245,7 +376,25 @@ class PlayerStateView extends StatelessWidget {
                       value: _uppercaseFirstLetter(playerInfo['errorMessage'] ?? "None"),
                     ),
 
-                    PlayerStateViewRow(
+                    isMobile 
+                    // Mobile
+                    ? Row(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Current Track",
+                          value: _uppercaseFirstLetter(playerInfo['currentTrack']?.toString() ?? "None"),
+                          valueOverride: playerInfo['currentTrack'] != null
+                            ? Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: SimpleTrackRow(track: GenericSong.fromJson(playerInfo['currentTrack']))
+                            )
+                            : null,
+                        )
+                      ]
+                    )
+                    // Desktop
+                    : PlayerStateViewRow(
                       label: "Current Track",
                       value: _uppercaseFirstLetter(playerInfo['currentTrack']?.toString() ?? "None"),
                       valueOverride: playerInfo['currentTrack'] != null
@@ -271,145 +420,290 @@ class PlayerStateView extends StatelessWidget {
                       )
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Current Index",
-                            value: _uppercaseFirstLetter(playerInfo['currentIndex'].toString()),
-                          ),
+                    isMobile 
+                    // Mobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Current Index",
+                              value: _uppercaseFirstLetter(playerInfo['currentIndex'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Track Change Token",
-                            value: _uppercaseFirstLetter(playerInfo['trackChangeToken'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Track Change Token",
+                              value: _uppercaseFirstLetter(playerInfo['trackChangeToken'].toString()),
+                            ),
+                          ],
+                        ),
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Shuffle Enabled?",
+                              value: _uppercaseFirstLetter(playerInfo['shuffleEnabled'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Shuffle Enabled?",
-                            value: _uppercaseFirstLetter(playerInfo['shuffleEnabled'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Repeat Mode",
+                              value: _uppercaseFirstLetter(playerInfo['repeatMode'].toString().split('.').last),
+                            ),
+                          ]
+                        )
+                      ]
+                    )
+                    // Desktop
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Current Index",
+                          value: _uppercaseFirstLetter(playerInfo['currentIndex'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Repeat Mode",
-                            value: _uppercaseFirstLetter(playerInfo['repeatMode'].toString().split('.').last),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Track Change Token",
+                          value: _uppercaseFirstLetter(playerInfo['trackChangeToken'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Shuffle Enabled?",
+                          value: _uppercaseFirstLetter(playerInfo['shuffleEnabled'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Repeat Mode",
+                          value: _uppercaseFirstLetter(playerInfo['repeatMode'].toString().split('.').last),
+                        ),
+                      ]
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Gapless Playback Enabled?",
-                            value: _uppercaseFirstLetter(playerInfo['gaplessPlaybackEnabled'].toString()),
-                          ),
+                    isMobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Gapless Playback Enabled?",
+                              value: _uppercaseFirstLetter(playerInfo['gaplessPlaybackEnabled'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Crossfade Enabled?",
-                            value: _uppercaseFirstLetter(playerInfo['crossfadeEnabled'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Crossfade Enabled?",
+                              value: _uppercaseFirstLetter(playerInfo['crossfadeEnabled'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Crossfade Duration (seconds)",
-                            value: _uppercaseFirstLetter(playerInfo['crossfadeDurationSeconds'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Crossfade Duration (seconds)",
+                              value: _uppercaseFirstLetter(playerInfo['crossfadeDurationSeconds'].toString()),
+                            ),
+                          ],
+                        ),
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Crossfade Target Volume (0.0 - 1.0)",
+                              value: _uppercaseFirstLetter(playerInfo['crossfadeTargetVolume'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Crossfade Target Volume (0.0 - 1.0)",
-                            value: _uppercaseFirstLetter(playerInfo['crossfadeTargetVolume'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Is Crossfading?",
+                              value: _uppercaseFirstLetter(playerInfo['isCrossfading'].toString()),
+                            ),
+                          ]
+                        )
+                      ]
+                    )
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Gapless Playback Enabled?",
+                          value: _uppercaseFirstLetter(playerInfo['gaplessPlaybackEnabled'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Crossfading?",
-                            value: _uppercaseFirstLetter(playerInfo['isCrossfading'].toString()),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Crossfade Enabled?",
+                          value: _uppercaseFirstLetter(playerInfo['crossfadeEnabled'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Crossfade Duration (seconds)",
+                          value: _uppercaseFirstLetter(playerInfo['crossfadeDurationSeconds'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Crossfade Target Volume (0.0 - 1.0)",
+                          value: _uppercaseFirstLetter(playerInfo['crossfadeTargetVolume'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Crossfading?",
+                          value: _uppercaseFirstLetter(playerInfo['isCrossfading'].toString()),
+                        ),
+                      ],
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Track Transitioning?",
-                            value: _uppercaseFirstLetter(playerInfo['isTrackTransitioning'].toString()),
-                          ),
+                    isMobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Is Track Transitioning?",
+                              value: _uppercaseFirstLetter(playerInfo['isTrackTransitioning'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Crossfade Out Active?",
-                            value: _uppercaseFirstLetter(playerInfo['crossfadeFadeOutActive'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Crossfade Out Active?",
+                              value: _uppercaseFirstLetter(playerInfo['crossfadeFadeOutActive'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Crossfade In Active?",
-                            value: _uppercaseFirstLetter(playerInfo['crossfadeFadeInActive'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Crossfade In Active?",
+                              value: _uppercaseFirstLetter(playerInfo['crossfadeFadeInActive'].toString()),
+                            ),
+                          ]
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Crossfade Preload in Progress?",
-                            value: _uppercaseFirstLetter(playerInfo['isCrossfadePreloadInProgress'].toString()),
-                          ),
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Is Crossfade Preload in Progress?",
+                              value: _uppercaseFirstLetter(playerInfo['isCrossfadePreloadInProgress'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Crossfade Preload Generation",
-                            value: _uppercaseFirstLetter(playerInfo['crossfadePreloadGeneration'].toString()),
-                          ),
-                        ],
-                      ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Crossfade Preload Generation",
+                              value: _uppercaseFirstLetter(playerInfo['crossfadePreloadGeneration'].toString()),
+                            ),
+                          ]
+                        )
+                      ]
+                    )
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Track Transitioning?",
+                          value: _uppercaseFirstLetter(playerInfo['isTrackTransitioning'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Crossfade Out Active?",
+                          value: _uppercaseFirstLetter(playerInfo['crossfadeFadeOutActive'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Crossfade In Active?",
+                          value: _uppercaseFirstLetter(playerInfo['crossfadeFadeInActive'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Crossfade Preload in Progress?",
+                          value: _uppercaseFirstLetter(playerInfo['isCrossfadePreloadInProgress'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Crossfade Preload Generation",
+                          value: _uppercaseFirstLetter(playerInfo['crossfadePreloadGeneration'].toString()),
+                        ),
+                      ],
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Preloaded Next Index",
-                            value: _uppercaseFirstLetter(playerInfo['preloadedNextIndex'].toString()),
-                          ),
-                          
-                          PlayerStateViewElement(
-                            flex: 2,
-                            label: "Preloaded Next Track",
-                            value: _uppercaseFirstLetter(playerInfo['preloadedNextTrack']?.toString() ?? "None"),
-                            valueOverride: playerInfo['preloadedNextTrack'] != null
-                              ? Container(
-                                padding: const EdgeInsets.only(top: 8.0),
-                                child: SimpleTrackRow(track: GenericSong.fromJson(playerInfo['preloadedNextTrack'])),
-                              )
-                              : null,
-                          ),
+                    isMobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        Row(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Preloaded Next Track",
+                              value: _uppercaseFirstLetter(playerInfo['preloadedNextTrack']?.toString() ?? "None"),
+                              valueOverride: playerInfo['preloadedNextTrack'] != null
+                                ? Container(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: SimpleTrackRow(track: GenericSong.fromJson(playerInfo['preloadedNextTrack'])),
+                                )
+                                : null,
+                            ),
+                          ]
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 3,
-                            label: "Inactive Preload Track ID",
-                            // Case Sensitive 
-                            value: playerInfo['inactivePreloadTrackId'].toString(),
-                          ),
-                        ],
-                      ),
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Preloaded Next Index",
+                              value: _uppercaseFirstLetter(playerInfo['preloadedNextIndex'].toString()),
+                            ),
+
+                            PlayerStateViewElement(
+                              flex: 2,
+                              label: "Inactive Preload Track ID",
+                              // Case Sensitive 
+                              value: playerInfo['inactivePreloadTrackId'].toString(),
+                            ),
+                          ],
+                        )
+                      ]
+                    )
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Preloaded Next Index",
+                          value: _uppercaseFirstLetter(playerInfo['preloadedNextIndex'].toString()),
+                        ),
+                        
+                        PlayerStateViewElement(
+                          flex: 2,
+                          label: "Preloaded Next Track",
+                          value: _uppercaseFirstLetter(playerInfo['preloadedNextTrack']?.toString() ?? "None"),
+                          valueOverride: playerInfo['preloadedNextTrack'] != null
+                            ? Container(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: SimpleTrackRow(track: GenericSong.fromJson(playerInfo['preloadedNextTrack'])),
+                            )
+                            : null,
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 3,
+                          label: "Inactive Preload Track ID",
+                          // Case Sensitive 
+                          value: playerInfo['inactivePreloadTrackId'].toString(),
+                        ),
+                      ],
                     ),
 
                     PlayerStateViewRow(
@@ -417,126 +711,200 @@ class PlayerStateView extends StatelessWidget {
                       value: _uppercaseFirstLetter(playerInfo['useSecondaryAsActivePlayer'].toString()),
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Saved Volume",
-                            value: _uppercaseFirstLetter(playerInfo['savedVolume'].toString()),
-                          ),
+                    isMobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Saved Volume",
+                              value: _uppercaseFirstLetter(playerInfo['savedVolume'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Last Volume",
-                            value: _uppercaseFirstLetter(playerInfo['lastVolume'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Last Volume",
+                              value: _uppercaseFirstLetter(playerInfo['lastVolume'].toString()),
+                            ),
+                          ]
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Last Raw Position",
-                            value: _formatDuration(int.tryParse(playerInfo['lastRawPositionMs'].toString()) ?? 0, miliseconds: true),
-                          ),
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Last Raw Position",
+                              value: _formatDuration(int.tryParse(playerInfo['lastRawPositionMs'].toString()) ?? 0, miliseconds: true),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Last Notified Position",
-                            value: _formatDuration(int.tryParse(playerInfo['lastNotifiedPositionMs'].toString()) ?? 0, miliseconds: true),
-                          ),
-                        ],
-                      ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Last Notified Position",
+                              value: _formatDuration(int.tryParse(playerInfo['lastNotifiedPositionMs'].toString()) ?? 0, miliseconds: true),
+                            ),
+                          ]
+                        )
+                      ],
+                    )
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Saved Volume",
+                          value: _uppercaseFirstLetter(playerInfo['savedVolume'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Last Volume",
+                          value: _uppercaseFirstLetter(playerInfo['lastVolume'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Last Raw Position",
+                          value: _formatDuration(int.tryParse(playerInfo['lastRawPositionMs'].toString()) ?? 0, miliseconds: true),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Last Notified Position",
+                          value: _formatDuration(int.tryParse(playerInfo['lastNotifiedPositionMs'].toString()) ?? 0, miliseconds: true),
+                        ),
+                      ],
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Last Position Notify",
-                            value: DateTime.fromMillisecondsSinceEpoch(int.tryParse(playerInfo['lastPositionNotifyMs'].toString()) ?? 0).toString(),
-                          ),
+                    isMobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children : [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Last Position Notify",
+                              value: DateTime.fromMillisecondsSinceEpoch(int.tryParse(playerInfo['lastPositionNotifyMs'].toString()) ?? 0).toString(),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Last Position Update",
-                            value: DateTime.fromMillisecondsSinceEpoch(int.tryParse(playerInfo['lastPositionUpdateMs'].toString()) ?? 0).toString(),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Last Position Update",
+                              value: DateTime.fromMillisecondsSinceEpoch(int.tryParse(playerInfo['lastPositionUpdateMs'].toString()) ?? 0).toString(),
+                            ),
+                          ]
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Last Media Update",
-                            value: DateTime.fromMillisecondsSinceEpoch(int.tryParse(playerInfo['lastMediaUpdateMs'].toString()) ?? 0).toString(),
-                          ),
-                          
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Last Media Position",
-                            value: _formatDuration(int.tryParse(playerInfo['lastMediaPositionMs'].toString()) ?? 0, miliseconds: true),
-                          ),
+                        SimpleRowWithEqualHeight(
+                          children : [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Last Media Update",
+                              value: DateTime.fromMillisecondsSinceEpoch(int.tryParse(playerInfo['lastMediaUpdateMs'].toString()) ?? 0).toString(),
+                            ),
+                            
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Last Media Position",
+                              value: _formatDuration(int.tryParse(playerInfo['lastMediaPositionMs'].toString()) ?? 0, miliseconds: true),
+                            ),
+                          ]
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Last Known Duration",
-                            value: _formatDuration(int.tryParse(playerInfo['lastKnownDurationMs'].toString()) ?? 0, miliseconds: true),
-                          ),
+                        SimpleRowWithEqualHeight(
+                          children : [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Last Known Duration",
+                              value: _formatDuration(int.tryParse(playerInfo['lastKnownDurationMs'].toString()) ?? 0, miliseconds: true),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "RPC last second",
-                            value: _formatDuration(int.tryParse(playerInfo['rpcLastSecond'].toString()) ?? 0, miliseconds: false),
-                          ),
-                        ],
-                      ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "RPC last second",
+                              value: _formatDuration(int.tryParse(playerInfo['rpcLastSecond'].toString()) ?? 0, miliseconds: false),
+                            ),
+                          ]
+                        ),
+                      ],
+                    )
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Last Position Notify",
+                          value: DateTime.fromMillisecondsSinceEpoch(int.tryParse(playerInfo['lastPositionNotifyMs'].toString()) ?? 0).toString(),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Last Position Update",
+                          value: DateTime.fromMillisecondsSinceEpoch(int.tryParse(playerInfo['lastPositionUpdateMs'].toString()) ?? 0).toString(),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Last Media Update",
+                          value: DateTime.fromMillisecondsSinceEpoch(int.tryParse(playerInfo['lastMediaUpdateMs'].toString()) ?? 0).toString(),
+                        ),
+                        
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Last Media Position",
+                          value: _formatDuration(int.tryParse(playerInfo['lastMediaPositionMs'].toString()) ?? 0, miliseconds: true),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Last Known Duration",
+                          value: _formatDuration(int.tryParse(playerInfo['lastKnownDurationMs'].toString()) ?? 0, miliseconds: true),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "RPC last second",
+                          value: _formatDuration(int.tryParse(playerInfo['rpcLastSecond'].toString()) ?? 0, miliseconds: false),
+                        ),
+                      ],
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Playlist Playback Enabled",
-                            value: _uppercaseFirstLetter(playerInfo['playlistPlaybackEnabled'].toString()),
-                          ),
-                          
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Playback Context Type",
-                            value: _uppercaseFirstLetter(playerInfo['playbackContextType'].toString()),
-                          ),
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Playlist Playback Enabled",
+                          value: _uppercaseFirstLetter(playerInfo['playlistPlaybackEnabled'].toString()),
+                        ),
+                        
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Playback Context Type",
+                          value: _uppercaseFirstLetter(playerInfo['playbackContextType'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Playback Context Name",
-                            value: _uppercaseFirstLetter(playerInfo['playbackContextName'].toString()),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Playback Context Name",
+                          value: _uppercaseFirstLetter(playerInfo['playbackContextName'].toString()),
+                        ),
+                      ],
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Playback Context ID",
-                            value: _uppercaseFirstLetter(playerInfo['playbackContextID'].toString()),
-                          ),
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Playback Context ID",
+                          value: _uppercaseFirstLetter(playerInfo['playbackContextID'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Playback Context Source",
-                            value: _uppercaseFirstLetter(playerInfo['playbackContextSource'].toString()),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Playback Context Source",
+                          value: _uppercaseFirstLetter(playerInfo['playbackContextSource'].toString()),
+                        ),
+                      ],
                     ),
 
                     PlayerStateViewRow(
@@ -544,30 +912,26 @@ class PlayerStateView extends StatelessWidget {
                       value: _uppercaseFirstLetter(playerInfo['isHandoffHost'].toString()),
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Prefetch Window Size",
-                            value: _uppercaseFirstLetter(playerInfo['prefetchWindowSize'].toString()),
-                          ),
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Prefetch Window Size",
+                          value: _uppercaseFirstLetter(playerInfo['prefetchWindowSize'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Prefetch Generation",
-                            value: _uppercaseFirstLetter(playerInfo['prefetchGeneration'].toString()),
-                          ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Prefetch Generation",
+                          value: _uppercaseFirstLetter(playerInfo['prefetchGeneration'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Prefetch Source Tasks",
-                            value: _uppercaseFirstLetter(playerInfo['prefetchSourceTasks'].toString()),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Prefetch Source Tasks",
+                          value: _uppercaseFirstLetter(playerInfo['prefetchSourceTasks'].toString()),
+                        ),
+                      ],
                     ),
 
                     PlayerStateViewRow(
@@ -598,42 +962,85 @@ class PlayerStateView extends StatelessWidget {
                 PlayerStateViewSection(
                   title: "Subscriptions",
                   children: [
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Position Subscription Active?",
-                            value: _uppercaseFirstLetter(playerInfo['subscriptions']['position'].toString()),
-                          ),
+                    isMobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Position Subscription Active?",
+                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['position'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Processing State Subscription Active?",
-                            value: _uppercaseFirstLetter(playerInfo['subscriptions']['processingState'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Playing Subscription Active?",
+                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['playing'].toString()),
+                            ),
+                          ]
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Playing Subscription Active?",
-                            value: _uppercaseFirstLetter(playerInfo['subscriptions']['playing'].toString()),
-                          ),
+                        Row(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Processing State Subscription Active?",
+                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['processingState'].toString()),
+                            ),
+                          ]
+                        ),
+                        
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Current Index Subscription Active?",
+                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['currentIndex'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Current Index Subscription Active?",
-                            value: _uppercaseFirstLetter(playerInfo['subscriptions']['currentIndex'].toString()),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Connectivity Subscription Active?",
+                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['connectivity'].toString()),
+                            ),
+                          ]
+                        ),
+                      ]
+                    )
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Position Subscription Active?",
+                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['position'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Connectivity Subscription Active?",
-                            value: _uppercaseFirstLetter(playerInfo['subscriptions']['connectivity'].toString()),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Processing State Subscription Active?",
+                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['processingState'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Playing Subscription Active?",
+                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['playing'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Current Index Subscription Active?",
+                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['currentIndex'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Connectivity Subscription Active?",
+                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['connectivity'].toString()),
+                        ),
+                      ],
                     ),
                   ]
                 ),
@@ -641,88 +1048,113 @@ class PlayerStateView extends StatelessWidget {
                 PlayerStateViewSection(
                   title: "Active Player Info",
                   children: [
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Volume",
-                            value: _uppercaseFirstLetter(playerInfo['activePlayer']['volume'].toString()),
-                          ),
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Volume",
+                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['volume'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Position",
-                            value: _formatDuration(int.tryParse(playerInfo['activePlayer']['positionMs'].toString()) ?? 0, miliseconds: true),
-                          ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Position",
+                          value: _formatDuration(int.tryParse(playerInfo['activePlayer']['positionMs'].toString()) ?? 0, miliseconds: true),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Duration",
-                            value: _formatDuration(int.tryParse(playerInfo['activePlayer']['durationMs'].toString()) ?? 0, miliseconds: true),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Duration",
+                          value: _formatDuration(int.tryParse(playerInfo['activePlayer']['durationMs'].toString()) ?? 0, miliseconds: true),
+                        ),
+                      ],
                     ),
                     
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Online?",
-                            value: _uppercaseFirstLetter(playerInfo['isOnline'].toString()),
-                          ),
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Online?",
+                          value: _uppercaseFirstLetter(playerInfo['isOnline'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Playing?",
-                            value: _uppercaseFirstLetter(playerInfo['activePlayer']['playing'].toString()),
-                          ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Playing?",
+                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['playing'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Processing State",
-                            value: _uppercaseFirstLetter(playerInfo['activePlayer']['processingState'].toString().split('.').last),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Processing State",
+                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['processingState'].toString().split('.').last),
+                        ),
+                      ],
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Current Index",
-                            value: _uppercaseFirstLetter(playerInfo['activePlayer']['currentIndex'].toString()),
-                          ),
+                    isMobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Current Index",
+                              value: _uppercaseFirstLetter(playerInfo['activePlayer']['currentIndex'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Has Next?",
-                            value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasNext'].toString()),
-                          )
-                          ,
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Has Previous?",
-                            value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasPrevious'].toString()),
-                          ),
-                          
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Audio Source Set?",
-                            value: _uppercaseFirstLetter(playerInfo['activePlayer']['audioSourceSet'].toString()),
-                          ),
-                        ],
-                      ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Has Next?",
+                              value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasNext'].toString()),
+                            )
+                          ]
+                        ),
+
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Has Previous?",
+                              value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasPrevious'].toString()),
+                            ),
+                            
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Audio Source Set?",
+                              value: _uppercaseFirstLetter(playerInfo['activePlayer']['audioSourceSet'].toString()),
+                            ),
+                          ]
+                        ),
+                      ]
+                    )
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Current Index",
+                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['currentIndex'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Has Next?",
+                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasNext'].toString()),
+                        )
+                        ,
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Has Previous?",
+                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasPrevious'].toString()),
+                        ),
+                        
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Audio Source Set?",
+                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['audioSourceSet'].toString()),
+                        ),
+                      ],
                     ),
                   ]
                 ),
@@ -730,62 +1162,91 @@ class PlayerStateView extends StatelessWidget {
                 PlayerStateViewSection(
                   title: "Primary Player Info",
                   children: [
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Volume",
-                            value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['volume'].toString()),
-                          ),
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Volume",
+                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['volume'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Position",
-                            value: _formatDuration(int.tryParse(playerInfo['primaryPlayer']['positionMs'].toString()) ?? 0, miliseconds: true),
-                          ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Position",
+                          value: _formatDuration(int.tryParse(playerInfo['primaryPlayer']['positionMs'].toString()) ?? 0, miliseconds: true),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Duration",
-                            value: _formatDuration(int.tryParse(playerInfo['primaryPlayer']['durationMs'].toString()) ?? 0, miliseconds: true),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Duration",
+                          value: _formatDuration(int.tryParse(playerInfo['primaryPlayer']['durationMs'].toString()) ?? 0, miliseconds: true),
+                        ),
+                      ],
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Playing?",
-                            value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['playing'].toString()),
-                          ),
+                    isMobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Is Playing?",
+                              value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['playing'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Processing State",
-                            value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['processingState'].toString().split('.').last),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Processing State",
+                              value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['processingState'].toString().split('.').last),
+                            ),
+                          ]
+                        ),
+                        
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Current Index",
+                              value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['currentIndex'].toString()),
+                            ),
+                            
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Audio Source Set?",
+                              value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['audioSourceSet'].toString()),
+                            ),
+                          ]
+                        ),
+                      ],
+                    )
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Playing?",
+                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['playing'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Current Index",
-                            value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['currentIndex'].toString()),
-                          ),
-                          
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Audio Source Set?",
-                            value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['audioSourceSet'].toString()),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Processing State",
+                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['processingState'].toString().split('.').last),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Current Index",
+                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['currentIndex'].toString()),
+                        ),
+                        
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Audio Source Set?",
+                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['audioSourceSet'].toString()),
+                        ),
+                      ],
                     ),
                   ]
                 ),
@@ -793,62 +1254,91 @@ class PlayerStateView extends StatelessWidget {
                 PlayerStateViewSection(
                   title: "Secondary Player Info",
                   children: [
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Volume",
-                            value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['volume'].toString()),
-                          ),
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Volume",
+                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['volume'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Position",
-                            value: _formatDuration(int.tryParse(playerInfo['secondaryPlayer']['positionMs'].toString()) ?? 0, miliseconds: true),
-                          ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Position",
+                          value: _formatDuration(int.tryParse(playerInfo['secondaryPlayer']['positionMs'].toString()) ?? 0, miliseconds: true),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Duration",
-                            value: _formatDuration(int.tryParse(playerInfo['secondaryPlayer']['durationMs'].toString()) ?? 0, miliseconds: true),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Duration",
+                          value: _formatDuration(int.tryParse(playerInfo['secondaryPlayer']['durationMs'].toString()) ?? 0, miliseconds: true),
+                        ),
+                      ],
                     ),
 
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 6,
-                        children: [
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Is Playing?",
-                            value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['playing'].toString()),
-                          ),
+                    isMobile
+                    ? Column(
+                      spacing: 6,
+                      children: [
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Is Playing?",
+                              value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['playing'].toString()),
+                            ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Processing State",
-                            value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['processingState'].toString().split('.').last),
-                          ),
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Processing State",
+                              value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['processingState'].toString().split('.').last),
+                            ),
+                          ]
+                        ),
+                        
+                        SimpleRowWithEqualHeight(
+                          children: [
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Current Index",
+                              value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['currentIndex'].toString()),
+                            ),
+                            
+                            PlayerStateViewElement(
+                              flex: 1,
+                              label: "Audio Source Set?",
+                              value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['audioSourceSet'].toString()),
+                            ),
+                          ]
+                        ),
+                      ],
+                    )
+                    : SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Playing?",
+                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['playing'].toString()),
+                        ),
 
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Current Index",
-                            value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['currentIndex'].toString()),
-                          ),
-                          
-                          PlayerStateViewElement(
-                            flex: 1,
-                            label: "Audio Source Set?",
-                            value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['audioSourceSet'].toString()),
-                          ),
-                        ],
-                      ),
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Processing State",
+                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['processingState'].toString().split('.').last),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Current Index",
+                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['currentIndex'].toString()),
+                        ),
+                        
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Audio Source Set?",
+                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['audioSourceSet'].toString()),
+                        ),
+                      ],
                     ),
                   ]
                 ),
@@ -1478,6 +1968,23 @@ class SimpleTrackRow extends StatelessWidget {
             style: const TextStyle(fontSize: 14, color: Colors.grey),
           )
         ]
+      )
+    );
+  }
+}
+
+class SimpleRowWithEqualHeight extends StatelessWidget {
+  final List<Widget> children; 
+  
+  const SimpleRowWithEqualHeight({super.key, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 6,
+        children: children,
       )
     );
   }

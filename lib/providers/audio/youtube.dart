@@ -342,12 +342,35 @@ class YouTubeProvider {
           );
         }
 
+        // Instantly check if URL is valid (non-403) by making a simple GET request. 
+        // When it fails, we can try to get a new one.
+        try {
+          final response = await HttpClient().getUrl(Uri.parse(url)).then((req) => req.close());
+          if (response.statusCode == 403) {
+            logger.w('[YouTube/yt-dlp] Received 403 for URL, trying again...');
+            // Re-try using same method
+            return getStreamUrl(videoId);
+          }
+        } catch (e) {
+          logger.w('[YouTube/yt-dlp] Error checking URL validity', error: e);
+          throw YouTubeException('Failed to validate stream URL', e);
+        }
+
         return url;
       } on MissingPluginException catch (e) {
         logger.w(
           '[YouTube/yt-dlp] ytdlp channel unavailable, falling back to youtube_explode_dart',
           error: e,
         );
+      } on PlatformException catch (e) {
+        String errorMsg = e.message ?? 'Unknown platform exception';
+
+        if (errorMsg.contains("Video unavailable")) {
+          // This means a previously cached video ID is no longer valid. Remove it from cache.
+          logger.w('[YouTube/yt-dlp] Video is unavailable.');
+
+          throw VideoUnavailableException('Video is unavailable', e);
+        }
       } catch (e) {
         logger.w(
           '[YouTube/yt-dlp] Android yt-dlp failed, falling back to youtube_explode_dart',

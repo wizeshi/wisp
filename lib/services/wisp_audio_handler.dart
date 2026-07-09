@@ -71,6 +71,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool _useSecondaryAsActivePlayer = false;
 
   double _lastVolume = 1.0;
+  // The app exposes a real volume slider on desktop, so crossfades there
+  // should target whatever the user currently has it set to. Mobile has no
+  // in-app volume control at all — the OS/hardware volume is the only knob —
+  // so _player.volume / _lastVolume tracking them is unreliable ground to
+  // build a fade target on. Just always target full (1.0) there.
+  final bool _isMobilePlatform = Platform.isAndroid || Platform.isIOS;
   double? _savedVolume;
 
   // State
@@ -128,6 +134,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   String? _inactivePreloadTrackId;
   String? _lastFailedPreloadTrackId;
   int _lastPreloadFailureMs = 0;
+  int _lastManualPauseMs = 0;
+  // Explicit "the user asked to pause" intent, independent of native player
+  // state timing. _maybeStartCrossfade/_startFadeIn run off position ticks
+  // that can already be in flight when pause() is called; without this flag
+  // an in-flight crossfade has no way to know a pause happened and will
+  // forcibly call play() anyway once it completes, overriding the pause.
+  bool _userPaused = false;
+  static const Duration _pauseCompletionGuardWindow = Duration(milliseconds: 1500);
   static const Duration _preloadRetryCooldown = Duration(seconds: 2);
   static const int _prefetchWindowSize = 5;
   int _prefetchGeneration = 0;
@@ -612,6 +626,23 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return false;
     }
 
+    // Sanity-check the live duration against the track's known metadata
+    // duration before trusting it. Right after a crossfade — especially on
+    // mobile, where a freshly-loaded network stream's duration can take a
+    // moment to fully resolve — _player.duration can briefly report a much
+    // shorter value than the track actually is. Comparing position against
+    // a bogus short duration makes this return true almost immediately,
+    // which then makes ANY playing->false transition (including a normal
+    // user-initiated pause seconds into the track) look like the track
+    // completing, triggering a spurious advance/crossfade.
+    final knownDurationSecs = _currentTrack?.durationSecs;
+    if (knownDurationSecs != null && knownDurationSecs > 0) {
+      final knownDuration = Duration(seconds: knownDurationSecs);
+      if ((trackDuration - knownDuration).abs() > const Duration(seconds: 2)) {
+        return false;
+      }
+    }
+
     final position = _player.position;
     final threshold = trackDuration - const Duration(milliseconds: 400);
     return position >= threshold;
@@ -715,7 +746,22 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       state,
     ) {
       if (state == ProcessingState.completed) {
-        _onCompleted();
+        final msSincePause =
+            DateTime.now().millisecondsSinceEpoch - _lastManualPauseMs;
+        if (msSincePause < _pauseCompletionGuardWindow.inMilliseconds) {
+          // Some mobile just_audio backends can misreport a still-buffering
+          // network stream as ProcessingState.completed right after pause()
+          // is called on it — this is essentially never a real completion
+          // (a track finishing on its own has no reason to coincide with the
+          // exact moment we asked it to pause). Treat it as a normal pause
+          // instead of advancing/crossfading into the next track.
+          logger.w(
+            '[Audio/Player] Ignoring ProcessingState.completed '
+            '${msSincePause}ms after a manual pause — treating as spurious.',
+          );
+        } else {
+          _onCompleted();
+        }
       } else if (state == ProcessingState.loading ||
           state == ProcessingState.buffering) {
         if (_isTrackTransitioning || !_player.playing) {
@@ -927,8 +973,30 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _isCrossfadePreloadInProgress = true;
 
     try {
+      // Defense in depth against the sticky `playing` flag: setAudioSource()
+      // on a player that's still marked as playing will auto-resume
+      // playback of the new source on some mobile backends. _completeCrossfade
+      // should already have paused/stopped this player, but confirm here too
+      // before we ever load a new track into it.
+      if (targetPlayer.playing) {
+        try {
+          await targetPlayer.pause();
+        } catch (_) {}
+      }
+
       await _loadTrackIntoPlayerWithRetry(
-        (source) => targetPlayer.setAudioSource(source),
+        // Explicit initialPosition matters: these two players are reused in
+        // rotation across the whole queue, and some mobile just_audio
+        // backends retain a player's leftover position from its previous
+        // track when setAudioSource() doesn't specify one. Left unset, a
+        // reused player can silently start the new track already reporting
+        // a position near its old track's end — which then makes
+        // _isAtTrackEnd() (used by the pause fallback-completion check)
+        // think the brand-new track is already finished.
+        (source) => targetPlayer.setAudioSource(
+          source,
+          initialPosition: Duration.zero,
+        ),
         nextTrack,
       );
 
@@ -951,6 +1019,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
 
       await targetPlayer.setVolume(0);
+      if (targetPlayer.playing) {
+        // setAudioSource itself resumed playback on this platform. Pause it
+        // immediately — it should sit silent until the real crossfade cue.
+        try {
+          await targetPlayer.pause();
+        } catch (_) {}
+      }
       _inactivePreloadTrackId = nextTrack.id;
     } catch (e) {
       logger.w('[Audio/Player] Crossfade preload failed', error: e);
@@ -1012,6 +1087,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (!_crossfadeEnabled || _isCrossfading || _currentTrack == null) {
       return;
     }
+    if (_userPaused) {
+      // A position tick can schedule this before pause() runs; without this
+      // check the crossfade would complete anyway and forcibly call play(),
+      // overriding a pause that happened moments ago.
+      return;
+    }
 
     final nextIndex = _nextQueueIndex();
     if (nextIndex == null) {
@@ -1026,6 +1107,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       if (!await _waitForInactivePreloadReady(nextIndex, nextTrack)) {
         return;
       }
+      if (_userPaused) {
+        return;
+      }
     }
 
     final previousIndex = _currentIndex;
@@ -1034,7 +1118,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _isCrossfading = true;
     _crossfadeFadeOutActive = true;
     _crossfadeFadeInActive = true;
-    _crossfadeTargetVolume = _player.volume <= 0 ? 1.0 : _player.volume;
+    _crossfadeTargetVolume =
+        _isMobilePlatform ? 1.0 : (_player.volume <= 0 ? 1.0 : _player.volume);
 
     _useSecondaryAsActivePlayer = !_useSecondaryAsActivePlayer;
     _attachActivePlayerListeners();
@@ -1059,7 +1144,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           'playback started; reloading ${nextTrack.title} fresh.',
         );
         await _loadTrackIntoPlayerWithRetry(
-          (source) => _player.setAudioSource(source),
+          (source) => _player.setAudioSource(
+            source,
+            initialPosition: Duration.zero,
+          ),
           nextTrack,
         );
       }
@@ -1081,7 +1169,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           '${nextTrack.title}; retrying with a fresh source.',
         );
         await _loadTrackIntoPlayerWithRetry(
-          (source) => _player.setAudioSource(source),
+          (source) => _player.setAudioSource(
+            source,
+            initialPosition: Duration.zero,
+          ),
           nextTrack,
         );
         await _player.setVolume(0);
@@ -1127,9 +1218,34 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       final curve = progress * (2.0 - progress);
       final fadeOutVolume = targetVolume * (1.0 - curve);
       final fadeInVolume = targetVolume * curve;
+      final isFirstTick = elapsedMs < 50;
+      final isLastTick = progress >= 1.0;
 
-      unawaited(_inactivePlayer.setVolume(fadeOutVolume.clamp(0.0, 1.0)));
-      unawaited(_player.setVolume(fadeInVolume.clamp(0.0, 1.0)));
+      final activePlayerForTick = _player;
+      final inactivePlayerForTick = _inactivePlayer;
+
+      unawaited(
+        inactivePlayerForTick.setVolume(fadeOutVolume.clamp(0.0, 1.0)),
+      );
+      unawaited(
+        activePlayerForTick
+            .setVolume(fadeInVolume.clamp(0.0, 1.0))
+            .then((_) {
+          if (isFirstTick || isLastTick) {
+            // TEMP DIAGNOSTIC — remove once the mobile volume issue is
+            // understood. Confirms whether setVolume() calls are actually
+            // landing (readback matches what we asked for) or being
+            // silently dropped/overridden on this platform.
+            logger.i(
+              '[Audio/Player][CrossfadeDiag] tick=${isFirstTick ? "first" : "last"} '
+              'requestedVolume=${fadeInVolume.toStringAsFixed(3)} '
+              'readbackVolume=${activePlayerForTick.volume.toStringAsFixed(3)} '
+              'playing=${activePlayerForTick.playing} '
+              'processingState=${activePlayerForTick.processingState}',
+            );
+          }
+        }),
+      );
 
       if (progress >= 1.0) {
         timer.cancel();
@@ -1148,8 +1264,36 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _crossfadeFadeOutActive = false;
     _crossfadeFadeInActive = false;
 
+    // Authoritative final volume for the now fully-active player. The 50ms
+    // ramp ticks in _startCrossfadeTimer are fire-and-forget (unawaited) and
+    // can be silently dropped on some mobile platform channels while the
+    // player is still buffering over the network — if that happens the
+    // track can be left parked near 0 forever. This guarantees it lands at
+    // the correct volume regardless of whether every ramp tick landed.
+    final targetVolume =
+        _crossfadeTargetVolume <= 0 ? 1.0 : _crossfadeTargetVolume;
+    try {
+      await _player.setVolume(targetVolume);
+      // TEMP DIAGNOSTIC — remove once the mobile volume issue is understood.
+      logger.i(
+        '[Audio/Player][CrossfadeDiag] _completeCrossfade set '
+        'requestedVolume=${targetVolume.toStringAsFixed(3)} '
+        'readbackVolume=${_player.volume.toStringAsFixed(3)}',
+      );
+    } catch (_) {}
+
     try {
       await _inactivePlayer.stop();
+      // `playing` is a sticky flag independent of the loaded source on
+      // just_audio — if it's still true when we later call setAudioSource()
+      // to preload the next track into this player, some mobile backends
+      // (ExoPlayer/AVPlayer) will immediately auto-resume playback of that
+      // new source instead of sitting paused and silent. stop() should
+      // clear this, but verify and force it explicitly so a flaky/failed
+      // stop() on mobile can't leave this player armed to autoplay.
+      if (_inactivePlayer.playing) {
+        await _inactivePlayer.pause();
+      }
     } catch (_) {}
 
     _invalidateCrossfadePreload();
@@ -1306,6 +1450,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
             return;
           }
         }
+      }
+
+      if (_userPaused) {
+        // Mirrors the guard in _startFadeIn(): the playingStream-driven
+        // fallback completion check (_isAtTrackEnd()) can race a manual
+        // pause and misread it as the track finishing naturally. The
+        // crossfade branch above already protects itself via _startFadeIn's
+        // own _userPaused check, but these branches didn't — so a
+        // mistimed pause could force a restart/advance (and, via a reused
+        // player's stale volume, land the next track at 0) right after the
+        // user asked to pause.
+        return;
       }
 
       if (_repeatMode == RepeatMode.one) {
@@ -1474,8 +1630,20 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
       _crossfadeFadeOutActive = false;
       _crossfadeFadeInActive = false;
-      _crossfadeTargetVolume = _lastVolume <= 0 ? 1.0 : _lastVolume;
+      _crossfadeTargetVolume =
+          _isMobilePlatform ? 1.0 : (_lastVolume <= 0 ? 1.0 : _lastVolume);
       _stopCrossfadeTimer();
+
+      // The player being (re)used here may still be holding whatever volume
+      // it was left at by a previous crossfade (e.g. mid fade-out, or a
+      // fade-in that never finished ramping on a flaky mobile connection).
+      // _loadPlaylistPlayback is the path every "normal" track load goes
+      // through when crossfade/gapless is enabled — including the
+      // _onCompleted() fallback — so without this the new track can start
+      // and play completely silently.
+      try {
+        await _player.setVolume(_crossfadeTargetVolume);
+      } catch (_) {}
 
       // Set just the current track with lazy preparation enabled
       await _player.setAudioSources(
@@ -2048,6 +2216,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   // AUDIO_SERVICE OVERRIDES
   @override
   Future<void> play() async {
+    _userPaused = false;
+
     if (isLoading || isBuffering || isTrackTransitioning) {
       logger.d('[Audio/Player] Ignoring play intent while track is loading');
       return;
@@ -2069,7 +2239,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         }
 
         await _loadTrackIntoPlayerWithRetry(
-          (source) => _player.setAudioSource(source),
+          (source) => _player.setAudioSource(
+            source,
+            initialPosition: Duration.zero,
+          ),
           _currentTrack!,
         );
         if (requestToken != _trackChangeToken) return;
@@ -2093,10 +2266,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   @override
   Future<void> pause() async {
+    _userPaused = true;
     await _cancelCrossfade(stopInactive: false);
     try {
       await _inactivePlayer.pause();
     } catch (_) {}
+    _lastManualPauseMs = DateTime.now().millisecondsSinceEpoch;
     await _player.pause();
     _setState(PlaybackState.paused);
   }
