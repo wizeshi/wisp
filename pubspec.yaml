@@ -95,6 +95,8 @@ dependencies:
 
   flutter_svg: 2.3.0
 
+  newpipeextractor_dart: ^2.0.1
+
 
 
 dev_dependencies:
