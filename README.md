@@ -19,7 +19,7 @@ I'm also working on adding support for more services (e.g. Apple Music, Deezer, 
 
 ## Installation
 
-The app is currently distributed and maintained for Windows, Linux & Android (ARM64). If you want to know why, go to the FAQ below. 
+The app is currently distributed and maintained for Windows, MacOS (Apple Silicon), Linux & Android (ARM64). If you want to know why, go to the FAQ below. 
 
 Follow the [Installation Guide](https://github.com/wizeshi/wisp/blob/main/docs/en/INSTALLATION_GUIDE.md)
 
@@ -43,8 +43,8 @@ I mean yeah, they do. I did this because for some reason, apps like Spotube freq
 #### Is this ready?
 Mostly. Right now, it's mostly missing (some) writing to spotify and source mixing (not finished as well). Everything else is on the Roadmap.
 
-#### Why is this only avaliable on 3 platforms?
-Well, they're the ones I have access to. I don't have a Mac, neither do I have an iPhone, so I can't develop for macOS or iOS. If you want to help me bring support to those (and other) platforms, create a PR with the features for them.
+#### Why is this only avaliable on these platforms?
+Well, they're the ones I have access to. I only recently got a MacBook Pro (M4), which now allows me to target that platform, so I've been working on porting the app there. Also, it'll allow me to target iOS, but we'll see about that. If you want to help me bring support to other platforms, create a PR with the features for them.
 
 Further, as seen in the installation guide, complete Linux integration is somewhat limited (mostly due to Flutter packaging issues). See the guide for more info.
 

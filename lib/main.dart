@@ -49,8 +49,8 @@ void main() async {
     }
   }
 
-
   final appLinks = AppLinks();
+  
 
   // Initialize Flutter Video Player (FVP) for Linux platform
   if (Platform.isLinux) {
@@ -62,7 +62,11 @@ void main() async {
   }
 
   // Initialize just_audio with media_kit backend for Linux
-  JustAudioMediaKit.ensureInitialized();
+  JustAudioMediaKit.ensureInitialized(
+    linux: true,
+    windows: true,
+    macOS: true,
+  );
 
   // Initialize audio_service for system media controls (MPRIS on Linux)
   if (Platform.isLinux) {

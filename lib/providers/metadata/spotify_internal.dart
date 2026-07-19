@@ -179,8 +179,11 @@ class SpotifyInternalProvider extends MetadataProvider {
         ),
       );
 
+      logger.d('[Metadata/Spotify-Internal] Got login result');
+      
       if (result != null && result.isNotEmpty) {
         await _credentialsService.saveSpotifyCookies(result);
+        logger.d('[Metadata/Spotify-Internal] Saved cookies');
 
         final fullCookieString = result.entries
             .map((e) => '${e.key}=${e.value}')
