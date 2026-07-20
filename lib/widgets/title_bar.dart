@@ -361,9 +361,9 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
         onTap: onPressed,
         hoverColor: isClose ? Colors.red.withValues(alpha: 0.8) : Colors.grey[800],
         child: SizedBox(
-          width: 46,
+          width: 40,
           height: 32,
-          child: Icon(icon, color: Colors.grey[400], size: 18),
+          child: Icon(icon, color: Colors.grey[400], size: 16),
         ),
       ),
     );
