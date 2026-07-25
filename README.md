@@ -1,6 +1,6 @@
 # wisp - The open, fast & unified music player
 
-wisp is a Flutter-based music player, with (pretty much) modular support for multiple extractors from services such as Spotify and Youtube.
+wisp is a Flutter-based music player, with modular support (coming soon) for multiple extractors from services such as Spotify and Youtube.
 
 ## Features
 
@@ -13,6 +13,7 @@ wisp is a Flutter-based music player, with (pretty much) modular support for mul
 * Lyrics (synced & unsynced) from the following services:
     * Spotify
     * LrcLib
+    * BetterLyrics
 
 I'm also working on adding support for more services (e.g. Apple Music, Deezer, Tidal, Qobuz, etc) Check the [Roadmap](https://github.com/wizeshi/wisp/blob/main/docs/en/ROADMAP.md) for more info on that.
 (P.S: if you want support for a service early, either offer me a subscription to it, or better yet, open a PR with an extractor for it :D)
@@ -41,10 +42,12 @@ So, that was the best I could do, but these days nothing on the app itself refle
 I mean yeah, they do. I did this because for some reason, apps like Spotube frequently don't work (and I just don't like their UI, sorry)
 
 #### Is this ready?
-Mostly. Right now, it's mostly missing (some) writing to spotify and source mixing (not finished as well). Everything else is on the Roadmap.
+Mostly. Right now, it's mostly missing (some) writing to spotify and source mixing (not finished as well). Also crossfade has some weird kinks. Everything else is on the Roadmap.
 
 #### Why is this only avaliable on these platforms?
-Well, they're the ones I have access to. I only recently got a MacBook Pro (M4), which now allows me to target that platform, so I've been working on porting the app there. Also, it'll allow me to target iOS, but we'll see about that. If you want to help me bring support to other platforms, create a PR with the features for them.
+Well, they're the ones I have access to. I only recently got a MacBook Pro (M4), which now allows me to target that platform, so I've been working on porting the app there. Also, it allows me to target iOS, but [this is harder than it seems](https://github.com/wizeshi/wisp/issues/1). 
+
+If you want to help me bring support to other platforms, create a PR with the features for them.
 
 Further, as seen in the installation guide, complete Linux integration is somewhat limited (mostly due to Flutter packaging issues). See the guide for more info.
 

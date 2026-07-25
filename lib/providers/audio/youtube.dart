@@ -315,6 +315,58 @@ class YouTubeProvider {
     }
   }
 
+  /// Get audio stream URL directly via youtube_explode_dart's stream manifest.
+  /// This doesn't rely on any native subprocess (YT-DLP binary) or platform
+  /// channel, so it works on iOS where sandboxing rules those out. It's used
+  /// as the default (and only) method on iOS, and as a last-resort fallback
+  /// on Android/desktop when the other extraction methods fail.
+  Future<String> _getStreamUrlViaYoutubeExplode(String videoId) async {
+    try {
+      logger.d('[YouTube/Explode] Fetching manifest for video ID: $videoId');
+
+      // NOTE: requires youtube_explode_dart pulled from the git 'master' branch
+      // (as of this writing, `androidSdkless` hasn't been published to pub.dev
+      // yet -- see https://github.com/Hexer10/youtube_explode_dart/pull/371).
+      //
+      // The plain 'android' client sends an androidSdkVersion field that
+      // triggers YouTube's PO Token requirement and 403s on audio-only
+      // streams. 'androidSdkless' omits that field (same fix yt-dlp uses)
+      // and doesn't require a PO token. 'ios' is also known to occasionally
+      // 403 on certain formats, so it's kept only as a secondary option here.
+      final manifest = await _youtube.videos.streamsClient.getManifest(
+        videoId,
+        ytClients: [
+          YoutubeApiClient.androidSdkless,
+          YoutubeApiClient.ios,
+          YoutubeApiClient.safari,
+        ],
+      );
+
+      final audioStreams = manifest.audioOnly;
+      if (audioStreams.isEmpty) {
+        throw YouTubeException('No audio-only streams available for video: $videoId');
+      }
+
+      // Streams are merged across clients, so the single highest-bitrate pick
+      // could still belong to a client that 403s. Walk the sorted list and
+      // return the first one that actually resolves.
+      final sortedStreams = audioStreams.sortByBitrate().reversed.toList();
+      for (final stream in sortedStreams) {
+        final url = stream.url.toString();
+        if (await isStreamUrlValid(url)) {
+          logger.d('[YouTube/Explode] ✓ Got stream URL (${url.length} chars)');
+          return url;
+        }
+        logger.w('[YouTube/Explode] Stream candidate returned non-200, trying next');
+      }
+
+      throw YouTubeException('All audio-only stream candidates returned non-200 for video: $videoId');
+    } catch (e) {
+      logger.e('[YouTube/Explode] Failed to get stream URL', error: e);
+      throw YouTubeException('Failed to get stream URL via youtube_explode_dart', e);
+    }
+  }
+
   Future<bool> isStreamUrlValid(String url) async {
     try {
       final response = await HttpClient().getUrl(Uri.parse(url)).then((req) => req.close());
@@ -337,7 +389,18 @@ class YouTubeProvider {
       try {
         return await _getStreamUrlViaYtDlp(videoId);
       } catch (e) {
-        logger.w('[YouTube/YT-DLP] YT-DLP failed, falling back to youtube_explode_dart');
+        logger.w('[YouTube/YT-DLP] YT-DLP failed', error: e);
+      }
+
+      // Fallback: youtube_explode_dart directly (no subprocess dependency)
+      try {
+        final url = await _getStreamUrlViaYoutubeExplode(videoId);
+        if (await isStreamUrlValid(url)) {
+          return url;
+        }
+        logger.w('[YouTube/Explode] Stream URL is invalid (403/404)');
+      } catch (e) {
+        logger.w('[YouTube/Explode] Fallback failed', error: e);
       }
     }
     
@@ -379,7 +442,7 @@ class YouTubeProvider {
           streamURL = url;
         } on MissingPluginException catch (e) {
           logger.w(
-            '[YouTube/YT-DLP] YT-DLP channel unavailable, falling back to youtube_explode_dart',
+            '[YouTube/YT-DLP] YT-DLP channel unavailable.',
             error: e,
           );
         } on PlatformException catch (e) {
@@ -393,9 +456,19 @@ class YouTubeProvider {
           }
         } catch (e) {
           logger.w(
-            '[YouTube/YT-DLP] Android YT-DLP failed, falling back to youtube_explode_dart',
+            '[YouTube/YT-DLP] Android YT-DLP failed.',
             error: e,
           );
+        }
+      }
+
+      // Last-resort fallback: youtube_explode_dart (no subprocess dependency)
+      if (streamURL.isEmpty) {
+        try {
+          logger.d('[YouTube/Explode] Falling back to youtube_explode_dart');
+          streamURL = await _getStreamUrlViaYoutubeExplode(videoId);
+        } catch (e) {
+          logger.w('[YouTube/Explode] Fallback failed', error: e);
         }
       }
 
@@ -416,53 +489,39 @@ class YouTubeProvider {
 
       return streamURL;
     }
-    
-    // Fallback: Try multiple YouTube API clients
-    final clientsToTry = [
-      YoutubeApiClient.ios,
-      YoutubeApiClient.android,
-      YoutubeApiClient.androidVr,
-    ];
-    
-    Exception? lastError;
-    
-    for (final client in clientsToTry) {
+
+    // On iOS: neither the YT-DLP native binary nor the platform-channel
+    // approach used on Android/desktop are viable, since iOS's sandboxing
+    // rules out spawning subprocesses. youtube_explode_dart is therefore the
+    // default (and only) method here, unfortunately.
+    if (Platform.isIOS) {
+      logger.d('[YouTube/Explode] iOS platform detected, using youtube_explode_dart as default method for video ID: $videoId');
+
       try {
-        final clientName = client.payload['context']['client']['clientName'];
-        logger.d('[YouTube/YouTubeExplodeDart] Trying $clientName client for video: $videoId');
-        
-        final manifest = await _youtube.videos.streamsClient.getManifest(
-          videoId,
-          ytClients: [client],
-          requireWatchPage: false,
-        );
-        
-        final audioStreams = manifest.audioOnly.toList()
-          ..sort((a, b) => b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond));
-        
-        if (audioStreams.isEmpty) {
-          logger.d('[YouTube/YouTubeExplodeDart] $clientName: No audio streams, trying next...');
-          continue;
+        final url = await _getStreamUrlViaYoutubeExplode(videoId);
+
+        if (await isStreamUrlValid(url)) {
+          return url;
         }
-        
-        final preferredStream = audioStreams.firstWhere(
-          (s) => s.codec.mimeType.contains('webm') || s.codec.mimeType.contains('opus'),
-          orElse: () => audioStreams.first,
-        );
-        
-        final streamUrl = preferredStream.url.toString();
-        logger.i('[YouTube/YouTubeExplodeDart] ✓ Success with $clientName - ${preferredStream.container}, ${preferredStream.bitrate}');
-        
-        return streamUrl;
+
+        logger.w('[YouTube/Explode] Stream URL is invalid (403/404), retrying once...');
+
+        // One retry in case of a transient failure (e.g. stale manifest data)
+        final retryUrl = await _getStreamUrlViaYoutubeExplode(videoId);
+        if (await isStreamUrlValid(retryUrl)) {
+          return retryUrl;
+        }
+
+        logger.e('[YouTube/Explode] Retry also produced an invalid stream URL');
+        throw YouTubeException('youtube_explode_dart returned an invalid stream URL');
       } catch (e) {
-        logger.w("[YouTube/YouTubeExplodeDart] ${client.payload['context']['client']['clientName']} failed", error: e);
-        lastError = e as Exception;
-        continue;
+        logger.e('[YouTube/Explode] ❌ Failed to get stream URL on iOS', error: e);
+        throw YouTubeException('Failed to get stream URL on iOS', e);
       }
     }
-    
+  
     logger.e('[Audio/YouTube] ❌ All methods failed');
-    throw YouTubeException('Failed to get stream URL', lastError);
+    throw YouTubeException('Failed to get stream URL');
   }
   
   /// Check if text contains excluded terms unless they are in the query.

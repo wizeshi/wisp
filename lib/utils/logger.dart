@@ -11,7 +11,7 @@ final logger = Logger(
     lineLength: 80,
     colors: true,
     printEmojis: false,
-    dateTimeFormat: DateTimeFormat.none,
+    dateTimeFormat: DateTimeFormat.onlyTime,
     noBoxingByDefault: true,
   ),
 );
