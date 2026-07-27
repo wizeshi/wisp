@@ -58,7 +58,11 @@ dependencies:
   just_audio: ^0.10.5
   just_audio_media_kit: ^2.1.0
   media_kit: ^1.2.6
-  media_kit_libs_audio: ^1.0.7
+  media_kit_libs_linux: ^1.2.1
+  media_kit_libs_windows_audio: ^1.0.9
+  media_kit_libs_android_audio: ^1.3.8
+  # media_kit_libs_ios_audio: ^1.0.9
+  media_kit_libs_macos_audio: ^1.0.9
   audio_session: ^0.2.0
   audio_service: ^0.18.18
   audio_service_mpris: ^0.2.0

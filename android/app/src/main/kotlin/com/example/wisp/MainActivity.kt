@@ -46,9 +46,9 @@ class MainActivity : AudioServiceActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.wizeshi.wisp/ytdlp").setMethodCallHandler { call, result ->
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.wizeshi.wisp/youtube").setMethodCallHandler { call, result ->
             when (call.method) {
-                "getStreamUrl" -> {
+                "getStreamUrlYTDLPAndroid" -> {
                     val videoId = call.argument<String>("videoId")
                     if (videoId == null) {
                         result.error("INVALID_ARGUMENT", "videoId is required", null)

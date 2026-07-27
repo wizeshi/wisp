@@ -6,10 +6,23 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:newpipeextractor_dart/newpipeextractor_dart.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
+import '../../services/newpipe_daemon_manager.dart';
 import '../../services/ytdlp_manager.dart';
 import '../../utils/logger.dart';
+
+enum YouTubeEngine {
+  // ignore: constant_identifier_names
+  YT_DLP,
+  // ignore: constant_identifier_names
+  NewPipeExtractor,
+  // ignore: constant_identifier_names
+  YouTubeKit,
+  // ignore: constant_identifier_names
+  YoutubeExplode,
+}
 
 class YouTubeException implements Exception {
   final String message;
@@ -53,7 +66,33 @@ class YouTubeResult {
 
 class YouTubeProvider {
   final YoutubeExplode _youtube = YoutubeExplode();
-  static const _platform = MethodChannel('com.wizeshi.wisp/ytdlp');
+  static const _platform = MethodChannel('com.wizeshi.wisp/youtube');
+
+  List<YouTubeEngine> preferredEngineOrder = [
+    YouTubeEngine.YouTubeKit,
+    YouTubeEngine.NewPipeExtractor,
+    YouTubeEngine.YT_DLP,
+    YouTubeEngine.YoutubeExplode,
+  ];
+
+  static void setEngineOrder(List<YouTubeEngine> newOrder) {
+    YouTubeProvider().preferredEngineOrder = newOrder;
+  }
+
+  /// Client identity used for both stream validation and actual playback.
+  /// Must stay in sync with the User-Agent used in WispAudioHandler
+  /// (_getAudioSource) — a mismatch between the client that resolved the
+  /// URL and the client that plays it can cause CDN rejections that look
+  /// like silent playback failures rather than a clean 403.
+  static String userAgentForPlatform() {
+    if (Platform.isAndroid) {
+      return 'com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip';
+    }
+    if (Platform.isIOS) {
+      return 'com.google.ios.youtube/19.29.1 (iPhone; CPU iOS 17_0 like Mac OS X)';
+    }
+    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+  }
   
   /// Cache for track ID -> YouTube video ID mapping
   static Map<String, String> _videoIdCache = {};
@@ -142,6 +181,38 @@ class YouTubeProvider {
         throw YouTubeException('Failed to update YT-DLP', e);
       }
     }
+  }
+
+  Future<bool> isNewPipeDesktopAvailable() async {
+    final isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+    if (!isDesktop) return false; 
+
+    bool newPipeJarFileExists = false;
+    bool jdkExists = false;
+
+    final appSupportDir = await getApplicationSupportDirectory();
+
+    final newPipePath = File('${appSupportDir.path}/newpipe/newpipestreamextractor.jar');
+
+    if (newPipePath.existsSync()) {
+      logger.d('[Audio/YouTube] NewPipeExtractor Jar is available on desktop');
+      newPipeJarFileExists = true;
+    } else {
+      logger.w('[Audio/YouTube] NewPipeExtractor Jar is not available on desktop');
+      newPipeJarFileExists = false;
+    }
+
+    final jdkPath = Directory('${appSupportDir.path}/java/bin');
+
+    if (jdkPath.existsSync()) {
+      logger.d('[Audio/YouTube] JDK is available on desktop');
+      jdkExists = true;
+    } else {
+      logger.w('[Audio/YouTube] JDK is not available on desktop');
+      jdkExists = false;
+    }
+
+    return (newPipeJarFileExists && jdkExists);
   }
   
   /// Search YouTube for a track by artist and title
@@ -267,9 +338,149 @@ class YouTubeProvider {
       throw SearchFailedException('Failed to search YouTube', e);
     }
   }
+
+  Future<bool> isStreamUrlValid(String url, {Map<String, String>? headers}) async {
+    try {
+      final effectiveHeaders = headers ?? {'User-Agent': userAgentForPlatform()};
+      final response = await HttpClient()
+          .getUrl(Uri.parse(url))
+          .then((req) {
+            effectiveHeaders.forEach((key, value) => req.headers.set(key, value));
+            return req.close();
+          });
+      if (response.statusCode == 200) {
+        return true;
+      } else {
+        logger.w('[YouTube] Stream URL returned status code: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      logger.w('[YouTube] Error checking stream URL validity', error: e);
+      return false;
+    }
+  }
+
+  /// Get audio stream URL for a video ID
+  Future<String> getStreamUrl(String videoId) async {
+    final isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
+    final isNewPipeDesktopAvaliable = await isNewPipeDesktopAvailable();
+
+    final isYouTubeKitAvailable = Platform.isIOS /* || TODO Platform.isMacOS */;
+    final isNewPipeAvailable = 
+      Platform.isAndroid || isNewPipeDesktopAvaliable;
+
+    final isYTDLPAvailable = 
+      Platform.isLinux || Platform.isWindows || Platform.isMacOS || Platform.isAndroid;
+    
+    for (YouTubeEngine engine in preferredEngineOrder) {
+      String streamURL = '';
+      
+      switch (engine) {
+        case YouTubeEngine.YouTubeKit:
+          if (!isYouTubeKitAvailable) {
+            break;
+          }
+
+          logger.d('[YouTube/YouTubeKit] Attempting to get stream URL for video ID: $videoId');
+          try {
+            final url = await _getStreamUrlUsingYoutubeKitIOS(videoId);
+
+            const chunkSize = 200;
+            for (int i = 0; i < url.length; i += chunkSize) {
+              final end = (i + chunkSize < url.length) ? i + chunkSize : url.length;
+              logger.d(
+                '[YouTube/YouTubeKit] URL part ${(i ~/ chunkSize) + 1}: ${url.substring(i, end)}',
+              );
+            }
+
+            streamURL = url;
+          } catch (e) {
+            logger.w('[YouTube/YouTubeKit] YouTubeKit failed.', error: e);
+          }
+          
+          break;
+        case YouTubeEngine.NewPipeExtractor:
+          if (!isNewPipeAvailable) {
+            break;
+          }
+          
+          if (isDesktop) {
+            try {
+              streamURL = await _getStreamUrlUsingNewPipeDesktop(videoId);
+            } catch (e) {
+              logger.w("[YouTube/NewPipe] NewPipeExtractor (desktop) failed, falling back", error: e);
+            }
+          } else {
+            try {
+              streamURL = await _getStreamUrlUsingNewPipeAndroid(videoId);
+            } catch (e) {
+              logger.w("[YouTube/NewPipe] NewPipeExtractor failed, falling back to YT-DLP", error: e);
+            }
+          }
+
+          break;
+        case YouTubeEngine.YT_DLP:
+          if (!isYTDLPAvailable) {
+            break;
+          }
+
+          if (isDesktop) {
+            try {
+              streamURL = await _getStreamUrlUsingYTDLPDesktop(videoId);
+            } catch (e) {
+              logger.w('[YouTube/YT-DLP] YT-DLP failed', error: e);
+            }
+          } else {
+            try {
+              streamURL = await _getStreamUrlUsingYTDLPAndroid(videoId);
+            } on MissingPluginException catch (e) {
+              logger.w(
+                '[YouTube/YT-DLP] YT-DLP channel unavailable.',
+                error: e,
+              );
+            } on PlatformException catch (e) {
+              String errorMsg = e.message ?? 'Unknown platform exception';
+
+              if (errorMsg.contains("Video unavailable")) {
+                // This means a previously cached video ID is no longer valid. Remove it from cache.
+                logger.w('[YouTube/YT-DLP] Video is unavailable.');
+
+                throw VideoUnavailableException('Video is unavailable', e);
+              }
+            } catch (e) {
+              logger.w(
+                '[YouTube/YT-DLP] Android YT-DLP failed.',
+                error: e,
+              );
+            }
+          }
+
+          break;
+        case YouTubeEngine.YoutubeExplode:
+          try {
+            streamURL = await _getStreamUrlUsingYoutubeExplode(videoId);
+          } catch (e) {
+            logger.w('[YouTube/Explode] Fallback failed', error: e);
+          }
+
+          break;
+      }
+
+      if (streamURL.isNotEmpty) {
+        if (!await isStreamUrlValid(streamURL)) {
+          logger.w("[YouTube] Stream URL from $engine is invalid (403/404), trying next engine...");
+          continue;
+        }
+        return streamURL;
+      }
+    }
   
-  /// Get audio stream URL for a video ID using YT-DLP (desktop only)
-  Future<String> _getStreamUrlViaYtDlp(String videoId) async {
+    logger.e('[Audio/YouTube] ❌ All methods failed');
+    throw YouTubeException('Failed to get stream URL');
+  }
+
+  Future<String> _getStreamUrlUsingYTDLPDesktop(String videoId) async {
     try {
       final execPath = await YtDlpManager.instance.ensureReady(
         notifyOnFailure: true,
@@ -315,24 +526,67 @@ class YouTubeProvider {
     }
   }
 
-  /// Get audio stream URL directly via youtube_explode_dart's stream manifest.
-  /// This doesn't rely on any native subprocess (YT-DLP binary) or platform
-  /// channel, so it works on iOS where sandboxing rules those out. It's used
-  /// as the default (and only) method on iOS, and as a last-resort fallback
-  /// on Android/desktop when the other extraction methods fail.
-  Future<String> _getStreamUrlViaYoutubeExplode(String videoId) async {
+  Future<String> _getStreamUrlUsingYTDLPAndroid(String videoID) async {
+    logger.d('[YouTube/YT-DLP] Using youtubedl-android for video: $videoID');
+    final String url =
+        await _platform.invokeMethod('getStreamUrlYTDLPAndroid', {'videoId': videoID});
+    logger.d('[YouTube/YT-DLP] ✓ Got stream URL via YT-DLP (${url.length} chars)');
+    return url;
+  }
+
+  Future<String> _getStreamUrlUsingNewPipeAndroid(String videoID) async {
+    String streamURL = "";
+    
+    logger.d("[YouTube/NewPipe] Fetching stream URL for video ID: $videoID");
+    String url = "https://www.youtube.com/watch?v=$videoID";
+    YoutubeVideo video = await VideoExtractor.getStream(url);
+
+    List<AudioOnlyStream> sortedStreams = List.from(video.audioOnlyStreams);
+    sortedStreams.sort((a, b) => b.averageBitrate.compareTo(a.averageBitrate));
+
+    String bestAudioUrl = video.audioWithBestAacQuality!.url ?? sortedStreams.first.url ?? "";
+
+    logger.d("[YouTube/NewPipe] ✓ NewPipeExtractor succeeded for video ID: $videoID");
+
+    await isStreamUrlValid(bestAudioUrl).then((isValid) {
+      if (!isValid) {
+        logger.w("[YouTube/NewPipe] Stream URL is invalid (403/404), falling back to YT-DLP");
+        throw YouTubeException('Stream URL is invalid (403/404)');
+      }
+
+      streamURL = bestAudioUrl;
+    });
+
+    logger.d("[YouTube/NewPipe] ✓ Got stream URL via NewPipeExtractor (${streamURL.length} chars)");
+
+    return streamURL;
+  }
+
+  Future<String> _getStreamUrlUsingNewPipeDesktop(String videoID) async {
+    logger.d("[YouTube/NewPipe] (desktop) Fetching stream URL for video ID: $videoID");
+
+    final bestAudioUrl = await NewPipeDaemonManager.instance.getStreamUrl(videoID);
+
+    if (!await isStreamUrlValid(bestAudioUrl)) {
+      logger.w("[YouTube/NewPipe] (desktop) Stream URL is invalid (403/404)");
+      throw YouTubeException('Stream URL is invalid (403/404)');
+    }
+
+    logger.d("[YouTube/NewPipe] (desktop) ✓ Got stream URL via daemon (${bestAudioUrl.length} chars)");
+    return bestAudioUrl;
+  }
+
+  Future<String> _getStreamUrlUsingYoutubeKitIOS(String videoID) async {
+    logger.d("[YouTube/YouTubeKit] Fetching stream URL for video ID: $videoID");
+    final String url =
+        await _platform.invokeMethod('getStreamUrlYoutubeKitIOS', {'videoId': videoID});
+    logger.d('[YouTube/YouTubeKit] ✓ Got stream URL via YouTubeKit (${url.length} chars)');
+    return url;
+  }
+
+  Future<String> _getStreamUrlUsingYoutubeExplode(String videoId) async {
     try {
       logger.d('[YouTube/Explode] Fetching manifest for video ID: $videoId');
-
-      // NOTE: requires youtube_explode_dart pulled from the git 'master' branch
-      // (as of this writing, `androidSdkless` hasn't been published to pub.dev
-      // yet -- see https://github.com/Hexer10/youtube_explode_dart/pull/371).
-      //
-      // The plain 'android' client sends an androidSdkVersion field that
-      // triggers YouTube's PO Token requirement and 403s on audio-only
-      // streams. 'androidSdkless' omits that field (same fix yt-dlp uses)
-      // and doesn't require a PO token. 'ios' is also known to occasionally
-      // 403 on certain formats, so it's kept only as a secondary option here.
       final manifest = await _youtube.videos.streamsClient.getManifest(
         videoId,
         ytClients: [
@@ -365,163 +619,6 @@ class YouTubeProvider {
       logger.e('[YouTube/Explode] Failed to get stream URL', error: e);
       throw YouTubeException('Failed to get stream URL via youtube_explode_dart', e);
     }
-  }
-
-  Future<bool> isStreamUrlValid(String url) async {
-    try {
-      final response = await HttpClient().getUrl(Uri.parse(url)).then((req) => req.close());
-      if (response.statusCode == 200) {
-        return true;
-      } else {
-        logger.w('[YouTube] Stream URL returned status code: ${response.statusCode}');
-        return false;
-      }
-    } catch (e) {
-      logger.w('[YouTube] Error checking stream URL validity', error: e);
-      return false;
-    }
-  }
-
-  /// Get audio stream URL for a video ID
-  Future<String> getStreamUrl(String videoId) async {
-    // On desktop: Try YT-DLP first (handles JS signature decryption)
-    if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
-      try {
-        return await _getStreamUrlViaYtDlp(videoId);
-      } catch (e) {
-        logger.w('[YouTube/YT-DLP] YT-DLP failed', error: e);
-      }
-
-      // Fallback: youtube_explode_dart directly (no subprocess dependency)
-      try {
-        final url = await _getStreamUrlViaYoutubeExplode(videoId);
-        if (await isStreamUrlValid(url)) {
-          return url;
-        }
-        logger.w('[YouTube/Explode] Stream URL is invalid (403/404)');
-      } catch (e) {
-        logger.w('[YouTube/Explode] Fallback failed', error: e);
-      }
-    }
-    
-    // On Android: First try NewPipeExtractor, then YT-DLP.
-    if (Platform.isAndroid) {
-      logger.d("[YouTube/NewPipe] Attempting to get stream URL for video ID: $videoId");
-      String streamURL = "";
-
-      // Try first with NewPipeExtractor
-      try {
-        logger.d("[YouTube/NewPipe] Fetching stream URL for video ID: $videoId");
-        String url = "https://www.youtube.com/watch?v=$videoId";
-        YoutubeVideo video = await VideoExtractor.getStream(url);
-
-        List<AudioOnlyStream> sortedStreams = List.from(video.audioOnlyStreams);
-        sortedStreams.sort((a, b) => b.averageBitrate.compareTo(a.averageBitrate));
-
-        String bestAudioUrl = video.audioWithBestAacQuality!.url ?? sortedStreams.first.url ?? "";
-
-        logger.d("[YouTube/NewPipe] ✓ NewPipeExtractor succeeded for video ID: $videoId");
-
-        await isStreamUrlValid(bestAudioUrl).then((isValid) {
-          if (!isValid) {
-            logger.w("[YouTube/NewPipe] Stream URL is invalid (403/404), falling back to YT-DLP");
-            throw YouTubeException('Stream URL is invalid (403/404)');
-          }
-
-          streamURL = bestAudioUrl;
-        });
-      } catch (e) {
-        logger.w("[YouTube/NewPipe] NewPipeExtractor failed, falling back to YT-DLP", error: e);
-      
-        try {
-          logger.d('[YouTube/YT-DLP] Using youtubedl-android for video: $videoId');
-          final String url =
-              await _platform.invokeMethod('getStreamUrl', {'videoId': videoId});
-          logger.d('[YouTube/YT-DLP] ✓ Got stream URL via YT-DLP (${url.length} chars)');
-
-          streamURL = url;
-        } on MissingPluginException catch (e) {
-          logger.w(
-            '[YouTube/YT-DLP] YT-DLP channel unavailable.',
-            error: e,
-          );
-        } on PlatformException catch (e) {
-          String errorMsg = e.message ?? 'Unknown platform exception';
-
-          if (errorMsg.contains("Video unavailable")) {
-            // This means a previously cached video ID is no longer valid. Remove it from cache.
-            logger.w('[YouTube/YT-DLP] Video is unavailable.');
-
-            throw VideoUnavailableException('Video is unavailable', e);
-          }
-        } catch (e) {
-          logger.w(
-            '[YouTube/YT-DLP] Android YT-DLP failed.',
-            error: e,
-          );
-        }
-      }
-
-      // Last-resort fallback: youtube_explode_dart (no subprocess dependency)
-      if (streamURL.isEmpty) {
-        try {
-          logger.d('[YouTube/Explode] Falling back to youtube_explode_dart');
-          streamURL = await _getStreamUrlViaYoutubeExplode(videoId);
-        } catch (e) {
-          logger.w('[YouTube/Explode] Fallback failed', error: e);
-        }
-      }
-
-      const chunkSize = 200;
-      for (int i = 0; i < streamURL.length; i += chunkSize) {
-        final end = (i + chunkSize < streamURL.length) ? i + chunkSize : streamURL.length;
-        logger.d(
-          '[Audio/YouTube] URL part ${(i ~/ chunkSize) + 1}: ${streamURL.substring(i, end)}',
-        );
-      }
-
-      await isStreamUrlValid(streamURL).then((isValid) {
-        if (!isValid) {
-          logger.w("[Audio/YouTube] Stream URL is invalid (403/404), retrying...");
-          getStreamUrl(videoId);
-        }
-      });
-
-      return streamURL;
-    }
-
-    // On iOS: neither the YT-DLP native binary nor the platform-channel
-    // approach used on Android/desktop are viable, since iOS's sandboxing
-    // rules out spawning subprocesses. youtube_explode_dart is therefore the
-    // default (and only) method here, unfortunately.
-    if (Platform.isIOS) {
-      logger.d('[YouTube/Explode] iOS platform detected, using youtube_explode_dart as default method for video ID: $videoId');
-
-      try {
-        final url = await _getStreamUrlViaYoutubeExplode(videoId);
-
-        if (await isStreamUrlValid(url)) {
-          return url;
-        }
-
-        logger.w('[YouTube/Explode] Stream URL is invalid (403/404), retrying once...');
-
-        // One retry in case of a transient failure (e.g. stale manifest data)
-        final retryUrl = await _getStreamUrlViaYoutubeExplode(videoId);
-        if (await isStreamUrlValid(retryUrl)) {
-          return retryUrl;
-        }
-
-        logger.e('[YouTube/Explode] Retry also produced an invalid stream URL');
-        throw YouTubeException('youtube_explode_dart returned an invalid stream URL');
-      } catch (e) {
-        logger.e('[YouTube/Explode] ❌ Failed to get stream URL on iOS', error: e);
-        throw YouTubeException('Failed to get stream URL on iOS', e);
-      }
-    }
-  
-    logger.e('[Audio/YouTube] ❌ All methods failed');
-    throw YouTubeException('Failed to get stream URL');
   }
   
   /// Check if text contains excluded terms unless they are in the query.
@@ -674,5 +771,6 @@ class YouTubeProvider {
   /// Dispose resources
   void dispose() {
     _youtube.close();
+    unawaited(NewPipeDaemonManager.instance.shutdown());
   }
 }

@@ -19,7 +19,6 @@ import 'package:wisp/models/metadata_models.dart';
 import 'package:wisp/models/metadata_provider.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
 import 'package:wisp/services/metadata_cache.dart';
-import 'package:wisp/services/spotify/spotify_audio_key_session_manager.dart';
 import 'package:wisp/widgets/spotify_webview.dart';
 import 'package:wisp/services/credentials.dart';
 import 'package:wisp/utils/logger.dart';
@@ -196,7 +195,6 @@ class SpotifyInternalProvider extends MetadataProvider {
         if (cookie != null && cookie.isNotEmpty) {
           try {
             await _acquireTokensFromCookie(cookie);
-            await _syncAudioSessionContext(cookie: cookie);
           } catch (e) {
             logger.w('[Metadata/Spotify-Internal] Token exchange failed: $e');
           }
@@ -226,7 +224,6 @@ class SpotifyInternalProvider extends MetadataProvider {
 
     try {
       await _credentialsService.clearSpotifyCookies();
-      await SpotifyAudioKeySessionManager.instance.clear();
       _isAuthenticated = false;
       _bearerToken = null;
       _clientToken = null;
@@ -290,7 +287,6 @@ class SpotifyInternalProvider extends MetadataProvider {
       if (cookie != null && cookie.isNotEmpty) {
         try {
           await _acquireTokensFromCookie(cookie);
-          await _syncAudioSessionContext(cookie: cookie);
           logger.d(
             '[Metadata/Spotify-Internal] Token exchange successful, user is authenticated.',
           );
@@ -477,8 +473,6 @@ class SpotifyInternalProvider extends MetadataProvider {
       _clientToken = grantedToken;
     }
 
-    await _syncAudioSessionContext(cookie: cookie);
-
     final token = SpotifyToken(
       accessToken: _bearerToken ?? '',
       refreshToken: '',
@@ -538,21 +532,6 @@ class SpotifyInternalProvider extends MetadataProvider {
       _tokenRefreshFailed = true;
       rethrow;
     }
-  }
-
-  Future<void> _syncAudioSessionContext({required String cookie}) async {
-    final spotifyAudioEnabled =
-        await PreferencesProvider.isAudioSpotifyEnabled();
-    if (!spotifyAudioEnabled) {
-      await SpotifyAudioKeySessionManager.instance.clear();
-      return;
-    }
-
-    await SpotifyAudioKeySessionManager.instance.updateAuthContext(
-      bearerToken: _bearerToken,
-      clientToken: _clientToken,
-      cookie: cookie,
-    );
   }
 
   Map<String, String> _buildInternalHeaders() {

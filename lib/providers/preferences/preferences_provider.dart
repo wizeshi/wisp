@@ -10,7 +10,6 @@ class PreferencesProvider extends ChangeNotifier {
   static const _keyAllowWriting = 'allow_writing';
   static const _keyMetadataSpotifyEnabled = 'metadata_spotify_enabled';
   static const _keyMetadataYouTubeEnabled = 'metadata_youtube_enabled';
-  static const _keyAudioSpotifyEnabled = 'audio_spotify_enabled';
   static const _keyAudioYouTubeEnabled = 'audio_youtube_enabled';
   static const _keyGaplessPlaybackEnabled = 'gapless_playback_enabled';
   static const _keyCrossfadeEnabled = 'crossfade_enabled';
@@ -23,7 +22,6 @@ class PreferencesProvider extends ChangeNotifier {
   static const bool _defaultAllowWriting = true;
   static const bool _defaultMetadataSpotifyEnabled = true;
   static const bool _defaultMetadataYouTubeEnabled = true;
-  static const bool _defaultAudioSpotifyEnabled = false;
   static const bool _defaultAudioYouTubeEnabled = true;
   static const bool _defaultGaplessPlaybackEnabled = true;
   static const bool _defaultCrossfadeEnabled = false;
@@ -47,9 +45,6 @@ class PreferencesProvider extends ChangeNotifier {
 
   bool _metadataYouTubeEnabled = _defaultMetadataYouTubeEnabled;
   bool get metadataYouTubeEnabled => _metadataYouTubeEnabled;
-
-  bool _audioSpotifyEnabled = _defaultAudioSpotifyEnabled;
-  bool get audioSpotifyEnabled => _audioSpotifyEnabled;
 
   bool _audioYouTubeEnabled = _defaultAudioYouTubeEnabled;
   bool get audioYouTubeEnabled => _audioYouTubeEnabled;
@@ -78,7 +73,6 @@ class PreferencesProvider extends ChangeNotifier {
 
   bool get hasMetadataProviderEnabled =>
       _metadataSpotifyEnabled || _metadataYouTubeEnabled;
-  bool get hasAudioProviderEnabled => _audioSpotifyEnabled || _audioYouTubeEnabled;
   bool get hasLyricsProviderEnabled =>
       _lyricsLrclibEnabled || _lyricsSpotifyEnabled;
 
@@ -99,8 +93,6 @@ class PreferencesProvider extends ChangeNotifier {
       _metadataYouTubeEnabled =
           prefs.getBool(_keyMetadataYouTubeEnabled) ??
           _defaultMetadataYouTubeEnabled;
-      _audioSpotifyEnabled =
-          prefs.getBool(_keyAudioSpotifyEnabled) ?? _defaultAudioSpotifyEnabled;
       _audioYouTubeEnabled =
           prefs.getBool(_keyAudioYouTubeEnabled) ?? _defaultAudioYouTubeEnabled;
       _gaplessPlaybackEnabled =
@@ -144,11 +136,6 @@ class PreferencesProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_keyMetadataYouTubeEnabled) ??
         _defaultMetadataYouTubeEnabled;
-  }
-
-  static Future<bool> isAudioSpotifyEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyAudioSpotifyEnabled) ?? _defaultAudioSpotifyEnabled;
   }
 
   static Future<bool> isAudioYouTubeEnabled() async {
@@ -238,16 +225,6 @@ class PreferencesProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyMetadataYouTubeEnabled, enabled);
-    } catch (_) {}
-  }
-
-  Future<void> setAudioSpotifyEnabled(bool enabled) async {
-    if (enabled == _audioSpotifyEnabled) return;
-    _audioSpotifyEnabled = enabled;
-    notifyListeners();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_keyAudioSpotifyEnabled, enabled);
     } catch (_) {}
   }
 
