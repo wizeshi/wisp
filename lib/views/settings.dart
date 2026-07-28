@@ -111,26 +111,8 @@ class _SettingsPageState extends State<SettingsPage> {
                               activeThumbColor:
                                   Theme.of(context).colorScheme.primary,
                               onChanged: (enabled) async {
-                                final hasAny = enabled || prefs.audioSpotifyEnabled;
+                                final hasAny = enabled;
                                 await prefs.setAudioYouTubeEnabled(enabled);
-                                if (!hasAny) {
-                                  _showSnackBar(
-                                    'Warning: all Audio providers are disabled.',
-                                  );
-                                }
-                              },
-                            ),
-                            SwitchListTile.adaptive(
-                              title: const Text(
-                                'Spotify (EXPERIMENTAL)',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                              value: prefs.audioSpotifyEnabled,
-                              activeThumbColor:
-                                  Theme.of(context).colorScheme.primary,
-                              onChanged: (enabled) async {
-                                final hasAny = enabled || prefs.audioYouTubeEnabled;
-                                await prefs.setAudioSpotifyEnabled(enabled);
                                 if (!hasAny) {
                                   _showSnackBar(
                                     'Warning: all Audio providers are disabled.',

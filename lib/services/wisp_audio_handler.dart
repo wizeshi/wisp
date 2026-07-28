@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart' as audio_service;
+import 'package:audio_session/audio_session.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -17,11 +18,8 @@ import '../services/cache_manager.dart';
 import '../services/discord_rpc_service.dart';
 import '../utils/logger.dart';
 import '../providers/audio/youtube.dart';
-import '../providers/audio/spotify_audio.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/connect/connect_models.dart';
-import '../services/spotify/spotify_audio_decryptor.dart';
-import '../services/spotify/spotify_decrypt_streaming_proxy.dart';
 import '../services/ytdlp_readiness_coordinator.dart';
 
 enum PlaybackState { 
@@ -64,8 +62,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   final AudioPlayer _primaryPlayer = AudioPlayer();
   final AudioPlayer _secondaryPlayer = AudioPlayer();
   final YouTubeProvider _youtube = YouTubeProvider();
-  final SpotifyAudioProvider _spotifyAudio = SpotifyAudioProvider();
-  final SpotifyAudioDecryptor _spotifyDecryptor = const SpotifyAudioDecryptor();
   final Connectivity _connectivity = Connectivity();
 
   bool _useSecondaryAsActivePlayer = false;
@@ -105,6 +101,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   StreamSubscription? _playingSubscription;
   StreamSubscription? _currentIndexSubscription;
   StreamSubscription? _connectivitySubscription;
+  // playbackEventStream is where just_audio actually surfaces native
+  // PlayerExceptions (e.g. AVPlayerItem load failures on iOS) — these do
+  // NOT reliably come through as a thrown exception from setAudioSource().
+  // Without this subscription, native playback failures were vanishing
+  // silently: no thrown error, no log, state stuck on loading.
+  StreamSubscription? _playbackEventSubscription;
   Timer? _rpcTimer;
   Timer? _crossfadeTimer;
   int _rpcLastSecond = -1;
@@ -456,8 +458,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   Future<void> _init() async {
+    await _configureAudioSession();
     await _loadQueue();
     await YouTubeProvider.loadVideoIdCache();
+    YouTubeProvider.setEngineOrder(
+      [
+        YouTubeEngine.YouTubeKit,
+        YouTubeEngine.NewPipeExtractor,
+        YouTubeEngine.YT_DLP,
+        YouTubeEngine.YoutubeExplode,
+      ],
+    );
     _gaplessPlaybackEnabled =
         await PreferencesProvider.isGaplessPlaybackEnabled();
     _crossfadeEnabled = await PreferencesProvider.isCrossfadeEnabled();
@@ -487,6 +498,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     await _prepareCurrentTrackOnStartup();
+  }
+
+  Future<void> _configureAudioSession() async {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.music());
   }
 
   void _handleRpcPositionTick() {
@@ -721,6 +737,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _processingStateSubscription?.cancel();
     _playingSubscription?.cancel();
     _currentIndexSubscription?.cancel();
+    _playbackEventSubscription?.cancel();
 
     _currentIndexSubscription = _player.currentIndexStream.listen((index) {
       if (!_playlistPlaybackEnabled || !(_player.hasNext || _player.hasPrevious)) {
@@ -778,7 +795,31 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         }
       }
       _broadcastPlaybackState();
+    }, onError: (Object e, StackTrace st) {
+      logger.e('[Audio/Player] processingStateStream error', error: e, stackTrace: st);
+      _errorMessage = e.toString();
+      _setState(PlaybackState.error);
+      _setTrackTransitioning(false);
     });
+
+    // just_audio surfaces native playback failures (bad HTTP responses,
+    // AVPlayerItem load failures, codec issues, etc.) here — previously
+    // nothing was listening for this at all, so those failures were
+    // silently dropped with no log and no state change.
+    _playbackEventSubscription = _player.playbackEventStream.listen(
+      (event) {},
+      onError: (Object e, StackTrace st) {
+        logger.e('[Audio/Player] playbackEventStream error', error: e, stackTrace: st);
+        if (e is PlayerException) {
+          logger.e(
+            '[Audio/Player] PlayerException code=${e.code} message=${e.message}',
+          );
+        }
+        _errorMessage = e.toString();
+        _setState(PlaybackState.error);
+        _setTrackTransitioning(false);
+      },
+    );
 
     _playingSubscription = _player.playingStream.listen((playing) {
       final wasPlaying = _state == PlaybackState.playing;
@@ -866,11 +907,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final cachedVideoId = YouTubeProvider.getCachedVideoId(track.id);
     if (cachedVideoId != null && cachedVideoId.isNotEmpty) {
       _streamUrlCache.remove(cachedVideoId);
-    }
-
-    if (track.source == SongSource.spotify ||
-        track.source == SongSource.spotifyInternal) {
-      /* SpotifyAudioProvider.invalidateStreamCacheForTrack(track.id); */
     }
   }
 
@@ -1820,7 +1856,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         throw Exception('Could not get audio source');
       }
 
-      await _player.setAudioSource(source);
+      await _player.setAudioSource(source).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw Exception(
+          'setAudioSource timed out for ${track.title} — possible network/header mismatch',
+        ),
+      );
       if (requestToken != _trackChangeToken) return;
 
       await _player.seek(Duration.zero);
@@ -1870,12 +1911,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     final cacheManager = AudioCacheManager.instance;
-    final audioSpotifyEnabled =
-        await PreferencesProvider.isAudioSpotifyEnabled();
     final audioYouTubeEnabled =
         await PreferencesProvider.isAudioYouTubeEnabled();
 
-    if (!audioSpotifyEnabled && !audioYouTubeEnabled) {
+    if (!audioYouTubeEnabled) {
       throw Exception('All audio providers are disabled in Preferences.');
     }
 
@@ -1887,67 +1926,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     if (!_isOnline) {
       throw Exception('Offline and track not cached');
-    }
-
-    if (audioSpotifyEnabled &&
-        (track.source == SongSource.spotify ||
-            track.source == SongSource.spotifyInternal)) {
-      try {
-        final spotify = await _spotifyAudio.resolveStream(track);
-        if (spotify != null && spotify.streamUrl.isNotEmpty) {
-          if (spotify.mayRequireDecryption && spotify.audioKey != null) {
-            try {
-              final proxyUri = await SpotifyDecryptStreamingProxy.instance
-                  .registerStream(
-                    cacheKey: spotify.resolvedId,
-                    streamUrl: spotify.streamUrl,
-                    audioKey: spotify.audioKey!,
-                    fallbackStreamUrls: spotify.fallbackStreamUrls,
-                    headers: spotify.requestHeaders,
-                  );
-              logger.d('[Audio/Player] Streaming decrypted Spotify via local proxy');
-              return AudioSource.uri(proxyUri);
-            } catch (error) {
-              logger.w(
-                '[Audio/Player] Spotify decrypt proxy unavailable, falling back',
-                error: error,
-              );
-            }
-
-            final decryptedPath = await _spotifyDecryptor
-                .downloadAndDecryptToTemp(
-                  cacheKey: spotify.resolvedId,
-                  url: spotify.streamUrl,
-                  audioKey: spotify.audioKey!,
-                  headers: spotify.requestHeaders,
-                );
-            if (decryptedPath != null && File(decryptedPath).existsSync()) {
-              logger.d('[Audio/Player] Playing decrypted Spotify temp file');
-              return AudioSource.file(decryptedPath);
-            }
-            logger.w(
-              '[Audio/Player] Spotify decrypt temp fallback failed, trying raw stream',
-            );
-          }
-
-          return AudioSource.uri(
-            Uri.parse(spotify.streamUrl),
-            headers: {
-              ...spotify.requestHeaders,
-              'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-          );
-        }
-        logger.d(
-          '[Audio/Player] Spotify stream unavailable, falling back to YouTube',
-        );
-      } catch (e) {
-        logger.w(
-          '[Audio/Player] Spotify stream failed, falling back to YouTube',
-          error: e,
-        );
-      }
     }
 
     if (!audioYouTubeEnabled) {
@@ -1964,13 +1942,41 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     final streamUrl = await _getStreamUrlWithCache(videoId);
 
-    final userAgent = Platform.isAndroid
-        ? 'com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip'
-        : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+    // Must match YouTubeProvider.userAgentForPlatform() — this is the same
+    // client identity used to validate the URL, so playback and validation
+    // agree. iOS previously fell into the generic desktop-browser branch
+    // even though its URLs come from YouTubeKit's iOS client, not yt-dlp's
+    // desktop client — a mismatch here can cause the CDN to reject the
+    // actual playback request even though a plain validity GET succeeded.
+    final userAgent = YouTubeProvider.userAgentForPlatform();
 
-    return AudioSource.uri(
+    final rawSource = AudioSource.uri(
       Uri.parse(streamUrl),
       headers: {'User-Agent': userAgent},
+    );
+
+    // Apple's AAC/SBR decoder misreports duration as exactly 2x for some
+    // HE-AAC streams (confirmed Apple codec-layer bug, not just_audio —
+    // see ryanheise/just_audio#694). We already know the real duration
+    // from metadata, so clip the source to it instead of trusting
+    // AVPlayer's self-reported value.
+    if ((Platform.isIOS || Platform.isMacOS) && track.durationSecs != 0) {
+      return ClippingAudioSource(
+        child: rawSource,
+        end: parseStreamDuration(streamUrl) ?? Duration(seconds: track.durationSecs)
+      );
+    }
+
+    return rawSource;
+  }
+
+  Duration? parseStreamDuration(String streamURL) {
+    final uri = Uri.parse(streamURL);
+    final durStr = uri.queryParameters['dur'];
+    if (durStr == null) return null;
+    return Duration(
+      seconds: double.tryParse(durStr)?.toInt() ?? 0,
+      milliseconds: ((double.tryParse(durStr) ?? 0) * 1000).toInt() % 1000
     );
   }
 
@@ -1988,29 +1994,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> _preResolveNextTrack(GenericSong track) async {
     if (!_isOnline) return;
 
-    final audioSpotifyEnabled =
-        await PreferencesProvider.isAudioSpotifyEnabled();
     final audioYouTubeEnabled =
         await PreferencesProvider.isAudioYouTubeEnabled();
-    if (!audioSpotifyEnabled && !audioYouTubeEnabled) return;
+    if (!audioYouTubeEnabled) return;
 
     final cacheManager = AudioCacheManager.instance;
     if (cacheManager.isTrackCached(track.id)) {
       return;
-    }
-
-    if (audioSpotifyEnabled &&
-        (track.source == SongSource.spotify ||
-            track.source == SongSource.spotifyInternal)) {
-      try {
-        final spotify = await _spotifyAudio.resolveStream(track);
-        if (spotify != null) {
-          logger.d('[Audio/Player] Pre-resolved Spotify URL: ${track.title}');
-          return;
-        }
-      } catch (e) {
-        logger.w('[Audio/Player] Failed to pre-resolve Spotify URL', error: e);
-      }
     }
 
     if (!audioYouTubeEnabled) {
@@ -2049,37 +2039,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       trackTitle: track.title,
       artistName: artistNames,
       resolveAndGetStream: () async {
-        final audioSpotifyEnabled =
-            await PreferencesProvider.isAudioSpotifyEnabled();
         final audioYouTubeEnabled =
             await PreferencesProvider.isAudioYouTubeEnabled();
 
-        if (!audioSpotifyEnabled && !audioYouTubeEnabled) {
+        if (!audioYouTubeEnabled) {
           throw Exception('All audio providers are disabled in Preferences.');
-        }
-
-        if (audioSpotifyEnabled &&
-            (track.source == SongSource.spotify ||
-                track.source == SongSource.spotifyInternal)) {
-          final spotify = await _spotifyAudio.resolveStream(track);
-          if (spotify != null) {
-            if (spotify.mayRequireDecryption && spotify.audioKey != null) {
-              final decryptedPath = await _spotifyDecryptor
-                  .downloadAndDecryptToTemp(
-                    cacheKey: spotify.resolvedId,
-                    url: spotify.streamUrl,
-                    audioKey: spotify.audioKey!,
-                    headers: spotify.requestHeaders,
-                  );
-              if (decryptedPath != null) {
-                return (
-                  'dec_${spotify.resolvedId}',
-                  Uri.file(decryptedPath).toString(),
-                );
-              }
-            }
-            return (spotify.resolvedId, spotify.streamUrl);
-          }
         }
 
         if (!audioYouTubeEnabled) {
@@ -2671,37 +2635,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       trackTitle: track.title,
       artistName: artistNames,
       resolveAndGetStream: () async {
-        final audioSpotifyEnabled =
-            await PreferencesProvider.isAudioSpotifyEnabled();
         final audioYouTubeEnabled =
             await PreferencesProvider.isAudioYouTubeEnabled();
 
-        if (!audioSpotifyEnabled && !audioYouTubeEnabled) {
+        if (!audioYouTubeEnabled) {
           throw Exception('All audio providers are disabled in Preferences.');
-        }
-
-        if (audioSpotifyEnabled &&
-            (track.source == SongSource.spotify ||
-                track.source == SongSource.spotifyInternal)) {
-          final spotify = await _spotifyAudio.resolveStream(track);
-          if (spotify != null) {
-            if (spotify.mayRequireDecryption && spotify.audioKey != null) {
-              final decryptedPath = await _spotifyDecryptor
-                  .downloadAndDecryptToTemp(
-                    cacheKey: spotify.resolvedId,
-                    url: spotify.streamUrl,
-                    audioKey: spotify.audioKey!,
-                    headers: spotify.requestHeaders,
-                  );
-              if (decryptedPath != null) {
-                return (
-                  'dec_${spotify.resolvedId}',
-                  Uri.file(decryptedPath).toString(),
-                );
-              }
-            }
-            return (spotify.resolvedId, spotify.streamUrl);
-          }
         }
 
         if (!audioYouTubeEnabled) {
@@ -3012,6 +2950,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _playingSubscription?.cancel();
     _currentIndexSubscription?.cancel();
     _connectivitySubscription?.cancel();
+    _playbackEventSubscription?.cancel();
     _stopCrossfadeTimer();
     _stopRpcTimer();
     DiscordRpcService.instance.dispose();

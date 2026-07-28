@@ -31,7 +31,6 @@ import 'services/cache_manager.dart';
 import 'services/download_foreground_service.dart';
 import 'services/desktop_notification_center.dart';
 import 'services/discord_rpc_service.dart';
-import 'services/spotify/spotify_audio_key_session_manager.dart';
 import 'services/ytdlp_readiness_coordinator.dart';
 import 'widgets/app_shell.dart';
 import 'package:wisp/utils/logger.dart';
@@ -66,30 +65,14 @@ void main() async {
     linux: true,
     windows: true,
     macOS: true,
+    // iOS: true,
+    // android: true,
   );
 
   // Initialize audio_service for system media controls (MPRIS on Linux)
   if (Platform.isLinux) {
     AudioServiceMpris.registerWith();
   }
-
-
-  // Initialize Spotify Audio Key Session Manager if Spotify audio is enabled (experimental)
-  try {
-    final spotifyAudioEnabled =
-        await PreferencesProvider.isAudioSpotifyEnabled();
-    if (spotifyAudioEnabled) {
-      await SpotifyAudioKeySessionManager.instance.initializeOnStartup();
-    } else {
-      await SpotifyAudioKeySessionManager.instance.clear();
-    }
-  } catch (error) {
-    logger.w(
-      '[Main] Spotify AP key session startup initialization failed',
-      error: error,
-    );
-  }
-
 
   // Initialize audio_service for background audio playback
   final handler = await AudioService.init(

@@ -34,26 +34,33 @@ class AppTheme {
       SystemMouseCursors.click,
     );
 
-    // MacOS' font rendering is slightly different, making their SF Pro font
+    // Apple's font rendering is slightly different, making their SF Pro font
     // appear slightly more spaced out than other platforms. This is a quick
     // fix to make the text look more consistent across platforms.
-    double macOSletterSpacing = -0.41;
+    double appleLetterSpacing = -0.41;
+
+    TextStyle withAppleLetterSpacing = TextStyle(
+      letterSpacing: appleLetterSpacing,
+    );
 
     return ThemeData(
       fontFamily: appStyle == 'Apple Music' ? 'SF Pro' : 'SpotifyMixUI',
-      textTheme: (appStyle == "Apple Music" && Platform.isMacOS) ? TextTheme(
-        bodyMedium: TextStyle(
-          letterSpacing: macOSletterSpacing,
-        ),
-        bodySmall: TextStyle(
-          letterSpacing: macOSletterSpacing,
-        ),
-        labelSmall: TextStyle(
-          letterSpacing: macOSletterSpacing,
-        ),
-        labelMedium: TextStyle(
-          letterSpacing: macOSletterSpacing,
-        ),
+      textTheme: (appStyle == "Apple Music" && (Platform.isMacOS || Platform.isIOS)) ? TextTheme(
+        bodyLarge: withAppleLetterSpacing,
+        bodyMedium: withAppleLetterSpacing,
+        bodySmall: withAppleLetterSpacing,
+        labelLarge: withAppleLetterSpacing,
+        labelMedium: withAppleLetterSpacing,
+        labelSmall: withAppleLetterSpacing,
+        titleLarge: withAppleLetterSpacing,
+        titleMedium: withAppleLetterSpacing,
+        titleSmall: withAppleLetterSpacing,
+        displayLarge: withAppleLetterSpacing,
+        displayMedium: withAppleLetterSpacing,
+        displaySmall: withAppleLetterSpacing,
+        headlineLarge: withAppleLetterSpacing,
+        headlineMedium: withAppleLetterSpacing,
+        headlineSmall: withAppleLetterSpacing,
       ) : null,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _scaffoldBackground,
