@@ -20,9 +20,11 @@ I'm also working on adding support for more services (e.g. Apple Music, Deezer, 
 
 ## Installation
 
-The app is currently distributed and maintained for Windows, MacOS (Apple Silicon), Linux & Android (ARM64). If you want to know why, go to the FAQ below. 
+The app is currently distributed and maintained for Windows, MacOS (Apple Silicon), Linux, Android (ARM64) & iOS.
 
-Follow the [Installation Guide](https://github.com/wizeshi/wisp/blob/main/docs/en/INSTALLATION_GUIDE.md)
+Installation is very simple. 
+On desktop, grab the wisp_installer executable for your platform from the [installer repo releases](https://github.com/wizeshi/wisp_installer/releases/latest) and run it. It will guide you through the installation process.
+On Android, grab the APK from the [installer repo releases](https://github.com/wizeshi/wisp_installer/releases/latest) and install it. You may need to allow installation from unknown sources in your settings.
 
 ## Roadmap
 
@@ -39,19 +41,10 @@ It originally stood for "wizeshi's interfaceable song provider", since everythin
 So, that was the best I could do, but these days nothing on the app itself reflects the original name (since it has been reworked so many times).
 
 #### Why does this exist? Aren't there already services like Spotube?
-I mean yeah, they do. I did this because for some reason, apps like Spotube frequently don't work (and I just don't like their UI, sorry)
+I mean yeah, they do. Though 1. they're not as cool and 2. they have very limited support. For example, Spotube is currently busy remaking their app in Kotlin Multiplatform due to architecture reasons, leaving the app essentially dead for the time being. 
 
 #### Is this ready?
 Mostly. Right now, it's mostly missing (some) writing to spotify and source mixing (not finished as well). Also crossfade has some weird kinks. Everything else is on the Roadmap.
-
-#### Why is this only avaliable on these platforms?
-Well, they're the ones I have access to. I only recently got a MacBook Pro (M4), which now allows me to target that platform, so I've been working on porting the app there. Also, it allows me to target iOS, but [this is harder than it seems](https://github.com/wizeshi/wisp/issues/1). 
-
-If you want to help me bring support to other platforms, create a PR with the features for them.
-
-Further, as seen in the installation guide, complete Linux integration is somewhat limited (mostly due to Flutter packaging issues). See the guide for more info.
-
-Even more, Android support is not limited to just ARM64, but you'll have a worse time in any other architecture. This is because the app embeds NodeJS, and I can only distribute the ARM64 version of it, since it's the only one I have access to. If you want to help out with that, create a PR with the other architectures' binaries and I'll add them to distribution.
 
 ## Acknowledgements
 Special thanks to all of the people who have contributed to the following projects:
