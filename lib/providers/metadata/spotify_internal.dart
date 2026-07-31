@@ -9,20 +9,24 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:flutter/material.dart';
 import 'package:wisp/models/metadata_models.dart';
 import 'package:wisp/models/metadata_provider.dart';
+import 'package:wisp/providers/common/spotify_tokens.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
 import 'package:wisp/services/metadata_cache.dart';
 import 'package:wisp/widgets/spotify_webview.dart';
 import 'package:wisp/services/credentials.dart';
 import 'package:wisp/utils/logger.dart';
 import 'package:wisp/models/spotify_internal_converters.dart';
+
+const _allowInsecureSpotifyTls = bool.fromEnvironment(
+  'WISP_ALLOW_INSECURE_SPOTIFY_TLS',
+  defaultValue: true,
+);
 
 class SpotifyInternalProvider extends MetadataProvider {
   @override
@@ -287,6 +291,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       if (cookie != null && cookie.isNotEmpty) {
         try {
           await _acquireTokensFromCookie(cookie);
+
           logger.d(
             '[Metadata/Spotify-Internal] Token exchange successful, user is authenticated.',
           );
@@ -381,98 +386,15 @@ class SpotifyInternalProvider extends MetadataProvider {
   }
 
   Future<void> _acquireTokensFromCookie(String cookie) async {
-    final accessJson = await _requestAccessToken(cookie);
-    final accessToken = accessJson['accessToken'] as String?;
-    final clientId = accessJson['clientId'] as String?;
-
-    DateTime expiresAt = DateTime.now().add(Duration(seconds: 3600));
-    if (accessJson['accessTokenExpirationTimestampMs'] != null) {
-      final ms = accessJson['accessTokenExpirationTimestampMs'] as int;
-      expiresAt = DateTime.fromMillisecondsSinceEpoch(ms);
-    } else if (accessJson['expiresIn'] != null) {
-      expiresAt = DateTime.now().add(
-        Duration(seconds: accessJson['expiresIn'] as int),
-      );
+    void log(String message) {
+      logger.d('[Metadata/Spotify-Internal] $message');
     }
 
-    if (accessToken == null || clientId == null) {
-      throw StateError(
-        '[Metadata/Spotify-Internal] Invalid access token response',
-      );
-    }
-
-    _bearerToken = accessToken;
-
-    final deviceId = _randomHex(32);
-    final clientTokenPayload = {
-      'client_data': {
-        'client_id': clientId,
-        'client_version': _spotifyAppVersion,
-        'js_sdk_data': {
-          'device_brand': 'unknown',
-          'device_id': deviceId,
-          'device_model': 'unknown',
-          'device_type': 'computer',
-          'os': 'windows',
-          'os_version': 'NT 10.0',
-        },
-      },
-    };
-
-    http.Response? clientTokenResponse;
-    Object? lastClientTokenError;
-
-    for (var attempt = 1; attempt <= _tokenRequestMaxAttempts; attempt++) {
-      final client = _createSpotifyHttpClient();
-      try {
-        clientTokenResponse = await client
-            .post(
-              Uri.parse(_spotifyClientTokenUrl),
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-              },
-              body: jsonEncode(clientTokenPayload),
-            )
-            .timeout(_tokenRequestTimeout);
-        break;
-      } on TimeoutException catch (error) {
-        lastClientTokenError = error;
-      } on SocketException catch (error) {
-        lastClientTokenError = error;
-      } on http.ClientException catch (error) {
-        lastClientTokenError = error;
-      } finally {
-        client.close();
-      }
-
-      if (attempt < _tokenRequestMaxAttempts) {
-        await Future.delayed(const Duration(milliseconds: 350));
-      }
-    }
-
-    if (clientTokenResponse == null) {
-      throw StateError(
-        '[Metadata/Spotify-Internal] Spotify client token request failed after $_tokenRequestMaxAttempts attempts: $lastClientTokenError',
-      );
-    }
-
-    if (clientTokenResponse.statusCode != 200) {
-      throw StateError(
-        '[Metadata/Spotify-Internal] Spotify client token request failed: ${clientTokenResponse.statusCode}',
-      );
-    }
-
-    final clientJson =
-        jsonDecode(clientTokenResponse.body) as Map<String, dynamic>;
-    final responseType = clientJson['response_type'] as String?;
-    if (responseType == 'RESPONSE_GRANTED_TOKEN_RESPONSE') {
-      final grantedToken =
-          (clientJson['granted_token'] as Map<String, dynamic>?)?['token']
-              as String?;
-      _clientToken = grantedToken;
-    }
-
+    final tokens = await fetchSpotifyTokens(cookie, log);
+    _bearerToken = tokens.accessToken;
+    _clientToken = tokens.clientToken;
+    final expiresAt = DateTime.fromMillisecondsSinceEpoch(tokens.accessTokenExpiresAtMs);
+    
     final token = SpotifyToken(
       accessToken: _bearerToken ?? '',
       refreshToken: '',
@@ -541,8 +463,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       'Client-Token': _clientToken ?? '',
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
-      'Spotify-App-Version': _spotifyAppVersion,
-      'User-Agent': _spotifyUserAgent,
+      'Spotify-App-Version': spotifyAppVersion,
+      'User-Agent': spotifyUserAgent,
     };
     return headers;
   }
@@ -785,7 +707,7 @@ class SpotifyInternalProvider extends MetadataProvider {
     final headers = {
       'Authorization': 'Bearer $_bearerToken',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
     };
 
     final client = _createSpotifyHttpClient();
@@ -1029,11 +951,11 @@ class SpotifyInternalProvider extends MetadataProvider {
       'client-token': _clientToken!,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
       'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
+      'spotify-app-version': spotifyAppVersion,
       'Accept-Language': 'en',
     };
 
@@ -1153,11 +1075,11 @@ class SpotifyInternalProvider extends MetadataProvider {
           'client-token': _clientToken!,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': _spotifyUserAgent,
+          'User-Agent': spotifyUserAgent,
           'Origin': 'https://open.spotify.com',
           'Referer': 'https://open.spotify.com/',
           'app-platform': 'WebPlayer',
-          'spotify-app-version': _spotifyAppVersion,
+          'spotify-app-version': spotifyAppVersion,
           'Accept-Language': 'en',
         };
 
@@ -1436,11 +1358,11 @@ class SpotifyInternalProvider extends MetadataProvider {
             'client-token': _clientToken!,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'User-Agent': _spotifyUserAgent,
+            'User-Agent': spotifyUserAgent,
             'Origin': 'https://open.spotify.com',
             'Referer': 'https://open.spotify.com/',
             'app-platform': 'WebPlayer',
-            'spotify-app-version': _spotifyAppVersion,
+            'spotify-app-version': spotifyAppVersion,
             'Accept-Language': 'en',
           },
           body: jsonEncode(body),
@@ -1545,7 +1467,7 @@ class SpotifyInternalProvider extends MetadataProvider {
             'Client-Token': _clientToken!,
             'Content-Type': 'application/json;charset=UTF-8',
             'Accept': 'application/json',
-            'User-Agent': _spotifyUserAgent,
+            'User-Agent': spotifyUserAgent,
             'Origin': 'https://open.spotify.com',
             'Referer': 'https://open.spotify.com/',
             // For some reason, this endpoint requires this app version,
@@ -1637,10 +1559,10 @@ class SpotifyInternalProvider extends MetadataProvider {
             'Client-Token': _clientToken!,
             'Content-Type': 'application/json;charset=UTF-8',
             'Accept': 'application/json',
-            'User-Agent': _spotifyUserAgent,
+            'User-Agent': spotifyUserAgent,
             'Origin': 'https://open.spotify.com',
             'Referer': 'https://open.spotify.com/',
-            'Spotify-App-Version': _spotifyAppVersion,
+            'Spotify-App-Version': spotifyAppVersion,
           },
           body: jsonEncode(body),
         );
@@ -1736,11 +1658,11 @@ class SpotifyInternalProvider extends MetadataProvider {
       'client-token': _clientToken!,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
       'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
+      'spotify-app-version': spotifyAppVersion,
       'Accept-Language': 'en',
     };
 
@@ -1889,11 +1811,11 @@ class SpotifyInternalProvider extends MetadataProvider {
           'client-token': _clientToken!,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': _spotifyUserAgent,
+          'User-Agent': spotifyUserAgent,
           'Origin': 'https://open.spotify.com',
           'Referer': 'https://open.spotify.com/',
           'app-platform': 'WebPlayer',
-          'spotify-app-version': _spotifyAppVersion,
+          'spotify-app-version': spotifyAppVersion,
           'Accept-Language': 'en',
         };
 
@@ -1994,11 +1916,11 @@ class SpotifyInternalProvider extends MetadataProvider {
       'client-token': _clientToken!,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
       'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
+      'spotify-app-version': spotifyAppVersion,
       'Accept-Language': 'en',
     };
 
@@ -2101,11 +2023,11 @@ class SpotifyInternalProvider extends MetadataProvider {
       'client-token': _clientToken!,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
       'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
+      'spotify-app-version': spotifyAppVersion,
       'Accept-Language': 'en',
     };
 
@@ -2276,11 +2198,11 @@ class SpotifyInternalProvider extends MetadataProvider {
       'client-token': _clientToken!,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
       'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
+      'spotify-app-version': spotifyAppVersion,
       'Accept-Language': 'en',
     };
 
@@ -2584,11 +2506,11 @@ class SpotifyInternalProvider extends MetadataProvider {
         'client-token': _clientToken!,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': _spotifyUserAgent,
+        'User-Agent': spotifyUserAgent,
         'Origin': 'https://open.spotify.com',
         'Referer': 'https://open.spotify.com/',
         'app-platform': 'WebPlayer',
-        'spotify-app-version': _spotifyAppVersion,
+        'spotify-app-version': spotifyAppVersion,
         'Accept-Language': 'en',
       };
 
@@ -2655,11 +2577,11 @@ class SpotifyInternalProvider extends MetadataProvider {
         'client-token': _clientToken!,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': _spotifyUserAgent,
+        'User-Agent': spotifyUserAgent,
         'Origin': 'https://open.spotify.com',
         'Referer': 'https://open.spotify.com/',
         'app-platform': 'WebPlayer',
-        'spotify-app-version': _spotifyAppVersion,
+        'spotify-app-version': spotifyAppVersion,
         'Accept-Language': 'en',
       };
 
@@ -2755,11 +2677,11 @@ class SpotifyInternalProvider extends MetadataProvider {
       'client-token': _clientToken!,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
       'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
+      'spotify-app-version': spotifyAppVersion,
       'Accept-Language': 'en',
     };
 
@@ -2986,11 +2908,11 @@ class SpotifyInternalProvider extends MetadataProvider {
       'client-token': _clientToken!,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
       'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
+      'spotify-app-version': spotifyAppVersion,
       'Accept-Language': 'en',
     };
 
@@ -3057,11 +2979,11 @@ class SpotifyInternalProvider extends MetadataProvider {
       'client-token': _clientToken!,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
       'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
+      'spotify-app-version': spotifyAppVersion,
       'Accept-Language': 'en',
     };
 
@@ -3305,11 +3227,11 @@ class SpotifyInternalProvider extends MetadataProvider {
       'client-token': _clientToken!,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': _spotifyUserAgent,
+      'User-Agent': spotifyUserAgent,
       'Origin': 'https://open.spotify.com',
       'Referer': 'https://open.spotify.com/',
       'app-platform': 'WebPlayer',
-      'spotify-app-version': _spotifyAppVersion,
+      'spotify-app-version': spotifyAppVersion,
       'Accept-Language': 'en',
     };
 
@@ -3369,228 +3291,6 @@ class SpotifyInternalProvider extends MetadataProvider {
   }
 }
 
-// ----------------- Token acquisition helpers (adapted from lyrics provider) -----------------
-const _spotifyWebTokenUrl = 'https://open.spotify.com/api/token';
-const _spotifyClientTokenUrl = 'https://clienttoken.spotify.com/v1/clienttoken';
-const _spotifyUserAgent =
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    '(KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36';
-const _spotifyAppVersion = "1.2.90.144.g49777e86";
-const _allowInsecureSpotifyTls = bool.fromEnvironment(
-  'WISP_ALLOW_INSECURE_SPOTIFY_TLS',
-  defaultValue: true,
-);
-const _allowInsecureSpotifySecretsTls = bool.fromEnvironment(
-  'WISP_ALLOW_INSECURE_SPOTIFY_SECRETS_TLS',
-  defaultValue: true,
-);
-const _secretsUrl =
-    'https://git.gay/thereallo/totp-secrets/raw/branch/main/secrets/secrets.json';
-const _spotifyNetworkTimeout = Duration(seconds: 12);
-
-Future<Map<String, dynamic>> _requestAccessToken(String cookie) async {
-  Future<Map<String, dynamic>> fetchWithTotp(_TotpPayload totpPayload) async {
-    final accessTokenUrl = Uri.parse(_spotifyWebTokenUrl).replace(
-      queryParameters: {
-        'reason': 'init',
-        'productType': 'web-player',
-        'totp': totpPayload.otp,
-        'totpServer': totpPayload.otp,
-        'totpVer': totpPayload.version.toString(),
-      },
-    );
-
-    final client = _createSpotifyHttpClient();
-    http.Response accessTokenResponse;
-    try {
-      accessTokenResponse = await client
-          .get(
-            accessTokenUrl,
-            headers: {
-              'Cookie': cookie,
-              'User-Agent': _spotifyUserAgent,
-              'Accept': 'application/json',
-              'Origin': 'https://open.spotify.com',
-              'Referer': 'https://open.spotify.com/',
-            },
-          )
-          .timeout(_spotifyNetworkTimeout);
-    } finally {
-      client.close();
-    }
-
-    if (accessTokenResponse.statusCode != 200) {
-      final body = accessTokenResponse.body;
-      final snippet = body.length > 300 ? body.substring(0, 300) : body;
-      throw StateError(
-        '[Metadata/Spotify-Internal] Spotify access token request failed: '
-        '${accessTokenResponse.statusCode} ${snippet.isEmpty ? '' : snippet}',
-      );
-    }
-
-    return jsonDecode(accessTokenResponse.body) as Map<String, dynamic>;
-  }
-
-  final firstTotp = await _generateTotp();
-  try {
-    return await fetchWithTotp(firstTotp);
-  } catch (e) {
-    final message = e.toString();
-    if (!message.contains('400')) rethrow;
-  }
-
-  final retryTotp = await _generateTotp();
-  return fetchWithTotp(retryTotp);
-}
-
-Future<_TotpPayload> _generateTotp() async {
-  const secretSauce = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-
-  final client = _createHttpClient(
-    allowInsecureSpotifySecretsTls: _allowInsecureSpotifySecretsTls,
-  );
-  http.Response response;
-  try {
-    response = await client
-        .get(Uri.parse(_secretsUrl))
-        .timeout(_spotifyNetworkTimeout);
-  } finally {
-    client.close();
-  }
-  if (response.statusCode != 200) {
-    throw StateError(
-      '[Metadata/Spotify-Internal] Failed to fetch TOTP secrets',
-    );
-  }
-
-  final secrets = jsonDecode(response.body) as List<dynamic>;
-  if (secrets.isEmpty) {
-    throw StateError(
-      '[Metadata/Spotify-Internal] No secrets available for TOTP',
-    );
-  }
-
-  final mostRecent = secrets.last as Map<String, dynamic>;
-  final version = mostRecent['version'] as int? ?? 0;
-  final secretValue = mostRecent['secret'] as String? ?? '';
-  if (secretValue.isEmpty) {
-    throw StateError('[Metadata/Spotify-Internal] Invalid TOTP secret payload');
-  }
-
-  final secretArray = secretValue.codeUnits;
-  final secretCipherBytes = <int>[];
-  for (var i = 0; i < secretArray.length; i++) {
-    secretCipherBytes.add(secretArray[i] ^ ((i % 33) + 9));
-  }
-
-  final cipherString = secretCipherBytes.join('');
-  final cipherBytes = utf8.encode(cipherString);
-  final hexBuffer = StringBuffer();
-  for (final value in cipherBytes) {
-    hexBuffer.write(value.toRadixString(16).padLeft(2, '0'));
-  }
-
-  final secretBytes = _cleanBuffer(hexBuffer.toString());
-  final base32Secret = _base32FromBytes(secretBytes, secretSauce);
-
-  final otp = _generateTotpCode(base32Secret);
-  return _TotpPayload(otp: otp, version: version);
-}
-
-Uint8List _cleanBuffer(String hex) {
-  final sanitized = hex.replaceAll(' ', '');
-  final length = sanitized.length ~/ 2;
-  final bytes = Uint8List(length);
-  for (var i = 0; i < sanitized.length; i += 2) {
-    bytes[i ~/ 2] = int.parse(sanitized.substring(i, i + 2), radix: 16);
-  }
-  return bytes;
-}
-
-String _base32FromBytes(Uint8List bytes, String alphabet) {
-  var t = 0;
-  var n = 0;
-  final buffer = StringBuffer();
-  for (var i = 0; i < bytes.length; i++) {
-    n = (n << 8) | bytes[i];
-    t += 8;
-    while (t >= 5) {
-      buffer.write(alphabet[(n >> (t - 5)) & 31]);
-      t -= 5;
-    }
-  }
-  if (t > 0) {
-    buffer.write(alphabet[(n << (5 - t)) & 31]);
-  }
-  return buffer.toString();
-}
-
-String _generateTotpCode(
-  String base32Secret, {
-  int digits = 6,
-  int interval = 30,
-}) {
-  final secretBytes = _decodeBase32(base32Secret);
-  final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-  final counter = timestamp ~/ interval;
-  final counterBytes = ByteData(8)..setInt64(0, counter);
-
-  final hmac = Hmac(sha1, secretBytes);
-  final digest = hmac.convert(counterBytes.buffer.asUint8List()).bytes;
-  final offset = digest.last & 0x0f;
-  final code =
-      ((digest[offset] & 0x7f) << 24) |
-      ((digest[offset + 1] & 0xff) << 16) |
-      ((digest[offset + 2] & 0xff) << 8) |
-      (digest[offset + 3] & 0xff);
-  final mod = pow(10, digits).toInt();
-  final otp = code % mod;
-  return otp.toString().padLeft(digits, '0');
-}
-
-Uint8List _decodeBase32(String input) {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  final normalized = input.replaceAll('=', '').toUpperCase();
-  var buffer = 0;
-  var bitsLeft = 0;
-  final bytes = <int>[];
-
-  for (final char in normalized.codeUnits) {
-    final index = alphabet.indexOf(String.fromCharCode(char));
-    if (index < 0) continue;
-    buffer = (buffer << 5) | index;
-    bitsLeft += 5;
-    if (bitsLeft >= 8) {
-      bitsLeft -= 8;
-      bytes.add((buffer >> bitsLeft) & 0xff);
-    }
-  }
-
-  return Uint8List.fromList(bytes);
-}
-
-String _randomHex(int length) {
-  const hex = '0123456789abcdef';
-  final rand = Random.secure();
-  final buffer = StringBuffer();
-  for (var i = 0; i < length; i++) {
-    buffer.write(hex[rand.nextInt(16)]);
-  }
-  return buffer.toString();
-}
-
-http.Client _createHttpClient({required bool allowInsecureSpotifySecretsTls}) {
-  if (!allowInsecureSpotifySecretsTls) {
-    return http.Client();
-  }
-
-  final ioClient = HttpClient();
-  ioClient.badCertificateCallback = (cert, host, port) {
-    return host == 'git.gay';
-  };
-  return IOClient(ioClient);
-}
-
 http.Client _createSpotifyHttpClient() {
   if (!_allowInsecureSpotifyTls) {
     return http.Client();
@@ -3603,11 +3303,4 @@ http.Client _createSpotifyHttpClient() {
         host == 'spclient.wg.spotify.com';
   };
   return IOClient(ioClient);
-}
-
-class _TotpPayload {
-  final String otp;
-  final int version;
-
-  const _TotpPayload({required this.otp, required this.version});
 }
