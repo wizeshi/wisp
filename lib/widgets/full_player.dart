@@ -5088,7 +5088,6 @@ class _SpotifyDesktopFullScreenPlayerState
   late final _SpotifyDesktopFullScreenState _desktopState;
   late AnimationController _colorTransitionController;
   Timer? _inactivityTimer;
-  late FocusNode _focusNode;
   late final ScrollController _scrollController;
 
   @override
@@ -5099,7 +5098,6 @@ class _SpotifyDesktopFullScreenPlayerState
       vsync: this,
       duration: const Duration(milliseconds: 360),
     );
-    _focusNode = FocusNode();
     _scrollController = ScrollController();
     AppNavigation.instance.fullPlayerDesktopMode.addListener(
       _handleExternalDesktopModeChange,
@@ -5116,7 +5114,6 @@ class _SpotifyDesktopFullScreenPlayerState
     );
     _scrollController.dispose();
     _desktopState.dispose();
-    _focusNode.dispose();
     super.dispose();
   }
 

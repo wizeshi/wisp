@@ -10,7 +10,9 @@ import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/navigation_state.dart';
 import '../providers/search/search_state.dart';
+import '../services/app_navigation.dart';
 import '../services/navigation_history.dart';
+import '../services/playback/playback_coordinator.dart';
 import '../services/tab_routes.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../widgets/navigation.dart';
@@ -35,7 +37,8 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  bool get _isDesktop => Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  bool get _isDesktop =>
+      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _searchAutoSwitchTimer;
   String _lastWindowTitle = 'wisp';
@@ -44,14 +47,63 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     NavigationHistory.instance.currentRoute.addListener(_handleRouteChange);
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
   }
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     _searchAutoSwitchTimer?.cancel();
     _searchFocusNode.dispose();
     NavigationHistory.instance.currentRoute.removeListener(_handleRouteChange);
     super.dispose();
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (!mounted) return false;
+    if (event is! KeyDownEvent) return false;
+
+    final logicalKey = event.logicalKey;
+
+    if (logicalKey == LogicalKeyboardKey.space) {
+      // Don't intercept space when the user is typing in a text field.
+      if (_isEditingText()) return false;
+      final coordinator = context.read<PlaybackCoordinator>();
+      if (coordinator.effectiveIsPlaying) {
+        unawaited(coordinator.pause());
+      } else {
+        unawaited(coordinator.play());
+      }
+      return true;
+    }
+
+    if (logicalKey == LogicalKeyboardKey.escape) {
+      if (NavigationHistory.instance.currentRouteName == '/fullplayer') {
+        unawaited(AppNavigation.instance.closeFullPlayer());
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool _isEditingText() {
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus == null) return false;
+    final focusContext = primaryFocus.context;
+    if (focusContext == null) return false;
+    // The focus node is attached to the inner Focus widget inside EditableText,
+    // not to EditableText itself — so check the focused widget and its ancestors.
+    if (focusContext.widget is EditableText) return true;
+    bool found = false;
+    focusContext.visitAncestorElements((element) {
+      if (element.widget is EditableText) {
+        found = true;
+        return false;
+      }
+      return true;
+    });
+    return found;
   }
 
   void _handleRouteChange() {
@@ -174,10 +226,7 @@ class _AppShellState extends State<AppShell> {
           if (!folderState.isFolderCollapsed(group.folder.id)) {
             for (final playlist in group.playlists) {
               entries.add(
-                LibrarySidebarEntry.item(
-                  playlist,
-                  folderId: group.folder.id,
-                ),
+                LibrarySidebarEntry.item(playlist, folderId: group.folder.id),
               );
             }
           }
@@ -317,9 +366,7 @@ class _AppShellState extends State<AppShell> {
                     expandedWidth: navState.leftSidebarWidth,
                   ),
                 if (_isDesktop && !isDesktopImmersive)
-                  _LeftResizeHandle(
-                    onResize: navState.adjustLeftSidebarWidth,
-                  ),
+                  _LeftResizeHandle(onResize: navState.adjustLeftSidebarWidth),
                 Expanded(
                   child: Navigator(
                     key: NavigationHistory.instance.navigatorKey,
@@ -328,7 +375,9 @@ class _AppShellState extends State<AppShell> {
                     onGenerateRoute: _onGenerateRoute,
                   ),
                 ),
-                if (_isDesktop && !isDesktopImmersive && navState.rightSidebarVisible)
+                if (_isDesktop &&
+                    !isDesktopImmersive &&
+                    navState.rightSidebarVisible)
                   RightSidebar(
                     width: navState.rightSidebarWidth,
                     onResize: navState.adjustRightSidebarWidth,
@@ -336,7 +385,8 @@ class _AppShellState extends State<AppShell> {
               ],
             ),
           ),
-          if (navState.selectedNavIndex != 3 && !_isDesktop) const WispPlayerBar(),
+          if (navState.selectedNavIndex != 3 && !_isDesktop)
+            const WispPlayerBar(),
           if (_isDesktop && !isDesktopImmersive) const WispPlayerBar(),
           if (!_isDesktop && navState.selectedNavIndex != 3)
             WispNavigation(
@@ -422,17 +472,17 @@ class _AppShellState extends State<AppShell> {
           transitionDuration: Duration.zero,
           reverseTransitionDuration: Duration.zero,
           pageBuilder: (context, animation, secondaryAnimation) =>
-          SharedListDetailView(
-            id: item.id,
-            type: SharedListType.playlist,
-            initialTitle: item.title,
-            initialThumbnailUrl: item.thumbnailUrl,
-            playlists: libraryState.playlists,
-            albums: libraryState.albums,
-            artists: libraryState.artists,
-            initialLibraryView: navState.selectedLibraryView,
-            initialNavIndex: navState.selectedNavIndex,
-          ),
+              SharedListDetailView(
+                id: item.id,
+                type: SharedListType.playlist,
+                initialTitle: item.title,
+                initialThumbnailUrl: item.thumbnailUrl,
+                playlists: libraryState.playlists,
+                albums: libraryState.albums,
+                artists: libraryState.artists,
+                initialLibraryView: navState.selectedLibraryView,
+                initialNavIndex: navState.selectedNavIndex,
+              ),
         ),
       );
       return;
@@ -445,16 +495,16 @@ class _AppShellState extends State<AppShell> {
           reverseTransitionDuration: Duration.zero,
           pageBuilder: (context, animation, secondaryAnimation) =>
               SharedListDetailView(
-            id: item.id,
-            type: SharedListType.album,
-            initialTitle: item.title,
-            initialThumbnailUrl: item.thumbnailUrl,
-            playlists: libraryState.playlists,
-            albums: libraryState.albums,
-            artists: libraryState.artists,
-            initialLibraryView: navState.selectedLibraryView,
-            initialNavIndex: navState.selectedNavIndex,
-          ),
+                id: item.id,
+                type: SharedListType.album,
+                initialTitle: item.title,
+                initialThumbnailUrl: item.thumbnailUrl,
+                playlists: libraryState.playlists,
+                albums: libraryState.albums,
+                artists: libraryState.artists,
+                initialLibraryView: navState.selectedLibraryView,
+                initialNavIndex: navState.selectedNavIndex,
+              ),
         ),
       );
       return;
@@ -467,14 +517,14 @@ class _AppShellState extends State<AppShell> {
           reverseTransitionDuration: Duration.zero,
           pageBuilder: (context, animation, secondaryAnimation) =>
               ArtistDetailView(
-            artistId: item.id,
-            initialArtist: item,
-            playlists: libraryState.playlists,
-            albums: libraryState.albums,
-            artists: libraryState.artists,
-            initialLibraryView: navState.selectedLibraryView,
-            initialNavIndex: navState.selectedNavIndex,
-          ),
+                artistId: item.id,
+                initialArtist: item,
+                playlists: libraryState.playlists,
+                albums: libraryState.albums,
+                artists: libraryState.artists,
+                initialLibraryView: navState.selectedLibraryView,
+                initialNavIndex: navState.selectedNavIndex,
+              ),
         ),
       );
     }
