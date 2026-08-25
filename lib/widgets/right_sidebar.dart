@@ -1444,8 +1444,15 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
   }
 }
 
-class _QueuePreviewCard extends StatelessWidget {
+class _QueuePreviewCard extends StatefulWidget {
   const _QueuePreviewCard();
+
+  @override
+  State<_QueuePreviewCard> createState() => _QueuePreviewCardState();
+}
+
+class _QueuePreviewCardState extends State<_QueuePreviewCard> {
+  bool _hovering = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1463,86 +1470,114 @@ class _QueuePreviewCard extends StatelessWidget {
             ? queue.sublist(currentIndex + 1)
             : <GenericSong>[];
 
-        return _SectionCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        final btnColor = Theme.of(context).colorScheme.primary;
+
+        return MouseRegion(
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: _SectionCard(
+            child: SizedBox(
+              width: double.infinity,
+              child: Stack(
                 children: [
-                  const Expanded(
-                    child: Text(
-                      'Up next',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Up next',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 10),
+                      if (upcoming.isEmpty)
+                        const Text(
+                          'Queue is empty',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        )
+                      else
+                        Column(
+                          children: upcoming.take(4).map((track) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                children: [
+                                  _TrackArtwork(
+                                    url: track.thumbnailUrl,
+                                    width: 36,
+                                    height: 36,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          track.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          track.artists
+                                              .map((a) => a.name)
+                                              .join(', '),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                    ],
                   ),
-                  TextButton(
-                    onPressed: () => _openQueue(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.primary,
-                      textStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 160),
+                      opacity: (_hovering && upcoming.isNotEmpty) ? 1.0 : 0.0,
+                      child: IgnorePointer(
+                        ignoring: !_hovering || upcoming.isEmpty,
+                        child: SizedBox(
+                          width: 38,
+                          height: 38,
+                          child: FloatingActionButton(
+                            heroTag: null,
+                            mini: true,
+                            mouseCursor: SystemMouseCursors.click,
+                            backgroundColor: btnColor,
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.onPrimary,
+                            onPressed: upcoming.isEmpty
+                                ? null
+                                : () => _openQueue(),
+                            child: const Icon(Icons.queue_music, size: 18),
+                          ),
+                        ),
                       ),
                     ),
-                    child: const Text('View all'),
                   ),
                 ],
               ),
-              if (upcoming.isEmpty)
-                const Text(
-                  'Queue is empty',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                )
-              else
-                Column(
-                  children: upcoming.take(4).map((track) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        children: [
-                          _TrackArtwork(
-                            url: track.thumbnailUrl,
-                            width: 36,
-                            height: 36,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  track.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  track.artists.map((a) => a.name).join(', '),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.grey[500],
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-            ],
+            ),
           ),
         );
       },

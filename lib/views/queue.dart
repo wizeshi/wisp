@@ -35,6 +35,8 @@ class _QueueViewState extends State<QueueView> {
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
+  final Set<String> _hoveredTrackKeys = {};
+
   List<int> _buildWrappedQueueIndices(int queueLength, int currentIndex) {
     if (queueLength <= 0) return const <int>[];
     if (currentIndex < 0 || currentIndex >= queueLength) {
@@ -106,7 +108,8 @@ class _QueueViewState extends State<QueueView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (!widget.hideHeader) _buildHeader(contextName, queue.length, player),
+              if (!widget.hideHeader)
+                _buildHeader(contextName, queue.length, player),
               // Queue list or empty state
               Expanded(
                 child: queue.isEmpty
@@ -226,9 +229,11 @@ class _QueueViewState extends State<QueueView> {
         if (visibleQueueIndices.isEmpty || oldIndex == newIndex) return;
 
         final queueOldIndex = visibleQueueIndices[oldIndex];
-        final queueNewIndex = visibleQueueIndices[
-          newIndex.clamp(0, visibleQueueIndices.length - 1)
-        ];
+        final queueNewIndex =
+            visibleQueueIndices[newIndex.clamp(
+              0,
+              visibleQueueIndices.length - 1,
+            )];
         context.read<PlaybackCoordinator>().reorderQueue(
           queueOldIndex,
           queueNewIndex,
@@ -243,18 +248,17 @@ class _QueueViewState extends State<QueueView> {
           child: child,
         );
       },
-      itemBuilder: (context, index) {
-        final queueIndex = visibleQueueIndices[index];
+      itemBuilder: (context, listIndex) {
+        final queueIndex = visibleQueueIndices[listIndex];
         final track = queue[queueIndex];
         final isCurrentTrack = queueIndex == currentIndex;
-        final isEven = index % 2 == 0;
 
         return _buildQueueItem(
           key: ValueKey('${track.id}_$queueIndex'),
           track: track,
-          index: queueIndex,
+          queueIndex: queueIndex,
+          listIndex: listIndex,
           isCurrentTrack: isCurrentTrack,
-          isEven: isEven,
           player: player,
           libraryState: libraryState,
         );
@@ -265,196 +269,255 @@ class _QueueViewState extends State<QueueView> {
   Widget _buildQueueItem({
     required Key key,
     required GenericSong track,
-    required int index,
+    required int queueIndex,
+    required int listIndex,
     required bool isCurrentTrack,
-    required bool isEven,
     required WispAudioHandler player,
     required LibraryState libraryState,
   }) {
     final album = track.album;
     final primaryArtist = track.artists.isNotEmpty ? track.artists.first : null;
-    return GestureDetector(
+    final trackKey = '${track.id}_$queueIndex';
+    final isHovering = _hoveredTrackKeys.contains(trackKey);
+    final showOverlay = isCurrentTrack || isHovering;
+
+    return MouseRegion(
       key: key,
-      onSecondaryTapDown: (details) {
-        if (_isDesktop) {
-          EntityContextMenus.showTrackMenu(
-            context,
-            track: track,
-            globalPosition: details.globalPosition,
-          );
-        }
-      },
-      onLongPress: _isDesktop
-          ? null
-          : () {
-              EntityContextMenus.showTrackMenu(context, track: track);
-            },
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            // Play this track from queue
-            context.read<PlaybackCoordinator>().playQueueIndex(index);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: isCurrentTrack
-                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
-                  : isEven
-                  ? Colors.transparent
-                  : Colors.black.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: isCurrentTrack
-                  ? Border.all(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.3),
-                    )
-                  : null,
-            ),
-            child: Row(
-              children: [
-                // Drag handle or play indicator
-                SizedBox(
-                  width: 32,
-                  child: isCurrentTrack
-                      ? Icon(
-                          Icons.play_arrow,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 24,
+      cursor: SystemMouseCursors.click,
+      onEnter: _isDesktop
+          ? (_) => setState(() => _hoveredTrackKeys.add(trackKey))
+          : null,
+      onExit: _isDesktop
+          ? (_) => setState(() => _hoveredTrackKeys.remove(trackKey))
+          : null,
+      child: GestureDetector(
+        onSecondaryTapDown: (details) {
+          if (_isDesktop) {
+            EntityContextMenus.showTrackMenu(
+              context,
+              track: track,
+              globalPosition: details.globalPosition,
+            );
+          }
+        },
+        onLongPress: _isDesktop
+            ? null
+            : () {
+                EntityContextMenus.showTrackMenu(context, track: track);
+              },
+        child: ReorderableDragStartListener(
+          index: listIndex,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                if (isCurrentTrack) {
+                  player.isPlaying ? player.pause() : player.play();
+                } else {
+                  context.read<PlaybackCoordinator>().playQueueIndex(
+                    queueIndex,
+                  );
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: isCurrentTrack
+                      ? Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.1)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: isCurrentTrack
+                      ? Border.all(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.3),
                         )
-                      : ReorderableDragStartListener(
-                          index: index,
-                          child: Icon(
-                            Icons.drag_handle,
-                            color: Colors.grey[600],
-                            size: 24,
-                          ),
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    // Thumbnail with play/pause overlay
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Container(
+                              color: Colors.grey[900],
+                              child: track.thumbnailUrl.isNotEmpty
+                                  ? CachedNetworkImage(
+                                      imageUrl: track.thumbnailUrl,
+                                      fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.medium,
+                                      errorWidget: (context, url, error) =>
+                                          Icon(
+                                            Icons.music_note,
+                                            color: Colors.grey[700],
+                                          ),
+                                      placeholder: (context, url) =>
+                                          Container(color: Colors.grey[800]),
+                                    )
+                                  : Icon(
+                                      Icons.music_note,
+                                      color: Colors.grey[700],
+                                    ),
+                            ),
+                            AnimatedOpacity(
+                              opacity: showOverlay ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 120),
+                              child: Container(
+                                color: Colors.black.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            AnimatedOpacity(
+                              opacity: showOverlay ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 120),
+                              child: Center(
+                                child: Icon(
+                                  isCurrentTrack && player.isPlaying
+                                      ? Icons.pause
+                                      : Icons.play_arrow,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                ),
-                const SizedBox(width: 8),
-                // Thumbnail
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    color: Colors.grey[900],
-                    child: track.thumbnailUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: track.thumbnailUrl,
-                            fit: BoxFit.cover,
-                            errorWidget: (context, url, error) =>
-                                Icon(Icons.music_note, color: Colors.grey[700]),
-                            placeholder: (context, url) =>
-                                Container(color: Colors.grey[800]),
-                          )
-                        : Icon(Icons.music_note, color: Colors.grey[700]),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Track info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      (_isDesktop && album != null && album.id.isNotEmpty)
-                          ? HoverUnderline(
-                              onTap: () => _openAlbum(album, libraryState),
-                              builder: (isHovering) => Text(
-                                track.title,
-                                style: TextStyle(
-                                  color: isCurrentTrack
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Colors.white,
-                                  fontWeight: isCurrentTrack
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                  decoration: isHovering
-                                      ? TextDecoration.underline
-                                      : TextDecoration.none,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )
-                          : Text(
-                              track.title,
-                              style: TextStyle(
-                                color: isCurrentTrack
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.white,
-                                fontWeight: isCurrentTrack
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                      const SizedBox(height: 2),
-                      (_isDesktop && primaryArtist != null)
-                          ? HoverUnderline(
-                              onTap: () =>
-                                  _openArtist(primaryArtist, libraryState),
-                              onSecondaryTapDown: (details) {
-                                EntityContextMenus.showTrackMenu(
-                                  context,
-                                  track: track,
-                                  globalPosition: details.globalPosition,
-                                );
-                              },
-                              builder: (isHovering) => Text(
-                                track.artists.map((a) => a.name).join(', '),
-                                style: TextStyle(
-                                  color: Colors.grey[500],
-                                  fontSize: 12,
-                                  decoration: isHovering
-                                      ? TextDecoration.underline
-                                      : TextDecoration.none,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )
-                          : Text(
-                              track.artists.map((a) => a.name).join(', '),
-                              style: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 12,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                    ],
-                  ),
-                ),
-                // Duration
-                SizedBox(
-                  width: 50,
-                  child: Text(
-                    _formatDuration(track.durationSecs),
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Remove button (only for non-current tracks)
-                if (!isCurrentTrack)
-                  IconButton(
-                    icon: Icon(Icons.close, color: Colors.grey[400], size: 20),
-                    onPressed: () {
-                      context.read<PlaybackCoordinator>().removeFromQueue(index);
-                    },
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
+                      ),
                     ),
-                  )
-                else
-                  const SizedBox(width: 32),
-              ],
+                    const SizedBox(width: 12),
+                    // Title + artist
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            track.title,
+                            style: TextStyle(
+                              color: isCurrentTrack
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.white,
+                              fontWeight: isCurrentTrack
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          (_isDesktop && primaryArtist != null)
+                              ? HoverUnderline(
+                                  onTap: () =>
+                                      _openArtist(primaryArtist, libraryState),
+                                  onSecondaryTapDown: (details) {
+                                    EntityContextMenus.showTrackMenu(
+                                      context,
+                                      track: track,
+                                      globalPosition: details.globalPosition,
+                                    );
+                                  },
+                                  builder: (isHovering) => Text(
+                                    track.artists.map((a) => a.name).join(', '),
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                      decoration: isHovering
+                                          ? TextDecoration.underline
+                                          : TextDecoration.none,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                )
+                              : Text(
+                                  track.artists.map((a) => a.name).join(', '),
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                        ],
+                      ),
+                    ),
+                    // Album column (desktop only)
+                    if (_isDesktop && album != null) ...[
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: album.id.isNotEmpty
+                            ? HoverUnderline(
+                                onTap: () => _openAlbum(album, libraryState),
+                                builder: (isHovering) => Text(
+                                  album.title,
+                                  style: TextStyle(
+                                    color: Colors.grey[400],
+                                    fontSize: 12,
+                                    decoration: isHovering
+                                        ? TextDecoration.underline
+                                        : TextDecoration.none,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              )
+                            : Text(
+                                album.title,
+                                style: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                      ),
+                    ],
+                    // Duration
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 50,
+                      child: Text(
+                        _formatDuration(track.durationSecs),
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Remove button or spacer
+                    if (!isCurrentTrack)
+                      IconButton(
+                        icon: Icon(
+                          Icons.close,
+                          color: Colors.grey[400],
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          context.read<PlaybackCoordinator>().removeFromQueue(
+                            queueIndex,
+                          );
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                      )
+                    else
+                      const SizedBox(width: 32),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
