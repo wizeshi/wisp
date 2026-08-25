@@ -82,16 +82,22 @@ class _RightSidebarState extends State<RightSidebar> {
                           end: Offset.zero,
                         ).animate(animation);
                         return ClipRect(
-                          child: SlideTransition(position: offset, child: child),
+                          child: SlideTransition(
+                            position: offset,
+                            child: child,
+                          ),
                         );
                       },
-                      child: navState.rightSidebarContent ==
+                      child:
+                          navState.rightSidebarContent ==
                               RightSidebarContent.connect
                           ? ConnectMenu(
                               key: const ValueKey('connect-sidebar-content'),
                               compact: false,
                               onClose: () {
-                                context.read<NavigationState>().showLibrarySidebar();
+                                context
+                                    .read<NavigationState>()
+                                    .showLibrarySidebar();
                               },
                             )
                           : SingleChildScrollView(
@@ -237,8 +243,8 @@ class _NowPlayingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<bool>(
-      valueListenable:
-          AppleMusicFullScreenPlayer.animatedCanvasTemporarilyDisabledListenable,
+      valueListenable: AppleMusicFullScreenPlayer
+          .animatedCanvasTemporarilyDisabledListenable,
       builder: (context, animatedCanvasDisabled, _) {
         return Selector<WispAudioHandler, _NowPlayingData>(
           selector: (context, player) => _NowPlayingData(
@@ -248,315 +254,323 @@ class _NowPlayingCard extends StatelessWidget {
             playbackContextID: player.playbackContextID,
           ),
           builder: (context, data, child) {
-        final useCanvas = context.select<PreferencesProvider, bool>(
-          (prefs) => prefs.animatedCanvasEnabled,
-        );
-        final libraryState = context.read<LibraryState>();
-        final track = data.track;
-        final resolvedContextName = _resolvePlaybackContextName(
-          data,
-          libraryState,
-        );
-        final headerText = resolvedContextName ?? 'Now Playing';
-        final canOpenContext =
-            data.playbackContextID != null &&
-            data.playbackContextID!.isNotEmpty &&
-            (data.playbackContextType == 'playlist' ||
-                data.playbackContextType == 'album' ||
-                data.playbackContextType == 'artist');
-        final album = track?.album;
-          final canUseCanvas =
-            !animatedCanvasDisabled &&
-            useCanvas &&
-            (track?.source == SongSource.spotifyInternal ||
-              track?.source == SongSource.spotify);
+            final useCanvas = context.select<PreferencesProvider, bool>(
+              (prefs) => prefs.animatedCanvasEnabled,
+            );
+            final libraryState = context.read<LibraryState>();
+            final track = data.track;
+            final resolvedContextName = _resolvePlaybackContextName(
+              data,
+              libraryState,
+            );
+            final headerText = resolvedContextName ?? 'Now Playing';
+            final canOpenContext =
+                data.playbackContextID != null &&
+                data.playbackContextID!.isNotEmpty &&
+                (data.playbackContextType == 'playlist' ||
+                    data.playbackContextType == 'album' ||
+                    data.playbackContextType == 'artist');
+            final album = track?.album;
+            final canUseCanvas =
+                !animatedCanvasDisabled &&
+                useCanvas &&
+                (track?.source == SongSource.spotifyInternal ||
+                    track?.source == SongSource.spotify);
 
-        Widget buildCard({String? canvasUrl}) {
-          final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
-          return _SectionCard(
-            background: hasCanvas ? _CanvasBackground(url: canvasUrl) : null,
-            borderRadius: 0,
-            showBottomFade: hasCanvas,
-            bottomFadeColor: const Color(0xFF0F0F0F),
-            bottomFadeHeight: 28,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+            Widget buildCard({String? canvasUrl}) {
+              final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
+              return _SectionCard(
+                background: hasCanvas
+                    ? _CanvasBackground(url: canvasUrl)
+                    : null,
+                borderRadius: 0,
+                showBottomFade: hasCanvas,
+                bottomFadeColor: const Color(0xFF0F0F0F),
+                bottomFadeHeight: 28,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut,
-                      width: showHoverControls ? 28 : 0,
-                      child: ClipRect(
-                        child: AnimatedSlide(
+                    Row(
+                      children: [
+                        AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
                           curve: Curves.easeOut,
-                          offset: showHoverControls
-                              ? Offset.zero
-                              : const Offset(-0.25, 0),
+                          width: showHoverControls ? 28 : 0,
+                          child: ClipRect(
+                            child: AnimatedSlide(
+                              duration: const Duration(milliseconds: 180),
+                              curve: Curves.easeOut,
+                              offset: showHoverControls
+                                  ? Offset.zero
+                                  : const Offset(-0.25, 0),
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 180),
+                                opacity: showHoverControls ? 1 : 0,
+                                child: IgnorePointer(
+                                  ignoring: !showHoverControls,
+                                  child: IconButton(
+                                    tooltip: 'Hide sidebar',
+                                    icon: const Icon(
+                                      Icons.keyboard_arrow_right,
+                                    ),
+                                    iconSize: 18,
+                                    visualDensity: VisualDensity.compact,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 28,
+                                      minHeight: 28,
+                                    ),
+                                    onPressed: () {
+                                      context
+                                          .read<NavigationState>()
+                                          .toggleRightSidebar();
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: HoverUnderline(
+                            cursor: canOpenContext
+                                ? SystemMouseCursors.click
+                                : SystemMouseCursors.basic,
+                            onTap: canOpenContext
+                                ? () => _openPlaybackContext(
+                                    context,
+                                    data.playbackContextType!,
+                                    data.playbackContextID!,
+                                    resolvedContextName,
+                                  )
+                                : null,
+                            onSecondaryTapDown: canOpenContext
+                                ? (details) {
+                                    _showPlaybackContextMenu(
+                                      context,
+                                      data,
+                                      libraryState,
+                                      details.globalPosition,
+                                    );
+                                  }
+                                : null,
+                            builder: (isHovering) => Text(
+                              headerText,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                decoration: isHovering
+                                    ? TextDecoration.underline
+                                    : TextDecoration.none,
+                              ),
+                            ),
+                          ),
+                        ),
+                        AnimatedScale(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          scale: showHoverControls ? 1 : 0.85,
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 180),
                             opacity: showHoverControls ? 1 : 0,
                             child: IgnorePointer(
                               ignoring: !showHoverControls,
-                              child: IconButton(
-                                tooltip: 'Hide sidebar',
-                                icon: const Icon(Icons.keyboard_arrow_right),
-                                iconSize: 18,
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                  minWidth: 28,
-                                  minHeight: 28,
-                                ),
-                                onPressed: () {
-                                  context
-                                      .read<NavigationState>()
-                                      .toggleRightSidebar();
+                              child: Builder(
+                                builder: (buttonContext) {
+                                  return IconButton(
+                                    tooltip: 'More',
+                                    icon: const Icon(Icons.more_horiz),
+                                    iconSize: 18,
+                                    visualDensity: VisualDensity.compact,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 28,
+                                      minHeight: 28,
+                                    ),
+                                    onPressed: track == null
+                                        ? null
+                                        : () async {
+                                            final overlay =
+                                                Overlay.of(
+                                                      context,
+                                                    ).context.findRenderObject()
+                                                    as RenderBox;
+                                            final box =
+                                                buttonContext.findRenderObject()
+                                                    as RenderBox?;
+                                            if (box == null) return;
+                                            final rect = Rect.fromPoints(
+                                              box.localToGlobal(
+                                                Offset.zero,
+                                                ancestor: overlay,
+                                              ),
+                                              box.localToGlobal(
+                                                box.size.bottomRight(
+                                                  Offset.zero,
+                                                ),
+                                                ancestor: overlay,
+                                              ),
+                                            );
+                                            await AppleMusicFullScreenPlayer.showTrackMenuWithCanvasToggle(
+                                              context,
+                                              track: track,
+                                              anchorRect: rect,
+                                            );
+                                          },
+                                  );
                                 },
                               ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                    SizedBox(width: 6),
-                    Expanded(
-                      child: HoverUnderline(
-                        cursor: canOpenContext
-                            ? SystemMouseCursors.click
-                            : SystemMouseCursors.basic,
-                        onTap: canOpenContext
-                            ? () => _openPlaybackContext(
-                                context,
-                                data.playbackContextType!,
-                                data.playbackContextID!,
-                                resolvedContextName,
-                              )
-                            : null,
-                        onSecondaryTapDown: canOpenContext
-                            ? (details) {
-                                _showPlaybackContextMenu(
-                                  context,
-                                  data,
-                                  libraryState,
-                                  details.globalPosition,
-                                );
-                              }
-                            : null,
-                        builder: (isHovering) => Text(
-                          headerText,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            decoration: isHovering
-                                ? TextDecoration.underline
-                                : TextDecoration.none,
-                          ),
-                        ),
-                      ),
-                    ),
-                    AnimatedScale(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut,
-                      scale: showHoverControls ? 1 : 0.85,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 180),
-                        opacity: showHoverControls ? 1 : 0,
-                        child: IgnorePointer(
-                          ignoring: !showHoverControls,
-                          child: Builder(
-                            builder: (buttonContext) {
-                              return IconButton(
-                                tooltip: 'More',
-                                icon: const Icon(Icons.more_horiz),
-                                iconSize: 18,
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                  minWidth: 28,
-                                  minHeight: 28,
-                                ),
-                                onPressed: track == null
-                                    ? null
-                                    : () async {
-                                        final overlay =
-                                            Overlay.of(
-                                                  context,
-                                                ).context.findRenderObject()
-                                                as RenderBox;
-                                        final box =
-                                            buttonContext.findRenderObject()
-                                                as RenderBox?;
-                                        if (box == null) return;
-                                        final rect = Rect.fromPoints(
-                                          box.localToGlobal(
-                                            Offset.zero,
-                                            ancestor: overlay,
-                                          ),
-                                          box.localToGlobal(
-                                            box.size.bottomRight(Offset.zero),
-                                            ancestor: overlay,
-                                          ),
-                                        );
-                                        await AppleMusicFullScreenPlayer
-                                            .showTrackMenuWithCanvasToggle(
-                                          context,
-                                          track: track,
-                                          anchorRect: rect,
-                                        );
-                                      },
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (track == null)
-                  const Text(
-                    'Nothing playing',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                  )
-                else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AspectRatio(
-                        aspectRatio: 1,
-                        child: hasCanvas
-                            ? const _BlankArtwork()
-                            : _TrackArtwork(url: track.thumbnailUrl),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    const SizedBox(height: 12),
+                    if (track == null)
+                      const Text(
+                        'Nothing playing',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      )
+                    else
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              HoverUnderline(
-                                cursor: album != null && album.id.isNotEmpty
-                                    ? SystemMouseCursors.click
-                                    : SystemMouseCursors.basic,
-                                onTap: album != null && album.id.isNotEmpty
-                                    ? () => _openAlbum(context, album)
-                                    : null,
-                                onSecondaryTapDown: (details) {
-                                  EntityContextMenus.showTrackMenu(
-                                    context,
-                                    track: track,
-                                    globalPosition: details.globalPosition,
-                                  );
-                                },
-                                builder: (isHovering) => MarqueeText(
-                                  text: track.title,
-                                  pauseWhenUnfocused: true,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w700,
-                                    decoration: isHovering && album != null
-                                        ? TextDecoration.underline
-                                        : TextDecoration.none,
-                                  ),
-                                ),
-                              ),
-                              Row(
-                                children: track.artists
-                                    .map(
-                                      (artist) => HoverUnderline(
-                                        cursor: SystemMouseCursors.click,
-                                        onTap: () =>
-                                            _openArtist(context, artist),
-                                        onSecondaryTapDown: (details) {
-                                          EntityContextMenus.showArtistMenu(
-                                            context,
-                                            artist: artist,
-                                            globalPosition:
-                                                details.globalPosition,
-                                          );
-                                        },
-                                        builder: (isHovering) => Text(
-                                          artist.name +
-                                              (track.artists.last != artist
-                                                  ? ', '
-                                                  : ''),
-                                          style: TextStyle(
-                                            color: Colors.grey[200],
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w500,
-                                            decoration: isHovering
-                                                ? TextDecoration.underline
-                                                : TextDecoration.none,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ],
+                          AspectRatio(
+                            aspectRatio: 1,
+                            child: hasCanvas
+                                ? const _BlankArtwork()
+                                : _TrackArtwork(url: track.thumbnailUrl),
                           ),
+                          const SizedBox(height: 12),
                           Row(
-                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                curve: Curves.easeOut,
-                                width: showHoverControls ? 28 : 0,
-                                child: ClipRect(
-                                  child: AnimatedOpacity(
-                                    duration: const Duration(milliseconds: 180),
-                                    opacity: showHoverControls ? 1 : 0,
-                                    child: IgnorePointer(
-                                      ignoring: !showHoverControls,
-                                      child: IconButton(
-                                        tooltip: 'Share',
-                                        icon: const Icon(Icons.share),
-                                        iconSize: 18,
-                                        visualDensity: VisualDensity.compact,
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(
-                                          minWidth: 28,
-                                          minHeight: 28,
-                                        ),
-                                        onPressed: () async {
-                                          await EntityContextMenus.copySpotifyShareUrl(
-                                            context,
-                                            source: track.source,
-                                            type: 'track',
-                                            id: track.id,
-                                          );
-                                        },
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  HoverUnderline(
+                                    cursor: album != null && album.id.isNotEmpty
+                                        ? SystemMouseCursors.click
+                                        : SystemMouseCursors.basic,
+                                    onTap: album != null && album.id.isNotEmpty
+                                        ? () => _openAlbum(context, album)
+                                        : null,
+                                    onSecondaryTapDown: (details) {
+                                      EntityContextMenus.showTrackMenu(
+                                        context,
+                                        track: track,
+                                        globalPosition: details.globalPosition,
+                                      );
+                                    },
+                                    builder: (isHovering) => MarqueeText(
+                                      text: track.title,
+                                      pauseWhenUnfocused: true,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        decoration: isHovering && album != null
+                                            ? TextDecoration.underline
+                                            : TextDecoration.none,
                                       ),
                                     ),
                                   ),
-                                ),
+                                  Row(
+                                    children: track.artists
+                                        .map(
+                                          (artist) => HoverUnderline(
+                                            cursor: SystemMouseCursors.click,
+                                            onTap: () =>
+                                                _openArtist(context, artist),
+                                            onSecondaryTapDown: (details) {
+                                              EntityContextMenus.showArtistMenu(
+                                                context,
+                                                artist: artist,
+                                                globalPosition:
+                                                    details.globalPosition,
+                                              );
+                                            },
+                                            builder: (isHovering) => Text(
+                                              artist.name +
+                                                  (track.artists.last != artist
+                                                      ? ', '
+                                                      : ''),
+                                              style: TextStyle(
+                                                color: Colors.grey[200],
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w500,
+                                                decoration: isHovering
+                                                    ? TextDecoration.underline
+                                                    : TextDecoration.none,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 6),
-                              LikeButton(
-                                track: track,
-                                iconSize: 20,
-                                padding: const EdgeInsets.all(2),
-                                constraints: const BoxConstraints(
-                                  minWidth: 28,
-                                  minHeight: 28,
-                                ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    curve: Curves.easeOut,
+                                    width: showHoverControls ? 28 : 0,
+                                    child: ClipRect(
+                                      child: AnimatedOpacity(
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        opacity: showHoverControls ? 1 : 0,
+                                        child: IgnorePointer(
+                                          ignoring: !showHoverControls,
+                                          child: IconButton(
+                                            tooltip: 'Share',
+                                            icon: const Icon(Icons.share),
+                                            iconSize: 18,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(
+                                              minWidth: 28,
+                                              minHeight: 28,
+                                            ),
+                                            onPressed: () async {
+                                              await EntityContextMenus.copySpotifyShareUrl(
+                                                context,
+                                                source: track.source,
+                                                type: 'track',
+                                                id: track.id,
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  LikeButton(
+                                    track: track,
+                                    iconSize: 20,
+                                    padding: const EdgeInsets.all(2),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 28,
+                                      minHeight: 28,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-              ],
-            ),
-          );
-        }
+                  ],
+                ),
+              );
+            }
 
             if (track == null || !canUseCanvas) {
               return buildCard();
@@ -1238,6 +1252,15 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
   }
 }
 
+Color _tintedDominantColor(Color color, {double blend = 0.4}) {
+  final hsl = HSLColor.fromColor(color);
+  final overlay = hsl
+      .withLightness(0.22)
+      .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+      .toColor();
+  return Color.lerp(color, overlay, blend) ?? color;
+}
+
 class _LyricsPreviewCard extends StatefulWidget {
   const _LyricsPreviewCard();
 
@@ -1280,8 +1303,8 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
       );
     }
 
-    final bgColor = Theme.of(context).colorScheme.primary;
-    final btnColor = bgColor;
+    final bgColor = _tintedDominantColor(Theme.of(context).colorScheme.primary);
+    final btnColor = Theme.of(context).colorScheme.primary;
 
     return Consumer<LyricsProvider>(
       builder: (context, lyricsProvider, child) {
@@ -1337,14 +1360,13 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                   .effectiveThrottledPosition
                                   .inMilliseconds,
                               builder: (context, positionMs, child) {
-                                final delaySeconds =
-                                    lyricsProvider.getDelaySecondsCached(
-                                  track.id,
-                                );
+                                final delaySeconds = lyricsProvider
+                                    .getDelaySecondsCached(track.id);
                                 final delayMs = (delaySeconds * 1000).round();
                                 final adjustedPosition = positionMs - delayMs;
-                                final effectivePosition =
-                                    adjustedPosition < 0 ? 0 : adjustedPosition;
+                                final effectivePosition = adjustedPosition < 0
+                                    ? 0
+                                    : adjustedPosition;
                                 return AnimatedLyricsPreviewList(
                                   lines: _getPreviewLines(
                                     lyrics!,
