@@ -43,22 +43,33 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => Size.fromHeight(_isDesktop() ? 32 : 0);
 
-  Widget buildNavButtons(BuildContext context, bool canGoBack, bool canGoForward, Route<dynamic>? route) {
+  Widget buildNavButtons(
+    BuildContext context,
+    bool canGoBack,
+    bool canGoForward,
+    Route<dynamic>? route,
+  ) {
     return Row(
       children: [
         Platform.isMacOS ? SizedBox(width: 8) : SizedBox(width: 16),
         // Build the home button on the left on Mac.
-        if (Platform.isMacOS) Row(
-          children: [
-            _buildNavButton(route?.settings.name == "/home" ? Icons.home : Icons.home_outlined, () {
-              if (onHomeTap != null) {
-                onHomeTap!();
-              }
-            }),
+        if (Platform.isMacOS)
+          Row(
+            children: [
+              _buildNavButton(
+                route?.settings.name == "/home"
+                    ? Icons.home
+                    : Icons.home_outlined,
+                () {
+                  if (onHomeTap != null) {
+                    onHomeTap!();
+                  }
+                },
+              ),
 
-            SizedBox(width: 8),
-          ]
-        ),
+              SizedBox(width: 8),
+            ],
+          ),
         _buildNavButton(
           Icons.chevron_left,
           canGoBack ? () => NavigationHistory.instance.goBack() : null,
@@ -71,20 +82,26 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
           enabled: canGoForward,
         ),
         // Build the home button on the right on non-Mac.
-        if (!Platform.isMacOS) Row(
-          children: [
-            SizedBox(width: 8),
+        if (!Platform.isMacOS)
+          Row(
+            children: [
+              SizedBox(width: 8),
 
-            _buildNavButton(route?.settings.name == "/home" ? Icons.home : Icons.home_outlined, () {
-              if (onHomeTap != null) {
-                onHomeTap!();
-              }
-            }),
+              _buildNavButton(
+                route?.settings.name == "/home"
+                    ? Icons.home
+                    : Icons.home_outlined,
+                () {
+                  if (onHomeTap != null) {
+                    onHomeTap!();
+                  }
+                },
+              ),
 
-            SizedBox(width: 16),
-          ]
-        ),
-      ]
+              SizedBox(width: 16),
+            ],
+          ),
+      ],
     );
   }
 
@@ -94,7 +111,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
       return SizedBox.shrink();
     }
 
-    return ValueListenableBuilder<Route<dynamic>?> (
+    return ValueListenableBuilder<Route<dynamic>?>(
       valueListenable: NavigationHistory.instance.currentRoute,
       builder: (context, route, child) {
         final canGoBack = NavigationHistory.instance.canGoBack;
@@ -105,7 +122,9 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
           height: 32,
           decoration: BoxDecoration(
             color: Color(0xFF000000),
-            border: Border(bottom: BorderSide(color: Colors.grey[900]!, width: 1)),
+            border: Border(
+              bottom: BorderSide(color: Colors.grey[900]!, width: 1),
+            ),
           ),
           child: Stack(
             children: [
@@ -122,7 +141,12 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                   left: 0,
                   top: 0,
                   bottom: 0,
-                  child: buildNavButtons(context, canGoBack, canGoForward, route),
+                  child: buildNavButtons(
+                    context,
+                    canGoBack,
+                    canGoForward,
+                    route,
+                  ),
                 ),
 
               // Search field: centered on the *whole* bar width, not just
@@ -209,10 +233,9 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget _buildDebugButton(BuildContext context) {
-    return _buildActionButton(
-      Icons.bug_report_outlined, 
-      () { AppNavigation.instance.openDebug(context); }
-    );
+    return _buildActionButton(Icons.bug_report_outlined, () {
+      AppNavigation.instance.openDebug(context);
+    });
   }
 
   Widget _buildNavButton(
@@ -232,10 +255,6 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
         child: Container(
           width: 24,
           height: 24,
-          decoration: BoxDecoration(
-            color: isEnabled ? Color(0xFF0A0A0A) : Color(0xFF0A0A0A),
-            shape: BoxShape.circle,
-          ),
           child: Icon(
             icon,
             color: isEnabled ? Colors.white : Colors.grey[600],
@@ -340,12 +359,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
         buttonPosition.dx + button.size.width,
         buttonPosition.dy,
       ),
-      items: [
-        PopupMenuItem(
-          enabled: false,
-          child: _NotificationDropdown(),
-        ),
-      ],
+      items: [PopupMenuItem(enabled: false, child: _NotificationDropdown())],
     );
   }
 
@@ -359,7 +373,9 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
       child: InkWell(
         mouseCursor: SystemMouseCursors.click,
         onTap: onPressed,
-        hoverColor: isClose ? Colors.red.withValues(alpha: 0.8) : Colors.grey[800],
+        hoverColor: isClose
+            ? Colors.red.withValues(alpha: 0.8)
+            : Colors.grey[800],
         child: SizedBox(
           width: 40,
           height: 32,
@@ -439,22 +455,34 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                 applyHeightToLastDescent: false,
               ),
               child: Transform.translate(
-                offset: const Offset(0, _searchTextVerticalNudge),
+                offset: Offset(
+                  0,
+                  value!.text == "" ? _searchTextVerticalNudge : 0,
+                ),
                 child: TextField(
                   controller: controller,
                   focusNode: searchFocusNode,
                   textAlignVertical: TextAlignVertical.center,
-                  style: TextStyle(color: Colors.white, fontSize: 12, height: 1.2),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    height: 1.2,
+                  ),
                   decoration: InputDecoration(
                     isCollapsed: true,
                     contentPadding: EdgeInsets.zero,
                     hintText: 'Search songs, albums, artists...',
-                    hintStyle: TextStyle(color: Colors.grey[600], fontSize: 12, height: 1.2),
+                    hintStyle: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                      height: 1.2,
+                    ),
                     suffixIcon: (showClear || showSourcePicker)
                         ? Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (showClear) _buildSearchClearButton(controller!),
+                              if (showClear)
+                                _buildSearchClearButton(controller!),
                               if (showSourcePicker) _buildSourcePicker(),
                               const SizedBox(width: 6),
                             ],
@@ -509,22 +537,15 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
         isDense: true,
         selectedItemBuilder: (_) => availableSources
             .map(
-              (source) => Icon(
-                _sourceIcon(source),
-                size: 15,
-                color: Colors.white,
-              ),
+              (source) =>
+                  Icon(_sourceIcon(source), size: 15, color: Colors.white),
             )
             .toList(),
         items: availableSources
             .map(
               (source) => DropdownMenuItem<String>(
                 value: source,
-                child: Icon(
-                  _sourceIcon(source),
-                  size: 15,
-                  color: Colors.white,
-                ),
+                child: Icon(_sourceIcon(source), size: 15, color: Colors.white),
               ),
             )
             .toList(),
@@ -640,7 +661,8 @@ class _NotificationDropdown extends StatelessWidget {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         item.title,
@@ -675,8 +697,10 @@ class _NotificationDropdown extends StatelessWidget {
                                           backgroundColor: Colors.grey[850],
                                           valueColor:
                                               AlwaysStoppedAnimation<Color>(
-                                            Theme.of(context).colorScheme.primary,
-                                          ),
+                                                Theme.of(
+                                                  context,
+                                                ).colorScheme.primary,
+                                              ),
                                         ),
                                       ],
                                       if (item.isComplete) ...[
@@ -709,7 +733,7 @@ class _NotificationDropdown extends StatelessWidget {
                                     onPressed: () => center.dismiss(item.id),
                                   ),
                                 ),
-                              ]
+                              ],
                             ),
                           );
                         },
