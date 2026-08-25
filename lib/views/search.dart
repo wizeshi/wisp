@@ -907,35 +907,32 @@ class _SearchViewState extends State<SearchView> {
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       child: Align(
         alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1360),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildDesktopTopRow(songs),
-              if (_artists.isNotEmpty) ...[
-                const SizedBox(height: 34),
-                _buildRailSection(
-                  title: 'Artists',
-                  items: _artists.take(10).toList(),
-                ),
-              ],
-              if (_albums.isNotEmpty) ...[
-                const SizedBox(height: 34),
-                _buildRailSection(
-                  title: 'Albums',
-                  items: _albums.take(10).toList(),
-                ),
-              ],
-              if (_playlists.isNotEmpty) ...[
-                const SizedBox(height: 34),
-                _buildRailSection(
-                  title: 'Playlists',
-                  items: _playlists.take(10).toList(),
-                ),
-              ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDesktopTopRow(songs),
+            if (_artists.isNotEmpty) ...[
+              const SizedBox(height: 34),
+              _buildRailSection(
+                title: 'Artists',
+                items: _artists.take(10).toList(),
+              ),
             ],
-          ),
+            if (_albums.isNotEmpty) ...[
+              const SizedBox(height: 34),
+              _buildRailSection(
+                title: 'Albums',
+                items: _albums.take(10).toList(),
+              ),
+            ],
+            if (_playlists.isNotEmpty) ...[
+              const SizedBox(height: 34),
+              _buildRailSection(
+                title: 'Playlists',
+                items: _playlists.take(10).toList(),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -2136,8 +2133,12 @@ class _HorizontalRailSectionState extends State<_HorizontalRailSection> {
           height: 264,
           child: MouseRegion(
             cursor: SystemMouseCursors.basic,
-            onEnter: isDesktop ? (_) => setState(() => _isHovered = true) : null,
-            onExit: isDesktop ? (_) => setState(() => _isHovered = false) : null,
+            onEnter: isDesktop
+                ? (_) => setState(() => _isHovered = true)
+                : null,
+            onExit: isDesktop
+                ? (_) => setState(() => _isHovered = false)
+                : null,
             child: Stack(
               children: [
                 ListView.separated(
@@ -2179,7 +2180,10 @@ class _HorizontalRailSectionState extends State<_HorizontalRailSection> {
                         color: Colors.black.withValues(alpha: 0.5),
                         shape: const CircleBorder(),
                         child: IconButton(
-                          icon: const Icon(Icons.chevron_right, color: Colors.white),
+                          icon: const Icon(
+                            Icons.chevron_right,
+                            color: Colors.white,
+                          ),
                           onPressed: () => _scrollBy(240),
                           splashRadius: 18,
                         ),
