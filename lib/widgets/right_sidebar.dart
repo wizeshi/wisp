@@ -1180,6 +1180,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                             buildParsedText(
                               context,
                               data.description!,
+                              maxLines: 3,
                               style: TextStyle(
                                 color: Colors.grey[500],
                                 fontSize: 12,
