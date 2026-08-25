@@ -19,7 +19,6 @@ import '../providers/navigation_state.dart';
 import '../services/navigation_history.dart';
 import '../widgets/like_button.dart';
 import '../widgets/entity_context_menus.dart';
-import '../services/app_focus_service.dart';
 import '../providers/connect/connect_session_provider.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../services/connect/connect_models.dart';
@@ -104,36 +103,34 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   Widget build(BuildContext context) {
     final offset = Offset(_dragOffset / 300, 0);
     final dragProgress = (_dragOffset.abs() / 100).clamp(0.0, 1.0);
-    final swipePreview = context.select<
-      global_audio_player.WispAudioHandler,
-      _SwipePreviewData
-    >((player) {
-      final queue = player.queueTracks;
-      final currentIndex = player.currentIndex;
-      GenericSong? previousTrack;
-      GenericSong? nextTrack;
+    final swipePreview = context
+        .select<global_audio_player.WispAudioHandler, _SwipePreviewData>((
+          player,
+        ) {
+          final queue = player.queueTracks;
+          final currentIndex = player.currentIndex;
+          GenericSong? previousTrack;
+          GenericSong? nextTrack;
 
-      if (currentIndex > 0 && currentIndex < queue.length) {
-        previousTrack = queue[currentIndex - 1];
-      }
-      if (currentIndex >= 0 && currentIndex + 1 < queue.length) {
-        nextTrack = queue[currentIndex + 1];
-      }
+          if (currentIndex > 0 && currentIndex < queue.length) {
+            previousTrack = queue[currentIndex - 1];
+          }
+          if (currentIndex >= 0 && currentIndex + 1 < queue.length) {
+            nextTrack = queue[currentIndex + 1];
+          }
 
-      return _SwipePreviewData(
-        previousTrack: previousTrack,
-        nextTrack: nextTrack,
-      );
-    });
+          return _SwipePreviewData(
+            previousTrack: previousTrack,
+            nextTrack: nextTrack,
+          );
+        });
 
     final isSwipingLeft = _dragOffset < 0;
     final previewTrack = isSwipingLeft
         ? swipePreview.nextTrack
         : swipePreview.previousTrack;
 
-    var bgColor = _tintedDominantColor(
-      Theme.of(context).colorScheme.primary,  
-    );
+    var bgColor = _tintedDominantColor(Theme.of(context).colorScheme.primary);
 
     var btnColor = HSLColor.fromColor(
       bgColor,
@@ -153,7 +150,9 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             child: InkWell(
               onTap: () => FullScreenPlayer.show(context),
               child: Container(
-                width: MediaQuery.of(context).size.width - 32, // 16px padding each side
+                width:
+                    MediaQuery.of(context).size.width -
+                    32, // 16px padding each side
                 height: 56,
                 decoration: BoxDecoration(
                   color: bgColor,
@@ -294,7 +293,9 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     );
 
     if (output.isExternal) {
-      final artists = currentTrack.artists.map((artist) => artist.name).join(', ');
+      final artists = currentTrack.artists
+          .map((artist) => artist.name)
+          .join(', ');
       final songLine = artists.isEmpty
           ? currentTrack.title
           : '${currentTrack.title}  ·  $artists';
@@ -316,11 +317,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                output.icon,
-                size: 14,
-                color: Colors.white70,
-              ),
+              Icon(output.icon, size: 14, color: Colors.white70),
               const SizedBox(width: 6),
               Flexible(
                 child: MarqueeText(
@@ -418,20 +415,16 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             data.currentTrackId != null &&
             !data.currentTrackCached;
         final IconData icon = effectiveIsPlaying
-            ? (
-              switch (appStyle) {
+            ? (switch (appStyle) {
                 'Spotify' => Icons.pause,
                 'Apple Music' => CupertinoIcons.pause_solid,
                 _ => Icons.pause,
-              }
-            ) 
-            : (
-              switch (appStyle) {
+              })
+            : (switch (appStyle) {
                 'Spotify' => Icons.play_arrow,
                 'Apple Music' => CupertinoIcons.play_arrow_solid,
                 _ => Icons.pause,
-              }
-            );
+              });
         VoidCallback? onPressed;
         if (!isOfflineBlocked) {
           if (effectiveIsPlaying) {
@@ -440,18 +433,24 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             };
           } else if (data.currentTrackId != null) {
             onPressed = () {
-              final audio = context.read<global_audio_player.WispAudioHandler>();
+              final audio = context
+                  .read<global_audio_player.WispAudioHandler>();
               if (!useHandoffState &&
-                  (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning)) {
+                  (audio.isLoading ||
+                      audio.isBuffering ||
+                      audio.isTrackTransitioning)) {
                 return;
               }
               context.read<PlaybackCoordinator>().play();
             };
           } else if (data.queueNotEmpty) {
             onPressed = () {
-              final audio = context.read<global_audio_player.WispAudioHandler>();
+              final audio = context
+                  .read<global_audio_player.WispAudioHandler>();
               if (!useHandoffState &&
-                  (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning)) {
+                  (audio.isLoading ||
+                      audio.isBuffering ||
+                      audio.isTrackTransitioning)) {
                 return;
               }
               context.read<PlaybackCoordinator>().play();
@@ -478,13 +477,16 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           (coordinator) => coordinator.effectiveThrottledPosition,
         );
 
-        final duration = context.select<global_audio_player.WispAudioHandler, Duration>(
-          (player) => player.duration,
-        );
+        final duration = context
+            .select<global_audio_player.WispAudioHandler, Duration>(
+              (player) => player.duration,
+            );
 
-        final isLoading = !useHandoffState && context.select<global_audio_player.WispAudioHandler, bool>(
-          (player) => player.isLoading || player.isBuffering,
-        );
+        final isLoading =
+            !useHandoffState &&
+            context.select<global_audio_player.WispAudioHandler, bool>(
+              (player) => player.isLoading || player.isBuffering,
+            );
 
         if (isLoading) {
           return const SizedBox(
@@ -543,10 +545,7 @@ class _DesktopPlayerBar extends StatelessWidget {
   final GenericSong? currentTrack;
   final String appStyle;
 
-  const _DesktopPlayerBar({
-    required this.currentTrack, 
-    required this.appStyle
-  });
+  const _DesktopPlayerBar({required this.currentTrack, required this.appStyle});
 
   @override
   Widget build(BuildContext context) {
@@ -581,9 +580,7 @@ class _DesktopPlayerBar extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: Padding(
                         padding: const EdgeInsets.only(right: 24),
-                        child: _DesktopTrackInfo(
-                          currentTrack: currentTrack,
-                        ),
+                        child: _DesktopTrackInfo(currentTrack: currentTrack),
                       ),
                     ),
                   ),
@@ -610,7 +607,7 @@ class _DesktopPlayerBar extends StatelessWidget {
                         padding: const EdgeInsets.only(left: 24),
                         child: _DesktopRightControls(
                           currentTrack: currentTrack,
-                          appStyle: appStyle
+                          appStyle: appStyle,
                         ),
                       ),
                     ),
@@ -705,9 +702,9 @@ class _DesktopProgressBar extends StatelessWidget {
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   ),
-                  SizedBox(height: 12)
-                ]
-              )
+                  SizedBox(height: 12),
+                ],
+              ),
             ),
           );
         }
@@ -755,12 +752,14 @@ class _DesktopProgressBar extends StatelessWidget {
                           overlayShape: RoundSliderOverlayShape(
                             overlayRadius: 12,
                           ),
-                          activeTrackColor:
-                              Theme.of(context).colorScheme.primary,
+                          activeTrackColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           inactiveTrackColor: Colors.grey[800],
                           thumbColor: Colors.white,
-                          overlayColor:
-                              (Theme.of(context).colorScheme.primary).withValues(alpha: 0.2),
+                          overlayColor: (Theme.of(
+                            context,
+                          ).colorScheme.primary).withValues(alpha: 0.2),
                         ),
                         child: Slider(
                           value: animatedProgress,
@@ -769,7 +768,9 @@ class _DesktopProgressBar extends StatelessWidget {
                               milliseconds: (value * duration.inMilliseconds)
                                   .toInt(),
                             );
-                            context.read<PlaybackCoordinator>().seek(newPosition);
+                            context.read<PlaybackCoordinator>().seek(
+                              newPosition,
+                            );
                           },
                         ),
                       ),
@@ -809,6 +810,140 @@ String _formatDuration(Duration duration) {
     return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
   }
   return '$minutes:${twoDigits(seconds)}';
+}
+
+class _DesktopTrackName extends StatelessWidget {
+  final GenericSong track;
+
+  const _DesktopTrackName({required this.track});
+
+  @override
+  Widget build(BuildContext context) {
+    final album = track.album;
+    final hasAlbum = album != null && album.id.isNotEmpty;
+    final style = TextStyle(
+      color: Colors.white,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textPainter = TextPainter(
+          text: TextSpan(text: track.title, style: style),
+          maxLines: 1,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout();
+
+        final overflows =
+            constraints.hasBoundedWidth &&
+            textPainter.width > constraints.maxWidth;
+
+        if (overflows) {
+          return MarqueeText(text: track.title, style: style);
+        }
+
+        return HoverUnderline(
+          cursor: hasAlbum
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          onTap: hasAlbum
+              ? () {
+                  AppNavigation.instance.openSharedList(
+                    context,
+                    id: album.id,
+                    type: SharedListType.album,
+                    initialTitle: album.title,
+                    initialThumbnailUrl: album.thumbnailUrl,
+                  );
+                }
+              : null,
+          onSecondaryTapDown: (details) {
+            EntityContextMenus.showTrackMenu(
+              context,
+              track: track,
+              globalPosition: details.globalPosition,
+            );
+          },
+          builder: (isHovering) => Text(
+            track.title,
+            style: style.copyWith(
+              decoration: isHovering && hasAlbum
+                  ? TextDecoration.underline
+                  : TextDecoration.none,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DesktopTrackArtists extends StatelessWidget {
+  final GenericSong track;
+
+  const _DesktopTrackArtists({required this.track});
+
+  @override
+  Widget build(BuildContext context) {
+    final artists = track.artists;
+    if (artists.isEmpty) return const SizedBox.shrink();
+
+    final joinedText = artists.map((a) => a.name).join(', ');
+    final style = TextStyle(color: Colors.grey[400], fontSize: 12);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textPainter = TextPainter(
+          text: TextSpan(text: joinedText, style: style),
+          maxLines: 1,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout();
+
+        final overflows =
+            constraints.hasBoundedWidth &&
+            textPainter.width > constraints.maxWidth;
+
+        if (overflows) {
+          return MarqueeText(text: joinedText, style: style);
+        }
+
+        return Wrap(
+          children: [
+            for (int i = 0; i < artists.length; i++) ...[
+              HoverUnderline(
+                onTap: () {
+                  AppNavigation.instance.openArtist(
+                    context,
+                    artistId: artists[i].id,
+                    initialArtist: artists[i],
+                  );
+                },
+                onSecondaryTapDown: (details) {
+                  EntityContextMenus.showArtistMenu(
+                    context,
+                    artist: artists[i],
+                    globalPosition: details.globalPosition,
+                  );
+                },
+                builder: (isHovering) => Text(
+                  artists[i].name,
+                  style: style.copyWith(
+                    decoration: isHovering
+                        ? TextDecoration.underline
+                        : TextDecoration.none,
+                  ),
+                ),
+              ),
+              if (i < artists.length - 1) Text(', ', style: style),
+            ],
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _DesktopTrackInfo extends StatelessWidget {
@@ -851,10 +986,6 @@ class _DesktopTrackInfo extends StatelessWidget {
     }
 
     final track = currentTrack!;
-    final album = track.album;
-    final hasAlbum = album != null && album.id.isNotEmpty;
-    final artists = track.artists;
-    final primaryArtist = artists.isNotEmpty ? artists.first : null;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -880,99 +1011,17 @@ class _DesktopTrackInfo extends StatelessWidget {
         SizedBox(width: 12),
         Flexible(
           fit: FlexFit.loose,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 200),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                HoverUnderline(
-                        cursor: hasAlbum
-                            ? SystemMouseCursors.click
-                            : SystemMouseCursors.basic,
-                        onTap: hasAlbum
-                            ? () {
-                                AppNavigation.instance.openSharedList(
-                                  context,
-                                  id: album.id,
-                                  type: SharedListType.album,
-                                  initialTitle: album.title,
-                                  initialThumbnailUrl: album.thumbnailUrl,
-                                );
-                              }
-                            : null,
-                        onSecondaryTapDown: (details) {
-                          EntityContextMenus.showTrackMenu(
-                            context,
-                            track: track,
-                            globalPosition: details.globalPosition,
-                          );
-                        },
-                        builder: (isHovering) => MarqueeText(
-                          text: track.title,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            decoration: isHovering && hasAlbum
-                                ? TextDecoration.underline
-                                : TextDecoration.none,
-                          ),
-                        ),
-                      ),
-                SizedBox(height: 2),
-                (primaryArtist != null)
-                    ? Wrap(
-                        children: [
-                          for (int i = 0; i < artists.length; i++) ...[
-                            HoverUnderline(
-                              onTap: () {
-                                AppNavigation.instance.openArtist(
-                                  context,
-                                  artistId: artists[i].id,
-                                  initialArtist: artists[i],
-                                );
-                              },
-                              onSecondaryTapDown: (details) {
-                                EntityContextMenus.showArtistMenu(
-                                  context,
-                                  artist: artists[i],
-                                  globalPosition: details.globalPosition,
-                                );
-                              },
-                              builder: (isHovering) => Text(
-                                artists[i].name,
-                                style: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 12,
-                                  decoration: isHovering
-                                      ? TextDecoration.underline
-                                      : TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                            if (i < artists.length - 1)
-                              Text(
-                                ', ',
-                                style: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 12,
-                                ),
-                              ),
-                          ],
-                        ],
-                      )
-                    : MarqueeText(
-                        text: currentTrack!.artists
-                            .map((a) => a.name)
-                            .join(', '),
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                      ),
-              ],
-            ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DesktopTrackName(track: track),
+              SizedBox(height: 2),
+              _DesktopTrackArtists(track: track),
+            ],
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 24),
         LikeButton(
           track: currentTrack,
           iconSize: 18,
@@ -1255,7 +1304,9 @@ class _DesktopPlaybackControls extends StatelessWidget {
               constraints: BoxConstraints(),
               icon: Icon(
                 isAppleStyle ? CupertinoIcons.shuffle : Icons.shuffle,
-                color: data.shuffleEnabled ? Theme.of(context).colorScheme.primary : Colors.grey[400],
+                color: data.shuffleEnabled
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.grey[400],
                 size: 20,
               ),
               onPressed: () {
@@ -1270,7 +1321,9 @@ class _DesktopPlaybackControls extends StatelessWidget {
               padding: EdgeInsets.all(4),
               constraints: BoxConstraints(),
               icon: Icon(
-                isAppleStyle ? CupertinoIcons.backward_end_fill : Icons.skip_previous,
+                isAppleStyle
+                    ? CupertinoIcons.backward_end_fill
+                    : Icons.skip_previous,
                 color: Colors.white,
                 size: 24,
               ),
@@ -1293,7 +1346,9 @@ class _DesktopPlaybackControls extends StatelessWidget {
               padding: EdgeInsets.all(4),
               constraints: BoxConstraints(),
               icon: Icon(
-                isAppleStyle ? CupertinoIcons.forward_end_fill : Icons.skip_next,
+                isAppleStyle
+                    ? CupertinoIcons.forward_end_fill
+                    : Icons.skip_next,
                 color: Colors.white,
                 size: 24,
               ),
@@ -1312,8 +1367,10 @@ class _DesktopPlaybackControls extends StatelessWidget {
               constraints: BoxConstraints(),
               icon: Icon(
                 data.repeatMode == global_audio_player.RepeatMode.one
-                  ? (isAppleStyle ? CupertinoIcons.repeat_1 : Icons.repeat_one)
-                  : (isAppleStyle ? CupertinoIcons.repeat : Icons.repeat),
+                    ? (isAppleStyle
+                          ? CupertinoIcons.repeat_1
+                          : Icons.repeat_one)
+                    : (isAppleStyle ? CupertinoIcons.repeat : Icons.repeat),
                 color: data.repeatMode != global_audio_player.RepeatMode.off
                     ? Theme.of(context).colorScheme.primary
                     : Colors.grey[400],
@@ -1345,7 +1402,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       (coordinator) => coordinator.effectiveIsPlaying,
     );
 
-        if (data.isLoading || data.isBuffering || data.isTransitioning) {
+    if (data.isLoading || data.isBuffering || data.isTransitioning) {
       return Padding(
         padding: EdgeInsets.all(8),
         child: SizedBox(
@@ -1368,12 +1425,12 @@ class _DesktopPlayPauseButton extends StatelessWidget {
         !data.currentTrackCached;
     final isAppleStyle = appStyle == 'Apple Music';
     IconData icon = effectiveIsPlaying
-      ? (isAppleStyle
-          ? CupertinoIcons.pause_solid
-          : Icons.pause_circle_filled)
-      : (isAppleStyle
-          ? CupertinoIcons.play_arrow_solid
-          : Icons.play_circle_filled);
+        ? (isAppleStyle
+              ? CupertinoIcons.pause_solid
+              : Icons.pause_circle_filled)
+        : (isAppleStyle
+              ? CupertinoIcons.play_arrow_solid
+              : Icons.play_circle_filled);
     VoidCallback? onPressed;
 
     if (!isOfflineBlocked) {
@@ -1381,11 +1438,13 @@ class _DesktopPlayPauseButton extends StatelessWidget {
         onPressed = () {
           context.read<PlaybackCoordinator>().pause();
         };
-          } else if (data.currentTrackId != null) {
+      } else if (data.currentTrackId != null) {
         onPressed = () {
           final audio = context.read<global_audio_player.WispAudioHandler>();
-              if (!useHandoffState &&
-                  (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning)) {
+          if (!useHandoffState &&
+              (audio.isLoading ||
+                  audio.isBuffering ||
+                  audio.isTrackTransitioning)) {
             return;
           }
           context.read<PlaybackCoordinator>().play();
@@ -1393,8 +1452,10 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       } else if (data.queueNotEmpty) {
         onPressed = () {
           final audio = context.read<global_audio_player.WispAudioHandler>();
-              if (!useHandoffState &&
-                  (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning)) {
+          if (!useHandoffState &&
+              (audio.isLoading ||
+                  audio.isBuffering ||
+                  audio.isTrackTransitioning)) {
             return;
           }
           context.read<PlaybackCoordinator>().play();
@@ -1416,7 +1477,9 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       constraints: BoxConstraints(),
       icon: Icon(
         icon,
-        color: isAppleStyle ? Colors.white : Theme.of(context).colorScheme.primary,
+        color: isAppleStyle
+            ? Colors.white
+            : Theme.of(context).colorScheme.primary,
         size: 40,
       ),
       onPressed: onPressed,
@@ -1487,24 +1550,28 @@ class _DesktopRightControls extends StatelessWidget {
                                   ? CupertinoIcons.quote_bubble
                                   : Icons.music_note,
                               color: isFullScreenOpen
-                                  ? fullPlayerMode == FullPlayerDesktopMode.lyrics
-                                      ? activeColor
-                                      : inactiveColor
+                                  ? fullPlayerMode ==
+                                            FullPlayerDesktopMode.lyrics
+                                        ? activeColor
+                                        : inactiveColor
                                   : isLyricsRouteOpen
-                                      ? activeColor
-                                      : inactiveColor,
+                                  ? activeColor
+                                  : inactiveColor,
                               size: 20,
                             ),
                             onPressed: currentTrack == null
                                 ? null
                                 : () {
                                     if (isFullScreenOpen) {
-                                      if (fullPlayerMode == FullPlayerDesktopMode.lyrics) {
-                                        AppNavigation.instance.restorePreviousFullPlayerDesktopMode();
+                                      if (fullPlayerMode ==
+                                          FullPlayerDesktopMode.lyrics) {
+                                        AppNavigation.instance
+                                            .restorePreviousFullPlayerDesktopMode();
                                       } else {
-                                        AppNavigation.instance.setFullPlayerDesktopMode(
-                                          FullPlayerDesktopMode.lyrics,
-                                        );
+                                        AppNavigation.instance
+                                            .setFullPlayerDesktopMode(
+                                              FullPlayerDesktopMode.lyrics,
+                                            );
                                       }
                                       return;
                                     }
@@ -1531,22 +1598,26 @@ class _DesktopRightControls extends StatelessWidget {
                                   ? CupertinoIcons.list_bullet
                                   : Icons.queue_music,
                               color: isFullScreenOpen
-                                  ? fullPlayerMode == FullPlayerDesktopMode.queue
-                                      ? activeColor
-                                      : inactiveColor
+                                  ? fullPlayerMode ==
+                                            FullPlayerDesktopMode.queue
+                                        ? activeColor
+                                        : inactiveColor
                                   : isQueueOpen
-                                      ? activeColor
-                                      : inactiveColor,
+                                  ? activeColor
+                                  : inactiveColor,
                               size: 20,
                             ),
                             onPressed: () {
                               if (isFullScreenOpen) {
-                                if (fullPlayerMode == FullPlayerDesktopMode.queue) {
-                                  AppNavigation.instance.restorePreviousFullPlayerDesktopMode();
+                                if (fullPlayerMode ==
+                                    FullPlayerDesktopMode.queue) {
+                                  AppNavigation.instance
+                                      .restorePreviousFullPlayerDesktopMode();
                                 } else {
-                                  AppNavigation.instance.setFullPlayerDesktopMode(
-                                    FullPlayerDesktopMode.queue,
-                                  );
+                                  AppNavigation.instance
+                                      .setFullPlayerDesktopMode(
+                                        FullPlayerDesktopMode.queue,
+                                      );
                                 }
                                 return;
                               }
@@ -1598,16 +1669,16 @@ class _DesktopRightControls extends StatelessWidget {
                           onPressed: player.toggleMute,
                           icon: Icon(
                             volume == 0
-                              ? (isAppleStyle
-                                ? CupertinoIcons.speaker_slash
-                                : Icons.volume_off)
+                                ? (isAppleStyle
+                                      ? CupertinoIcons.speaker_slash
+                                      : Icons.volume_off)
                                 : volume < 0.5
-                              ? (isAppleStyle
-                                ? CupertinoIcons.speaker_1
-                                : Icons.volume_down)
-                              : (isAppleStyle
-                                ? CupertinoIcons.speaker_3
-                                : Icons.volume_up),
+                                ? (isAppleStyle
+                                      ? CupertinoIcons.speaker_1
+                                      : Icons.volume_down)
+                                : (isAppleStyle
+                                      ? CupertinoIcons.speaker_3
+                                      : Icons.volume_up),
                             color: Colors.grey[400],
                             size: 20,
                           ),
@@ -2302,7 +2373,10 @@ class _VolumeQuickPanel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 0,
+                  vertical: 16,
+                ),
                 child: Selector<global_audio_player.WispAudioHandler, double>(
                   selector: (context, player) => player.userVolume,
                   builder: (context, volume, child) {
