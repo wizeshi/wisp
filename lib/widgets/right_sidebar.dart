@@ -761,6 +761,7 @@ class _TrackArtwork extends StatelessWidget {
         : CachedNetworkImage(
             imageUrl: url,
             fit: BoxFit.cover,
+            filterQuality: FilterQuality.medium,
             placeholder: (context, url) => Container(color: Colors.grey[850]),
             errorWidget: (context, url, error) => Container(
               color: Colors.grey[850],
