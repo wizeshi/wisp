@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
+import 'package:wisp/utils/text_parser.dart';
 import 'package:wisp/widgets/marquee_text.dart';
 
 import '../models/metadata_models.dart';
@@ -1175,10 +1176,9 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                         if (data != null) ...[
                           if (data.description != null) ...[
                             const SizedBox(height: 6),
-                            Text(
+                            buildParsedText(
+                              context,
                               data.description!,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: Colors.grey[500],
                                 fontSize: 12,

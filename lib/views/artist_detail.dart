@@ -149,16 +149,21 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         player.currentTrack != null;
   }
 
-  Future<List<Color>> _getActionsRowColor(CoverArtPaletteProvider paletteProvider, String imageUrl) async {
+  Future<List<Color>> _getActionsRowColor(
+    CoverArtPaletteProvider paletteProvider,
+    String imageUrl,
+  ) async {
     final palette = await paletteProvider.paletteForImageUrl(imageUrl);
-    final fakeColor = HSLColor.fromColor(palette?.primary ?? const Color(0xFF1E1E1E));
-    final color = fakeColor.withLightness(
-      log(fakeColor.lightness + 1) / log(3)
-    ).toColor();
+    final fakeColor = HSLColor.fromColor(
+      palette?.primary ?? const Color(0xFF1E1E1E),
+    );
+    final color = fakeColor
+        .withLightness(log(fakeColor.lightness + 1) / log(3))
+        .toColor();
     final colorHSL = HSLColor.fromColor(color);
-    final trueColor = colorHSL.withLightness(
-      colorHSL.lightness * 0.5
-    ).toColor();
+    final trueColor = colorHSL
+        .withLightness(colorHSL.lightness * 0.5)
+        .toColor();
 
     return [color, trueColor];
   }
@@ -188,37 +193,37 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         final actionsRowColor = snapshot.data?[1] ?? const Color(0xFF1E1E1E);
 
         final content = _isLoading
-        ? const Center(child: CircularProgressIndicator())
-        : _buildArtistContent(
-            imageUrl,
-            name,
-            followers,
-            description,
-            isDesktop,
-            preferences.style,
-            headerColor,
-            actionsRowColor
-          );
-
-          if (isDesktop) {
-            return content;
-          }
-
-          return Scaffold(
-            appBar: AppBar(
-              backgroundColor: const Color(0xFF121212),
-              elevation: 0,
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              title: Text(
+            ? const Center(child: CircularProgressIndicator())
+            : _buildArtistContent(
+                imageUrl,
                 name,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-              ),
+                followers,
+                description,
+                isDesktop,
+                preferences.style,
+                headerColor,
+                actionsRowColor,
+              );
+
+        if (isDesktop) {
+          return content;
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            backgroundColor: const Color(0xFF121212),
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.of(context).pop(),
             ),
-            body: content,
-          );
+            title: Text(
+              name,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+            ),
+          ),
+          body: content,
+        );
       },
     );
   }
@@ -265,7 +270,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       followers: followers,
       description: description,
       actionsRowColor: actionsRowColor,
-      headerColor: headerColor
+      headerColor: headerColor,
     );
   }
 
@@ -471,7 +476,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     required int followers,
     required String description,
     required Color headerColor,
-    required Color actionsRowColor
+    required Color actionsRowColor,
   }) {
     final theme = Theme.of(context);
     final contentSurfaceColor = theme.colorScheme.surface;
@@ -496,59 +501,57 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      ClipOval(
+                        child: Container(
+                          width: 180,
+                          height: 180,
+                          color: Colors.black.withValues(alpha: 0.18),
+                          child: imageUrl.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (context, url, error) => Icon(
+                                    CupertinoIcons.person_fill,
+                                    color: Colors.grey[700],
+                                    size: 54,
+                                  ),
+                                )
+                              : Icon(
+                                  CupertinoIcons.person_fill,
+                                  color: Colors.grey[700],
+                                  size: 54,
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 28),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          ClipOval(
-                            child: Container(
-                              width: 180,
-                              height: 180,
-                              color: Colors.black.withValues(alpha: 0.18),
-                              child: imageUrl.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: imageUrl,
-                                      fit: BoxFit.cover,
-                                      errorWidget: (context, url, error) =>
-                                          Icon(
-                                            CupertinoIcons.person_fill,
-                                            color: Colors.grey[700],
-                                            size: 54,
-                                          ),
-                                    )
-                                  : Icon(
-                                      CupertinoIcons.person_fill,
-                                      color: Colors.grey[700],
-                                      size: 54,
-                                    ),
+                          Text(
+                            name,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 58,
+                              height: 0.95,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            monthlyListeners != null && monthlyListeners > 0
+                                ? '${_formatNumber(monthlyListeners)} monthly listeners'
+                                : '${_formatNumber(followers)} followers',
+                            style: TextStyle(
+                              color: Colors.grey[200],
+                              fontSize: 15,
                             ),
                           ),
-                          const SizedBox(width: 28),
-                          Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                Text(
-                                  name,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 58,
-                                    height: 0.95,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 14),
-                                Text(
-                                  monthlyListeners != null &&
-                                          monthlyListeners > 0
-                                      ? '${_formatNumber(monthlyListeners)} monthly listeners'
-                                      : '${_formatNumber(followers)} followers',
-                                  style: TextStyle(
-                                    color: Colors.grey[200],
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -602,7 +605,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                             children: [
                               Expanded(
                                 flex: 3,
-                                child: TextParser.build(
+                                child: buildParsedText(
                                   context,
                                   displayDescription,
                                   style: TextStyle(
@@ -611,7 +614,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                                     height: 1.45,
                                   ),
                                   softWrap: true,
-                                )
+                                ),
                               ),
                               const SizedBox(width: 24),
                               Expanded(
@@ -1531,7 +1534,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     );
   }
 
-  Widget _buildActionsRow({required bool useAppleIcons, Gradient? backgroundGradient}) {
+  Widget _buildActionsRow({
+    required bool useAppleIcons,
+    Gradient? backgroundGradient,
+  }) {
     return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
         final colorScheme = Theme.of(context).colorScheme;
@@ -2176,52 +2182,11 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             ),
           ),
           const SizedBox(height: 16),
-          if (isMobile) Column(
-            children: [
-              Row(
-                spacing: 16,
-                children: [
-                  if (listeners != null && listeners > 0)
-                    _buildAboutStat(
-                      'MONTHLY LISTENERS',
-                      _formatNumber(listeners),
-                    ),
-                  _buildAboutStat('FOLLOWERS', _formatNumber(followers)),
-                  _buildAboutStat('ALBUMS', '${_artist?.albums.length ?? 0}'),
-                ]
-              ),
-              buildParsedText(
-                context,
-                displayDescription,
-                style: TextStyle(
-                  color: Colors.grey[300],
-                  fontSize: 15,
-                  height: 1.45,
-                ),
-                softWrap: true,
-              ),
-            ]
-          ) else Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: buildParsedText(
-                  context,
-                  displayDescription,
-                  style: TextStyle(
-                    color: Colors.grey[300],
-                    fontSize: 15,
-                    height: 1.45,
-                  ),
-                  softWrap: true,
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          if (isMobile)
+            Column(
+              children: [
+                Row(
+                  spacing: 16,
                   children: [
                     if (listeners != null && listeners > 0)
                       _buildAboutStat(
@@ -2232,9 +2197,56 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     _buildAboutStat('ALBUMS', '${_artist?.albums.length ?? 0}'),
                   ],
                 ),
-              ),
-            ],
-          ),
+                buildParsedText(
+                  context,
+                  displayDescription,
+                  style: TextStyle(
+                    color: Colors.grey[300],
+                    fontSize: 15,
+                    height: 1.45,
+                  ),
+                  softWrap: true,
+                ),
+              ],
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: buildParsedText(
+                    context,
+                    displayDescription,
+                    style: TextStyle(
+                      color: Colors.grey[300],
+                      fontSize: 15,
+                      height: 1.45,
+                    ),
+                    softWrap: true,
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (listeners != null && listeners > 0)
+                        _buildAboutStat(
+                          'MONTHLY LISTENERS',
+                          _formatNumber(listeners),
+                        ),
+                      _buildAboutStat('FOLLOWERS', _formatNumber(followers)),
+                      _buildAboutStat(
+                        'ALBUMS',
+                        '${_artist?.albums.length ?? 0}',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );

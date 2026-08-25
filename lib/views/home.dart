@@ -612,9 +612,7 @@ class HomePageState extends State<HomePage> {
             ),
           ),
 
-          SliverToBoxAdapter(
-            child: const SizedBox(height: 16),
-          ),
+          SliverToBoxAdapter(child: const SizedBox(height: 16)),
 
           ...dynamicSections.map(
             (section) => SliverToBoxAdapter(
@@ -673,7 +671,8 @@ class HomePageState extends State<HomePage> {
                           title: track.title,
                           subtitle: track.artists.map((a) => a.name).join(', '),
                           onTap: () async {
-                            final coordinator = context.read<PlaybackCoordinator>();
+                            final coordinator = context
+                                .read<PlaybackCoordinator>();
                             await coordinator.setQueue(
                               [track],
                               startIndex: 0,
@@ -965,11 +964,7 @@ class HomePageState extends State<HomePage> {
         subtitle: item.artists.map((a) => a.name).join(', '),
         onTap: () async {
           final coordinator = context.read<PlaybackCoordinator>();
-          await coordinator.setQueue(
-            [item],
-            startIndex: 0,
-            play: true,
-          );
+          await coordinator.setQueue([item], startIndex: 0, play: true);
         },
         onLongPress: () {
           EntityContextMenus.showTrackMenu(context, track: item);
@@ -1058,6 +1053,7 @@ class HomePageState extends State<HomePage> {
                 context,
                 subtitle,
                 style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                linkStyle: TextStyle(color: Colors.grey[400], fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -1398,19 +1394,11 @@ class HomePageState extends State<HomePage> {
         isPlaying: isPlaying,
         onTap: () async {
           final coordinator = context.read<PlaybackCoordinator>();
-          await coordinator.setQueue(
-            [item],
-            startIndex: 0,
-            play: true,
-          );
+          await coordinator.setQueue([item], startIndex: 0, play: true);
         },
         onPlay: () async {
           final coordinator = context.read<PlaybackCoordinator>();
-          await coordinator.setQueue(
-            [item],
-            startIndex: 0,
-            play: true,
-          );
+          await coordinator.setQueue([item], startIndex: 0, play: true);
         },
         onSecondaryTapDown: (details) {
           EntityContextMenus.showTrackMenu(
@@ -1643,11 +1631,7 @@ class HomePageState extends State<HomePage> {
               final coordinator = context.read<PlaybackCoordinator>();
 
               try {
-                await coordinator.setQueue(
-                  [track],
-                  startIndex: 0,
-                  play: true,
-                );
+                await coordinator.setQueue([track], startIndex: 0, play: true);
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -2419,6 +2403,7 @@ class _PlaylistCard extends StatelessWidget {
                     context,
                     _playlistSubtitle(playlist),
                     style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    linkStyle: TextStyle(color: Colors.grey[400], fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

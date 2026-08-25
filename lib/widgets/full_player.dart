@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/services/connect/connect_models.dart';
+import 'package:wisp/utils/text_parser.dart';
 import 'package:wisp/widgets/connect/connect_menu.dart';
 import 'package:wisp/widgets/marquee_text.dart';
 import '../services/app_navigation.dart';
@@ -82,7 +83,8 @@ class _DesktopLyricsPreviewWidget extends StatelessWidget {
         : (() {
             final lines = nonEmptyLyricsLines(lyrics.lines);
             if (lines.isEmpty) return const <LyricsLine>[];
-            if (lyrics.syncMode != LyricsSyncMode.line) return lines.take(5).toList();
+            if (lyrics.syncMode != LyricsSyncMode.line)
+              return lines.take(5).toList();
             final timing = resolveSyncedLyricsTiming(lines, effectivePosition);
             final startIndex = timing.activeIndex >= 0
                 ? timing.activeIndex
@@ -136,7 +138,6 @@ class _DesktopLyricsPreviewWidget extends StatelessWidget {
   }
 }
 
-
 class FullScreenPlayer extends StatelessWidget {
   const FullScreenPlayer({super.key});
 
@@ -156,7 +157,7 @@ class FullScreenPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = context.watch<PreferencesProvider>().style;
-    
+
     // Use new desktop fullscreen for Spotify on desktop
     if (_isDesktop && style == 'Spotify') {
       return PopScope(
@@ -167,7 +168,7 @@ class FullScreenPlayer extends StatelessWidget {
         child: const SpotifyDesktopFullScreenPlayer(),
       );
     }
-    
+
     final sheet = DraggableScrollableSheet(
       initialChildSize: 1.0,
       minChildSize: 0.5,
@@ -470,7 +471,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       builder: (ctx, coordinator, child) {
         final basePosition = coordinator.effectiveThrottledPosition;
         final delayMs =
-            (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
+            (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000)
+                .round();
         final adjustedPosition = basePosition.inMilliseconds - delayMs;
         final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
         final lines = nonEmptyLyricsLines(lyrics.lines);
@@ -483,8 +485,12 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             : null;
         final line = _getSingleLine(lyrics, effectivePosition);
         final showWaitingPlaceholder =
-            lyrics.syncMode == LyricsSyncMode.line && timing != null && timing.activeIndex < 0 && timing.nextIndex != null;
-        if ((line == null || line.content.trim().isEmpty) && !showWaitingPlaceholder) {
+            lyrics.syncMode == LyricsSyncMode.line &&
+            timing != null &&
+            timing.activeIndex < 0 &&
+            timing.nextIndex != null;
+        if ((line == null || line.content.trim().isEmpty) &&
+            !showWaitingPlaceholder) {
           return const SizedBox.shrink();
         }
 
@@ -506,8 +512,14 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             transitionBuilder: (child, animation) {
               final isRemoving = animation.status == AnimationStatus.reverse;
               final tween = isRemoving
-                  ? Tween<Offset>(begin: Offset.zero, end: const Offset(0, -0.2))
-                  : Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero);
+                  ? Tween<Offset>(
+                      begin: Offset.zero,
+                      end: const Offset(0, -0.2),
+                    )
+                  : Tween<Offset>(
+                      begin: const Offset(0, 0.2),
+                      end: Offset.zero,
+                    );
 
               return FadeTransition(
                 opacity: animation,
@@ -653,7 +665,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       builder: (ctx, coordinator, child) {
         final basePosition = coordinator.effectiveThrottledPosition;
         final delayMs =
-            (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
+            (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000)
+                .round();
         final adjustedPosition = basePosition.inMilliseconds - delayMs;
         final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
         final previewLines = lyrics == null
@@ -689,7 +702,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: 'Open lyrics',
-                      onPressed: lyrics == null ? null : () => _openLyrics(context),
+                      onPressed: lyrics == null
+                          ? null
+                          : () => _openLyrics(context),
                       icon: const Icon(Icons.lyrics_outlined),
                       iconSize: 20,
                       color: Colors.white,
@@ -715,7 +730,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                   ),
                 ),
               Text(
-                lyrics == null ? '' : 'Lyrics provided by ${lyrics.provider.label}',
+                lyrics == null
+                    ? ''
+                    : 'Lyrics provided by ${lyrics.provider.label}',
                 style: TextStyle(color: Colors.white, fontSize: 12),
               ),
             ],
@@ -944,6 +961,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       },
     );
   }
+
   Widget _buildPlaybackControls(
     BuildContext context,
     global_audio_player.WispAudioHandler player,
@@ -1104,7 +1122,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     String fallbackUrl,
   ) {
     final canvas = _buildCanvasVideo(canvasUrl, fallbackUrl);
-    
+
     return SizedBox.expand(
       child: Stack(
         fit: StackFit.expand,
@@ -1112,15 +1130,18 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           AnimatedBuilder(
             animation: scrollController,
             builder: (context, child) {
-              final scrollOffset = scrollController.hasClients 
-                  ? scrollController.offset 
+              final scrollOffset = scrollController.hasClients
+                  ? scrollController.offset
                   : 0.0;
               // Apply blur when scrolling down into cards area
               final blurAmount = (scrollOffset * 0.2).clamp(0.0, 25.0);
-              
+
               // Always wrap in ImageFiltered to prevent widget tree changes that cause flicker
               return ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
+                imageFilter: ImageFilter.blur(
+                  sigmaX: blurAmount,
+                  sigmaY: blurAmount,
+                ),
                 child: child,
               );
             },
@@ -1135,8 +1156,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<bool>(
-      valueListenable:
-          AppleMusicFullScreenPlayer.animatedCanvasTemporarilyDisabledListenable,
+      valueListenable: AppleMusicFullScreenPlayer
+          .animatedCanvasTemporarilyDisabledListenable,
       builder: (context, animatedCanvasDisabled, _) {
         return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
           builder: (context, player, lyricsProvider, child) {
@@ -1153,104 +1174,110 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                     currentTrack.source == SongSource.spotify);
             final spotifyInternal = context.read<SpotifyInternalProvider>();
 
-        final viewPadding = MediaQuery.of(context).viewPadding;
-        final windowPadding = MediaQueryData.fromView(
-          WidgetsBinding.instance.platformDispatcher.views.first,
-        ).padding;
-        final topInset = viewPadding.top == 0
-            ? windowPadding.top
-            : viewPadding.top;
-        final bottomInset = viewPadding.bottom == 0
-            ? windowPadding.bottom
-            : viewPadding.bottom;
-          
-        final bgColor = Theme.of(context).colorScheme.primary;
-        final btnColor = bgColor;
+            final viewPadding = MediaQuery.of(context).viewPadding;
+            final windowPadding = MediaQueryData.fromView(
+              WidgetsBinding.instance.platformDispatcher.views.first,
+            ).padding;
+            final topInset = viewPadding.top == 0
+                ? windowPadding.top
+                : viewPadding.top;
+            final bottomInset = viewPadding.bottom == 0
+                ? windowPadding.bottom
+                : viewPadding.bottom;
 
-        Widget buildPlayerScaffold(BuildContext ctx, {String? canvasUrl}) {
-          final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
-          final content = Container(
-            decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45)),
-            child: Padding(
-              padding: EdgeInsets.only(top: topInset, bottom: bottomInset),
-              child: Column(
+            final bgColor = Theme.of(context).colorScheme.primary;
+            final btnColor = bgColor;
+
+            Widget buildPlayerScaffold(BuildContext ctx, {String? canvasUrl}) {
+              final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
+              final content = Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.45),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.only(top: topInset, bottom: bottomInset),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24.0,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 12),
+                                _buildHeader(ctx),
+                                const SizedBox(height: 48),
+                                hasCanvas
+                                    ? _buildHiddenArtworkPlaceholder(context)
+                                    : _buildAlbumArt(ctx, imageUrl),
+                                const SizedBox(height: 24),
+                                _buildSingleLyricsLine(
+                                  ctx,
+                                  player,
+                                  lyricsProvider,
+                                ),
+                                const SizedBox(height: 24),
+                                _buildTrackInfo(
+                                  currentTrack,
+                                  btnColor,
+                                  (currentTrack!.thumbnailUrl.isNotEmpty &&
+                                      hasCanvas &&
+                                      useCanvas),
+                                ),
+                                const SizedBox(height: 16),
+                                _buildPlayerControls(ctx, player, btnColor),
+                                const SizedBox(height: 16),
+                                _buildLyricsPreview(
+                                  ctx,
+                                  player,
+                                  lyricsProvider,
+                                  bgColor,
+                                  btnColor,
+                                ),
+                                const SizedBox(height: 16),
+                                _buildArtistInfoSection(currentTrack),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+
+              final foreground = hasCanvas
+                  ? _CoverGradientContainer(
+                      background: _buildSpotifyTopCanvasBackground(
+                        context,
+                        canvasUrl,
+                        imageUrl,
+                      ),
+                      child: content,
+                    )
+                  : _CoverGradientContainer(child: content);
+
+              return Stack(
+                fit: StackFit.expand,
                 children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 12),
-                            _buildHeader(ctx),
-                            const SizedBox(height: 48),
-                            hasCanvas
-                                ? _buildHiddenArtworkPlaceholder(context)
-                                : _buildAlbumArt(ctx, imageUrl),
-                            const SizedBox(height: 24),
-                            _buildSingleLyricsLine(
-                              ctx,
-                              player,
-                              lyricsProvider,
-                            ),
-                            const SizedBox(height: 24),
-                            _buildTrackInfo(
-                              currentTrack,
-                              btnColor,
-                              (currentTrack!.thumbnailUrl.isNotEmpty &&
-                                  hasCanvas &&
-                                  useCanvas),
-                            ),
-                            const SizedBox(height: 16),
-                            _buildPlayerControls(ctx, player, btnColor),
-                            const SizedBox(height: 16),
-                            _buildLyricsPreview(
-                              ctx,
-                              player,
-                              lyricsProvider,
-                              bgColor,
-                              btnColor,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildArtistInfoSection(currentTrack),
-                          ],
+                  Positioned.fill(
+                    child: ClipRect(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.16),
                         ),
                       ),
                     ),
                   ),
+                  foreground,
                 ],
-              ),
-            ),
-          );
-
-            final foreground = hasCanvas
-                ? _CoverGradientContainer(
-                    background: _buildSpotifyTopCanvasBackground(
-                      context,
-                      canvasUrl,
-                      imageUrl,
-                    ),
-                    child: content,
-                  )
-                : _CoverGradientContainer(child: content);
-
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                Positioned.fill(
-                  child: ClipRect(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                      child: Container(color: Colors.black.withValues(alpha: 0.16)),
-                    ),
-                  ),
-                ),
-                foreground,
-              ],
-            );
-        }
+              );
+            }
 
             if (!canUseCanvas) {
               return buildPlayerScaffold(context);
@@ -1514,7 +1541,12 @@ class _InlineDelayEditor extends StatefulWidget {
   final String trackId;
   final bool visible;
 
-  const _InlineDelayEditor({required this.lyricsProvider, required this.trackId, required this.visible, Key? key}) : super(key: key);
+  const _InlineDelayEditor({
+    required this.lyricsProvider,
+    required this.trackId,
+    required this.visible,
+    Key? key,
+  }) : super(key: key);
 
   @override
   State<_InlineDelayEditor> createState() => _InlineDelayEditorState();
@@ -1582,11 +1614,17 @@ class _InlineDelayEditorState extends State<_InlineDelayEditor> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Delay:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const Text(
+                'Delay:',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
               const SizedBox(width: 6),
               IntrinsicWidth(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(minWidth: 44, maxWidth: 120),
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    maxWidth: 120,
+                  ),
                   child: SizedBox(
                     child: TextField(
                       controller: _controller,
@@ -1602,10 +1640,16 @@ class _InlineDelayEditorState extends State<_InlineDelayEditor> {
                       onSubmitted: (_) => _commit(formatText: true),
                       onEditingComplete: () => _commit(formatText: true),
                       style: const TextStyle(color: Colors.white, fontSize: 13),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                        signed: true,
+                      ),
                       decoration: InputDecoration(
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
                           borderSide: BorderSide.none,
@@ -1668,7 +1712,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       track: track,
       globalPosition: globalPosition,
       anchorRect: anchorRect,
-      onBeforeNavigate: () => AppNavigation.instance.disableFullPlayerDesktopMode(),
+      onBeforeNavigate: () =>
+          AppNavigation.instance.disableFullPlayerDesktopMode(),
       additionalActions: [
         ContextMenuAction(
           id: 'toggle-animated-canvas-temp',
@@ -1948,7 +1993,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     }
 
     final lyrics = syncedLyrics ?? unsyncedState.lyrics;
-    final isLoading = (syncedState.isLoading || unsyncedState.isLoading) && lyrics == null;
+    final isLoading =
+        (syncedState.isLoading || unsyncedState.isLoading) && lyrics == null;
 
     if (isLoading) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
@@ -1980,10 +2026,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
     final timing = normalizedLyrics.syncMode != LyricsSyncMode.unsynced
-      ? resolveSyncedLyricsTiming(normalizedLyrics.lines, effectivePosition)
-      : null;
+        ? resolveSyncedLyricsTiming(normalizedLyrics.lines, effectivePosition)
+        : null;
     final currentIndex = normalizedLyrics.syncMode != LyricsSyncMode.unsynced
-      ? timing!.activeIndex
+        ? timing!.activeIndex
         : 0;
 
     if (_lastLyricsTrackId != currentTrack.id) {
@@ -2052,7 +2098,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
               fontWeight = timing.fadeOutProgress < 0.55
                   ? FontWeight.w700
                   : FontWeight.w600;
-              color = Color.lerp(Colors.white, Colors.grey[500], timing.fadeOutProgress)!;
+              color = Color.lerp(
+                Colors.white,
+                Colors.grey[500],
+                timing.fadeOutProgress,
+              )!;
             }
 
             final row = AnimatedOpacity(
@@ -2063,10 +2113,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                    mouseCursor: normalizedLyrics.syncMode != LyricsSyncMode.unsynced
+                  mouseCursor:
+                      normalizedLyrics.syncMode != LyricsSyncMode.unsynced
                       ? SystemMouseCursors.click
                       : SystemMouseCursors.basic,
-                    onTap: normalizedLyrics.syncMode != LyricsSyncMode.unsynced
+                  onTap: normalizedLyrics.syncMode != LyricsSyncMode.unsynced
                       ? () {
                           final seekMs = (lyricLine.startTimeMs + delayMs)
                               .clamp(0, player.duration.inMilliseconds)
@@ -2102,7 +2153,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
               ),
             );
 
-            final showWaitingDots = normalizedLyrics.syncMode != LyricsSyncMode.unsynced &&
+            final showWaitingDots =
+                normalizedLyrics.syncMode != LyricsSyncMode.unsynced &&
                 timing != null &&
                 timing.showWaitingDots &&
                 timing.nextIndex == index;
@@ -2113,10 +2165,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
             return Column(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildLyricsWaitingDots(timing.progressToNext),
-                row,
-              ],
+              children: [_buildLyricsWaitingDots(timing.progressToNext), row],
             );
           },
         );
@@ -2128,7 +2177,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     final dots = List<Widget>.generate(3, (index) {
       final start = index / 3;
       final end = (index + 1) / 3;
-      final localProgress = ((progress - start) / (end - start)).clamp(0.0, 1.0);
+      final localProgress = ((progress - start) / (end - start)).clamp(
+        0.0,
+        1.0,
+      );
       final opacity = lerpDouble(0.2, 1.0, localProgress)!;
 
       return Padding(
@@ -2149,10 +2201,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: dots,
-        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: dots),
       ),
     );
   }
@@ -2165,8 +2214,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     final queue = player.queueTracks;
     final currentIndex = player.currentIndex;
     final contextName = player.playbackContextName;
-    final continuePlayingSource =
-        contextName != null && contextName.isNotEmpty ? contextName : 'Queue';
+    final continuePlayingSource = contextName != null && contextName.isNotEmpty
+        ? contextName
+        : 'Queue';
     final visibleQueueIndices = _buildWrappedQueueIndices(queue, currentIndex);
 
     return Column(
@@ -2246,9 +2296,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   onReorder: (oldIndex, newIndex) {
                     if (oldIndex == newIndex) return;
                     final queueOldIndex = visibleQueueIndices[oldIndex];
-                    final queueNewIndex = visibleQueueIndices[
-                      newIndex.clamp(0, visibleQueueIndices.length - 1)
-                    ];
+                    final queueNewIndex =
+                        visibleQueueIndices[newIndex.clamp(
+                          0,
+                          visibleQueueIndices.length - 1,
+                        )];
                     unawaited(
                       context.read<PlaybackCoordinator>().reorderQueue(
                         queueOldIndex,
@@ -2274,7 +2326,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                         },
                         child: Row(
                           children: [
-                            _buildCoverImageBox(context, track.thumbnailUrl, 56),
+                            _buildCoverImageBox(
+                              context,
+                              track.thumbnailUrl,
+                              56,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -2521,16 +2577,24 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                               ),
                             ),
                           const SizedBox(height: 12),
-                          Text(
-                            (description != null && description.isNotEmpty)
-                                ? description
-                                : 'No description available for this artist.',
-                            style: TextStyle(
-                              color: Colors.grey[200],
-                              fontSize: 14,
-                              height: 1.35,
-                            ),
-                          ),
+                          (description != null && description.isNotEmpty)
+                              ? buildParsedText(
+                                  context,
+                                  description,
+                                  style: TextStyle(
+                                    color: Colors.grey[200],
+                                    fontSize: 14,
+                                    height: 1.35,
+                                  ),
+                                )
+                              : Text(
+                                  'No description available for this artist.',
+                                  style: TextStyle(
+                                    color: Colors.grey[200],
+                                    fontSize: 14,
+                                    height: 1.35,
+                                  ),
+                                ),
                           if (topTracks.isNotEmpty) ...[
                             const SizedBox(height: 16),
                             const Text(
@@ -2617,7 +2681,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     }
   }
 
-
   Future<String?>? _getCanvasUrlFuture(
     SpotifyInternalProvider spotifyInternal,
     GenericSong? currentTrack,
@@ -2674,16 +2737,18 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             secondLine = 'Waiting for device...';
           }
         } else if (connect.isLinked) {
-          final peerName = connect.linkedPeerName ?? (() {
-            final peerId = connect.linkedDeviceId;
-            if (peerId == null) return null;
-            for (final device in connect.discoveredDevices) {
-              if (device.id == peerId) {
-                return device.name;
-              }
-            }
-            return null;
-          })();
+          final peerName =
+              connect.linkedPeerName ??
+              (() {
+                final peerId = connect.linkedDeviceId;
+                if (peerId == null) return null;
+                for (final device in connect.discoveredDevices) {
+                  if (device.id == peerId) {
+                    return device.name;
+                  }
+                }
+                return null;
+              })();
 
           if (connect.isHost) {
             firstLine = 'Handoff | Listening on';
@@ -2695,7 +2760,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         }
 
         final centerInfo = secondLine.isNotEmpty
-          ? Column(
+            ? Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
@@ -2890,8 +2955,12 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         : null;
     final line = _getSingleLine(lyrics, effectivePosition);
     final showWaitingPlaceholder =
-        lyrics.syncMode != LyricsSyncMode.unsynced && timing != null && timing.activeIndex < 0 && timing.nextIndex != null;
-    if ((line == null || line.content.trim().isEmpty) && !showWaitingPlaceholder) {
+        lyrics.syncMode != LyricsSyncMode.unsynced &&
+        timing != null &&
+        timing.activeIndex < 0 &&
+        timing.nextIndex != null;
+    if ((line == null || line.content.trim().isEmpty) &&
+        !showWaitingPlaceholder) {
       return const SizedBox.shrink();
     }
 
@@ -3106,30 +3175,24 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                         icon: CupertinoIcons.ellipsis,
                         selected: false,
                         onTap: () {
-                          final overlay = Overlay.of(context).context
-                              .findRenderObject() as RenderBox;
-                          final box = buttonContext.findRenderObject()
-                              as RenderBox?;
+                          final overlay =
+                              Overlay.of(context).context.findRenderObject()
+                                  as RenderBox;
+                          final box =
+                              buttonContext.findRenderObject() as RenderBox?;
                           if (box == null) {
                             unawaited(_openTrackMenu(context, player));
                             return;
                           }
                           final rect = Rect.fromPoints(
-                            box.localToGlobal(
-                              Offset.zero,
-                              ancestor: overlay,
-                            ),
+                            box.localToGlobal(Offset.zero, ancestor: overlay),
                             box.localToGlobal(
                               box.size.bottomRight(Offset.zero),
                               ancestor: overlay,
                             ),
                           );
                           unawaited(
-                            _openTrackMenu(
-                              context,
-                              player,
-                              anchorRect: rect,
-                            ),
+                            _openTrackMenu(context, player, anchorRect: rect),
                           );
                         },
                         activeColor: btnColor,
@@ -3140,7 +3203,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       tooltip: 'Shuffle',
                       icon: CupertinoIcons.shuffle,
                       selected: player.shuffleEnabled,
-                      onTap: () => context.read<PlaybackCoordinator>().toggleShuffle(),
+                      onTap: () =>
+                          context.read<PlaybackCoordinator>().toggleShuffle(),
                       activeColor: btnColor,
                     ),
                     const SizedBox(width: 6),
@@ -3154,7 +3218,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                       selected:
                           player.repeatMode !=
                           global_audio_player.RepeatMode.off,
-                      onTap: () => context.read<PlaybackCoordinator>().toggleRepeat(),
+                      onTap: () =>
+                          context.read<PlaybackCoordinator>().toggleRepeat(),
                       activeColor: btnColor,
                     ),
                     const SizedBox(width: 6),
@@ -3210,12 +3275,15 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     BuildContext buttonContext,
     Color accentColor,
   ) async {
-    final overlay = Overlay.of(buttonContext).context.findRenderObject()
-        as RenderBox;
+    final overlay =
+        Overlay.of(buttonContext).context.findRenderObject() as RenderBox;
     final button = buttonContext.findRenderObject() as RenderBox;
     final buttonRect = Rect.fromPoints(
       button.localToGlobal(Offset.zero, ancestor: overlay),
-      button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+      button.localToGlobal(
+        button.size.bottomRight(Offset.zero),
+        ancestor: overlay,
+      ),
     );
 
     await showGeneralDialog<void>(
@@ -3230,7 +3298,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           overlaySize: overlay.size,
           accentColor: accentColor,
           onToggleMute: () {
-            final audio = dialogContext.read<global_audio_player.WispAudioHandler>();
+            final audio = dialogContext
+                .read<global_audio_player.WispAudioHandler>();
             unawaited(_toggleMute(audio));
           },
         );
@@ -3300,8 +3369,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   if (isPlaying) {
                     context.read<PlaybackCoordinator>().pause();
                   } else {
-                    final audio =
-                        context.read<global_audio_player.WispAudioHandler>();
+                    final audio = context
+                        .read<global_audio_player.WispAudioHandler>();
                     if (!useHandoffState &&
                         (audio.isLoading ||
                             audio.isBuffering ||
@@ -3452,12 +3521,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
   Future<void> _openTrackMenu(
     BuildContext context,
-    global_audio_player.WispAudioHandler player,
-    {
-      Offset? globalPosition,
-      Rect? anchorRect,
-    }
-  ) async {
+    global_audio_player.WispAudioHandler player, {
+    Offset? globalPosition,
+    Rect? anchorRect,
+  }) async {
     final currentTrack = player.currentTrack;
     if (currentTrack == null) return;
     await showTrackMenuWithCanvasToggle(
@@ -4071,10 +4138,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   builder: (context, mode, _) {
                     final isNowPlaying =
                         mode == _ApplePlayerViewMode.nowPlaying;
-                    final useNowPlayingCanvas = !animatedCanvasDisabled &&
-                        (_isDesktop
-                            ? hasCanvas
-                            : (isNowPlaying && hasCanvas));
+                    final useNowPlayingCanvas =
+                        !animatedCanvasDisabled &&
+                        (_isDesktop ? hasCanvas : (isNowPlaying && hasCanvas));
 
                     return Stack(
                       clipBehavior: Clip.hardEdge,
@@ -4114,118 +4180,120 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                             ),
                           ),
                         ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: bottomInset),
-                        child: Column(
-                          children: [
-                            Padding(
-                              padding:
-                                  (_isDesktop
-                                          ? const EdgeInsets.only(right: 0)
-                                          : const EdgeInsets.symmetric(
-                                              horizontal: 24.0,
-                                            ))
-                                      .add(EdgeInsets.only(top: topInset)),
-                              child: _buildHeader(context),
-                            ),
-                            SizedBox(height: _isDesktop || !isNowPlaying ? 0 : 56),
-                            Flexible(
-                              fit: FlexFit.tight,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24.0,
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: bottomInset),
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding:
+                                      (_isDesktop
+                                              ? const EdgeInsets.only(right: 0)
+                                              : const EdgeInsets.symmetric(
+                                                  horizontal: 24.0,
+                                                ))
+                                          .add(EdgeInsets.only(top: topInset)),
+                                  child: _buildHeader(context),
                                 ),
-                                child: _isDesktop
-                                    ? _buildDesktopBody(
-                                        context,
-                                        player,
-                                        lyricsProvider,
-                                        currentTrack,
-                                        imageUrl,
-                                        mode,
-                                        btnColor,
-                                      )
-                                    : Column(
-                                        mainAxisSize: MainAxisSize.max,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          _buildAnimatedCoverSection(
+                                SizedBox(
+                                  height: _isDesktop || !isNowPlaying ? 0 : 56,
+                                ),
+                                Flexible(
+                                  fit: FlexFit.tight,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24.0,
+                                    ),
+                                    child: _isDesktop
+                                        ? _buildDesktopBody(
                                             context,
-                                            mode,
+                                            player,
+                                            lyricsProvider,
                                             currentTrack,
                                             imageUrl,
-                                            useNowPlayingCanvas,
-                                          ),
-                                          SizedBox(
-                                            height: isNowPlaying ? 10 : 4,
-                                          ),
-                                          if (isNowPlaying) ...[
-                                            const Spacer(),
-                                            _buildSingleLyricsLine(
-                                              context,
-                                              player,
-                                              lyricsProvider,
-                                            ),
-                                            const SizedBox(height: 12),
-                                            _buildTrackInfo(
-                                              currentTrack,
-                                              btnColor,
-                                              false,
-                                            ),
-                                            const SizedBox(height: 24),
-                                          ] else ...[
-                                            Expanded(
-                                              child: AnimatedSwitcher(
-                                                duration: const Duration(
-                                                  milliseconds: 280,
+                                            mode,
+                                            btnColor,
+                                          )
+                                        : Column(
+                                            mainAxisSize: MainAxisSize.max,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              _buildAnimatedCoverSection(
+                                                context,
+                                                mode,
+                                                currentTrack,
+                                                imageUrl,
+                                                useNowPlayingCanvas,
+                                              ),
+                                              SizedBox(
+                                                height: isNowPlaying ? 10 : 4,
+                                              ),
+                                              if (isNowPlaying) ...[
+                                                const Spacer(),
+                                                _buildSingleLyricsLine(
+                                                  context,
+                                                  player,
+                                                  lyricsProvider,
                                                 ),
-                                                switchInCurve:
-                                                    Curves.easeOut,
-                                                switchOutCurve:
-                                                    Curves.easeIn,
-                                                child: KeyedSubtree(
-                                                  key:
-                                                      ValueKey<
-                                                        _ApplePlayerViewMode
-                                                      >(mode),
-                                                  child: _buildModeContent(
-                                                    context,
-                                                    mode,
-                                                    player,
-                                                    lyricsProvider,
-                                                    true,
+                                                const SizedBox(height: 12),
+                                                _buildTrackInfo(
+                                                  currentTrack,
+                                                  btnColor,
+                                                  false,
+                                                ),
+                                                const SizedBox(height: 24),
+                                              ] else ...[
+                                                Expanded(
+                                                  child: AnimatedSwitcher(
+                                                    duration: const Duration(
+                                                      milliseconds: 280,
+                                                    ),
+                                                    switchInCurve:
+                                                        Curves.easeOut,
+                                                    switchOutCurve:
+                                                        Curves.easeIn,
+                                                    child: KeyedSubtree(
+                                                      key:
+                                                          ValueKey<
+                                                            _ApplePlayerViewMode
+                                                          >(mode),
+                                                      child: _buildModeContent(
+                                                        context,
+                                                        mode,
+                                                        player,
+                                                        lyricsProvider,
+                                                        true,
+                                                      ),
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                              ),
+                                              ],
+                                            ],
+                                          ),
+                                  ),
+                                ),
+                                if (!_isDesktop) ...[
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24.0,
+                                    ),
+                                    child: _buildPlayerControls(
+                                      context,
+                                      player,
+                                      btnColor,
+                                      mode,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                ],
+                              ],
                             ),
-                            if (!_isDesktop) ...[
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24.0,
-                                ),
-                                child: _buildPlayerControls(
-                                  context,
-                                  player,
-                                  btnColor,
-                                  mode,
-                                ),
-                              ),
-                              const SizedBox(height: 18),
-                            ],
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
                       ],
                     );
                   },
@@ -4503,7 +4571,6 @@ class YouTubeMusicFullScreenPlayer extends StatelessWidget {
   }
 }
 
-
 class _CoverGradientContainer extends StatelessWidget {
   final Widget child;
   final Widget? background;
@@ -4678,10 +4745,7 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
                         (data.description?.trim().isNotEmpty == true)
                             ? data.description!.trim()
                             : 'No description available for this artist.',
-                        style: TextStyle(
-                          color: Colors.grey[200],
-                          fontSize: 13,
-                        ),
+                        style: TextStyle(color: Colors.grey[200], fontSize: 13),
                         maxLines: 4,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -4811,7 +4875,10 @@ class _FullPlayerVolumeQuickPanel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 0,
+                ),
                 child: Selector<global_audio_player.WispAudioHandler, double>(
                   selector: (context, player) => player.volume,
                   builder: (context, volume, child) {
@@ -5079,7 +5146,8 @@ class _SpotifyDesktopFullScreenPlayerState
         // viewport height we assume the user is viewing cards and won't
         // auto-hide.
         var inCardsArea = false;
-        if (_scrollController.hasClients && _scrollController.position.viewportDimension > 0) {
+        if (_scrollController.hasClients &&
+            _scrollController.position.viewportDimension > 0) {
           final thresh = _scrollController.position.viewportDimension * 0.55;
           inCardsArea = _scrollController.offset > thresh;
         }
@@ -5124,23 +5192,24 @@ class _SpotifyDesktopFullScreenPlayerState
           (prefs) => prefs.animatedCanvasEnabled,
         );
         final spotifyInternal = context.read<SpotifyInternalProvider>();
-        final canUseCanvas = useCanvas &&
+        final canUseCanvas =
+            useCanvas &&
             (currentTrack.source == SongSource.spotifyInternal ||
                 currentTrack.source == SongSource.spotify);
 
         return ChangeNotifierProvider<_SpotifyDesktopFullScreenState>.value(
           value: _desktopState,
-                child: MouseRegion(
+          child: MouseRegion(
             onEnter: (_) => _resetInactivityTimer(),
             onHover: (_) => _resetInactivityTimer(),
-                  child: _SpotifyDesktopFullScreenBody(
-                    player: player,
-                    lyricsProvider: lyricsProvider,
-                    currentTrack: currentTrack,
-                    canUseCanvas: canUseCanvas,
-                    spotifyInternal: spotifyInternal,
-                    scrollController: _scrollController,
-                  ),
+            child: _SpotifyDesktopFullScreenBody(
+              player: player,
+              lyricsProvider: lyricsProvider,
+              currentTrack: currentTrack,
+              canUseCanvas: canUseCanvas,
+              spotifyInternal: spotifyInternal,
+              scrollController: _scrollController,
+            ),
           ),
         );
       },
@@ -5155,7 +5224,7 @@ class _SpotifyDesktopFullScreenPlayerState
       rememberPrevious: false,
     );
     AppNavigation.instance.fullPlayerLyricsMode.value =
-      _desktopState.preferredMode == _SpotifyDisplayMode.lyrics;
+        _desktopState.preferredMode == _SpotifyDisplayMode.lyrics;
   }
 }
 
@@ -5223,8 +5292,9 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
             final controlsVisible = desktopState.topControlsVisible;
             final showCards =
                 desktopState.preferredMode != _SpotifyDisplayMode.lyrics;
-            final reservedBottomInset =
-              showCards && controlsVisible ? bottomBarHeight : 0.0;
+            final reservedBottomInset = showCards && controlsVisible
+                ? bottomBarHeight
+                : 0.0;
 
             final background = Stack(
               fit: StackFit.expand,
@@ -5281,7 +5351,12 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                     top: 0,
                     left: 0,
                     right: 0,
-                    child: _buildTopBar(context, player, desktopState, hasCanvas),
+                    child: _buildTopBar(
+                      context,
+                      player,
+                      desktopState,
+                      hasCanvas,
+                    ),
                   ),
 
                   Positioned(
@@ -5357,7 +5432,8 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     final pageLabel = switch (mode) {
       _SpotifyDisplayMode.lyrics => 'Singing along to',
       _SpotifyDisplayMode.queue => 'Next up from',
-      _SpotifyDisplayMode.artwork || _SpotifyDisplayMode.canvas => 'Listening to',
+      _SpotifyDisplayMode.artwork ||
+      _SpotifyDisplayMode.canvas => 'Listening to',
     };
     final contextName = player.playbackContextName ?? 'Now Playing';
 
@@ -5415,7 +5491,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                       ),
                     ),
                   ],
-                  ),
+                ),
               ),
 
               // Right: Mode selectors and menu
@@ -5490,8 +5566,9 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     String label,
     IconData icon,
     _SpotifyDisplayMode mode,
-    _SpotifyDesktopFullScreenState desktopState,
-    {required bool enabled}) {
+    _SpotifyDesktopFullScreenState desktopState, {
+    required bool enabled,
+  }) {
     final isSelected = desktopState.preferredMode == mode;
     final color = isSelected ? Colors.white : Colors.white54;
 
@@ -5566,12 +5643,16 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
         return NotificationListener<ScrollNotification>(
           onNotification: (notification) {
             if (notification is ScrollUpdateNotification) {
-              final desktopState = context.read<_SpotifyDesktopFullScreenState>();
+              final desktopState = context
+                  .read<_SpotifyDesktopFullScreenState>();
               if (!desktopState.topControlsVisible) {
                 desktopState.setTopControlsVisible(true);
               }
               // Reset the inactivity timer on user scroll so controls stay visible.
-              final parentState = context.findAncestorStateOfType<_SpotifyDesktopFullScreenPlayerState>();
+              final parentState = context
+                  .findAncestorStateOfType<
+                    _SpotifyDesktopFullScreenPlayerState
+                  >();
               parentState?._resetInactivityTimer();
             }
             return false;
@@ -5603,10 +5684,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        const Color(0xFF0F0F0F),
-                      ],
+                      colors: [Colors.transparent, const Color(0xFF0F0F0F)],
                       stops: const [0.0, 0.95],
                     ),
                   ),
@@ -5622,10 +5700,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
               // extra padding below cards to give breathing room; keep same
               // background color so the visual remains seamless.
               SliverToBoxAdapter(
-                child: Container(
-                  height: 20,
-                  color: const Color(0xFF0F0F0F),
-                ),
+                child: Container(height: 20, color: const Color(0xFF0F0F0F)),
               ),
             ],
           ),
@@ -5650,11 +5725,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
           ),
           errorWidget: (context, url, error) => Container(
             color: Colors.grey[900],
-            child: const Icon(
-              Icons.music_note,
-              size: 120,
-              color: Colors.grey,
-            ),
+            child: const Icon(Icons.music_note, size: 120, color: Colors.grey),
           ),
         ),
       ),
@@ -5675,12 +5746,20 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     );
   }
 
-  Widget _buildMainVisualViewport({required Widget child, double aspectRatio = 1.0}) {
+  Widget _buildMainVisualViewport({
+    required Widget child,
+    double aspectRatio = 1.0,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final height =
-            (constraints.maxHeight * 0.56).clamp(260.0, constraints.maxWidth * 0.68);
-        final width = (height * aspectRatio).clamp(160.0, constraints.maxWidth * 0.9);
+        final height = (constraints.maxHeight * 0.56).clamp(
+          260.0,
+          constraints.maxWidth * 0.68,
+        );
+        final width = (height * aspectRatio).clamp(
+          160.0,
+          constraints.maxWidth * 0.9,
+        );
         return Center(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -5693,11 +5772,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                 ),
               ],
             ),
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: child,
-            ),
+            child: SizedBox(width: width, height: height, child: child),
           ),
         );
       },
@@ -5708,13 +5783,19 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     return const LyricsView(hideHeader: true);
   }
 
-  Widget _buildCardsSection(BuildContext context, _SpotifyDesktopFullScreenState desktopState) {
+  Widget _buildCardsSection(
+    BuildContext context,
+    _SpotifyDesktopFullScreenState desktopState,
+  ) {
     final song = currentTrack as GenericSong?;
-    final artist = song?.artists.isNotEmpty == true ? song!.artists.first : null;
+    final artist = song?.artists.isNotEmpty == true
+        ? song!.artists.first
+        : null;
     final queue = player.queueTracks;
     final nextIndex = player.currentIndex + 1;
-    final nextTrack =
-        nextIndex >= 0 && nextIndex < queue.length ? queue[nextIndex] : null;
+    final nextTrack = nextIndex >= 0 && nextIndex < queue.length
+        ? queue[nextIndex]
+        : null;
     final lyricsProvider = context.read<LyricsProvider>();
 
     return Padding(
@@ -5728,7 +5809,8 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                 _buildDesktopSpotifyCard(
                   title: 'Lyrics Preview',
                   trailing: Icons.lyrics_outlined,
-                  onTrailingPressed: () => desktopState.setPreferredMode(_SpotifyDisplayMode.lyrics),
+                  onTrailingPressed: () =>
+                      desktopState.setPreferredMode(_SpotifyDisplayMode.lyrics),
                   background: Theme.of(context).colorScheme.primary,
                   child: _DesktopLyricsPreviewWidget(
                     player: player,
@@ -5780,9 +5862,15 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                                   PageRouteBuilder(
                                     transitionDuration: Duration.zero,
                                     reverseTransitionDuration: Duration.zero,
-                                    settings: const RouteSettings(name: '/queue'),
-                                    pageBuilder: (context, animation, secondaryAnimation) =>
-                                        const QueueView(),
+                                    settings: const RouteSettings(
+                                      name: '/queue',
+                                    ),
+                                    pageBuilder:
+                                        (
+                                          context,
+                                          animation,
+                                          secondaryAnimation,
+                                        ) => const QueueView(),
                                   ),
                                 );
                               },
@@ -5901,7 +5989,6 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
       ),
     );
   }
- 
 
   void _openTrackMenu(BuildContext context) {
     final currentTrack_ = currentTrack as GenericSong?;
