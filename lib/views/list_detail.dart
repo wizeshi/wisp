@@ -2405,8 +2405,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final isLiked =
         widget.type == SharedListType.playlist &&
         isLikedSongsPlaylistId(widget.id);
+
+    final headerHeight = (MediaQuery.of(context).size.width * 0.125).clamp(
+      200,
+      double.infinity,
+    );
+
+    final baseFontSize = (MediaQuery.of(context).size.width * 0.00075).clamp(
+      1,
+      double.infinity,
+    );
+
     return Container(
       width: double.infinity,
+      height: headerHeight.toDouble(),
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       decoration: const BoxDecoration(),
       child: Row(
@@ -2414,10 +2426,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Container(
-              width: 176,
-              height: 176,
-              color: Colors.grey[900],
+            child: AspectRatio(
+              aspectRatio: 1,
               child: isLiked
                   ? const LikedSongsArt()
                   : (imageUrl.isNotEmpty
@@ -2461,9 +2471,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 const SizedBox(height: 6),
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 52,
+                    fontSize: (52 * baseFontSize).toDouble(),
                     height: 0.95,
                     fontWeight: FontWeight.w700,
                   ),
