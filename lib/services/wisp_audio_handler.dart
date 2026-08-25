@@ -136,6 +136,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Duration? _lastKnownDuration;
 
   int _trackChangeToken = 0;
+  // Set while _prepareCurrentTrackOnStartup() is in-flight so that play()
+  // can wait for it instead of racing to call setAudioSource() concurrently.
+  Future<void>? _startupPrepareFuture;
   bool _isHandlingCompletion = false;
   bool _isTrackTransitioning = false;
   bool _crossfadeFadeOutActive = false;
@@ -513,7 +516,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
     }
 
-    await _prepareCurrentTrackOnStartup();
+    _startupPrepareFuture = _prepareCurrentTrackOnStartup();
+    try {
+      await _startupPrepareFuture;
+    } finally {
+      _startupPrepareFuture = null;
+    }
   }
 
   Future<void> _configureAudioSession() async {
@@ -2220,6 +2228,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (isLoading || isBuffering || isTrackTransitioning) {
       logger.d('[Audio/Player] Ignoring play intent while track is loading');
       return;
+    }
+
+    // If the startup source-prepare is still running, wait for it before
+    // checking whether we need to load a source ourselves.  Without this,
+    // both _prepareCurrentTrackOnStartup() and play() can concurrently call
+    // setAudioSource(), and whichever finishes second resets position to 0.
+    if (_player.audioSource == null && _currentTrack != null) {
+      final startupFuture = _startupPrepareFuture;
+      if (startupFuture != null) {
+        await startupFuture;
+      }
     }
 
     if (_player.audioSource == null && _currentTrack != null) {

@@ -2638,6 +2638,7 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                                           ),
                                         ),
                                         fit: BoxFit.cover,
+                                        filterQuality: FilterQuality.high,
                                         errorBuilder: (context, url, error) =>
                                             Icon(
                                               Icons.music_note,
@@ -2647,6 +2648,7 @@ class _HomeQuickTileState extends State<_HomeQuickTile> {
                                     : CachedNetworkImage(
                                         imageUrl: widget.imageUrl,
                                         fit: BoxFit.cover,
+                                        filterQuality: FilterQuality.high,
                                         placeholder: (context, url) =>
                                             Container(color: Colors.grey[800]),
                                         errorWidget: (context, url, error) =>

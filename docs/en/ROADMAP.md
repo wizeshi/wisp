@@ -1,7 +1,6 @@
 Here's the TODOs for version v26.05.xx:
 
 - Bugs:
-    - [ ] The player resets after ~8 seconds of the app being open, even if it can play before that. 
     - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
     - [ ] Fix song autoadvance not working on macOS if either gapless playback or crossfade are off.
