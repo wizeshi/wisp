@@ -112,9 +112,10 @@ class _LyricsViewState extends State<LyricsView> {
 
     final timing = resolveSyncedLyricsTiming(lyrics.lines, effectivePosition);
     final scrollIndex = _scrollTargetIndex(timing);
-    final shouldScroll = _autoScrollEnabled &&
-      scrollIndex != null &&
-      scrollIndex != _currentLineIndex;
+    final shouldScroll =
+        _autoScrollEnabled &&
+        scrollIndex != null &&
+        scrollIndex != _currentLineIndex;
     final targetScrollIndex = scrollIndex ?? timing.activeIndex;
 
     setState(() {
@@ -197,9 +198,11 @@ class _LyricsViewState extends State<LyricsView> {
   void _centerCurrentLineOnOpen(WispAudioHandler player, LyricsResult lyrics) {
     if (_didInitialCenter) return;
     final timing = lyrics.syncMode != LyricsSyncMode.unsynced
-      ? resolveSyncedLyricsTiming(lyrics.lines, _effectivePositionMs())
+        ? resolveSyncedLyricsTiming(lyrics.lines, _effectivePositionMs())
         : null;
-    final initialIndex = lyrics.syncMode != LyricsSyncMode.unsynced ? timing!.activeIndex : 0;
+    final initialIndex = lyrics.syncMode != LyricsSyncMode.unsynced
+        ? timing!.activeIndex
+        : 0;
     _currentLineIndex = initialIndex;
     _timingState = timing;
     if (initialIndex < 0) {
@@ -330,7 +333,9 @@ class _LyricsViewState extends State<LyricsView> {
         if (track == null) return;
         final syncedState = provider.getState(track, mode);
         final syncedLyrics = syncedState.lyrics;
-        if (syncedLyrics == null || syncedLyrics.syncMode == LyricsSyncMode.unsynced) return;
+        if (syncedLyrics == null ||
+            syncedLyrics.syncMode == LyricsSyncMode.unsynced)
+          return;
         final cleanedSyncedLyrics = removeEmptyLyricsLines(syncedLyrics);
         if (cleanedSyncedLyrics.lines.isEmpty) return;
         final positionMs = _effectivePositionMs();
@@ -467,21 +472,23 @@ class _LyricsViewState extends State<LyricsView> {
                           if (!widget.hideHeader)
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
-                              child: _buildLyricsControls(lyricsProvider, track),
-                            )
+                              child: _buildLyricsControls(
+                                lyricsProvider,
+                                track,
+                              ),
+                            ),
                         ],
-                        backgroundColor:
-                            _tintedDominantColor(dominantColor, blend: 0.55),
+                        backgroundColor: _tintedDominantColor(
+                          dominantColor,
+                          blend: 0.55,
+                        ),
                       ),
                 body: content,
               );
 
         return Stack(
           fit: StackFit.expand,
-          children: [
-            backgroundLayer,
-            surface,
-          ],
+          children: [backgroundLayer, surface],
         );
       },
     );
@@ -563,12 +570,15 @@ class _LyricsViewState extends State<LyricsView> {
           );
         }
 
-        if (_syncMode != LyricsSyncMode.unsynced && lyrics.syncMode == LyricsSyncMode.unsynced) {
+        if (_syncMode != LyricsSyncMode.unsynced &&
+            lyrics.syncMode == LyricsSyncMode.unsynced) {
           _handleSyncedUnavailable();
         }
 
         final resolvedMode = state.lyrics?.syncMode;
-        if (state.hasFetched && resolvedMode != null && resolvedMode != _syncMode) {
+        if (state.hasFetched &&
+            resolvedMode != null &&
+            resolvedMode != _syncMode) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted || _trackId != track.id) return;
             if (_syncMode != resolvedMode) {
@@ -587,46 +597,51 @@ class _LyricsViewState extends State<LyricsView> {
         _centerCurrentLineOnOpen(player, lyrics);
         final syncedTiming = lyrics.syncMode != LyricsSyncMode.unsynced
             ? _timingState ??
-                resolveSyncedLyricsTiming(
-                  lyrics.lines,
-                  _effectivePositionMs(),
-                )
+                  resolveSyncedLyricsTiming(
+                    lyrics.lines,
+                    _effectivePositionMs(),
+                  )
             : null;
 
         return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-            if (_isDesktop && !widget.hideHeader) Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Lyrics',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_isDesktop && !widget.hideHeader)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Lyrics',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  _buildLyricsControls(lyricsProvider, track),
-                ],
+                    _buildLyricsControls(lyricsProvider, track),
+                  ],
+                ),
               ),
-            ),
             Expanded(
               child: Stack(
                 children: [
                   LayoutBuilder(
                     builder: (context, constraints) {
-                        final edgeCenterPadding = _isMobile
+                      final edgeCenterPadding = _isMobile
                           ? 0.0
                           : ((constraints.maxHeight - 56.0) / 4)
-                            .clamp(16.0, double.infinity)
-                            .toDouble();
-                        final horizontalPadding = _isDesktop
-                          ? (constraints.maxWidth * 0.2).clamp(24.0, 320.0)
-                          : (constraints.maxWidth * 0.08).clamp(12.0, 40.0);
-                        final topPadding = edgeCenterPadding + (_isMobile ? 32.0 : 0.0);
+                                .clamp(16.0, double.infinity)
+                                .toDouble();
+
+                      final widgetWidth = constraints.maxWidth;
+
+                      final horizontalPadding = _isDesktop
+                          ? (widgetWidth * 0.2).clamp(24.0, double.infinity)
+                          : (widgetWidth * 0.08).clamp(12.0, 40.0);
+                      final topPadding =
+                          edgeCenterPadding + (_isMobile ? 32.0 : 0.0);
 
                       _scheduleInitialCenterIfNeeded(
                         lyrics,
@@ -639,9 +654,9 @@ class _LyricsViewState extends State<LyricsView> {
                       return Align(
                         alignment: Alignment.topLeft,
                         child: ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(
-                            scrollbars: false,
-                          ),
+                          behavior: ScrollConfiguration.of(
+                            context,
+                          ).copyWith(scrollbars: false),
                           child: ListView.builder(
                             key: _listKey,
                             controller: _scrollController,
@@ -651,54 +666,78 @@ class _LyricsViewState extends State<LyricsView> {
                               horizontalPadding,
                               edgeCenterPadding,
                             ),
-                            itemCount: lyrics.lines.length + (_isMobile ? 1 : 0),
+                            itemCount:
+                                lyrics.lines.length + (_isMobile ? 1 : 0),
                             itemBuilder: (context, index) {
                               if (_isMobile && index == lyrics.lines.length) {
                                 return Padding(
-                                  padding: const EdgeInsets.only(top: 12, bottom: 12),
+                                  padding: const EdgeInsets.only(
+                                    top: 12,
+                                    bottom: 12,
+                                  ),
                                   child: Text(
                                     'Lyrics provided by ${lyrics.provider.label}',
-                                    style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                                    style: TextStyle(
+                                      color: Colors.grey[300],
+                                      fontSize: 12,
+                                    ),
                                     textAlign: TextAlign.left,
                                   ),
                                 );
                               }
                               final line = lyrics.lines[index];
-                                final isSynced = lyrics.syncMode != LyricsSyncMode.unsynced;
+                              final isSynced =
+                                  lyrics.syncMode != LyricsSyncMode.unsynced;
                               final timing = syncedTiming;
                               final anchorIndex = _currentLineIndex >= 0
                                   ? _currentLineIndex
-                                  : (timing?.nextIndex ?? timing?.previousIndex ?? 0);
-                              final offset = isSynced ? (index - anchorIndex) : 0;
+                                  : (timing?.nextIndex ??
+                                        timing?.previousIndex ??
+                                        0);
+                              final offset = isSynced
+                                  ? (index - anchorIndex)
+                                  : 0;
                               var opacity = 1.0;
                               if (isSynced && anchorIndex >= 0) {
                                 if (offset > 0) {
-                                  opacity = (0.75 - (offset * 0.05)).clamp(0.45, 0.75);
+                                  opacity = (0.75 - (offset * 0.05)).clamp(
+                                    0.45,
+                                    0.75,
+                                  );
                                 } else if (offset < 0) {
-                                  opacity = (0.45 - (offset.abs() * 0.07)).clamp(0.2, 0.45);
+                                  opacity = (0.45 - (offset.abs() * 0.07))
+                                      .clamp(0.2, 0.45);
                                 }
                               }
                               final isCurrent =
                                   isSynced && index == _currentLineIndex;
                               final canSeek = line.startTimeMs > 0;
-                              final delayMs =
-                                  (_lyricsDelaySeconds * 1000).round();
-                                final adjustedPosition = _effectivePositionMs() - delayMs;
-                                final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
+                              final delayMs = (_lyricsDelaySeconds * 1000)
+                                  .round();
+                              final adjustedPosition =
+                                  _effectivePositionMs() - delayMs;
+                              final effectivePosition = adjustedPosition < 0
+                                  ? 0
+                                  : adjustedPosition;
 
                               if (isSynced &&
                                   timing != null &&
                                   timing.shouldFadePreviousLine &&
                                   timing.previousIndex == index &&
                                   timing.nextIndex != null) {
-                                opacity = lerpDouble(1.0, 0.5, timing.fadeOutProgress)!;
+                                opacity = lerpDouble(
+                                  1.0,
+                                  0.5,
+                                  timing.fadeOutProgress,
+                                )!;
                               }
 
-                              final isActiveLine = isCurrent &&
+                              final isActiveLine =
+                                  isCurrent &&
                                   !(isSynced &&
                                       timing != null &&
                                       timing.shouldFadePreviousLine &&
-                                    timing.fadeOutProgress > 0 &&
+                                      timing.fadeOutProgress > 0 &&
                                       timing.previousIndex == index);
 
                               final fontSize = _isDesktop ? 42.0 : 30.0;
@@ -709,10 +748,16 @@ class _LyricsViewState extends State<LyricsView> {
                                   ? TextDecoration.underline
                                   : TextDecoration.none;
                               final inactiveColor =
-                                  Color.lerp(Colors.white, backgroundColor, 0.6) ??
+                                  Color.lerp(
+                                    Colors.white,
+                                    backgroundColor,
+                                    0.6,
+                                  ) ??
                                   Colors.white70;
                               final baseTextStyle = TextStyle(
-                                color: isActiveLine ? Colors.white : inactiveColor,
+                                color: isActiveLine
+                                    ? Colors.white
+                                    : inactiveColor,
                                 fontSize: fontSize,
                                 letterSpacing: _isDesktop ? -1.5 : -0.7,
                                 fontWeight: FontWeight.w700,
@@ -736,7 +781,9 @@ class _LyricsViewState extends State<LyricsView> {
 
                               final lineWidget = Padding(
                                 key: _lineKeys[index],
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
                                 child: Align(
                                   alignment: Alignment.centerLeft,
                                   child: MouseRegion(
@@ -756,8 +803,9 @@ class _LyricsViewState extends State<LyricsView> {
                                           ? () {
                                               final targetMs =
                                                   line.startTimeMs + delayMs;
-                                              final safeMs =
-                                                  targetMs < 0 ? 0 : targetMs;
+                                              final safeMs = targetMs < 0
+                                                  ? 0
+                                                  : targetMs;
                                               player.seek(
                                                 Duration(milliseconds: safeMs),
                                               );
@@ -766,7 +814,9 @@ class _LyricsViewState extends State<LyricsView> {
                                       child: Opacity(
                                         opacity: opacity,
                                         child: AnimatedDefaultTextStyle(
-                                          duration: const Duration(milliseconds: 250),
+                                          duration: const Duration(
+                                            milliseconds: 250,
+                                          ),
                                           style: baseTextStyle,
                                           child: Text.rich(
                                             lineSpan,
@@ -779,7 +829,8 @@ class _LyricsViewState extends State<LyricsView> {
                                 ),
                               );
 
-                              final showWaitingDots = isSynced &&
+                              final showWaitingDots =
+                                  isSynced &&
                                   timing != null &&
                                   timing.showWaitingDots &&
                                   timing.nextIndex == index;
@@ -818,7 +869,7 @@ class _LyricsViewState extends State<LyricsView> {
               ),
             ),
             if (_isMobile) _buildMobileLyricsPlayer(backgroundColor),
-            ],
+          ],
         );
       },
     );
@@ -831,7 +882,9 @@ class _LyricsViewState extends State<LyricsView> {
     return Container(
       decoration: BoxDecoration(
         color: surfaceColor,
-        border: Border(top: BorderSide(color: Colors.black.withValues(alpha: 0.2))),
+        border: Border(
+          top: BorderSide(color: Colors.black.withValues(alpha: 0.2)),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -878,7 +931,8 @@ class _LyricsViewState extends State<LyricsView> {
         final data = _LyricsMobilePositionData(
           position: effectivePosition,
           duration: player.duration,
-          isLoading: !useHandoffState && (player.isLoading || player.isBuffering),
+          isLoading:
+              !useHandoffState && (player.isLoading || player.isBuffering),
         );
 
         if (data.duration.inMilliseconds <= 0) {
@@ -919,7 +973,8 @@ class _LyricsViewState extends State<LyricsView> {
                 value: progress.clamp(0.0, 1.0),
                 onChanged: (value) {
                   final newPosition = Duration(
-                    milliseconds: (value * data.duration.inMilliseconds).round(),
+                    milliseconds: (value * data.duration.inMilliseconds)
+                        .round(),
                   );
                   context.read<PlaybackCoordinator>().seek(newPosition);
                 },
@@ -957,7 +1012,9 @@ class _LyricsViewState extends State<LyricsView> {
           isBuffering: player.isBuffering,
           isOnline: player.isOnline,
           currentTrackId: track?.id,
-          currentTrackCached: track == null ? true : player.isTrackCached(track.id),
+          currentTrackCached: track == null
+              ? true
+              : player.isTrackCached(track.id),
           queueNotEmpty: player.queueTracks.isNotEmpty,
         );
 
@@ -1001,12 +1058,19 @@ class _LyricsViewState extends State<LyricsView> {
     );
   }
 
-  Widget _buildLyricsControls(LyricsProvider lyricsProvider, GenericSong track) {
+  Widget _buildLyricsControls(
+    LyricsProvider lyricsProvider,
+    GenericSong track,
+  ) {
     if (widget.hideHeader) return const SizedBox.shrink();
     final wordState = lyricsProvider.getState(track, LyricsSyncMode.word);
     final lineState = lyricsProvider.getState(track, LyricsSyncMode.line);
-    final wordAvailable = !wordState.hasFetched || wordState.lyrics?.syncMode == LyricsSyncMode.word;
-    final lineAvailable = !lineState.hasFetched || lineState.lyrics?.syncMode == LyricsSyncMode.line;
+    final wordAvailable =
+        !wordState.hasFetched ||
+        wordState.lyrics?.syncMode == LyricsSyncMode.word;
+    final lineAvailable =
+        !lineState.hasFetched ||
+        lineState.lyrics?.syncMode == LyricsSyncMode.line;
     return Material(
       color: Colors.transparent,
       child: Row(
@@ -1087,8 +1151,8 @@ class _LyricsViewState extends State<LyricsView> {
                     enabled: mode == LyricsSyncMode.word
                         ? wordAvailable
                         : mode == LyricsSyncMode.line
-                            ? lineAvailable
-                            : true,
+                        ? lineAvailable
+                        : true,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1096,11 +1160,13 @@ class _LyricsViewState extends State<LyricsView> {
                           mode == LyricsSyncMode.word
                               ? Icons.mic
                               : mode == LyricsSyncMode.line
-                                  ? Icons.sync
-                                  : Icons.sync_disabled,
+                              ? Icons.sync
+                              : Icons.sync_disabled,
                           size: 16,
-                          color: (mode == LyricsSyncMode.word && !wordAvailable) ||
-                                  (mode == LyricsSyncMode.line && !lineAvailable)
+                          color:
+                              (mode == LyricsSyncMode.word && !wordAvailable) ||
+                                  (mode == LyricsSyncMode.line &&
+                                      !lineAvailable)
                               ? Colors.grey[600]
                               : Colors.white,
                         ),
@@ -1108,8 +1174,11 @@ class _LyricsViewState extends State<LyricsView> {
                         Text(
                           mode.label,
                           style: TextStyle(
-                            color: (mode == LyricsSyncMode.word && !wordAvailable) ||
-                                    (mode == LyricsSyncMode.line && !lineAvailable)
+                            color:
+                                (mode == LyricsSyncMode.word &&
+                                        !wordAvailable) ||
+                                    (mode == LyricsSyncMode.line &&
+                                        !lineAvailable)
                                 ? Colors.grey[600]
                                 : Colors.white,
                             fontSize: 14,
@@ -1143,11 +1212,13 @@ class _LyricsViewState extends State<LyricsView> {
         final requestedMode = index == 0
             ? LyricsSyncMode.word
             : index == 1
-                ? LyricsSyncMode.line
-                : LyricsSyncMode.unsynced;
+            ? LyricsSyncMode.line
+            : LyricsSyncMode.unsynced;
 
         if (requestedMode == LyricsSyncMode.word && !wordAvailable) {
-          _onSyncModeChanged(lineAvailable ? LyricsSyncMode.line : LyricsSyncMode.unsynced);
+          _onSyncModeChanged(
+            lineAvailable ? LyricsSyncMode.line : LyricsSyncMode.unsynced,
+          );
           return;
         }
 
@@ -1176,10 +1247,7 @@ class _LyricsViewState extends State<LyricsView> {
           size: 16,
           color: lineAvailable ? null : Colors.grey[600],
         ),
-        const Icon(
-          Icons.sync_disabled,
-          size: 16,
-        )
+        const Icon(Icons.sync_disabled, size: 16),
       ],
     );
   }
@@ -1190,7 +1258,10 @@ class _LyricsViewState extends State<LyricsView> {
     final dots = List<Widget>.generate(3, (index) {
       final start = index / 3;
       final end = (index + 1) / 3;
-      final localProgress = ((progress - start) / (end - start)).clamp(0.0, 1.0);
+      final localProgress = ((progress - start) / (end - start)).clamp(
+        0.0,
+        1.0,
+      );
       final opacity = lerpDouble(0.24, 1.0, localProgress)!;
 
       return Padding(
@@ -1213,10 +1284,7 @@ class _LyricsViewState extends State<LyricsView> {
         alignment: Alignment.centerLeft,
         child: Padding(
           padding: EdgeInsets.zero,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: dots,
-          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: dots),
         ),
       ),
     );

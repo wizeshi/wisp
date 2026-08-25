@@ -57,10 +57,7 @@ class PlaylistFolderModals {
   static void _showSyncErrorSnack(BuildContext context, String message) {
     _showSnack(
       context,
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
   }
 
@@ -85,9 +82,9 @@ class PlaylistFolderModals {
     }
     try {
       await context.read<SpotifyInternalProvider>().renamePlaylist(
-            linkedId,
-            name,
-          );
+        linkedId,
+        name,
+      );
     } catch (e) {
       _showSyncErrorSnack(context, 'Failed to rename on Spotify: $e');
     }
@@ -128,10 +125,7 @@ class PlaylistFolderModals {
     }
     final spotifyInternal = context.read<SpotifyInternalProvider>();
     if (!spotifyInternal.isAuthenticated) {
-      _showSyncErrorSnack(
-        context,
-        'Spotify (Internal) is not connected.',
-      );
+      _showSyncErrorSnack(context, 'Spotify (Internal) is not connected.');
       return;
     }
     String? linkedId;
@@ -148,10 +142,10 @@ class PlaylistFolderModals {
       return;
     }
     await context.read<LocalPlaylistState>().linkToProvider(
-          id: localPlaylist.id,
-          provider: SongSource.spotifyInternal,
-          providerId: linkedId,
-        );
+      id: localPlaylist.id,
+      provider: SongSource.spotifyInternal,
+      providerId: linkedId,
+    );
   }
 
   static Future<void> deletePlaylistWithSync(
@@ -198,10 +192,7 @@ class PlaylistFolderModals {
             color: const Color(0xFF282828),
             borderRadius: BorderRadius.circular(8),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                minWidth: 220,
-                maxWidth: 280,
-              ),
+              constraints: const BoxConstraints(minWidth: 220, maxWidth: 280),
               child: IntrinsicWidth(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
@@ -268,7 +259,7 @@ class PlaylistFolderModals {
         type: FileType.image,
         allowMultiple: false,
       );
-      final filePath = result?.files.single.path;
+      final filePath = result?.first.path;
       if (filePath == null) return;
       setModalState(() {
         selectedFile = File(filePath);
@@ -279,9 +270,9 @@ class PlaylistFolderModals {
       final title = controller.text.trim();
       if (title.isEmpty) return;
       await modalContext.read<LibraryFolderState>().createFolder(
-            title: title,
-            thumbnailFile: selectedFile,
-          );
+        title: title,
+        thumbnailFile: selectedFile,
+      );
       Navigator.pop(modalContext);
     }
 
@@ -355,7 +346,10 @@ class PlaylistFolderModals {
                         Expanded(
                           child: TextButton(
                             onPressed: () => Navigator.pop(context),
-                            child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(color: Colors.grey[400]),
+                            ),
                           ),
                         ),
                         Expanded(
@@ -382,7 +376,10 @@ class PlaylistFolderModals {
       builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1B1B1B),
-          title: const Text('Create folder', style: TextStyle(color: Colors.white)),
+          title: const Text(
+            'Create folder',
+            style: TextStyle(color: Colors.white),
+          ),
           content: StatefulBuilder(
             builder: (context, setModalState) {
               return Column(
@@ -449,7 +446,7 @@ class PlaylistFolderModals {
         type: FileType.image,
         allowMultiple: false,
       );
-      final filePath = result?.files.single.path;
+      final filePath = result?.first.path;
       if (filePath == null) return;
       setModalState(() {
         selectedFile = File(filePath);
@@ -698,7 +695,10 @@ class PlaylistFolderModals {
     Future<void> submit(BuildContext modalContext) async {
       final title = controller.text.trim();
       if (title.isEmpty) return;
-      await modalContext.read<LibraryFolderState>().renameFolder(folder.id, title);
+      await modalContext.read<LibraryFolderState>().renameFolder(
+        folder.id,
+        title,
+      );
       Navigator.pop(modalContext);
     }
 
@@ -722,7 +722,14 @@ class PlaylistFolderModals {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Rename folder', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+                const Text(
+                  'Rename folder',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: controller,
@@ -744,7 +751,10 @@ class PlaylistFolderModals {
                     Expanded(
                       child: TextButton(
                         onPressed: () => Navigator.pop(modalContext),
-                        child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(color: Colors.grey[400]),
+                        ),
                       ),
                     ),
                     Expanded(
@@ -769,7 +779,10 @@ class PlaylistFolderModals {
       builder: (dialogContext) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1B1B1B),
-          title: const Text('Rename folder', style: TextStyle(color: Colors.white)),
+          title: const Text(
+            'Rename folder',
+            style: TextStyle(color: Colors.white),
+          ),
           content: TextField(
             controller: controller,
             style: const TextStyle(color: Colors.white),
@@ -807,12 +820,12 @@ class PlaylistFolderModals {
       type: FileType.image,
       allowMultiple: false,
     );
-    final filePath = result?.files.single.path;
+    final filePath = result?.first.path;
     if (filePath == null) return;
     await context.read<LibraryFolderState>().changeFolderThumbnail(
-          folder.id,
-          File(filePath),
-        );
+      folder.id,
+      File(filePath),
+    );
   }
 
   static Future<void> showChangePlaylistThumbnailDialog(
@@ -823,11 +836,12 @@ class PlaylistFolderModals {
       type: FileType.image,
       allowMultiple: false,
     );
-    final filePath = result?.files.single.path;
+    final filePath = result?.first.path;
     if (filePath == null) return;
-    await context
-        .read<LocalPlaylistState>()
-        .updateThumbnail(playlist.id, File(filePath));
+    await context.read<LocalPlaylistState>().updateThumbnail(
+      playlist.id,
+      File(filePath),
+    );
   }
 
   static Future<void> showAddToFolderMenu(
@@ -856,29 +870,50 @@ class PlaylistFolderModals {
               children: [
                 if (currentFolderId != null)
                   ListTile(
-                    leading: const Icon(Icons.folder_off_outlined, color: Colors.white),
-                    title: const Text('Remove from folder', style: TextStyle(color: Colors.white)),
+                    leading: const Icon(
+                      Icons.folder_off_outlined,
+                      color: Colors.white,
+                    ),
+                    title: const Text(
+                      'Remove from folder',
+                      style: TextStyle(color: Colors.white),
+                    ),
                     onTap: () async {
                       Navigator.pop(modalContext);
-                      await folderState.movePlaylistIntoFolder(playlist.id, null);
+                      await folderState.movePlaylistIntoFolder(
+                        playlist.id,
+                        null,
+                      );
                     },
                   ),
                 ...folders.map(
                   (folder) => ListTile(
                     leading: const Icon(Icons.folder, color: Colors.white),
-                    title: Text(folder.title, style: const TextStyle(color: Colors.white)),
+                    title: Text(
+                      folder.title,
+                      style: const TextStyle(color: Colors.white),
+                    ),
                     trailing: currentFolderId == folder.id
                         ? const Icon(Icons.check, color: Colors.greenAccent)
                         : null,
                     onTap: () async {
                       Navigator.pop(modalContext);
-                      await folderState.movePlaylistIntoFolder(playlist.id, folder.id);
+                      await folderState.movePlaylistIntoFolder(
+                        playlist.id,
+                        folder.id,
+                      );
                     },
                   ),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.create_new_folder_outlined, color: Colors.white),
-                  title: const Text('Create folder…', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(
+                    Icons.create_new_folder_outlined,
+                    color: Colors.white,
+                  ),
+                  title: const Text(
+                    'Create folder…',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   onTap: () async {
                     Navigator.pop(modalContext);
                     await showCreateFolderDialog(context);
@@ -914,56 +949,62 @@ class PlaylistFolderModals {
                   behavior: HitTestBehavior.translucent,
                   onTap: () {},
                   child: Material(
-                color: const Color(0xFF282828),
-                borderRadius: BorderRadius.circular(8),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minWidth: 220,
-                    maxWidth: 280,
-                  ),
-                  child: IntrinsicWidth(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (currentFolderId != null)
-                            _buildMenuButton(
-                              dialogContext,
-                              icon: Icons.folder_off_outlined,
-                              label: 'Remove from folder',
-                              onTap: () => folderState.movePlaylistIntoFolder(
-                                playlist.id,
-                                null,
+                    color: const Color(0xFF282828),
+                    borderRadius: BorderRadius.circular(8),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 220,
+                        maxWidth: 280,
+                      ),
+                      child: IntrinsicWidth(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (currentFolderId != null)
+                                _buildMenuButton(
+                                  dialogContext,
+                                  icon: Icons.folder_off_outlined,
+                                  label: 'Remove from folder',
+                                  onTap: () =>
+                                      folderState.movePlaylistIntoFolder(
+                                        playlist.id,
+                                        null,
+                                      ),
+                                ),
+                              for (final folder in folders)
+                                _buildMenuButton(
+                                  dialogContext,
+                                  icon: Icons.folder,
+                                  label: folder.title,
+                                  trailing: currentFolderId == folder.id
+                                      ? const Icon(
+                                          Icons.check,
+                                          color: Colors.greenAccent,
+                                          size: 18,
+                                        )
+                                      : null,
+                                  onTap: () =>
+                                      folderState.movePlaylistIntoFolder(
+                                        playlist.id,
+                                        folder.id,
+                                      ),
+                                ),
+                              _buildMenuButton(
+                                dialogContext,
+                                icon: Icons.create_new_folder_outlined,
+                                label: 'Create folder…',
+                                onTap: () => showCreateFolderDialog(context),
                               ),
-                            ),
-                          for (final folder in folders)
-                            _buildMenuButton(
-                              dialogContext,
-                              icon: Icons.folder,
-                              label: folder.title,
-                              trailing: currentFolderId == folder.id
-                                  ? const Icon(Icons.check, color: Colors.greenAccent, size: 18)
-                                  : null,
-                              onTap: () => folderState.movePlaylistIntoFolder(
-                                playlist.id,
-                                folder.id,
-                              ),
-                            ),
-                          _buildMenuButton(
-                            dialogContext,
-                            icon: Icons.create_new_folder_outlined,
-                            label: 'Create folder…',
-                            onTap: () => showCreateFolderDialog(context),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                  ),
                 ),
-              ),
               ),
             ],
           ),

@@ -41,7 +41,7 @@ void main() async {
   bool isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   if (isDesktop) {
-    // Register the custom protocol handler for desktop platforms 
+    // Register the custom protocol handler for desktop platforms
     final isRegistered = await ProtocolRegistrar.isRegistered('wisp');
     if (!isRegistered) {
       await ProtocolRegistrar.register(scheme: 'wisp');
@@ -49,16 +49,13 @@ void main() async {
   }
 
   final appLinks = AppLinks();
-  
 
   // Initialize Flutter Video Player (FVP) for Linux platform
-  if (Platform.isLinux) {
-    fvp.registerWith(
-      options: {
-        'platforms': ['linux'],
-      },
-    );
-  }
+  fvp.registerWith(
+    options: {
+      'platforms': ['windows', 'macos', 'linux'],
+    },
+  );
 
   // Initialize just_audio with media_kit backend for Linux
   JustAudioMediaKit.ensureInitialized(
@@ -138,23 +135,36 @@ void main() async {
     }
 
     FlutterError.dumpErrorToConsole(details);
-    logger.e('[Main] Flutter framework error', error: details.exception, stackTrace: details.stack);
+    logger.e(
+      '[Main] Flutter framework error',
+      error: details.exception,
+      stackTrace: details.stack,
+    );
   };
 
   // Run the app inside a guarded zone to catch uncaught async errors.
-  runZonedGuarded(() {
-    runApp(WispApp(audioHandler: handler, playbackCoordinator: playbackCoordinator, appLinks: appLinks));
+  runZonedGuarded(
+    () {
+      runApp(
+        WispApp(
+          audioHandler: handler,
+          playbackCoordinator: playbackCoordinator,
+          appLinks: appLinks,
+        ),
+      );
 
-    // Request notification permission on Android 13+ after UI is ready
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      NotificationService.instance.requestPermissionIfNeeded();
-    });
-  }, (error, stack) {
-    logger.e('[Main] Uncaught async error', error: error, stackTrace: stack);
-    // Also print to stdout to ensure it appears in simple adb/logcat streams
-    print('[Main] Uncaught async error: $error');
-    print(stack);
-  });
+      // Request notification permission on Android 13+ after UI is ready
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NotificationService.instance.requestPermissionIfNeeded();
+      });
+    },
+    (error, stack) {
+      logger.e('[Main] Uncaught async error', error: error, stackTrace: stack);
+      // Also print to stdout to ensure it appears in simple adb/logcat streams
+      print('[Main] Uncaught async error: $error');
+      print(stack);
+    },
+  );
 }
 
 class WispApp extends StatelessWidget {
@@ -207,8 +217,7 @@ class WispApp extends StatelessWidget {
         >(
           create: (_) => ConnectSessionProvider(),
           update: (_, audio, playback, preferences, connect) {
-            final provider =
-                connect ?? ConnectSessionProvider();
+            final provider = connect ?? ConnectSessionProvider();
             provider.bindPreferencesProvider(preferences);
             provider.bindAudioHandler(audio);
             provider.bindPlaybackCoordinator(playback);
@@ -235,50 +244,74 @@ class WispApp extends StatelessWidget {
             themeMode: ThemeMode.dark,
             home: Consumer<YtDlpReadinessCoordinator>(
               builder: (context, ytDlp, child) {
-                final sub = appLinks.uriLinkStream.listen((uri) async {
-                  // Deep Link format is the following:
-                  // wisp://play/<type>/<id>?source=<source>
-                  logger.d('[Main] Received deep link: $uri');
+                final sub = appLinks.uriLinkStream.listen(
+                  (uri) async {
+                    // Deep Link format is the following:
+                    // wisp://play/<type>/<id>?source=<source>
+                    logger.d('[Main] Received deep link: $uri');
 
-                  // This should parse the "<type>/<id>?source=<source>" part of the URI
-                  final playURL = uri.toString().split("://")[1].split("/").sublist(1).join("/");
+                    // This should parse the "<type>/<id>?source=<source>" part of the URI
+                    final playURL = uri
+                        .toString()
+                        .split("://")[1]
+                        .split("/")
+                        .sublist(1)
+                        .join("/");
 
-                  logger.d('[Main] Parsed play URL: $playURL');
+                    logger.d('[Main] Parsed play URL: $playURL');
 
-                  final type = playURL.split("/")[0];
-                  final sourceIDlist = playURL.split("/")[1].split("?");
-                  final id = sourceIDlist[0];
-                  final source = sourceIDlist[1].split("=")[1];
+                    final type = playURL.split("/")[0];
+                    final sourceIDlist = playURL.split("/")[1].split("?");
+                    final id = sourceIDlist[0];
+                    final source = sourceIDlist[1].split("=")[1];
 
-                  if (!context.mounted) return;
+                    if (!context.mounted) return;
 
-                  switch (type) {
-                    case "track": {
-                      logger.d('[Main] Deep link is a track: $id from source: $source');
-                      // Show a little UI for this. We'll have to make it from scratch.
-                      break;  
+                    switch (type) {
+                      case "track":
+                        {
+                          logger.d(
+                            '[Main] Deep link is a track: $id from source: $source',
+                          );
+                          // Show a little UI for this. We'll have to make it from scratch.
+                          break;
+                        }
+                      case "playlist":
+                      case "album":
+                        {
+                          logger.d(
+                            '[Main] Deep link is a list ($type): $id from source: $source',
+                          );
+                          AppNavigation.instance.openSharedList(
+                            context,
+                            id: id,
+                            type: type == "album"
+                                ? SharedListType.album
+                                : SharedListType.playlist,
+                          );
+                          break;
+                        }
+                      case "artist":
+                        {
+                          logger.d(
+                            '[Main] Deep link is an artist: $id from source: $source',
+                          );
+                          AppNavigation.instance.openArtist(
+                            context,
+                            artistId: id,
+                          );
+                          break;
+                        }
                     }
-                    case "playlist":
-                    case "album": {
-                      logger.d('[Main] Deep link is a list ($type): $id from source: $source');
-                      AppNavigation.instance.openSharedList(context, id: id, type: type == "album" ? SharedListType.album : SharedListType.playlist);
-                      break;  
-                    }
-                    case "artist": {
-                      logger.d('[Main] Deep link is an artist: $id from source: $source');
-                      AppNavigation.instance.openArtist(context, artistId: id);
-                      break;  
-                    }
-                  }
-
-                }, onError: (err) {
-                  logger.e('[Main] Error receiving deep link: $err');
-                });
-
+                  },
+                  onError: (err) {
+                    logger.e('[Main] Error receiving deep link: $err');
+                  },
+                );
 
                 final shouldGateMobile =
                     (Platform.isAndroid || Platform.isIOS) && !ytDlp.isReady;
-                // Wait until yt-dlp is ready to show the app shell on mobile.  
+                // Wait until yt-dlp is ready to show the app shell on mobile.
                 if (shouldGateMobile) {
                   return const Scaffold(
                     body: Center(
