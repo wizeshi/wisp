@@ -3113,10 +3113,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             const SizedBox(width: 120)
           else
             const SizedBox(width: 120),
-          const SizedBox(
-            width: 24,
-            child: Icon(Icons.download_done, size: 14, color: Colors.grey),
-          ),
           const SizedBox(width: 28),
           const SizedBox(width: 8),
           SizedBox(

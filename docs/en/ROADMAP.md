@@ -1,4 +1,4 @@
-Here's the TODOs for version v26.05.xx:
+Here's the TODOs for version v26.08.xx:
 
 - Bugs:
     - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
