@@ -38,6 +38,15 @@ import '../widgets/like_button.dart';
 import '../widgets/player_bar.dart';
 import '../utils/lyrics_timing.dart';
 
+Color _tintedDominantColor(Color color, {double blend = 0.4}) {
+  final hsl = HSLColor.fromColor(color);
+  final overlay = hsl
+      .withLightness(0.22)
+      .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+      .toColor();
+  return Color.lerp(color, overlay, blend) ?? color;
+}
+
 class _DesktopLyricsPreviewWidget extends StatelessWidget {
   final global_audio_player.WispAudioHandler player;
   final LyricsProvider lyricsProvider;
@@ -1185,7 +1194,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 ? windowPadding.bottom
                 : viewPadding.bottom;
 
-            final bgColor = Theme.of(context).colorScheme.primary;
+            final bgColor = _tintedDominantColor(
+              Theme.of(context).colorScheme.primary,
+            );
             final btnColor = bgColor;
 
             Widget buildPlayerScaffold(BuildContext ctx, {String? canvasUrl}) {
@@ -4579,7 +4590,9 @@ class _CoverGradientContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var dominantColor = Theme.of(context).colorScheme.primary;
+    var dominantColor = _tintedDominantColor(
+      Theme.of(context).colorScheme.primary,
+    );
 
     final gradientLayer = Container(
       decoration: BoxDecoration(
@@ -4741,14 +4754,26 @@ class _MobileArtistInfoCardState extends State<_MobileArtistInfoCard> {
                     ),
                     if (data != null) ...[
                       const SizedBox(height: 6),
-                      Text(
-                        (data.description?.trim().isNotEmpty == true)
-                            ? data.description!.trim()
-                            : 'No description available for this artist.',
-                        style: TextStyle(color: Colors.grey[200], fontSize: 13),
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      (data.description?.trim().isNotEmpty == true)
+                          ? buildParsedText(
+                              context,
+                              data.description!.trim(),
+                              style: TextStyle(
+                                color: Colors.grey[200],
+                                fontSize: 13,
+                              ),
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                            )
+                          : Text(
+                              'No description available for this artist.',
+                              style: TextStyle(
+                                color: Colors.grey[200],
+                                fontSize: 13,
+                              ),
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                     ],
                   ],
                 ),
@@ -5258,7 +5283,9 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageUrl = currentTrack?.thumbnailUrl ?? '';
-    final dominantColor = Theme.of(context).colorScheme.primary;
+    final dominantColor = _tintedDominantColor(
+      Theme.of(context).colorScheme.primary,
+    );
     final song = currentTrack as GenericSong?;
     final trackId = song?.id;
     final canvasUrlFuture = canUseCanvas && trackId != null
@@ -5407,15 +5434,6 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Color _tintedDominantColor(Color color, {double blend = 0.4}) {
-    final hsl = HSLColor.fromColor(color);
-    final overlay = hsl
-        .withLightness(0.22)
-        .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
-        .toColor();
-    return Color.lerp(color, overlay, blend) ?? color;
   }
 
   Widget _buildTopBar(
@@ -5808,11 +5826,15 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                   trailing: Icons.lyrics_outlined,
                   onTrailingPressed: () =>
                       desktopState.setPreferredMode(_SpotifyDisplayMode.lyrics),
-                  background: Theme.of(context).colorScheme.primary,
+                  background: _tintedDominantColor(
+                    Theme.of(context).colorScheme.primary,
+                  ),
                   child: _DesktopLyricsPreviewWidget(
                     player: player,
                     lyricsProvider: lyricsProvider,
-                    bgColor: Theme.of(context).colorScheme.primary,
+                    bgColor: _tintedDominantColor(
+                      Theme.of(context).colorScheme.primary,
+                    ),
                     btnColor: Colors.white,
                     inCard: true,
                   ),

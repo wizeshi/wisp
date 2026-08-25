@@ -65,8 +65,15 @@ class _StreamUrlCacheEntry {
 
 class WispAudioHandler extends audio_service.BaseAudioHandler
     with ChangeNotifier {
-  final AudioPlayer _primaryPlayer = AudioPlayer();
-  final AudioPlayer _secondaryPlayer = AudioPlayer();
+  // androidApplyAudioAttributes: false — just_audio_media_kit does not
+  // implement setAndroidAudioAttributes() on its platform player, so we
+  // suppress the call. media_kit manages audio routing via libmpv internally.
+  final AudioPlayer _primaryPlayer = AudioPlayer(
+    androidApplyAudioAttributes: false,
+  );
+  final AudioPlayer _secondaryPlayer = AudioPlayer(
+    androidApplyAudioAttributes: false,
+  );
   final YouTubeProvider _youtube = YouTubeProvider();
   final Connectivity _connectivity = Connectivity();
 
@@ -230,6 +237,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         ids[track.id] = resolved;
       }
     }
+
     return ids;
   }
 

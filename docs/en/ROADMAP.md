@@ -2,11 +2,9 @@ Here's the TODOs for version v26.05.xx:
 
 - Bugs:
     - [ ] The player resets after ~8 seconds of the app being open, even if it can play before that. 
-    - [ ] Fix stream fetching not working when the app is in the background.
     - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
     - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
     - [ ] Fix song autoadvance not working on macOS if either gapless playback or crossfade are off.
-    - [ ] Fix marquee text disappearing after hovering over it in some places
 - Future changes: 
     - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
     - [ ] Add special card from the home screen on mobile. 

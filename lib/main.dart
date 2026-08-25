@@ -62,8 +62,8 @@ void main() async {
     linux: true,
     windows: true,
     macOS: true,
-    // iOS: true,
-    // android: true,
+    iOS: true,
+    android: true,
   );
 
   // Initialize audio_service for system media controls (MPRIS on Linux)

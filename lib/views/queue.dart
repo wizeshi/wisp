@@ -2,6 +2,7 @@
 library;
 
 import 'dart:io' show Platform;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -281,6 +282,20 @@ class _QueueViewState extends State<QueueView> {
     final isHovering = _hoveredTrackKeys.contains(trackKey);
     final showOverlay = isCurrentTrack || isHovering;
 
+    // Desktop: drag starts immediately on any pointer-down.
+    // Mobile: Flutter's built-in 500 ms delay lets scroll gestures win first;
+    // the 2 s LongPressGestureRecognizer (context menu) fires later if the
+    // user keeps holding without moving, so the two delays never collide.
+    Widget makeDragListener({required Widget child}) {
+      if (_isDesktop) {
+        return ReorderableDragStartListener(index: listIndex, child: child);
+      }
+      return ReorderableDelayedDragStartListener(
+        index: listIndex,
+        child: child,
+      );
+    }
+
     return MouseRegion(
       key: key,
       cursor: SystemMouseCursors.click,
@@ -290,23 +305,38 @@ class _QueueViewState extends State<QueueView> {
       onExit: _isDesktop
           ? (_) => setState(() => _hoveredTrackKeys.remove(trackKey))
           : null,
-      child: GestureDetector(
-        onSecondaryTapDown: (details) {
-          if (_isDesktop) {
-            EntityContextMenus.showTrackMenu(
-              context,
-              track: track,
-              globalPosition: details.globalPosition,
-            );
-          }
+      child: RawGestureDetector(
+        gestures: {
+          if (_isDesktop)
+            TapGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                  () => TapGestureRecognizer(),
+                  (TapGestureRecognizer instance) {
+                    instance.onSecondaryTapDown = (details) {
+                      EntityContextMenus.showTrackMenu(
+                        context,
+                        track: track,
+                        globalPosition: details.globalPosition,
+                      );
+                    };
+                  },
+                ),
+          if (!_isDesktop)
+            LongPressGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<
+                  LongPressGestureRecognizer
+                >(
+                  () => LongPressGestureRecognizer(
+                    duration: const Duration(seconds: 2),
+                  ),
+                  (LongPressGestureRecognizer instance) {
+                    instance.onLongPress = () {
+                      EntityContextMenus.showTrackMenu(context, track: track);
+                    };
+                  },
+                ),
         },
-        onLongPress: _isDesktop
-            ? null
-            : () {
-                EntityContextMenus.showTrackMenu(context, track: track);
-              },
-        child: ReorderableDragStartListener(
-          index: listIndex,
+        child: makeDragListener(
           child: Material(
             color: Colors.transparent,
             child: InkWell(
