@@ -384,10 +384,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
     if (!mounted || _stickyCoverUrl != imageUrl) return;
 
-    final fakeColor = HSLColor.fromColor(scheme?.primary ?? const Color(0xFF1E1E1E));
-    final nextColor = fakeColor.withLightness(
-      log(fakeColor.lightness + 1) / log(3)
-    ).toColor();
+    final fakeColor = HSLColor.fromColor(
+      scheme?.primary ?? const Color(0xFF1E1E1E),
+    );
+    final nextColor = fakeColor
+        .withLightness(log(fakeColor.lightness + 1) / log(3))
+        .toColor();
 
     if (nextColor != _stickyBarColor) {
       setState(() => _stickyBarColor = nextColor);
@@ -1732,6 +1734,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   child: CachedNetworkImage(
                     imageUrl: song.thumbnailUrl,
                     fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
                     errorWidget: (context, url, error) => Container(
                       color: Colors.grey[900],
                       child: Icon(Icons.music_note, color: Colors.grey[600]),
@@ -2203,6 +2206,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                         imageUrl.replaceFirst('file://', ''),
                                       ),
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.high,
                                       errorBuilder: (context, url, error) =>
                                           Icon(
                                             widget.type ==
@@ -2216,6 +2220,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   : CachedNetworkImage(
                                       imageUrl: imageUrl,
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.high,
                                       placeholder: (context, url) => Container(
                                         color: Colors.grey[800],
                                         child: const Center(
@@ -2309,10 +2314,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 buildParsedText(
                   context,
                   descriptionText,
-                  linkStyle: TextStyle(
-                    color: Colors.grey[300],
-                    fontSize: 13,
-                  ),
+                  linkStyle: TextStyle(color: Colors.grey[300], fontSize: 13),
                   style: TextStyle(color: Colors.grey[300], fontSize: 13),
                 ),
               ],
@@ -2511,6 +2513,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                           '',
                                         ),
                                       ),
+                                      filterQuality: FilterQuality.medium,
                                       fit: BoxFit.cover,
                                       errorBuilder: (context, url, error) =>
                                           Container(color: Colors.grey[800]),
@@ -2518,6 +2521,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   : CachedNetworkImage(
                                       imageUrl: subtitleImageUrl,
                                       fit: BoxFit.cover,
+                                      filterQuality: FilterQuality.medium,
                                       placeholder: (context, url) =>
                                           Container(color: Colors.grey[800]),
                                       errorWidget: (context, url, error) =>
@@ -3063,7 +3067,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               ),
             ),
           ),
-          if (widget.type == SharedListType.playlist && visibleColumns.showAlbum)
+          if (widget.type == SharedListType.playlist &&
+              visibleColumns.showAlbum)
             Expanded(
               flex: 2,
               child: Align(
@@ -3323,6 +3328,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                         child: CachedNetworkImage(
                                           imageUrl: _getThumbnail(item),
                                           fit: BoxFit.cover,
+                                          filterQuality: FilterQuality.medium,
                                           errorWidget: (context, url, error) =>
                                               Icon(
                                                 Icons.music_note,
@@ -3813,6 +3819,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   color: Colors.grey[900],
                                   child: CachedNetworkImage(
                                     imageUrl: _getThumbnail(item),
+                                    filterQuality: FilterQuality.medium,
                                     fit: BoxFit.cover,
                                     errorWidget: (context, url, error) => Icon(
                                       Icons.music_note,
@@ -4383,6 +4390,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   color: Colors.grey[900],
                                   child: CachedNetworkImage(
                                     imageUrl: _getThumbnail(item),
+                                    filterQuality: FilterQuality.medium,
                                     fit: BoxFit.cover,
                                     errorWidget: (context, url, error) => Icon(
                                       Icons.music_note,
@@ -4813,10 +4821,9 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
     view._scheduleStickyBarUpdate(view._desktopScrollController);
     final stickyHeaderColor = view._stickyBarColor;
     final stickyHeaderColorHSL = HSLColor.fromColor(stickyHeaderColor);
-    final actionsRowColor = 
-      stickyHeaderColorHSL.withLightness(
-        stickyHeaderColorHSL.lightness * 0.5
-      ).toColor();
+    final actionsRowColor = stickyHeaderColorHSL
+        .withLightness(stickyHeaderColorHSL.lightness * 0.5)
+        .toColor();
 
     final contentSurfaceColor = Theme.of(context).colorScheme.surface;
     return Stack(
@@ -4985,6 +4992,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         return Image.file(
           File(imageUrl.replaceFirst('file://', '')),
           fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
           errorBuilder: (context, url, error) =>
               Container(color: Colors.grey[900]),
         );
@@ -4992,6 +5000,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         return CachedNetworkImage(
           imageUrl: imageUrl,
           fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
           placeholder: (context, url) => Container(color: Colors.grey[900]),
           errorWidget: (context, url, error) =>
               Container(color: Colors.grey[900]),
@@ -5122,10 +5131,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                     context,
                     descriptionText,
                     style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                    linkStyle: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 14,
-                    ),
+                    linkStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                   ),
                 ),
               ),
@@ -5164,11 +5170,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
     view._scheduleStickyBarUpdate(view._desktopScrollController);
     return Stack(
       children: [
-        Positioned.fill(
-          child: Container(
-            color: contentSurfaceColor,
-          ),
-        ),
+        Positioned.fill(child: Container(color: contentSurfaceColor)),
         SafeArea(
           bottom: false,
           child: ListView(
@@ -5249,6 +5251,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                                                     width: 24,
                                                     height: 24,
                                                     fit: BoxFit.cover,
+                                                    filterQuality:
+                                                        FilterQuality.medium,
                                                     errorBuilder:
                                                         (context, url, error) =>
                                                             Container(
@@ -5263,6 +5267,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                                                     width: 24,
                                                     height: 24,
                                                     fit: BoxFit.cover,
+                                                    filterQuality:
+                                                        FilterQuality.medium,
                                                     errorWidget:
                                                         (context, url, error) =>
                                                             Container(
@@ -5408,6 +5414,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                         ? Image.file(
                             File(imageUrl.replaceFirst('file://', '')),
                             fit: BoxFit.cover,
+                            filterQuality: FilterQuality.high,
                             errorBuilder: (context, url, error) => Icon(
                               view.widget.type == SharedListType.playlist
                                   ? Icons.playlist_play
@@ -5419,6 +5426,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                         : CachedNetworkImage(
                             imageUrl: imageUrl,
                             fit: BoxFit.cover,
+                            filterQuality: FilterQuality.high,
                             placeholder: (context, url) =>
                                 Container(color: Colors.grey[800]),
                             errorWidget: (context, url, error) => Icon(
@@ -5508,10 +5516,16 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                         },
                   icon: const Icon(CupertinoIcons.shuffle, size: 20),
                   style: IconButton.styleFrom(
-                    backgroundColor: view._preShuffleEnabled || (view._isCurrentListPlaying(player) && player.shuffleEnabled)
+                    backgroundColor:
+                        view._preShuffleEnabled ||
+                            (view._isCurrentListPlaying(player) &&
+                                player.shuffleEnabled)
                         ? Colors.white
                         : Theme.of(context).colorScheme.primary,
-                    foregroundColor: view._preShuffleEnabled || (view._isCurrentListPlaying(player) && player.shuffleEnabled)
+                    foregroundColor:
+                        view._preShuffleEnabled ||
+                            (view._isCurrentListPlaying(player) &&
+                                player.shuffleEnabled)
                         ? Theme.of(context).colorScheme.primary
                         : Colors.white,
                     shape: const StadiumBorder(),

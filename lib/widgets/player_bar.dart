@@ -1000,6 +1000,7 @@ class _DesktopTrackInfo extends StatelessWidget {
                 ? CachedNetworkImage(
                     imageUrl: currentTrack!.thumbnailUrl,
                     fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
                     placeholder: (context, url) =>
                         Container(color: Colors.grey[800]),
                     errorWidget: (context, url, error) =>
