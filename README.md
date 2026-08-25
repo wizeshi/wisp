@@ -22,7 +22,7 @@ I'm also working on adding support for more services (e.g. Apple Music, Deezer, 
 
 The app is currently distributed and maintained for Windows, MacOS (Apple Silicon), Linux, Android (ARM64) & iOS.
 
-Installation is very simple. 
+I know it's tempting to just grab something from the releases page, but calm down. The installation is very simple, though. 
 On desktop, grab the wisp_installer executable for your platform from the [installer repo releases](https://github.com/wizeshi/wisp_installer/releases/latest) and run it. It will guide you through the installation process.
 On Android, grab the APK from the [installer repo releases](https://github.com/wizeshi/wisp_installer/releases/latest) and install it. You may need to allow installation from unknown sources in your settings.
 
@@ -38,7 +38,7 @@ It originally stood for "wizeshi's interfaceable song provider", since everythin
 1. Start with my username (narcissistic tendencies I guess); 
 2. Be an acronym for something. 
 
-So, that was the best I could do, but these days nothing on the app itself reflects the original name (since it has been reworked so many times).
+So, that was the best I could do, but these days nothing on the app itself reflects the original name (since it has been reworked so many times). I'm actually thinking about better name ideas, but I can't seem to come up with anything else. 
 
 #### Why does this exist? Aren't there already services like Spotube?
 I mean yeah, they do. Though 1. they're not as cool and 2. they have very limited support. For example, Spotube is currently busy remaking their app in Kotlin Multiplatform due to architecture reasons, leaving the app essentially dead for the time being. 
