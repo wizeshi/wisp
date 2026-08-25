@@ -1820,50 +1820,52 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
-  /// Build cache indicator widget for a track
-  Widget _buildCacheIndicator(String trackId) {
-    return AnimatedBuilder(
-      animation: AudioCacheManager.instance,
-      builder: (context, _) {
-        final cacheManager = AudioCacheManager.instance;
-        final isCached = cacheManager.isTrackCached(trackId);
-        final isDownloading = cacheManager.isDownloading(trackId);
-
-        if (!isCached && !isDownloading) {
-          return const SizedBox(width: 20);
-        }
-
-        if (isDownloading) {
-          final progress = cacheManager.getDownloadProgress(trackId) ?? 0;
-          return SizedBox(
-            width: 20,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 14,
-                  height: 14,
+  /// Builds a row with optional explicit/cached icons followed by the artist list.
+  Widget _buildArtistWithIcons(
+    GenericSong song,
+    List<GenericSimpleArtist> artists, {
+    required bool isDesktop,
+  }) {
+    return Row(
+      children: [
+        if (song.explicit) ...[
+          Icon(Icons.explicit, size: 12, color: Colors.grey[500]),
+          const SizedBox(width: 4),
+        ],
+        AnimatedBuilder(
+          animation: AudioCacheManager.instance,
+          builder: (context, _) {
+            final cacheManager = AudioCacheManager.instance;
+            final isCached = cacheManager.isTrackCached(song.id);
+            final isDownloading = cacheManager.isDownloading(song.id);
+            if (!isCached && !isDownloading) return const SizedBox.shrink();
+            if (isDownloading) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: SizedBox(
+                  width: 12,
+                  height: 12,
                   child: CircularProgressIndicator(
-                    value: progress,
+                    value: cacheManager.getDownloadProgress(song.id) ?? 0,
                     strokeWidth: 2,
                     color: Theme.of(context).colorScheme.primary,
                     backgroundColor: Colors.grey[800],
                   ),
                 ),
-              ],
-            ),
-          );
-        }
-
-        return SizedBox(
-          width: 20,
-          child: Icon(
-            Icons.download_done,
-            size: 14,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        );
-      },
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Icon(
+                Icons.offline_pin,
+                size: 12,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            );
+          },
+        ),
+        Expanded(child: _buildArtistLine(artists, isDesktop: isDesktop)),
+      ],
     );
   }
 
@@ -3416,7 +3418,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                       isMobile ||
                                       visibleColumns.showArtistInline) ...[
                                     const SizedBox(height: 2),
-                                    _buildArtistLine(
+                                    _buildArtistWithIcons(
+                                      song,
                                       artists,
                                       isDesktop: isDesktop,
                                     ),
@@ -3429,7 +3432,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               if (visibleColumns.showArtistColumn)
                                 Expanded(
                                   flex: 2,
-                                  child: _buildArtistLine(
+                                  child: _buildArtistWithIcons(
+                                    song,
                                     artists,
                                     isDesktop: isDesktop,
                                   ),
@@ -3609,10 +3613,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               else if (!isMobile &&
                                   widget.type != SharedListType.playlist)
                                 const SizedBox(width: 120),
-                              SizedBox(
-                                width: 24,
-                                child: _buildCacheIndicator(song.id),
-                              ),
                               if (isDesktop) ...[
                                 AnimatedOpacity(
                                   opacity: isHovering ? 1 : 0,
@@ -3896,7 +3896,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 isMobile ||
                                 visibleColumns.showArtistInline) ...[
                               const SizedBox(height: 2),
-                              _buildArtistLine(artists, isDesktop: isDesktop),
+                              _buildArtistWithIcons(
+                                song,
+                                artists,
+                                isDesktop: isDesktop,
+                              ),
                             ],
                           ],
                         ),
@@ -3906,7 +3910,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         if (visibleColumns.showArtistColumn)
                           Expanded(
                             flex: 2,
-                            child: _buildArtistLine(
+                            child: _buildArtistWithIcons(
+                              song,
                               artists,
                               isDesktop: isDesktop,
                             ),
@@ -4092,10 +4097,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                         else if (!isMobile &&
                             widget.type != SharedListType.playlist)
                           const SizedBox(width: 120),
-                        SizedBox(
-                          width: 24,
-                          child: _buildCacheIndicator(song.id),
-                        ),
                         if (isDesktop) ...[
                           AnimatedOpacity(
                             opacity: isHovering ? 1 : 0,
@@ -4917,7 +4918,8 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                                 view._buildListHeaderContent(
                                   availableWidth: availableWidth,
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 2),
+                                const Divider(),
                                 view._buildSongList(
                                   isMobile: false,
                                   availableWidth: availableWidth,

@@ -7,7 +7,6 @@ Here's the TODOs for version v26.05.xx:
 - Future changes: 
     - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
     - [ ] Add special card from the home screen on mobile. 
-    - [ ] Add explicit icon to more elements in the app. 
     - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons. It should be replaced with the normal play/pause icon on hover, though. For apple music, should show it as an overlay on top of the song cover. Spotify's is in the index of the song. 
     - [ ] Make artist name clickable in the full player
     - [ ] Make the playerbar on mobile see-through, so that the user can see the content behind it.
