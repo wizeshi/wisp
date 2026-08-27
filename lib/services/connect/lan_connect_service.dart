@@ -35,35 +35,34 @@ class LanConnectService implements ConnectTransport {
       StreamController.broadcast();
   final ConnectPacketRouter _packetRouter = const ConnectPacketRouter();
 
-    @override
+  @override
   Stream<ConnectDevice> get discoveredDeviceStream =>
       _discoveredDeviceController.stream;
-    @override
+  @override
   Stream<ConnectPairRequest> get pairRequestStream =>
       _pairRequestController.stream;
-    @override
+  @override
   Stream<ConnectPairResponse> get pairResponseStream =>
       _pairResponseController.stream;
-    @override
+  @override
   Stream<ConnectSnapshotSync> get snapshotStream => _snapshotController.stream;
-    @override
+  @override
   Stream<ConnectStateDeltaSync> get stateDeltaStream =>
       _stateDeltaController.stream;
-    @override
+  @override
   Stream<ConnectPositionPulseSync> get positionPulseStream =>
       _positionPulseController.stream;
-    @override
+  @override
   Stream<ConnectCommandIntent> get commandIntentStream =>
       _commandIntentController.stream;
-    @override
+  @override
   Stream<ConnectCommandApply> get commandApplyStream =>
       _commandApplyController.stream;
-    @override
+  @override
   Stream<ConnectCommandAck> get commandAckStream =>
       _commandAckController.stream;
-    @override
+  @override
   Stream<ConnectUnlinkEvent> get unlinkStream => _unlinkController.stream;
-  
 
   RawDatagramSocket? _discoverySocket;
   RawDatagramSocket? _controlSocket;
@@ -115,13 +114,14 @@ class LanConnectService implements ConnectTransport {
         ..broadcastEnabled = true
         ..listen(_onControlSocketEvent);
 
-      logger.i('[Connect/LAN] STARTUP: About to bind TCP server on port $_tcpPort');
-      _tcpServer = await ServerSocket.bind(
-        InternetAddress.anyIPv4,
-        _tcpPort,
+      logger.i(
+        '[Connect/LAN] STARTUP: About to bind TCP server on port $_tcpPort',
       );
-      logger.i('[Connect/LAN] STARTUP: TCP server socket bound successfully, address=${_tcpServer?.address}, port=${_tcpServer?.port}');
-      
+      _tcpServer = await ServerSocket.bind(InternetAddress.anyIPv4, _tcpPort);
+      logger.i(
+        '[Connect/LAN] STARTUP: TCP server socket bound successfully, address=${_tcpServer?.address}, port=${_tcpServer?.port}',
+      );
+
       _tcpServer!.listen(
         _onTcpServerConnection,
         onError: (error) {
@@ -130,13 +130,21 @@ class LanConnectService implements ConnectTransport {
       );
       logger.i('[Connect/LAN] STARTUP: TCP server listen() callback attached');
 
-      _announceTimer = Timer.periodic(
-        const Duration(seconds: 2),
-        (_) => _broadcastDiscovery(),
-      );
+      _announceTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+        try {
+          _broadcastDiscovery();
+        } catch (error) {
+          logger.e(
+            '[Connect/LAN] Failed to broadcast discovery. Stacktrace:',
+            error: error,
+          );
+        }
+      });
       _broadcastDiscovery();
       _started = true;
-      logger.i('[Connect/LAN] Discovery started on UDP $_discoveryPort, TCP server on $_tcpPort');
+      logger.i(
+        '[Connect/LAN] Discovery started on UDP $_discoveryPort, TCP server on $_tcpPort',
+      );
     } catch (error) {
       logger.e('[Connect/LAN] Failed to start', error: error);
       await stop();
@@ -180,7 +188,6 @@ class LanConnectService implements ConnectTransport {
     await _commandApplyController.close();
     await _commandAckController.close();
     await _unlinkController.close();
-    
   }
 
   @override
@@ -244,7 +251,10 @@ class LanConnectService implements ConnectTransport {
     // If accepted, initiate TCP connection to peer for large payload transfers
     if (accepted) {
       _connectToPeer(targetAddress).catchError((error) {
-        logger.w('[Connect/LAN] Failed to establish TCP connection to $targetAddress', error: error);
+        logger.w(
+          '[Connect/LAN] Failed to establish TCP connection to $targetAddress',
+          error: error,
+        );
       });
     }
   }
@@ -254,29 +264,50 @@ class LanConnectService implements ConnectTransport {
   Future<void> _connectToPeer(String address) async {
     logger.d('[Connect/LAN] _connectToPeer called for $address');
     if (_peerTcpConnections.containsKey(address)) {
-      logger.d('[Connect/LAN] _connectToPeer: connection already exists for $address, skipping');
+      logger.d(
+        '[Connect/LAN] _connectToPeer: connection already exists for $address, skipping',
+      );
       return;
     }
 
     try {
       final dest = InternetAddress.tryParse(address);
       if (dest == null) {
-        logger.e('[Connect/LAN] _connectToPeer FAIL: Cannot parse address: $address');
+        logger.e(
+          '[Connect/LAN] _connectToPeer FAIL: Cannot parse address: $address',
+        );
         return;
       }
       if (dest.address == '0.0.0.0') {
-        logger.e('[Connect/LAN] _connectToPeer FAIL: Cannot connect to 0.0.0.0');
+        logger.e(
+          '[Connect/LAN] _connectToPeer FAIL: Cannot connect to 0.0.0.0',
+        );
         return;
       }
 
-      logger.d('[Connect/LAN] _connectToPeer: attempting outbound connection to $address:$_tcpPort');
-      final socket = await Socket.connect(dest, _tcpPort, timeout: const Duration(seconds: 5));
+      logger.d(
+        '[Connect/LAN] _connectToPeer: attempting outbound connection to $address:$_tcpPort',
+      );
+      final socket = await Socket.connect(
+        dest,
+        _tcpPort,
+        timeout: const Duration(seconds: 5),
+      );
       _peerTcpConnections[address] = socket;
-      
-      logger.i('[Connect/LAN] SUCCESS: TCP connection established to $address:$_tcpPort');
-      _attachTcpSocket(peerAddress: address, socket: socket, source: 'outbound_connect');
+
+      logger.i(
+        '[Connect/LAN] SUCCESS: TCP connection established to $address:$_tcpPort',
+      );
+      _attachTcpSocket(
+        peerAddress: address,
+        socket: socket,
+        source: 'outbound_connect',
+      );
     } catch (error) {
-      logger.e('[Connect/LAN] FAIL: Failed to connect TCP to $address after 5s timeout', error: error);
+      logger.e(
+        '[Connect/LAN] FAIL: Failed to connect TCP to $address after 5s timeout',
+        error: error,
+      );
       rethrow;
     }
   }
@@ -295,14 +326,19 @@ class LanConnectService implements ConnectTransport {
       return;
     }
     if (!identical(activeSocket, socket)) {
-      logger.d('[Connect/LAN] Skip closing stale socket callback for $address (active socket differs)');
+      logger.d(
+        '[Connect/LAN] Skip closing stale socket callback for $address (active socket differs)',
+      );
       return;
     }
 
     _peerTcpConnections.remove(address);
     _peerConnectionSourceByAddress.remove(address);
     socket.close().catchError((error) {
-      logger.w('[Connect/LAN] Error closing TCP socket to $address', error: error);
+      logger.w(
+        '[Connect/LAN] Error closing TCP socket to $address',
+        error: error,
+      );
     });
     logger.d('[Connect/LAN] TCP connection closed to $address');
   }
@@ -335,7 +371,9 @@ class LanConnectService implements ConnectTransport {
     required String source,
   }) {
     _peerConnectionSourceByAddress[peerAddress] = source;
-    logger.i('[Connect/LAN] STARTUP: Attaching socket.listen() to TCP socket from $peerAddress source=$source');
+    logger.i(
+      '[Connect/LAN] STARTUP: Attaching socket.listen() to TCP socket from $peerAddress source=$source',
+    );
 
     // Buffer for incomplete messages
     String buffer = '';
@@ -374,15 +412,24 @@ class LanConnectService implements ConnectTransport {
                 onUnlink: _unlinkController.add,
               );
             } catch (error) {
-              logger.e('[Connect/LAN] FAIL: Failed to parse TCP packet from $peerAddress', error: error);
+              logger.e(
+                '[Connect/LAN] FAIL: Failed to parse TCP packet from $peerAddress',
+                error: error,
+              );
             }
           }
         } catch (error) {
-          logger.e('[Connect/LAN] FAIL: Error processing TCP data from $peerAddress', error: error);
+          logger.e(
+            '[Connect/LAN] FAIL: Error processing TCP data from $peerAddress',
+            error: error,
+          );
         }
       },
       onError: (error) {
-        logger.e('[Connect/LAN] FAIL: TCP socket error from $peerAddress error=$error', error: error);
+        logger.e(
+          '[Connect/LAN] FAIL: TCP socket error from $peerAddress error=$error',
+          error: error,
+        );
         _closePeerConnectionForSocket(peerAddress, socket);
       },
       onDone: () {
@@ -394,7 +441,9 @@ class LanConnectService implements ConnectTransport {
   void _sendViaTcp(String address, ConnectPacketEnvelope packet) {
     final socket = _peerTcpConnections[address];
     if (socket == null) {
-      logger.e('[Connect/LAN] FATAL: No TCP connection to $address, cannot send ${packet.packetType}. Active connections: ${_peerTcpConnections.keys.toList()}');
+      logger.e(
+        '[Connect/LAN] FATAL: No TCP connection to $address, cannot send ${packet.packetType}. Active connections: ${_peerTcpConnections.keys.toList()}',
+      );
       throw Exception('TCP connection not established to $address');
     }
 
@@ -402,9 +451,14 @@ class LanConnectService implements ConnectTransport {
       final encoded = '${packet.encode()}\n';
       final data = utf8.encode(encoded);
       socket.add(data);
-      logger.d('[Connect/LAN] -> TCP ${packet.packetType} to=$address len=${data.length}B payload_keys=${packet.payload.keys.toList()}');
+      logger.d(
+        '[Connect/LAN] -> TCP ${packet.packetType} to=$address len=${data.length}B payload_keys=${packet.payload.keys.toList()}',
+      );
     } catch (error) {
-      logger.e('[Connect/LAN] Failed to send TCP packet to $address packet=${packet.packetType}', error: error);
+      logger.e(
+        '[Connect/LAN] Failed to send TCP packet to $address packet=${packet.packetType}',
+        error: error,
+      );
       _closePeerConnection(address);
       rethrow;
     }
@@ -414,25 +468,37 @@ class LanConnectService implements ConnectTransport {
     final peerAddress = socket.remoteAddress.address;
     final peerPort = socket.remotePort;
     final timestamp = DateTime.now().toIso8601String();
-    logger.i('[Connect/LAN] STARTUP: _onTcpServerConnection callback fired! timestamp=$timestamp');
-    logger.i('[Connect/LAN] TRACE: Incoming TCP connection from $peerAddress:$peerPort at $timestamp');
+    logger.i(
+      '[Connect/LAN] STARTUP: _onTcpServerConnection callback fired! timestamp=$timestamp',
+    );
+    logger.i(
+      '[Connect/LAN] TRACE: Incoming TCP connection from $peerAddress:$peerPort at $timestamp',
+    );
 
     // If we already have a connection to this peer, resolve deterministically.
     final existingSocket = _peerTcpConnections[peerAddress];
     if (existingSocket != null && !identical(existingSocket, socket)) {
       final keepIncoming = _shouldKeepIncomingSocket(peerAddress: peerAddress);
       if (!keepIncoming) {
-        logger.w('[Connect/LAN] TRACE: Keeping existing TCP connection for $peerAddress (deterministic duplicate resolution), closing incoming at $timestamp');
+        logger.w(
+          '[Connect/LAN] TRACE: Keeping existing TCP connection for $peerAddress (deterministic duplicate resolution), closing incoming at $timestamp',
+        );
         socket.close();
         return;
       }
-      logger.w('[Connect/LAN] TRACE: Replacing existing TCP connection for $peerAddress with inbound socket (deterministic duplicate resolution) at $timestamp');
+      logger.w(
+        '[Connect/LAN] TRACE: Replacing existing TCP connection for $peerAddress with inbound socket (deterministic duplicate resolution) at $timestamp',
+      );
       _closePeerConnectionForSocket(peerAddress, existingSocket);
     }
 
     _peerTcpConnections[peerAddress] = socket;
     logger.i('[Connect/LAN] TRACE: Stored TCP connection from $peerAddress');
-    _attachTcpSocket(peerAddress: peerAddress, socket: socket, source: 'inbound_accept');
+    _attachTcpSocket(
+      peerAddress: peerAddress,
+      socket: socket,
+      source: 'inbound_accept',
+    );
   }
 
   // Public Transport API
@@ -458,15 +524,12 @@ class LanConnectService implements ConnectTransport {
 
     final packet = ConnectPacketEnvelope(
       packetType: 'audio.snapshot_sync',
-      payload: {
-        'from_device_id': fromDeviceId,
-        'snapshot': payloadSnapshot,
-      },
+      payload: {'from_device_id': fromDeviceId, 'snapshot': payloadSnapshot},
       metadata: {'ts': DateTime.now().toIso8601String()},
     );
     final encoded = packet.encode();
     final byteLength = utf8.encode(encoded).length;
-    
+
     // Use TCP for large snapshots, UDP for small ones
     const int safeUdpPayload = 40000;
     if (byteLength > safeUdpPayload) {
@@ -503,10 +566,7 @@ class LanConnectService implements ConnectTransport {
       targetAddress,
       ConnectPacketEnvelope(
         packetType: 'audio.state_delta',
-        payload: {
-          'from_device_id': fromDeviceId,
-          'delta': delta.toJson(),
-        },
+        payload: {'from_device_id': fromDeviceId, 'delta': delta.toJson()},
         metadata: {'ts': DateTime.now().toIso8601String()},
       ),
     );
@@ -525,10 +585,7 @@ class LanConnectService implements ConnectTransport {
       targetAddress,
       ConnectPacketEnvelope(
         packetType: 'audio.position_pulse',
-        payload: {
-          'from_device_id': fromDeviceId,
-          'pulse': pulse.toJson(),
-        },
+        payload: {'from_device_id': fromDeviceId, 'pulse': pulse.toJson()},
         metadata: {'ts': DateTime.now().toIso8601String()},
       ),
     );
@@ -659,7 +716,10 @@ class LanConnectService implements ConnectTransport {
           snapshot: snapshot,
         );
       } catch (error) {
-        logger.w('[Handoff/LAN] Failed to send snapshot after command_ack', error: error);
+        logger.w(
+          '[Handoff/LAN] Failed to send snapshot after command_ack',
+          error: error,
+        );
       }
       return;
     }
@@ -696,7 +756,7 @@ class LanConnectService implements ConnectTransport {
       ),
     );
     logger.d('[Handoff/LAN] -> unlink to=$targetAddress from=$fromDeviceId');
-    
+
     // Close TCP connection to this peer
     _closePeerConnection(targetAddress);
   }
@@ -713,7 +773,8 @@ class LanConnectService implements ConnectTransport {
       final packet = ConnectPacketEnvelope.fromJson(jsonMap);
       final isHello =
           packet.packetType == 'hello' || packet.packetType == 'connect.hello';
-      final isHelloReply = packet.packetType == 'hello_reply' ||
+      final isHelloReply =
+          packet.packetType == 'hello_reply' ||
           packet.packetType == 'connect.hello_reply';
       if (!isHello && !isHelloReply) {
         return;
@@ -788,7 +849,9 @@ class LanConnectService implements ConnectTransport {
     try {
       final dest = InternetAddress.tryParse(targetAddress);
       if (dest == null) {
-        logger.w('[Connect/LAN] Invalid discovery reply address: $targetAddress');
+        logger.w(
+          '[Connect/LAN] Invalid discovery reply address: $targetAddress',
+        );
       } else {
         _discoverySocket?.send(
           utf8.encode(json.encode(payload)),
@@ -797,7 +860,10 @@ class LanConnectService implements ConnectTransport {
         );
       }
     } catch (error) {
-      logger.w('[Connect/LAN] Failed to send discovery reply to $targetAddress', error: error);
+      logger.w(
+        '[Connect/LAN] Failed to send discovery reply to $targetAddress',
+        error: error,
+      );
     }
   }
 
@@ -815,7 +881,9 @@ class LanConnectService implements ConnectTransport {
         datagram.address.address,
         packet.payload['from_device_id'] as String?,
       );
-        logger.d('[Connect/LAN] control datagram from=${datagram.address.address} packet=${packet.packetType} from_device_id=${packet.payload['from_device_id'] ?? 'unknown'}');
+      logger.d(
+        '[Connect/LAN] control datagram from=${datagram.address.address} packet=${packet.packetType} from_device_id=${packet.payload['from_device_id'] ?? 'unknown'}',
+      );
       _packetRouter.route(
         packet: packet,
         localDeviceId: _localDeviceId ?? '',
@@ -847,29 +915,33 @@ class LanConnectService implements ConnectTransport {
       return;
     }
 
-        final packet = ConnectPacketEnvelope(
-          packetType: 'connect.hello',
-          payload: {
-            'device_id': localDeviceId,
-            'name': localDeviceName,
-            'platform': localPlatform,
-            'control_port': _controlPort,
-          },
-          metadata: {'ts': DateTime.now().toIso8601String()},
-        );
-        final payload = packet.toJson()
-          ..addAll({
-            'type': 'hello',
-            'device_id': localDeviceId,
-            'name': localDeviceName,
-            'platform': localPlatform,
-            'control_port': _controlPort,
-            'ts': DateTime.now().toIso8601String(),
-          });
+    final packet = ConnectPacketEnvelope(
+      packetType: 'connect.hello',
+      payload: {
+        'device_id': localDeviceId,
+        'name': localDeviceName,
+        'platform': localPlatform,
+        'control_port': _controlPort,
+      },
+      metadata: {'ts': DateTime.now().toIso8601String()},
+    );
+    final payload = packet.toJson()
+      ..addAll({
+        'type': 'hello',
+        'device_id': localDeviceId,
+        'name': localDeviceName,
+        'platform': localPlatform,
+        'control_port': _controlPort,
+        'ts': DateTime.now().toIso8601String(),
+      });
 
-        final data = utf8.encode(json.encode(payload));
+    final data = utf8.encode(json.encode(payload));
     try {
       socket.send(data, InternetAddress('255.255.255.255'), _discoveryPort);
+    } on SocketException {
+      logger.e(
+        '[Connect/LAN] Failed to broadcast discovery. Device is most likely locked or in standby.',
+      );
     } catch (_) {}
   }
 
@@ -879,25 +951,33 @@ class LanConnectService implements ConnectTransport {
 
     final dest = InternetAddress.tryParse(address);
     if (dest == null) {
-      logger.w('[Connect/LAN] Refusing to send control datagram to invalid address: $address');
+      logger.w(
+        '[Connect/LAN] Refusing to send control datagram to invalid address: $address',
+      );
       return;
     }
     if (dest.address == '0.0.0.0') {
-      logger.w('[Connect/LAN] Refusing to send control datagram to 0.0.0.0 (likely unknown peer)');
+      logger.w(
+        '[Connect/LAN] Refusing to send control datagram to 0.0.0.0 (likely unknown peer)',
+      );
       return;
     }
 
     final data = utf8.encode(packet.encode());
     try {
-      logger.d('[Connect/LAN] sending control datagram to=${dest.address} len=${data.length} packet=${packet.packetType}');
-      logger.d('[Connect/LAN] about to call socket.send(len=${data.length}, dest=${dest.address}, port=$_controlPort)');
-      socket.send(
-        data,
-        dest,
-        _controlPort,
+      logger.d(
+        '[Connect/LAN] sending control datagram to=${dest.address} len=${data.length} packet=${packet.packetType}',
       );
+      logger.d(
+        '[Connect/LAN] about to call socket.send(len=${data.length}, dest=${dest.address}, port=$_controlPort)',
+      );
+      socket.send(data, dest, _controlPort);
     } catch (error, st) {
-      logger.w('[Connect/LAN] Failed to send control datagram to ${dest.address}', error: error, stackTrace: st);
+      logger.w(
+        '[Connect/LAN] Failed to send control datagram to ${dest.address}',
+        error: error,
+        stackTrace: st,
+      );
     }
   }
 }
