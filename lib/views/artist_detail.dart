@@ -1217,7 +1217,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          buildParsedText(
+            context,
             displayDescription,
             style: TextStyle(
               color: Colors.grey[200],
@@ -1366,8 +1367,12 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                           ),
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
                       if (track.explicit) ...[
-                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 4,
@@ -1386,15 +1391,15 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 4),
                       ],
+                      Text(
+                        track.artists.map((artist) => artist.name).join(', '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    track.artists.map((artist) => artist.name).join(', '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
                   ),
                 ],
               ),
