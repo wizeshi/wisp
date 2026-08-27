@@ -1820,50 +1820,115 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
+  Widget _buildSongTitleWithIcons(
+    GenericSong song, {
+    required bool isCurrentTrack,
+    required bool isDesktop,
+    required bool isAppleStyle,
+  }) {
+    return ClipRRect(
+      child: Row(
+        children: [
+          if (isAppleStyle && song.explicit) ...[
+            Icon(Icons.explicit, size: 16, color: Colors.grey[500]),
+            const SizedBox(width: 2),
+          ],
+          if (isAppleStyle) ...[
+            AnimatedBuilder(
+              animation: AudioCacheManager.instance,
+              builder: (context, _) {
+                final cacheManager = AudioCacheManager.instance;
+                final isCached = cacheManager.isTrackCached(song.id);
+                final isDownloading = cacheManager.isDownloading(song.id);
+                if (!isCached && !isDownloading) return const SizedBox.shrink();
+                if (isDownloading) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        value: cacheManager.getDownloadProgress(song.id) ?? 0,
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.primary,
+                        backgroundColor: Colors.grey[800],
+                      ),
+                    ),
+                  );
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    Icons.offline_pin,
+                    size: 12,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                );
+              },
+            ),
+          ],
+          Text(
+            song.title,
+            style: TextStyle(
+              color: isCurrentTrack
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.white,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Builds a row with optional explicit/cached icons followed by the artist list.
   Widget _buildArtistWithIcons(
     GenericSong song,
     List<GenericSimpleArtist> artists, {
     required bool isDesktop,
+    required bool isAppleStyle,
   }) {
     return Row(
       children: [
-        if (song.explicit) ...[
-          Icon(Icons.explicit, size: 12, color: Colors.grey[500]),
-          const SizedBox(width: 4),
+        if (!isAppleStyle && song.explicit) ...[
+          Icon(Icons.explicit, size: 16, color: Colors.grey[500]),
+          const SizedBox(width: 2),
         ],
-        AnimatedBuilder(
-          animation: AudioCacheManager.instance,
-          builder: (context, _) {
-            final cacheManager = AudioCacheManager.instance;
-            final isCached = cacheManager.isTrackCached(song.id);
-            final isDownloading = cacheManager.isDownloading(song.id);
-            if (!isCached && !isDownloading) return const SizedBox.shrink();
-            if (isDownloading) {
+        if (!isAppleStyle) ...[
+          AnimatedBuilder(
+            animation: AudioCacheManager.instance,
+            builder: (context, _) {
+              final cacheManager = AudioCacheManager.instance;
+              final isCached = cacheManager.isTrackCached(song.id);
+              final isDownloading = cacheManager.isDownloading(song.id);
+              if (!isCached && !isDownloading) return const SizedBox.shrink();
+              if (isDownloading) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      value: cacheManager.getDownloadProgress(song.id) ?? 0,
+                      strokeWidth: 2,
+                      color: Theme.of(context).colorScheme.primary,
+                      backgroundColor: Colors.grey[800],
+                    ),
+                  ),
+                );
+              }
               return Padding(
                 padding: const EdgeInsets.only(right: 4),
-                child: SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    value: cacheManager.getDownloadProgress(song.id) ?? 0,
-                    strokeWidth: 2,
-                    color: Theme.of(context).colorScheme.primary,
-                    backgroundColor: Colors.grey[800],
-                  ),
+                child: Icon(
+                  Icons.offline_pin,
+                  size: 12,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               );
-            }
-            return Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Icon(
-                Icons.offline_pin,
-                size: 12,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            );
-          },
-        ),
+            },
+          ),
+        ],
         Expanded(child: _buildArtistLine(artists, isDesktop: isDesktop)),
       ],
     );
@@ -3400,17 +3465,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text(
-                                    _getTitle(item),
-                                    style: TextStyle(
-                                      color: isCurrentTrack
-                                          ? Theme.of(
-                                              context,
-                                            ).colorScheme.primary
-                                          : Colors.white,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                  _buildSongTitleWithIcons(
+                                    song,
+                                    isCurrentTrack: isCurrentTrack,
+                                    isDesktop: isDesktop,
+                                    isAppleStyle: isAppleStyle,
                                   ),
                                   if (!isAppleStyle ||
                                       isMobile ||
@@ -3420,6 +3479,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                       song,
                                       artists,
                                       isDesktop: isDesktop,
+                                      isAppleStyle: isAppleStyle,
                                     ),
                                   ],
                                 ],
@@ -3434,6 +3494,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     song,
                                     artists,
                                     isDesktop: isDesktop,
+                                    isAppleStyle: isAppleStyle,
                                   ),
                                 ),
                               // Album column - hidden when album is not visible
@@ -3880,15 +3941,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              _getTitle(item),
-                              style: TextStyle(
-                                color: isCurrentTrack
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.white,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            _buildSongTitleWithIcons(
+                              song,
+                              isCurrentTrack: isCurrentTrack,
+                              isDesktop: isDesktop,
+                              isAppleStyle: isAppleStyle,
                             ),
                             if (!isAppleStyle ||
                                 isMobile ||
@@ -3898,6 +3955,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 song,
                                 artists,
                                 isDesktop: isDesktop,
+                                isAppleStyle: isAppleStyle,
                               ),
                             ],
                           ],
@@ -3912,6 +3970,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                               song,
                               artists,
                               isDesktop: isDesktop,
+                              isAppleStyle: isAppleStyle,
                             ),
                           ),
                         // Album column - hidden when album is not visible

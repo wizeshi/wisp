@@ -94,7 +94,11 @@ List<Map<String, dynamic>> _extractImageSources(dynamic obj) {
   return [];
 }
 
-dynamic _mapValueAtPath(Map<String, dynamic> map, String key, [String? nestedKey]) {
+dynamic _mapValueAtPath(
+  Map<String, dynamic> map,
+  String key, [
+  String? nestedKey,
+]) {
   final value = map[key];
   if (value is! Map<String, dynamic>) return null;
   if (nestedKey == null) return value;
@@ -349,30 +353,31 @@ String _spotifyInternalUserIdFromUri(String? uri) {
 }
 
 GenericSimpleUser spotifyInternalUserToGeneric(Map<String, dynamic> user) {
-  final payload = (user['data'] as Map<String, dynamic>?) ??
-    (user['profile'] as Map<String, dynamic>?) ??
-    user;
+  final payload =
+      (user['data'] as Map<String, dynamic>?) ??
+      (user['profile'] as Map<String, dynamic>?) ??
+      user;
   final uri = payload['uri'] as String? ?? payload['id'] as String? ?? '';
   final profile = payload['profile'] as Map<String, dynamic>?;
   final imageUrl =
-    (payload['image_url'] as String?) ??
+      (payload['image_url'] as String?) ??
       (profile?['image_url'] as String?) ??
-    _getLargestImage(_extractImageSources(payload));
+      _getLargestImage(_extractImageSources(payload));
 
   return GenericSimpleUser(
     id: _spotifyInternalUserIdFromUri(uri),
     source: SongSource.spotifyInternal,
     displayName:
-    (payload['name'] as String?) ??
+        (payload['name'] as String?) ??
         (profile?['name'] as String?) ??
-    (payload['display_name'] as String?) ??
+        (payload['display_name'] as String?) ??
         'Unknown User',
     avatarUrl: imageUrl.isNotEmpty ? imageUrl : null,
-  followerCount:
-    payload['followers_count'] as int? ?? payload['follower_count'] as int?,
-  isFollowing: payload['is_following'] as bool?,
-  isFollowed: payload['is_followed'] as bool?,
-  color: payload['color'] as int?,
+    followerCount:
+        payload['followers_count'] as int? ?? payload['follower_count'] as int?,
+    isFollowing: payload['is_following'] as bool?,
+    isFollowed: payload['is_followed'] as bool?,
+    color: payload['color'] as int?,
     profileUrl: uri.isNotEmpty ? uri : payload['profile_url'] as String?,
   );
 }
@@ -779,6 +784,14 @@ PlaylistItem spotifyInternalPlaylistItemV3ToPlaylistItem(
     );
   }
 
+  bool explicit = false;
+  if (v2data != null) {
+    if (v2data['contentRating'] != null &&
+        v2data['contentRating']['label'] != null) {
+      explicit = v2data['contentRating']['label'] == "EXPLICIT" ? true : false;
+    }
+  }
+
   return PlaylistItem(
     id: id,
     uid: uid,
@@ -786,7 +799,7 @@ PlaylistItem spotifyInternalPlaylistItemV3ToPlaylistItem(
     title: title,
     artists: artists,
     thumbnailUrl: thumbnail,
-    explicit: false,
+    explicit: explicit,
     album: album,
     durationSecs: durationSeconds,
     addedAt:
