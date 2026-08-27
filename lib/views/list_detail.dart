@@ -2018,7 +2018,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         ),
         actions: [
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
+            duration: const Duration(milliseconds: 0),
+            reverseDuration: const Duration(milliseconds: 180),
             child: _showStickyBar
                 ? _buildStickyPlayAction(useAppleStyle: false, protrude: true)
                 : const SizedBox.shrink(),
@@ -2385,6 +2386,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   },
                 ),
               ),
+              const SizedBox(width: 10),
             ],
           ),
         );

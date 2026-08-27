@@ -1032,8 +1032,8 @@ class _WispNavigationState extends State<WispNavigation> {
                             color: titleColor,
                             fontSize: 14,
                             fontWeight: resolvedItem is PlaylistFolder
-                                ? FontWeight.w600
-                                : FontWeight.w500,
+                                ? FontWeight.w700
+                                : FontWeight.w600,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
