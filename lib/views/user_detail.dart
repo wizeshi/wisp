@@ -156,16 +156,21 @@ class _UserDetailViewState extends State<UserDetailView> {
     return number.toString();
   }
 
-  Future<List<Color>> _getActionsRowColor(CoverArtPaletteProvider paletteProvider, String imageUrl) async {
+  Future<List<Color>> _getActionsRowColor(
+    CoverArtPaletteProvider paletteProvider,
+    String imageUrl,
+  ) async {
     final palette = await paletteProvider.paletteForImageUrl(imageUrl);
-    final fakeColor = HSLColor.fromColor(palette?.primary ?? const Color(0xFF1E1E1E));
-    final color = fakeColor.withLightness(
-      log(fakeColor.lightness + 1) / log(3)
-    ).toColor();
+    final fakeColor = HSLColor.fromColor(
+      palette?.primary ?? const Color(0xFF1E1E1E),
+    );
+    final color = fakeColor
+        .withLightness(log(fakeColor.lightness + 1) / log(3))
+        .toColor();
     final colorHSL = HSLColor.fromColor(color);
-    final trueColor = colorHSL.withLightness(
-      colorHSL.lightness * 0.5
-    ).toColor();
+    final trueColor = colorHSL
+        .withLightness(colorHSL.lightness * 0.5)
+        .toColor();
 
     return [color, trueColor];
   }
@@ -178,13 +183,12 @@ class _UserDetailViewState extends State<UserDetailView> {
     }
 
     final user = _user;
-    final imageUrl = user?.avatarUrl ?? '';
     final title = user?.displayName ?? 'User';
 
     Widget body = () {
       final content = _isLoading && user == null
-        ? const Center(child: CircularProgressIndicator())
-        : _buildContent(user);
+          ? const Center(child: CircularProgressIndicator())
+          : _buildContent(user);
 
       if (_isDesktop) {
         return content;
@@ -200,7 +204,7 @@ class _UserDetailViewState extends State<UserDetailView> {
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
-        extendBodyBehindAppBar: true,
+        extendBodyBehindAppBar: false,
         body: content,
       );
     }();
@@ -273,18 +277,19 @@ class _UserDetailViewState extends State<UserDetailView> {
         ),
       );
     }
-    
+
     return ListView(
       shrinkWrap: true,
       children: [
         _buildHeroCard(user, useAppleChrome: false),
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
           child: Column(
-            children: children
-          )
-        )
-      ]
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
+          ),
+        ),
+      ],
     );
   }
 
@@ -346,10 +351,10 @@ class _UserDetailViewState extends State<UserDetailView> {
   Widget _buildHeroCard(GenericUser user, {required bool useAppleChrome}) {
     final followerLabel = '${_formatNumber(user.followerCount)} followers';
     final followingLabel = '${_formatNumber(user.followingCount)} following';
-    
+
     if (!_isDesktop) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
         child: Column(
           children: [
             Center(
@@ -367,43 +372,40 @@ class _UserDetailViewState extends State<UserDetailView> {
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerLeft,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'PROFILE',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.55),
-                      fontSize: 12,
-                      letterSpacing: 1.6,
-                      fontWeight: FontWeight.w700,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.displayName,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: useAppleChrome ? 28 : 28,
+                            height: 1.05,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '$followerLabel • $followingLabel',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.82),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    user.displayName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: useAppleChrome ? 28 : 30,
-                      height: 1.05,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '$followerLabel • $followingLabel',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.82),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+                    _buildFollowButton(),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            Align(alignment: Alignment.centerLeft, child: _buildFollowButton()),
           ],
         ),
       );
@@ -440,30 +442,30 @@ class _UserDetailViewState extends State<UserDetailView> {
                       _buildAvatar(user.avatarUrl, size: 180),
                       const SizedBox(width: 16),
                       Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              user.displayName,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: useAppleChrome ? 36 : 38,
-                                height: 1.05,
-                                fontWeight: FontWeight.w800,
-                              ),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user.displayName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: useAppleChrome ? 36 : 38,
+                              height: 1.05,
+                              fontWeight: FontWeight.w800,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '$followerLabel • $followingLabel',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.82),
-                                fontSize: 14,
-                              ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '$followerLabel • $followingLabel',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.82),
+                              fontSize: 14,
                             ),
-                            const SizedBox(height: 14),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                      ),
                     ],
                   ),
                 ],
@@ -482,12 +484,10 @@ class _UserDetailViewState extends State<UserDetailView> {
               ),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: IntrinsicWidth(
-                  child: _buildFollowButton(),
-                ),
+                child: IntrinsicWidth(child: _buildFollowButton()),
               ),
-            )
-          ]
+            ),
+          ],
         );
       },
     );
@@ -537,10 +537,10 @@ class _UserDetailViewState extends State<UserDetailView> {
 
     return _buildCard(
       width: 180,
-      height: 236,
       imageUrl: playlist.thumbnailUrl ?? '',
       title: playlist.title,
       subtitle: _playlistSubtitle(playlist),
+      isDesktop: _isDesktop,
       onTap: playlist.owner == null
           ? null
           : () => AppNavigation.instance.openUser(
@@ -594,10 +594,10 @@ class _UserDetailViewState extends State<UserDetailView> {
 
     return _buildCard(
       width: 180,
-      height: 236,
       imageUrl: artist.thumbnailUrl,
       title: artist.name,
       subtitle: 'Artist',
+      isDesktop: _isDesktop,
       onTap: () => AppNavigation.instance.openArtist(
         context,
         artistId: artist.id,
@@ -625,10 +625,10 @@ class _UserDetailViewState extends State<UserDetailView> {
 
     return _buildCard(
       width: 180,
-      height: 236,
       imageUrl: user.avatarUrl ?? '',
       title: user.displayName,
       subtitle: subtitle,
+      isDesktop: _isDesktop,
       onTap: isArtist
           ? () => AppNavigation.instance.openArtist(
               context,
@@ -672,10 +672,10 @@ class _UserDetailViewState extends State<UserDetailView> {
 
   Widget _buildCard({
     required double width,
-    required double height,
     required String imageUrl,
     required String title,
     required String subtitle,
+    required bool isDesktop,
     required VoidCallback? onTap,
     required VoidCallback? onPlay,
     GestureTapDownCallback? onSecondaryTapDown,
@@ -688,20 +688,21 @@ class _UserDetailViewState extends State<UserDetailView> {
       child: ClipRect(
         child: Material(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(2),
           child: _HoverCard(
             width: width,
-            height: height,
+            // height omitted entirely -> sizes to content
             onTap: onTap,
             onSecondaryTapDown: onSecondaryTapDown,
             onLongPress: onLongPress,
             builder: (context, hovering) => Padding(
-              padding: const EdgeInsets.fromLTRB(11.0, 11.0, 11.0, 8.0),
+              padding: EdgeInsets.all(isDesktop ? 8.0 : 4.0),
               child: Column(
+                mainAxisSize: MainAxisSize.min, // <-- key change
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(2),
                     child: SizedBox(
                       width: width - 20,
                       height: width - 20,
@@ -926,7 +927,7 @@ class _HorizontalScrollableSectionState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 12),
+          padding: EdgeInsets.only(left: 4.0),
           child: Text(
             widget.title,
             style: TextStyle(
@@ -936,89 +937,90 @@ class _HorizontalScrollableSectionState
             ),
           ),
         ),
-        SizedBox(
-          height: 236,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.basic,
-            onEnter: isDesktop
-                ? (_) => setState(() => _isHovered = true)
-                : null,
-            onExit: isDesktop
-                ? (_) => setState(() => _isHovered = false)
-                : null,
-            child: Stack(
-              children: [
-                ListView.separated(
-                  controller: _controller,
-                  scrollDirection: Axis.horizontal,
-                  itemCount: widget.children.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 12),
-                  itemBuilder: (context, index) => widget.children[index],
+        MouseRegion(
+          cursor: SystemMouseCursors.basic,
+          onEnter: isDesktop ? (_) => setState(() => _isHovered = true) : null,
+          onExit: isDesktop ? (_) => setState(() => _isHovered = false) : null,
+          child: Stack(
+            children: [
+              SingleChildScrollView(
+                controller: _controller,
+                scrollDirection: Axis.horizontal,
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (int i = 0; i < widget.children.length; i++) ...[
+                        if (i != 0) const SizedBox(width: 12),
+                        widget.children[i],
+                      ],
+                    ],
+                  ),
                 ),
-                if (_canScrollRight)
-                  Positioned(
-                    top: 0,
-                    bottom: 0,
-                    right: 0,
-                    child: IgnorePointer(
-                      child: Container(
-                        width: 52,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [
-                              Colors.transparent,
-                              const Color(0xFF121212).withValues(alpha: 0.78),
-                            ],
-                          ),
+              ),
+              if (_canScrollRight)
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      width: 52,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Colors.transparent,
+                            const Color(0xFF121212).withValues(alpha: 0.78),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                if (showArrows && _canScrollLeft)
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: Material(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        shape: const CircleBorder(),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.chevron_left,
-                            color: Colors.white,
-                          ),
-                          onPressed: () => _scrollBy(-240),
-                          splashRadius: 18,
+                ),
+              if (showArrows && _canScrollLeft)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Material(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.chevron_left,
+                          color: Colors.white,
                         ),
+                        onPressed: () => _scrollBy(-240),
+                        splashRadius: 18,
                       ),
                     ),
                   ),
-                if (showArrows && _canScrollRight)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Center(
-                      child: Material(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        shape: const CircleBorder(),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.chevron_right,
-                            color: Colors.white,
-                          ),
-                          onPressed: () => _scrollBy(240),
-                          splashRadius: 18,
+                ),
+              if (showArrows && _canScrollRight)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Material(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        icon: const Icon(
+                          Icons.chevron_right,
+                          color: Colors.white,
                         ),
+                        onPressed: () => _scrollBy(240),
+                        splashRadius: 18,
                       ),
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ],
@@ -1028,7 +1030,6 @@ class _HorizontalScrollableSectionState
 
 class _HoverCard extends StatefulWidget {
   final double width;
-  final double height;
   final Widget Function(BuildContext context, bool hovering) builder;
   final VoidCallback? onTap;
   final GestureTapDownCallback? onSecondaryTapDown;
@@ -1036,7 +1037,6 @@ class _HoverCard extends StatefulWidget {
 
   const _HoverCard({
     required this.width,
-    required this.height,
     required this.builder,
     required this.onTap,
     this.onSecondaryTapDown,
@@ -1066,13 +1066,13 @@ class _HoverCardState extends State<_HoverCard> {
         color: Colors.transparent,
         child: InkWell(
           mouseCursor: widget.onTap == null ? null : SystemMouseCursors.click,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(12),
           onSecondaryTapDown: widget.onSecondaryTapDown,
           onLongPress: widget.onLongPress,
           onTap: widget.onTap,
           child: SizedBox(
             width: widget.width,
-            height: widget.height,
+            height: null,
             child: widget.builder(context, _hovering),
           ),
         ),
