@@ -10,6 +10,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/utils/text_parser.dart';
 
@@ -112,6 +113,23 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   bool _isLocalImagePath(String path) {
     return path.startsWith('/') || path.startsWith('file://');
+  }
+
+  Object? _lastRowTapKey;
+  DateTime? _lastRowTapTime;
+
+  void _handleRowDoubleClick(Object key, VoidCallback onDoubleClick) {
+    final now = DateTime.now();
+    if (_lastRowTapKey == key &&
+        _lastRowTapTime != null &&
+        now.difference(_lastRowTapTime!) <= kDoubleTapTimeout) {
+      _lastRowTapKey = null;
+      _lastRowTapTime = null;
+      onDoubleClick();
+    } else {
+      _lastRowTapKey = key;
+      _lastRowTapTime = now;
+    }
   }
 
   /// Determines which columns to show based on available width
@@ -3333,7 +3351,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     child: InkWell(
                       mouseCursor: SystemMouseCursors.click,
                       onTap: isDesktop
-                          ? null
+                          ? () => _handleRowDoubleClick(
+                              song.id,
+                              () => _playQueueAt(rowIndex),
+                            )
                           : () {
                               if (isCurrentTrack) {
                                 _toggleCurrentTrackPlayback(player);
@@ -3341,9 +3362,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 _playQueueAt(rowIndex);
                               }
                             },
-                      onDoubleTap: isDesktop
-                          ? () => _playQueueAt(rowIndex)
-                          : null,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -3587,12 +3605,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                         ).colorScheme.primary,
                                         size: 18,
                                       ),
-                                      onPressed: () {
+                                      onPressed: () => {
                                         _showSongContextMenu(
                                           song,
                                           anchorContext: buttonContext,
-                                        );
+                                        ),
                                       },
+                                      onLongPress: null,
                                     ),
                                   ),
                                 ),
@@ -3751,6 +3770,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                           anchorContext: buttonContext,
                                         );
                                       },
+                                      onLongPress: null,
                                     ),
                                   ),
                                 ),
@@ -3817,7 +3837,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               child: InkWell(
                 mouseCursor: SystemMouseCursors.click,
                 onTap: isDesktop
-                    ? null
+                    ? () => _handleRowDoubleClick(
+                        song.id,
+                        () => _playQueueAt(idx),
+                      )
                     : () {
                         if (isCurrentTrack) {
                           _toggleCurrentTrackPlayback(player);
@@ -3825,7 +3848,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           _playQueueAt(idx);
                         }
                       },
-                onDoubleTap: isDesktop ? () => _playQueueAt(idx) : null,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -4059,6 +4081,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                   color: Theme.of(context).colorScheme.primary,
                                   size: 18,
                                 ),
+                                onLongPress: null,
                                 onPressed: () {
                                   _showSongContextMenu(
                                     song,
@@ -4439,7 +4462,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 borderRadius: BorderRadius.circular(8),
                 mouseCursor: SystemMouseCursors.click,
                 onTap: () => _playRecommendedAt(index),
-                onDoubleTap: isDesktop ? () => _playRecommendedAt(index) : null,
                 child: Container(
                   padding: isMobile
                       ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
@@ -5769,6 +5791,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                     ),
                     onPressed: () =>
                         view._showListContextMenu(anchorContext: buttonContext),
+                    onLongPress: null,
                   ),
                 ),
               ],
