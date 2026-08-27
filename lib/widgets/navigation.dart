@@ -555,57 +555,55 @@ class _WispNavigationState extends State<WispNavigation> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: 20,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  'YOUR LIBRARY',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[600],
-                    letterSpacing: 1.5,
-                  ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                'YOUR LIBRARY',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[600],
+                  letterSpacing: 1.5,
                 ),
               ),
-              if (widget.selectedView == LibraryView.playlists)
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: PopupMenuButton<LibrarySortMode>(
-                    tooltip: 'Sort',
-                    icon: Icon(Icons.sort, color: Colors.grey[500], size: 18),
-                    color: const Color(0xFF282828),
-                    onSelected: folderState.setSortMode,
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(
-                        value: LibrarySortMode.original,
-                        child: Text(
-                          'Index',
-                          style: TextStyle(color: Colors.white),
-                        ),
+            ),
+            if (widget.selectedView == LibraryView.playlists)
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: PopupMenuButton<LibrarySortMode>(
+                  tooltip: 'Sort',
+                  icon: Icon(Icons.sort, color: Colors.grey[500], size: 16),
+                  color: const Color(0xFF282828),
+                  onSelected: folderState.setSortMode,
+                  style: ButtonStyle(visualDensity: VisualDensity.compact),
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: LibrarySortMode.original,
+                      child: Text(
+                        'Index',
+                        style: TextStyle(color: Colors.white),
                       ),
-                      PopupMenuItem(
-                        value: LibrarySortMode.recentlyPlayed,
-                        child: Text(
-                          'Recently played',
-                          style: TextStyle(color: Colors.white),
-                        ),
+                    ),
+                    PopupMenuItem(
+                      value: LibrarySortMode.recentlyPlayed,
+                      child: Text(
+                        'Recently played',
+                        style: TextStyle(color: Colors.white),
                       ),
-                      PopupMenuItem(
-                        value: LibrarySortMode.custom,
-                        child: Text(
-                          'Custom order',
-                          style: TextStyle(color: Colors.white),
-                        ),
+                    ),
+                    PopupMenuItem(
+                      value: LibrarySortMode.custom,
+                      child: Text(
+                        'Custom order',
+                        style: TextStyle(color: Colors.white),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
         SizedBox(height: 12),
         Row(
