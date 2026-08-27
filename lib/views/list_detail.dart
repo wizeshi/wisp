@@ -5485,11 +5485,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   onTap: () => view._openUser(subtitleUser!),
                   child: Text(
                     subtitle!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      decoration: TextDecoration.underline,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 24),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
