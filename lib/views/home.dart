@@ -612,7 +612,7 @@ class HomePageState extends State<HomePage> {
             ),
           ),
 
-          SliverToBoxAdapter(child: const SizedBox(height: 16)),
+          SliverToBoxAdapter(child: const SizedBox(height: 4)),
 
           ...dynamicSections.map(
             (section) => SliverToBoxAdapter(
@@ -2091,88 +2091,33 @@ class _ArtistCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    return SizedBox(
-      width: 180,
-      child: ClipRect(
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          child: _HoverPlayCard(
-            onTap: onTap,
-            onSecondaryTapDown: isDesktop
-                ? (details) {
-                    EntityContextMenus.showArtistMenu(
-                      context,
-                      artist: artist,
-                      globalPosition: details.globalPosition,
-                    );
-                  }
-                : null,
-            onLongPress: isDesktop
-                ? null
-                : () {
-                    EntityContextMenus.showArtistMenu(context, artist: artist);
-                  },
-            child: Padding(
-              padding: const EdgeInsets.all(11.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _HoverPlayThumbnail(
-                    borderRadius: 999,
-                    isActive: isActive,
-                    isPlaying: isPlaying,
-                    onPressed: onPlay,
-                    child: ClipOval(
-                      child: Container(
-                        width: 150,
-                        height: 150,
-                        color: Colors.grey[900],
-                        child: artist.thumbnailUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: artist.thumbnailUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) =>
-                                    Container(color: Colors.grey[800]),
-                                errorWidget: (context, url, error) =>
-                                    const Icon(
-                                      Icons.person,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                              )
-                            : const Icon(
-                                Icons.person,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    artist.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Artist',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+
+    return _GenericCard(
+      title: artist.name,
+      subtitle: null,
+      thumbnail: artist.thumbnailUrl.isNotEmpty
+          ? CachedNetworkImage(
+              imageUrl: artist.thumbnailUrl,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(color: Colors.grey[800]),
+              errorWidget: (context, url, error) =>
+                  const Icon(Icons.person, size: 48, color: Colors.grey),
+            )
+          : const Icon(Icons.person, size: 48, color: Colors.grey),
+      isActive: isActive,
+      isPlaying: isPlaying,
+      onTap: onTap,
+      onPlay: onPlay,
+      onLongPress: () {
+        EntityContextMenus.showArtistMenu(context, artist: artist);
+      },
+      onSecondaryTapDown: (details) {
+        EntityContextMenus.showArtistMenu(
+          context,
+          artist: artist,
+          globalPosition: details.globalPosition,
+        );
+      },
     );
   }
 }
@@ -2204,91 +2149,32 @@ class _AlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    return SizedBox(
-      width: 180,
-      child: ClipRect(
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          child: _HoverPlayCard(
-            onTap: onTap,
-            onSecondaryTapDown: isDesktop
-                ? (details) {
-                    EntityContextMenus.showAlbumMenu(
-                      context,
-                      album: album,
-                      globalPosition: details.globalPosition,
-                    );
-                  }
-                : null,
-            onLongPress: isDesktop
-                ? null
-                : () {
-                    EntityContextMenus.showAlbumMenu(context, album: album);
-                  },
-            child: Padding(
-              padding: const EdgeInsets.all(11.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _HoverPlayThumbnail(
-                    borderRadius: 6,
-                    isActive: isActive,
-                    isPlaying: isPlaying,
-                    onPressed: onPlay,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        width: 150,
-                        height: 150,
-                        color: Colors.transparent,
-                        child: album.thumbnailUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: album.thumbnailUrl,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) =>
-                                    Container(color: Colors.grey[800]),
-                                errorWidget: (context, url, error) =>
-                                    const Icon(
-                                      Icons.album,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                              )
-                            : const Icon(
-                                Icons.album,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    album.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    album.artists.map((a) => a.name).join(', '),
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+    return _GenericCard(
+      title: album.title,
+      subtitle: album.artists.map((a) => a.name).join(', '),
+      thumbnail: album.thumbnailUrl.isNotEmpty
+          ? CachedNetworkImage(
+              imageUrl: album.thumbnailUrl,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(color: Colors.grey[800]),
+              errorWidget: (context, url, error) =>
+                  const Icon(Icons.album, size: 48, color: Colors.grey),
+            )
+          : const Icon(Icons.album, size: 48, color: Colors.grey),
+      isActive: isActive,
+      isPlaying: isPlaying,
+      onLongPress: () {
+        EntityContextMenus.showAlbumMenu(context, album: album);
+      },
+      onSecondaryTapDown: (details) {
+        EntityContextMenus.showAlbumMenu(
+          context,
+          album: album,
+          globalPosition: details.globalPosition,
+        );
+      },
+      onTap: onTap,
+      onPlay: onPlay,
     );
   }
 }
@@ -2320,99 +2206,49 @@ class _PlaylistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final isLiked = isLikedSongsPlaylistId(playlist.id);
-    return SizedBox(
-      width: 180,
-      child: ClipRect(
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          child: _HoverPlayCard(
-            onTap: onTap,
-            onSecondaryTapDown: isDesktop
-                ? (details) {
-                    EntityContextMenus.showPlaylistMenu(
-                      context,
-                      playlist: playlist,
-                      globalPosition: details.globalPosition,
-                    );
-                  }
-                : null,
-            onLongPress: isDesktop
-                ? null
-                : () {
-                    EntityContextMenus.showPlaylistMenu(
-                      context,
-                      playlist: playlist,
-                    );
-                  },
-            child: Padding(
-              padding: const EdgeInsets.all(11.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _HoverPlayThumbnail(
-                    borderRadius: 6,
-                    isActive: isActive,
-                    isPlaying: isPlaying,
-                    onPressed: onPlay,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        width: 150,
-                        height: 150,
-                        color: Colors.transparent,
-                        child: isLiked
-                            ? const LikedSongsArt()
-                            : (playlist.thumbnailUrl.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: playlist.thumbnailUrl,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          Container(color: Colors.grey[800]),
-                                      errorWidget: (context, url, error) =>
-                                          const Icon(
-                                            Icons.playlist_play,
-                                            size: 48,
-                                            color: Colors.grey,
-                                          ),
-                                    )
-                                  : const Icon(
-                                      Icons.playlist_play,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    )),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    playlist.title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  buildParsedText(
-                    context,
-                    _playlistSubtitle(playlist),
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                    linkStyle: TextStyle(color: Colors.grey[400], fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
+    return _GenericCard(
+      title: playlist.title,
+      subtitle: _playlistSubtitle(playlist),
+      thumbnail: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: isLiked
+              ? const LikedSongsArt()
+              : (playlist.thumbnailUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: playlist.thumbnailUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) =>
+                            Container(color: Colors.grey[800]),
+                        errorWidget: (context, url, error) => const Icon(
+                          Icons.playlist_play,
+                          size: 48,
+                          color: Colors.grey,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.playlist_play,
+                        size: 48,
+                        color: Colors.grey,
+                      )),
         ),
       ),
+      isActive: isActive,
+      isPlaying: isPlaying,
+      onTap: onTap,
+      onPlay: onPlay,
+      onLongPress: () {
+        EntityContextMenus.showPlaylistMenu(context, playlist: playlist);
+      },
+      onSecondaryTapDown: (details) {
+        EntityContextMenus.showPlaylistMenu(
+          context,
+          playlist: playlist,
+          globalPosition: details.globalPosition,
+        );
+      },
     );
   }
 }
@@ -3084,7 +2920,7 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
       children: [
         if (widget.showTitle)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               widget.title,
               style: const TextStyle(
@@ -3104,82 +2940,80 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
               onExit: isDesktop
                   ? (_) => setState(() => _isHovered = false)
                   : null,
-              child: SizedBox(
-                height: widget.expandCardsToRowWidth ? 170 : 230,
-                child: Stack(
-                  children: [
-                    ListView.separated(
-                      controller: _controller,
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.only(bottom: 4),
-                      itemCount: widget.cards.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(width: 12),
-                      itemBuilder: (context, index) {
-                        final card = widget.cards[index];
-                        if (!widget.expandCardsToRowWidth) {
-                          return card;
-                        }
-                        return SizedBox(
-                          width: constraints.maxWidth,
-                          child: card,
-                        );
-                      },
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    controller: _controller,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (int i = 0; i < widget.cards.length; i++) ...[
+                            if (i != 0) const SizedBox(width: 12),
+                            widget.expandCardsToRowWidth
+                                ? SizedBox(
+                                    width: constraints.maxWidth,
+                                    child: widget.cards[i],
+                                  )
+                                : widget.cards[i],
+                          ],
+                        ],
+                      ),
                     ),
-                    if (_canScrollRight)
-                      Positioned(
-                        top: 0,
-                        bottom: 0,
-                        right: 0,
-                        child: IgnorePointer(
-                          child: Container(
-                            width: 52,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                                colors: [
-                                  Colors.transparent,
-                                  const Color(
-                                    0xFF121212,
-                                  ).withValues(alpha: 0.78),
-                                ],
-                              ),
+                  ),
+                  if (_canScrollRight)
+                    Positioned(
+                      top: 0,
+                      bottom: 0,
+                      right: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                          width: 52,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: [
+                                Colors.transparent,
+                                const Color(0xFF121212).withValues(alpha: 0.78),
+                              ],
                             ),
                           ),
                         ),
                       ),
-                    if (showArrows && _canScrollLeft)
-                      Positioned(
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: _ScrollArrowButton(
-                            icon: Icons.chevron_left,
-                            onPressed: () => _scrollBy(-240),
-                          ),
+                    ),
+                  if (showArrows && _canScrollLeft)
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: _ScrollArrowButton(
+                          icon: Icons.chevron_left,
+                          onPressed: () => _scrollBy(-240),
                         ),
                       ),
-                    if (showArrows && _canScrollRight)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        bottom: 0,
-                        child: Center(
-                          child: _ScrollArrowButton(
-                            icon: Icons.chevron_right,
-                            onPressed: () => _scrollBy(240),
-                          ),
+                    ),
+                  if (showArrows && _canScrollRight)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: _ScrollArrowButton(
+                          icon: Icons.chevron_right,
+                          onPressed: () => _scrollBy(240),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             );
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: isDesktop ? 32 : 4),
       ],
     );
   }
@@ -3201,6 +3035,109 @@ class _ScrollArrowButton extends StatelessWidget {
         onPressed: onPressed,
         splashRadius: 18,
       ),
+    );
+  }
+}
+
+class _GenericCard extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget thumbnail;
+  final bool isActive;
+  final bool isPlaying;
+  final VoidCallback onTap;
+  final VoidCallback onPlay;
+  final VoidCallback onLongPress;
+  final void Function(TapDownDetails) onSecondaryTapDown;
+
+  const _GenericCard({
+    required this.title,
+    this.subtitle,
+    required this.thumbnail,
+    required this.isActive,
+    required this.isPlaying,
+    required this.onTap,
+    required this.onPlay,
+    required this.onLongPress,
+    required this.onSecondaryTapDown,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: isDesktop ? 180 : 140,
+          child: ClipRect(
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              child: _HoverPlayCard(
+                onTap: onTap,
+                onSecondaryTapDown: isDesktop
+                    ? (details) {
+                        onSecondaryTapDown(details);
+                      }
+                    : null,
+                onLongPress: isDesktop
+                    ? null
+                    : () {
+                        onLongPress();
+                      },
+                child: Padding(
+                  padding: EdgeInsets.all(isDesktop ? 8.0 : 4.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _HoverPlayThumbnail(
+                        borderRadius: 6,
+                        isActive: isActive,
+                        isPlaying: isPlaying,
+                        onPressed: onPlay,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: AspectRatio(aspectRatio: 1, child: thumbnail),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        buildParsedText(
+                          context,
+                          subtitle!,
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
+                          linkStyle: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
