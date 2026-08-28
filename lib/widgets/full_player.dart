@@ -1183,6 +1183,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                     currentTrack.source == SongSource.spotify);
             final spotifyInternal = context.read<SpotifyInternalProvider>();
 
+            final maxHeight = MediaQuery.sizeOf(context).height;
+
             final viewPadding = MediaQuery.of(context).viewPadding;
             final windowPadding = MediaQueryData.fromView(
               WidgetsBinding.instance.platformDispatcher.views.first,
@@ -1193,6 +1195,9 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             final bottomInset = viewPadding.bottom == 0
                 ? windowPadding.bottom
                 : viewPadding.bottom;
+
+            final mainAreaHeight =
+                (maxHeight - (topInset + bottomInset)) * 0.95;
 
             final bgColor = _tintedDominantColor(
               Theme.of(context).colorScheme.primary,
@@ -1219,28 +1224,48 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const SizedBox(height: 12),
-                                _buildHeader(ctx),
-                                const SizedBox(height: 48),
-                                hasCanvas
-                                    ? _buildHiddenArtworkPlaceholder(context)
-                                    : _buildAlbumArt(ctx, imageUrl),
-                                const SizedBox(height: 24),
-                                _buildSingleLyricsLine(
-                                  ctx,
-                                  player,
-                                  lyricsProvider,
+                                SizedBox(
+                                  height: mainAreaHeight,
+                                  child: Column(
+                                    children: [
+                                      _buildHeader(ctx),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceEvenly,
+                                          children: [
+                                            hasCanvas
+                                                ? _buildHiddenArtworkPlaceholder(
+                                                    context,
+                                                  )
+                                                : _buildAlbumArt(ctx, imageUrl),
+                                            _buildSingleLyricsLine(
+                                              ctx,
+                                              player,
+                                              lyricsProvider,
+                                            ),
+                                            _buildTrackInfo(
+                                              currentTrack,
+                                              btnColor,
+                                              (currentTrack!
+                                                      .thumbnailUrl
+                                                      .isNotEmpty &&
+                                                  hasCanvas &&
+                                                  useCanvas),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      _buildPlayerControls(
+                                        ctx,
+                                        player,
+                                        btnColor,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                const SizedBox(height: 24),
-                                _buildTrackInfo(
-                                  currentTrack,
-                                  btnColor,
-                                  (currentTrack!.thumbnailUrl.isNotEmpty &&
-                                      hasCanvas &&
-                                      useCanvas),
-                                ),
-                                const SizedBox(height: 16),
-                                _buildPlayerControls(ctx, player, btnColor),
                                 const SizedBox(height: 16),
                                 _buildLyricsPreview(
                                   ctx,
@@ -2815,14 +2840,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        connect.isLinked
-                            ? Icons.cast_connected
-                            : Icons.play_circle_outline,
-                        size: 14,
-                        color: Colors.white70,
-                      ),
-                      const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           secondLine,
