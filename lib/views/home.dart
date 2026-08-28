@@ -31,6 +31,12 @@ import '../widgets/liked_songs_art.dart';
 import '../widgets/provider_disabled_state.dart';
 import '../widgets/entity_context_menus.dart';
 
+// Fixed height reserved for the (optional) subtitle line under a card
+// title. Every _GenericCard reserves this same slot whether or not it
+// has a subtitle, so cards in a row are always the same height without
+// needing an IntrinsicHeight pass to equalize them.
+const double _kSubtitleLineHeight = 16;
+
 bool _isLocalThumbnailPath(String path) {
   return path.startsWith('/') || path.startsWith('file://');
 }
@@ -1049,11 +1055,9 @@ class HomePageState extends State<HomePage> {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
-              buildParsedText(
-                context,
+              Text(
                 subtitle,
                 style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                linkStyle: TextStyle(color: Colors.grey[400], fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -2089,12 +2093,9 @@ class _ArtistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-
     return _GenericCard(
       title: artist.name,
-      subtitle: null,
+      subtitle: "Artist",
       thumbnail: artist.thumbnailUrl.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: artist.thumbnailUrl,
@@ -2946,21 +2947,31 @@ class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
                     controller: _controller,
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.only(bottom: 4),
-                    child: IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (int i = 0; i < widget.cards.length; i++) ...[
-                            if (i != 0) const SizedBox(width: 12),
-                            widget.expandCardsToRowWidth
-                                ? SizedBox(
-                                    width: constraints.maxWidth,
-                                    child: widget.cards[i],
-                                  )
-                                : widget.cards[i],
-                          ],
+                    // Note: this used to be wrapped in IntrinsicHeight so that
+                    // cards of varying natural height (e.g. artist cards with
+                    // no subtitle vs. album/playlist cards with a subtitle)
+                    // would line up. IntrinsicHeight forces an extra
+                    // dry-layout pass that computes the max intrinsic height
+                    // of every descendant, which is very expensive for a
+                    // horizontally scrolling row containing many complex
+                    // cards (Material/InkWell/Stack/AnimatedOpacity, etc).
+                    // Cards now reserve a fixed-height slot for their
+                    // subtitle (see _kSubtitleLineHeight in _GenericCard) so
+                    // they are all naturally the same height, and this
+                    // wrapper is no longer needed.
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (int i = 0; i < widget.cards.length; i++) ...[
+                          if (i != 0) const SizedBox(width: 12),
+                          widget.expandCardsToRowWidth
+                              ? SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: widget.cards[i],
+                                )
+                              : widget.cards[i],
                         ],
-                      ),
+                      ],
                     ),
                   ),
                   if (_canScrollRight)
@@ -3113,23 +3124,41 @@ class _GenericCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
-                        buildParsedText(
-                          context,
-                          subtitle!,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                          linkStyle: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                      const SizedBox(height: 2),
+                      // Reserve a fixed-height slot for the subtitle whether
+                      // or not it is present. This keeps every card in a row
+                      // the same height by construction, so the expensive
+                      // IntrinsicHeight pass in _ScrollableCardSection is no
+                      // longer needed to keep rows visually aligned.
+                      SizedBox(
+                        height: _kSubtitleLineHeight,
+                        child: subtitle == null
+                            ? null
+                            : (isDesktop
+                                  ? buildParsedText(
+                                      context,
+                                      subtitle!,
+                                      style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 12,
+                                      ),
+                                      linkStyle: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    )
+                                  : Text(
+                                      subtitle!,
+                                      style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    )),
+                      ),
                     ],
                   ),
                 ),

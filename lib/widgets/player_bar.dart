@@ -2245,26 +2245,42 @@ class _ConnectMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final activeColor =
         activeColorOverride ?? Theme.of(context).colorScheme.primary;
-    return Selector2<ConnectSessionProvider, NavigationState, bool>(
-      selector: (context, connect, navigation) {
-        final isDesktopConnectMenuOpen =
-            !(Platform.isAndroid || Platform.isIOS) &&
-            navigation.rightSidebarVisible &&
-            navigation.rightSidebarContent == RightSidebarContent.connect;
-        return connect.isLinked || isDesktopConnectMenuOpen;
-      },
-      builder: (context, isActive, child) {
-        return IconButton(
-          icon: Icon(
-            icon,
-            color: isActive ? activeColor : (inactiveColor ?? Colors.grey[400]),
-            size: iconSize,
-          ),
-          tooltip: 'Handoff',
-          onPressed: () => _openConnectMenuWithAccent(context),
-        );
-      },
-    );
+
+    Widget buildIconButton(bool isActive) {
+      return IconButton(
+        icon: Icon(
+          icon,
+          color: isActive ? activeColor : (inactiveColor ?? Colors.grey[400]),
+          size: iconSize,
+        ),
+        tooltip: 'Handoff',
+        onPressed: () => _openConnectMenuWithAccent(context),
+      );
+    }
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      return Selector<ConnectSessionProvider, bool>(
+        selector: (context, connect) {
+          return connect.isLinked;
+        },
+        builder: (context, isActive, child) {
+          return buildIconButton(isActive);
+        },
+      );
+    } else {
+      return Selector2<ConnectSessionProvider, NavigationState, bool>(
+        selector: (context, connect, navigation) {
+          final isDesktopConnectMenuOpen =
+              !(Platform.isAndroid || Platform.isIOS) &&
+              navigation.rightSidebarVisible &&
+              navigation.rightSidebarContent == RightSidebarContent.connect;
+          return connect.isLinked || isDesktopConnectMenuOpen;
+        },
+        builder: (context, isActive, child) {
+          return buildIconButton(isActive);
+        },
+      );
+    }
   }
 }
 
