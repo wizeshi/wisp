@@ -1,0 +1,137 @@
+import "dart:async";
+import "dart:io";
+import "package:path/path.dart" as p;
+import "package:newpipeextractor_dart/newpipeextractor_dart.dart";
+import "package:wisp_shared/models/youtube_engine.dart";
+import "package:wisp_newpipe_manager/installer/newpipe_installer.dart";
+import "package:wisp_newpipe_manager/services/wisp_support_directory.dart";
+import "package:wisp_newpipe_manager/services/newpipe_daemon_manager.dart";
+
+class NewPipeManager implements YoutubeEngine {
+  static final NewPipeManager _instance = NewPipeManager._internal();
+
+  late final WispSupportDirectory _supportDirectory;
+
+  YoutubeEngineState _state = YoutubeEngineState.uninitialized;
+  late final StreamController<YoutubeEngineState> _stateController;
+
+  NewPipeManager._internal() {
+    _supportDirectory = WispSupportDirectory();
+    _stateController = StreamController<YoutubeEngineState>.broadcast();
+  }
+
+  factory NewPipeManager() {
+    return _instance;
+  }
+
+  static NewPipeManager get instance => _instance;
+
+  @override
+  String get name => "NewPipe";
+
+  @override
+  YoutubeEngineState get state => _state;
+
+  @override
+  Stream<YoutubeEngineState> get stateChanges => _stateController.stream;
+
+  @override
+  Stream<EngineInstallProgress> ensureReady({Object? additionalData}) async* {
+
+    try {
+      _setState(YoutubeEngineState.checking);
+
+      // NewPipe is not avaliable on iOS
+      if (Platform.isIOS) {
+        _setState(YoutubeEngineState.unavailable);
+        return;
+      }
+
+      // It is avaliable on Android, through newpipeextractor_dart. Doesn't even need init. 
+      if (Platform.isAndroid) {
+        _setState(YoutubeEngineState.ready);
+        return;
+      }
+
+      // Check if already installed
+      if (await _isNewPipeInstalled()) {
+        _setState(YoutubeEngineState.ready);
+        return;
+      }
+
+      _setState(YoutubeEngineState.installing);
+
+      final installer = NewPipeInstaller();
+      try {
+        await for (final progress in installer.installNewPipeExtractor()) {
+          yield progress;
+        }
+        _setState(YoutubeEngineState.ready);
+      } finally {
+        await installer.cleanup();
+      }
+    } catch (e) {
+      _setState(YoutubeEngineState.unavailable);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<String> getStreamUrl(String videoId, {Duration? timeout}) async {
+    if (Platform.isAndroid) {
+      return _getStreamUrlAndroid(videoId, timeout: timeout);
+    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      return _getStreamUrlDesktop(videoId, timeout: timeout);
+    } else if (Platform.isIOS) {
+      throw UnimplementedError('NewPipe is not available on iOS');
+    }
+    throw UnimplementedError('Unsupported platform');
+  }
+
+  /// Gets stream URL on Android using newpipeextractor_dart package.
+  Future<String> _getStreamUrlAndroid(String videoId, {Duration? timeout}) async {
+    final url = 'https://www.youtube.com/watch?v=$videoId';
+    final video = await VideoExtractor.getStream(url);
+
+    final List<AudioOnlyStream> sortedStreams = List.from(video.audioOnlyStreams);
+    sortedStreams.sort((a, b) => b.averageBitrate.compareTo(a.averageBitrate));
+
+    final bestAudioUrl = video.audioWithBestAacQuality?.url ?? sortedStreams.first.url;
+    if (bestAudioUrl == null || bestAudioUrl.isEmpty) {
+      throw Exception('No audio streams available');
+    }
+
+    return bestAudioUrl;
+  }
+
+  /// Gets stream URL on desktop by spawning a NewPipe daemon.
+  Future<String> _getStreamUrlDesktop(String videoId, {Duration? timeout}) async {
+    final daemon = NewPipeDaemonManager.instance;
+    return daemon.getStreamUrl(videoId, timeout: timeout ?? const Duration(seconds: 20));
+  }
+
+  @override
+  Future<void> dispose() async {
+    await _stateController.close();
+    await NewPipeDaemonManager.instance.shutdown();
+  }
+
+  /// Checks if NewPipe is already installed.
+  Future<bool> _isNewPipeInstalled() async {
+    try {
+      final supportDirectory = await _supportDirectory.get();
+      final newPipeFile = File(
+        p.join(supportDirectory.path, 'newpipe', 'newpipestreamextractor.jar'),
+      );
+      return await newPipeFile.exists();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Updates the internal state and broadcasts the change.
+  void _setState(YoutubeEngineState newState) {
+    _state = newState;
+    _stateController.add(newState);
+  }
+}

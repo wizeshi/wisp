@@ -1,0 +1,35 @@
+name: wisp_assets
+description: "Assets for the wisp project."
+version: 0.0.1
+
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+# packages/wisp_assets/pubspec.yaml
+flutter:
+  assets:
+    - assets/wisp.png
+    - assets/wisp.ico
+  fonts:
+    - family: SpotifyMixUI
+      fonts:
+        - asset: fonts/spotify_mix.ttf
+    - family: SF Pro
+      fonts:
+        - asset: fonts/sf_pro.ttf

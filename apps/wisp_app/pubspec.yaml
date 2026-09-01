@@ -1,0 +1,109 @@
+name: wisp
+description: "The Open, Fast & Unified music player."
+publish_to: 'none'
+resolution: workspace
+
+version: 26.9.1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Spotify OAuth and API integration
+  http: ^1.2.0
+  flutter_secure_storage: ^11.0.0
+  file_picker: ^12.0.0
+  provider: ^6.1.1
+  crypto: ^3.0.3
+  pointycastle: ^4.0.0
+
+  # Window management for custom titlebar
+  window_manager: ^0.5.2
+
+  # Image caching
+  cached_network_image: ^3.4.1
+  palette_generator: ^0.3.3
+  video_player: ^2.13.0
+  video_player_win: ^3.2.2
+  fvp: ^0.38.1
+  just_waveform: ^0.0.7
+
+  # Audio playback and background service
+  just_audio: ^0.10.5
+  just_audio_media_kit: ^2.1.0
+  media_kit: ^1.2.6
+  media_kit_libs_linux: ^1.2.1
+  media_kit_libs_windows_audio: ^1.0.9
+  media_kit_libs_android_audio: ^1.3.8
+  media_kit_libs_ios_audio: ^1.0.9
+  media_kit_libs_macos_audio: ^1.0.9
+  audio_session: ^0.2.0
+  audio_service: ^0.18.18
+  audio_service_mpris: ^0.2.0
+
+  # HTTP server for streaming proxy
+  shelf: ^1.4.1
+  dio: ^5.7.0
+
+  # YouTube integration
+  youtube_explode_dart:
+    git:
+      url: https://github.com/Hexer10/youtube_explode_dart.git
+      ref: master
+
+  # Storage and persistence
+  path_provider: ^2.1.4
+  shared_preferences: 2.5.5
+
+  # Network monitoring
+  connectivity_plus: ^7.0.0
+
+  # Local notifications for download progress
+  flutter_local_notifications: ^22.0.0
+
+  # Foreground service to keep downloads running in background (Android)
+  flutter_foreground_task: ^11.0.1
+
+  logger: ^2.6.2
+  device_info_plus: ^13.2.0
+  audio_service_win: ^0.0.3
+  flutter_inappwebview: ^6.2.0-beta.3
+  image: ^4.0.0
+  xml: ^6.0.0
+
+  app_links: ^7.2.1
+  win32_registry: ^3.0.0
+
+  flutter_svg: 2.3.0
+
+  newpipeextractor_dart: ^2.0.1
+
+  # Local packages
+  wisp_shared: any
+  wisp_newpipe_manager: any
+  wisp_assets: any
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# The following section is specific to Flutter packages.
+flutter:
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
