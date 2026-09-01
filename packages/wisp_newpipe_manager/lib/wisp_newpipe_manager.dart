@@ -118,15 +118,30 @@ class NewPipeManager implements YoutubeEngine {
 
   /// Checks if NewPipe is already installed.
   Future<bool> _isNewPipeInstalled() async {
+    bool newPipeDaemonExists = false;
+    bool jdkExists = false;
+
     try {
       final supportDirectory = await _supportDirectory.get();
       final newPipeFile = File(
         p.join(supportDirectory.path, 'newpipe', 'newpipestreamextractor.jar'),
       );
-      return await newPipeFile.exists();
+      newPipeDaemonExists = await newPipeFile.exists();
     } catch (e) {
       return false;
     }
+
+    try {
+      final supportDirectory = await _supportDirectory.get();
+      final jdkDir = Directory(
+        p.join(supportDirectory.path, 'java'),
+      );
+      jdkExists = await jdkDir.exists();
+    } catch (e) {
+      return false;
+    }
+
+    return newPipeDaemonExists && jdkExists;
   }
 
   /// Updates the internal state and broadcasts the change.

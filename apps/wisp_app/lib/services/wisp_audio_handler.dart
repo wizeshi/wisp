@@ -20,7 +20,6 @@ import '../utils/logger.dart';
 import '../providers/audio/youtube.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/connect/connect_models.dart';
-import '../services/ytdlp_readiness_coordinator.dart';
 
 enum PlaybackState {
   idle,
@@ -482,12 +481,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     await _configureAudioSession();
     await _loadQueue();
     await YouTubeProvider.loadVideoIdCache();
-    YouTubeProvider.setEngineOrder([
-      YouTubeEngine.YouTubeKit,
-      YouTubeEngine.NewPipeExtractor,
-      YouTubeEngine.YT_DLP,
-      YouTubeEngine.YoutubeExplode,
-    ]);
     _gaplessPlaybackEnabled =
         await PreferencesProvider.isGaplessPlaybackEnabled();
     _crossfadeEnabled = await PreferencesProvider.isCrossfadeEnabled();
@@ -1973,8 +1966,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       throw Exception('YouTube audio provider is disabled in Preferences.');
     }
 
-    await YtDlpReadinessCoordinator.instance.waitUntilReady();
-
     String? videoId = YouTubeProvider.getCachedVideoId(track.id);
     if (videoId == null) {
       videoId = await _getVideoIdForTrack(track);
@@ -2050,8 +2041,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return;
     }
 
-    await YtDlpReadinessCoordinator.instance.waitUntilReady();
-
     String? videoId = YouTubeProvider.getCachedVideoId(track.id);
     if (videoId != null && _getCachedStreamUrl(videoId) != null) return;
 
@@ -2092,8 +2081,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         if (!audioYouTubeEnabled) {
           throw Exception('YouTube audio provider is disabled in Preferences.');
         }
-
-        await YtDlpReadinessCoordinator.instance.waitUntilReady();
 
         String? videoId = YouTubeProvider.getCachedVideoId(track.id);
         if (videoId == null) {

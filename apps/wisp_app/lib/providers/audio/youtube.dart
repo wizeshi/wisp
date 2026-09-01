@@ -6,10 +6,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
-import '../../services/ytdlp_manager.dart';
+import 'package:wisp_ytdlp_manager/wisp_ytdlp_manager.dart';
 import '../../utils/logger.dart';
 
 enum YouTubeEngine {
@@ -26,9 +25,9 @@ enum YouTubeEngine {
 class YouTubeException implements Exception {
   final String message;
   final dynamic originalError;
-  
+
   YouTubeException(this.message, [this.originalError]);
-  
+
   @override
   String toString() => 'YouTubeException: $message';
 }
@@ -52,7 +51,7 @@ class YouTubeResult {
   final Duration duration;
   final String thumbnailUrl;
   final double score;
-  
+
   YouTubeResult({
     required this.videoId,
     required this.title,
@@ -92,11 +91,11 @@ class YouTubeProvider {
     }
     return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
   }
-  
+
   /// Cache for track ID -> YouTube video ID mapping
   static Map<String, String> _videoIdCache = {};
   static bool _cacheLoaded = false;
-  
+
   /// Load video ID cache from SharedPreferences
   static Future<void> loadVideoIdCache() async {
     if (_cacheLoaded) return;
@@ -106,7 +105,9 @@ class YouTubeProvider {
       if (cacheJson != null) {
         final Map<String, dynamic> cacheMap = json.decode(cacheJson);
         _videoIdCache = cacheMap.map((k, v) => MapEntry(k, v.toString()));
-        logger.i('[Audio/YouTube] Loaded ${_videoIdCache.length} cached video IDs');
+        logger.i(
+          '[Audio/YouTube] Loaded ${_videoIdCache.length} cached video IDs',
+        );
       }
       _cacheLoaded = true;
     } catch (e) {
@@ -114,20 +115,23 @@ class YouTubeProvider {
       _cacheLoaded = true;
     }
   }
-  
+
   /// Save video ID cache to SharedPreferences
   static Future<void> _saveVideoIdCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('youtube_video_id_cache', json.encode(_videoIdCache));
+      await prefs.setString(
+        'youtube_video_id_cache',
+        json.encode(_videoIdCache),
+      );
     } catch (e) {
       logger.e('[Audio/YouTube] Error saving video ID cache', error: e);
     }
   }
-  
+
   /// Get cached video ID for a track
   static String? getCachedVideoId(String trackId) => _videoIdCache[trackId];
-  
+
   /// Cache a video ID for a track
   static Future<void> cacheVideoId(String trackId, String videoId) async {
     _videoIdCache[trackId] = videoId;
@@ -159,61 +163,10 @@ class YouTubeProvider {
   /// Merges provided track -> video ID mappings into the cache.
   static Future<void> mergeVideoIdCache(Map<String, String> map) async {
     if (map.isEmpty) return;
-    _videoIdCache = {
-      ..._videoIdCache,
-      ...map,
-    };
+    _videoIdCache = {..._videoIdCache, ...map};
     await _saveVideoIdCache();
   }
-  
-  /// Update YT-DLP binary on Android to latest version
-  static Future<void> updateYtDlp({bool throwOnFailure = false}) async {
-    if (!Platform.isAndroid) return;
-    
-    try {
-      logger.i('[Audio/YouTube] Updating YT-DLP to latest version...');
-      await _platform.invokeMethod('updateYtDlp');
-      logger.i('[Audio/YouTube] ✓ YT-DLP updated successfully');
-    } catch (e) {
-      logger.w('[Audio/YouTube] Failed to update YT-DLP', error: e);
-      if (throwOnFailure) {
-        throw YouTubeException('Failed to update YT-DLP', e);
-      }
-    }
-  }
 
-  Future<bool> isNewPipeDesktopAvailable() async {
-    final isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-    if (!isDesktop) return false; 
-
-    bool newPipeJarFileExists = false;
-    bool jdkExists = false;
-
-    final appSupportDir = await getApplicationSupportDirectory();
-
-    final newPipePath = File('${appSupportDir.path}/newpipe/newpipestreamextractor.jar');
-
-    if (newPipePath.existsSync()) {
-      logger.d('[Audio/YouTube] NewPipeExtractor Jar is available on desktop');
-      newPipeJarFileExists = true;
-    } else {
-      logger.w('[Audio/YouTube] NewPipeExtractor Jar is not available on desktop');
-      newPipeJarFileExists = false;
-    }
-
-    final jdkPath = Directory('${appSupportDir.path}/java/bin');
-
-    if (jdkPath.existsSync()) {
-      logger.d('[Audio/YouTube] JDK is available on desktop');
-      jdkExists = true;
-    } else {
-      logger.w('[Audio/YouTube] JDK is not available on desktop');
-      jdkExists = false;
-    }
-
-    return (newPipeJarFileExists && jdkExists);
-  }
-  
   /// Search YouTube for a track by artist and title
   /// Returns the best matching result based on filtering criteria
   Future<YouTubeResult?> searchYouTube(
@@ -224,46 +177,53 @@ class YouTubeProvider {
     try {
       final query = '$artist - $title';
       logger.d('[Audio/YouTube] Searching for: $query');
-      
+
       final searchResults = await _youtube.search.search(query);
-      
+
       if (searchResults.isEmpty) {
         logger.w('[Audio/YouTube] No results found for: $query');
         throw SearchFailedException('No results found for "$query"');
       }
-      
+
       // Filter and score results
       final scoredResults = <MapEntry<Video, double>>[];
-      
+
       var currentResults = searchResults;
-      
+
       for (final result in currentResults) {
         final video = result;
-        final score = _scoreVideo(video, artist: artist, title: title, durationSecs: durationSecs);
+        final score = _scoreVideo(
+          video,
+          artist: artist,
+          title: title,
+          durationSecs: durationSecs,
+        );
         if (score == null) {
           logger.d('[Audio/YouTube] Excluded: ${video.title} (unwanted terms)');
           continue;
         }
         scoredResults.add(MapEntry(video, score));
-        
+
         // Stop if we found 5 decent scores
         if (scoredResults.where((e) => e.value >= 10.0).length >= 5) {
           break;
         }
       }
-      
+
       if (scoredResults.isEmpty) {
         logger.w('[Audio/YouTube] All results filtered out');
         throw SearchFailedException('No suitable results found for "$query"');
       }
-      
+
       // Sort by score (highest first)
       scoredResults.sort((a, b) => b.value.compareTo(a.value));
-      
+
       final bestMatch = scoredResults.first.key;
       final bestScore = scoredResults.first.value;
-      logger.i('[Audio/YouTube] Best match: ${bestMatch.title} (score: $bestScore)');
-      
+      logger.i(
+        '[Audio/YouTube] Best match: ${bestMatch.title} (score: $bestScore)',
+      );
+
       return YouTubeResult(
         videoId: bestMatch.id.value,
         title: bestMatch.title,
@@ -274,9 +234,10 @@ class YouTubeProvider {
       );
     } catch (e) {
       if (e is YouTubeException) rethrow;
-      
+
       logger.e('[Audio/YouTube] Search error', error: e);
-      if (e.toString().contains('network') || e.toString().contains('connection')) {
+      if (e.toString().contains('network') ||
+          e.toString().contains('connection')) {
         throw NetworkException('Network error during search', e);
       }
       throw SearchFailedException('Failed to search YouTube', e);
@@ -338,19 +299,23 @@ class YouTubeProvider {
     }
   }
 
-  Future<bool> isStreamUrlValid(String url, {Map<String, String>? headers}) async {
+  Future<bool> isStreamUrlValid(
+    String url, {
+    Map<String, String>? headers,
+  }) async {
     try {
-      final effectiveHeaders = headers ?? {'User-Agent': userAgentForPlatform()};
-      final response = await HttpClient()
-          .getUrl(Uri.parse(url))
-          .then((req) {
-            effectiveHeaders.forEach((key, value) => req.headers.set(key, value));
-            return req.close();
-          });
+      final effectiveHeaders =
+          headers ?? {'User-Agent': userAgentForPlatform()};
+      final response = await HttpClient().getUrl(Uri.parse(url)).then((req) {
+        effectiveHeaders.forEach((key, value) => req.headers.set(key, value));
+        return req.close();
+      });
       if (response.statusCode == 200) {
         return true;
       } else {
-        logger.w('[YouTube] Stream URL returned status code: ${response.statusCode}');
+        logger.w(
+          '[YouTube] Stream URL returned status code: ${response.statusCode}',
+        );
         return false;
       }
     } catch (e) {
@@ -361,33 +326,41 @@ class YouTubeProvider {
 
   /// Get audio stream URL for a video ID
   Future<String> getStreamUrl(String videoId) async {
-    final isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+    final isDesktop =
+        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
-    final isNewPipeDesktopAvaliable = await isNewPipeDesktopAvailable();
+    final isNewPipeDesktopAvaliable =
+        (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
     final isYouTubeKitAvailable = Platform.isIOS /* || TODO Platform.isMacOS */;
-    final isNewPipeAvailable = 
-      Platform.isAndroid || isNewPipeDesktopAvaliable;
+    final isNewPipeAvailable = Platform.isAndroid || isNewPipeDesktopAvaliable;
 
-    final isYTDLPAvailable = 
-      Platform.isLinux || Platform.isWindows || Platform.isMacOS || Platform.isAndroid;
-    
+    final isYTDLPAvailable =
+        Platform.isLinux ||
+        Platform.isWindows ||
+        Platform.isMacOS ||
+        Platform.isAndroid;
+
     for (YouTubeEngine engine in preferredEngineOrder) {
       String streamURL = '';
-      
+
       switch (engine) {
         case YouTubeEngine.YouTubeKit:
           if (!isYouTubeKitAvailable) {
             break;
           }
 
-          logger.d('[YouTube/YouTubeKit] Attempting to get stream URL for video ID: $videoId');
+          logger.d(
+            '[YouTube/YouTubeKit] Attempting to get stream URL for video ID: $videoId',
+          );
           try {
             final url = await _getStreamUrlUsingYoutubeKitIOS(videoId);
 
             const chunkSize = 200;
             for (int i = 0; i < url.length; i += chunkSize) {
-              final end = (i + chunkSize < url.length) ? i + chunkSize : url.length;
+              final end = (i + chunkSize < url.length)
+                  ? i + chunkSize
+                  : url.length;
               logger.d(
                 '[YouTube/YouTubeKit] URL part ${(i ~/ chunkSize) + 1}: ${url.substring(i, end)}',
               );
@@ -397,24 +370,30 @@ class YouTubeProvider {
           } catch (e) {
             logger.w('[YouTube/YouTubeKit] YouTubeKit failed.', error: e);
           }
-          
+
           break;
         case YouTubeEngine.NewPipeExtractor:
           if (!isNewPipeAvailable) {
             break;
           }
-          
+
           if (isDesktop) {
             try {
               streamURL = await _getStreamUrlUsingNewPipeDesktop(videoId);
             } catch (e) {
-              logger.w("[YouTube/NewPipe] NewPipeExtractor (desktop) failed, falling back", error: e);
+              logger.w(
+                "[YouTube/NewPipe] NewPipeExtractor (desktop) failed, falling back",
+                error: e,
+              );
             }
           } else {
             try {
               streamURL = await _getStreamUrlUsingNewPipeAndroid(videoId);
             } catch (e) {
-              logger.w("[YouTube/NewPipe] NewPipeExtractor failed, falling back to YT-DLP", error: e);
+              logger.w(
+                "[YouTube/NewPipe] NewPipeExtractor failed, falling back to YT-DLP",
+                error: e,
+              );
             }
           }
 
@@ -424,35 +403,30 @@ class YouTubeProvider {
             break;
           }
 
-          if (isDesktop) {
-            try {
-              streamURL = await _getStreamUrlUsingYTDLPDesktop(videoId);
-            } catch (e) {
-              logger.w('[YouTube/YT-DLP] YT-DLP failed', error: e);
-            }
-          } else {
-            try {
-              streamURL = await _getStreamUrlUsingYTDLPAndroid(videoId);
-            } on MissingPluginException catch (e) {
-              logger.w(
-                '[YouTube/YT-DLP] YT-DLP channel unavailable.',
-                error: e,
-              );
-            } on PlatformException catch (e) {
-              String errorMsg = e.message ?? 'Unknown platform exception';
+          WispYtdlpManager.instance.ensureReady();
 
-              if (errorMsg.contains("Video unavailable")) {
-                // This means a previously cached video ID is no longer valid. Remove it from cache.
-                logger.w('[YouTube/YT-DLP] Video is unavailable.');
+          logger.d(
+            '[YouTube/YT-DLP] Attempting to get stream URL for video ID: $videoId',
+          );
+          try {
+            final url = await WispYtdlpManager.instance.getStreamUrl(videoId);
+            streamURL = url;
+            logger.d(
+              '[YouTube/YT-DLP] ✓ Got stream URL via YT-DLP (${streamURL.length} chars)',
+            );
+          } on MissingPluginException catch (e) {
+            logger.w('[YouTube/YT-DLP] YT-DLP channel unavailable.', error: e);
+          } on PlatformException catch (e) {
+            String errorMsg = e.message ?? 'Unknown platform exception';
 
-                throw VideoUnavailableException('Video is unavailable', e);
-              }
-            } catch (e) {
-              logger.w(
-                '[YouTube/YT-DLP] Android YT-DLP failed.',
-                error: e,
-              );
+            if (errorMsg.contains("Video unavailable")) {
+              // This means a previously cached video ID is no longer valid. Remove it from cache.
+              logger.w('[YouTube/YT-DLP] Video is unavailable.');
+
+              throw VideoUnavailableException('Video is unavailable', e);
             }
+          } catch (e) {
+            logger.w('[YouTube/YT-DLP] YT-DLP failed.', error: e);
           }
 
           break;
@@ -468,88 +442,42 @@ class YouTubeProvider {
 
       if (streamURL.isNotEmpty) {
         if (!await isStreamUrlValid(streamURL)) {
-          logger.w("[YouTube] Stream URL from $engine is invalid (403/404), trying next engine...");
+          logger.w(
+            "[YouTube] Stream URL from $engine is invalid (403/404), trying next engine...",
+          );
           continue;
         }
         return streamURL;
       }
     }
-  
+
     logger.e('[Audio/YouTube] ❌ All methods failed');
     throw YouTubeException('Failed to get stream URL');
   }
 
-  Future<String> _getStreamUrlUsingYTDLPDesktop(String videoId) async {
-    try {
-      final execPath = await YtDlpManager.instance.ensureReady(
-        notifyOnFailure: true,
-      );
-      if (execPath == null) {
-        throw YouTubeException('YT-DLP is not available');
-      }
-
-      logger.d('[YouTube/YT-DLP] Using $execPath');
-      logger.d('[YouTube/YT-DLP] Getting stream URL for video: $videoId');
-      
-      final result = await Process.run(
-        execPath,
-        [
-          '-f', 'bestaudio[ext=m4a]/bestaudio',
-          '--get-url',
-          '--no-playlist',
-          '--js-runtimes', 'node',
-          'https://www.youtube.com/watch?v=$videoId',
-        ],
-      );
-      
-      if (result.exitCode != 0) {
-        logger.e('[YouTube/YT-DLP] Error: ${result.stderr}');
-        throw YouTubeException('YT-DLP failed: ${result.stderr}');
-      }
-      
-      final url = (result.stdout as String).trim();
-      logger.d('[YouTube/YT-DLP] ✓ Got stream URL (${url.length} chars):');
-      
-      // Print URL in 100-character chunks for easy copy-paste
-      for (int i = 0; i < url.length; i += 100) {
-        final end = (i + 100 < url.length) ? i + 100 : url.length;
-        final chunkNum = (i ~/ 100) + 1;
-        final totalChunks = (url.length / 100).ceil();
-        logger.d('[YouTube/YT-DLP] URL [$chunkNum/$totalChunks]: ${url.substring(i, end)}');
-      }
-      
-      return url;
-    } catch (e) {
-      logger.e('[YouTube/YT-DLP] Exception', error: e);
-      throw YouTubeException('Failed to get stream URL via YT-DLP', e);
-    }
-  }
-
-  Future<String> _getStreamUrlUsingYTDLPAndroid(String videoID) async {
-    logger.d('[YouTube/YT-DLP] Using youtubedl-android for video: $videoID');
-    final String url =
-        await _platform.invokeMethod('getStreamUrlYTDLPAndroid', {'videoId': videoID});
-    logger.d('[YouTube/YT-DLP] ✓ Got stream URL via YT-DLP (${url.length} chars)');
-    return url;
-  }
-
   Future<String> _getStreamUrlUsingNewPipeAndroid(String videoID) async {
     String streamURL = "";
-    
+
     logger.d("[YouTube/NewPipe] Fetching stream URL for video ID: $videoID");
     try {
       final url = await NewPipeManager.instance.getStreamUrl(videoID);
-      
+
       await isStreamUrlValid(url).then((isValid) {
         if (!isValid) {
-          logger.w("[YouTube/NewPipe] Stream URL is invalid (403/404), falling back to YT-DLP");
+          logger.w(
+            "[YouTube/NewPipe] Stream URL is invalid (403/404), falling back to YT-DLP",
+          );
           throw YouTubeException('Stream URL is invalid (403/404)');
         }
         streamURL = url;
       });
 
-      logger.d("[YouTube/NewPipe] ✓ NewPipeExtractor succeeded for video ID: $videoID");
-      logger.d("[YouTube/NewPipe] ✓ Got stream URL via NewPipeExtractor (${streamURL.length} chars)");
+      logger.d(
+        "[YouTube/NewPipe] ✓ NewPipeExtractor succeeded for video ID: $videoID",
+      );
+      logger.d(
+        "[YouTube/NewPipe] ✓ Got stream URL via NewPipeExtractor (${streamURL.length} chars)",
+      );
 
       return streamURL;
     } catch (e) {
@@ -559,7 +487,9 @@ class YouTubeProvider {
   }
 
   Future<String> _getStreamUrlUsingNewPipeDesktop(String videoID) async {
-    logger.d("[YouTube/NewPipe] (desktop) Fetching stream URL for video ID: $videoID");
+    logger.d(
+      "[YouTube/NewPipe] (desktop) Fetching stream URL for video ID: $videoID",
+    );
 
     try {
       final bestAudioUrl = await NewPipeManager.instance.getStreamUrl(videoID);
@@ -569,7 +499,9 @@ class YouTubeProvider {
         throw YouTubeException('Stream URL is invalid (403/404)');
       }
 
-      logger.d("[YouTube/NewPipe] (desktop) ✓ Got stream URL via daemon (${bestAudioUrl.length} chars)");
+      logger.d(
+        "[YouTube/NewPipe] (desktop) ✓ Got stream URL via daemon (${bestAudioUrl.length} chars)",
+      );
       return bestAudioUrl;
     } catch (e) {
       logger.w("[YouTube/NewPipe] (desktop) failed", error: e);
@@ -579,9 +511,13 @@ class YouTubeProvider {
 
   Future<String> _getStreamUrlUsingYoutubeKitIOS(String videoID) async {
     logger.d("[YouTube/YouTubeKit] Fetching stream URL for video ID: $videoID");
-    final String url =
-        await _platform.invokeMethod('getStreamUrlYoutubeKitIOS', {'videoId': videoID});
-    logger.d('[YouTube/YouTubeKit] ✓ Got stream URL via YouTubeKit (${url.length} chars)');
+    final String url = await _platform.invokeMethod(
+      'getStreamUrlYoutubeKitIOS',
+      {'videoId': videoID},
+    );
+    logger.d(
+      '[YouTube/YouTubeKit] ✓ Got stream URL via YouTubeKit (${url.length} chars)',
+    );
     return url;
   }
 
@@ -599,7 +535,9 @@ class YouTubeProvider {
 
       final audioStreams = manifest.audioOnly;
       if (audioStreams.isEmpty) {
-        throw YouTubeException('No audio-only streams available for video: $videoId');
+        throw YouTubeException(
+          'No audio-only streams available for video: $videoId',
+        );
       }
 
       // Streams are merged across clients, so the single highest-bitrate pick
@@ -612,16 +550,23 @@ class YouTubeProvider {
           logger.d('[YouTube/Explode] ✓ Got stream URL (${url.length} chars)');
           return url;
         }
-        logger.w('[YouTube/Explode] Stream candidate returned non-200, trying next');
+        logger.w(
+          '[YouTube/Explode] Stream candidate returned non-200, trying next',
+        );
       }
 
-      throw YouTubeException('All audio-only stream candidates returned non-200 for video: $videoId');
+      throw YouTubeException(
+        'All audio-only stream candidates returned non-200 for video: $videoId',
+      );
     } catch (e) {
       logger.e('[YouTube/Explode] Failed to get stream URL', error: e);
-      throw YouTubeException('Failed to get stream URL via youtube_explode_dart', e);
+      throw YouTubeException(
+        'Failed to get stream URL via youtube_explode_dart',
+        e,
+      );
     }
   }
-  
+
   /// Check if text contains excluded terms unless they are in the query.
   bool _containsExcludedTerms(
     String text,
@@ -657,24 +602,24 @@ class YouTubeProvider {
   }
 
   static const List<String> _excludedTitleTerms = [
-      'live',
-      'concert',
-      'cover',
-      'remix',
-      'karaoke',
-      'instrumental',
-      'acoustic',
-      'piano version',
-      'guitar',
-      'reaction',
-      'tutorial',
-      'lesson',
-      'how to',
-      '8d',
-      'edit',
-      'lyrics',
-      'lyric',
-    ];
+    'live',
+    'concert',
+    'cover',
+    'remix',
+    'karaoke',
+    'instrumental',
+    'acoustic',
+    'piano version',
+    'guitar',
+    'reaction',
+    'tutorial',
+    'lesson',
+    'how to',
+    '8d',
+    'edit',
+    'lyrics',
+    'lyric',
+  ];
 
   static const List<String> _excludedDescriptionTerms = [
     'live performance',
@@ -718,9 +663,11 @@ class YouTubeProvider {
     if (titleLower.contains('audio')) score += 5.0;
     if (titleLower.contains('official audio')) score += 10.0;
     if (titleLower.contains('official')) score += 3.0;
-    
+
     // Official channel check
-    if (channelLower.contains('topic') || channelLower.contains('vevo') || channelLower.contains('official')) {
+    if (channelLower.contains('topic') ||
+        channelLower.contains('vevo') ||
+        channelLower.contains('official')) {
       score += 15.0; // Boosted for official channels
     }
     if (channelLower == artistLower || channelLower.contains(artistLower)) {
@@ -731,7 +678,9 @@ class YouTubeProvider {
     if (titleQueryLower.isNotEmpty && titleLower.contains(titleQueryLower)) {
       score += 5.0;
       // Exact match for title or exact 'Artist - Title' format
-      if (titleLower == titleQueryLower || titleLower == '$artistLower - $titleQueryLower' || titleLower == '$titleQueryLower - $artistLower') {
+      if (titleLower == titleQueryLower ||
+          titleLower == '$artistLower - $titleQueryLower' ||
+          titleLower == '$titleQueryLower - $artistLower') {
         score += 10.0;
       }
     }
@@ -764,14 +713,13 @@ class YouTubeProvider {
 
   Map<String, dynamic> dumpJson() {
     logger.d("[Audio/YouTube] dumpJson not implemented.");
-    return {
-      "error": "Provider not implemented"
-    };
+    return {"error": "Provider not implemented"};
   }
-  
+
   /// Dispose resources
   void dispose() {
     _youtube.close();
     unawaited(NewPipeManager.instance.dispose());
+    unawaited(WispYtdlpManager.instance.dispose());
   }
 }

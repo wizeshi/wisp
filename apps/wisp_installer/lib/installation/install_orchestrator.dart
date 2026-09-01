@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:wisp_newpipe_manager/installer/newpipe_installer.dart';
+import 'package:wisp_ytdlp_manager/installer/ytdlp_installer.dart';
 import 'package:wisp_installer/installation/install_controller.dart';
 import 'package:wisp_installer/installation/models/install_session.dart';
 import 'package:wisp_installer/installation/models/install_task.dart';
@@ -9,7 +10,6 @@ import 'package:wisp_installer/installation/services/download_service.dart';
 import 'package:wisp_installer/installation/services/extract_service.dart';
 import 'package:wisp_installer/installation/services/macos_app_installer.dart';
 import 'package:wisp_installer/installation/services/platform_info.dart';
-import 'package:wisp_installer/installation/services/wisp_support_directory.dart';
 
 class InstallOrchestrator {
   InstallOrchestrator(this._controller);
@@ -19,7 +19,6 @@ class InstallOrchestrator {
   final DownloadService _downloadService = DownloadService();
   final ExtractService _extractService = ExtractService();
   final MacOSAppInstaller _macOSAppInstaller = MacOSAppInstaller();
-  final WispSupportDirectory _wispSupportDirectory = WispSupportDirectory();
   final List<Directory> _componentWorkDirectories = [];
 
   Future<void> run() async {
@@ -243,8 +242,9 @@ class InstallOrchestrator {
     final normalizedName = name.toLowerCase();
     await for (final entity in root.list(recursive: true, followLinks: false)) {
       if (entity is! File) continue;
-      if (p.basename(entity.path).toLowerCase() == normalizedName)
+      if (p.basename(entity.path).toLowerCase() == normalizedName) {
         return entity;
+      }
     }
     throw StateError('Extracted archive did not contain $name.');
   }
@@ -351,151 +351,24 @@ class InstallOrchestrator {
 
   Future<void> _installYtDlpAndNode() async {
     const category = 'Install/YT-DLP';
-    const nodeVersion = 'v24.18.0';
-    final platform = PlatformInfo.current();
-    final supportDirectory = await _wispSupportDirectory.get();
-    final ytDlpFile = File(p.join(supportDirectory.path, 'yt-dlp', 'yt-dlp'));
-    final nodeDirectory = Directory(p.join(supportDirectory.path, 'node'));
 
-    _controller.log(category, 'Downloading yt-dlp...');
-    _controller.resetProgressLogging();
-    await _downloadService.download(
-      url:
-          'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp${platform.ytDlpAssetSuffix}',
-      destination: ytDlpFile,
-      onProgress: (received, total) => _controller.logTaskProgress(
-        category,
-        received,
-        total,
-        taskProgressEnd: 0.4,
-      ),
-    );
-    if (!Platform.isWindows) {
-      await Process.run('chmod', ['755', ytDlpFile.path]);
+    final installer = YtDlpInstaller();
+    try {
+      await for (final progress in installer.installYtDlpAndNode()) {
+        _controller.log(category, progress.stage);
+
+        if (progress.totalBytes != null && progress.totalBytes! > 0) {
+          _controller.logTaskProgress(
+            category,
+            progress.bytesReceived ?? 0,
+            progress.totalBytes,
+          );
+        }
+      }
+      _controller.setTaskProgress(1.0);
+      _controller.log(category, 'yt-dlp and Node.js installed successfully.');
+    } finally {
+      await installer.cleanup();
     }
-    _controller.setTaskProgress(0.4);
-
-    _controller.log(category, 'Downloading Node.js $nodeVersion...');
-
-    final extension = platform.javaArchiveExtension;
-
-    final nodeArchive = await _downloadToTemporaryFile(
-      category: category,
-      name: 'Node.js $nodeVersion',
-      url:
-          'https://nodejs.org/dist/$nodeVersion/'
-          'node-$nodeVersion-${platform.nodeOsSlug}-${platform.nodeArchSlug}.$extension',
-      extension: extension,
-      taskProgressStart: 0.4,
-      taskProgressEnd: 0.85,
-    );
-    _controller.setTaskProgress(0.85);
-    final extractedNodeDirectory = Directory(
-      p.join(nodeArchive.parent.path, 'node'),
-    );
-    if (extension == 'zip') {
-      await _extractService.extractZipArchive(
-        archiveFile: nodeArchive,
-        destinationDir: extractedNodeDirectory,
-      );
-    } else {
-      await _extractService.extractTarGzArchive(
-        archiveFile: nodeArchive,
-        destinationDir: extractedNodeDirectory,
-      );
-    }
-    _controller.setTaskProgress(0.95);
-    final nodeHome = await _findDirectoryContaining(
-      extractedNodeDirectory,
-      Platform.isWindows ? 'node.exe' : 'bin/node',
-    );
-    await _replaceDirectory(nodeHome, nodeDirectory);
-    _controller.setTaskProgress(1.0);
-    _controller.log(category, 'yt-dlp and Node.js installed successfully.');
-  }
-
-  Future<File> _downloadToTemporaryFile({
-    required String category,
-    required String name,
-    required String url,
-    required String extension,
-    double taskProgressStart = 0.0,
-    double taskProgressEnd = 1.0,
-  }) async {
-    final directory = await Directory.systemTemp.createTemp('wisp_component_');
-    _componentWorkDirectories.add(directory);
-    final file = File(
-      p.join(directory.path, '${name.replaceAll(' ', '_')}.$extension'),
-    );
-    _controller.log(category, 'Downloading $name...');
-    _controller.resetProgressLogging();
-    await _downloadService.download(
-      url: url,
-      destination: file,
-      onProgress: (received, total) => _controller.logTaskProgress(
-        category,
-        received,
-        total,
-        taskProgressStart: taskProgressStart,
-        taskProgressEnd: taskProgressEnd,
-      ),
-    );
-    return file;
-  }
-
-  Future<void> _installJavaRuntime(
-    File archive,
-    Directory destination,
-    PlatformInfo platform,
-  ) async {
-    final extractedDirectory = Directory(p.join(archive.parent.path, 'java'));
-
-    _controller.log(
-      "Install/Java",
-      "Installing Java 21 runtime to ${destination.path}...",
-    );
-    if (platform.javaArchiveExtension == 'zip') {
-      await _extractService.extractZipArchive(
-        archiveFile: archive,
-        destinationDir: extractedDirectory,
-      );
-    } else {
-      await _extractService.extractTarGzArchive(
-        archiveFile: archive,
-        destinationDir: extractedDirectory,
-      );
-    }
-
-    final extractedJavaDirectory = await _findDirectoryContaining(
-      extractedDirectory,
-      Platform.isMacOS
-          ? 'Contents/Home/bin/java'
-          : (Platform.isWindows ? 'bin/java.exe' : 'bin/java'),
-    );
-    final javaHome = Platform.isMacOS
-        ? Directory(p.join(extractedJavaDirectory.path, 'Contents', 'Home'))
-        : extractedJavaDirectory;
-    await _replaceDirectory(javaHome, destination);
-  }
-
-  Future<Directory> _findDirectoryContaining(
-    Directory root,
-    String relativePath,
-  ) async {
-    await for (final entity in root.list(recursive: true, followLinks: false)) {
-      if (entity is! Directory) continue;
-      if (await File(p.join(entity.path, relativePath)).exists()) return entity;
-    }
-    throw StateError('Extracted archive did not contain $relativePath.');
-  }
-
-  Future<void> _replaceDirectory(
-    Directory source,
-    Directory destination,
-  ) async {
-    if (await destination.exists()) {
-      await destination.delete(recursive: true);
-    }
-    await source.rename(destination.path);
   }
 }

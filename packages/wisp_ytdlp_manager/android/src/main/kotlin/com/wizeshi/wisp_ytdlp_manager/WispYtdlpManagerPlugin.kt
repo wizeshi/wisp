@@ -27,7 +27,7 @@ class WispYtdlpManagerPlugin :
     private lateinit var context: Context
 
     companion object {
-        private const val TAG = "YtDlp"
+        private const val TAG = "YT-DLP"
         private const val NODE_ASSET_ROOT = "node-bin"
         private val NATIVE_NODE_CANDIDATES = listOf(
             "node",
@@ -43,16 +43,23 @@ class WispYtdlpManagerPlugin :
     @Volatile
     private var cachedJsRuntimes: String? = null
 
+    @Volatile
+    private var initialized: Boolean = false
+    private val initLock = Any()
+
     private data class NodeRuntime(
         val nodeBinary: File,
         val libDir: File,
         val source: String,
     )
 
-    override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        channel = MethodChannel(flutterPluginBinding.binaryMessenger, "com.wizeshi.wisp_ytdlp_manager")
-        channel.setMethodCallHandler(this)
-        context = flutterPluginBinding.applicationContext
+    private fun initialize() {
+        try {
+            YoutubeDL.getInstance().init(context)
+            YoutubeDL.getInstance().updateYoutubeDL(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize YoutubeDL", e)
+        }
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -61,6 +68,35 @@ class WispYtdlpManagerPlugin :
             } catch (e: Exception) {
                 Log.w(TAG, "Startup JS runtime probe failed", e)
             }
+        }
+    }
+
+    private fun ensureInitialized() {
+        if (initialized) return
+        synchronized(initLock) {
+            if (initialized) return
+            YoutubeDL.getInstance().init(context)
+            initialized = true
+
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    Log.i(TAG, "Startup JS runtime probe complete: ${resolveJsRuntimesOption()}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Startup JS runtime probe failed", e)
+                }
+            }
+        }
+    }
+
+    override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
+        channel = MethodChannel(flutterPluginBinding.binaryMessenger, "com.wizeshi.wisp_ytdlp_manager")
+        channel.setMethodCallHandler(this)
+        context = flutterPluginBinding.applicationContext
+
+        try {
+            ensureInitialized()
+        } catch (e: Exception) {
+            Log.e(TAG, "Eager init failed, will retry on first request", e)
         }
     }
 
@@ -85,6 +121,7 @@ class WispYtdlpManagerPlugin :
                     }
                 }
             }
+
             "updateYtDlp" -> {
                 CoroutineScope(Dispatchers.Main).launch {
                     try {
@@ -95,6 +132,7 @@ class WispYtdlpManagerPlugin :
                     }
                 }
             }
+
             else -> result.notImplemented()
         }
     }
@@ -113,6 +151,11 @@ class WispYtdlpManagerPlugin :
         request.addOption("--no-playlist")
         request.addOption("--skip-download")
         Log.i(TAG, "Using JS runtimes: $jsRuntimes")
+
+        ensureInitialized()
+        if (!initialized) {
+            throw Exception("Failed to initialize")
+        }
 
         val response = YoutubeDL.getInstance().execute(request)
         val url = response.out.trim()
@@ -273,7 +316,10 @@ class WispYtdlpManagerPlugin :
             return false
         }
 
-        Log.i(TAG, "Verifying Node runtime source=${nodeRuntime.source} bin=${nodeRuntime.nodeBinary.absolutePath} libDir=${nodeRuntime.libDir.absolutePath}")
+        Log.i(
+            TAG,
+            "Verifying Node runtime source=${nodeRuntime.source} bin=${nodeRuntime.nodeBinary.absolutePath} libDir=${nodeRuntime.libDir.absolutePath}"
+        )
 
         val versionOk = runNodeCheck(nodeRuntime, "--version")
         if (!versionOk) {
