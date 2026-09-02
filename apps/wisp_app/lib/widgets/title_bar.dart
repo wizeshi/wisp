@@ -252,7 +252,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
             : SystemMouseCursors.basic,
         onTap: isEnabled ? onPressed : null,
         borderRadius: BorderRadius.circular(20),
-        child: Container(
+        child: SizedBox(
           width: 24,
           height: 24,
           child: Icon(
@@ -482,7 +482,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (showClear)
-                                _buildSearchClearButton(controller!),
+                                _buildSearchClearButton(controller),
                               if (showSourcePicker) _buildSourcePicker(),
                               const SizedBox(width: 6),
                             ],

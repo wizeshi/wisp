@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'dart:async';
 
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
@@ -27,7 +28,9 @@ import '../views/list_detail.dart';
 import '../views/artist_detail.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  final AppLinks appLinks;
+
+  const AppShell({super.key, required this.appLinks});
 
   @override
   State<AppShell> createState() => _AppShellState();

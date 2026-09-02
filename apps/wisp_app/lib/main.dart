@@ -11,12 +11,8 @@ import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:fvp/fvp.dart' as fvp;
 import 'package:wisp/providers/audio/youtube.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
-import 'package:wisp/services/app_navigation.dart';
 import 'package:wisp/services/protocol_registrar.dart';
-import 'package:wisp/views/list_detail.dart';
 import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
-import 'package:wisp_shared/models/youtube_engine.dart';
-import 'package:wisp_ytdlp_manager/wisp_ytdlp_manager.dart';
 import 'providers/metadata/youtube.dart';
 import 'services/wisp_audio_handler.dart';
 import 'providers/preferences/preferences_provider.dart';
@@ -245,74 +241,10 @@ class WispApp extends StatelessWidget {
               appStyle: preferences.style,
             ),
             themeMode: ThemeMode.dark,
-            home: testBuild(context),
+            home: AppShell(appLinks: appLinks),
           );
         },
       ),
     );
-  }
-
-  Widget testBuild(BuildContext context) {
-    final sub = appLinks.uriLinkStream.listen(
-      (uri) async {
-        // Deep Link format is the following:
-        // wisp://play/<type>/<id>?source=<source>
-        logger.d('[Main] Received deep link: $uri');
-
-        // This should parse the "<type>/<id>?source=<source>" part of the URI
-        final playURL = uri
-            .toString()
-            .split("://")[1]
-            .split("/")
-            .sublist(1)
-            .join("/");
-
-        logger.d('[Main] Parsed play URL: $playURL');
-
-        final type = playURL.split("/")[0];
-        final sourceIDlist = playURL.split("/")[1].split("?");
-        final id = sourceIDlist[0];
-        final source = sourceIDlist[1].split("=")[1];
-
-        if (!context.mounted) return;
-
-        switch (type) {
-          case "track":
-            {
-              logger.d('[Main] Deep link is a track: $id from source: $source');
-              // Show a little UI for this. We'll have to make it from scratch.
-              break;
-            }
-          case "playlist":
-          case "album":
-            {
-              logger.d(
-                '[Main] Deep link is a list ($type): $id from source: $source',
-              );
-              AppNavigation.instance.openSharedList(
-                context,
-                id: id,
-                type: type == "album"
-                    ? SharedListType.album
-                    : SharedListType.playlist,
-              );
-              break;
-            }
-          case "artist":
-            {
-              logger.d(
-                '[Main] Deep link is an artist: $id from source: $source',
-              );
-              AppNavigation.instance.openArtist(context, artistId: id);
-              break;
-            }
-        }
-      },
-      onError: (err) {
-        logger.e('[Main] Error receiving deep link: $err');
-      },
-    );
-
-    return const AppShell();
   }
 }
