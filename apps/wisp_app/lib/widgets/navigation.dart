@@ -698,15 +698,6 @@ class _WispNavigationState extends State<WispNavigation> {
     final allowDrag = widget.selectedView == LibraryView.playlists;
     final player = context.watch<WispAudioHandler>();
 
-    if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
-      return _SidebarUnassignedHeader(
-        enabled: allowDrag,
-        onDrop: (playlistId) {
-          folderState.movePlaylistIntoFolder(playlistId, null);
-        },
-      );
-    }
-
     final resolvedItem = entry.item;
     final playbackType = player.playbackContextType;
     final playbackId = player.playbackContextID;
@@ -1297,42 +1288,6 @@ class _SidebarDragFeedback extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SidebarUnassignedHeader extends StatelessWidget {
-  final bool enabled;
-  final ValueChanged<String> onDrop;
-
-  const _SidebarUnassignedHeader({required this.enabled, required this.onDrop});
-
-  @override
-  Widget build(BuildContext context) {
-    final child = Padding(
-      padding: const EdgeInsets.only(left: 12, top: 12, bottom: 6),
-      child: Text(
-        'Unassigned',
-        style: TextStyle(color: Colors.grey[500], fontSize: 11),
-      ),
-    );
-
-    if (!enabled) return child;
-
-    return DragTarget<_SidebarPlaylistDragData>(
-      onWillAccept: (data) => data != null,
-      onAccept: (data) => onDrop(data.playlistId),
-      builder: (context, candidate, rejected) {
-        return Container(
-          decoration: candidate.isNotEmpty
-              ? BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(6),
-                )
-              : null,
-          child: child,
-        );
-      },
     );
   }
 }
