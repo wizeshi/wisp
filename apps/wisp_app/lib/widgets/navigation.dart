@@ -382,20 +382,11 @@ class _WispNavigationState extends State<WispNavigation> {
                   ? MainAxisAlignment.center
                   : MainAxisAlignment.start,
               children: [
-                Material(
-                  child: InkWell(
-                    mouseCursor: SystemMouseCursors.click,
-                    onTap: () {
-                      setState(() => _isCollapsed = !_isCollapsed);
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      WispIcons.logo,
-                      width: 28,
-                      height: 28,
-                      filterQuality: FilterQuality.high,
-                    ),
-                  ),
+                Image.asset(
+                  WispIcons.logo,
+                  width: 28,
+                  height: 28,
+                  filterQuality: FilterQuality.high,
                 ),
 
                 if (!_isCollapsed) ...[
@@ -556,57 +547,104 @@ class _WispNavigationState extends State<WispNavigation> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Text(
-                'YOUR LIBRARY',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[600],
-                  letterSpacing: 1.5,
+        Padding(
+          padding: EdgeInsets.only(bottom: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  'YOUR LIBRARY',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[600],
+                    letterSpacing: 1.5,
+                  ),
                 ),
               ),
-            ),
-            if (widget.selectedView == LibraryView.playlists)
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: PopupMenuButton<LibrarySortMode>(
-                  tooltip: 'Sort',
-                  icon: Icon(Icons.sort, color: Colors.grey[500], size: 16),
-                  color: const Color(0xFF282828),
-                  onSelected: folderState.setSortMode,
-                  style: ButtonStyle(visualDensity: VisualDensity.compact),
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: LibrarySortMode.original,
-                      child: Text(
-                        'Index',
-                        style: TextStyle(color: Colors.white),
+              if (widget.selectedView == LibraryView.playlists) ...[
+                SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: PopupMenuButton<LibrarySortMode>(
+                      padding: EdgeInsets.zero,
+                      tooltip: 'Sort',
+                      color: const Color(0xFF282828),
+                      onSelected: folderState.setSortMode,
+                      style: ButtonStyle(visualDensity: VisualDensity.comfortable),
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: LibrarySortMode.original,
+                          child: Text(
+                            'Index',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: LibrarySortMode.recentlyPlayed,
+                          child: Text(
+                            'Recently played',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: LibrarySortMode.custom,
+                          child: Text(
+                            'Custom order',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ],
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: Icon(Icons.sort, color: Colors.grey[500], size: 16)
                       ),
                     ),
-                    PopupMenuItem(
-                      value: LibrarySortMode.recentlyPlayed,
-                      child: Text(
-                        'Recently played',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: LibrarySortMode.custom,
-                      child: Text(
-                        'Custom order',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-          ],
+                SizedBox(width: 8),
+              ],
+              Material(
+                child: InkWell(
+                  mouseCursor: SystemMouseCursors.click,
+                  onTap: () {
+                    setState(() => _isCollapsed = !_isCollapsed);
+                  },
+                  borderRadius: BorderRadius.zero,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    clipBehavior: Clip.none,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.zero,
+                      border: Border.all(
+                        color: Colors.grey[700]!,
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: OverflowBox(
+                        minWidth: 0,
+                        minHeight: 0,
+                        maxWidth: double.infinity,
+                        maxHeight: double.infinity,
+                        child: Icon(
+                          Icons.arrow_left,
+                          color: Colors.grey[700],
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            ],
+          ),
         ),
-        SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
@@ -626,21 +664,46 @@ class _WispNavigationState extends State<WispNavigation> {
     return Column(
       children: [
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              height: 32,
-              child: Text(
-                'LIBRARY',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[600],
-                  letterSpacing: 1.5,
+            Material(
+              child: InkWell(
+                mouseCursor: SystemMouseCursors.click,
+                onTap: () {
+                  setState(() => _isCollapsed = !_isCollapsed);
+                },
+                borderRadius: BorderRadius.zero,
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  clipBehavior: Clip.none,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.zero,
+                    border: Border.all(
+                      color: Colors.grey[700]!,
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: OverflowBox(
+                      minWidth: 0,
+                      minHeight: 0,
+                      maxWidth: double.infinity,
+                      maxHeight: double.infinity,
+                      child: Icon(
+                        Icons.arrow_right,
+                        color: Colors.grey[700],
+                        size: 20,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ],
         ),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
