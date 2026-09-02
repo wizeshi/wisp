@@ -698,6 +698,10 @@ class _WispNavigationState extends State<WispNavigation> {
     final allowDrag = widget.selectedView == LibraryView.playlists;
     final player = context.watch<WispAudioHandler>();
 
+    if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
+      return SizedBox.shrink();
+    }
+
     final resolvedItem = entry.item;
     final playbackType = player.playbackContextType;
     final playbackId = player.playbackContextID;
