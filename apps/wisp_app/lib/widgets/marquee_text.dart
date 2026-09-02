@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
@@ -10,35 +9,32 @@ class MarqueeText extends StatefulWidget {
     super.key,
     required this.text,
     required this.style,
+    this.builder,
+    this.gap = 24.0,
+    this.scrollSpeed = 40.0,
+    this.pauseDuration = const Duration(seconds: 3),
     this.pauseWhenUnfocused = false,
   });
 
   final String text;
   final TextStyle style;
+  final Widget Function(BuildContext context, TextStyle style)? builder;
+  final double gap;
+  final double scrollSpeed;
+  final Duration pauseDuration;
   final bool pauseWhenUnfocused;
 
   @override
   State<MarqueeText> createState() => _MarqueeTextState();
 }
 
-enum _MarqueePhase { entering, holding, exiting }
-
 class _MarqueeTextState extends State<MarqueeText>
     with SingleTickerProviderStateMixin {
-  static const Duration _pauseDuration = Duration(seconds: 3);
-  static const double _scrollSpeed = 40.0;
-  static const double _gap = 24.0;
-
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    lowerBound: 0,
-    upperBound: 1,
   )..addStatusListener(_handleAnimationStatus);
 
-  final Stopwatch _pauseStopwatch = Stopwatch();
-
   Timer? _pauseTimer;
-  _MarqueePhase _phase = _MarqueePhase.entering;
   double _viewportWidth = 0;
   double _textWidth = 0;
   double _textHeight = 0;
@@ -49,6 +45,7 @@ class _MarqueeTextState extends State<MarqueeText>
   bool _hasOverflow = false;
   bool _metricsUpdateScheduled = false;
   bool _focusListenerAttached = false;
+  bool _isHolding = false;
 
   bool get _canAnimate => _hasOverflow && mounted;
 
@@ -70,7 +67,7 @@ class _MarqueeTextState extends State<MarqueeText>
       _applyFocusState();
     }
 
-    if (oldWidget.text != widget.text) {
+    if (oldWidget.text != widget.text || oldWidget.style != widget.style) {
       _resetAnimationState();
     }
   }
@@ -84,7 +81,6 @@ class _MarqueeTextState extends State<MarqueeText>
     _controller
       ..removeStatusListener(_handleAnimationStatus)
       ..dispose();
-    _pauseStopwatch.stop();
     super.dispose();
   }
 
@@ -106,175 +102,60 @@ class _MarqueeTextState extends State<MarqueeText>
 
   void _handleAnimationStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed) {
-      _handlePhaseCompleted();
-    }
-  }
-
-  void _handlePhaseCompleted() {
-    switch (_phase) {
-      case _MarqueePhase.entering:
-        _beginHoldingPhase();
-        break;
-      case _MarqueePhase.holding:
-        _beginExitingPhase();
-        break;
-      case _MarqueePhase.exiting:
-        _beginEnteringPhase();
-        break;
+      _controller.value = 0.0;
+      _startHoldPhase();
     }
   }
 
   void _applyFocusState() {
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     if (_shouldPauseForFocus) {
-      _pauseForFocusLoss();
-      return;
-    }
-
-    switch (_phase) {
-      case _MarqueePhase.entering:
-      case _MarqueePhase.exiting:
-        _startScrollingIfNeeded();
-        break;
-      case _MarqueePhase.holding:
-        _startOrResumeHold();
-        break;
-    }
-  }
-
-  void _beginEnteringPhase() {
-    if (!mounted) {
-      return;
-    }
-
-    _phase = _MarqueePhase.entering;
-    _controller.duration = _durationForDistance(_viewportWidth);
-    _pauseTimer?.cancel();
-    _pauseTimer = null;
-    _pauseStopwatch
-      ..reset()
-      ..stop();
-    _controller
-      ..stop(canceled: false)
-      ..value = 0;
-    _startScrollingIfNeeded();
-  }
-
-  void _beginHoldingPhase() {
-    if (!mounted) {
-      return;
-    }
-
-    _phase = _MarqueePhase.holding;
-    _pauseTimer?.cancel();
-    _pauseTimer = null;
-    _pauseStopwatch
-      ..reset()
-      ..start();
-    _startOrResumeHold();
-  }
-
-  void _beginExitingPhase() {
-    if (!mounted) {
-      return;
-    }
-
-    _phase = _MarqueePhase.exiting;
-    _controller.duration = _durationForDistance(_textWidth + _gap);
-    _pauseTimer?.cancel();
-    _pauseTimer = null;
-    _pauseStopwatch
-      ..reset()
-      ..stop();
-    _controller
-      ..stop(canceled: false)
-      ..value = 0;
-    _startScrollingIfNeeded();
-  }
-
-  void _startOrResumeHold() {
-    if (_shouldPauseForFocus) {
-      return;
-    }
-
-    _pauseTimer?.cancel();
-    _pauseTimer = Timer(_remainingHoldDuration, _finishHold);
-  }
-
-  Duration get _remainingHoldDuration {
-    if (_phase != _MarqueePhase.holding) {
-      return _pauseDuration;
-    }
-
-    final remaining = _pauseDuration - _pauseStopwatch.elapsed;
-    if (remaining.isNegative || remaining == Duration.zero) {
-      return Duration.zero;
-    }
-
-    return remaining;
-  }
-
-  void _finishHold() {
-    if (!mounted) {
-      return;
-    }
-
-    _pauseTimer?.cancel();
-    _pauseTimer = null;
-    _pauseStopwatch
-      ..stop()
-      ..reset();
-    if (_phase != _MarqueePhase.holding) {
-      return;
-    }
-
-    if (!_canAnimate || _shouldPauseForFocus) {
-      return;
-    }
-
-    _beginExitingPhase();
-  }
-
-  void _pauseForFocusLoss() {
-    if (_phase == _MarqueePhase.holding) {
-      if (_pauseTimer != null) {
-        _pauseTimer?.cancel();
-        _pauseTimer = null;
-        _pauseStopwatch.stop();
+      _pauseTimer?.cancel();
+      _pauseTimer = null;
+      if (_controller.isAnimating) {
+        _controller.stop(canceled: false);
       }
       return;
     }
 
-    if (_controller.isAnimating) {
-      _controller.stop(canceled: false);
+    if (_isHolding) {
+      if (_pauseTimer == null || !_pauseTimer!.isActive) {
+        _startHoldPhase();
+      }
+    } else if (_canAnimate && !_controller.isAnimating) {
+      _startScrolling();
     }
   }
 
-  void _startScrollingIfNeeded() {
-    if (!_canAnimate ||
-        _phase == _MarqueePhase.holding ||
-        _controller.isAnimating) {
-      return;
-    }
+  void _startHoldPhase() {
+    if (!mounted) return;
+    _isHolding = true;
+    _pauseTimer?.cancel();
 
+    if (!_canAnimate || _shouldPauseForFocus) return;
+
+    _pauseTimer = Timer(widget.pauseDuration, () {
+      if (!mounted) return;
+      _isHolding = false;
+      _pauseTimer = null;
+      _startScrolling();
+    });
+  }
+
+  void _startScrolling() {
+    if (!_canAnimate || _shouldPauseForFocus || _isHolding) return;
+
+    final distance = _textWidth + widget.gap;
+    final durationMs = (distance / widget.scrollSpeed * 1000).round();
+    _controller.duration = Duration(milliseconds: durationMs < 1 ? 1 : durationMs);
     _controller.forward(from: _controller.value);
-  }
-
-  Duration _durationForDistance(double distance) {
-    final durationMs = (distance / _scrollSpeed * 1000).round();
-    return Duration(milliseconds: durationMs < 1 ? 1 : durationMs);
   }
 
   void _resetAnimationState() {
     _pauseTimer?.cancel();
     _pauseTimer = null;
-    _pauseStopwatch
-      ..stop()
-      ..reset();
-    _phase = _MarqueePhase.entering;
+    _isHolding = false;
     _controller
       ..stop(canceled: false)
       ..value = 0;
@@ -291,46 +172,42 @@ class _MarqueeTextState extends State<MarqueeText>
         _textWidth == textWidth &&
         _textHeight == textHeight &&
         _hasOverflow == hasOverflow;
-    if (unchanged) {
-      return;
-    }
+    if (unchanged) return;
 
     _pendingViewportWidth = viewportWidth;
     _pendingTextWidth = textWidth;
     _pendingTextHeight = textHeight;
     _pendingHasOverflow = hasOverflow;
 
-    if (_metricsUpdateScheduled) {
-      return;
-    }
+    if (_metricsUpdateScheduled) return;
 
     _metricsUpdateScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _metricsUpdateScheduled = false;
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       final changed =
           _viewportWidth != _pendingViewportWidth ||
           _textWidth != _pendingTextWidth ||
           _textHeight != _pendingTextHeight ||
           _hasOverflow != _pendingHasOverflow;
-      if (!changed) {
-        return;
-      }
+      if (!changed) return;
 
       _viewportWidth = _pendingViewportWidth;
       _textWidth = _pendingTextWidth;
       _textHeight = _pendingTextHeight;
       _hasOverflow = _pendingHasOverflow;
+
       _resetAnimationState();
       setState(() {});
-      _beginEnteringPhase();
+      _startHoldPhase();
     });
   }
 
-  Text _buildText(BuildContext context) {
+  Widget _buildTextChild(BuildContext context) {
+    if (widget.builder != null) {
+      return widget.builder!(context, widget.style);
+    }
     return Text(
       widget.text,
       maxLines: 1,
@@ -366,32 +243,18 @@ class _MarqueeTextState extends State<MarqueeText>
           hasOverflow: hasOverflow,
         );
 
+        final textChild = _buildTextChild(context);
+
         if (!hasOverflow) {
-          return _buildText(context);
+          return textChild;
         }
+
+        final singleWidth = textPainter.width + widget.gap;
 
         return AnimatedBuilder(
           animation: _controller,
-          child: _buildText(context),
           builder: (context, child) {
-            double startX;
-            double endX;
-            switch (_phase) {
-              case _MarqueePhase.entering:
-                startX = viewportWidth;
-                endX = 0.0;
-                break;
-              case _MarqueePhase.holding:
-                startX = 0.0;
-                endX = 0.0;
-                break;
-              case _MarqueePhase.exiting:
-                startX = 0.0;
-                endX = -(textPainter.width + _gap);
-                break;
-            }
-            final currentX =
-                lerpDouble(startX, endX, _controller.value) ?? startX;
+            final currentOffset = _controller.value * singleWidth;
 
             return SizedBox(
               width: viewportWidth,
@@ -400,7 +263,16 @@ class _MarqueeTextState extends State<MarqueeText>
                 child: Stack(
                   clipBehavior: Clip.hardEdge,
                   children: [
-                    Positioned(left: currentX, top: -2, child: child!),
+                    Positioned(
+                      left: -currentOffset,
+                      top: 0,
+                      child: textChild,
+                    ),
+                    Positioned(
+                      left: -currentOffset + singleWidth,
+                      top: 0,
+                      child: textChild,
+                    ),
                   ],
                 ),
               ),

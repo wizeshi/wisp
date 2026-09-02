@@ -823,55 +823,40 @@ class _DesktopTrackName extends StatelessWidget {
       fontWeight: FontWeight.w500,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final textPainter = TextPainter(
-          text: TextSpan(text: track.title, style: style),
-          maxLines: 1,
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-        )..layout();
-
-        final overflows =
-            constraints.hasBoundedWidth &&
-            textPainter.width > constraints.maxWidth;
-
-        if (overflows) {
-          return MarqueeText(text: track.title, style: style);
-        }
-
-        return HoverUnderline(
-          cursor: hasAlbum
-              ? SystemMouseCursors.click
-              : SystemMouseCursors.basic,
-          onTap: hasAlbum
-              ? () {
-                  AppNavigation.instance.openSharedList(
-                    context,
-                    id: album.id,
-                    type: SharedListType.album,
-                    initialTitle: album.title,
-                    initialThumbnailUrl: album.thumbnailUrl,
-                  );
-                }
-              : null,
-          onSecondaryTapDown: (details) {
-            EntityContextMenus.showTrackMenu(
-              context,
-              track: track,
-              globalPosition: details.globalPosition,
-            );
-          },
-          builder: (isHovering) => Text(
-            track.title,
-            style: style.copyWith(
-              decoration: isHovering && hasAlbum
-                  ? TextDecoration.underline
-                  : TextDecoration.none,
-            ),
+    return MarqueeText(
+      text: track.title,
+      style: style,
+      builder: (context, textStyle) => HoverUnderline(
+        cursor: hasAlbum
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.basic,
+        onTap: hasAlbum
+            ? () {
+                AppNavigation.instance.openSharedList(
+                  context,
+                  id: album.id,
+                  type: SharedListType.album,
+                  initialTitle: album.title,
+                  initialThumbnailUrl: album.thumbnailUrl,
+                );
+              }
+            : null,
+        onSecondaryTapDown: (details) {
+          EntityContextMenus.showTrackMenu(
+            context,
+            track: track,
+            globalPosition: details.globalPosition,
+          );
+        },
+        builder: (isHovering) => Text(
+          track.title,
+          style: textStyle.copyWith(
+            decoration: isHovering && hasAlbum
+                ? TextDecoration.underline
+                : TextDecoration.none,
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
