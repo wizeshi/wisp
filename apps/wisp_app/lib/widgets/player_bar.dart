@@ -575,7 +575,9 @@ class _DesktopPlayerBar extends StatelessWidget {
               ),
               child: Row(
                 children: [
+                  // Track Area (30%)
                   Expanded(
+                    flex: 3,
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Padding(
@@ -584,23 +586,23 @@ class _DesktopPlayerBar extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Playback Area (40%)
                   Expanded(
-                    flex: 2,
+                    flex: 4,
                     child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 860),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _DesktopPlaybackControls(appStyle: appStyle),
-                            _DesktopProgressBar(),
-                          ],
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _DesktopPlaybackControls(appStyle: appStyle),
+                          _DesktopProgressBar(),
+                        ],
                       ),
                     ),
                   ),
+                  // Control Center (30%)
                   Expanded(
+                    flex: 3,
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: Padding(
@@ -613,7 +615,7 @@ class _DesktopPlayerBar extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
+              )
             ),
           ),
           if (handoffMessage != null)
@@ -690,21 +692,18 @@ class _DesktopProgressBar extends StatelessWidget {
       builder: (context, data, child) {
         if (data.isLoading) {
           return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
-              child: const Column(
-                children: [
-                  SizedBox(height: 8),
-                  SizedBox(
-                    height: 4,
-                    child: LinearProgressIndicator(
-                      backgroundColor: Colors.transparent,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
+            child: const Column(
+              children: [
+                SizedBox(height: 8),
+                SizedBox(
+                  height: 4,
+                  child: LinearProgressIndicator(
+                    backgroundColor: Colors.transparent,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
-                  SizedBox(height: 12),
-                ],
-              ),
+                ),
+                SizedBox(height: 12),
+              ],
             ),
           );
         }
@@ -724,73 +723,70 @@ class _DesktopProgressBar extends StatelessWidget {
             );
 
             return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 800),
-                child: Row(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: SizedBox(
-                        width: 56,
-                        child: Text(
-                          _formatDuration(animatedPosition),
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.right,
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0),
+                    child: SizedBox(
+                      width: 56,
+                      child: Text(
+                        _formatDuration(animatedPosition),
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
                         ),
+                        textAlign: TextAlign.right,
                       ),
                     ),
-                    Expanded(
-                      child: SliderTheme(
-                        data: SliderThemeData(
-                          trackHeight: 4,
-                          thumbShape: RoundSliderThumbShape(
-                            enabledThumbRadius: 6,
-                          ),
-                          overlayShape: RoundSliderOverlayShape(
-                            overlayRadius: 12,
-                          ),
-                          activeTrackColor: Theme.of(
-                            context,
-                          ).colorScheme.primary,
-                          inactiveTrackColor: Colors.grey[800],
-                          thumbColor: Colors.white,
-                          overlayColor: (Theme.of(
-                            context,
-                          ).colorScheme.primary).withValues(alpha: 0.2),
+                  ),
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        trackHeight: 4,
+                        thumbShape: RoundSliderThumbShape(
+                          enabledThumbRadius: 6,
                         ),
-                        child: Slider(
-                          value: animatedProgress,
-                          onChanged: (value) {
-                            final newPosition = Duration(
-                              milliseconds: (value * duration.inMilliseconds)
-                                  .toInt(),
-                            );
-                            context.read<PlaybackCoordinator>().seek(
-                              newPosition,
-                            );
-                          },
+                        overlayShape: RoundSliderOverlayShape(
+                          overlayRadius: 12,
                         ),
+                        activeTrackColor: Theme.of(
+                          context,
+                        ).colorScheme.primary,
+                        inactiveTrackColor: Colors.grey[800],
+                        thumbColor: Colors.white,
+                        overlayColor: (Theme.of(
+                          context,
+                        ).colorScheme.primary).withValues(alpha: 0.2),
+                      ),
+                      child: Slider(
+                        value: animatedProgress,
+                        onChanged: (value) {
+                          final newPosition = Duration(
+                            milliseconds: (value * duration.inMilliseconds)
+                                .toInt(),
+                          );
+                          context.read<PlaybackCoordinator>().seek(
+                            newPosition,
+                          );
+                        },
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: SizedBox(
-                        width: 56,
-                        child: Text(
-                          _formatDuration(duration),
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.left,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: SizedBox(
+                      width: 56,
+                      child: Text(
+                        _formatDuration(duration),
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
                         ),
+                        textAlign: TextAlign.left,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
           },
