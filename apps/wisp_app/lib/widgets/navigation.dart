@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:io' show Platform, File;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import '../models/metadata_models.dart';
@@ -71,6 +72,7 @@ class WispNavigation extends StatefulWidget {
 
 class _WispNavigationState extends State<WispNavigation> {
   bool _isCollapsed = false;
+  bool _isHoveringHeader = false;
   bool _layoutCollapsed = false;
   String? _hoveredSidebarItemKey;
 
@@ -235,9 +237,6 @@ class _WispNavigationState extends State<WispNavigation> {
     await _playSidebarItem(resolvedItem);
   }
 
-  /// Computes the ordered list of sidebar entries for the given [view],
-  /// respecting folder collapse state. Kept here so only [_WispNavigationState]
-  /// rebuilds on folder/library changes instead of the entire AppShell.
   List<dynamic> _computeLibraryItems(
     LibraryState library,
     LibraryFolderState folderState,
@@ -374,47 +373,6 @@ class _WispNavigationState extends State<WispNavigation> {
             ? CrossAxisAlignment.center
             : CrossAxisAlignment.start,
         children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: _layoutCollapsed
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.start,
-              children: [
-                Image.asset(
-                  WispIcons.logo,
-                  width: 28,
-                  height: 28,
-                  filterQuality: FilterQuality.high,
-                ),
-
-                if (!_isCollapsed) ...[
-                  const SizedBox(width: 12),
-                  const Text(
-                    'wisp',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const Spacer(),
-                  Builder(
-                    builder: (buttonContext) {
-                      return IconButton(
-                        tooltip: 'Create',
-                        icon: const Icon(Icons.add, color: Colors.white),
-                        onPressed: () => _showCreateMenu(buttonContext),
-                      );
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-          Divider(color: Colors.grey[800], height: 1),
-
           // Library view selector
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -548,33 +506,76 @@ class _WispNavigationState extends State<WispNavigation> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.only(bottom: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(
-                  'YOUR LIBRARY',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey[600],
-                    letterSpacing: 1.5,
+                child: MouseRegion(
+                  onEnter: (_) => setState(() => _isHoveringHeader = true),
+                  onExit: (_) => setState(() => _isHoveringHeader = false),
+                  child: Row(
+                    spacing: 4,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 85),
+                        curve: Curves.easeOut,
+                        width: _isHoveringHeader ? 24 : 0,
+                        child: ClipRect(
+                          child: AnimatedSlide(
+                            duration: const Duration(milliseconds: 100),
+                            curve: Curves.easeIn,
+                            offset: Offset.zero,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 100),
+                              opacity: _isHoveringHeader ? 1 : 0,
+                              child: IgnorePointer(
+                                ignoring: !_isHoveringHeader,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                    minHeight: 24,
+                                    minWidth: 24,
+                                    maxHeight: 24, 
+                                    maxWidth: 24
+                                  ),
+                                  tooltip: 'Collapse Sidebar',
+                                  icon: Icon(Symbols.left_panel_close, color: Colors.white, size: 20),
+                                  onPressed: () => {
+                                    setState(() => _isCollapsed = !_isCollapsed)
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        'Your Library',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
               if (widget.selectedView == LibraryView.playlists) ...[
-                SizedBox(
-                  height: 16,
-                  width: 16,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: SizedBox(
+                    height: 24,
+                    width: 24,
                     child: PopupMenuButton<LibrarySortMode>(
                       padding: EdgeInsets.zero,
                       tooltip: 'Sort',
                       color: const Color(0xFF282828),
                       onSelected: folderState.setSortMode,
-                      style: ButtonStyle(visualDensity: VisualDensity.comfortable),
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.comfortable,
+                      ),
                       itemBuilder: (context) => const [
                         PopupMenuItem(
                           value: LibrarySortMode.original,
@@ -598,50 +599,36 @@ class _WispNavigationState extends State<WispNavigation> {
                           ),
                         ),
                       ],
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: Icon(Icons.sort, color: Colors.grey[500], size: 16)
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 8),
-              ],
-              Material(
-                child: InkWell(
-                  mouseCursor: SystemMouseCursors.click,
-                  onTap: () {
-                    setState(() => _isCollapsed = !_isCollapsed);
-                  },
-                  borderRadius: BorderRadius.zero,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    clipBehavior: Clip.none,
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.zero,
-                      border: Border.all(
-                        color: Colors.grey[700]!,
-                        width: 2,
-                      ),
-                    ),
-                    child: Center(
-                      child: OverflowBox(
-                        minWidth: 0,
-                        minHeight: 0,
-                        maxWidth: double.infinity,
-                        maxHeight: double.infinity,
-                        child: Icon(
-                          Icons.arrow_left,
-                          color: Colors.grey[700],
-                          size: 20,
+                      icon: Icon(
+                          Icons.sort,
+                          color: Colors.grey[500],
+                          size: 16,
                         ),
                       ),
                     ),
                   ),
-                ),
-              )
+                const SizedBox(width: 4),
+              ],
+              Builder(
+                builder: (buttonContext) {
+                  return FilledButton.icon(
+                    label: Text(
+                      "Create",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      )
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.black38,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    ),
+                    icon: Icon(Icons.add, color: Colors.white, size: 20),
+                    onPressed: () => _showCreateMenu(buttonContext),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -663,45 +650,37 @@ class _WispNavigationState extends State<WispNavigation> {
     final colorScheme = Theme.of(context).colorScheme;
     return Column(
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Material(
-              child: InkWell(
-                mouseCursor: SystemMouseCursors.click,
-                onTap: () {
-                  setState(() => _isCollapsed = !_isCollapsed);
-                },
-                borderRadius: BorderRadius.zero,
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  clipBehavior: Clip.none,
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.zero,
-                    border: Border.all(
-                      color: Colors.grey[700]!,
-                      width: 2,
-                    ),
+        MouseRegion(
+          onEnter: (_) => setState(() => _isHoveringHeader = true),
+          onExit: (_) => setState(() => _isHoveringHeader = false),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _isHoveringHeader 
+                ? IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minHeight: 32,
+                    minWidth: 32,
+                    maxHeight: 32, 
+                    maxWidth: 32
                   ),
-                  child: Center(
-                    child: OverflowBox(
-                      minWidth: 0,
-                      minHeight: 0,
-                      maxWidth: double.infinity,
-                      maxHeight: double.infinity,
-                      child: Icon(
-                        Icons.arrow_right,
-                        color: Colors.grey[700],
-                        size: 20,
-                      ),
-                    ),
+                  tooltip: 'Expand Sidebar',
+                  icon: Icon(Symbols.left_panel_open, color: Colors.white, size: 28),
+                  onPressed: () => setState(() => _isCollapsed = !_isCollapsed),
+                )
+                : Container(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minHeight: 32,
+                    minWidth: 32,
+                    maxHeight: 32, 
+                    maxWidth: 32
                   ),
-                ),
-              ),
-            ),
-          ],
+                  child: Icon(Symbols.library_music, color: Colors.white, size: 28),
+                )
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         Container(
@@ -1129,11 +1108,6 @@ class _WispNavigationState extends State<WispNavigation> {
                       color: Colors.grey[500],
                       size: 20,
                     ),
-                  /* else if (!isCollapsed &&
-                    allowDrag &&
-                    !isLiked &&
-                    (resolvedItem is GenericPlaylist))
-                  Icon(Icons.drag_handle, color: Colors.grey[600], size: 18), */
                 ],
               ],
             ),

@@ -78,6 +78,9 @@ class AppTheme {
       iconButtonTheme: const IconButtonThemeData(
         style: ButtonStyle(mouseCursor: clickableCursor),
       ),
+      filledButtonTheme: const FilledButtonThemeData(
+        style: ButtonStyle(mouseCursor: clickableCursor),
+      ),
       listTileTheme: const ListTileThemeData(
         mouseCursor: clickableCursor,
       ),

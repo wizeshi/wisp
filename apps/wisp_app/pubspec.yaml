@@ -83,6 +83,8 @@ dependencies:
 
   newpipeextractor_dart: ^2.0.1
 
+  material_symbols_icons: ^4.2960.0
+
   # Local packages
   wisp_shared: any
   wisp_newpipe_manager: any
