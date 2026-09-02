@@ -6,18 +6,13 @@ import 'package:wisp_ytdlp_manager/installer/ytdlp_installer.dart';
 import 'package:wisp_installer/installation/install_controller.dart';
 import 'package:wisp_installer/installation/models/install_session.dart';
 import 'package:wisp_installer/installation/models/install_task.dart';
-import 'package:wisp_installer/installation/services/download_service.dart';
-import 'package:wisp_installer/installation/services/extract_service.dart';
 import 'package:wisp_installer/installation/services/macos_app_installer.dart';
-import 'package:wisp_installer/installation/services/platform_info.dart';
 
 class InstallOrchestrator {
   InstallOrchestrator(this._controller);
 
   final InstallController _controller;
   final InstallSession _session = InstallSession();
-  final DownloadService _downloadService = DownloadService();
-  final ExtractService _extractService = ExtractService();
   final MacOSAppInstaller _macOSAppInstaller = MacOSAppInstaller();
   final List<Directory> _componentWorkDirectories = [];
 
@@ -27,10 +22,8 @@ class InstallOrchestrator {
         _controller.advanceToTask(i);
 
         switch (_controller.tasks[i]) {
-          case InstallTaskId.downloadCore:
-            await _downloadCore();
-          case InstallTaskId.extractCore:
-            await _extractCore();
+          case InstallTaskId.installCore:
+            await _installCore();
           case InstallTaskId.integrateOs:
             await _integrateOs();
           case InstallTaskId.downloadNewPipe:
@@ -50,54 +43,144 @@ class InstallOrchestrator {
     }
   }
 
-  Future<void> _downloadCore() async {
-    const category = 'Install/Core';
-    final platform = PlatformInfo.current();
-    final downloadUrl = platform.downloadUrl;
+  // ---------------------------------------------------------------------
+  // App core: now installed from the payload embedded in this installer
+  // binary rather than downloaded from GitHub at run time.
+  // ---------------------------------------------------------------------
 
-    _controller.log(category, 'Starting download for App Core...');
-    _controller.log(
-      category,
-      'Got download URL from GitHub for ${platform.displayOs} | ${platform.displayArch}',
-    );
-    _controller.log(category, 'URL: $downloadUrl');
-
-    _session.workDir = await Directory(
-      p.join(
-        Directory.systemTemp.path,
-        'wisp_installer_${DateTime.now().millisecondsSinceEpoch}',
-      ),
-    ).create(recursive: true);
-
-    _session.archiveFile = File(
-      p.join(_session.workDir!.path, platform.releaseAssetName),
-    );
-
-    await _downloadService.download(
-      url: downloadUrl,
-      destination: _session.archiveFile!,
-      onProgress: (received, total) {
-        _controller.logTaskProgress(category, received, total);
-      },
-    );
-
-    _controller.setTaskProgress(1.0);
-    _controller.log(category, 'App Core download complete.');
-  }
-
-  Future<void> _extractCore() async {
+  Future<void> _installCore() async {
     if (Platform.isMacOS) {
-      await _extractCoreMacOS();
+      await _installCoreMacOS();
       return;
     }
 
     if (Platform.isWindows) {
-      await _extractCoreWindows();
+      await _installCoreWindows();
       return;
     }
 
-    await _simulateExtractCore();
+    if (Platform.isLinux) {
+      await _installCoreLinux();
+      return;
+    }
+
+    throw UnsupportedError(
+      'No embedded-payload install path defined for this platform.',
+    );
   }
+
+  Future<void> _installCoreMacOS() async {
+    const category = 'Install/Core';
+
+    final appBundle = resolveMacOSAppBundle();
+    if (!await appBundle.exists()) {
+      throw StateError(
+        'Embedded app bundle not found at ${appBundle.path}. '
+        'This installer build is missing its payload.',
+      );
+    }
+
+    _session.appBundle = appBundle;
+    _controller.setTaskProgress(1.0);
+    _controller.log(category, 'Located embedded wisp.app.');
+  }
+
+  Future<void> _installCoreWindows() async {
+    const category = 'Install/Core';
+
+    final payloadDir = resolveWindowsPayloadDir();
+    if (!await payloadDir.exists()) {
+      throw StateError(
+        'Embedded app payload not found at ${payloadDir.path}. '
+        'This installer build is missing its payload.',
+      );
+    }
+
+    final programFiles =
+        Platform.environment['ProgramW6432'] ??
+        Platform.environment['ProgramFiles'];
+    if (programFiles == null || programFiles.isEmpty) {
+      throw StateError('Could not determine the Program Files directory.');
+    }
+
+    final installationDirectory = Directory(p.join(programFiles, 'wisp'));
+    _controller.log(
+      category,
+      'Installing wisp to ${installationDirectory.path}...',
+    );
+
+    if (await installationDirectory.exists()) {
+      await installationDirectory.delete(recursive: true);
+    }
+    await _copyDirectoryRecursive(
+      payloadDir,
+      installationDirectory,
+      onProgress: (copied, total) {
+        _controller.logTaskProgress(category, copied, total);
+      },
+    );
+
+    final executable = await _findFileNamed(installationDirectory, 'wisp.exe');
+    _session.installedApp = installationDirectory;
+    _session.installedExecutable = executable;
+    _controller.setTaskProgress(1.0);
+    _controller.log(
+      category,
+      'Installed wisp to ${installationDirectory.path}.',
+    );
+  }
+
+  Future<void> _installCoreLinux() async {
+    const category = 'Install/Core';
+
+    final payloadDir = resolveLinuxPayloadDir();
+    if (!await payloadDir.exists()) {
+      throw StateError(
+        'Embedded app payload not found at ${payloadDir.path}. '
+        'Make sure this installer is being run from within its AppImage.',
+      );
+    }
+
+    final home = Platform.environment['HOME'];
+    if (home == null || home.isEmpty) {
+      throw StateError('Could not determine the home directory.');
+    }
+
+    final installationDirectory = Directory(
+      p.join(home, '.local', 'share', 'wisp'),
+    );
+    _controller.log(
+      category,
+      'Installing wisp to ${installationDirectory.path}...',
+    );
+
+    if (await installationDirectory.exists()) {
+      await installationDirectory.delete(recursive: true);
+    }
+    await _copyDirectoryRecursive(
+      payloadDir,
+      installationDirectory,
+      onProgress: (copied, total) {
+        _controller.logTaskProgress(category, copied, total);
+      },
+    );
+
+    final executable = await _findFileNamed(installationDirectory, 'wisp');
+    await Process.run('chmod', ['+x', executable.path]);
+
+    _session.installedApp = installationDirectory;
+    _session.installedExecutable = executable;
+    _controller.setTaskProgress(1.0);
+    _controller.log(
+      category,
+      'Installed wisp to ${installationDirectory.path}.',
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // OS integration — unchanged in spirit, Linux now implemented for real
+  // instead of simulated.
+  // ---------------------------------------------------------------------
 
   Future<void> _integrateOs() async {
     if (Platform.isMacOS) {
@@ -110,33 +193,13 @@ class InstallOrchestrator {
       return;
     }
 
-    await _simulateIntegrateOs();
-  }
-
-  Future<void> _extractCoreMacOS() async {
-    const category = 'Install/Core';
-    final archiveFile = _session.archiveFile;
-    final workDir = _session.workDir;
-
-    if (archiveFile == null || workDir == null) {
-      throw StateError(
-        'Cannot extract App Core before it has been downloaded.',
-      );
+    if (Platform.isLinux) {
+      await _integrateOsLinux();
+      return;
     }
 
-    _controller.log(category, 'Extracting App Core archive...');
-
-    final extractDir = Directory(p.join(workDir.path, 'extracted'));
-    await _extractService.extractZipArchive(
-      archiveFile: archiveFile,
-      destinationDir: extractDir,
-    );
-
-    _session.appBundle = await _extractService.findAppBundle(extractDir);
-    _controller.setTaskProgress(1.0);
-    _controller.log(
-      category,
-      'Extracted ${_session.appBundle!.path.split(Platform.pathSeparator).last}.',
+    throw UnsupportedError(
+      'No OS integration path defined for this platform.',
     );
   }
 
@@ -146,7 +209,7 @@ class InstallOrchestrator {
 
     if (appBundle == null) {
       throw StateError(
-        'Cannot integrate with OS before App Core has been extracted.',
+        'Cannot integrate with OS before App Core has been installed.',
       );
     }
 
@@ -171,7 +234,7 @@ class InstallOrchestrator {
 
     if (installedApp == null || executable == null) {
       throw StateError(
-        'Cannot integrate with OS before App Core has been extracted.',
+        'Cannot integrate with OS before App Core has been installed.',
       );
     }
 
@@ -197,45 +260,70 @@ class InstallOrchestrator {
     _controller.log(category, 'OS integration complete.');
   }
 
-  Future<void> _extractCoreWindows() async {
-    const category = 'Install/Core';
-    final archiveFile = _session.archiveFile;
+  Future<void> _integrateOsLinux() async {
+    const category = 'Install/OS';
+    final executable = _session.installedExecutable;
 
-    if (archiveFile == null) {
+    if (executable == null) {
       throw StateError(
-        'Cannot extract App Core before it has been downloaded.',
+        'Cannot integrate with OS before App Core has been installed.',
       );
     }
 
-    final programFiles =
-        Platform.environment['ProgramW6432'] ??
-        Platform.environment['ProgramFiles'];
-    if (programFiles == null || programFiles.isEmpty) {
-      throw StateError('Could not determine the Program Files directory.');
-    }
-
-    final installationDirectory = Directory(p.join(programFiles, 'wisp'));
-    _controller.log(
-      category,
-      'Extracting App Core to ${installationDirectory.path}...',
+    final home = Platform.environment['HOME']!;
+    final applicationsDir = Directory(
+      p.join(home, '.local', 'share', 'applications'),
     );
+    await applicationsDir.create(recursive: true);
 
-    if (await installationDirectory.exists()) {
-      await installationDirectory.delete(recursive: true);
-    }
-    await _extractService.extractZipArchive(
-      archiveFile: archiveFile,
-      destinationDir: installationDirectory,
-    );
+    _controller.log(category, 'Creating .desktop entry...');
+    final desktopFile = File(p.join(applicationsDir.path, 'wisp.desktop'));
+    await desktopFile.writeAsString('''
+[Desktop Entry]
+Type=Application
+Name=Wisp
+Exec=${executable.path}
+Icon=wisp
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+''');
+    _controller.setTaskProgress(0.5);
 
-    final executable = await _findFileNamed(installationDirectory, 'wisp.exe');
-    _session.installedApp = installationDirectory;
-    _session.installedExecutable = executable;
+    _controller.log(category, 'Adding Start Menu entry...');
+    // .desktop files under ~/.local/share/applications are picked up by
+    // most Linux desktop environments' menus automatically; nothing
+    // further to do here, but kept as a distinct log line to mirror the
+    // Windows/step structure the UI already expects.
     _controller.setTaskProgress(1.0);
-    _controller.log(
-      category,
-      'Extracted wisp to ${installationDirectory.path}.',
-    );
+
+    _controller.setInstalledAppPath(executable.path);
+    _controller.log(category, 'OS integration complete.');
+  }
+
+  // ---------------------------------------------------------------------
+  // Shared helpers
+  // ---------------------------------------------------------------------
+
+  Future<void> _copyDirectoryRecursive(
+    Directory source,
+    Directory destination, {
+    void Function(int copied, int total)? onProgress,
+  }) async {
+    await destination.create(recursive: true);
+
+    final entries = await source.list(recursive: true).toList();
+    final files = entries.whereType<File>().toList();
+    var copied = 0;
+
+    for (final file in files) {
+      final relativePath = p.relative(file.path, from: source.path);
+      final destinationFile = File(p.join(destination.path, relativePath));
+      await destinationFile.parent.create(recursive: true);
+      await file.copy(destinationFile.path);
+
+      copied++;
+      onProgress?.call(copied, files.length);
+    }
   }
 
   Future<File> _findFileNamed(Directory root, String name) async {
@@ -246,7 +334,7 @@ class InstallOrchestrator {
         return entity;
       }
     }
-    throw StateError('Extracted archive did not contain $name.');
+    throw StateError('Installed payload did not contain $name.');
   }
 
   Future<void> _createWindowsShortcut({
@@ -287,53 +375,48 @@ class InstallOrchestrator {
 
   String _powerShellSingleQuote(String value) => value.replaceAll("'", "''");
 
-  Future<void> _simulateExtractCore() async {
-    const category = 'Install/Core';
-
-    _controller.log(category, 'Extracting App Core archive...');
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-
-    for (var step = 1; step <= 5; step++) {
-      _controller.setTaskProgress(step / 5);
-      _controller.log(category, 'Extracted $step/5 files...');
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-    }
-
-    _controller.log(category, 'App Core extracted successfully.');
+  /// Windows: EVB virtualizes a `payload/` folder placed next to the
+  /// installer exe at pack time (see scripts/windows/build_installer.ps1).
+  Directory resolveWindowsPayloadDir() {
+    final exeDir = p.dirname(Platform.resolvedExecutable);
+    return Directory(p.join(exeDir, 'payload'));
   }
-
-  Future<void> _simulateIntegrateOs() async {
-    const category = 'Install/OS';
-
-    _controller.log(category, 'Integrating with operating system...');
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-
-    if (Platform.isWindows) {
-      _controller.log(category, 'Creating desktop shortcut...');
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      _controller.setTaskProgress(0.5);
-      _controller.log(category, 'Adding Start Menu entry...');
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    } else if (Platform.isLinux) {
-      _controller.log(category, 'Creating .desktop entry...');
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      _controller.setTaskProgress(0.5);
-      _controller.log(category, 'Adding Start Menu entry...');
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+ 
+  /// macOS: the app bundle is copied into this installer's own
+  /// Contents/Resources/ at packaging time (see
+  /// scripts/macos/build_installer.sh). The installer executable itself
+  /// lives at Wisp Installer.app/Contents/MacOS/wisp_installer, so
+  /// Resources is one level up and over.
+  Directory resolveMacOSAppBundle() {
+    final exeDir = p.dirname(Platform.resolvedExecutable);
+    return Directory(
+      p.join(exeDir, '..', 'Resources', 'wisp_app.app'),
+    );
+  }
+ 
+  /// Linux: the AppImage runtime sets $APPDIR to the mount point of the
+  /// image while it's running. The app payload was placed under
+  /// usr/wisp_app_payload/ inside the AppDir at packaging time (see
+  /// scripts/linux/build_installer.sh).
+  Directory resolveLinuxPayloadDir() {
+    final appDir = Platform.environment['APPDIR'];
+    if (appDir == null || appDir.isEmpty) {
+      throw StateError(
+        'APPDIR is not set. This installer must be run from within its '
+        'AppImage, not invoked as a bare binary.',
+      );
     }
-
-    _controller.setTaskProgress(1.0);
-    _controller.log(category, 'OS integration complete.');
+    return Directory(p.join(appDir, 'usr', 'wisp_app_payload'));
   }
 
   Future<void> _installNewPipeExtractor() async {
     const category = 'Install/NewPipe';
-    
+
     final installer = NewPipeInstaller();
     try {
       await for (final progress in installer.installNewPipeExtractor()) {
         _controller.log(category, progress.stage);
-        
+
         if (progress.totalBytes != null && progress.totalBytes! > 0) {
           _controller.logTaskProgress(
             category,
@@ -343,7 +426,10 @@ class InstallOrchestrator {
         }
       }
       _controller.setTaskProgress(1.0);
-      _controller.log(category, 'NewPipeExtractor and Java runtime installed successfully.');
+      _controller.log(
+        category,
+        'NewPipeExtractor and Java runtime installed successfully.',
+      );
     } finally {
       await installer.cleanup();
     }

@@ -20,11 +20,12 @@ I'm also working on adding support for more services (e.g. Apple Music, Deezer, 
 
 ## Installation
 
-The app is currently distributed and maintained for Windows, MacOS (Apple Silicon), Linux, Android (ARM64) & iOS.
+The app is currently distributed and maintained for Windows (x64), macOS (Apple Silicon), Linux (x64), Android (ARM64) & iOS.
+Other architectures are either not tested yet, or fully unsupported.
 
-I know it's tempting to just grab something from the releases page, but calm down. The installation is very simple, though. 
-On desktop, grab the wisp_installer executable for your platform from the [installer repo releases](https://github.com/wizeshi/wisp_installer/releases/latest) and run it. It will guide you through the installation process.
-On Android, grab the APK from the [installer repo releases](https://github.com/wizeshi/wisp_installer/releases/latest) and install it. You may need to allow installation from unknown sources in your settings.
+To install the app, just grab a corresponding file from the "Releases" tab to the side!
+If you are confused about what "x64" or "ARM" mean, don't worry. 
+If you're on mobile or on a Mac (2021+), you're most likely on ARM64. Everyone else is probably on x64.
 
 ## Roadmap
 

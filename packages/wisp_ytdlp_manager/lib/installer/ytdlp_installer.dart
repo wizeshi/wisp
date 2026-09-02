@@ -116,13 +116,21 @@ class YtDlpInstaller {
         ).then((_) => progressController.close()),
       );
 
+      int? lastLoggedProgressPercent; // Reset progress logging for this download
+      yield const EngineInstallProgress('Downloading...');
+
       await for (final (received, total) in progressController.stream) {
         if (total != null && total > 0) {
-          yield EngineInstallProgress(
-            'Downloading...',
-            bytesReceived: received,
-            totalBytes: total,
-          );
+          int currentProgressPercent = ((received * 100) ~/ total).clamp(0, 100);
+          // Only log each percent increment once to avoid flooding the logs with messages.
+          if (currentProgressPercent != lastLoggedProgressPercent) {
+            lastLoggedProgressPercent = currentProgressPercent;
+            yield EngineInstallProgress(
+              'Downloading...',
+              bytesReceived: received,
+              totalBytes: total,
+            );
+          }
         }
       }
     } finally {
@@ -155,13 +163,21 @@ class YtDlpInstaller {
         ).then((_) => progressController.close()),
       );
 
+      int? lastLoggedProgressPercent; // Reset progress logging for this download
+      yield EngineInstallProgress('Downloading $name...');
+
       await for (final (received, total) in progressController.stream) {
         if (total != null && total > 0) {
-          yield EngineInstallProgress(
-            'Downloading...',
-            bytesReceived: received,
-            totalBytes: total,
-          );
+          int currentProgressPercent = ((received * 100) ~/ total).clamp(0, 100);
+          // Only log each percent increment once to avoid flooding the logs with messages.
+          if (currentProgressPercent != lastLoggedProgressPercent) {
+            lastLoggedProgressPercent = currentProgressPercent;
+            yield EngineInstallProgress(
+              'Downloading $name...',
+              bytesReceived: received,
+              totalBytes: total,
+            );
+          }
         }
       }
 

@@ -31,15 +31,17 @@ class NewPipeInstaller {
     final newPipeFile = File(
       p.join(supportDirectory.path, 'newpipe', 'newpipestreamextractor.jar'),
     );
+    await newPipeFile.parent.create(recursive: true);
 
-    yield EngineInstallProgress('Downloading Java 21 runtime...');
+    final javaUrl = 'https://api.adoptium.net/v3/binary/latest/21/ga/'
+          '${platform.javaOsSlug}/${platform.javaArchSlug}/jre/hotspot/normal/eclipse';
+
+    yield EngineInstallProgress('Downloading Java 21 runtime from $javaUrl');
     
     File? javaArchive;
     await for (final progress in _downloadToTemporaryFileWithProgress(
       name: 'Java 21 runtime',
-      url:
-          'https://api.adoptium.net/v3/binary/latest/21/ga/'
-          '${platform.javaOsSlug}/${platform.javaArchSlug}/jre/hotspot/normal/eclipse',
+      url: javaUrl,
       extension: platform.javaArchiveExtension,
     )) {
       if (progress is File) {
@@ -74,23 +76,36 @@ class NewPipeInstaller {
     final progressController = StreamController<(int, int?)>();
     
     try {
-      unawaited(
-        _downloadService.download(
-          url: url,
-          destination: destination,
-          onProgress: (received, total) {
-            progressController.add((received, total));
-          },
-        ).then((_) => progressController.close()),
-      );
+      await destination.parent.create(recursive: true);
+      unawaited(_downloadService.download(
+        url: url,
+        destination: destination,
+        onProgress: (received, total) {
+          progressController.add((received, total));
+        },
+      ).then<void>(
+        (_) => progressController.close(),
+        onError: (Object error, StackTrace stackTrace) {
+          progressController.addError(error, stackTrace);
+          return progressController.close();
+        },
+      ));
+
+      int? lastLoggedProgressPercent; // Reset progress logging for this download
+      yield EngineInstallProgress('Downloading...');
 
       await for (final (received, total) in progressController.stream) {
         if (total != null && total > 0) {
-          yield EngineInstallProgress(
-            'Downloading...',
-            bytesReceived: received,
-            totalBytes: total,
-          );
+          int currentProgressPercent = ((received * 100) ~/ total).clamp(0, 100);
+          // Only log each percent increment once to avoid flooding the logs with messages.
+          if (currentProgressPercent != lastLoggedProgressPercent) {
+            lastLoggedProgressPercent = currentProgressPercent;
+            yield EngineInstallProgress(
+              'Downloading...',
+              bytesReceived: received,
+              totalBytes: total,
+            );
+          }
         }
       }
     } finally {
@@ -107,6 +122,7 @@ class NewPipeInstaller {
   }) async* {
     final directory = await Directory.systemTemp.createTemp('wisp_component_');
     _componentWorkDirectories.add(directory);
+    yield EngineInstallProgress("Created temporary directory: ${directory.path.split("\\").last}");
     final file = File(
       p.join(directory.path, '${name.replaceAll(' ', '_')}.$extension'),
     );
@@ -114,23 +130,35 @@ class NewPipeInstaller {
     final progressController = StreamController<(int, int?)>();
     
     try {
-      unawaited(
-        _downloadService.download(
-          url: url,
-          destination: file,
-          onProgress: (received, total) {
-            progressController.add((received, total));
-          },
-        ).then((_) => progressController.close()),
-      );
+      unawaited(_downloadService.download(
+        url: url,
+        destination: file,
+        onProgress: (received, total) {
+          progressController.add((received, total));
+        },
+      ).then<void>(
+        (_) => progressController.close(),
+        onError: (Object error, StackTrace stackTrace) {
+          progressController.addError(error, stackTrace);
+          return progressController.close();
+        },
+      ));
+  
+      int? lastLoggedProgressPercent; // Reset progress logging for this download
+      yield EngineInstallProgress('Downloading $name...');
 
       await for (final (received, total) in progressController.stream) {
         if (total != null && total > 0) {
-          yield EngineInstallProgress(
-            'Downloading...',
-            bytesReceived: received,
-            totalBytes: total,
-          );
+          int currentProgressPercent = ((received * 100) ~/ total).clamp(0, 100);
+          // Only log each percent increment once to avoid flooding the logs with messages.
+          if (currentProgressPercent != lastLoggedProgressPercent) {
+            lastLoggedProgressPercent = currentProgressPercent;
+            yield EngineInstallProgress(
+              'Downloading $name...',
+              bytesReceived: received,
+              totalBytes: total,
+            );
+          }
         }
       }
       

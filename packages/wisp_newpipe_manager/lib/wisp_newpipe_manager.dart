@@ -1,7 +1,7 @@
 import "dart:async";
 import "dart:io";
 import "package:path/path.dart" as p;
-import "package:newpipeextractor_dart/newpipeextractor_dart.dart";
+import "package:wisp_newpipe_manager/services/android_extractor_delegate.dart";
 import "package:wisp_shared/models/youtube_engine.dart";
 import "package:wisp_newpipe_manager/installer/newpipe_installer.dart";
 import "package:wisp_newpipe_manager/services/wisp_support_directory.dart";
@@ -14,6 +14,8 @@ class NewPipeManager implements YoutubeEngine {
 
   YoutubeEngineState _state = YoutubeEngineState.uninitialized;
   late final StreamController<YoutubeEngineState> _stateController;
+
+  NewPipeAndroidDelegate? androidDelegate;
 
   NewPipeManager._internal() {
     _supportDirectory = WispSupportDirectory();
@@ -79,29 +81,18 @@ class NewPipeManager implements YoutubeEngine {
   @override
   Future<String> getStreamUrl(String videoId, {Duration? timeout}) async {
     if (Platform.isAndroid) {
-      return _getStreamUrlAndroid(videoId, timeout: timeout);
+      if (androidDelegate == null) {
+        throw StateError(
+          "NewPipeAndroidDelegate must be provided on Android before calling getStreamUrl."
+        );
+      }
+      return androidDelegate!.getStreamUrl(videoId, timeout: timeout);
     } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       return _getStreamUrlDesktop(videoId, timeout: timeout);
     } else if (Platform.isIOS) {
       throw UnimplementedError('NewPipe is not available on iOS');
     }
     throw UnimplementedError('Unsupported platform');
-  }
-
-  /// Gets stream URL on Android using newpipeextractor_dart package.
-  Future<String> _getStreamUrlAndroid(String videoId, {Duration? timeout}) async {
-    final url = 'https://www.youtube.com/watch?v=$videoId';
-    final video = await VideoExtractor.getStream(url);
-
-    final List<AudioOnlyStream> sortedStreams = List.from(video.audioOnlyStreams);
-    sortedStreams.sort((a, b) => b.averageBitrate.compareTo(a.averageBitrate));
-
-    final bestAudioUrl = video.audioWithBestAacQuality?.url ?? sortedStreams.first.url;
-    if (bestAudioUrl == null || bestAudioUrl.isEmpty) {
-      throw Exception('No audio streams available');
-    }
-
-    return bestAudioUrl;
   }
 
   /// Gets stream URL on desktop by spawning a NewPipe daemon.

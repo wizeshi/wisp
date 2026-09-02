@@ -82,7 +82,7 @@ class InstallController extends ChangeNotifier {
     if (!shouldLog) return;
 
     _lastLoggedProgressPercent = percent;
-    log(category, 'Download Progress: $percent% ($received/$total bytes)');
+    log(category, 'Progress: $percent% ($received/$total bytes)');
   }
 
   void resetProgressLogging() {

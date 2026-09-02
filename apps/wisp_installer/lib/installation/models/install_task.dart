@@ -1,8 +1,7 @@
 import 'package:wisp_installer/navigation/shell.dart';
 
 enum InstallTaskId {
-  downloadCore,
-  extractCore,
+  installCore,
   integrateOs,
   downloadNewPipe,
   downloadYtDlp,
@@ -10,8 +9,7 @@ enum InstallTaskId {
 
 String labelForTask(InstallTaskId task) {
   return switch (task) {
-    InstallTaskId.downloadCore => 'Downloading App Core',
-    InstallTaskId.extractCore => 'Extracting App Core',
+    InstallTaskId.installCore => 'Downloading App Core',
     InstallTaskId.integrateOs => 'Integrating with OS',
     InstallTaskId.downloadNewPipe => 'Installing NewPipeExtractor + Java',
     InstallTaskId.downloadYtDlp => 'Installing YT-DLP + Node.js',
@@ -20,8 +18,7 @@ String labelForTask(InstallTaskId task) {
 
 String categoryForTask(InstallTaskId task) {
   return switch (task) {
-    InstallTaskId.downloadCore => 'Install/Core',
-    InstallTaskId.extractCore => 'Install/Core',
+    InstallTaskId.installCore => 'Install/Core',
     InstallTaskId.integrateOs => 'Install/OS',
     InstallTaskId.downloadNewPipe => 'Install/NewPipe',
     InstallTaskId.downloadYtDlp => 'Install/YT-DLP',
@@ -30,8 +27,7 @@ String categoryForTask(InstallTaskId task) {
 
 List<InstallTaskId> buildTaskPlan(Map<InstallationComponent, bool> selected) {
   final tasks = <InstallTaskId>[
-    InstallTaskId.downloadCore,
-    InstallTaskId.extractCore,
+    InstallTaskId.installCore,
     InstallTaskId.integrateOs,
   ];
 

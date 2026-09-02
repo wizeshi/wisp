@@ -9,10 +9,12 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:fvp/fvp.dart' as fvp;
+import 'package:wisp/providers/audio/youtube.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/services/app_navigation.dart';
 import 'package:wisp/services/protocol_registrar.dart';
 import 'package:wisp/views/list_detail.dart';
+import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
 import 'package:wisp_shared/models/youtube_engine.dart';
 import 'package:wisp_ytdlp_manager/wisp_ytdlp_manager.dart';
 import 'providers/metadata/youtube.dart';
@@ -123,6 +125,10 @@ void main() async {
 
   // Initialize Discord RPC (desktop only)
   await DiscordRpcService.instance.initialize();
+
+  if (Platform.isAndroid) {
+    NewPipeManager.instance.androidDelegate = NativeAndroidNewPipeDelegate();
+  }
 
   // Install a Flutter framework error handler so we can log full stacks.
   FlutterError.onError = (FlutterErrorDetails details) {

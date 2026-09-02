@@ -18,8 +18,6 @@ dependencies:
   http: ^1.6.0
   wisp_shared: any
 
-  newpipeextractor_dart: ^2.0.2
-
 
 
 dev_dependencies:

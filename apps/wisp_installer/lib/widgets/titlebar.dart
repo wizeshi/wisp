@@ -14,8 +14,22 @@ class InstallerTitleBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          buildDragArea(),
           if (!Platform.isMacOS) buildWindowControlButtons()
         ],
+      ),
+    );
+  }
+
+  Widget buildDragArea() {
+    return Expanded(
+      child: GestureDetector(
+        onPanStart: (details) async {
+          await windowManager.startDragging();
+        },
+        child: Container(
+          color: Colors.transparent,
+        ),
       ),
     );
   }

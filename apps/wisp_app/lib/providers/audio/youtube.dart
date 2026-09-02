@@ -5,6 +5,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:newpipeextractor_dart/newpipeextractor_dart.dart';
+import 'package:wisp_newpipe_manager/services/android_extractor_delegate.dart';
 import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -60,6 +62,24 @@ class YouTubeResult {
     required this.thumbnailUrl,
     this.score = 0,
   });
+}
+
+class NativeAndroidNewPipeDelegate implements NewPipeAndroidDelegate {
+  @override
+  Future<String> getStreamUrl(String videoId, {Duration? timeout}) async {
+    final url = 'https://www.youtube.com/watch?v=$videoId';
+    final video = await VideoExtractor.getStream(url);
+
+    final List<AudioOnlyStream> sortedStreams = List.from(video.audioOnlyStreams);
+    sortedStreams.sort((a, b) => b.averageBitrate.compareTo(a.averageBitrate));
+
+    final bestAudioUrl = video.audioWithBestAacQuality?.url ?? sortedStreams.first.url;
+    if (bestAudioUrl == null || bestAudioUrl.isEmpty) {
+      throw Exception('No audio streams available');
+    }
+
+    return bestAudioUrl;
+  }
 }
 
 class YouTubeProvider {

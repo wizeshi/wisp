@@ -89,7 +89,6 @@ dependencies:
   wisp_ytdlp_manager: any
   wisp_assets: any
 
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
