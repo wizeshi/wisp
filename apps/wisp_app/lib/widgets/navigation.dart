@@ -921,6 +921,7 @@ class _WispNavigationState extends State<WispNavigation> {
                                                           '',
                                                         ),
                                                       ),
+                                                      filterQuality: FilterQuality.medium,
                                                       fit: BoxFit.cover,
                                                       errorBuilder:
                                                           (
@@ -935,6 +936,7 @@ class _WispNavigationState extends State<WispNavigation> {
                                                     )
                                                   : CachedNetworkImage(
                                                       imageUrl: imageUrl,
+                                                      filterQuality: FilterQuality.medium,
                                                       fit: BoxFit.cover,
                                                       errorWidget:
                                                           (
@@ -986,6 +988,7 @@ class _WispNavigationState extends State<WispNavigation> {
                                                       ),
                                                     ),
                                                     fit: BoxFit.cover,
+                                                    filterQuality: FilterQuality.medium,
                                                     errorBuilder:
                                                         (context, url, error) =>
                                                             Icon(
@@ -997,6 +1000,7 @@ class _WispNavigationState extends State<WispNavigation> {
                                                 : CachedNetworkImage(
                                                     imageUrl: imageUrl,
                                                     fit: BoxFit.cover,
+                                                    filterQuality: FilterQuality.medium,
                                                     errorWidget:
                                                         (context, url, error) {
                                                           return Icon(
