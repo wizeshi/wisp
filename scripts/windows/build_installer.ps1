@@ -36,6 +36,11 @@ try {
 
 Push-Location $installerDir
 try {
+    try {
+        cider bump build;
+    } catch {
+        Write-Warning "cider bump build failed. Continuing with flutter build..."
+    }
     flutter build windows --release --build-name="$Version"
     if ($LASTEXITCODE -ne 0) { throw "flutter build windows (installer) failed" }
 } finally {

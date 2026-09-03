@@ -37,6 +37,12 @@ try {
     if ($BuildName)   { $buildArgs += @("--build-name=$BuildName") }
     if ($BuildNumber) { $buildArgs += @("--build-number=$BuildNumber") }
 
+    try {
+        cider bump build;
+    } catch {
+        Write-Warning "cider bump build failed. Continuing with flutter build..."
+    }
+
     flutter @buildArgs
     if ($LASTEXITCODE -ne 0) { throw "flutter build windows failed" }
 } finally {

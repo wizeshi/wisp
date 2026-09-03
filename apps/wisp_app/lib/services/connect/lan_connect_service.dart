@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:permission_handler/permission_handler.dart';
 import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/services/connect/connect_packet_models.dart';
 import 'package:wisp/services/connect/connect_packet_router.dart';
 import 'package:wisp/services/connect/connect_transport.dart';
+import 'package:flutter_multicast_lock/flutter_multicast_lock.dart';
 import 'package:wisp/utils/logger.dart';
 
 class LanConnectService implements ConnectTransport {
@@ -66,6 +68,7 @@ class LanConnectService implements ConnectTransport {
 
   RawDatagramSocket? _discoverySocket;
   RawDatagramSocket? _controlSocket;
+  FlutterMulticastLock? _multicastLock;
   ServerSocket? _tcpServer;
   final Map<String, Socket> _peerTcpConnections = {};
   final Map<String, String> _peerConnectionSourceByAddress = {};
@@ -81,6 +84,22 @@ class LanConnectService implements ConnectTransport {
   String? _localDeviceName;
   String? _localPlatform;
 
+  Future<bool> _hasLocalNetworkPermission() async {
+    final status = await Permission.accessLocalNetwork.request();
+    if (!status.isGranted) {
+      logger.w('[Connect/LAN] Local network permission denied: $status');
+    }
+    return status.isGranted;
+  }
+
+  Future<bool> _requestLocalNetworkPermission() async {
+    final status = await Permission.accessLocalNetwork.request();
+    if (!status.isGranted) {
+      logger.w('[Connect/LAN] Local network permission denied: $status');
+    }
+    return status.isGranted;
+  }
+
   @override
   Future<void> start({
     required String localDeviceId,
@@ -92,8 +111,24 @@ class LanConnectService implements ConnectTransport {
     _localDeviceId = localDeviceId;
     _localDeviceName = localDeviceName;
     _localPlatform = localPlatform;
+    _multicastLock = FlutterMulticastLock();
 
     try {
+      if (!await _hasLocalNetworkPermission()) {
+        logger.w('[Connect/LAN] Local network permission not granted, requesting...');
+        if (!await _requestLocalNetworkPermission()) {
+          logger.e('[Connect/LAN] Local network permission denied, cannot start LAN service.');
+          throw Exception('Local network permission denied');
+        }
+      }
+
+      _multicastLock!.acquireMulticastLock();
+      if (await _multicastLock!.isMulticastLockHeld()) {
+        logger.i(
+          '[Connect/LAN] Multicast lock acquired successfully',
+        );
+      }
+
       _discoverySocket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
         _discoveryPort,
@@ -102,7 +137,9 @@ class LanConnectService implements ConnectTransport {
       );
       _discoverySocket!
         ..broadcastEnabled = true
-        ..listen(_onDiscoverySocketEvent);
+        ..listen(_onDiscoverySocketEvent, onError: (e, st) {
+        logger.w('[Connect/LAN] Discovery socket stream error', error: e, stackTrace: st);
+        });
 
       _controlSocket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -163,6 +200,9 @@ class LanConnectService implements ConnectTransport {
 
     _controlSocket?.close();
     _controlSocket = null;
+
+    _multicastLock?.releaseMulticastLock();
+    _multicastLock = null;
 
     // Close TCP server and all peer connections
     await _tcpServer?.close();
@@ -803,7 +843,9 @@ class LanConnectService implements ConnectTransport {
       logger.d(
         '[Handoff/LAN] <- hello from=${device.id} name=${device.name} platform=${device.platform} address=${device.address}',
       );
-    } catch (_) {}
+    } catch (error, stackTrace) {
+      logger.e('[Connect/LAN] Error parsing incoming discovery packet', error: error, stackTrace: stackTrace);
+    }
   }
 
   void _replyToDiscoveryHello(String targetAddress, String deviceId) {
@@ -903,7 +945,7 @@ class LanConnectService implements ConnectTransport {
     }
   }
 
-  void _broadcastDiscovery() {
+  void _broadcastDiscovery() async {
     final socket = _discoverySocket;
     final localDeviceId = _localDeviceId;
     final localDeviceName = _localDeviceName;
@@ -914,7 +956,6 @@ class LanConnectService implements ConnectTransport {
         localPlatform == null) {
       return;
     }
-
     final packet = ConnectPacketEnvelope(
       packetType: 'connect.hello',
       payload: {
@@ -940,7 +981,7 @@ class LanConnectService implements ConnectTransport {
       socket.send(data, InternetAddress('255.255.255.255'), _discoveryPort);
     } on SocketException {
       logger.e(
-        '[Connect/LAN] Failed to broadcast discovery. Device is most likely locked or in standby.',
+        '[Connect/LAN] Failed to broadcast discovery to global broadcast subnet (255.255.255.255).'
       );
     } catch (_) {}
   }
