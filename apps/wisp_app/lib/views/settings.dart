@@ -1533,8 +1533,8 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 Image.asset(
                   WispIcons.logo,
-                  width: 96,
-                  height: 96,
+                  width: _isDesktop ? 96: 32,
+                  height: _isDesktop ? 96: 32,
                   filterQuality: FilterQuality.high,
                 ),
                 Column(
@@ -1577,6 +1577,7 @@ class UpdateWidget extends StatefulWidget {
 class _UpdateWidgetState extends State<UpdateWidget> {
   // Store the future instance here
   late Future<bool> _isUpdated;
+  final bool _isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   @override
   void initState() {
@@ -1645,7 +1646,7 @@ class _UpdateWidgetState extends State<UpdateWidget> {
         } else if (snapshot.hasData) {
           final isUpdated = snapshot.data!;
           return Row(
-            spacing: 8,
+            spacing: _isDesktop ? 8 : 0,
             children: [
               if (isUpdated) IconButton(
                 icon: Center(
@@ -1671,7 +1672,7 @@ class _UpdateWidgetState extends State<UpdateWidget> {
                   maxHeight: iconSize,
                 ),
               ),
-              SizedBox.shrink(),
+              if (_isDesktop) const SizedBox.shrink(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -1692,6 +1693,7 @@ class _UpdateWidgetState extends State<UpdateWidget> {
                   )
                 ]
               ),
+              if (!_isDesktop) const SizedBox(width: 8),
               isUpdated ? Icon(
                 Icons.check_circle,
                 color: Colors.green,
