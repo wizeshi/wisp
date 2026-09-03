@@ -1189,7 +1189,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   void _toggleListShuffle(global_audio_player.WispAudioHandler player) {
     if (_isCurrentListPlaying(player)) {
-      player.toggleShuffle();
+      context.read<PlaybackCoordinator>().toggleShuffle();
       return;
     }
 
@@ -2422,11 +2422,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
         final colorScheme = Theme.of(context).colorScheme;
-        final shuffleActive = (_isCurrentListPlaying(player)
+        final isCurrentListActive = _isCurrentListPlaying(player);
+        final shuffleActive = (isCurrentListActive
             ? player.shuffleEnabled
             : _preShuffleEnabled);
         final repeatActive =
             player.repeatMode != global_audio_player.RepeatMode.off;
+
+        final playerIsPlaying = context.select<PlaybackCoordinator, bool>((coordinator) => coordinator.effectiveIsPlaying);
+        final playlistIsPlaying = playerIsPlaying && isCurrentListActive;
+
         return SizedBox(
           height: 56,
           child: Row(
@@ -2451,7 +2456,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                       : Icons.repeat,
                 ),
                 color: repeatActive ? colorScheme.primary : Colors.white,
-                onPressed: player.toggleRepeat,
+                onPressed: () {
+                  context.read<PlaybackCoordinator>().toggleRepeat();
+                },
               ),
               IconButton(
                 icon: const Icon(Icons.shuffle),
@@ -2467,11 +2474,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.play_arrow, size: 32),
+                  icon: Icon(
+                    playlistIsPlaying ? Icons.pause : Icons.play_arrow, 
+                    size: 32
+                  ),
                   color: colorScheme.onPrimary,
                   onPressed: () {
-                    if (_items.isNotEmpty) {
-                      _playFromStart();
+                    if (isCurrentListActive) {
+                      playerIsPlaying 
+                        ? context.read<PlaybackCoordinator>().pause() 
+                        : context.read<PlaybackCoordinator>().play();
+                    } else {
+                      if (_items.isNotEmpty) {
+                        _playFromStart();
+                      }
                     }
                   },
                 ),
