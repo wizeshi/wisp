@@ -467,7 +467,47 @@ class _LyricsViewState extends State<LyricsView> {
                 appBar: widget.hideHeader
                     ? null
                     : AppBar(
-                        title: const Text('Lyrics'),
+                        title: SizedBox(
+                          width: 96,
+                          child: TextField(
+                            controller: _delayController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              signed: true,
+                              decimal: true,
+                            ),
+                            onChanged: _handleDelayChanged,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Delay (s)',
+                              hintStyle: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 12,
+                              ),
+                              isDense: true,
+                              filled: true,
+                              fillColor: Colors.black.withValues(alpha: 0.35),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[700]!,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                         actions: [
                           if (!widget.hideHeader)
                             Padding(
@@ -759,9 +799,9 @@ class _LyricsViewState extends State<LyricsView> {
                                     ? Colors.white
                                     : inactiveColor,
                                 fontSize: fontSize,
-                                letterSpacing: _isDesktop ? -1.5 : -0.7,
-                                fontWeight: FontWeight.w700,
-                                height: _isDesktop ? 1.4 : 1.06,
+                                letterSpacing: _isDesktop ? -1.5 : 0.25,
+                                fontWeight: FontWeight.w900,
+                                height: _isDesktop ? 1.4 : 1,
                                 decoration: underline,
                                 decorationColor: Colors.white70,
                               );
@@ -781,8 +821,8 @@ class _LyricsViewState extends State<LyricsView> {
 
                               final lineWidget = Padding(
                                 key: _lineKeys[index],
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
+                                padding: EdgeInsets.symmetric(
+                                  vertical: _isDesktop ? 8 : 10,
                                 ),
                                 child: Align(
                                   alignment: Alignment.centerLeft,
@@ -1076,39 +1116,6 @@ class _LyricsViewState extends State<LyricsView> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 96,
-            child: TextField(
-              controller: _delayController,
-              keyboardType: const TextInputType.numberWithOptions(
-                signed: true,
-                decimal: true,
-              ),
-              onChanged: _handleDelayChanged,
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-              decoration: InputDecoration(
-                hintText: 'Delay (s)',
-                hintStyle: TextStyle(color: Colors.grey[500], fontSize: 12),
-                isDense: true,
-                filled: true,
-                fillColor: Colors.black.withValues(alpha: 0.35),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[700]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-          ),
           IconButton(
             icon: const Icon(Icons.refresh, size: 18),
             color: Colors.white,
