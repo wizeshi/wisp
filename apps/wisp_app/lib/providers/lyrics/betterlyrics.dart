@@ -5,12 +5,13 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:wisp/models/metadata_models.dart';
 import 'package:wisp/utils/logger.dart';
+import 'package:wisp_assets/wisp_assets.dart';
 import 'package:xml/xml.dart';
 
 const _betterLyricsBaseUrl = "https://lyrics-api.boidu.dev/getLyrics";
 const _betterLyricsUserAgent =
 		'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-		'(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 wisp/1.0.0';
+		'(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 wisp/${WispInfo.version}';
 
 class BetterLyricsProvider {
   Future<LyricsResult?> getLyrics(GenericSong song, LyricsSyncMode mode) async {

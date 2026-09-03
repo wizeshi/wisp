@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/services/app_navigation.dart';
+import 'package:wisp_assets/wisp_assets.dart';
 import '../services/navigation_history.dart';
 import '../services/desktop_notification_center.dart';
 
@@ -43,6 +44,42 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => Size.fromHeight(_isDesktop() ? 32 : 0);
 
+  Widget buildBrandedArea() {
+    Widget icon = SizedBox(
+      height: 16,
+      width: 16,
+      child: Image.asset(
+        WispIcons.logo,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+      )
+    );
+
+    if (Platform.isMacOS) {
+      return icon;
+    } else {
+      return Padding(
+        padding: EdgeInsets.zero,
+        child: Row(
+          spacing: 8,
+          children: [
+            // Serves as padding
+            SizedBox.shrink(),
+            icon,
+            Text(
+              'wisp',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        )
+      );
+    }
+  }
+
   Widget buildNavButtons(
     BuildContext context,
     bool canGoBack,
@@ -51,7 +88,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   ) {
     return Row(
       children: [
-        Platform.isMacOS ? SizedBox(width: 8) : SizedBox(width: 16),
+        SizedBox(width: 8),
         // Build the home button on the left on Mac.
         if (Platform.isMacOS)
           Row(
@@ -136,17 +173,23 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
               // Leading edge. Left empty on macOS — that space belongs to
               // the native traffic lights, which this widget can't
               // reposition, so nothing should be drawn under them.
-              if (!isMac)
+              if (!isMac) 
                 Positioned(
                   left: 0,
                   top: 0,
                   bottom: 0,
-                  child: buildNavButtons(
-                    context,
-                    canGoBack,
-                    canGoForward,
-                    route,
-                  ),
+                  child: Row(
+                    spacing: 16,
+                    children: [
+                      buildBrandedArea(), 
+                      buildNavButtons(
+                        context,
+                        canGoBack,
+                        canGoForward,
+                        route,
+                      ),
+                    ]
+                  ) 
                 ),
 
               // Search field: centered on the *whole* bar width, not just

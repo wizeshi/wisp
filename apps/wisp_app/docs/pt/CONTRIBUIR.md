@@ -30,15 +30,24 @@ Opá, duvido que realmente queiras contribuir, mas cá vai:
 
 #### WINDOWS
 
-2. Instala o [NuGet](https://learn.microsoft.com/en-us/nuget/install-nuget-client-tools?tabs=windows#nugetexe-cli) para o FlutterInAppWebview
+For Windows, there's not really much you need to do yourself. Just run the setup powershell script in scripts/windows, and it'll install everything needed.
 
-3. Instala as Visual Studio Build Tools para "Desktop development with C++" (liga o MSVC v142 e o C++ ATL)
+If, for some reason, you can't or it won't work, here's the dependency list:
+- NuGet
+- VS BuildTools, with "Desktop development with C++" + "MSVC v142" + "C++ ATL"
+
+Para o Windows, já não há muito que precises de fazer. Só corre o script de setup que está nos scripts/windows, e vai instalar tudo sozinho. 
+
+Se, por alguma razão, tipo não podes ou o script não funciona, a lista de dependências vai aqui:
+- NuGet
+- VS BuildTools com "Desktop development with C++" + "MSVC v142" + "C++ ATL" (assinala as cruzes!)
+- Enigma VirtualBox
 
 ### O que fazer e não fazer
 
 O projeto tem uma pequena lista de regras que deves seguir, começando por umas mais abstratas:
 1. Podes e deves usar IA (até mais o que chamam Engenharia com Agentes), mas todas as PRs e commits devem ser revistas por um humano, porque como uma máquina não pode ser responsabilizada, tem de haver um humano para levar com as culpas.
-2. Não faças mudanças desnecessárias. Todas as mudanças que fizeres devem basear-se em gosto ou necessidade, e não política, discriminação, religião, etc. Isto também aplica-se quando interages com outras pessoas sobre o projeto.
+2. Não faças cenas atoa. Tudo o que fizeres em relação ao projeto não se deve basear em política, discriminação, religião, etc. Isto aplica-se a tudo, desde PRs até interações com outras pessoas sobre o projeto.
 
 Vamos entrar nas mais técnicas:
 3. Tenta adicionar logs, mas não demasiadas. Não precisas de fazer log em tudo a acontecer na app, mas também deves conseguir ver o que está mal sem mudar muita coisa. No caso de fazeres um sistema demasiado complicado, no qual logs não são o suficiente, podes sempre criar uma nova aba na página de depuração.
