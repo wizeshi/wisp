@@ -3162,7 +3162,7 @@ class _GenericCard extends StatelessWidget {
                         height: _kSubtitleLineHeight,
                         child: subtitle == null
                             ? null
-                            : (isDesktop
+                            : (TextParser.needsParsing(subtitle!)
                                   ? buildParsedText(
                                       context,
                                       subtitle!,

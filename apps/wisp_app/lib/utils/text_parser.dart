@@ -24,6 +24,10 @@ class TextParser {
 
 	const TextParser._();
 
+  static bool needsParsing(String input) {
+    return (_anchorTagRegex.hasMatch(input) || _htmlEntityRegex.hasMatch(input));
+  }
+
 	static List<InlineSpan> parse(
 		BuildContext context,
 		String input, {
