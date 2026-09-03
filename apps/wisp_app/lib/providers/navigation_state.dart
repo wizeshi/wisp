@@ -7,7 +7,7 @@ enum RightSidebarContent { library, connect }
 class NavigationState extends ChangeNotifier {
   int _selectedNavIndex = 0;
   int _lastNonSettingsNavIndex = 0;
-  LibraryView _selectedLibraryView = LibraryView.playlists;
+  LibraryView _selectedLibraryView = LibraryView.all;
   bool _rightSidebarVisible = true;
   RightSidebarContent _rightSidebarContent = RightSidebarContent.library;
   bool _desktopImmersiveMode = false;

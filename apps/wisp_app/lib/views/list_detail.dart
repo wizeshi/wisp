@@ -731,6 +731,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
     if (widget.type == SharedListType.playlist) {
       libraryFolders.markPlaylistPlayed(widget.id);
+      context.read<SpotifyInternalProvider>().reportItemPlayed(
+        itemId: widget.id,
+        itemType: 'playlist',
+      );
+    } else if (widget.type == SharedListType.album) {
+      libraryFolders.markItemPlayed(widget.id);
+      context.read<SpotifyInternalProvider>().reportItemPlayed(
+        itemId: widget.id,
+        itemType: 'album',
+      );
     }
   }
 

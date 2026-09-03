@@ -450,14 +450,29 @@ class EntityContextMenus {
         id: 'move-none',
         label: currentFolderId == null ? '✓ No Folder' : 'No Folder',
         icon: Icons.folder_off_outlined,
-        onSelected: (_) => folderState.movePlaylistIntoFolder(playlist.id, null),
+        onSelected: (_) async {
+          await folderState.movePlaylistIntoFolder(playlist.id, null);
+          if (context.mounted && currentFolderId != null) {
+            context.read<SpotifyInternalProvider>().removePlaylistFromFolder(
+              playlistId: playlist.id,
+            );
+          }
+        },
       ),
       for (final folder in folders)
         ContextMenuAction(
           id: 'move-${folder.id}',
           label: currentFolderId == folder.id ? '✓ ${folder.title}' : folder.title,
           icon: Icons.folder,
-          onSelected: (_) => folderState.movePlaylistIntoFolder(playlist.id, folder.id),
+          onSelected: (_) async {
+            await folderState.movePlaylistIntoFolder(playlist.id, folder.id);
+            if (context.mounted) {
+              context.read<SpotifyInternalProvider>().addPlaylistToFolder(
+                playlistId: playlist.id,
+                folderId: folder.id,
+              );
+            }
+          },
         ),
     ];
 
@@ -550,6 +565,20 @@ class EntityContextMenus {
           ),
         ],
       ),
+      if (currentFolderId != null)
+        ContextMenuAction(
+          id: 'remove-from-folder',
+          label: 'Remove from Folder',
+          icon: Icons.folder_off_outlined,
+          onSelected: (_) async {
+            await folderState.movePlaylistIntoFolder(playlist.id, null);
+            if (context.mounted) {
+              context.read<SpotifyInternalProvider>().removePlaylistFromFolder(
+                playlistId: playlist.id,
+              );
+            }
+          },
+        ),
       ContextMenuAction(
         id: 'move-folder',
         label: 'Move to Folder',

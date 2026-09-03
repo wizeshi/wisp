@@ -5,7 +5,6 @@ import 'dart:io' show Platform, File;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp_assets/wisp_assets.dart';
 import '../models/metadata_models.dart';
 import '../models/library_folder.dart';
 import '../providers/library/library_folders.dart';
@@ -151,6 +150,10 @@ class _WispNavigationState extends State<WispNavigation> {
       );
       if (!mounted) return;
       context.read<LibraryFolderState>().markPlaylistPlayed(resolvedItem.id);
+      context.read<SpotifyInternalProvider>().reportItemPlayed(
+        itemId: resolvedItem.id,
+        itemType: 'playlist',
+      );
       return;
     }
 
@@ -170,6 +173,12 @@ class _WispNavigationState extends State<WispNavigation> {
         contextID: fullAlbum.id,
         contextSource: fullAlbum.source,
       );
+      if (!mounted) return;
+      context.read<LibraryFolderState>().markItemPlayed(albumId);
+      context.read<SpotifyInternalProvider>().reportItemPlayed(
+        itemId: albumId,
+        itemType: 'album',
+      );
       return;
     }
 
@@ -187,6 +196,12 @@ class _WispNavigationState extends State<WispNavigation> {
         contextName: artist.name,
         contextID: artist.id,
         contextSource: artist.source,
+      );
+      if (!mounted) return;
+      context.read<LibraryFolderState>().markItemPlayed(resolvedItem.id);
+      context.read<SpotifyInternalProvider>().reportItemPlayed(
+        itemId: resolvedItem.id,
+        itemType: 'artist',
       );
     }
   }
@@ -237,6 +252,36 @@ class _WispNavigationState extends State<WispNavigation> {
     await _playSidebarItem(resolvedItem);
   }
 
+  String _itemTitle(dynamic item) {
+    if (item is PlaylistFolder) return item.title;
+    if (item is GenericPlaylist) return item.title;
+    if (item is GenericAlbum || item is GenericSimpleAlbum) {
+      try {
+        return (item as dynamic).title as String? ?? '';
+      } catch (_) {
+        return '';
+      }
+    }
+    if (item is GenericSimpleArtist || item is GenericArtist) {
+      try {
+        return (item as dynamic).name as String? ?? '';
+      } catch (_) {
+        return '';
+      }
+    }
+    return '';
+  }
+
+  String? _itemId(dynamic item) {
+    if (item is PlaylistFolder) return item.id;
+    if (item is GenericPlaylist) return item.id;
+    try {
+      return (item as dynamic).id as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   List<dynamic> _computeLibraryItems(
     LibraryState library,
     LibraryFolderState folderState,
@@ -281,52 +326,90 @@ class _WispNavigationState extends State<WispNavigation> {
       case LibraryView.artists:
         return library.artists;
       case LibraryView.all:
-        final ordered = library.allOrganized;
-        if (ordered == null || ordered.isEmpty) return [];
-        final allEntries = <LibrarySidebarEntry>[];
-        for (final e in ordered) {
-          if (e is LibrarySidebarEntry) {
-            if (e.type == LibrarySidebarEntryType.unassignedHeader) continue;
-            allEntries.add(e);
-            continue;
+        GenericPlaylist? likedPlaylist;
+        final folderMap = <String, PlaylistFolder>{
+          for (final f in folderState.folders) f.id: f,
+        };
+        final topLevelItems = <dynamic>[];
+        final folderPlaylists = <String, List<GenericPlaylist>>{};
+        final seenPlaylistIds = <String>{};
+        final seenTopLevelIds = <String>{};
+
+        void processItem(dynamic raw) {
+          if (raw == null) return;
+          if (raw is LibrarySidebarEntry) {
+            if (raw.type == LibrarySidebarEntryType.unassignedHeader) return;
+            processItem(raw.item);
+            return;
           }
-          if (e is PlaylistFolder) {
-            allEntries.add(LibrarySidebarEntry.item(e));
-            continue;
-          }
-          if (e is GenericPlaylist) {
-            final folderId = folderState.folderIdForPlaylist(e.id);
-            if (folderId != null && folderState.isFolderCollapsed(folderId)) {
-              continue;
+
+          if (raw is PlaylistFolder) {
+            folderMap[raw.id] = raw;
+            if (seenTopLevelIds.add(raw.id)) {
+              topLevelItems.add(raw);
             }
-            allEntries.add(LibrarySidebarEntry.item(e, folderId: folderId));
-            continue;
+            return;
           }
-          if (e is GenericAlbum) {
-            allEntries.add(LibrarySidebarEntry.item(e));
-            continue;
-          }
-          if (e is GenericSimpleArtist) {
-            allEntries.add(LibrarySidebarEntry.item(e));
-            continue;
-          }
-          if (e is Map<String, dynamic>) {
-            final t = e['__typename'] as String? ?? e['type'] as String?;
-            if (t == 'Folder') {
-              final uri = e['uri'] as String? ?? e['id'] as String? ?? '';
-              final id = uri.isNotEmpty ? uri : (e['id'] as String? ?? '');
-              final folder = folderState.getFolderById(id);
-              if (folder != null) {
-                allEntries.add(LibrarySidebarEntry.item(folder));
-                continue;
+
+          if (raw is GenericPlaylist) {
+            if (isLikedSongsPlaylistId(raw.id)) {
+              likedPlaylist ??= raw;
+              return;
+            }
+            if (!seenPlaylistIds.add(raw.id)) return;
+
+            final folderId = folderState.folderIdForPlaylist(raw.id);
+            if (folderId != null && folderMap.containsKey(folderId)) {
+              folderPlaylists.putIfAbsent(folderId, () => []).add(raw);
+            } else {
+              if (seenTopLevelIds.add(raw.id)) {
+                topLevelItems.add(raw);
               }
             }
-            if (e['uri']?.toString().contains('playlist') == true) {
+            return;
+          }
+
+          if (raw is GenericAlbum || raw is GenericSimpleAlbum) {
+            final id = _itemId(raw);
+            if (id != null && seenTopLevelIds.add(id)) {
+              topLevelItems.add(raw);
+            }
+            return;
+          }
+
+          if (raw is GenericSimpleArtist || raw is GenericArtist) {
+            final id = _itemId(raw);
+            if (id != null && seenTopLevelIds.add(id)) {
+              topLevelItems.add(raw);
+            }
+            return;
+          }
+
+          if (raw is Map<String, dynamic>) {
+            final t = raw['__typename'] as String? ?? raw['type'] as String?;
+            final uri = raw['uri'] as String? ?? raw['id'] as String? ?? '';
+            final id = uri.isNotEmpty ? uri : (raw['id'] as String? ?? '');
+
+            if (t == 'Folder' || t == 'folder') {
+              final folder = folderState.getFolderById(id) ??
+                  PlaylistFolder(
+                    id: id,
+                    title: raw['name'] as String? ?? 'Folder',
+                    createdAt: DateTime.now(),
+                  );
+              folderMap[folder.id] = folder;
+              if (seenTopLevelIds.add(folder.id)) {
+                topLevelItems.add(folder);
+              }
+              return;
+            }
+
+            if (t == 'Playlist' || t == 'playlist' || uri.contains('playlist')) {
               final p = GenericPlaylist(
-                id: e['uri'] as String? ?? e['id'] as String? ?? '',
+                id: id,
                 source: SongSource.spotifyInternal,
-                title: e['name'] as String? ?? '',
-                thumbnailUrl: e['image']?['url'] as String? ?? '',
+                title: raw['name'] as String? ?? '',
+                thumbnailUrl: raw['image']?['url'] as String? ?? '',
                 author: GenericSimpleUser(
                   id: '',
                   source: SongSource.spotifyInternal,
@@ -338,10 +421,141 @@ class _WispNavigationState extends State<WispNavigation> {
                 songs: null,
                 durationSecs: 0,
               );
-              allEntries.add(LibrarySidebarEntry.item(p));
+              processItem(p);
+              return;
+            }
+
+            if (t == 'Album' || t == 'album' || uri.contains('album')) {
+              final album = GenericSimpleAlbum(
+                id: id,
+                source: SongSource.spotifyInternal,
+                title: raw['name'] as String? ?? '',
+                artists: const [],
+                thumbnailUrl: raw['image']?['url'] as String? ?? '',
+                label: '',
+                releaseDate: DateTime.now(),
+              );
+              processItem(album);
+              return;
+            }
+
+            if (t == 'Artist' || t == 'artist' || uri.contains('artist')) {
+              final artist = GenericSimpleArtist(
+                id: id,
+                source: SongSource.spotifyInternal,
+                name: raw['name'] as String? ?? '',
+                thumbnailUrl: raw['image']?['url'] as String? ?? '',
+              );
+              processItem(artist);
+              return;
             }
           }
         }
+
+        final allOrganized = library.allOrganized;
+        if (allOrganized != null) {
+          for (final item in allOrganized) {
+            processItem(item);
+          }
+        }
+
+        for (final folder in folderState.folders) {
+          processItem(folder);
+        }
+
+        for (final playlist in library.playlists) {
+          processItem(playlist);
+        }
+
+        for (final album in library.albums) {
+          processItem(album);
+        }
+
+        for (final artist in library.artists) {
+          processItem(artist);
+        }
+
+        DateTime? itemLastPlayed(dynamic item) {
+          if (item is PlaylistFolder) {
+            final children = folderPlaylists[item.id];
+            if (children == null || children.isEmpty) return null;
+            DateTime? latest;
+            for (final child in children) {
+              final t = folderState.lastPlayedForItem(child.id);
+              if (t != null && (latest == null || t.isAfter(latest))) {
+                latest = t;
+              }
+            }
+            return latest;
+          }
+          final id = _itemId(item);
+          return id != null ? folderState.lastPlayedForItem(id) : null;
+        }
+
+        switch (folderState.sortMode) {
+          case LibrarySortMode.recent:
+            topLevelItems.sort((a, b) {
+              final aTime = itemLastPlayed(a);
+              final bTime = itemLastPlayed(b);
+              if (aTime != null && bTime != null) {
+                return bTime.compareTo(aTime);
+              }
+              if (aTime != null) return -1;
+              if (bTime != null) return 1;
+              return 0;
+            });
+            for (final entry in folderPlaylists.entries) {
+              entry.value.sort((a, b) {
+                final aTime = folderState.lastPlayedForItem(a.id);
+                final bTime = folderState.lastPlayedForItem(b.id);
+                if (aTime != null && bTime != null) {
+                  return bTime.compareTo(aTime);
+                }
+                if (aTime != null) return -1;
+                if (bTime != null) return 1;
+                return 0;
+              });
+            }
+            break;
+          case LibrarySortMode.recentlyAdded:
+            // Preserve addition order (folders by createdAt descending, items as loaded)
+            for (final entry in folderPlaylists.entries) {
+              entry.value.sort((a, b) => 0);
+            }
+            break;
+          case LibrarySortMode.alphabetical:
+            topLevelItems.sort((a, b) {
+              return _itemTitle(a).toLowerCase().compareTo(_itemTitle(b).toLowerCase());
+            });
+            for (final entry in folderPlaylists.entries) {
+              entry.value.sort((a, b) {
+                return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+              });
+            }
+            break;
+        }
+
+        final allEntries = <LibrarySidebarEntry>[];
+        if (likedPlaylist != null) {
+          allEntries.add(LibrarySidebarEntry.item(likedPlaylist));
+        }
+
+        for (final item in topLevelItems) {
+          if (item is PlaylistFolder) {
+            allEntries.add(LibrarySidebarEntry.item(item));
+            if (!folderState.isFolderCollapsed(item.id)) {
+              final children = folderPlaylists[item.id] ?? const [];
+              for (final child in children) {
+                allEntries.add(LibrarySidebarEntry.item(child, folderId: item.id));
+              }
+            }
+          } else if (item is GenericPlaylist) {
+            allEntries.add(LibrarySidebarEntry.item(item, folderId: null));
+          } else {
+            allEntries.add(LibrarySidebarEntry.item(item));
+          }
+        }
+
         return allEntries;
     }
   }
@@ -357,7 +571,7 @@ class _WispNavigationState extends State<WispNavigation> {
     final libraryItems = _computeLibraryItems(
       libraryState,
       folderState,
-      widget.selectedView,
+      LibraryView.all,
     );
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -375,7 +589,7 @@ class _WispNavigationState extends State<WispNavigation> {
         children: [
           // Library view selector
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
             child: _layoutCollapsed
                 ? _buildCollapsedViewSelector()
                 : _buildExpandedViewSelector(),
@@ -505,140 +719,129 @@ class _WispNavigationState extends State<WispNavigation> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: MouseRegion(
-                  onEnter: (_) => setState(() => _isHoveringHeader = true),
-                  onExit: (_) => setState(() => _isHoveringHeader = false),
-                  child: Row(
-                    spacing: 4,
-                    children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 85),
-                        curve: Curves.easeOut,
-                        width: _isHoveringHeader ? 24 : 0,
-                        child: ClipRect(
-                          child: AnimatedSlide(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isHoveringHeader = true),
+                onExit: (_) => setState(() => _isHoveringHeader = false),
+                child: Row(
+                  spacing: 4,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 85),
+                      curve: Curves.easeOut,
+                      width: _isHoveringHeader ? 24 : 0,
+                      child: ClipRect(
+                        child: AnimatedSlide(
+                          duration: const Duration(milliseconds: 100),
+                          curve: Curves.easeIn,
+                          offset: Offset.zero,
+                          child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 100),
-                            curve: Curves.easeIn,
-                            offset: Offset.zero,
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 100),
-                              opacity: _isHoveringHeader ? 1 : 0,
-                              child: IgnorePointer(
-                                ignoring: !_isHoveringHeader,
-                                child: IconButton(
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                    minHeight: 24,
-                                    minWidth: 24,
-                                    maxHeight: 24, 
-                                    maxWidth: 24
-                                  ),
-                                  tooltip: 'Collapse Sidebar',
-                                  icon: Icon(Symbols.left_panel_close, color: Colors.white, size: 20),
-                                  onPressed: () => {
-                                    setState(() => _isCollapsed = !_isCollapsed)
-                                  },
+                            opacity: _isHoveringHeader ? 1 : 0,
+                            child: IgnorePointer(
+                              ignoring: !_isHoveringHeader,
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minHeight: 24,
+                                  minWidth: 24,
+                                  maxHeight: 24, 
+                                  maxWidth: 24
                                 ),
+                                tooltip: 'Collapse Sidebar',
+                                icon: Icon(Symbols.left_panel_close, color: Colors.white, size: 20),
+                                onPressed: () => {
+                                  setState(() => _isCollapsed = !_isCollapsed)
+                                },
                               ),
                             ),
                           ),
                         ),
                       ),
-                      Text(
-                        'Your Library',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
+                    ),
+                    Text(
+                      'Your Library',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: SizedBox(
+                height: 24,
+                width: 24,
+                child: PopupMenuButton<LibrarySortMode>(
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Sort',
+                  color: const Color(0xFF282828),
+                  onSelected: (mode) {
+                    folderState.setSortMode(mode);
+                    context.read<SpotifyInternalProvider>().fetchUserLibrarySorted(sortMode: mode);
+                  },
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.comfortable,
+                  ),
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: LibrarySortMode.recent,
+                      child: Text(
+                        'Recent',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: LibrarySortMode.recentlyAdded,
+                      child: Text(
+                        'Recently added',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: LibrarySortMode.alphabetical,
+                      child: Text(
+                        'Alphabetical',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                  icon: Icon(
+                    Icons.sort,
+                    color: Colors.grey[500],
+                    size: 16,
                   ),
                 ),
               ),
-              if (widget.selectedView == LibraryView.playlists) ...[
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: PopupMenuButton<LibrarySortMode>(
-                      padding: EdgeInsets.zero,
-                      tooltip: 'Sort',
-                      color: const Color(0xFF282828),
-                      onSelected: folderState.setSortMode,
-                      style: const ButtonStyle(
-                        visualDensity: VisualDensity.comfortable,
-                      ),
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: LibrarySortMode.original,
-                          child: Text(
-                            'Index',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: LibrarySortMode.recentlyPlayed,
-                          child: Text(
-                            'Recently played',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: LibrarySortMode.custom,
-                          child: Text(
-                            'Custom order',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ],
-                      icon: Icon(
-                          Icons.sort,
-                          color: Colors.grey[500],
-                          size: 16,
-                        ),
-                      ),
-                    ),
+            ),
+            const SizedBox(width: 4),
+            Builder(
+              builder: (buttonContext) {
+                return FilledButton.icon(
+                  label: Text(
+                    "Create",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    )
                   ),
-                const SizedBox(width: 4),
-              ],
-              Builder(
-                builder: (buttonContext) {
-                  return FilledButton.icon(
-                    label: Text(
-                      "Create",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      )
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.black38,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    ),
-                    icon: Icon(Icons.add, color: Colors.white, size: 20),
-                    onPressed: () => _showCreateMenu(buttonContext),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildViewButton(Icons.view_list, LibraryView.all),
-            _buildViewButton(Icons.playlist_play, LibraryView.playlists),
-            _buildViewButton(Icons.album, LibraryView.albums),
-            _buildViewButton(Icons.person, LibraryView.artists),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.black38,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  ),
+                  icon: Icon(Icons.add, color: Colors.white, size: 20),
+                  onPressed: () => _showCreateMenu(buttonContext),
+                );
+              },
+            ),
           ],
         ),
       ],
@@ -646,86 +849,36 @@ class _WispNavigationState extends State<WispNavigation> {
   }
 
   Widget _buildCollapsedViewSelector() {
-    final icon = _iconForLibraryView(widget.selectedView);
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        MouseRegion(
-          onEnter: (_) => setState(() => _isHoveringHeader = true),
-          onExit: (_) => setState(() => _isHoveringHeader = false),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _isHoveringHeader 
-                ? IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minHeight: 32,
-                    minWidth: 32,
-                    maxHeight: 32, 
-                    maxWidth: 32
-                  ),
-                  tooltip: 'Expand Sidebar',
-                  icon: Icon(Symbols.left_panel_open, color: Colors.white, size: 28),
-                  onPressed: () => setState(() => _isCollapsed = !_isCollapsed),
-                )
-                : Container(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minHeight: 32,
-                    minWidth: 32,
-                    maxHeight: 32, 
-                    maxWidth: 32
-                  ),
-                  child: Icon(Symbols.library_music, color: Colors.white, size: 28),
-                )
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF282828),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: colorScheme.primary, size: 24),
-        ),
-      ],
-    );
-  }
-
-  IconData _iconForLibraryView(LibraryView view) {
-    switch (view) {
-      case LibraryView.all:
-        return Icons.view_list;
-      case LibraryView.playlists:
-        return Icons.playlist_play;
-      case LibraryView.albums:
-        return Icons.album;
-      case LibraryView.artists:
-        return Icons.person;
-    }
-  }
-
-  Widget _buildViewButton(IconData icon, LibraryView view) {
-    final isSelected = widget.selectedView == view;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: isSelected ? Color(0xFF282828) : Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        mouseCursor: SystemMouseCursors.click,
-        onTap: () => widget.onViewChanged(view),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: EdgeInsets.all(8),
-          child: Icon(
-            icon,
-            color: isSelected ? colorScheme.primary : Colors.grey[600],
-            size: 22,
-          ),
-        ),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHoveringHeader = true),
+      onExit: (_) => setState(() => _isHoveringHeader = false),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _isHoveringHeader 
+            ? IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                minHeight: 32,
+                minWidth: 32,
+                maxHeight: 32, 
+                maxWidth: 32
+              ),
+              tooltip: 'Expand Sidebar',
+              icon: Icon(Symbols.left_panel_open, color: Colors.white, size: 28),
+              onPressed: () => setState(() => _isCollapsed = !_isCollapsed),
+            )
+            : Container(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                minHeight: 32,
+                minWidth: 32,
+                maxHeight: 32, 
+                maxWidth: 32
+              ),
+              child: Icon(Symbols.library_music, color: Colors.white, size: 28),
+            )
+        ],
       ),
     );
   }
@@ -737,7 +890,7 @@ class _WispNavigationState extends State<WispNavigation> {
     final folderState = context.watch<LibraryFolderState>();
     final libraryState = context.watch<LibraryState>();
     final isDesktop = _isDesktop();
-    final allowDrag = widget.selectedView == LibraryView.playlists;
+    final allowDrag = true;
     final player = context.watch<WispAudioHandler>();
 
     if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
@@ -1116,11 +1269,7 @@ class _WispNavigationState extends State<WispNavigation> {
       ),
     );
 
-    void ensureCustomSort() {
-      if (!folderState.isCustomSort) {
-        folderState.setSortMode(LibrarySortMode.custom);
-      }
-    }
+    void ensureCustomSort() {}
 
     if (allowDrag && resolvedItem is PlaylistFolder) {
       final draggable = isDesktop
@@ -1162,10 +1311,16 @@ class _WispNavigationState extends State<WispNavigation> {
       );
       final playlistDropTarget = DragTarget<_SidebarPlaylistDragData>(
         onWillAccept: (data) => data != null,
-        onAccept: (data) => folderState.movePlaylistIntoFolder(
-          data.playlistId,
-          resolvedItem.id,
-        ),
+        onAccept: (data) {
+          folderState.movePlaylistIntoFolder(
+            data.playlistId,
+            resolvedItem.id,
+          );
+          context.read<SpotifyInternalProvider>().addPlaylistToFolder(
+            playlistId: data.playlistId,
+            folderId: resolvedItem.id,
+          );
+        },
         builder: (context, candidate, rejected) => Container(
           decoration: candidate.isNotEmpty
               ? BoxDecoration(
@@ -1206,8 +1361,20 @@ class _WispNavigationState extends State<WispNavigation> {
         onWillAccept: (data) =>
             data != null && data.playlistId != resolvedItem.id,
         onAccept: (data) {
-          folderState.assignPlaylistToFolder(data.playlistId, entry.folderId);
+          final prevFolderId = data.folderId;
+          final targetFolderId = entry.folderId;
+          folderState.assignPlaylistToFolder(data.playlistId, targetFolderId);
           folderState.movePlaylistBefore(data.playlistId, resolvedItem.id);
+          if (prevFolderId != null && targetFolderId == null) {
+            context.read<SpotifyInternalProvider>().removePlaylistFromFolder(
+              playlistId: data.playlistId,
+            );
+          } else if (targetFolderId != null && targetFolderId != prevFolderId) {
+            context.read<SpotifyInternalProvider>().addPlaylistToFolder(
+              playlistId: data.playlistId,
+              folderId: targetFolderId,
+            );
+          }
         },
         builder: (context, candidate, rejected) => Container(
           decoration: candidate.isNotEmpty

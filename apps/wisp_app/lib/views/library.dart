@@ -454,8 +454,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
                       ),
                       if (_selectedTab == LibraryView.playlists)
                         _buildSortMenuButton(folderState, isMobile: true),
-                      if (_selectedTab == LibraryView.playlists &&
-                          folderState.isCustomSort)
+                      if (_selectedTab == LibraryView.playlists && isMobile)
                         _buildDragToggleButton(),
                       _buildCreateMenuButton(),
                     ],
@@ -508,22 +507,20 @@ class LibraryTabViewState extends State<LibraryTabView> {
         color: const Color(0xFF282828),
         onSelected: (mode) {
           folderState.setSortMode(mode);
-          if (mode != LibrarySortMode.custom && isMobile) {
-            setState(() => _dragModeEnabled = false);
-          }
+          context.read<SpotifyInternalProvider>().fetchUserLibrarySorted(sortMode: mode);
         },
-        itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: LibrarySortMode.original,
-            child: Text('Index', style: TextStyle(color: Colors.white)),
+        itemBuilder: (context) => const [
+          PopupMenuItem(
+            value: LibrarySortMode.recent,
+            child: Text('Recent', style: TextStyle(color: Colors.white)),
           ),
-          const PopupMenuItem(
-            value: LibrarySortMode.recentlyPlayed,
-            child: Text('Recently played', style: TextStyle(color: Colors.white)),
+          PopupMenuItem(
+            value: LibrarySortMode.recentlyAdded,
+            child: Text('Recently added', style: TextStyle(color: Colors.white)),
           ),
-          const PopupMenuItem(
-            value: LibrarySortMode.custom,
-            child: Text('Custom order', style: TextStyle(color: Colors.white)),
+          PopupMenuItem(
+            value: LibrarySortMode.alphabetical,
+            child: Text('Alphabetical', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -637,7 +634,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
   Widget _buildPlaylistsContent(double padding) {
     final folderState = context.watch<LibraryFolderState>();
     final isMobile = Platform.isAndroid || Platform.isIOS;
-    final allowDrag = folderState.isCustomSort && (!isMobile || _dragModeEnabled);
+    final allowDrag = !isMobile || _dragModeEnabled;
 
     if (_playlistError != null && _displayPlaylists.isEmpty) {
       return _buildErrorWidget(_playlistError!, _refreshPlaylists);

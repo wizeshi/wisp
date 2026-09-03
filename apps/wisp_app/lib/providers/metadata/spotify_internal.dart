@@ -22,6 +22,7 @@ import 'package:wisp/widgets/spotify_webview.dart';
 import 'package:wisp/services/credentials.dart';
 import 'package:wisp/utils/logger.dart';
 import 'package:wisp/models/spotify_internal_converters.dart';
+import 'package:wisp/providers/library/library_folders.dart';
 
 const _allowInsecureSpotifyTls = bool.fromEnvironment(
   'WISP_ALLOW_INSECURE_SPOTIFY_TLS',
@@ -272,6 +273,7 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
 
     _lastAuthInitAttemptAt = now;
+
     final future = _initializeAuthStateInternal();
     _authInitInFlight = future;
     try {
@@ -695,7 +697,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         );
       }
       // First attempt failed, try refreshing tokens
-      return _makeWebApiRequestWithBody(
+      return await _makeWebApiRequestWithBody(
         path,
         method: method,
         body: body,
@@ -727,7 +729,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         logger.d(
           '[Metadata/Spotify-Internal] Got 401, attempting token refresh and retry',
         );
-        return _makeWebApiRequestWithBody(
+        return await _makeWebApiRequestWithBody(
           path,
           method: method,
           body: body,
@@ -3065,6 +3067,7 @@ class SpotifyInternalProvider extends MetadataProvider {
   //    0: "spotify:user:{userId}:folder:{folderId}"
   // ]"
   Future<GenericLibrary> getUserLibrary({
+    LibrarySortMode sortMode = LibrarySortMode.recent,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     return _getWithCache(
@@ -3072,7 +3075,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       id: 'library',
       policy: policy,
       fetcher: () async {
-        GenericLibrary library = await _fetchUserLibrary([]);
+        GenericLibrary library = await _fetchUserLibrary([], sortMode: sortMode);
 
         final initialAll = library.all_organized ?? [];
         final remoteFolderIds = <String>[];
@@ -3092,7 +3095,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         }
 
         if (remoteFolderIds.isNotEmpty) {
-          library = await _fetchUserLibrary(remoteFolderIds);
+          library = await _fetchUserLibrary(remoteFolderIds, sortMode: sortMode);
         }
 
         final finalAll = library.all_organized ?? [];
@@ -3182,6 +3185,7 @@ class SpotifyInternalProvider extends MetadataProvider {
 
   Future<GenericLibrary> _fetchUserLibrary(
     List<String>? expandedFoldersIDs,
+    {LibrarySortMode sortMode = LibrarySortMode.recent}
   ) async {
     if (!_isAuthenticated) {
       throw StateError(
@@ -3199,6 +3203,19 @@ class SpotifyInternalProvider extends MetadataProvider {
       await _acquireTokensFromCookie(cookie);
     }
 
+    String sortOrder;
+    switch (sortMode) {
+      case LibrarySortMode.alphabetical:
+        sortOrder = 'Alphabetical';
+        break;
+      case LibrarySortMode.recentlyAdded:
+        sortOrder = 'Recently Added';
+        break;
+      case LibrarySortMode.recent:
+        sortOrder = 'Recents';
+        break;
+    }
+
     const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
     final body = {
       "variables": {
@@ -3209,7 +3226,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         "includeFoldersWhenFlattening": true,
         "limit": 100,
         "offset": 0,
-        "order": null,
+        "order": sortOrder,
         "textFilter": null,
       },
       "operationName": "libraryV3",
@@ -3217,7 +3234,7 @@ class SpotifyInternalProvider extends MetadataProvider {
         "persistedQuery": {
           "version": 1,
           "sha256Hash":
-              "9f4da031f81274d572cfedaf6fc57a737c84b43d572952200b2c36aaa8fec1c6",
+              "390c78e5b951029bad359785e69b07b536a509c581cbcd0aded5e5067f187455",
         },
       },
     };
@@ -3288,6 +3305,235 @@ class SpotifyInternalProvider extends MetadataProvider {
       'tokenRequestMaxAttempts': _tokenRequestMaxAttempts,
       'maxStartupAuthRetries': _maxStartupAuthRetries,
     };
+  }
+
+  Future<GenericLibrary?> fetchUserLibrarySorted({
+    required LibrarySortMode sortMode,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
+  }) async {
+    // Redirect
+    return getUserLibrary(sortMode: sortMode, policy: policy);
+  }
+
+  Future<void> addPlaylistToFolder({
+    required String playlistId,
+    required String folderId,
+  }) async {
+    logger.d('[SpotifyInternal] addPlaylistToFolder playlistId=$playlistId, folderId=$folderId');
+    if (!_isAuthenticated) {
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
+    }
+
+    if (_bearerToken == null || _clientToken == null) {
+      final cookie = await _credentialsService.getSpotifyLyricsCookie();
+      if (cookie == null || cookie.isEmpty) {
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+        );
+      }
+      await _acquireTokensFromCookie(cookie);
+    }
+
+    await _ensureWritingAllowed();
+
+    String trueFolderId = folderId;
+    String truePlaylistId = playlistId;
+    // Sometimes, folderId can be like
+    // spotify:user:{userId}:folder:{folderId}
+    // or just folderId. Gotta filter!
+    if (folderId.startsWith('spotify:user:')) {
+      final parts = folderId.split(':');
+      if (parts.length >= 5) {
+        trueFolderId = parts[4];
+      }
+    }
+    // Similar for playlistId, which can be like
+    // spotify:playlist:{playlistId}
+    // or just playlistId. Gotta filter (again)!
+    if (playlistId.startsWith('spotify:playlist:')) {
+      final parts = playlistId.split(':');
+      if (parts.length >= 3) {
+        truePlaylistId = parts[2];
+      }
+    }
+
+    final url = 'https://spclient.wg.spotify.com/playlist/v2/user/$userId/rootlist/changes';
+    final body = {
+      "deltas": [
+        {
+          "ops": [
+            {
+              "kind": "MOV",
+              "mov": {
+                "items": [
+                  {
+                    // this is the playlist id
+                    "uri": "spotify:playlist:$truePlaylistId",
+                    "attributes": {}
+                  }
+                ],
+                "addAfterItem": {
+                  // this is the folder id. idk why its named "start-group" but it is
+                  "uri": "spotify:start-group:$trueFolderId",
+                  "attributes": {}
+                }
+              }
+            }
+          ],
+          "info": {
+            "source": {
+              "client": "WEBPLAYER"
+            }
+          }
+        }
+      ]
+    };
+
+    final headers = {
+      'Authorization': 'Bearer $_bearerToken',
+      'client-token': _clientToken!,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': spotifyUserAgent,
+      'Origin': 'https://open.spotify.com',
+      'Referer': 'https://open.spotify.com/',
+      'app-platform': 'WebPlayer',
+      'spotify-app-version': spotifyAppVersion,
+      'Accept-Language': 'en',
+    };
+
+    final response = await _postWithRetry(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        '[Metadata/Spotify-Internal] Failed to add playlist to folder: ${response.statusCode} ${response.body}',
+      );
+    }
+
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+
+    // Spotify usually updates the frontend state right after the request is made
+    // When it fails, the response says it needs a resync. 
+    // So we throw a failure here.
+    if (responseJson['changeRequiresResync'] == true) {
+      throw Exception(
+        '[Metadata/Spotify-Internal] Failed to add playlist to folder.',
+      );
+    }
+  }
+
+  Future<void> removePlaylistFromFolder({
+    required String playlistId,
+  }) async {
+    logger.d('[SpotifyInternal] removePlaylistFromFolder playlistId=$playlistId');
+    if (!_isAuthenticated) {
+      throw StateError(
+        '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
+      );
+    }
+
+    if (_bearerToken == null || _clientToken == null) {
+      final cookie = await _credentialsService.getSpotifyLyricsCookie();
+      if (cookie == null || cookie.isEmpty) {
+        throw StateError(
+          '[Metadata/Spotify-Internal] Not logged in. No Spotify cookie found.',
+        );
+      }
+      await _acquireTokensFromCookie(cookie);
+    }
+
+    await _ensureWritingAllowed();
+
+    String truePlaylistId = playlistId;
+    // Sometimes, playlistId can be like
+    // spotify:playlist:{playlistId}
+    // or just playlistId. Gotta filter (again)!
+    if (playlistId.startsWith('spotify:playlist:')) {
+      final parts = playlistId.split(':');
+      if (parts.length >= 3) {
+        truePlaylistId = parts[2];
+      }
+    }
+
+    final url = 'https://spclient.wg.spotify.com/playlist/v2/user/$userId/rootlist/changes';
+    final body = {
+      "deltas": [
+        {
+          "ops": [
+            {
+              "kind": "MOV",
+              "mov": {
+                "items": [
+                  {
+                    // this is the playlist id
+                    "uri": "spotify:playlist:$truePlaylistId",
+                    "attributes": {}
+                  }
+                ],
+                "addFirst": true
+              }
+            }
+          ],
+          "info": {
+            "source": {
+              "client": "WEBPLAYER"
+            }
+          }
+        }
+      ]
+    };
+
+    final headers = {
+      'Authorization': 'Bearer $_bearerToken',
+      'client-token': _clientToken!,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': spotifyUserAgent,
+      'Origin': 'https://open.spotify.com',
+      'Referer': 'https://open.spotify.com/',
+      'app-platform': 'WebPlayer',
+      'spotify-app-version': spotifyAppVersion,
+      'Accept-Language': 'en',
+    };
+
+    final response = await _postWithRetry(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        '[Metadata/Spotify-Internal] Failed to remove playlist from folder: ${response.statusCode} ${response.body}',
+      );
+    }
+
+    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+
+    // Spotify usually updates the frontend state right after the request is made
+    // When it fails, the response says it needs a resync. 
+    // So we throw a failure here.
+    if (responseJson['changeRequiresResync'] == true) {
+      throw Exception(
+        '[Metadata/Spotify-Internal] Failed to remove playlist from folder.',
+      );
+    }
+  }
+
+  Future<void> reportItemPlayed({
+    required String itemId,
+    required String itemType,
+  }) async {
+    // Even though we can't make it work due to Spotify's anti-external-requests measures, 
+    // I'll leave this stub here. Maybe in the future we can figure out something, 
+    // or repurpose it for something else. For now, it does nothing.
+    // logger.d('[SpotifyInternal] reportItemPlayed itemId=$itemId, itemType=$itemType');
   }
 }
 

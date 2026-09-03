@@ -12,7 +12,7 @@ import '../../models/metadata_models.dart';
 import '../../services/folder_thumbnail_store.dart';
 import '../../utils/liked_songs.dart';
 
-enum LibrarySortMode { original, recentlyPlayed, custom }
+enum LibrarySortMode { recent, recentlyAdded, alphabetical }
 
 class LibraryFolderGroup {
   final PlaylistFolder folder;
@@ -48,7 +48,7 @@ class LibraryFolderState extends ChangeNotifier {
   final List<String> _originalPlaylistOrder = [];
   final Set<String> _collapsedFolderIds = {};
 
-  LibrarySortMode _sortMode = LibrarySortMode.original;
+  LibrarySortMode _sortMode = LibrarySortMode.recent;
   bool _initialized = false;
 
   LibraryFolderState() {
@@ -59,7 +59,7 @@ class LibraryFolderState extends ChangeNotifier {
   LibrarySortMode get sortMode => _sortMode;
   bool isFolderCollapsed(String folderId) => _collapsedFolderIds.contains(folderId);
 
-  bool get isCustomSort => _sortMode == LibrarySortMode.custom;
+  bool get isCustomSort => false;
 
   List<GenericPlaylist> sortPlaylists(List<GenericPlaylist> playlists) {
     return _orderPlaylists(playlists);
@@ -130,7 +130,7 @@ class LibraryFolderState extends ChangeNotifier {
     if (sortModeRaw != null) {
       _sortMode = LibrarySortMode.values.firstWhere(
         (e) => e.name == sortModeRaw,
-        orElse: () => LibrarySortMode.original,
+        orElse: () => LibrarySortMode.recent,
       );
     }
 
@@ -325,11 +325,15 @@ class LibraryFolderState extends ChangeNotifier {
     }
   }
 
-  Future<void> markPlaylistPlayed(String playlistId) async {
-    _playlistLastPlayed[playlistId] = DateTime.now();
+  DateTime? lastPlayedForItem(String id) => _playlistLastPlayed[id];
+
+  Future<void> markItemPlayed(String id) async {
+    _playlistLastPlayed[id] = DateTime.now();
     notifyListeners();
     await _savePrefs();
   }
+
+  Future<void> markPlaylistPlayed(String playlistId) => markItemPlayed(playlistId);
 
   Future<void> setSortMode(LibrarySortMode mode) async {
     if (_sortMode == mode) return;
@@ -429,9 +433,7 @@ class LibraryFolderState extends ChangeNotifier {
   ) async {
     if (isLikedSongsPlaylistId(playlistId)) return;
     _playlistFolderIds[playlistId] = folderId;
-    if (_sortMode == LibrarySortMode.custom) {
-      _movePlaylistToGroupEnd(playlistId, folderId);
-    }
+    _movePlaylistToGroupEnd(playlistId, folderId);
     notifyListeners();
     await _savePrefs();
   }
@@ -488,10 +490,7 @@ class LibraryFolderState extends ChangeNotifier {
   ) {
     final folders = List<PlaylistFolder>.from(_folders);
     switch (_sortMode) {
-      case LibrarySortMode.original:
-        folders.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-        return folders;
-      case LibrarySortMode.recentlyPlayed:
+      case LibrarySortMode.recent:
         folders.sort((a, b) {
           final aTime = _folderLastPlayed(assigned[a.id]);
           final bTime = _folderLastPlayed(assigned[b.id]);
@@ -503,44 +502,34 @@ class LibraryFolderState extends ChangeNotifier {
           return bTime.compareTo(aTime);
         });
         return folders;
-      case LibrarySortMode.custom:
-        return _orderByCustomList(folders, _customFolderOrder);
+      case LibrarySortMode.recentlyAdded:
+        folders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return folders;
+      case LibrarySortMode.alphabetical:
+        folders.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        return folders;
     }
   }
 
   List<GenericPlaylist> _orderPlaylists(List<GenericPlaylist> playlists) {
     switch (_sortMode) {
-      case LibrarySortMode.original:
-        return _orderByOriginal(playlists);
-      case LibrarySortMode.recentlyPlayed:
+      case LibrarySortMode.recent:
         return _orderByRecentlyPlayed(playlists);
-      case LibrarySortMode.custom:
-        return _orderByCustomList(playlists, _customPlaylistOrder);
+      case LibrarySortMode.recentlyAdded:
+        return _orderByRecentlyAdded(playlists);
+      case LibrarySortMode.alphabetical:
+        return _orderByAlphabetical(playlists);
     }
   }
 
-  List<T> _orderByCustomList<T extends Object>(
-    List<T> items,
-    List<String> order,
-  ) {
-    String idFor(T item) {
-      if (item is PlaylistFolder) return item.id;
-      if (item is GenericPlaylist) return item.id;
-      return '';
-    };
-
-    final orderIndex = <String, int>{};
-    for (var i = 0; i < order.length; i++) {
-      orderIndex[order[i]] = i;
-    }
-
-    final sorted = List<T>.from(items);
-    sorted.sort((a, b) {
-      final aIndex = orderIndex[idFor(a)] ?? 999999;
-      final bIndex = orderIndex[idFor(b)] ?? 999999;
-      return aIndex.compareTo(bIndex);
-    });
+  List<GenericPlaylist> _orderByAlphabetical(List<GenericPlaylist> playlists) {
+    final sorted = List<GenericPlaylist>.from(playlists);
+    sorted.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
     return sorted;
+  }
+
+  List<GenericPlaylist> _orderByRecentlyAdded(List<GenericPlaylist> playlists) {
+    return _orderByOriginal(playlists);
   }
 
   List<GenericPlaylist> _orderByOriginal(List<GenericPlaylist> playlists) {
