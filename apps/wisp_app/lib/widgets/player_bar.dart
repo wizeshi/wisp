@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
+import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp/widgets/marquee_text.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../models/metadata_models.dart';
@@ -51,7 +52,7 @@ class WispPlayerBar extends StatelessWidget {
 
 class _MobilePlayerBarAnimated extends StatefulWidget {
   final dynamic currentTrack;
-  final String appStyle;
+  final AppStyle appStyle;
 
   const _MobilePlayerBarAnimated({
     required this.currentTrack,
@@ -359,7 +360,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     );
   }
 
-  Widget _buildMobileConnectButton(String appStyle) {
+  Widget _buildMobileConnectButton(AppStyle appStyle) {
     return _ConnectMenuButton(
       iconSize: 24,
       appStyle: appStyle,
@@ -368,7 +369,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     );
   }
 
-  Widget _buildMobilePlayPauseButton(String appStyle) {
+  Widget _buildMobilePlayPauseButton(AppStyle appStyle) {
     return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
       selector: (context, player) {
         final track = player.currentTrack;
@@ -416,13 +417,13 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             !data.currentTrackCached;
         final IconData icon = effectiveIsPlaying
             ? (switch (appStyle) {
-                'Spotify' => Icons.pause,
-                'Apple Music' => CupertinoIcons.pause_solid,
+                AppStyle.Spotify => Icons.pause,
+                AppStyle.AppleMusic => CupertinoIcons.pause_solid,
                 _ => Icons.pause,
               })
             : (switch (appStyle) {
-                'Spotify' => Icons.play_arrow,
-                'Apple Music' => CupertinoIcons.play_arrow_solid,
+                AppStyle.Spotify => Icons.play_arrow,
+                AppStyle.AppleMusic => CupertinoIcons.play_arrow_solid,
                 _ => Icons.pause,
               });
         VoidCallback? onPressed;
@@ -543,7 +544,7 @@ class _SwipePreviewData {
 
 class _DesktopPlayerBar extends StatelessWidget {
   final GenericSong? currentTrack;
-  final String appStyle;
+  final AppStyle appStyle;
 
   const _DesktopPlayerBar({required this.currentTrack, required this.appStyle});
 
@@ -1245,7 +1246,7 @@ class DesktopNextUpPreviewOverlay extends StatelessWidget {
 }
 
 class _DesktopPlaybackControls extends StatelessWidget {
-  final String appStyle;
+  final AppStyle appStyle;
 
   const _DesktopPlaybackControls({required this.appStyle});
 
@@ -1274,7 +1275,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
         );
       },
       builder: (context, data, child) {
-        final isAppleStyle = appStyle == 'Apple Music';
+        final isAppleStyle = appStyle == AppStyle.AppleMusic;
         final controlSpacing = isAppleStyle ? 8.0 : 4.0;
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1371,7 +1372,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
 
 class _DesktopPlayPauseButton extends StatelessWidget {
   final _PlayPauseData data;
-  final String appStyle;
+  final AppStyle appStyle;
 
   const _DesktopPlayPauseButton({required this.data, required this.appStyle});
 
@@ -1405,7 +1406,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
         !data.isOnline &&
         data.currentTrackId != null &&
         !data.currentTrackCached;
-    final isAppleStyle = appStyle == 'Apple Music';
+    final isAppleStyle = appStyle == AppStyle.AppleMusic;
     IconData icon = effectiveIsPlaying
         ? (isAppleStyle
               ? CupertinoIcons.pause_solid
@@ -1471,7 +1472,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
 
 class _DesktopRightControls extends StatelessWidget {
   final GenericSong? currentTrack;
-  final String appStyle;
+  final AppStyle appStyle;
 
   const _DesktopRightControls({
     required this.currentTrack,
@@ -1485,7 +1486,7 @@ class _DesktopRightControls extends StatelessWidget {
       valueListenable: NavigationHistory.instance.currentRoute,
       builder: (context, route, child) {
         final routeName = route?.settings.name;
-        final isAppleStyle = appStyle == 'Apple Music';
+        final isAppleStyle = appStyle == AppStyle.AppleMusic;
         final controlSpacing = isAppleStyle ? 12.0 : 8.0;
         final volumeSpacing = isAppleStyle ? 6.0 : 4.0;
         final isLyricsRouteOpen = routeName == '/lyrics';
@@ -2207,7 +2208,7 @@ class _ConnectMenuButton extends StatelessWidget {
   final double iconSize;
   final Color? inactiveColor;
   final Color? activeColorOverride;
-  final String appStyle;
+  final AppStyle appStyle;
 
   const _ConnectMenuButton({
     required this.iconSize,
@@ -2217,8 +2218,8 @@ class _ConnectMenuButton extends StatelessWidget {
   });
 
   IconData get icon => switch (appStyle) {
-    'Spotify' => Icons.cast_connected,
-    'Apple Music' => CupertinoIcons.antenna_radiowaves_left_right,
+    AppStyle.Spotify => Icons.cast_connected,
+    AppStyle.AppleMusic => CupertinoIcons.antenna_radiowaves_left_right,
     _ => Icons.cast_connected,
   };
 

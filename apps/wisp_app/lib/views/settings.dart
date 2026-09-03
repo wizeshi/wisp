@@ -14,6 +14,7 @@ import 'package:wisp/providers/audio/youtube.dart';
 import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/providers/lyrics/provider.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
+import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/preferences/preferences_provider.dart';
@@ -961,7 +962,11 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildStylePreferenceRow() {
-    final options = ['Spotify', 'Apple Music', 'YouTube Music'];
+    final options = [
+      AppStyle.Spotify,
+      AppStyle.AppleMusic,
+      AppStyle.Original
+    ];
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF181818),
@@ -986,7 +991,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             )
           ),
-          Selector<PreferencesProvider, String>(
+          Selector<PreferencesProvider, AppStyle>(
             selector: (context, prefs) => prefs.style,
             builder: (context, selectedStyle, child) {
               if (_isMobile) {
@@ -999,7 +1004,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          selectedStyle,
+                          selectedStyle.toString(),
                           style: const TextStyle(color: Colors.white, fontSize: 14),
                         ),
                         const SizedBox(width: 6),
@@ -1016,14 +1021,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
               return MouseRegion(
                 cursor: SystemMouseCursors.click,
-                child: DropdownButton<String>(
+                child: DropdownButton<AppStyle>(
                   value: selectedStyle,
                   mouseCursor: SystemMouseCursors.click,
                   items: options
                       .map((style) => DropdownMenuItem(
                             value: style,
                             child: Text(
-                              style,
+                              style.toString(),
                               style: const TextStyle(color: Colors.white),
                             ),
                           ))
@@ -1044,10 +1049,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showStyleSelectionSheet(
-    String selectedStyle,
-    List<String> options,
+    AppStyle selectedStyle,
+    List<AppStyle> options,
   ) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showModalBottomSheet<AppStyle>(
       context: context,
       isDismissible: true,
       enableDrag: true,
@@ -1074,7 +1079,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ...options.map(
                 (style) => ListTile(
                   title: Text(
-                    style,
+                    style.toString(),
                     style: const TextStyle(color: Colors.white),
                   ),
                   trailing: style == selectedStyle

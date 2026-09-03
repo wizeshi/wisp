@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/services/connect/connect_models.dart';
+import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp/utils/text_parser.dart';
 import 'package:wisp/widgets/connect/connect_menu.dart';
 import 'package:wisp/widgets/marquee_text.dart';
@@ -168,7 +169,7 @@ class FullScreenPlayer extends StatelessWidget {
     final style = context.watch<PreferencesProvider>().style;
 
     // Use new desktop fullscreen for Spotify on desktop
-    if (_isDesktop && style == 'Spotify') {
+    if (_isDesktop && style == AppStyle.Spotify) {
       return PopScope(
         onPopInvoked: (didPop) {
           if (!didPop) return;
@@ -202,15 +203,14 @@ class FullScreenPlayer extends StatelessWidget {
   Widget _buildSheet(
     BuildContext context,
     ScrollController scrollController,
-    String style,
+    AppStyle style,
   ) {
     switch (style) {
-      case 'Apple Music':
+      case AppStyle.AppleMusic:
         return AppleMusicFullScreenPlayer(scrollController: scrollController);
-      case 'YouTube Music':
+      case AppStyle.Original:
         return YouTubeMusicFullScreenPlayer(scrollController: scrollController);
-      case 'Spotify':
-      default:
+      case AppStyle.Spotify:
         return SpotifyFullScreenPlayer(scrollController: scrollController);
     }
   }

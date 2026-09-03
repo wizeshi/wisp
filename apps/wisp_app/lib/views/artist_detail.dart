@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/providers/theme/cover_art_palette_provider.dart';
+import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp/utils/text_parser.dart';
 
 import '../models/metadata_models.dart';
@@ -234,14 +235,14 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     int followers,
     String description,
     bool isDesktop,
-    String style,
+    AppStyle style,
     Color headerColor,
     Color actionsRowColor,
   ) {
     final isMobile = !isDesktop;
 
     if (isMobile) {
-      if (style == 'Apple Music') {
+      if (style == AppStyle.AppleMusic) {
         return _buildMobileArtistContentApple(
           imageUrl: imageUrl,
           name: name,
@@ -256,7 +257,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       );
     }
 
-    if (style == 'Apple Music') {
+    if (style == AppStyle.AppleMusic) {
       return _buildDesktopArtistContentApple(
         imageUrl: imageUrl,
         name: name,

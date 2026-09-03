@@ -2,6 +2,29 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+enum AppStyle {
+  // ignore: constant_identifier_names
+  Original,
+  // ignore: constant_identifier_names
+  Spotify,
+  // ignore: constant_identifier_names
+  AppleMusic;
+
+  @override
+  String toString() => {
+    AppStyle.Original: 'Original',
+    AppStyle.Spotify: 'Spotify',
+    AppStyle.AppleMusic: 'Apple Music',
+  }[this]!;
+
+  static AppStyle fromString(String string) {
+    return AppStyle.values.firstWhere(
+      (e) => e.toString() == string,
+      orElse: () => AppStyle.Spotify,
+    );
+  }
+}
+
 /// Centralized theme configuration for the app.
 ///
 /// Change [brandColor] to update the app-wide accent color.
@@ -16,7 +39,7 @@ class AppTheme {
 
   static ThemeData dark({
     ColorScheme? paletteOverride,
-    String appStyle = 'Spotify',
+    AppStyle appStyle = AppStyle.Spotify,
   }) {
     final fallback = ColorScheme.dark(
       primary: brandColor,
@@ -44,9 +67,9 @@ class AppTheme {
     );
 
     return ThemeData(
-      fontFamily: appStyle == 'Apple Music' ? 'SF Pro' : 'SpotifyMixUI',
+      fontFamily: appStyle == AppStyle.AppleMusic ? 'SF Pro' : 'SpotifyMixUI',
       package: "wisp_assets",
-      textTheme: (appStyle == "Apple Music" && (Platform.isMacOS || Platform.isIOS)) ? TextTheme(
+      textTheme: (appStyle == AppStyle.AppleMusic && (Platform.isMacOS || Platform.isIOS)) ? TextTheme(
         bodyLarge: withAppleLetterSpacing,
         bodyMedium: withAppleLetterSpacing,
         bodySmall: withAppleLetterSpacing,

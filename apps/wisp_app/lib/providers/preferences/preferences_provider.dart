@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/services/connect/connect_models.dart';
+import 'package:wisp/theme/app_theme.dart';
 
 class PreferencesProvider extends ChangeNotifier {
   static const _keyStyle = 'preferred_style';
@@ -31,8 +32,8 @@ class PreferencesProvider extends ChangeNotifier {
   static const HandoffSecurityLevel _defaultHandoffSecurityLevel =
       HandoffSecurityLevel.keyExchange;
 
-  String _style = 'Spotify';
-  String get style => _style;
+  AppStyle _style = AppStyle.Spotify;
+  AppStyle get style => _style;
 
   bool _animatedCanvasEnabled = false;
   bool get animatedCanvasEnabled => _animatedCanvasEnabled;
@@ -83,7 +84,10 @@ class PreferencesProvider extends ChangeNotifier {
   Future<void> _load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _style = prefs.getString(_keyStyle) ?? _style;
+      _style = AppStyle.values.firstWhere(
+        (e) => e.name == prefs.getString(_keyStyle),
+        orElse: () => _style,
+      );
       _animatedCanvasEnabled =
           prefs.getBool(_keyAnimatedCanvas) ?? _animatedCanvasEnabled;
       _allowWriting = prefs.getBool(_keyAllowWriting) ?? _defaultAllowWriting;
@@ -172,13 +176,13 @@ class PreferencesProvider extends ChangeNotifier {
         _defaultLyricsSpotifyEnabled;
   }
 
-  Future<void> setStyle(String style) async {
+  Future<void> setStyle(AppStyle style) async {
     if (style == _style) return;
     _style = style;
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyStyle, style);
+      await prefs.setString(_keyStyle, style.toString());
     } catch (_) {
       // Ignore save errors
     }

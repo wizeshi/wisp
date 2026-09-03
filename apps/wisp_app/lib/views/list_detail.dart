@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp/utils/text_parser.dart';
 
 import '../models/metadata_models.dart';
@@ -2064,7 +2065,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       return Scaffold(backgroundColor: Colors.transparent, body: content);
     }
 
-    if (style == 'Apple Music') {
+    if (style == AppStyle.AppleMusic) {
       final contentSurfaceColor = Theme.of(context).colorScheme.surface;
       return Scaffold(
         backgroundColor: contentSurfaceColor,
@@ -2213,7 +2214,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Widget _buildListContentByStyle({
-    required String style,
+    required AppStyle style,
     required String title,
     required String? subtitle,
     required GenericSimpleUser? subtitleUser,
@@ -2224,7 +2225,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     required String? description,
   }) {
     switch (style) {
-      case 'Apple Music':
+      case AppStyle.AppleMusic:
         return _AppleMusicListDetailRenderer(
           view: this,
           title: title,
@@ -2236,7 +2237,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           isDesktop: isDesktop,
           description: description,
         );
-      case 'YouTube Music':
+      case AppStyle.Original:
         return _SpotifyListDetailRenderer(
           view: this,
           title: title,
@@ -2248,8 +2249,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           isDesktop: isDesktop,
           description: description,
         );
-      case 'Spotify':
-      default:
+      case AppStyle.Spotify:
         return _SpotifyListDetailRenderer(
           view: this,
           title: title,
