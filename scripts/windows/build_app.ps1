@@ -1,4 +1,3 @@
-# scripts/windows/build_app.ps1
 [CmdletBinding()]
 param(
     [switch]$SkipSetup,
@@ -58,6 +57,12 @@ $releaseDir = Get-ChildItem -Path (Join-Path $appDir "build\windows") -Recurse -
 if (-not $releaseDir) {
     Write-Error "Couldn't find the built runner\Release output under $appDir\build\windows."
     exit 1
+}
+
+Write-Host "Copying VC++ runtime DLLs into the build output..."
+$vcRuntimeDlls = @("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")
+foreach ($dll in $vcRuntimeDlls) {
+    Copy-Item -Path (Join-Path "$env:SystemRoot\System32" $dll) -Destination $releaseDir.FullName -Force
 }
 
 Write-Host "Staging build output to $distDir..."

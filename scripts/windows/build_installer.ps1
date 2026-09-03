@@ -52,6 +52,12 @@ if (-not (Test-Path $installerBuildRoot)) {
     exit 1
 }
 
+Write-Host "Copying VC++ runtime DLLs into the installer build output..."
+$vcRuntimeDlls = @("msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll")
+foreach ($dll in $vcRuntimeDlls) {
+    Copy-Item -Path (Join-Path "$env:SystemRoot\System32" $dll) -Destination $installerBuildRoot -Force
+}
+
 # --- Stage the app payload next to the raw installer exe ----------------
 $payloadTarget = Join-Path $installerBuildRoot "payload"
 Write-Host "Staging app payload into $payloadTarget..."

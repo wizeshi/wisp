@@ -37,6 +37,31 @@ import '../widgets/entity_context_menus.dart';
 // needing an IntrinsicHeight pass to equalize them.
 const double _kSubtitleLineHeight = 16;
 
+typedef _PlaybackHighlight = ({
+  bool isPlaying,
+  String? currentTrackId,
+  String? currentAlbumId,
+  String currentArtistIds,
+  String? contextType,
+  String? contextId,
+  String? contextName,
+});
+
+_PlaybackHighlight _playbackHighlightOf(WispAudioHandler player) {
+  final track = player.currentTrack;
+  return (
+    isPlaying: player.isPlaying,
+    currentTrackId: track?.id,
+    currentAlbumId: track?.album?.id,
+    currentArtistIds: track == null || track.artists.isEmpty
+        ? ''
+        : track.artists.map((a) => a.id).join('\u0001'),
+    contextType: player.playbackContextType,
+    contextId: player.playbackContextID,
+    contextName: player.playbackContextName,
+  );
+}
+
 bool _isLocalThumbnailPath(String path) {
   return path.startsWith('/') || path.startsWith('file://');
 }
@@ -84,6 +109,12 @@ class HomePageState extends State<HomePage> {
   NavigationState get _navState => context.read<NavigationState>();
   LibraryView get _currentLibraryView => _navState.selectedLibraryView;
   int get _currentNavIndex => _navState.selectedNavIndex;
+
+  _PlaybackHighlight _watchPlaybackHighlight() {
+    return context.select<WispAudioHandler, _PlaybackHighlight>(
+      _playbackHighlightOf,
+    );
+  }
 
   @override
   void initState() {
@@ -439,19 +470,18 @@ class HomePageState extends State<HomePage> {
 
     final bool isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    return Consumer<SpotifyInternalProvider>(
-      builder: (context, spotify, child) {
-        if (!spotify.isAuthenticated) {
-          return _buildUnauthenticatedView();
-        }
-
-        if (_isLoading) {
-          return _buildLoadingView();
-        }
-
-        return _buildMainContent(isDesktop);
-      },
+    final isAuthenticated = context.select<SpotifyInternalProvider, bool>(
+      (spotify) => spotify.isAuthenticated,
     );
+    if (!isAuthenticated) {
+      return _buildUnauthenticatedView();
+    }
+
+    if (_isLoading) {
+      return _buildLoadingView();
+    }
+
+    return _buildMainContent(isDesktop);
   }
 
   Widget _buildUnauthenticatedView() {
@@ -1224,14 +1254,14 @@ class HomePageState extends State<HomePage> {
   Widget? _buildDesktopQuickRows() {
     if (_homeSections.isEmpty) return null;
     final firstSection = _homeSections.entries.first;
-    final player = context.watch<WispAudioHandler>();
+    final playback = _watchPlaybackHighlight();
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
         final itemsPerRow = (maxWidth / 220).floor().clamp(1, 4);
         final maxItems = min(itemsPerRow * 2, 8);
         final cards = firstSection.value
-            .map<Widget?>((item) => _buildHomeQuickTile(item, player))
+            .map<Widget?>((item) => _buildHomeQuickTile(item, playback))
             .whereType<Widget>()
             .take(maxItems)
             .toList();
@@ -1270,43 +1300,41 @@ class HomePageState extends State<HomePage> {
     );
   }
 
-  bool _isActivePlaylist(WispAudioHandler player, GenericPlaylist item) {
-    if (player.playbackContextType != 'playlist') return false;
-    if (player.playbackContextID == item.id) return true;
-    final contextName = player.playbackContextName?.trim();
+  bool _isActivePlaylist(_PlaybackHighlight playback, GenericPlaylist item) {
+    if (playback.contextType != 'playlist') return false;
+    if (playback.contextId == item.id) return true;
+    final contextName = playback.contextName?.trim();
     return contextName != null &&
         contextName.isNotEmpty &&
         contextName == item.title.trim();
   }
 
-  bool _isActiveAlbum(WispAudioHandler player, GenericAlbum item) {
-    if (player.playbackContextType == 'album') {
-      if (player.playbackContextID == item.id) return true;
-      final contextName = player.playbackContextName?.trim();
+  bool _isActiveAlbum(_PlaybackHighlight playback, GenericAlbum item) {
+    if (playback.contextType == 'album') {
+      if (playback.contextId == item.id) return true;
+      final contextName = playback.contextName?.trim();
       return contextName != null &&
           contextName.isNotEmpty &&
           contextName == item.title.trim();
     }
-    return player.currentTrack?.album?.id == item.id;
+    return playback.currentAlbumId == item.id;
   }
 
-  bool _isActiveArtist(WispAudioHandler player, GenericSimpleArtist item) {
-    if (player.playbackContextType == 'artist') {
-      if (player.playbackContextID == item.id) return true;
-      final contextName = player.playbackContextName?.trim();
+  bool _isActiveArtist(_PlaybackHighlight playback, GenericSimpleArtist item) {
+    if (playback.contextType == 'artist') {
+      if (playback.contextId == item.id) return true;
+      final contextName = playback.contextName?.trim();
       return contextName != null &&
           contextName.isNotEmpty &&
           contextName == item.name.trim();
     }
-    final currentTrack = player.currentTrack;
-    if (currentTrack == null) return false;
-    return currentTrack.artists.any((a) => a.id == item.id);
+    return playback.currentArtistIds.split('\u0001').contains(item.id);
   }
 
-  Widget? _buildHomeQuickTile(dynamic item, WispAudioHandler player) {
-    final isPlaying = player.isPlaying;
+  Widget? _buildHomeQuickTile(dynamic item, _PlaybackHighlight playback) {
+    final isPlaying = playback.isPlaying;
     if (item is GenericPlaylist) {
-      final isActive = _isActivePlaylist(player, item);
+      final isActive = _isActivePlaylist(playback, item);
       return _HomeQuickTile(
         imageUrl: item.thumbnailUrl,
         title: item.title,
@@ -1338,7 +1366,7 @@ class HomePageState extends State<HomePage> {
     }
 
     if (item is GenericAlbum) {
-      final isActive = _isActiveAlbum(player, item);
+      final isActive = _isActiveAlbum(playback, item);
       return _HomeQuickTile(
         imageUrl: item.thumbnailUrl,
         title: item.title,
@@ -1366,7 +1394,7 @@ class HomePageState extends State<HomePage> {
     }
 
     if (item is GenericSimpleArtist) {
-      final isActive = _isActiveArtist(player, item);
+      final isActive = _isActiveArtist(playback, item);
       return _HomeQuickTile(
         imageUrl: item.thumbnailUrl,
         title: item.name,
@@ -1389,7 +1417,7 @@ class HomePageState extends State<HomePage> {
     }
 
     if (item is GenericSong) {
-      final isActive = player.currentTrack?.id == item.id;
+      final isActive = playback.currentTrackId == item.id;
       return _HomeQuickTile(
         imageUrl: item.thumbnailUrl,
         title: item.title,
@@ -1460,10 +1488,10 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget? _buildHomeCard(dynamic item, {bool useSpecialCardStyle = false}) {
-    final player = context.watch<WispAudioHandler>();
-    final isPlaying = player.isPlaying;
+    final playback = _watchPlaybackHighlight();
+    final isPlaying = playback.isPlaying;
     if (item is GenericPlaylist) {
-      final isActive = _isActivePlaylist(player, item);
+      final isActive = _isActivePlaylist(playback, item);
       if (useSpecialCardStyle) {
         return _SpecialCard(
           title: item.title,
@@ -1503,7 +1531,7 @@ class HomePageState extends State<HomePage> {
     }
 
     if (item is GenericAlbum) {
-      final isActive = _isActiveAlbum(player, item);
+      final isActive = _isActiveAlbum(playback, item);
       if (useSpecialCardStyle) {
         final subtitle = item.artists.map((a) => a.name).join(', ');
         return _SpecialCard(
@@ -1544,7 +1572,7 @@ class HomePageState extends State<HomePage> {
     }
 
     if (item is GenericSimpleArtist) {
-      final isActive = _isActiveArtist(player, item);
+      final isActive = _isActiveArtist(playback, item);
       if (useSpecialCardStyle) {
         return _SpecialCard(
           title: item.name,
@@ -1594,7 +1622,7 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildTrackRow(GenericSong track, int index, bool isEven) {
-    final player = context.watch<WispAudioHandler>();
+    final playback = _watchPlaybackHighlight();
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final album = track.album;
@@ -1705,7 +1733,7 @@ class HomePageState extends State<HomePage> {
                                 builder: (isHovering) => Text(
                                   track.title,
                                   style: TextStyle(
-                                    color: player.currentTrack?.id == track.id
+                                    color: playback.currentTrackId == track.id
                                         ? Theme.of(context).colorScheme.primary
                                         : Colors.white,
                                     fontSize: 14,
@@ -1721,7 +1749,7 @@ class HomePageState extends State<HomePage> {
                             : Text(
                                 track.title,
                                 style: TextStyle(
-                                  color: player.currentTrack?.id == track.id
+                                  color: playback.currentTrackId == track.id
                                       ? Theme.of(context).colorScheme.primary
                                       : Colors.white,
                                   fontSize: 14,

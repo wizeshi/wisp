@@ -79,12 +79,26 @@ class WispNavigation extends StatefulWidget {
 }
 
 class _WispNavigationState extends State<WispNavigation> {
+  static const _sidebarOpenDelay = Duration(milliseconds: 160);
+
   bool _isCollapsed = false;
   bool _isHoveringHeader = false;
   bool _layoutCollapsed = false;
   String? _hoveredSidebarItemKey;
-  DateTime? _lastSidebarTapTime;
   String? _lastSidebarTapKey;
+  Duration? _lastSidebarTapTime;
+  Offset? _lastSidebarTapPosition;
+  Timer? _sidebarOpenTimer;
+  String? _pendingSidebarOpenKey;
+  Timer? _sidebarRippleTimer;
+  String? _sidebarRippleKey;
+
+  @override
+  void dispose() {
+    _sidebarOpenTimer?.cancel();
+    _sidebarRippleTimer?.cancel();
+    super.dispose();
+  }
 
   bool _isLocalPath(String? path) {
     if (path == null || path.isEmpty) return false;
@@ -263,33 +277,76 @@ class _WispNavigationState extends State<WispNavigation> {
     await _playSidebarItem(resolvedItem);
   }
 
-  static const _doubleTapTimeoutMs = 200; // milliseconds
-
   void _handleSidebarPrimaryPointerDown(
-    DateTime timestamp,
+    PointerDownEvent event,
     dynamic resolvedItem,
   ) {
-    if (!_isDesktop() || resolvedItem is PlaylistFolder) {
+    if (!_isDesktop() ||
+        event.buttons != kPrimaryButton ||
+        resolvedItem is PlaylistFolder) {
       return;
     }
 
     final key = _sidebarItemHoverKey(resolvedItem);
-    final previousTime = _lastSidebarTapTime;
     final previousKey = _lastSidebarTapKey;
+    final previousTime = _lastSidebarTapTime;
+    final previousPosition = _lastSidebarTapPosition;
     final isDoubleTap =
-        previousTime != null &&
         previousKey == key &&
-        timestamp.millisecondsSinceEpoch - previousTime.millisecondsSinceEpoch <= _doubleTapTimeoutMs;
+        previousTime != null &&
+        previousPosition != null &&
+        event.timeStamp - previousTime <= kDoubleTapTimeout &&
+        (event.position - previousPosition).distance <= kDoubleTapSlop;
 
     if (isDoubleTap) {
+      final pendingOpen = _sidebarOpenTimer;
+      if (_pendingSidebarOpenKey == key && (pendingOpen?.isActive ?? false)) {
+        pendingOpen!.cancel();
+        _sidebarOpenTimer = null;
+        _pendingSidebarOpenKey = null;
+        widget.onLibraryItemSelected(resolvedItem);
+      }
+      _sidebarRippleTimer?.cancel();
+      _lastSidebarTapKey = null;
       _lastSidebarTapTime = null;
+      _lastSidebarTapPosition = null;
       _playSidebarItem(resolvedItem);
       return;
     }
 
     _lastSidebarTapKey = key;
-    _lastSidebarTapTime = timestamp;
-    widget.onLibraryItemSelected(resolvedItem);
+    _lastSidebarTapTime = event.timeStamp;
+    _lastSidebarTapPosition = event.position;
+    _scheduleSidebarRipple(key);
+    _sidebarOpenTimer?.cancel();
+    _pendingSidebarOpenKey = key;
+    _sidebarOpenTimer = Timer(_sidebarOpenDelay, () {
+      if (_pendingSidebarOpenKey != key) return;
+      _sidebarOpenTimer = null;
+      _pendingSidebarOpenKey = null;
+      if (mounted) {
+        widget.onLibraryItemSelected(resolvedItem);
+      }
+    });
+  }
+
+  void _scheduleSidebarRipple(String key) {
+    _sidebarRippleTimer?.cancel();
+    _sidebarRippleTimer = Timer(kDoubleTapTimeout, () {
+      if (mounted && _lastSidebarTapKey == key) {
+        _showSidebarRipple(key);
+      }
+    });
+  }
+
+  void _showSidebarRipple(String key) {
+    _sidebarRippleTimer?.cancel();
+    setState(() => _sidebarRippleKey = key);
+    _sidebarRippleTimer = Timer(const Duration(milliseconds: 280), () {
+      if (mounted && _sidebarRippleKey == key) {
+        setState(() => _sidebarRippleKey = null);
+      }
+    });
   }
 
   String _itemTitle(dynamic item) {
@@ -444,8 +501,7 @@ class _WispNavigationState extends State<WispNavigation> {
             final id = uri.isNotEmpty ? uri : (raw['id'] as String? ?? '');
 
             if (t == 'Folder' || t == 'folder') {
-              final folder =
-                  folderState.getFolderById(id) ??
+              final folder = folderState.getFolderById(id) ??
                   PlaylistFolder(
                     id: id,
                     title: raw['name'] as String? ?? 'Folder',
@@ -458,9 +514,7 @@ class _WispNavigationState extends State<WispNavigation> {
               return;
             }
 
-            if (t == 'Playlist' ||
-                t == 'playlist' ||
-                uri.contains('playlist')) {
+            if (t == 'Playlist' || t == 'playlist' || uri.contains('playlist')) {
               final p = GenericPlaylist(
                 id: id,
                 source: SongSource.spotifyInternal,
@@ -581,9 +635,7 @@ class _WispNavigationState extends State<WispNavigation> {
             break;
           case LibrarySortMode.alphabetical:
             topLevelItems.sort((a, b) {
-              return _itemTitle(
-                a,
-              ).toLowerCase().compareTo(_itemTitle(b).toLowerCase());
+              return _itemTitle(a).toLowerCase().compareTo(_itemTitle(b).toLowerCase());
             });
             for (final entry in folderPlaylists.entries) {
               entry.value.sort((a, b) {
@@ -604,9 +656,7 @@ class _WispNavigationState extends State<WispNavigation> {
             if (!folderState.isFolderCollapsed(item.id)) {
               final children = folderPlaylists[item.id] ?? const [];
               for (final child in children) {
-                allEntries.add(
-                  LibrarySidebarEntry.item(child, folderId: item.id),
-                );
+                allEntries.add(LibrarySidebarEntry.item(child, folderId: item.id));
               }
             }
           } else if (item is GenericPlaylist) {
@@ -814,17 +864,13 @@ class _WispNavigationState extends State<WispNavigation> {
                                 constraints: const BoxConstraints(
                                   minHeight: 24,
                                   minWidth: 24,
-                                  maxHeight: 24,
-                                  maxWidth: 24,
+                                  maxHeight: 24, 
+                                  maxWidth: 24
                                 ),
                                 tooltip: 'Collapse Sidebar',
-                                icon: Icon(
-                                  Symbols.left_panel_close,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
+                                icon: Icon(Symbols.left_panel_close, color: Colors.white, size: 20),
                                 onPressed: () => {
-                                  setState(() => _isCollapsed = !_isCollapsed),
+                                  setState(() => _isCollapsed = !_isCollapsed)
                                 },
                               ),
                             ),
@@ -855,9 +901,7 @@ class _WispNavigationState extends State<WispNavigation> {
                   color: const Color(0xFF282828),
                   onSelected: (mode) {
                     folderState.setSortMode(mode);
-                    context
-                        .read<SpotifyInternalProvider>()
-                        .fetchUserLibrarySorted(sortMode: mode);
+                    context.read<SpotifyInternalProvider>().fetchUserLibrarySorted(sortMode: mode);
                   },
                   style: const ButtonStyle(
                     visualDensity: VisualDensity.comfortable,
@@ -885,7 +929,11 @@ class _WispNavigationState extends State<WispNavigation> {
                       ),
                     ),
                   ],
-                  icon: Icon(Icons.sort, color: Colors.grey[500], size: 16),
+                  icon: Icon(
+                    Icons.sort,
+                    color: Colors.grey[500],
+                    size: 16,
+                  ),
                 ),
               ),
             ),
@@ -899,14 +947,11 @@ class _WispNavigationState extends State<WispNavigation> {
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                    ),
+                    )
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.black38,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   ),
                   icon: Icon(Icons.add, color: Colors.white, size: 20),
                   onPressed: () => _showCreateMenu(buttonContext),
@@ -926,37 +971,29 @@ class _WispNavigationState extends State<WispNavigation> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _isHoveringHeader
-              ? IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minHeight: 32,
-                    minWidth: 32,
-                    maxHeight: 32,
-                    maxWidth: 32,
-                  ),
-                  tooltip: 'Expand Sidebar',
-                  icon: Icon(
-                    Symbols.left_panel_open,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                  onPressed: () => setState(() => _isCollapsed = !_isCollapsed),
-                )
-              : Container(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minHeight: 32,
-                    minWidth: 32,
-                    maxHeight: 32,
-                    maxWidth: 32,
-                  ),
-                  child: Icon(
-                    Symbols.library_music,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
+          _isHoveringHeader 
+            ? IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                minHeight: 32,
+                minWidth: 32,
+                maxHeight: 32, 
+                maxWidth: 32
+              ),
+              tooltip: 'Expand Sidebar',
+              icon: Icon(Symbols.left_panel_open, color: Colors.white, size: 28),
+              onPressed: () => setState(() => _isCollapsed = !_isCollapsed),
+            )
+            : Container(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(
+                minHeight: 32,
+                minWidth: 32,
+                maxHeight: 32, 
+                maxWidth: 32
+              ),
+              child: Icon(Symbols.library_music, color: Colors.white, size: 28),
+            )
         ],
       ),
     );
@@ -1076,100 +1113,91 @@ class _WispNavigationState extends State<WispNavigation> {
               }
             }
           : null,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+      child: Listener(
+        onPointerDown: (event) =>
+            _handleSidebarPrimaryPointerDown(event, resolvedItem),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
           mouseCursor: SystemMouseCursors.click,
-          onSecondaryTapDown: !isDesktop
-              ? null
-              : (details) {
-                  if (resolvedItem is GenericPlaylist) {
-                    EntityContextMenus.showPlaylistMenu(
-                      context,
-                      playlist: resolvedItem,
-                      globalPosition: details.globalPosition,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is GenericAlbum ||
-                      resolvedItem is GenericSimpleAlbum) {
-                    EntityContextMenus.showAlbumMenu(
-                      context,
-                      album: resolvedItem,
-                      globalPosition: details.globalPosition,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is GenericSimpleArtist) {
-                    EntityContextMenus.showArtistMenu(
-                      context,
-                      artist: resolvedItem,
-                      globalPosition: details.globalPosition,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is PlaylistFolder) {
-                    EntityContextMenus.showFolderMenu(
-                      context,
-                      folder: resolvedItem,
-                      globalPosition: details.globalPosition,
-                    );
-                  }
-                },
-          onLongPress: isDesktop
-              ? null
-              : () {
-                  if (resolvedItem is GenericPlaylist) {
-                    EntityContextMenus.showPlaylistMenu(
-                      context,
-                      playlist: resolvedItem,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is GenericAlbum ||
-                      resolvedItem is GenericSimpleAlbum) {
-                    EntityContextMenus.showAlbumMenu(
-                      context,
-                      album: resolvedItem,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is GenericSimpleArtist) {
-                    EntityContextMenus.showArtistMenu(
-                      context,
-                      artist: resolvedItem,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is PlaylistFolder) {
-                    EntityContextMenus.showFolderMenu(
-                      context,
-                      folder: resolvedItem,
-                    );
-                  }
-                },
-          onTap: () {
-            if (resolvedItem is PlaylistFolder) {
-              folderState.toggleFolderCollapsed(resolvedItem.id);
+          onSecondaryTapDown: !isDesktop ? null : (details) {
+            if (resolvedItem is GenericPlaylist) {
+              EntityContextMenus.showPlaylistMenu(
+                context,
+                playlist: resolvedItem,
+                globalPosition: details.globalPosition,
+              );
+              return;
             }
-
-            _handleSidebarPrimaryPointerDown(DateTime.now(), resolvedItem);
+            if (resolvedItem is GenericAlbum ||
+                resolvedItem is GenericSimpleAlbum) {
+              EntityContextMenus.showAlbumMenu(
+                context,
+                album: resolvedItem,
+                globalPosition: details.globalPosition,
+              );
+              return;
+            }
+            if (resolvedItem is GenericSimpleArtist) {
+              EntityContextMenus.showArtistMenu(
+                context,
+                artist: resolvedItem,
+                globalPosition: details.globalPosition,
+              );
+              return;
+            }
+            if (resolvedItem is PlaylistFolder) {
+              EntityContextMenus.showFolderMenu(
+                context,
+                folder: resolvedItem,
+                globalPosition: details.globalPosition,
+              );
+            }
           },
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            padding:
-                EdgeInsets.symmetric(
-                  horizontal: isCollapsed ? 8 : 12,
-                  vertical: 8,
-                ).add(
-                  EdgeInsets.only(
-                    left: ((entry.folderId != null) && !isCollapsed) ? 12 : 0,
-                  ),
+          onLongPress: isDesktop ? null : () {
+            if (resolvedItem is GenericPlaylist) {
+              EntityContextMenus.showPlaylistMenu(
+                context,
+                playlist: resolvedItem,
+              );
+              return;
+            }
+            if (resolvedItem is GenericAlbum ||
+                resolvedItem is GenericSimpleAlbum) {
+              EntityContextMenus.showAlbumMenu(context, album: resolvedItem);
+              return;
+            }
+            if (resolvedItem is GenericSimpleArtist) {
+              EntityContextMenus.showArtistMenu(context, artist: resolvedItem);
+              return;
+            }
+            if (resolvedItem is PlaylistFolder) {
+              EntityContextMenus.showFolderMenu(context, folder: resolvedItem);
+            }
+          },
+          onTap: resolvedItem is PlaylistFolder
+              ? () => folderState.toggleFolderCollapsed(resolvedItem.id)
+              : null,
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-            child: Row(
+                padding:
+                    EdgeInsets.symmetric(
+                      horizontal: isCollapsed ? 8 : 12,
+                      vertical: 8,
+                    ).add(
+                      EdgeInsets.only(
+                        left: ((entry.folderId != null) && !isCollapsed)
+                            ? 12
+                            : 0,
+                      ),
+                    ),
+                child: Row(
               mainAxisAlignment: isCollapsed
                   ? MainAxisAlignment.center
                   : MainAxisAlignment.start,
@@ -1205,8 +1233,7 @@ class _WispNavigationState extends State<WispNavigation> {
                                                           '',
                                                         ),
                                                       ),
-                                                      filterQuality:
-                                                          FilterQuality.medium,
+                                                      filterQuality: FilterQuality.medium,
                                                       fit: BoxFit.cover,
                                                       errorBuilder:
                                                           (
@@ -1221,8 +1248,7 @@ class _WispNavigationState extends State<WispNavigation> {
                                                     )
                                                   : CachedNetworkImage(
                                                       imageUrl: imageUrl,
-                                                      filterQuality:
-                                                          FilterQuality.medium,
+                                                      filterQuality: FilterQuality.medium,
                                                       fit: BoxFit.cover,
                                                       errorWidget:
                                                           (
@@ -1274,8 +1300,7 @@ class _WispNavigationState extends State<WispNavigation> {
                                                       ),
                                                     ),
                                                     fit: BoxFit.cover,
-                                                    filterQuality:
-                                                        FilterQuality.medium,
+                                                    filterQuality: FilterQuality.medium,
                                                     errorBuilder:
                                                         (context, url, error) =>
                                                             Icon(
@@ -1287,8 +1312,7 @@ class _WispNavigationState extends State<WispNavigation> {
                                                 : CachedNetworkImage(
                                                     imageUrl: imageUrl,
                                                     fit: BoxFit.cover,
-                                                    filterQuality:
-                                                        FilterQuality.medium,
+                                                    filterQuality: FilterQuality.medium,
                                                     errorWidget:
                                                         (context, url, error) {
                                                           return Icon(
@@ -1361,37 +1385,40 @@ class _WispNavigationState extends State<WispNavigation> {
                     ),
                 ],
               ],
-            ),
+                ),
+              ),
+              if (_sidebarRippleKey == hoverKey)
+                const Positioned.fill(
+                  child: IgnorePointer(child: _SidebarClickRipple()),
+                ),
+            ],
+          ),
           ),
         ),
       ),
     );
 
-    void ensureCustomSort() {}
+    void ensureCustomSort() {
+      if (_pendingSidebarOpenKey == hoverKey) {
+        _sidebarOpenTimer?.cancel();
+        _sidebarOpenTimer = null;
+        _pendingSidebarOpenKey = null;
+        _sidebarRippleTimer?.cancel();
+      }
+    }
 
     if (allowDrag && resolvedItem is PlaylistFolder) {
-      final draggable = isDesktop
-          ? Draggable<_SidebarFolderDragData>(
-              data: _SidebarFolderDragData(resolvedItem.id),
-              feedback: _SidebarDragFeedback(
-                title: resolvedItem.title,
-                icon: Icons.folder,
-              ),
-              childWhenDragging: Opacity(opacity: 0.4, child: tile),
-              onDragStarted: ensureCustomSort,
-              child: tile,
-            )
-          : LongPressDraggable<_SidebarFolderDragData>(
-              delay: const Duration(milliseconds: 150),
-              data: _SidebarFolderDragData(resolvedItem.id),
-              feedback: _SidebarDragFeedback(
-                title: resolvedItem.title,
-                icon: Icons.folder,
-              ),
-              childWhenDragging: Opacity(opacity: 0.4, child: tile),
-              onDragStarted: ensureCustomSort,
-              child: tile,
-            );
+      final draggable = LongPressDraggable<_SidebarFolderDragData>(
+        delay: const Duration(milliseconds: 150),
+        data: _SidebarFolderDragData(resolvedItem.id),
+        feedback: _SidebarDragFeedback(
+          title: resolvedItem.title,
+          icon: Icons.folder,
+        ),
+        childWhenDragging: Opacity(opacity: 0.4, child: tile),
+        onDragStarted: ensureCustomSort,
+        child: tile,
+      );
       final reorderTarget = DragTarget<_SidebarFolderDragData>(
         onWillAccept: (data) =>
             data != null && data.folderId != resolvedItem.id,
@@ -1410,7 +1437,10 @@ class _WispNavigationState extends State<WispNavigation> {
       final playlistDropTarget = DragTarget<_SidebarPlaylistDragData>(
         onWillAccept: (data) => data != null,
         onAccept: (data) {
-          folderState.movePlaylistIntoFolder(data.playlistId, resolvedItem.id);
+          folderState.movePlaylistIntoFolder(
+            data.playlistId,
+            resolvedItem.id,
+          );
           context.read<SpotifyInternalProvider>().addPlaylistToFolder(
             playlistId: data.playlistId,
             folderId: resolvedItem.id,
@@ -1430,28 +1460,17 @@ class _WispNavigationState extends State<WispNavigation> {
     }
 
     if (allowDrag && resolvedItem is GenericPlaylist && !isLiked) {
-      final draggable = isDesktop
-          ? Draggable<_SidebarPlaylistDragData>(
-              data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
-              feedback: _SidebarDragFeedback(
-                title: resolvedItem.title,
-                icon: Icons.playlist_play,
-              ),
-              childWhenDragging: Opacity(opacity: 0.4, child: tile),
-              onDragStarted: ensureCustomSort,
-              child: tile,
-            )
-          : LongPressDraggable<_SidebarPlaylistDragData>(
-              delay: const Duration(milliseconds: 150),
-              data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
-              feedback: _SidebarDragFeedback(
-                title: resolvedItem.title,
-                icon: Icons.playlist_play,
-              ),
-              childWhenDragging: Opacity(opacity: 0.4, child: tile),
-              onDragStarted: ensureCustomSort,
-              child: tile,
-            );
+      final draggable = LongPressDraggable<_SidebarPlaylistDragData>(
+        delay: const Duration(milliseconds: 150),
+        data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
+        feedback: _SidebarDragFeedback(
+          title: resolvedItem.title,
+          icon: Icons.playlist_play,
+        ),
+        childWhenDragging: Opacity(opacity: 0.4, child: tile),
+        onDragStarted: ensureCustomSort,
+        child: tile,
+      );
       final reorderTarget = DragTarget<_SidebarPlaylistDragData>(
         onWillAccept: (data) =>
             data != null && data.playlistId != resolvedItem.id,
@@ -1553,26 +1572,60 @@ class _SidebarLibraryItem extends StatelessWidget {
   )
   builder;
 
-  const _SidebarLibraryItem({required this.builder});
+  const _SidebarLibraryItem(
+    {required this.builder}
+  );
 
   @override
   Widget build(BuildContext context) {
     final folderState = context.watch<LibraryFolderState>();
     final libraryState = context.watch<LibraryState>();
-    final playback = context
-        .select<WispAudioHandler, _SidebarPlaybackHighlight>((player) {
-          final track = player.currentTrack;
-          return (
-            isPlaying: player.isPlaying,
-            contextType: player.playbackContextType,
-            contextId: player.playbackContextID,
-            contextName: player.playbackContextName?.trim(),
-            currentArtistIds: track == null || track.artists.isEmpty
-                ? ''
-                : track.artists.map((artist) => artist.id).join('\u0001'),
-          );
-        });
+    final playback = context.select<WispAudioHandler, _SidebarPlaybackHighlight>(
+      (player) {
+        final track = player.currentTrack;
+        return (
+          isPlaying: player.isPlaying,
+          contextType: player.playbackContextType,
+          contextId: player.playbackContextID,
+          contextName: player.playbackContextName?.trim(),
+          currentArtistIds: track == null || track.artists.isEmpty
+              ? ''
+              : track.artists.map((artist) => artist.id).join('\u0001'),
+        );
+      },
+    );
     return builder(folderState, libraryState, playback);
+  }
+}
+
+class _SidebarClickRipple extends StatelessWidget {
+  const _SidebarClickRipple();
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final diameter = constraints.biggest.longestSide * 1.5;
+          return TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOut,
+            builder: (context, progress, child) => Center(
+              child: Container(
+                width: diameter * progress,
+                height: diameter * progress,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16 * (1 - progress)),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 

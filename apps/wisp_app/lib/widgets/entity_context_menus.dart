@@ -606,14 +606,25 @@ class EntityContextMenus {
     );
   }
 
+  static GenericAlbum albumFrom(dynamic album) {
+    if (album is GenericAlbum) return album;
+    if (album is GenericSimpleAlbum) return album.toAlbum();
+    throw ArgumentError.value(
+      album,
+      'album',
+      'Expected GenericAlbum or GenericSimpleAlbum',
+    );
+  }
+
   static Future<void> showAlbumMenu(
     BuildContext context, {
-    required GenericAlbum album,
+    required dynamic album,
     Offset? globalPosition,
     Rect? anchorRect,
   }) async {
+    final resolvedAlbum = albumFrom(album);
     final libraryState = context.read<LibraryState>();
-    final isSaved = libraryState.isAlbumSaved(album.id);
+    final isSaved = libraryState.isAlbumSaved(resolvedAlbum.id);
     final activeIconColor = Theme.of(context).colorScheme.primary;
 
     final actions = <ContextMenuAction>[
@@ -633,11 +644,11 @@ class EntityContextMenus {
           }
           try {
             if (isSaved) {
-              await spotifyInternal.unsaveAlbum(album.id);
-              libraryState.removeAlbum(album.id);
+              await spotifyInternal.unsaveAlbum(resolvedAlbum.id);
+              libraryState.removeAlbum(resolvedAlbum.id);
             } else {
-              await spotifyInternal.saveAlbum(album.id);
-              libraryState.addAlbum(album);
+              await spotifyInternal.saveAlbum(resolvedAlbum.id);
+              libraryState.addAlbum(resolvedAlbum);
             }
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
@@ -656,7 +667,7 @@ class EntityContextMenus {
         label: 'Add to Queue',
         icon: Icons.queue_music,
         onSelected: (_) async {
-          final tracks = await _resolveAlbumTracks(context, album);
+          final tracks = await _resolveAlbumTracks(context, resolvedAlbum);
           if (!context.mounted) return;
           await _appendTracksToQueue(context, tracks);
         },
@@ -681,7 +692,7 @@ class EntityContextMenus {
             label: 'Download Audio',
             icon: Icons.download_outlined,
             onSelected: (_) async {
-              final tracks = await _resolveAlbumTracks(context, album);
+              final tracks = await _resolveAlbumTracks(context, resolvedAlbum);
               if (!context.mounted) return;
               if (tracks.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -708,9 +719,9 @@ class EntityContextMenus {
         icon: Icons.share,
         onSelected: (_) => copySpotifyShareUrl(
           context,
-          source: album.source,
+          source: resolvedAlbum.source,
           type: 'album',
-          id: album.id,
+          id: resolvedAlbum.id,
         ),
       ),
     ];

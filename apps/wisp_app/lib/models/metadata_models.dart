@@ -241,6 +241,20 @@ class GenericSimpleAlbum {
     );
   }
 
+  GenericAlbum toAlbum() {
+    return GenericAlbum(
+      id: id,
+      source: source,
+      title: title,
+      thumbnailUrl: thumbnailUrl,
+      artists: artists,
+      label: label,
+      releaseDate: releaseDate,
+      explicit: false,
+      durationSecs: 0,
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
