@@ -86,7 +86,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   static const double _rowHeightDesktop = 64;
   static const double _rowHeightMobile = 64;
   static const int _windowBuffer = 6;
-  double _songListTopOffset = 0;
+  final ValueNotifier<double> _songListTopOffsetNotifier =
+      ValueNotifier<double>(0);
   final GlobalKey _headerKey = GlobalKey();
   final ScrollController _desktopScrollController = ScrollController();
   final ScrollController _mobileScrollController = ScrollController();
@@ -286,18 +287,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
     _desktopScrollController.dispose();
     _mobileScrollController.dispose();
+    _songListTopOffsetNotifier.dispose();
     super.dispose();
   }
 
   void _handleScroll(ScrollController controller) {
     if (!controller.hasClients) return;
     if (_hoveredSongIds.isNotEmpty) {
-      _hoveredSongIds.clear();
+      setState(() => _hoveredSongIds.clear());
     }
-    _updateStickyBarVisibility(controller);
-    if (mounted) {
-      setState(() {});
-    }
+    _updateStickyBarVisibility(controller); // already setState()-conditional
   }
 
   void _scheduleStickyBarUpdate(ScrollController controller) {
@@ -426,10 +425,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           .localToGlobal(Offset.zero, ancestor: scrollBox)
           .dy;
       final listStartOffset = controller.offset + listTop;
-      if ((listStartOffset - _songListTopOffset).abs() > 1) {
-        setState(() {
-          _songListTopOffset = listStartOffset;
-        });
+      if ((listStartOffset - _songListTopOffsetNotifier.value).abs() > 1) {
+        _songListTopOffsetNotifier.value = listStartOffset;
       }
     });
   }
@@ -3238,94 +3235,31 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
-  Widget _buildSongList({
-    bool isMobile = false,
-    _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+  Widget _buildSongRow(
+    BuildContext context,
+    int rowIndex, {
+    required bool isMobile,
+    required bool isAppleStyle,
     required double availableWidth,
   }) {
-    if (_isLoading) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    if (_sortedIndices.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          'No songs to display',
-          style: TextStyle(color: Colors.grey[400]),
-        ),
-      );
-    }
-
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    final isAppleStyle = visualStyle == _ListVisualStyle.apple;
-    final totalCount = _sortedIndices.length;
-    final controller = isMobile
-        ? _mobileScrollController
-        : _desktopScrollController;
-    final useVirtualizedWindow =
-        controller.hasClients || _songListTopOffset >= 0;
-
-    if (useVirtualizedWindow) {
-      _scheduleSongListOffsetUpdate(controller);
-      final rowHeight = isMobile ? _rowHeightMobile : _rowHeightDesktop;
-      final viewport = controller.hasClients
-          ? controller.position.viewportDimension
-          : 0;
-      final scrollOffset = controller.hasClients ? controller.offset : 0;
-      final effectiveOffset = (scrollOffset - _songListTopOffset).clamp(
-        0.0,
-        double.infinity,
-      );
-      final initialWindowSize =
-          ((viewport / rowHeight).ceil() + _windowBuffer * 2).clamp(
-            0,
-            totalCount,
-          );
-
-      int startIndex;
-      int endIndex;
-      if (!controller.hasClients || viewport == 0) {
-        startIndex = 0;
-        endIndex = totalCount == 0
-            ? 0
-            : (initialWindowSize - 1).clamp(0, totalCount - 1);
-      } else {
-        final first = (effectiveOffset / rowHeight).floor() - _windowBuffer;
-        final last =
-            ((effectiveOffset + viewport) / rowHeight).ceil() + _windowBuffer;
-        startIndex = first.clamp(0, totalCount - 1);
-        endIndex = last.clamp(0, totalCount - 1);
-      }
-
-      final visibleCount = totalCount == 0 ? 0 : (endIndex - startIndex + 1);
-      final topSpacer = startIndex * rowHeight;
-      final bottomSpacer = (totalCount - endIndex - 1) * rowHeight;
-
-      return Column(
-        children: [
-          SizedBox(key: _songListKey, height: 0),
-          if (topSpacer > 0) SizedBox(height: topSpacer),
-          ListView.builder(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            primary: false,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: visibleCount,
-            itemBuilder: (context, idx) {
+              // `player` is only needed here to pass into onPressed/onTap
+              // callbacks, so `read` (no rebuild) is enough for it.
               final player = context
-                  .watch<global_audio_player.WispAudioHandler>();
-              final rowIndex = startIndex + idx;
+                  .read<global_audio_player.WispAudioHandler>();
               final index = _sortedIndices[rowIndex];
               final item = _items[index];
               final song = _toGenericSong(item);
-              final isCurrentTrack = player.currentTrack?.id == song.id;
+              final isCurrentTrack = context
+                  .select<global_audio_player.WispAudioHandler, bool>(
+                    (p) => p.currentTrack?.id == song.id,
+                  );
+              final isPlayingThisTrack =
+                  isCurrentTrack &&
+                  context.select<global_audio_player.WispAudioHandler, bool>(
+                    (p) => p.isPlaying,
+                  );
               final album = _getAlbum(item);
               final artists = _getArtists(item);
               final visibleColumns = _getVisibleColumns(availableWidth);
@@ -3389,7 +3323,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                 child: isHovering
                                     ? IconButton(
                                         icon: Icon(
-                                          isCurrentTrack && player.isPlaying
+                                          isPlayingThisTrack
                                               ? Icons.pause
                                               : Icons.play_arrow,
                                           color: Colors.white,
@@ -3432,6 +3366,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                           imageUrl: _getThumbnail(item),
                                           fit: BoxFit.cover,
                                           filterQuality: FilterQuality.medium,
+                                          memCacheWidth: 88,
+                                          memCacheHeight: 88,
                                           errorWidget: (context, url, error) =>
                                               Icon(
                                                 Icons.music_note,
@@ -3471,8 +3407,621 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                                 }
                                               },
                                               child: Icon(
-                                                isCurrentTrack &&
-                                                        player.isPlaying
+                                                isPlayingThisTrack
+                                                    ? Icons.pause
+                                                    : Icons.play_arrow,
+                                                color: Colors.white,
+                                                size: 20,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _buildSongTitleWithIcons(
+                                    song,
+                                    isCurrentTrack: isCurrentTrack,
+                                    isDesktop: isDesktop,
+                                    isAppleStyle: isAppleStyle,
+                                  ),
+                                  if (!isAppleStyle ||
+                                      isMobile ||
+                                      visibleColumns.showArtistInline) ...[
+                                    const SizedBox(height: 2),
+                                    _buildArtistWithIcons(
+                                      song,
+                                      artists,
+                                      isDesktop: isDesktop,
+                                      isAppleStyle: isAppleStyle,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            if (!isMobile && isAppleStyle) ...[
+                              // Artist column - only shown when artist column should be visible
+                              if (visibleColumns.showArtistColumn)
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildArtistWithIcons(
+                                    song,
+                                    artists,
+                                    isDesktop: isDesktop,
+                                    isAppleStyle: isAppleStyle,
+                                  ),
+                                ),
+                              // Album column - hidden when album is not visible
+                              if (visibleColumns.showAlbum)
+                                Expanded(
+                                  flex: 2,
+                                  child:
+                                      (isDesktop &&
+                                          album != null &&
+                                          album.id.isNotEmpty)
+                                      ? HoverUnderline(
+                                          onTap: () {
+                                            _openSharedList(
+                                              SharedListType.album,
+                                              album.id,
+                                              title: album.title,
+                                              thumbnailUrl: album.thumbnailUrl,
+                                            );
+                                          },
+                                          onSecondaryTapDown: (details) {
+                                            EntityContextMenus.showAlbumMenu(
+                                              context,
+                                              album: GenericAlbum(
+                                                id: album.id,
+                                                source: album.source,
+                                                title: album.title,
+                                                thumbnailUrl:
+                                                    album.thumbnailUrl,
+                                                artists: album.artists,
+                                                label: album.label,
+                                                releaseDate: album.releaseDate,
+                                                explicit: song.explicit,
+                                                durationSecs: 0,
+                                              ),
+                                              globalPosition:
+                                                  details.globalPosition,
+                                            );
+                                          },
+                                          builder: (isHovering) => Text(
+                                            _getAlbumTitle(item),
+                                            style: TextStyle(
+                                              color: Colors.grey[400],
+                                              fontSize: 12,
+                                              decoration: isHovering
+                                                  ? TextDecoration.underline
+                                                  : TextDecoration.none,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        )
+                                      : Text(
+                                          _getAlbumTitle(item),
+                                          style: TextStyle(
+                                            color: Colors.grey[400],
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                ),
+                              // Time column - hidden at smallest width
+                              if (visibleColumns.showTime)
+                                SizedBox(
+                                  width: 70,
+                                  child: Text(
+                                    _formatDuration(_getDuration(item)),
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                    ),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                ),
+                              SizedBox(
+                                width: 48, // Updated width
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Builder(
+                                    builder: (buttonContext) => IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 24,
+                                        minHeight: 24,
+                                      ),
+                                      icon: Icon(
+                                        CupertinoIcons.ellipsis,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        size: 18,
+                                      ),
+                                      onPressed: () => {
+                                        _showSongContextMenu(
+                                          song,
+                                          anchorContext: buttonContext,
+                                        ),
+                                      },
+                                      onLongPress: null,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ] else ...[
+                              // Spotify style - Album column
+                              if (!isMobile &&
+                                  widget.type == SharedListType.playlist &&
+                                  visibleColumns.showAlbum)
+                                Expanded(
+                                  flex: 2,
+                                  child:
+                                      (isDesktop &&
+                                          album != null &&
+                                          album.id.isNotEmpty)
+                                      ? HoverUnderline(
+                                          onTap: () {
+                                            _openSharedList(
+                                              SharedListType.album,
+                                              album.id,
+                                              title: album.title,
+                                              thumbnailUrl: album.thumbnailUrl,
+                                            );
+                                          },
+                                          onSecondaryTapDown: (details) {
+                                            _showSongContextMenu(
+                                              song,
+                                              globalPosition:
+                                                  details.globalPosition,
+                                            );
+                                          },
+                                          builder: (isHovering) => Text(
+                                            _getAlbumTitle(item),
+                                            style: TextStyle(
+                                              color: Colors.grey[500],
+                                              fontSize: 12,
+                                              decoration: isHovering
+                                                  ? TextDecoration.underline
+                                                  : TextDecoration.none,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        )
+                                      : Text(
+                                          _getAlbumTitle(item),
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontSize: 12,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                )
+                              else if (!isMobile &&
+                                  widget.type != SharedListType.playlist)
+                                const SizedBox(width: 80),
+                              // Spotify style - Added At column
+                              if (!isMobile &&
+                                  widget.type == SharedListType.playlist &&
+                                  visibleColumns.showAddedAt)
+                                SizedBox(
+                                  width: 120,
+                                  child: Text(
+                                    _formatAddedAt(_getAddedAt(item)),
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                )
+                              else if (!isMobile &&
+                                  widget.type != SharedListType.playlist)
+                                const SizedBox(width: 120),
+                              if (isDesktop) ...[
+                                AnimatedOpacity(
+                                  opacity: isHovering ? 1 : 0,
+                                  duration: const Duration(milliseconds: 120),
+                                  child: IgnorePointer(
+                                    ignoring: !isHovering,
+                                    child: SizedBox(
+                                      width: 28,
+                                      child: LikeButton(
+                                        track: song,
+                                        iconSize: 16,
+                                        padding: const EdgeInsets.all(2),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 24,
+                                          minHeight: 24,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              // Spotify style - Duration column
+                              if (visibleColumns.showTime)
+                                SizedBox(
+                                  width: isMobile ? 40 : 80,
+                                  child: Text(
+                                    _formatDuration(_getDuration(item)),
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                    ),
+                                    textAlign: TextAlign.right,
+                                  ),
+                                )
+                              else if (!isMobile)
+                                const SizedBox(width: 80),
+                              SizedBox(width: isMobile ? 0 : 12),
+                              !isMobile
+                                  ? SizedBox(
+                                      width: 32,
+                                      child: Align(
+                                        alignment: Alignment.centerRight,
+                                        child: Icon(
+                                          Icons.graphic_eq,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.primary,
+                                          size: isMobile ? 16 : 18,
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ],
+                            if (isMobile && isAppleStyle)
+                              SizedBox(
+                                width: 40,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Builder(
+                                    builder: (buttonContext) => IconButton(
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth: 24,
+                                        minHeight: 24,
+                                      ),
+                                      icon: Icon(
+                                        CupertinoIcons.ellipsis,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        size: 18,
+                                      ),
+                                      onPressed: () {
+                                        _showSongContextMenu(
+                                          song,
+                                          anchorContext: buttonContext,
+                                        );
+                                      },
+                                      onLongPress: null,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+  }
+
+  /// Proper (Sliver-based) virtualization for the mobile Spotify-style
+  /// song list. This is placed directly in the parent CustomScrollView's
+  /// `slivers` list (see _SpotifyListDetailRenderer) instead of behind a
+  /// SliverToBoxAdapter, so Flutter's own RenderSliverList decides which
+  /// rows to build/keep-alive/dispose as the user scrolls -- no manual
+  /// scroll-offset tracking, no manually-sliced start/end window, and no
+  /// full-window rebuild on every scroll tick.
+  Widget _buildMobileSpotifySongsSliver({required double availableWidth}) {
+    if (_isLoading) {
+      return const SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    if (_sortedIndices.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No songs to display',
+            style: TextStyle(color: Colors.grey[400]),
+          ),
+        ),
+      );
+    }
+
+    return SliverFixedExtentList(
+      itemExtent: _rowHeightMobile,
+      delegate: SliverChildBuilderDelegate(
+        (context, rowIndex) => _buildSongRow(
+          context,
+          rowIndex,
+          isMobile: true,
+          isAppleStyle: false,
+          availableWidth: availableWidth,
+        ),
+        childCount: _sortedIndices.length,
+      ),
+    );
+  }
+
+  Widget _buildSongList({
+    bool isMobile = false,
+    _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+    required double availableWidth,
+  }) {
+    if (_isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_sortedIndices.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          'No songs to display',
+          style: TextStyle(color: Colors.grey[400]),
+        ),
+      );
+    }
+
+    final isDesktop =
+        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    final isAppleStyle = visualStyle == _ListVisualStyle.apple;
+    final totalCount = _sortedIndices.length;
+    final controller = isMobile
+        ? _mobileScrollController
+        : _desktopScrollController;
+    final useVirtualizedWindow =
+        controller.hasClients || _songListTopOffsetNotifier.value >= 0;
+
+    if (useVirtualizedWindow) {
+      _scheduleSongListOffsetUpdate(controller);
+      final rowHeight = isMobile ? _rowHeightMobile : _rowHeightDesktop;
+      final viewport = controller.hasClients
+          ? controller.position.viewportDimension
+          : 0;
+      final scrollOffset = controller.hasClients ? controller.offset : 0;
+      final effectiveOffset =
+          (scrollOffset - _songListTopOffsetNotifier.value).clamp(
+        0.0,
+        double.infinity,
+      );
+      final initialWindowSize =
+          ((viewport / rowHeight).ceil() + _windowBuffer * 2).clamp(
+            0,
+            totalCount,
+          );
+
+      int startIndex;
+      int endIndex;
+      if (!controller.hasClients || viewport == 0) {
+        startIndex = 0;
+        endIndex = totalCount == 0
+            ? 0
+            : (initialWindowSize - 1).clamp(0, totalCount - 1);
+      } else {
+        final first = (effectiveOffset / rowHeight).floor() - _windowBuffer;
+        final last =
+            ((effectiveOffset + viewport) / rowHeight).ceil() + _windowBuffer;
+        startIndex = first.clamp(0, totalCount - 1);
+        endIndex = last.clamp(0, totalCount - 1);
+      }
+
+      final visibleCount = totalCount == 0 ? 0 : (endIndex - startIndex + 1);
+      final topSpacer = startIndex * rowHeight;
+      final bottomSpacer = (totalCount - endIndex - 1) * rowHeight;
+
+      return Column(
+        children: [
+          SizedBox(key: _songListKey, height: 0),
+          if (topSpacer > 0) SizedBox(height: topSpacer),
+          ListView.builder(
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            primary: false,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: visibleCount,
+            itemBuilder: (context, idx) {
+              // `player` is only needed here to pass into onPressed/onTap
+              // callbacks, so `read` (no rebuild) is enough for it.
+              final player = context
+                  .read<global_audio_player.WispAudioHandler>();
+              final rowIndex = startIndex + idx;
+              final index = _sortedIndices[rowIndex];
+              final item = _items[index];
+              final song = _toGenericSong(item);
+              final isCurrentTrack = context
+                  .select<global_audio_player.WispAudioHandler, bool>(
+                    (p) => p.currentTrack?.id == song.id,
+                  );
+              final isPlayingThisTrack =
+                  isCurrentTrack &&
+                  context.select<global_audio_player.WispAudioHandler, bool>(
+                    (p) => p.isPlaying,
+                  );
+              final album = _getAlbum(item);
+              final artists = _getArtists(item);
+              final visibleColumns = _getVisibleColumns(availableWidth);
+
+              final isHovering = _hoveredSongIds.contains(song.id);
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                onEnter: (_) {
+                  if (!isDesktop) return;
+                  setState(() => _hoveredSongIds.add(song.id));
+                },
+                onExit: (_) {
+                  if (!isDesktop) return;
+                  setState(() => _hoveredSongIds.remove(song.id));
+                },
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onSecondaryTapUp: isDesktop
+                      ? (details) {
+                          _showSongContextMenu(
+                            song,
+                            globalPosition: details.globalPosition,
+                          );
+                        }
+                      : null,
+                  onLongPress: isDesktop
+                      ? null
+                      : () {
+                          _showSongContextMenu(song);
+                        },
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      mouseCursor: SystemMouseCursors.click,
+                      onTap: isDesktop
+                          ? () => _handleRowDoubleClick(
+                              song.id,
+                              () => _playQueueAt(rowIndex),
+                            )
+                          : () {
+                              if (isCurrentTrack) {
+                                _toggleCurrentTrackPlayback(player);
+                              } else {
+                                _playQueueAt(rowIndex);
+                              }
+                            },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.zero,
+                        ),
+                        child: Row(
+                          children: [
+                            if (isDesktop && !isAppleStyle) ...[
+                              SizedBox(
+                                width: 40,
+                                child: isHovering
+                                    ? IconButton(
+                                        icon: Icon(
+                                          isPlayingThisTrack
+                                              ? Icons.pause
+                                              : Icons.play_arrow,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        onPressed: () {
+                                          if (isCurrentTrack) {
+                                            _toggleCurrentTrackPlayback(player);
+                                          } else {
+                                            _playQueueAt(rowIndex);
+                                          }
+                                        },
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 32,
+                                          minHeight: 32,
+                                        ),
+                                      )
+                                    : Text(
+                                        '${rowIndex + 1}',
+                                        style: TextStyle(
+                                          color: Colors.grey[400],
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: Container(
+                                        color: Colors.grey[900],
+                                        child: CachedNetworkImage(
+                                          imageUrl: _getThumbnail(item),
+                                          fit: BoxFit.cover,
+                                          filterQuality: FilterQuality.medium,
+                                          memCacheWidth: 88,
+                                          memCacheHeight: 88,
+                                          errorWidget: (context, url, error) =>
+                                              Icon(
+                                                Icons.music_note,
+                                                color: Colors.grey[700],
+                                              ),
+                                          placeholder: (context, url) =>
+                                              Container(
+                                                color: Colors.grey[800],
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (isDesktop && isAppleStyle) ...[
+                                      AnimatedOpacity(
+                                        opacity: isHovering ? 1 : 0,
+                                        duration: const Duration(
+                                          milliseconds: 120,
+                                        ),
+                                        child: Container(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.45,
+                                          ),
+                                        ),
+                                      ),
+                                      if (isHovering)
+                                        Positioned.fill(
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              onTap: () {
+                                                if (isCurrentTrack) {
+                                                  _toggleCurrentTrackPlayback(
+                                                    player,
+                                                  );
+                                                } else {
+                                                  _playQueueAt(rowIndex);
+                                                }
+                                              },
+                                              child: Icon(
+                                                isPlayingThisTrack
                                                     ? Icons.pause
                                                     : Icons.play_arrow,
                                                 color: Colors.white,
@@ -3806,12 +4355,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       physics: const NeverScrollableScrollPhysics(),
       itemCount: totalCount,
       itemBuilder: (context, idx) {
-        final player = context.watch<global_audio_player.WispAudioHandler>();
+        final player = context.read<global_audio_player.WispAudioHandler>();
         final index = _sortedIndices[idx];
         final item = _items[index];
         final isEven = idx % 2 == 0;
         final song = _toGenericSong(item);
-        final isCurrentTrack = player.currentTrack?.id == song.id;
+        final isCurrentTrack = context
+            .select<global_audio_player.WispAudioHandler, bool>(
+              (p) => p.currentTrack?.id == song.id,
+            );
+        final isPlayingThisTrack =
+            isCurrentTrack &&
+            context.select<global_audio_player.WispAudioHandler, bool>(
+              (p) => p.isPlaying,
+            );
         final album = _getAlbum(item);
         final artists = _getArtists(item);
         final visibleColumns = _getVisibleColumns(availableWidth);
@@ -3881,7 +4438,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                           child: isHovering
                               ? IconButton(
                                   icon: Icon(
-                                    isCurrentTrack && player.isPlaying
+                                    isPlayingThisTrack
                                         ? Icons.pause
                                         : Icons.play_arrow,
                                     color: Colors.white,
@@ -3922,6 +4479,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     imageUrl: _getThumbnail(item),
                                     filterQuality: FilterQuality.medium,
                                     fit: BoxFit.cover,
+                                    memCacheWidth: 88,
+                                    memCacheHeight: 88,
                                     errorWidget: (context, url, error) => Icon(
                                       Icons.music_note,
                                       color: Colors.grey[700],
@@ -3952,7 +4511,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                           }
                                         },
                                         child: Icon(
-                                          isCurrentTrack && player.isPlaying
+                                          isPlayingThisTrack
                                               ? Icons.pause
                                               : Icons.play_arrow,
                                           color: Colors.white,
@@ -4492,6 +5051,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                                     imageUrl: _getThumbnail(item),
                                     filterQuality: FilterQuality.medium,
                                     fit: BoxFit.cover,
+                                    memCacheWidth: 88,
+                                    memCacheHeight: 88,
                                     errorWidget: (context, url, error) => Icon(
                                       Icons.music_note,
                                       color: Colors.grey[700],
@@ -4890,18 +5451,18 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                         child: view._buildMobileActionsRow(),
                       ),
                     ),
-                    SliverPadding(
-                      padding: EdgeInsets.zero,
-                      sliver: SliverToBoxAdapter(
-                        child: LayoutBuilder(
-                          builder: (layoutContext, constraints) {
-                            return view._buildSongList(
-                              isMobile: true,
-                              availableWidth: constraints.maxWidth,
-                            );
-                          },
-                        ),
-                      ),
+                    SliverLayoutBuilder(
+                      builder: (sliverContext, sliverConstraints) {
+                        // Real sliver, placed directly in this
+                        // CustomScrollView's `slivers` list: Flutter's own
+                        // viewport decides which rows to build, keep
+                        // resident, and dispose as the user scrolls. We no
+                        // longer track scroll offsets by hand or rebuild a
+                        // manually-sliced window on every scroll tick.
+                        return view._buildMobileSpotifySongsSliver(
+                          availableWidth: sliverConstraints.crossAxisExtent,
+                        );
+                      },
                     ),
                     SliverToBoxAdapter(
                       child: Padding(
@@ -5009,9 +5570,15 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 const Divider(),
-                                view._buildSongList(
-                                  isMobile: false,
-                                  availableWidth: availableWidth,
+                                AnimatedBuilder(
+                                  animation: Listenable.merge([
+                                    view._desktopScrollController,
+                                    view._songListTopOffsetNotifier,
+                                  ]),
+                                  builder: (context, _) => view._buildSongList(
+                                    isMobile: false,
+                                    availableWidth: availableWidth,
+                                  ),
                                 ),
                                 Padding(
                                   padding: const EdgeInsets.only(top: 12),
@@ -5239,10 +5806,16 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             SliverToBoxAdapter(
               child: LayoutBuilder(
                 builder: (layoutContext, constraints) {
-                  return view._buildSongList(
-                    isMobile: true,
-                    visualStyle: _ListVisualStyle.apple,
-                    availableWidth: constraints.maxWidth,
+                  return AnimatedBuilder(
+                    animation: Listenable.merge([
+                      view._mobileScrollController,
+                      view._songListTopOffsetNotifier,
+                    ]),
+                    builder: (context, _) => view._buildSongList(
+                      isMobile: true,
+                      visualStyle: _ListVisualStyle.apple,
+                      availableWidth: constraints.maxWidth,
+                    ),
                   );
                 },
               ),
@@ -5460,10 +6033,16 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                         behavior: ScrollConfiguration.of(
                           layoutContext,
                         ).copyWith(scrollbars: false),
-                        child: view._buildSongList(
-                          isMobile: false,
-                          visualStyle: _ListVisualStyle.apple,
-                          availableWidth: availableWidth,
+                        child: AnimatedBuilder(
+                          animation: Listenable.merge([
+                            view._desktopScrollController,
+                            view._songListTopOffsetNotifier,
+                          ]),
+                          builder: (context, _) => view._buildSongList(
+                            isMobile: false,
+                            visualStyle: _ListVisualStyle.apple,
+                            availableWidth: availableWidth,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
