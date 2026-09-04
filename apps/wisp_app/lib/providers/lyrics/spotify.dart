@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Spotify lyrics provider using internal API + TOTP
 library;
 

@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Secure credential and token storage service
 /// Handles Spotify Client ID/Secret and OAuth tokens using FlutterSecureStorage
 library;

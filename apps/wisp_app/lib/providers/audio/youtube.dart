@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// YouTube audio streaming provider using youtube_explode_dart
 library;
 

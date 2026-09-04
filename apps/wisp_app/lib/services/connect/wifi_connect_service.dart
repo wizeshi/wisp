@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/services/connect/connect_packet_models.dart';
 import 'package:wisp/services/connect/connect_transport.dart';

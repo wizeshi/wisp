@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Playlist folder dialogs and menus
 library;
 

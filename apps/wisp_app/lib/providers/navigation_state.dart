@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/navigation.dart';

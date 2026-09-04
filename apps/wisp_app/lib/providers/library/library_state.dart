@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'package:flutter/foundation.dart';
 
 import '../../models/metadata_models.dart';

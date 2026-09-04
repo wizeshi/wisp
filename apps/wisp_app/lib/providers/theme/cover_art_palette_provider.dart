@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'dart:io' show File;
 
 import 'package:cached_network_image/cached_network_image.dart';

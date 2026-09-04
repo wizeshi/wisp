@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Generic metadata cache store with disk-backed JSON entries
 library;
 

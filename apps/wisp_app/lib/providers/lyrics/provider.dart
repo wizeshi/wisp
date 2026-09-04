@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Lyrics provider facade with caching and fallback
 library;
 

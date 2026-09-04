@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Discord RPC service wrapper (desktop only)
 library;
 

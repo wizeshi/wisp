@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Full-screen lyrics view
 library;
 

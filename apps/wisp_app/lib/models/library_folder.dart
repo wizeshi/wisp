@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Local playlist folder model (global across providers)
 library;
 

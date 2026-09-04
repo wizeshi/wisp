@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Player bar widget with playback controls
 library;
 

@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Queue view for managing the playback queue
 library;
 

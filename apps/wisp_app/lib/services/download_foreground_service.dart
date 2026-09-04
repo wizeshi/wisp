@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Foreground service wrapper for background downloads on Android
 library;
 

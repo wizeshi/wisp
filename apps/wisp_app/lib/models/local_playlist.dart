@@ -1,4 +1,6 @@
-/// Local/mixed playlist model
+// Copyright © 2026 wizeshi
+
+// Local/mixed playlist model
 library;
 
 import 'metadata_models.dart';

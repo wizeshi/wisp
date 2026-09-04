@@ -1,7 +1,8 @@
+// Copyright © 2026 wizeshi
+
 // ignore_for_file: non_constant_identifier_names
 
 /// Generic metadata models for multi-source music providers
-/// Matches Rust implementation from song_types.rs
 library;
 
 enum SongSource {

@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import '../../models/metadata_models.dart';
 import '../connect/connect_models.dart';
 import '../wisp_audio_handler.dart';

@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 library;
 
 import 'dart:convert';
@@ -268,10 +270,6 @@ class BetterLyricsProvider {
     }
 
     return null;
-  }
-
-  String _stripTags(String text) {
-    return text.replaceAll(RegExp(r'<[^>]+>'), '');
   }
 
   String _normalizeText(String text) {

@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'dart:io' show Platform;
 import 'dart:async';
 

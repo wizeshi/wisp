@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'connect_models.dart';
 
 class ConnectPairRequest {

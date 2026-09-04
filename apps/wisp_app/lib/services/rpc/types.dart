@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'dart:typed_data';
 
 enum ActivityType { playing, streaming, listening, watching, custom, competing }

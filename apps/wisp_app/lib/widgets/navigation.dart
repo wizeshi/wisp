@@ -1,6 +1,7 @@
+// Copyright © 2026 wizeshi
+
 import 'dart:async';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'dart:io' show Platform, File;
 import 'package:cached_network_image/cached_network_image.dart';

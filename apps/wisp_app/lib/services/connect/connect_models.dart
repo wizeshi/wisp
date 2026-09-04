@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'package:wisp/models/metadata_models.dart';
 
 enum ConnectPhase {

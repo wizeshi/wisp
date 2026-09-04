@@ -48,19 +48,15 @@ I mean yeah, they do. Though 1. they're not as cool and 2. they have very limite
 Mostly. Right now, it's mostly missing (some) writing to spotify and source mixing (not finished as well). Also crossfade has some weird kinks. Everything else is on the Roadmap.
 
 ## Acknowledgements
-Special thanks to all of the people who have contributed to the following projects:
-* [Flutter](https://flutter.dev/) - Best cross-platform framework out there, and therefore the one I use for this project.
-* [YT-DLP](https://github.com/yt-dlp/yt-dlp) - The best YouTube extractor CLI out there (could be better with native android support tho).
-* [librespot](https://github.com/librespot-org/librespot) - The best FOSS Spotify client implementation. 
-* [Spotube](https://github.com/KRTirtho/spotube) - The (other) best music player. These guys' work (and librespot's) has been a godsend for this project, since I was able to learn (and shamelessly copy) a lot of the internal workings of Spotify's API from them.
-* [YoutubeExplodeDart](https://github.com/Hexer10/youtube_explode_dart) - Best YouTube metadata extractor.
-* [just_audio](https://github.com/ryanheise/just_audio/) & [mpv](https://mpv.io/) - Incredible audio player interface, with even better performance. 
+There's a lot of free software out there which I was inspired by or used as reference when developing wisp. Here's a couple of them:
+YT-DLP, librespot, Spotube, Meld, NewPipeExtractor, YouTube.js
 
 ## Contributing
 
-If you wanna contribute (no idea why), check out [contributing.md](https://github.com/wizeshi/wisp/blob/main/docs/en/CONTRIBUTING.md)
+If you wanna contribute (no idea why), check [this](https://github.com/wizeshi/wisp/blob/main/docs/en/CONTRIBUTING.md) out
 
 ## License
 
-This project is currently licensed under the [MIT License](https://github.com/wizeshi/wisp/blob/main/LICENSE) but, since the project is at an early stage, that may change in the future.
-If I use your code in this project, and the license is not compatible, please let me know (or create an exception :D).
+The current version of wisp is licensed under the GPLv3 license, which makes it Free Software.
+You may study, redistribute and modify the software, though you should not the official "wisp" branding and assets to avoid confusion. 
+This may change at a later date, but it is not retroactive. For more information, see [LICENSE.md](LICENSE.md)

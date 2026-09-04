@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Shared Like button widget
 library;
 

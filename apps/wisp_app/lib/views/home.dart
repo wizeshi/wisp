@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Home page with user's Spotify library
 library;
 

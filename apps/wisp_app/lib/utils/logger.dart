@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Centralized logging utility
 library;
 

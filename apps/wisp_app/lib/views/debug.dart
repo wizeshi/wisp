@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 // Debug View for the app. Shows internal info about app state, player state, whatever needed.
 
 import 'dart:io';

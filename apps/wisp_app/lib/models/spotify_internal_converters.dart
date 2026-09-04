@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Spotify API response to generic model converters
 /// Handles conversion from Spotify JSON to generic metadata models
 library;

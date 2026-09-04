@@ -1,8 +1,12 @@
+// Copyright © 2026 wizeshi
+
 // ignore_for_file: dangling_library_doc_comments
 
 /// Spotify authentication and metadata provider
 /// Implements OAuth 2.0 Authorization Code flow with auto-refresh
 /// Provides methods to fetch track, album, and playlist metadata
+/// Deprecated as of March 9th, 2026. Use SpotifyInternalProvider instead.
+/// I'll leave this here though. Could be useful for people trying to implement this in their apps.
 /** library;
 
 import 'dart:async';

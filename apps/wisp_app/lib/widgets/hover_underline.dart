@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Hover underline helper for clickable text
 library;
 

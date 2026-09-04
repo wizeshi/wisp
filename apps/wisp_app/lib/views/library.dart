@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Library view with paginated tabs for playlists, albums, and artists
 library;
 

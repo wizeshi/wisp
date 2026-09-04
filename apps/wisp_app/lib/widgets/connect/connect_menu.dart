@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/services/connect/connect_packet_models.dart';

@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Settings page with Spotify authentication
 library;
 

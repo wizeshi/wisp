@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'package:flutter/material.dart';
 
 class NavigationHistory {

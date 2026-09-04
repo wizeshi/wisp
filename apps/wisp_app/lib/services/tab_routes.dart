@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 class TabRoutes {
   static const String home = '/home';
   static const String search = '/search';

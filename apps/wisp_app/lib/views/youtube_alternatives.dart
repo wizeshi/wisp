@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 library;
 
 import 'package:flutter/material.dart';

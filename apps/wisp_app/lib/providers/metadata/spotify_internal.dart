@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 // New implementation of the Spotify provider.
 // This one uses Spotify's internal API, since the SDK is unusable as of March 9th, 2026.
 // This one is more flexible, faster and more reliable than the old one,
@@ -3534,6 +3536,48 @@ class SpotifyInternalProvider extends MetadataProvider {
     // I'll leave this stub here. Maybe in the future we can figure out something, 
     // or repurpose it for something else. For now, it does nothing.
     // logger.d('[SpotifyInternal] reportItemPlayed itemId=$itemId, itemType=$itemType');
+  }
+
+  @override
+  Future<GenericAlbum?> getCachedAlbumInfo(String albumId, {int offset = 0, int limit = 50}) {
+    // TODO: implement getCachedAlbumInfo
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<GenericArtist?> getCachedArtistInfo(String artistId) {
+    // TODO: implement getCachedArtistInfo
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<GenericPlaylist?> getCachedPlaylistInfo(String playlistId, {int offset = 0, int limit = 50}) {
+    // TODO: implement getCachedPlaylistInfo
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<GenericSong?> getCachedTrackInfo(String trackId) {
+    // TODO: implement getCachedTrackInfo
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<GenericSong> getTrackInfo(String trackId, {MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired}) {
+    // TODO: implement getTrackInfo
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<GenericSimpleArtist>> getUserTopArtists({int limit = 20, String timeRange = 'short_term', MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired}) {
+    // TODO: implement getUserTopArtists
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<GenericSong>> getUserTopTracks({int limit = 20, String timeRange = 'short_term', MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired}) {
+    // TODO: implement getUserTopTracks
+    throw UnimplementedError();
   }
 }
 

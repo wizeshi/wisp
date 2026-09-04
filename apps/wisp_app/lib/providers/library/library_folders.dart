@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Playlist folder state + sorting preferences
 library;
 

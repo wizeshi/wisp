@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Notification service for download progress
 library;
 

@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Background-capable audio handler with queue management.
 library;
 

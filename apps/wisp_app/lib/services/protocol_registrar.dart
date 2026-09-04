@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'dart:io';
 
 import 'package:win32_registry/win32_registry.dart';

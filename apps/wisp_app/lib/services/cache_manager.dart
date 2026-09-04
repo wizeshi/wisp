@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// Audio file cache manager with LRU-based size management
 library;
 

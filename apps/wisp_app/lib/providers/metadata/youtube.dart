@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 /// YouTube metadata provider (search-only)
 library;
 
