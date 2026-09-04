@@ -18,7 +18,6 @@ import '../services/app_navigation.dart';
 import '../services/cache_manager.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
-import '../views/youtube_alternatives.dart';
 import 'adaptive_context_menu.dart';
 import 'playlist_folder_modals.dart';
 
@@ -264,9 +263,8 @@ class EntityContextMenus {
         onSelected: (_) async {
           final player = context.read<global_audio_player.WispAudioHandler>();
           final previousVideoId = YouTubeProvider.getCachedVideoId(track.id);
-          final selectedVideoId = await Navigator.of(context).push<String>(
-            MaterialPageRoute(builder: (_) => YouTubeAlternativesView(track: track)),
-          );
+          final selectedVideoId = await AppNavigation.instance
+              .openYouTubeAlternatives(track);
           if (!context.mounted || selectedVideoId == null) return;
 
           final hasChanged = selectedVideoId.isEmpty

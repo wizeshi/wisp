@@ -16,6 +16,7 @@ import '../views/queue.dart';
 import '../views/artist_detail.dart';
 import '../views/user_detail.dart';
 import '../views/list_detail.dart';
+import '../views/youtube_alternatives.dart';
 import '../widgets/full_player.dart';
 
 enum FullPlayerDesktopMode { artwork, canvas, lyrics, queue }
@@ -287,6 +288,23 @@ class AppNavigation {
       id: contextId,
       type: type,
       initialTitle: contextName,
+    );
+  }
+
+  /// Opens YouTube alternatives inside the shell navigator so desktop
+  /// navigation chrome remains visible regardless of where it was launched.
+  Future<String?> openYouTubeAlternatives(GenericSong track) {
+    final shellNavigator = _shellNavigator;
+    if (shellNavigator == null) return Future.value(null);
+
+    return shellNavigator.push<String>(
+      PageRouteBuilder<String>(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        settings: RouteSettings(name: '/youtube-alternatives/${track.id}'),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            YouTubeAlternativesView(track: track),
+      ),
     );
   }
 

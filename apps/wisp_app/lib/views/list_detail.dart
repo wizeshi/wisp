@@ -39,7 +39,6 @@ import '../providers/audio/youtube.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
 import '../widgets/provider_disabled_state.dart';
-import '../views/youtube_alternatives.dart';
 
 enum SharedListType { playlist, album }
 
@@ -1654,11 +1653,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         onSelected: (_) async {
           final player = context.read<global_audio_player.WispAudioHandler>();
           final previousVideoId = YouTubeProvider.getCachedVideoId(song.id);
-          final selectedVideoId = await Navigator.of(context).push<String>(
-            MaterialPageRoute(
-              builder: (_) => YouTubeAlternativesView(track: song),
-            ),
-          );
+          final selectedVideoId = await AppNavigation.instance
+              .openYouTubeAlternatives(song);
           if (!mounted || selectedVideoId == null) return;
 
           final hasChanged = selectedVideoId.isEmpty
@@ -3262,6 +3258,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }) {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+    return Builder(builder: (context) {
               // `player` is only needed here to pass into onPressed/onTap
               // callbacks, so `read` (no rebuild) is enough for it.
               final player = context
@@ -3745,6 +3742,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   ),
                 ),
               );
+    });
   }
 
   /// Proper (Sliver-based) virtualization for the mobile Spotify-style

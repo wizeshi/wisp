@@ -279,6 +279,39 @@ class YouTubeProvider {
       logger.d('[Audio/YouTube] Searching tracks for: $query');
 
       final searchResults = await _youtube.search.search(query);
+      if (searchResults.isEmpty) {
+        logger.w('[Audio/YouTube] No results found for: $query');
+        return [];
+      }
+
+      final videosWithScores = <MapEntry<Video, double>>[];
+
+      for (final video in searchResults) {
+        final score = _scoreVideo(
+          video,
+          artist: artist ?? '',
+          title: title ?? query,
+          durationSecs: durationSecs,
+        );
+        videosWithScores.add(MapEntry(video, score ?? 0));
+      }
+
+      final videosSortedByScore = videosWithScores..sort((a, b) => b.value.compareTo(a.value));
+
+      return videosSortedByScore.take(limit).map((entry) {
+        final video = entry.key;
+        return YouTubeResult(
+          videoId: video.id.value,
+          title: video.title,
+          channelName: video.author,
+          duration: video.duration ?? Duration.zero,
+          thumbnailUrl: video.thumbnails.highResUrl,
+          score: entry.value,
+        );
+      }).toList();
+      /* logger.d('[Audio/YouTube] Searching tracks for: $query');
+
+      final searchResults = await _youtube.search.search(query);
       if (searchResults.isEmpty) return [];
 
       final scoredResults = <MapEntry<Video, double>>[];
@@ -309,7 +342,7 @@ class YouTubeProvider {
           thumbnailUrl: video.thumbnails.highResUrl,
           score: entry.value,
         );
-      }).toList();
+      }).toList(); */
     } catch (e) {
       if (e is YouTubeException) rethrow;
       logger.e('[Audio/YouTube] Search error', error: e);
