@@ -5,9 +5,9 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:fvp/fvp.dart' as fvp;
@@ -38,6 +38,7 @@ import 'widgets/app_shell.dart';
 import 'package:wisp/utils/logger.dart';
 
 void main() async {
+  MediaKit.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
 
   bool isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
@@ -59,15 +60,6 @@ void main() async {
     options: {
       'platforms': ['windows', 'macos', 'linux'],
     },
-  );
-
-  // Initialize just_audio with media_kit backend for Linux
-  JustAudioMediaKit.ensureInitialized(
-    linux: true,
-    windows: true,
-    macOS: true,
-    iOS: true,
-    android: true,
   );
 
   // Initialize audio_service for system media controls (MPRIS on Linux)

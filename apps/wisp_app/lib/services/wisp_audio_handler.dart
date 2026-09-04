@@ -1,6 +1,5 @@
 // Copyright © 2026 wizeshi
 
-/// Background-capable audio handler with queue management.
 library;
 
 import 'dart:async';
@@ -11,9 +10,8 @@ import 'package:audio_service/audio_service.dart' as audio_service;
 import 'package:audio_session/audio_session.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wisp_playback_engine/wisp_playback_engine.dart';
 
 import '../models/metadata_models.dart';
 import '../services/cache_manager.dart';
@@ -66,27 +64,11 @@ class _StreamUrlCacheEntry {
 
 class WispAudioHandler extends audio_service.BaseAudioHandler
     with ChangeNotifier {
-  // androidApplyAudioAttributes: false — just_audio_media_kit does not
-  // implement setAndroidAudioAttributes() on its platform player, so we
-  // suppress the call. media_kit manages audio routing via libmpv internally.
-  final AudioPlayer _primaryPlayer = AudioPlayer(
-    androidApplyAudioAttributes: false,
-  );
-  final AudioPlayer _secondaryPlayer = AudioPlayer(
-    androidApplyAudioAttributes: false,
-  );
+  final WispPlaybackEngine _engine;
   final YouTubeProvider _youtube = YouTubeProvider();
   final Connectivity _connectivity = Connectivity();
 
-  bool _useSecondaryAsActivePlayer = false;
-
   double _lastVolume = 1.0;
-  // The app exposes a real volume slider on desktop, so crossfades there
-  // should target whatever the user currently has it set to. Mobile has no
-  // in-app volume control at all — the OS/hardware volume is the only knob —
-  // so _player.volume / _lastVolume tracking them is unreliable ground to
-  // build a fade target on. Just always target full (1.0) there.
-  final bool _isMobilePlatform = Platform.isAndroid || Platform.isIOS;
   double? _savedVolume;
 
   // State
@@ -109,22 +91,43 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   String? _playbackContextID;
   SongSource? _playbackContextSource;
 
+  // Mirrors the engine's own PlaybackEngineState so getters stay cheap and
+  // synchronous. This handler never reaches into the engine's players —
+  // only into this cached snapshot and `_engine.state`/public methods.
+  double _engineVolume = 1.0;
+  bool _engineIsPlaying = false;
+  bool _engineIsBuffering = false;
+  bool _engineIsTransitioning = false;
+  PlaybackEngineError? _lastEngineError;
+  List<PlaybackOutputDevice> _availableOutputDevices = const [];
+  PlaybackOutputDevice? _activeOutputDevice;
+
+  // Preload bookkeeping. Unlike the old handler, this is index/track
+  // bookkeeping only — the engine owns whatever slots/players it needs to
+  // actually hold the preloaded audio.
+  int _preloadGeneration = 0;
+  bool _isPreloadInProgress = false;
+  int? _preloadedNextIndex;
+  GenericSong? _preloadedNextTrack;
+  String? _lastFailedPreloadTrackId;
+  int _lastPreloadFailureMs = 0;
+  static const Duration _preloadRetryCooldown = Duration(seconds: 2);
+
+  // Explicit "the user asked to pause" intent. A position tick from the
+  // engine can arrive just as pause() is being processed; without this a
+  // late crossfade-transition check could ignore the pause and start
+  // transitioning into the next track anyway.
+  bool _userPaused = false;
+
   // Subscriptions
-  StreamSubscription? _positionSubscription;
-  StreamSubscription? _processingStateSubscription;
-  StreamSubscription? _playingSubscription;
-  StreamSubscription? _currentIndexSubscription;
+  StreamSubscription<PlaybackEngineState>? _engineStateSubscription;
+  StreamSubscription<void>? _engineCompletedSubscription;
+  StreamSubscription<List<PlaybackOutputDevice>>? _outputDevicesSubscription;
+  StreamSubscription<PlaybackOutputDevice?>? _activeOutputDeviceSubscription;
   StreamSubscription? _connectivitySubscription;
-  // playbackEventStream is where just_audio actually surfaces native
-  // PlayerExceptions (e.g. AVPlayerItem load failures on iOS) — these do
-  // NOT reliably come through as a thrown exception from setAudioSource().
-  // Without this subscription, native playback failures were vanishing
-  // silently: no thrown error, no log, state stuck on loading.
-  StreamSubscription? _playbackEventSubscription;
   Timer? _rpcTimer;
-  Timer? _crossfadeTimer;
-  int _rpcLastSecond = -1;
   Timer? _mprisTimer;
+  int _rpcLastSecond = -1;
 
   static const Duration _positionNotifyInterval = Duration(milliseconds: 200);
   static const Duration _streamUrlTtl = Duration(minutes: 15);
@@ -138,36 +141,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   int _trackChangeToken = 0;
   // Set while _prepareCurrentTrackOnStartup() is in-flight so that play()
-  // can wait for it instead of racing to call setAudioSource() concurrently.
+  // can wait for it instead of racing to call loadCurrent() concurrently.
   Future<void>? _startupPrepareFuture;
   bool _isHandlingCompletion = false;
   bool _isTrackTransitioning = false;
-  bool _crossfadeFadeOutActive = false;
-  bool _crossfadeFadeInActive = false;
-  bool _isCrossfading = false;
-  bool _isCrossfadePreloadInProgress = false;
-  double _crossfadeTargetVolume = 1.0;
-  int _crossfadePreloadGeneration = 0;
-  int? _preloadedNextIndex;
-  GenericSong? _preloadedNextTrack;
-  String? _inactivePreloadTrackId;
-  String? _lastFailedPreloadTrackId;
-  int _lastPreloadFailureMs = 0;
-  int _lastManualPauseMs = 0;
-  // Explicit "the user asked to pause" intent, independent of native player
-  // state timing. _maybeStartCrossfade/_startFadeIn run off position ticks
-  // that can already be in flight when pause() is called; without this flag
-  // an in-flight crossfade has no way to know a pause happened and will
-  // forcibly call play() anyway once it completes, overriding the pause.
-  bool _userPaused = false;
-  static const Duration _pauseCompletionGuardWindow = Duration(
-    milliseconds: 1500,
-  );
-  static const Duration _preloadRetryCooldown = Duration(seconds: 2);
+
   static const int _prefetchWindowSize = 5;
   int _prefetchGeneration = 0;
-  final Map<String, AudioSource> _prefetchedAudioSources = {};
-  final Map<String, Future<AudioSource?>> _prefetchSourceTasks = {};
+  final Map<String, PlaybackSource> _prefetchedSources = {};
+  final Map<String, Future<PlaybackSource?>> _prefetchSourceTasks = {};
   final Map<String, _StreamUrlCacheEntry> _streamUrlCache = {};
   // In-flight tasks to avoid duplicate resolver requests for same id
   final Map<String, Future<String>> _streamUrlTasks = {};
@@ -195,17 +177,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   double get crossfadeDurationSeconds => _crossfadeDurationSeconds;
   bool get _playlistPlaybackEnabled =>
       _gaplessPlaybackEnabled || _crossfadeEnabled;
-  AudioPlayer get _player =>
-      _useSecondaryAsActivePlayer ? _secondaryPlayer : _primaryPlayer;
-  AudioPlayer get _inactivePlayer =>
-      _useSecondaryAsActivePlayer ? _primaryPlayer : _secondaryPlayer;
-  Duration get position => _player.position;
+  Duration get position => _engine.state.position;
   Duration get throttledPosition => _lastNotifiedPosition;
   Duration get interpolatedPosition => _getInterpolatedPosition();
   Duration get duration => _isHandoffHost
-      ? _lastKnownDuration ?? _player.duration ?? Duration.zero
-      : _player.duration ?? _lastKnownDuration ?? Duration.zero;
-  double get volume => _player.volume;
+      ? (_lastKnownDuration ?? _engine.state.duration)
+      : (_engine.state.duration > Duration.zero
+            ? _engine.state.duration
+            : _lastKnownDuration ?? Duration.zero);
+  double get volume => _engineVolume;
   double get userVolume => _savedVolume ?? _lastVolume;
   bool get isOnline => _isOnline;
   String? get errorMessage => _errorMessage;
@@ -213,13 +193,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   String? get playbackContextName => _playbackContextName;
   String? get playbackContextID => _playbackContextID;
   SongSource? get playbackContextSource => _playbackContextSource;
+  List<PlaybackOutputDevice> get outputDevices => _availableOutputDevices;
+  PlaybackOutputDevice? get activeOutputDevice => _activeOutputDevice;
 
   ConnectPlaybackSnapshot buildConnectSnapshot() {
     return ConnectPlaybackSnapshot(
       queue: List<GenericSong>.from(_queue),
       originalQueue: List<GenericSong>.from(_originalQueue),
       currentIndex: _currentIndex,
-      positionMs: _player.position.inMilliseconds,
+      positionMs: position.inMilliseconds,
       durationMs: duration.inMilliseconds,
       isPlaying: isPlaying,
       shuffleEnabled: _shuffleEnabled,
@@ -228,7 +210,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       contextName: _playbackContextName,
       contextId: _playbackContextID,
       contextSource: _playbackContextSource,
-      volume: _player.volume,
+      volume: _engineVolume,
       resolvedYoutubeIds: getResolvedYoutubeIdsForTracks(_queue),
     );
   }
@@ -284,7 +266,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await play();
     }
     logger.d(
-      '[Handoff] WispAudioHandler.applyConnectSnapshot: applied snapshot currentIndex=$_currentIndex isPlaying=${isPlaying} positionMs=${_player.position.inMilliseconds}',
+      '[Handoff] WispAudioHandler.applyConnectSnapshot: applied snapshot currentIndex=$_currentIndex isPlaying=$isPlaying positionMs=${position.inMilliseconds}',
     );
   }
 
@@ -376,7 +358,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _updateMediaItem();
       notifyListeners();
       logger.d(
-        '[Handoff] WispAudioHandler.applyPassiveConnectSnapshot: applied passive snapshot updated currentIndex=$_currentIndex isPlaying=${isPlaying}',
+        '[Handoff] WispAudioHandler.applyPassiveConnectSnapshot: applied passive snapshot updated currentIndex=$_currentIndex isPlaying=$isPlaying',
       );
     }
   }
@@ -386,14 +368,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> applyDelta(ConnectStateDelta delta) async {
     bool changed = false;
 
-    // Apply position if present
     if (delta.positionMs != null) {
       final targetPosition = Duration(milliseconds: delta.positionMs!);
       await seek(targetPosition);
       changed = true;
     }
 
-    // Apply current index if present
     if (delta.currentIndex != null) {
       if (delta.currentIndex != _currentIndex &&
           delta.currentIndex! >= 0 &&
@@ -403,7 +383,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
     }
 
-    // Apply playing state if present
     if (delta.isPlaying != null) {
       if (delta.isPlaying!) {
         if (!isPlaying) {
@@ -418,7 +397,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
     }
 
-    // Apply shuffle if present
     if (delta.shuffleEnabled != null) {
       if (delta.shuffleEnabled != _shuffleEnabled) {
         setShuffleEnabled(delta.shuffleEnabled!);
@@ -426,7 +404,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
     }
 
-    // Apply repeat mode if present
     if (delta.repeatMode != null) {
       final mode = _repeatModeFromString(delta.repeatMode!);
       if (mode != _repeatMode) {
@@ -435,7 +412,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
     }
 
-    // Apply queue if present (fallback to full snapshot)
     if (delta.queue != null) {
       await setQueue(
         delta.queue!,
@@ -447,13 +423,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       changed = true;
     }
 
-    // Apply volume if present
     if (delta.volume != null) {
       await setVolume(delta.volume!.clamp(0.0, 1.0));
       changed = true;
     }
 
-    // Apply duration if present (for UI sync)
     if (delta.durationMs != null) {
       final nextDuration = delta.durationMs! > 0
           ? Duration(milliseconds: delta.durationMs!)
@@ -475,7 +449,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool isTrackCached(String trackId) =>
       AudioCacheManager.instance.isTrackCached(trackId);
 
-  WispAudioHandler() {
+  WispAudioHandler({WispPlaybackEngine? engine})
+    : _engine = engine ?? MediaKitPlaybackEngine() {
     _init();
   }
 
@@ -488,10 +463,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _crossfadeEnabled = await PreferencesProvider.isCrossfadeEnabled();
     _crossfadeDurationSeconds =
         await PreferencesProvider.isCrossfadeDurationSeconds();
-    JustAudioMediaKit.prefetchPlaylist = _gaplessPlaybackEnabled;
-
-    _attachActivePlayerListeners();
-    _scheduleNextTrackPreload();
+    await _engine.updateSettings(_buildEngineSettings());
+    _attachEngineListeners();
 
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
       result,
@@ -504,8 +477,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     if (_savedVolume != null) {
       final initialVolume = _savedVolume!.clamp(0.0, 1.0);
-      await _primaryPlayer.setVolume(initialVolume);
-      await _secondaryPlayer.setVolume(initialVolume);
+      await _engine.setVolume(initialVolume);
       if (initialVolume > 0) {
         _lastVolume = initialVolume;
       }
@@ -524,22 +496,109 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     await session.configure(const AudioSessionConfiguration.music());
   }
 
-  void _handleRpcPositionTick() {
-    if (_currentTrack == null) return;
-    final seconds = _player.position.inSeconds;
-    if (!isPlaying) return;
-    if (seconds != _rpcLastSecond) {
-      _rpcLastSecond = seconds;
-      _updateDiscordPresence();
+  PlaybackEngineSettings _buildEngineSettings() => PlaybackEngineSettings(
+    gaplessEnabled: _gaplessPlaybackEnabled,
+    crossfadeEnabled: _crossfadeEnabled,
+    crossfadeDuration: Duration(
+      milliseconds: (_crossfadeDurationSeconds * 1000).round(),
+    ),
+  );
+
+  // ENGINE WIRING
+  //
+  // Everything below this point is the only place this handler looks at the
+  // engine's stream of state. There is no volume ramp, no second player, and
+  // no fade timer here — those live inside whichever WispPlaybackEngine is
+  // injected. This handler just reacts to state (for UI/session/RPC) and
+  // decides, based on queue position, when to call preloadNext() and
+  // transitionToPreloaded().
+  void _attachEngineListeners() {
+    _engineStateSubscription?.cancel();
+    _engineCompletedSubscription?.cancel();
+    _outputDevicesSubscription?.cancel();
+    _activeOutputDeviceSubscription?.cancel();
+
+    _engineStateSubscription = _engine.states.listen(
+      _handleEngineState,
+      onError: (Object e, StackTrace st) {
+        logger.e('[Audio/Engine] state stream error', error: e, stackTrace: st);
+      },
+    );
+
+    // The engine only emits this when the active source finishes on its
+    // own. If a crossfade already moved us onto the next source ahead of
+    // time, this simply won't fire for the track that got faded out.
+    _engineCompletedSubscription = _engine.completed.listen((_) {
+      _onCompleted();
+    });
+
+    _outputDevicesSubscription = _engine.outputDevices.listen((devices) {
+      _availableOutputDevices = devices;
+      notifyListeners();
+    });
+
+    _activeOutputDeviceSubscription = _engine.activeOutputDevice.listen((
+      device,
+    ) {
+      _activeOutputDevice = device;
+      notifyListeners();
+    });
+  }
+
+  void _handleEngineState(PlaybackEngineState engineState) {
+    _engineVolume = engineState.volume;
+    _engineIsTransitioning = engineState.isTransitioning;
+    _engineIsBuffering = engineState.isBuffering;
+    _engineIsPlaying = engineState.isPlaying;
+
+    if (engineState.duration > Duration.zero) {
+      _lastKnownDuration = engineState.duration;
+    }
+
+    if (engineState.error != null && !identical(engineState.error, _lastEngineError)) {
+      _lastEngineError = engineState.error;
+      logger.e('[Audio/Engine] ${engineState.error}');
+      _errorMessage = engineState.error!.message;
+      _setState(PlaybackState.error);
+      _setTrackTransitioning(false);
+    }
+
+    _handlePositionUpdate(engineState.position);
+    _handleRpcPositionTick();
+
+    // Don't let a mid-transition buffering/playing blip flip our
+    // higher-level state — _transitionToNext()/_loadTrackAtIndex() already
+    // own state transitions while a transition/load is in flight.
+    if (!_engineIsTransitioning && !_isTrackTransitioning && _currentTrack != null) {
+      if (_engineIsBuffering) {
+        _setState(PlaybackState.loading);
+      } else if (_engineIsPlaying) {
+        _setState(PlaybackState.playing);
+      } else if (_state == PlaybackState.playing ||
+          _state == PlaybackState.loading) {
+        _setState(PlaybackState.paused);
+      }
+    }
+
+    _broadcastPlaybackState();
+
+    if (!_engineIsTransitioning) {
+      unawaited(
+        _maybeSchedulePreload(engineState.position, engineState.duration),
+      );
+      if (_crossfadeEnabled) {
+        unawaited(
+          _maybeStartCrossfadeTransition(
+            engineState.position,
+            engineState.duration,
+          ),
+        );
+      }
     }
   }
 
   void _handlePositionUpdate(Duration position) {
     _lastRawPosition = position;
-    if (_crossfadeEnabled && !_isCrossfading) {
-      unawaited(_maybeScheduleCrossfadePreload(position));
-      unawaited(_maybeStartCrossfade(position));
-    }
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     _updateMediaSessionPosition(position, nowMs);
     if (nowMs - _lastPositionNotifyMs <
@@ -550,53 +609,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _lastPositionNotifyMs = nowMs;
     _lastPositionUpdateMs = nowMs;
     notifyListeners();
-  }
-
-  Future<void> _maybeScheduleCrossfadePreload(Duration position) async {
-    if (!_crossfadeEnabled || _currentTrack == null || _currentIndex < 0) {
-      return;
-    }
-
-    final trackDuration = _player.duration;
-    if (trackDuration == null || trackDuration <= Duration.zero) {
-      return;
-    }
-
-    final crossfadeWindow = Duration(
-      milliseconds: (_crossfadeDurationSeconds * 1000).round(),
-    );
-    final preloadLead = crossfadeWindow + const Duration(seconds: 10);
-    final remaining = trackDuration - position;
-
-    if (remaining > preloadLead) {
-      return;
-    }
-
-    final nextIndex = _nextQueueIndex();
-    if (nextIndex == null) {
-      return;
-    }
-    final nextTrack = _queue[nextIndex];
-
-    // Without these checks this function re-ran the ENTIRE preload — a
-    // fresh setAudioSource() against the network — on every single position
-    // tick for the whole ~10s preload window (many times a second), which
-    // is what made _isCrossfadePreloadInProgress flicker constantly and
-    // hammered the decoder with repeated overlapping loads of the same
-    // stream (surfacing as mpv's "Failed to create file cache").
-    if (_isInactivePreloadReady(nextIndex, nextTrack)) {
-      return;
-    }
-    if (_isCrossfadePreloadInProgress) {
-      return;
-    }
-    if (_lastFailedPreloadTrackId == nextTrack.id &&
-        DateTime.now().millisecondsSinceEpoch - _lastPreloadFailureMs <
-            _preloadRetryCooldown.inMilliseconds) {
-      return;
-    }
-
-    unawaited(_scheduleNextTrackPreload());
   }
 
   void _forcePositionUpdate(Duration position) {
@@ -654,34 +666,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     return predicted;
   }
 
-  bool _isAtTrackEnd() {
-    final trackDuration = _player.duration;
-    if (trackDuration == null || trackDuration <= Duration.zero) {
-      return false;
-    }
-
-    // Sanity-check the live duration against the track's known metadata
-    // duration before trusting it. Right after a crossfade — especially on
-    // mobile, where a freshly-loaded network stream's duration can take a
-    // moment to fully resolve — _player.duration can briefly report a much
-    // shorter value than the track actually is. Comparing position against
-    // a bogus short duration makes this return true almost immediately,
-    // which then makes ANY playing->false transition (including a normal
-    // user-initiated pause seconds into the track) look like the track
-    // completing, triggering a spurious advance/crossfade.
-    final knownDurationSecs = _currentTrack?.durationSecs;
-    if (knownDurationSecs != null && knownDurationSecs > 0) {
-      final knownDuration = Duration(seconds: knownDurationSecs);
-      if ((trackDuration - knownDuration).abs() > const Duration(seconds: 2)) {
-        return false;
-      }
-    }
-
-    final position = _player.position;
-    final threshold = trackDuration - const Duration(milliseconds: 400);
-    return position >= threshold;
-  }
-
   // RPC and MPRIS timers to update Discord and MPRIS every second
   void _ensureRpcTimer() {
     if (!isPlaying || _currentTrack == null || _rpcTimer != null) return;
@@ -694,10 +678,19 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     });
   }
 
+  void _handleRpcPositionTick() {
+    if (_currentTrack == null) return;
+    if (!isPlaying) return;
+    final seconds = position.inSeconds;
+    if (seconds != _rpcLastSecond) {
+      _rpcLastSecond = seconds;
+      _updateDiscordPresence();
+    }
+  }
+
   void _handleMprisTick() {
     if (_currentTrack == null) return;
     if (!isPlaying) return;
-    final position = _player.position;
     _updateMediaSessionPosition(
       position,
       DateTime.now().millisecondsSinceEpoch,
@@ -750,250 +743,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     notifyListeners();
   }
 
-  void _attachActivePlayerListeners() {
-    _positionSubscription?.cancel();
-    _processingStateSubscription?.cancel();
-    _playingSubscription?.cancel();
-    _currentIndexSubscription?.cancel();
-    _playbackEventSubscription?.cancel();
-
-    _currentIndexSubscription = _player.currentIndexStream.listen((index) {
-      if (!_playlistPlaybackEnabled ||
-          !(_player.hasNext || _player.hasPrevious)) {
-        return;
-      }
-      if (index == null || index == _currentIndex) {
-        return;
-      }
-      if (index < 0 || index >= _queue.length) {
-        return;
-      }
-      _currentIndex = index;
-      _currentTrack = _queue[index];
-      _errorMessage = null;
-      _updateMediaItem();
-      _saveQueue();
-      _queueCaching(_currentTrack!);
-      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: index));
-      notifyListeners();
-    });
-
-    _processingStateSubscription = _player.processingStateStream.listen(
-      (state) {
-        if (state == ProcessingState.completed) {
-          final msSincePause =
-              DateTime.now().millisecondsSinceEpoch - _lastManualPauseMs;
-          if (msSincePause < _pauseCompletionGuardWindow.inMilliseconds) {
-            // Some mobile just_audio backends can misreport a still-buffering
-            // network stream as ProcessingState.completed right after pause()
-            // is called on it — this is essentially never a real completion
-            // (a track finishing on its own has no reason to coincide with the
-            // exact moment we asked it to pause). Treat it as a normal pause
-            // instead of advancing/crossfading into the next track.
-            logger.w(
-              '[Audio/Player] Ignoring ProcessingState.completed '
-              '${msSincePause}ms after a manual pause — treating as spurious.',
-            );
-          } else {
-            _onCompleted();
-          }
-        } else if (state == ProcessingState.loading ||
-            state == ProcessingState.buffering) {
-          if (_isTrackTransitioning || !_player.playing) {
-            _setState(PlaybackState.loading);
-          }
-        } else if (state == ProcessingState.ready) {
-          if (_isTrackTransitioning) {
-            _setTrackTransitioning(false);
-          }
-          if (_player.playing) {
-            _setState(PlaybackState.playing);
-          } else if (_state != PlaybackState.idle) {
-            _setState(PlaybackState.paused);
-          }
-        }
-        _broadcastPlaybackState();
-      },
-      onError: (Object e, StackTrace st) {
-        logger.e(
-          '[Audio/Player] processingStateStream error',
-          error: e,
-          stackTrace: st,
-        );
-        _errorMessage = e.toString();
-        _setState(PlaybackState.error);
-        _setTrackTransitioning(false);
-      },
-    );
-
-    // just_audio surfaces native playback failures (bad HTTP responses,
-    // AVPlayerItem load failures, codec issues, etc.) here — previously
-    // nothing was listening for this at all, so those failures were
-    // silently dropped with no log and no state change.
-    _playbackEventSubscription = _player.playbackEventStream.listen(
-      (event) {},
-      onError: (Object e, StackTrace st) {
-        logger.e(
-          '[Audio/Player] playbackEventStream error',
-          error: e,
-          stackTrace: st,
-        );
-        if (e is PlayerException) {
-          logger.e(
-            '[Audio/Player] PlayerException code=${e.code} message=${e.message}',
-          );
-        }
-        _errorMessage = e.toString();
-        _setState(PlaybackState.error);
-        _setTrackTransitioning(false);
-      },
-    );
-
-    _playingSubscription = _player.playingStream.listen((playing) {
-      final wasPlaying = _state == PlaybackState.playing;
-      if (_player.processingState == ProcessingState.ready) {
-        if (!playing && wasPlaying && _isAtTrackEnd()) {
-          logger.w(
-            '[Audio/Player] Fallback completion trigger: playing=false at track end',
-          );
-          _onCompleted();
-          _broadcastPlaybackState();
-          return;
-        }
-        _setState(playing ? PlaybackState.playing : PlaybackState.paused);
-      }
-      _broadcastPlaybackState();
-    });
-
-    _positionSubscription = _player.positionStream.listen((position) {
-      _handlePositionUpdate(position);
-      _handleRpcPositionTick();
-    });
-  }
-
-  void _invalidateCrossfadePreload() {
-    _crossfadePreloadGeneration++;
-    _preloadedNextIndex = null;
-    _preloadedNextTrack = null;
-    _inactivePreloadTrackId = null;
-  }
-
-  Future<void> _clearInactivePlayer() async {
-    try {
-      await _inactivePlayer.stop();
-    } catch (_) {}
-    _inactivePreloadTrackId = null;
-  }
-
-  bool _isCrossfadePreloadStillValid(
-    int generation,
-    int nextIndex,
-    int trackChangeToken,
-  ) {
-    if (generation != _crossfadePreloadGeneration) return false;
-    if (trackChangeToken != _trackChangeToken) return false;
-    if (_preloadedNextIndex != nextIndex) return false;
-    if (nextIndex < 0 || nextIndex >= _queue.length) return false;
-    if (_preloadedNextTrack?.id != _queue[nextIndex].id) return false;
-    return true;
-  }
-
-  bool _isInactivePreloadReady(int nextIndex, GenericSong nextTrack) {
-    return _inactivePlayer.audioSource != null &&
-        _preloadedNextIndex == nextIndex &&
-        _preloadedNextTrack?.id == nextTrack.id &&
-        _inactivePreloadTrackId == nextTrack.id;
-  }
-
-  Future<bool> _waitForInactivePreloadReady(
-    int nextIndex,
-    GenericSong nextTrack, {
-    Duration timeout = const Duration(seconds: 5),
-    Duration pollInterval = const Duration(milliseconds: 150),
-  }) async {
-    final deadline = DateTime.now().add(timeout);
-    while (DateTime.now().isBefore(deadline)) {
-      if (_isInactivePreloadReady(nextIndex, nextTrack)) {
-        return true;
-      }
-      await Future.delayed(pollInterval);
-    }
-    return _isInactivePreloadReady(nextIndex, nextTrack);
-  }
-
-  bool _shouldRefreshSourceOnLoadError(Object error) {
-    final message = error.toString().toLowerCase();
-    return message.contains('403') ||
-        message.contains('forbidden') ||
-        message.contains('expired');
-  }
-
-  Future<void> _invalidateTrackSourceCaches(GenericSong track) async {
-    _prefetchedAudioSources.remove(track.id);
-    _prefetchSourceTasks.remove(track.id);
-
-    final cachedVideoId = YouTubeProvider.getCachedVideoId(track.id);
-    if (cachedVideoId != null && cachedVideoId.isNotEmpty) {
-      _streamUrlCache.remove(cachedVideoId);
-    }
-  }
-
-  Future<AudioSource?> _getAudioSourceWithRetry(
-    GenericSong track, {
-    bool allowPrefetched = true,
-  }) async {
-    try {
-      return await _getAudioSource(track, allowPrefetched: allowPrefetched);
-    } catch (e) {
-      if (!_shouldRefreshSourceOnLoadError(e)) {
-        rethrow;
-      }
-
-      await _invalidateTrackSourceCaches(track);
-      return await _getAudioSource(track, allowPrefetched: false);
-    }
-  }
-
-  Future<void> _loadTrackIntoPlayerWithRetry(
-    Future<void> Function(AudioSource source) loadSource,
-    GenericSong track, {
-    bool allowPrefetched = true,
-  }) async {
-    final source = await _getAudioSourceWithRetry(
-      track,
-      allowPrefetched: allowPrefetched,
-    );
-    if (source == null) {
-      throw Exception('Could not get audio source for ${track.title}');
-    }
-
-    try {
-      await loadSource(source);
-    } catch (e) {
-      if (!_shouldRefreshSourceOnLoadError(e)) {
-        rethrow;
-      }
-
-      await _invalidateTrackSourceCaches(track);
-      final refreshedSource = await _getAudioSource(
-        track,
-        allowPrefetched: false,
-      );
-      if (refreshedSource == null) {
-        throw Exception('Could not get audio source for ${track.title}');
-      }
-      await loadSource(refreshedSource);
-    }
-  }
-
-  void _invalidatePlaybackPrefetch({bool clearSources = false}) {
-    _prefetchGeneration++;
-    _prefetchSourceTasks.clear();
-    if (clearSources) {
-      _prefetchedAudioSources.clear();
-    }
-  }
-
+  // PRELOAD + TRANSITION SCHEDULING
+  //
+  // This is the "queue owner" half of the crossfade contract: decide what
+  // the next track is and when it's time to switch to it. The engine does
+  // the actual mixing once transitionToPreloaded() is called.
   int? _nextQueueIndex() {
     if (_queue.isEmpty || _currentIndex < 0) {
       return null;
@@ -1011,381 +765,219 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     return null;
   }
 
-  Future<void> _scheduleNextTrackPreload() async {
-    if (!_crossfadeEnabled || _queue.isEmpty || _currentIndex < 0) {
-      return;
+  int? _queueIndexAfter(int index, int offset) {
+    if (_queue.isEmpty || index < 0 || index >= _queue.length) {
+      return null;
     }
 
-    if (_isCrossfadePreloadInProgress) {
-      return;
+    final nextIndex = index + offset;
+    if (nextIndex < _queue.length) {
+      return nextIndex;
     }
 
-    final nextIndex = _nextQueueIndex();
-    if (nextIndex == null) {
-      _invalidateCrossfadePreload();
-      return;
+    if (_repeatMode != RepeatMode.all) {
+      return null;
     }
 
-    final generation = _crossfadePreloadGeneration;
-    final trackChangeToken = _trackChangeToken;
-    final nextTrack = _queue[nextIndex];
-    // Capture the physical player now. `_inactivePlayer` is a getter that
-    // flips with `_useSecondaryAsActivePlayer`, so if a crossfade starts
-    // while we're awaiting network I/O below, re-reading `_inactivePlayer`
-    // later could resolve to the player that is now actively fading out —
-    // calling setAudioSource/setVolume on it would stop or mute it outright.
-    final targetPlayer = _inactivePlayer;
-    _preloadedNextIndex = nextIndex;
-    _preloadedNextTrack = nextTrack;
-    _isCrossfadePreloadInProgress = true;
-
-    try {
-      // Defense in depth against the sticky `playing` flag: setAudioSource()
-      // on a player that's still marked as playing will auto-resume
-      // playback of the new source on some mobile backends. _completeCrossfade
-      // should already have paused/stopped this player, but confirm here too
-      // before we ever load a new track into it.
-      if (targetPlayer.playing) {
-        try {
-          await targetPlayer.pause();
-        } catch (_) {}
-      }
-
-      await _loadTrackIntoPlayerWithRetry(
-        // Explicit initialPosition matters: these two players are reused in
-        // rotation across the whole queue, and some mobile just_audio
-        // backends retain a player's leftover position from its previous
-        // track when setAudioSource() doesn't specify one. Left unset, a
-        // reused player can silently start the new track already reporting
-        // a position near its old track's end — which then makes
-        // _isAtTrackEnd() (used by the pause fallback-completion check)
-        // think the brand-new track is already finished.
-        (source) =>
-            targetPlayer.setAudioSource(source, initialPosition: Duration.zero),
-        nextTrack,
-      );
-
-      // Validate BEFORE mutating further. If a crossfade started (or the
-      // queue changed) while we awaited above, this preload is stale and
-      // `targetPlayer` may no longer be safe to touch.
-      final stillValid =
-          _isCrossfadePreloadStillValid(
-            generation,
-            nextIndex,
-            trackChangeToken,
-          ) &&
-          identical(targetPlayer, _inactivePlayer);
-
-      if (!stillValid) {
-        try {
-          await targetPlayer.stop();
-        } catch (_) {}
-        _inactivePreloadTrackId = null;
-        return;
-      }
-
-      await targetPlayer.setVolume(0);
-      if (targetPlayer.playing) {
-        // setAudioSource itself resumed playback on this platform. Pause it
-        // immediately — it should sit silent until the real crossfade cue.
-        try {
-          await targetPlayer.pause();
-        } catch (_) {}
-      }
-      _inactivePreloadTrackId = nextTrack.id;
-    } catch (e) {
-      logger.w('[Audio/Player] Crossfade preload failed', error: e);
-      _invalidateCrossfadePreload();
-      _lastFailedPreloadTrackId = nextTrack.id;
-      _lastPreloadFailureMs = DateTime.now().millisecondsSinceEpoch;
-      try {
-        await targetPlayer.stop();
-      } catch (_) {}
-    } finally {
-      _isCrossfadePreloadInProgress = false;
-    }
+    return nextIndex % _queue.length;
   }
 
-  Future<void> _cancelCrossfade({bool stopInactive = true}) async {
-    if (!_isCrossfading &&
-        !_crossfadeFadeInActive &&
-        !_crossfadeFadeOutActive) {
-      return;
-    }
-
-    _stopCrossfadeTimer();
-    _isCrossfading = false;
-    _crossfadeFadeOutActive = false;
-    _crossfadeFadeInActive = false;
-    if (stopInactive) {
-      try {
-        await _inactivePlayer.stop();
-      } catch (_) {}
-    }
+  void _clearPreloadBookkeeping() {
+    _preloadGeneration++;
+    _preloadedNextIndex = null;
+    _preloadedNextTrack = null;
   }
 
-  Future<void> _maybeStartCrossfade(Duration position) async {
-    if (!_crossfadeEnabled || _isCrossfading || _currentTrack == null) {
-      return;
-    }
+  bool _isPreloadReady(int nextIndex, GenericSong nextTrack) {
+    return _preloadedNextIndex == nextIndex &&
+        _preloadedNextTrack?.id == nextTrack.id &&
+        _engine.state.preloadedSource != null;
+  }
 
-    final trackDuration = _player.duration;
-    if (trackDuration == null || trackDuration <= Duration.zero) {
-      return;
+  Future<bool> _waitForPreloadReady(
+    int nextIndex,
+    GenericSong nextTrack, {
+    Duration timeout = const Duration(seconds: 5),
+    Duration pollInterval = const Duration(milliseconds: 150),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (_isPreloadReady(nextIndex, nextTrack)) return true;
+      await Future.delayed(pollInterval);
     }
+    return _isPreloadReady(nextIndex, nextTrack);
+  }
+
+  Future<void> _maybeSchedulePreload(
+    Duration position,
+    Duration trackDuration,
+  ) async {
+    if (!_playlistPlaybackEnabled || _currentTrack == null) return;
+    if (trackDuration <= Duration.zero) return;
 
     final crossfadeWindow = Duration(
       milliseconds: (_crossfadeDurationSeconds * 1000).round(),
     );
-    if (trackDuration <= crossfadeWindow) {
-      return;
-    }
-
-    const startLead = Duration(milliseconds: 600);
-
+    final preloadLead = _crossfadeEnabled
+        ? crossfadeWindow + const Duration(seconds: 10)
+        : const Duration(seconds: 10);
     final remaining = trackDuration - position;
-    if (remaining > crossfadeWindow + startLead) {
+    if (remaining > preloadLead) return;
+
+    final nextIndex = _nextQueueIndex();
+    if (nextIndex == null) return;
+    final nextTrack = _queue[nextIndex];
+
+    if (_isPreloadReady(nextIndex, nextTrack)) return;
+    if (_isPreloadInProgress) return;
+    if (_lastFailedPreloadTrackId == nextTrack.id &&
+        DateTime.now().millisecondsSinceEpoch - _lastPreloadFailureMs <
+            _preloadRetryCooldown.inMilliseconds) {
       return;
     }
 
-    await _startFadeIn();
+    unawaited(_scheduleNextTrackPreload());
   }
 
-  Future<void> _startFadeIn() async {
-    if (!_crossfadeEnabled || _isCrossfading || _currentTrack == null) {
+  Future<void> _scheduleNextTrackPreload() async {
+    if (!_playlistPlaybackEnabled || _queue.isEmpty || _currentIndex < 0) {
       return;
     }
-    if (_userPaused) {
-      // A position tick can schedule this before pause() runs; without this
-      // check the crossfade would complete anyway and forcibly call play(),
-      // overriding a pause that happened moments ago.
-      return;
-    }
+    if (_isPreloadInProgress) return;
 
     final nextIndex = _nextQueueIndex();
     if (nextIndex == null) {
+      _clearPreloadBookkeeping();
+      unawaited(_engine.clearPreload());
       return;
     }
 
+    final generation = ++_preloadGeneration;
+    final trackChangeToken = _trackChangeToken;
     final nextTrack = _queue[nextIndex];
-    if (!_isInactivePreloadReady(nextIndex, nextTrack)) {
+
+    if (_lastFailedPreloadTrackId == nextTrack.id &&
+        DateTime.now().millisecondsSinceEpoch - _lastPreloadFailureMs <
+            _preloadRetryCooldown.inMilliseconds) {
+      return;
+    }
+
+    _preloadedNextIndex = nextIndex;
+    _preloadedNextTrack = nextTrack;
+    _isPreloadInProgress = true;
+
+    try {
+      final source = await _getPlaybackSourceWithRetry(nextTrack);
+      if (source == null) {
+        throw Exception('Could not get audio source for ${nextTrack.title}');
+      }
+
+      // Validate before handing anything to the engine — a track change or
+      // queue mutation may have made this preload stale while we awaited
+      // network I/O above.
+      final stillValid =
+          generation == _preloadGeneration &&
+          trackChangeToken == _trackChangeToken &&
+          _preloadedNextIndex == nextIndex &&
+          _preloadedNextTrack?.id == nextTrack.id;
+      if (!stillValid) return;
+
+      await _engine.preloadNext(source);
+      _lastFailedPreloadTrackId = null;
+    } catch (e) {
+      logger.w('[Audio/Player] Preload failed', error: e);
+      _clearPreloadBookkeeping();
+      _lastFailedPreloadTrackId = nextTrack.id;
+      _lastPreloadFailureMs = DateTime.now().millisecondsSinceEpoch;
+      unawaited(_engine.clearPreload());
+    } finally {
+      _isPreloadInProgress = false;
+    }
+  }
+
+  Future<void> _maybeStartCrossfadeTransition(
+    Duration position,
+    Duration trackDuration,
+  ) async {
+    if (_isTrackTransitioning || _engineIsTransitioning) return;
+    if (!_crossfadeEnabled || _currentTrack == null || _userPaused) return;
+    if (trackDuration <= Duration.zero) return;
+
+    final crossfadeWindow = Duration(
+      milliseconds: (_crossfadeDurationSeconds * 1000).round(),
+    );
+    if (trackDuration <= crossfadeWindow) return;
+
+    const startLead = Duration(milliseconds: 600);
+    final remaining = trackDuration - position;
+    if (remaining > crossfadeWindow + startLead) return;
+
+    final nextIndex = _nextQueueIndex();
+    if (nextIndex == null) return;
+    final nextTrack = _queue[nextIndex];
+
+    if (!_isPreloadReady(nextIndex, nextTrack)) {
       _preloadedNextIndex = nextIndex;
       _preloadedNextTrack = nextTrack;
       await _scheduleNextTrackPreload();
-      if (!await _waitForInactivePreloadReady(nextIndex, nextTrack)) {
-        return;
-      }
-      // Re-check: another concurrent _startFadeIn call (from a position tick
-      // that fired while we were awaiting the preload) may have already
-      // started the crossfade and flipped _useSecondaryAsActivePlayer.
-      // Without this guard the second call would flip it back and start a
-      // duplicate crossfade timer against the wrong player.
-      if (_isCrossfading) return;
-      if (_userPaused) {
-        return;
-      }
+      if (!await _waitForPreloadReady(nextIndex, nextTrack)) return;
     }
 
-    final previousIndex = _currentIndex;
-    final previousTrack = _currentTrack;
+    if (_engineIsTransitioning || _userPaused) return;
+    await _transitionToNext();
+  }
 
-    _isCrossfading = true;
-    _crossfadeFadeOutActive = true;
-    _crossfadeFadeInActive = true;
-    _crossfadeTargetVolume = _isMobilePlatform
-        ? 1.0
-        : (_player.volume <= 0 ? 1.0 : _player.volume);
+  /// Asks the engine to swap onto whatever it already has preloaded. All
+  /// fading (or the lack of it, for gapless) happens inside the engine;
+  /// this only updates our own index/track bookkeeping and session state
+  /// once the swap has happened.
+  Future<void> _transitionToNext({int? token}) async {
+    final nextIndex = _preloadedNextIndex;
+    final nextTrack = _preloadedNextTrack;
+    if (nextIndex == null || nextTrack == null) return;
 
-    _useSecondaryAsActivePlayer = !_useSecondaryAsActivePlayer;
-    _attachActivePlayerListeners();
-
-    _currentIndex = nextIndex;
-    _currentTrack = nextTrack;
-    _updateMediaItem();
-    _broadcastPlaybackState();
-    _saveQueue();
-    notifyListeners();
-
+    final requestToken = token ?? ++_trackChangeToken;
+    _setTrackTransitioning(true);
     try {
-      // Defensive re-check: `_isInactivePreloadReady` above only trusted our
-      // own bookkeeping (ids/flags), which can go stale if this player sat
-      // idle for the ~10+ second preload window and lost its source for any
-      // reason. Verify the actual player state right before playing and
-      // self-heal exactly like the public play() method does, instead of
-      // silently no-op'ing on play() with nothing audible happening.
-      if (_player.audioSource == null) {
-        logger.w(
-          '[Audio/Player] Crossfade target lost its audio source before '
-          'playback started; reloading ${nextTrack.title} fresh.',
-        );
-        await _loadTrackIntoPlayerWithRetry(
-          (source) =>
-              _player.setAudioSource(source, initialPosition: Duration.zero),
-          nextTrack,
-        );
-      }
+      await _engine.transitionToPreloaded(play: true);
+      if (requestToken != _trackChangeToken) return;
 
-      // Start the outgoing (now-inactive) track at full/target volume and the
-      // incoming (now-active) track silent, so the values match what
-      // _startCrossfadeTimer's first tick computes at progress = 0. Setting
-      // these the other way round (as before) snaps the old track to 0 and
-      // the new one to full instantly, before any fade has a chance to run.
-      await _inactivePlayer.setVolume(_crossfadeTargetVolume);
-      await _player.setVolume(0);
-      await _player.play();
-
-      if (!_player.playing) {
-        // Still not actually playing after play() returned — one more
-        // attempt with a fresh source before giving up and rolling back.
-        logger.w(
-          '[Audio/Player] play() returned without starting playback for '
-          '${nextTrack.title}; retrying with a fresh source.',
-        );
-        await _loadTrackIntoPlayerWithRetry(
-          (source) =>
-              _player.setAudioSource(source, initialPosition: Duration.zero),
-          nextTrack,
-        );
-        await _player.setVolume(0);
-        await _player.play();
-      }
-
-      _startCrossfadeTimer();
-    } catch (e) {
-      logger.w('[Audio/Player] Failed to start crossfade', error: e);
-      _useSecondaryAsActivePlayer = !_useSecondaryAsActivePlayer;
-      _attachActivePlayerListeners();
-      _isCrossfading = false;
-      _crossfadeFadeOutActive = false;
-      _crossfadeFadeInActive = false;
-      _currentIndex = previousIndex;
-      _currentTrack = previousTrack;
-      if (previousTrack != null) {
-        _updateMediaItem();
-        _saveQueue();
-      }
+      _currentIndex = nextIndex;
+      _currentTrack = nextTrack;
+      _preloadedNextIndex = null;
+      _preloadedNextTrack = null;
+      _errorMessage = null;
+      _updateMediaItem();
+      _setState(PlaybackState.playing);
       _broadcastPlaybackState();
+      _ensureRpcTimer();
+      _ensureMprisTimer();
+      _updateDiscordPresence(force: true);
+      _saveQueue();
+      _queueCaching(nextTrack);
       notifyListeners();
-      await _clearInactivePlayer();
+      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: nextIndex));
+      unawaited(_scheduleNextTrackPreload());
+    } catch (e) {
+      logger.w('[Audio/Player] Transition to preloaded track failed', error: e);
+      _errorMessage = e.toString();
+      _setState(PlaybackState.error);
+    } finally {
+      if (requestToken == _trackChangeToken) {
+        _setTrackTransitioning(false);
+      }
     }
-  }
-
-  void _startCrossfadeTimer() {
-    _stopCrossfadeTimer();
-
-    final fadeDurationMs = (_crossfadeDurationSeconds * 1000)
-        .clamp(1, 6000)
-        .toInt();
-    final startTimeMs = DateTime.now().millisecondsSinceEpoch;
-    final targetVolume = _crossfadeTargetVolume <= 0
-        ? 1.0
-        : _crossfadeTargetVolume;
-
-    _crossfadeTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
-      if (!_isCrossfading) {
-        timer.cancel();
-        return;
-      }
-
-      final elapsedMs = DateTime.now().millisecondsSinceEpoch - startTimeMs;
-      final progress = (elapsedMs / fadeDurationMs).clamp(0.0, 1.0);
-      final curve = progress * (2.0 - progress);
-      final fadeOutVolume = targetVolume * (1.0 - curve);
-      final fadeInVolume = targetVolume * curve;
-      final isFirstTick = elapsedMs < 50;
-      final isLastTick = progress >= 1.0;
-
-      final activePlayerForTick = _player;
-      final inactivePlayerForTick = _inactivePlayer;
-
-      unawaited(inactivePlayerForTick.setVolume(fadeOutVolume.clamp(0.0, 1.0)));
-      unawaited(
-        activePlayerForTick.setVolume(fadeInVolume.clamp(0.0, 1.0)).then((_) {
-          if (isFirstTick || isLastTick) {
-            // TEMP DIAGNOSTIC — remove once the mobile volume issue is
-            // understood. Confirms whether setVolume() calls are actually
-            // landing (readback matches what we asked for) or being
-            // silently dropped/overridden on this platform.
-            logger.i(
-              '[Audio/Player][CrossfadeDiag] tick=${isFirstTick ? "first" : "last"} '
-              'requestedVolume=${fadeInVolume.toStringAsFixed(3)} '
-              'readbackVolume=${activePlayerForTick.volume.toStringAsFixed(3)} '
-              'playing=${activePlayerForTick.playing} '
-              'processingState=${activePlayerForTick.processingState}',
-            );
-          }
-        }),
-      );
-
-      if (progress >= 1.0) {
-        timer.cancel();
-        unawaited(_completeCrossfade());
-      }
-    });
-  }
-
-  Future<void> _completeCrossfade() async {
-    if (!_isCrossfading) {
-      return;
-    }
-
-    _stopCrossfadeTimer();
-    _isCrossfading = false;
-    _crossfadeFadeOutActive = false;
-    _crossfadeFadeInActive = false;
-
-    // Authoritative final volume for the now fully-active player. The 50ms
-    // ramp ticks in _startCrossfadeTimer are fire-and-forget (unawaited) and
-    // can be silently dropped on some mobile platform channels while the
-    // player is still buffering over the network — if that happens the
-    // track can be left parked near 0 forever. This guarantees it lands at
-    // the correct volume regardless of whether every ramp tick landed.
-    final targetVolume = _crossfadeTargetVolume <= 0
-        ? 1.0
-        : _crossfadeTargetVolume;
-    try {
-      await _player.setVolume(targetVolume);
-      // TEMP DIAGNOSTIC — remove once the mobile volume issue is understood.
-      logger.i(
-        '[Audio/Player][CrossfadeDiag] _completeCrossfade set '
-        'requestedVolume=${targetVolume.toStringAsFixed(3)} '
-        'readbackVolume=${_player.volume.toStringAsFixed(3)}',
-      );
-    } catch (_) {}
-
-    try {
-      await _inactivePlayer.stop();
-      // `playing` is a sticky flag independent of the loaded source on
-      // just_audio — if it's still true when we later call setAudioSource()
-      // to preload the next track into this player, some mobile backends
-      // (ExoPlayer/AVPlayer) will immediately auto-resume playback of that
-      // new source instead of sitting paused and silent. stop() should
-      // clear this, but verify and force it explicitly so a flaky/failed
-      // stop() on mobile can't leave this player armed to autoplay.
-      if (_inactivePlayer.playing) {
-        await _inactivePlayer.pause();
-      }
-    } catch (_) {}
-
-    _invalidateCrossfadePreload();
-    _broadcastPlaybackState();
-    _ensureRpcTimer();
-    _ensureMprisTimer();
-    _updateDiscordPresence(force: true);
-    notifyListeners();
-    _saveQueue();
-    unawaited(_scheduleNextTrackPreload());
   }
 
   Future<void> setGaplessPlaybackEnabled(bool enabled) async {
     if (_gaplessPlaybackEnabled == enabled) return;
     _gaplessPlaybackEnabled = enabled;
-    JustAudioMediaKit.prefetchPlaylist =
-        _gaplessPlaybackEnabled || _crossfadeEnabled;
-    if (_gaplessPlaybackEnabled || _crossfadeEnabled) {
+    await _engine.updateSettings(_buildEngineSettings());
+    if (_playlistPlaybackEnabled) {
       unawaited(_scheduleNextTrackPreload());
     } else {
-      _invalidateCrossfadePreload();
+      _clearPreloadBookkeeping();
+      unawaited(_engine.clearPreload());
     }
     notifyListeners();
   }
@@ -1393,13 +985,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> setCrossfadeEnabled(bool enabled) async {
     if (_crossfadeEnabled == enabled) return;
     _crossfadeEnabled = enabled;
-    JustAudioMediaKit.prefetchPlaylist =
-        _gaplessPlaybackEnabled || _crossfadeEnabled;
-    if (_crossfadeEnabled) {
+    await _engine.updateSettings(_buildEngineSettings());
+    if (_playlistPlaybackEnabled) {
       unawaited(_scheduleNextTrackPreload());
     } else {
-      _stopCrossfadeTimer();
-      _invalidateCrossfadePreload();
+      _clearPreloadBookkeeping();
+      unawaited(_engine.clearPreload());
     }
     notifyListeners();
   }
@@ -1408,6 +999,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final normalized = seconds.clamp(1.0, 6.0).toDouble();
     if (_crossfadeDurationSeconds == normalized) return;
     _crossfadeDurationSeconds = normalized;
+    await _engine.updateSettings(_buildEngineSettings());
     notifyListeners();
   }
 
@@ -1455,14 +1047,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   audio_service.AudioProcessingState _mapProcessingState() {
-    if (_player.processingState == ProcessingState.completed) {
-      return audio_service.AudioProcessingState.completed;
+    if (_state == PlaybackState.error) {
+      return audio_service.AudioProcessingState.error;
     }
     if (isLoading) {
       return audio_service.AudioProcessingState.loading;
     }
     if (_state == PlaybackState.idle) {
       return audio_service.AudioProcessingState.idle;
+    }
+    if (_engineIsBuffering) {
+      return audio_service.AudioProcessingState.buffering;
     }
     return audio_service.AudioProcessingState.ready;
   }
@@ -1491,60 +1086,48 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     );
   }
 
-  /// Handle track completion
+  /// Handle track completion. This only fires for a source that reached its
+  /// natural end without us pre-empting it with a transition — i.e. gapless
+  /// mode (where the swap happens right at the end instead of early), no
+  /// special mode at all, or a crossfade whose preload wasn't ready in time.
   void _onCompleted() {
     if (_isHandlingCompletion) return;
-    if (_isCrossfading ||
-        _crossfadeFadeOutActive ||
-        _crossfadeFadeInActive ||
-        _isTrackTransitioning) {
-      return;
-    }
-    // `playing` is deliberately not a completion guard. just_audio keeps
-    // this flag true after it emits ProcessingState.completed, so using it
-    // here makes the completion fallback a no-op. That is most visible when
-    // the app is backgrounded: position updates may be throttled and never
-    // start the crossfade before the native player reaches the end.
+    if (_engineIsTransitioning || _isTrackTransitioning) return;
+
     _isHandlingCompletion = true;
     final token = _trackChangeToken;
     () async {
       logger.i('[Audio/Player] Track completed: ${_currentTrack?.title}');
 
-      if (_crossfadeEnabled) {
+      if (_repeatMode == RepeatMode.one) {
+        await _engine.seek(Duration.zero);
+        if (token != _trackChangeToken) return;
+        await _engine.play();
+        return;
+      }
+
+      if (_playlistPlaybackEnabled && _queue.isNotEmpty) {
         final nextIndex = _nextQueueIndex();
         if (nextIndex != null) {
           final nextTrack = _queue[nextIndex];
-          if (_isInactivePreloadReady(nextIndex, nextTrack)) {
-            await _startFadeIn();
+          if (_isPreloadReady(nextIndex, nextTrack)) {
+            await _transitionToNext(token: token);
             return;
           }
 
           unawaited(_scheduleNextTrackPreload());
-          if (await _waitForInactivePreloadReady(nextIndex, nextTrack)) {
-            await _startFadeIn();
+          if (await _waitForPreloadReady(nextIndex, nextTrack)) {
+            if (token != _trackChangeToken) return;
+            await _transitionToNext(token: token);
             return;
           }
         }
       }
 
-      if (_userPaused) {
-        // Mirrors the guard in _startFadeIn(): the playingStream-driven
-        // fallback completion check (_isAtTrackEnd()) can race a manual
-        // pause and misread it as the track finishing naturally. The
-        // crossfade branch above already protects itself via _startFadeIn's
-        // own _userPaused check, but these branches didn't — so a
-        // mistimed pause could force a restart/advance (and, via a reused
-        // player's stale volume, land the next track at 0) right after the
-        // user asked to pause.
-        return;
-      }
-
-      if (_repeatMode == RepeatMode.one) {
-        await _player.seek(Duration.zero);
-        if (token != _trackChangeToken) return;
-        await _player.play();
-      } else if (_queue.isNotEmpty) {
+      if (_queue.isNotEmpty) {
         await _advanceToNext(token: token);
+      } else {
+        _setState(PlaybackState.idle);
       }
     }().whenComplete(() {
       _isHandlingCompletion = false;
@@ -1552,25 +1135,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   Future<void> _prepareCurrentTrackOnStartup() async {
-    if (_currentTrack == null || _player.audioSource != null) return;
+    if (_currentTrack == null || _engine.state.source != null) return;
     try {
-      await _loadTrackIntoPlayerWithRetry(
-        (source) => _player.setAudioSource(source),
-        _currentTrack!,
-      );
-      if (!_player.playing) {
-        _setState(PlaybackState.paused);
-      }
+      await _loadTrackAtIndex(_currentIndex < 0 ? 0 : _currentIndex, play: false);
       unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: _currentIndex));
       unawaited(_scheduleNextTrackPreload());
     } catch (e) {
       logger.w('[Audio/Player] Startup prepare failed', error: e);
     }
-  }
-
-  /// Load the current track into the player for gapless/lazy playlist playback
-  Future<AudioSource?> _buildSingleTrackSource(GenericSong track) async {
-    return await _getAudioSource(track);
   }
 
   Future<void> _schedulePlaybackPrefetchWindow({int? anchorIndex}) async {
@@ -1579,22 +1151,21 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final currentIndex = anchorIndex ?? _currentIndex;
     if (currentIndex < 0 || currentIndex >= _queue.length) return;
 
-    // When in handoff host mode, only prefetch the current track (for smooth unlinking).
-    // Skip prefetching the full window since playback happens on the target device.
+    // When in handoff host mode, only prefetch the current track (for smooth
+    // unlinking). Skip prefetching the full window since playback happens
+    // on the target device.
     if (_isHandoffHost) {
-      if (currentIndex >= 0 && currentIndex < _queue.length) {
-        final currentTrack = _queue[currentIndex];
-        if (!_prefetchedAudioSources.containsKey(currentTrack.id) &&
-            !_prefetchSourceTasks.containsKey(currentTrack.id)) {
-          final generation = _prefetchGeneration;
-          final task = _prefetchTrackSource(currentTrack, generation);
-          _prefetchSourceTasks[currentTrack.id] = task;
-          final source = await task;
-          _prefetchSourceTasks.remove(currentTrack.id);
-          if (generation != _prefetchGeneration) return;
-          if (source != null) {
-            _prefetchedAudioSources[currentTrack.id] = source;
-          }
+      final track = _queue[currentIndex];
+      if (!_prefetchedSources.containsKey(track.id) &&
+          !_prefetchSourceTasks.containsKey(track.id)) {
+        final generation = _prefetchGeneration;
+        final task = _prefetchTrackSource(track, generation);
+        _prefetchSourceTasks[track.id] = task;
+        final source = await task;
+        _prefetchSourceTasks.remove(track.id);
+        if (generation != _prefetchGeneration) return;
+        if (source != null) {
+          _prefetchedSources[track.id] = source;
         }
       }
       return;
@@ -1613,14 +1184,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     final keepIds = <String>{for (final index in indices) _queue[index].id};
-    _prefetchedAudioSources.removeWhere(
-      (trackId, _) => !keepIds.contains(trackId),
-    );
+    _prefetchedSources.removeWhere((trackId, _) => !keepIds.contains(trackId));
 
     for (final index in indices) {
       if (generation != _prefetchGeneration) return;
       final track = _queue[index];
-      if (_prefetchedAudioSources.containsKey(track.id) ||
+      if (_prefetchedSources.containsKey(track.id) ||
           _prefetchSourceTasks.containsKey(track.id)) {
         continue;
       }
@@ -1631,19 +1200,19 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _prefetchSourceTasks.remove(track.id);
       if (generation != _prefetchGeneration) return;
       if (source != null) {
-        _prefetchedAudioSources[track.id] = source;
+        _prefetchedSources[track.id] = source;
       }
     }
   }
 
-  Future<AudioSource?> _prefetchTrackSource(
+  Future<PlaybackSource?> _prefetchTrackSource(
     GenericSong track,
     int generation,
   ) async {
     if (!_isOnline) return null;
 
     try {
-      final source = await _getAudioSource(track, allowPrefetched: false);
+      final source = await _getPlaybackSource(track, allowPrefetched: false);
       if (generation != _prefetchGeneration) return null;
       return source;
     } catch (e) {
@@ -1652,97 +1221,59 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
-  int? _queueIndexAfter(int index, int offset) {
-    if (_queue.isEmpty || index < 0 || index >= _queue.length) {
-      return null;
+  void _invalidatePlaybackPrefetch({bool clearSources = false}) {
+    _prefetchGeneration++;
+    _prefetchSourceTasks.clear();
+    if (clearSources) {
+      _prefetchedSources.clear();
     }
-
-    final nextIndex = index + offset;
-    if (nextIndex < _queue.length) {
-      return nextIndex;
-    }
-
-    if (_repeatMode != RepeatMode.all) {
-      return null;
-    }
-
-    return nextIndex % _queue.length;
   }
 
-  Future<void> _loadPlaylistPlayback(
+  /// Loads `_queue[index]` as the engine's current (active) source. This
+  /// replaces the old handler's `_playAtIndex`/`_loadPlaylistPlayback` split
+  /// — with a single-active-slot engine API there is no separate "playlist"
+  /// vs "single track" load path any more.
+  Future<void> _loadTrackAtIndex(
     int index, {
     required bool play,
-    Duration initialPosition = Duration.zero,
+    Duration position = Duration.zero,
     int? token,
   }) async {
     if (_queue.isEmpty) return;
-
     final requestToken = token ?? ++_trackChangeToken;
     final safeIndex = index.clamp(0, _queue.length - 1);
     final track = _queue[safeIndex];
 
+    logger.i(
+      '[Audio/Player] Loading [${safeIndex + 1}/${_queue.length}]: ${track.title}',
+    );
+
     _currentIndex = safeIndex;
     _currentTrack = track;
     _errorMessage = null;
+    _clearPreloadBookkeeping();
+    unawaited(_engine.clearPreload());
     _setTrackTransitioning(true);
     _setState(PlaybackState.loading);
     _updateMediaItem();
 
     try {
-      await _cancelCrossfade(stopInactive: true);
-      await _clearInactivePlayer();
-      await _player.stop();
+      final source = await _getPlaybackSourceWithRetry(track);
       if (requestToken != _trackChangeToken) return;
-
-      // Load just the current track to start
-      final currentSource = await _buildSingleTrackSource(track);
-      if (requestToken != _trackChangeToken) return;
-      if (currentSource == null) {
+      if (source == null) {
         throw Exception('Could not get audio source for ${track.title}');
       }
 
-      _crossfadeFadeOutActive = false;
-      _crossfadeFadeInActive = false;
-      _crossfadeTargetVolume = _isMobilePlatform
-          ? 1.0
-          : (_lastVolume <= 0 ? 1.0 : _lastVolume);
-      _stopCrossfadeTimer();
-
-      // The player being (re)used here may still be holding whatever volume
-      // it was left at by a previous crossfade (e.g. mid fade-out, or a
-      // fade-in that never finished ramping on a flaky mobile connection).
-      // _loadPlaylistPlayback is the path every "normal" track load goes
-      // through when crossfade/gapless is enabled — including the
-      // _onCompleted() fallback — so without this the new track can start
-      // and play completely silently.
-      try {
-        await _player.setVolume(_crossfadeTargetVolume);
-      } catch (_) {}
-
-      // Set just the current track with lazy preparation enabled
-      await _player.setAudioSources(
-        [currentSource],
-        initialIndex: 0,
-        initialPosition: initialPosition,
-        preload: false, // Load each item just in time
-      );
+      await _engine.loadCurrent(source, position: position, play: play);
       if (requestToken != _trackChangeToken) return;
 
-      await _player.seek(initialPosition);
-      _forcePositionUpdate(initialPosition);
-      if (requestToken != _trackChangeToken) return;
-
-      if (play) {
-        await _player.play();
-        if (requestToken != _trackChangeToken) return;
-        _setState(PlaybackState.playing);
-      } else {
-        _setState(PlaybackState.paused);
-      }
-
+      _currentIndex = safeIndex;
+      _currentTrack = track;
+      _forcePositionUpdate(position);
+      _setState(play ? PlaybackState.playing : PlaybackState.paused);
       _broadcastPlaybackState();
-      _ensureRpcTimer();
       if (play) {
+        _ensureRpcTimer();
         _ensureMprisTimer();
       } else {
         _stopMprisTimer();
@@ -1750,13 +1281,20 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _updateDiscordPresence(force: true);
       _saveQueue();
       _queueCaching(track);
-      _invalidateCrossfadePreload();
+      notifyListeners();
       unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: safeIndex));
       unawaited(_scheduleNextTrackPreload());
     } catch (e) {
-      logger.e('[Audio/Player] Playlist playback load error', error: e);
+      logger.e('[Audio/Player] Track load error', error: e);
       _errorMessage = e.toString();
       _setState(PlaybackState.error);
+
+      if (safeIndex < _queue.length - 1) {
+        await Future.delayed(const Duration(seconds: 2));
+        if (_state == PlaybackState.error && requestToken == _trackChangeToken) {
+          await _advanceToNext();
+        }
+      }
     } finally {
       if (requestToken == _trackChangeToken) {
         _setTrackTransitioning(false);
@@ -1777,174 +1315,56 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
     }
 
-    // Use the same explicit transition path as manual skip to avoid
-    // desynchronization between currentIndex/UI and audible track.
-    if (_playlistPlaybackEnabled) {
-      await _playAtIndex(nextIndex, token: token ?? ++_trackChangeToken);
-      return;
-    }
-
-    await _playAtIndex(nextIndex, token: token);
+    await _loadTrackAtIndex(nextIndex, play: true, token: token ?? ++_trackChangeToken);
   }
 
   Future<void> _reloadCurrentTrackSource() async {
     final track = _currentTrack;
     if (track == null) return;
+    final wasPlaying = _engineIsPlaying;
+    final targetPosition = _engine.state.position;
+    await _loadTrackAtIndex(_currentIndex, play: wasPlaying, position: targetPosition);
+  }
 
-    final requestToken = ++_trackChangeToken;
-    final wasPlaying = _player.playing;
-    final targetPosition = _player.position;
+  bool _shouldRefreshSourceOnLoadError(Object error) {
+    final message = error.toString().toLowerCase();
+    return message.contains('403') ||
+        message.contains('forbidden') ||
+        message.contains('expired');
+  }
 
-    _errorMessage = null;
-    _setTrackTransitioning(true);
-    _setState(PlaybackState.loading);
+  Future<void> _invalidateTrackSourceCaches(GenericSong track) async {
+    _prefetchedSources.remove(track.id);
+    _prefetchSourceTasks.remove(track.id);
 
-    try {
-      if (_playlistPlaybackEnabled) {
-        await _loadPlaylistPlayback(
-          _currentIndex,
-          play: wasPlaying,
-          initialPosition: targetPosition,
-          token: requestToken,
-        );
-        return;
-      }
-
-      await _cancelCrossfade(stopInactive: true);
-      await _clearInactivePlayer();
-      await _player.stop();
-      if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
-        return;
-      }
-      await _loadTrackIntoPlayerWithRetry(
-        (source) => _player.setAudioSource(source),
-        track,
-      );
-      if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
-        return;
-      }
-
-      final duration = _player.duration;
-      final seekPosition = duration != null && targetPosition > duration
-          ? duration
-          : targetPosition;
-      await _player.seek(seekPosition);
-      _forcePositionUpdate(seekPosition);
-      if (requestToken != _trackChangeToken || _currentTrack?.id != track.id) {
-        return;
-      }
-
-      if (wasPlaying) {
-        await _player.play();
-      }
-
-      _setState(wasPlaying ? PlaybackState.playing : PlaybackState.paused);
-      _broadcastPlaybackState();
-      _ensureRpcTimer();
-      _ensureMprisTimer();
-      _updateDiscordPresence(force: true);
-      _invalidateCrossfadePreload();
-      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: _currentIndex));
-      unawaited(_scheduleNextTrackPreload());
-    } catch (e) {
-      logger.e(
-        '[Audio/Player] Failed to reload current track source',
-        error: e,
-      );
-      _errorMessage = e.toString();
-      _setState(PlaybackState.error);
-    } finally {
-      if (requestToken == _trackChangeToken) {
-        _setTrackTransitioning(false);
-      }
+    final cachedVideoId = YouTubeProvider.getCachedVideoId(track.id);
+    if (cachedVideoId != null && cachedVideoId.isNotEmpty) {
+      _streamUrlCache.remove(cachedVideoId);
     }
   }
 
-  Future<void> _playAtIndex(int index, {int? token}) async {
-    if (index < 0 || index >= _queue.length) return;
-    final requestToken = token ?? ++_trackChangeToken;
-
-    final track = _queue[index];
-    logger.i(
-      '[Audio/Player] Playing [${index + 1}/${_queue.length}]: ${track.title}',
-    );
-
-    _errorMessage = null;
-    _setTrackTransitioning(true);
-    _setState(PlaybackState.loading);
-    _updateMediaItem();
-
+  Future<PlaybackSource?> _getPlaybackSourceWithRetry(
+    GenericSong track, {
+    bool allowPrefetched = true,
+  }) async {
     try {
-      if (_playlistPlaybackEnabled) {
-        await _loadPlaylistPlayback(index, play: true, token: requestToken);
-        return;
-      }
-
-      _currentIndex = index;
-      _currentTrack = track;
-
-      await _cancelCrossfade(stopInactive: true);
-      await _clearInactivePlayer();
-      await _player.stop();
-      if (requestToken != _trackChangeToken) return;
-
-      final source = await _getAudioSource(track);
-      if (requestToken != _trackChangeToken) return;
-      if (source == null) {
-        throw Exception('Could not get audio source');
-      }
-
-      await _player
-          .setAudioSource(source)
-          .timeout(
-            const Duration(seconds: 15),
-            onTimeout: () => throw Exception(
-              'setAudioSource timed out for ${track.title} — possible network/header mismatch',
-            ),
-          );
-      if (requestToken != _trackChangeToken) return;
-
-      await _player.seek(Duration.zero);
-      _forcePositionUpdate(Duration.zero);
-      if (requestToken != _trackChangeToken) return;
-
-      await _player.play();
-      if (requestToken != _trackChangeToken) return;
-
-      _currentIndex = index;
-      _currentTrack = track;
-      _broadcastPlaybackState();
-      _ensureRpcTimer();
-      _updateDiscordPresence(force: true);
-      _saveQueue();
-      _queueCaching(track);
-      _invalidateCrossfadePreload();
-      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: index));
-      unawaited(_scheduleNextTrackPreload());
+      return await _getPlaybackSource(track, allowPrefetched: allowPrefetched);
     } catch (e) {
-      logger.e('[Audio/Player] Error', error: e);
-      _errorMessage = e.toString();
-      _setState(PlaybackState.error);
+      if (!_shouldRefreshSourceOnLoadError(e)) {
+        rethrow;
+      }
 
-      if (_currentIndex < _queue.length - 1) {
-        await Future.delayed(const Duration(seconds: 2));
-        if (_state == PlaybackState.error) {
-          await _advanceToNext();
-        }
-      }
-    } finally {
-      if (requestToken == _trackChangeToken) {
-        _setTrackTransitioning(false);
-      }
+      await _invalidateTrackSourceCaches(track);
+      return await _getPlaybackSource(track, allowPrefetched: false);
     }
   }
 
-  Future<AudioSource?> _getAudioSource(
+  Future<PlaybackSource?> _getPlaybackSource(
     GenericSong track, {
     bool allowPrefetched = true,
   }) async {
     if (allowPrefetched) {
-      final prefetched = _prefetchedAudioSources[track.id];
+      final prefetched = _prefetchedSources[track.id];
       if (prefetched != null) {
         return prefetched;
       }
@@ -1958,65 +1378,45 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       throw Exception('All audio providers are disabled in Preferences.');
     }
 
+    final expectedDuration = track.durationSecs > 0
+        ? Duration(seconds: track.durationSecs)
+        : null;
+
     final cachedPath = cacheManager.getCachedPath(track.id);
     if (cachedPath != null && File(cachedPath).existsSync()) {
       await cacheManager.updateLastPlayed(track.id);
-      return AudioSource.file(cachedPath);
+      return PlaybackSource(
+        uri: Uri.file(cachedPath),
+        expectedDuration: expectedDuration,
+        debugLabel: track.title,
+      );
     }
 
     if (!_isOnline) {
       throw Exception('Offline and track not cached');
     }
 
-    if (!audioYouTubeEnabled) {
-      throw Exception('YouTube audio provider is disabled in Preferences.');
-    }
-
     String? videoId = YouTubeProvider.getCachedVideoId(track.id);
-    if (videoId == null) {
-      videoId = await _getVideoIdForTrack(track);
-      if (videoId == null) return null;
-    }
+    videoId ??= await _getVideoIdForTrack(track);
+    if (videoId == null) return null;
 
     final streamUrl = await _getStreamUrlWithCache(videoId);
 
     // Must match YouTubeProvider.userAgentForPlatform() — this is the same
     // client identity used to validate the URL, so playback and validation
-    // agree. iOS previously fell into the generic desktop-browser branch
-    // even though its URLs come from YouTubeKit's iOS client, not yt-dlp's
-    // desktop client — a mismatch here can cause the CDN to reject the
-    // actual playback request even though a plain validity GET succeeded.
+    // agree.
     final userAgent = YouTubeProvider.userAgentForPlatform();
 
-    final rawSource = AudioSource.uri(
-      Uri.parse(streamUrl),
+    // Note: unlike the old just_audio-based path, there's no per-platform
+    // ClippingAudioSource workaround for inflated HE-AAC durations here —
+    // the engine already clips a suspiciously-long reported duration
+    // against `expectedDuration` (see PlaybackSource.expectedDuration and
+    // the engine's own duration-reporting logic) for every platform.
+    return PlaybackSource(
+      uri: Uri.parse(streamUrl),
       headers: {'User-Agent': userAgent},
-    );
-
-    // Apple's AAC/SBR decoder misreports duration as exactly 2x for some
-    // HE-AAC streams (confirmed Apple codec-layer bug, not just_audio —
-    // see ryanheise/just_audio#694). We already know the real duration
-    // from metadata, so clip the source to it instead of trusting
-    // AVPlayer's self-reported value.
-    if ((Platform.isIOS || Platform.isMacOS) && track.durationSecs != 0) {
-      return ClippingAudioSource(
-        child: rawSource,
-        end:
-            parseStreamDuration(streamUrl) ??
-            Duration(seconds: track.durationSecs),
-      );
-    }
-
-    return rawSource;
-  }
-
-  Duration? parseStreamDuration(String streamURL) {
-    final uri = Uri.parse(streamURL);
-    final durStr = uri.queryParameters['dur'];
-    if (durStr == null) return null;
-    return Duration(
-      seconds: double.tryParse(durStr)?.toInt() ?? 0,
-      milliseconds: ((double.tryParse(durStr) ?? 0) * 1000).toInt() % 1000,
+      expectedDuration: expectedDuration,
+      debugLabel: track.title,
     );
   }
 
@@ -2043,18 +1443,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return;
     }
 
-    if (!audioYouTubeEnabled) {
-      return;
-    }
-
     String? videoId = YouTubeProvider.getCachedVideoId(track.id);
     if (videoId != null && _getCachedStreamUrl(videoId) != null) return;
 
     try {
-      if (videoId == null) {
-        videoId = await _getVideoIdForTrack(track);
-        if (videoId == null) return;
-      }
+      videoId ??= await _getVideoIdForTrack(track);
+      if (videoId == null) return;
 
       await _getStreamUrlWithCache(videoId);
       logger.d('[Audio/Player] Pre-resolved next track URL: ${track.title}');
@@ -2083,15 +1477,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           throw Exception('All audio providers are disabled in Preferences.');
         }
 
-        if (!audioYouTubeEnabled) {
-          throw Exception('YouTube audio provider is disabled in Preferences.');
-        }
-
         String? videoId = YouTubeProvider.getCachedVideoId(track.id);
-        if (videoId == null) {
-          videoId = await _getVideoIdForTrack(track);
-          if (videoId == null) throw Exception('Could not find video');
-        }
+        videoId ??= await _getVideoIdForTrack(track);
+        if (videoId == null) throw Exception('Could not find video');
         final streamUrl = await _getStreamUrlWithCache(videoId);
         return (videoId, streamUrl);
       },
@@ -2112,7 +1500,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final cached = _getCachedStreamUrl(videoId);
     if (cached != null) return cached;
 
-    // Deduplicate simultaneous requests for the same videoId
     var task = _streamUrlTasks[videoId];
     if (task != null) return await task;
 
@@ -2135,7 +1522,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   Future<String?> _getVideoIdForTrack(GenericSong track) async {
-    // Deduplicate simultaneous video search requests per track id
     var task = _videoIdTasks[track.id];
     if (task != null) return await task;
 
@@ -2170,7 +1556,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     if (force) {
-      _rpcLastSecond = _player.position.inSeconds;
+      _rpcLastSecond = position.inSeconds;
     }
 
     await DiscordRpcService.instance.updatePresence(
@@ -2212,6 +1598,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     );
   }
 
+  audio_service.AudioServiceRepeatMode _repeatModeFromString(String value) {
+    switch (value) {
+      case 'RepeatMode.one':
+        return audio_service.AudioServiceRepeatMode.one;
+      case 'RepeatMode.all':
+        return audio_service.AudioServiceRepeatMode.all;
+      case 'RepeatMode.off':
+      default:
+        return audio_service.AudioServiceRepeatMode.none;
+    }
+  }
+
   // AUDIO_SERVICE OVERRIDES
   @override
   Future<void> play() async {
@@ -2223,48 +1621,33 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     // If the startup source-prepare is still running, wait for it before
-    // checking whether we need to load a source ourselves.  Without this,
-    // both _prepareCurrentTrackOnStartup() and play() can concurrently call
-    // setAudioSource(), and whichever finishes second resets position to 0.
-    if (_player.audioSource == null && _currentTrack != null) {
+    // checking whether we need to load a source ourselves. Without this,
+    // both _prepareCurrentTrackOnStartup() and play() can race to call
+    // loadCurrent() concurrently.
+    if (_engine.state.source == null && _currentTrack != null) {
       final startupFuture = _startupPrepareFuture;
       if (startupFuture != null) {
         await startupFuture;
       }
     }
 
-    if (_player.audioSource == null && _currentTrack != null) {
+    if (_engine.state.source == null && _currentTrack != null) {
       final requestToken = ++_trackChangeToken;
-      _errorMessage = null;
-      _setTrackTransitioning(true);
-      _setState(PlaybackState.loading);
-      try {
-        if (_playlistPlaybackEnabled) {
-          await _loadPlaylistPlayback(
-            _currentIndex < 0 ? 0 : _currentIndex,
-            play: true,
-            token: requestToken,
-          );
-          return;
-        }
-
-        await _loadTrackIntoPlayerWithRetry(
-          (source) =>
-              _player.setAudioSource(source, initialPosition: Duration.zero),
-          _currentTrack!,
-        );
-        if (requestToken != _trackChangeToken) return;
-      } catch (e) {
-        _errorMessage = e.toString();
-        _setState(PlaybackState.error);
-        return;
-      } finally {
-        if (requestToken == _trackChangeToken) {
-          _setTrackTransitioning(false);
-        }
-      }
+      await _loadTrackAtIndex(
+        _currentIndex < 0 ? 0 : _currentIndex,
+        play: true,
+        token: requestToken,
+      );
+      return;
     }
-    await _player.play();
+
+    try {
+      await _engine.play();
+    } catch (e) {
+      _errorMessage = e.toString();
+      _setState(PlaybackState.error);
+      return;
+    }
     _ensureRpcTimer();
     _ensureMprisTimer();
     _updateDiscordPresence(force: true);
@@ -2275,23 +1658,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   @override
   Future<void> pause() async {
     _userPaused = true;
-    final wasCrossfading = _isCrossfading;
-    await _cancelCrossfade(stopInactive: false);
-    if (wasCrossfading) {
-      // The fade-in timer left the active player's volume somewhere between
-      // 0 and _crossfadeTargetVolume. Restore it now so that when the user
-      // resumes, the track plays at the correct listening volume rather than
-      // near-silent. _crossfadeTargetVolume is not cleared by _cancelCrossfade
-      // so it is still valid here.
-      try {
-        await _player.setVolume(_crossfadeTargetVolume);
-      } catch (_) {}
-    }
     try {
-      await _inactivePlayer.pause();
+      await _engine.pause();
     } catch (_) {}
-    _lastManualPauseMs = DateTime.now().millisecondsSinceEpoch;
-    await _player.pause();
     _setState(PlaybackState.paused);
   }
 
@@ -2313,20 +1682,19 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   @override
   Future<void> seek(Duration position) async {
-    await _cancelCrossfade(stopInactive: true);
-    await _player.seek(position);
+    await _engine.seek(position);
     _forcePositionUpdate(position);
     _ensureRpcTimer();
     _ensureMprisTimer();
     _updateDiscordPresence(force: true);
-    _invalidateCrossfadePreload();
+    _clearPreloadBookkeeping();
+    unawaited(_engine.clearPreload());
     unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: _currentIndex));
     unawaited(_scheduleNextTrackPreload());
   }
 
   Future<void> setVolume(double volume) async {
-    await _primaryPlayer.setVolume(volume);
-    await _secondaryPlayer.setVolume(volume);
+    await _engine.setVolume(volume);
     _savedVolume = volume;
     if (volume > 0) {
       _lastVolume = volume;
@@ -2336,7 +1704,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   Future<void> toggleMute() async {
-    final current = _player.volume;
+    final current = _engineVolume;
     if (current == 0) {
       final restore = _lastVolume <= 0 ? 1.0 : _lastVolume.clamp(0.0, 1.0);
       await setVolume(restore);
@@ -2346,54 +1714,40 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
+  Future<void> setOutputDevice(String deviceId) =>
+      _engine.setOutputDevice(deviceId);
+
   @override
   Future<void> skipToNext() async => skipNext();
 
   @override
   Future<void> skipToPrevious() async => skipPrevious();
 
+  @override
+  Future<void> skipToQueueItem(int index) async {
+    if (index < 0 || index >= _queue.length) return;
+    final token = ++_trackChangeToken;
+    await _loadTrackAtIndex(index, play: true, token: token);
+  }
+
   Future<void> skipNext() async {
     if (_queue.isEmpty) return;
-    await _cancelCrossfade(stopInactive: true);
     final token = ++_trackChangeToken;
-    if (_playlistPlaybackEnabled && _player.hasNext) {
-      final nextIndex = _currentIndex + 1;
-      if (nextIndex >= 0 && nextIndex < _queue.length) {
-        await _playAtIndex(nextIndex, token: token);
-      }
-      return;
-    }
     await _advanceToNext(token: token);
   }
 
   Future<void> skipPrevious() async {
     if (_queue.isEmpty) return;
-    await _cancelCrossfade(stopInactive: true);
     final token = ++_trackChangeToken;
-    if (_playlistPlaybackEnabled && _player.hasPrevious) {
-      if (position.inSeconds > 3) {
-        await _player.seek(Duration.zero);
-        return;
-      } else {
-        var prevIndex = _currentIndex - 1;
-        if (prevIndex < 0) {
-          prevIndex = _repeatMode == RepeatMode.all ? _queue.length - 1 : 0;
-        }
-        if (prevIndex >= 0 && prevIndex < _queue.length) {
-          await _playAtIndex(prevIndex, token: token);
-        }
-      }
-      return;
-    }
     if (position.inSeconds > 3) {
-      await _player.seek(Duration.zero);
+      await seek(Duration.zero);
       return;
     }
     int prevIndex = _currentIndex - 1;
     if (prevIndex < 0) {
       prevIndex = _repeatMode == RepeatMode.all ? _queue.length - 1 : 0;
     }
-    await _playAtIndex(prevIndex, token: token);
+    await _loadTrackAtIndex(prevIndex, play: true, token: token);
   }
 
   @override
@@ -2412,16 +1766,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     switch (repeatMode) {
       case audio_service.AudioServiceRepeatMode.one:
         setRepeatModeUi(RepeatMode.one);
-        await _player.setLoopMode(LoopMode.one);
         break;
       case audio_service.AudioServiceRepeatMode.all:
         setRepeatModeUi(RepeatMode.all);
-        await _player.setLoopMode(LoopMode.all);
         break;
       case audio_service.AudioServiceRepeatMode.none:
       default:
         setRepeatModeUi(RepeatMode.off);
-        await _player.setLoopMode(LoopMode.off);
         break;
     }
   }
@@ -2443,8 +1794,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   // PUBLIC API
   Future<void> playTrack(GenericSong track, {bool addToQueue = true}) async {
     final token = ++_trackChangeToken;
-    await _cancelCrossfade(stopInactive: true);
-    _invalidateCrossfadePreload();
+    _clearPreloadBookkeeping();
+    unawaited(_engine.clearPreload());
     if (addToQueue && !_queue.any((t) => t.id == track.id)) {
       _queue.add(track);
       _broadcastQueue();
@@ -2452,11 +1803,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
     final index = _queue.indexWhere((t) => t.id == track.id);
     if (index >= 0) {
-      await _playAtIndex(index, token: token);
+      await _loadTrackAtIndex(index, play: true, token: token);
     } else {
       _queue.add(track);
       _broadcastQueue();
-      await _playAtIndex(_queue.length - 1, token: token);
+      await _loadTrackAtIndex(_queue.length - 1, play: true, token: token);
     }
   }
 
@@ -2472,22 +1823,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     List<GenericSong>? originalQueue,
   }) async {
     final token = ++_trackChangeToken;
-    // Stop any crossfade and playback before changing queue.
-    await _cancelCrossfade(stopInactive: true);
     try {
-      await _primaryPlayer.stop();
+      await _engine.stop();
     } catch (_) {}
-    try {
-      await _secondaryPlayer.stop();
-    } catch (_) {}
-
-    _useSecondaryAsActivePlayer = false;
-
-    // Invalidate any preloaded crossfade or prefetched sources since the queue is going to change.
-    _invalidateCrossfadePreload();
+    _clearPreloadBookkeeping();
     _invalidatePlaybackPrefetch(clearSources: true);
 
-    // Overwrite the new queue and context info.
     _queue = List.from(tracks);
     _originalQueue = originalQueue ?? [];
     _shuffleEnabled = shuffleEnabled;
@@ -2501,14 +1842,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (_queue.isEmpty) {
       _currentIndex = -1;
       _currentTrack = null;
-      _invalidatePlaybackPrefetch(clearSources: true);
       _saveQueue();
       notifyListeners();
       return;
     }
 
     if (play) {
-      await _playAtIndex(startIndex.clamp(0, _queue.length - 1), token: token);
+      await _loadTrackAtIndex(
+        startIndex.clamp(0, _queue.length - 1),
+        play: true,
+        token: token,
+      );
     } else {
       _currentIndex = startIndex.clamp(0, _queue.length - 1);
       _currentTrack = _queue[_currentIndex];
@@ -2522,7 +1866,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _queue.add(track);
     _broadcastQueue();
     _saveQueue();
-    _invalidateCrossfadePreload();
+    _clearPreloadBookkeeping();
+    unawaited(_engine.clearPreload());
     _invalidatePlaybackPrefetch();
     notifyListeners();
   }
@@ -2530,9 +1875,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   void removeFromQueue(int index) {
     if (index < 0 || index >= _queue.length) return;
     if (index == _currentIndex) {
-      _primaryPlayer.stop();
-      _secondaryPlayer.stop();
-      _invalidateCrossfadePreload();
+      unawaited(_engine.stop());
+      _clearPreloadBookkeeping();
       _invalidatePlaybackPrefetch(clearSources: true);
       _currentTrack = null;
       _currentIndex = -1;
@@ -2545,8 +1889,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _queue.removeAt(index);
     _broadcastQueue();
     _saveQueue();
-    _invalidateCrossfadePreload();
-    _prefetchedAudioSources.remove(removedTrack.id);
+    _clearPreloadBookkeeping();
+    unawaited(_engine.clearPreload());
+    _prefetchedSources.remove(removedTrack.id);
     _prefetchSourceTasks.remove(removedTrack.id);
     _invalidatePlaybackPrefetch();
     notifyListeners();
@@ -2556,11 +1901,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _queue.clear();
     _currentIndex = -1;
     _currentTrack = null;
-    unawaited(_cancelCrossfade(stopInactive: true));
-    unawaited(_primaryPlayer.stop());
-    unawaited(_secondaryPlayer.stop());
-    _useSecondaryAsActivePlayer = false;
-    _invalidateCrossfadePreload();
+    unawaited(_engine.stop());
+    _clearPreloadBookkeeping();
     _invalidatePlaybackPrefetch(clearSources: true);
     _setState(PlaybackState.idle);
     _broadcastQueue();
@@ -2584,19 +1926,20 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     _broadcastQueue();
     _saveQueue();
-    _invalidateCrossfadePreload();
+    _clearPreloadBookkeeping();
+    unawaited(_engine.clearPreload());
     _invalidatePlaybackPrefetch();
     notifyListeners();
   }
 
-  /// Set whether this device is the host (requesting) device in a handoff link.
-  /// When true, stream URL prefetching for the queue is skipped (playback happens
-  /// on the target device). Only the current track is prefetched to smooth unlinking.
+  /// Set whether this device is the host (requesting) device in a handoff
+  /// link. When true, stream URL prefetching for the queue is skipped
+  /// (playback happens on the target device). Only the current track is
+  /// prefetched to smooth unlinking.
   void setIsHandoffHost(bool value) {
     if (_isHandoffHost != value) {
       _isHandoffHost = value;
       if (value) {
-        // Clear prefetched sources when entering handoff host mode
         _invalidatePlaybackPrefetch(clearSources: true);
       }
     }
@@ -2618,7 +1961,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return;
     }
 
-    // Resolve a stable current track first so queue mutations cannot throw.
     final currentTrack = (_currentIndex >= 0 && _currentIndex < _queue.length)
         ? _queue[_currentIndex]
         : _currentTrack;
@@ -2632,7 +1974,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
       others.shuffle();
       _queue = currentTrack != null ? [currentTrack, ...others] : others;
-      _currentIndex = currentTrack != null ? 0 : 0;
+      _currentIndex = 0;
     } else if (!_shuffleEnabled && _originalQueue.isNotEmpty) {
       _queue = List.from(_originalQueue);
       if (currentTrack != null) {
@@ -2657,7 +1999,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _updateMediaItem();
     _saveQueue();
     notifyListeners();
-    _invalidateCrossfadePreload();
+    _clearPreloadBookkeeping();
+    unawaited(_engine.clearPreload());
     _invalidatePlaybackPrefetch();
     _broadcastPlaybackState();
   }
@@ -2676,7 +2019,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _repeatMode = mode;
     _saveQueue();
     notifyListeners();
-    _invalidateCrossfadePreload();
+    _clearPreloadBookkeeping();
+    unawaited(_engine.clearPreload());
     _invalidatePlaybackPrefetch();
     _broadcastPlaybackState();
   }
@@ -2695,10 +2039,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
         if (!audioYouTubeEnabled) {
           throw Exception('All audio providers are disabled in Preferences.');
-        }
-
-        if (!audioYouTubeEnabled) {
-          throw Exception('YouTube audio provider is disabled in Preferences.');
         }
 
         String? videoId = YouTubeProvider.getCachedVideoId(track.id);
@@ -2742,7 +2082,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     String? previousVideoId,
   }) async {
     await removeFromCache(trackId);
-    _prefetchedAudioSources.remove(trackId);
+    _prefetchedSources.remove(trackId);
     _prefetchSourceTasks.remove(trackId);
 
     if (previousVideoId != null && previousVideoId.isNotEmpty) {
@@ -2857,19 +2197,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> _saveVolumePrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble('player_volume', _player.volume);
+      await prefs.setDouble('player_volume', _engineVolume);
       await prefs.setDouble('player_last_volume', _lastVolume);
     } catch (e) {
       logger.e('[Audio/Player] Save volume error', error: e);
     }
   }
 
-  void _stopCrossfadeTimer() {
-    _crossfadeTimer?.cancel();
-    _crossfadeTimer = null;
-  }
-
   Map<String, dynamic> dumpInfo() {
+    final engineState = _engine.state;
     return {
       'state': _state.toJson(),
       'isPlaying': isPlaying,
@@ -2887,45 +2223,21 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       'gaplessPlaybackEnabled': _gaplessPlaybackEnabled,
       'crossfadeEnabled': _crossfadeEnabled,
       'crossfadeDurationSeconds': _crossfadeDurationSeconds,
-      'crossfadeTargetVolume': _crossfadeTargetVolume,
-      'isCrossfading': _isCrossfading,
       'isTrackTransitioning': _isTrackTransitioning,
-      'crossfadeFadeOutActive': _crossfadeFadeOutActive,
-      'crossfadeFadeInActive': _crossfadeFadeInActive,
-      'isCrossfadePreloadInProgress': _isCrossfadePreloadInProgress,
-      'crossfadePreloadGeneration': _crossfadePreloadGeneration,
       'preloadedNextIndex': _preloadedNextIndex,
       'preloadedNextTrack': _preloadedNextTrack?.toJson(),
-      'inactivePreloadTrackId': _inactivePreloadTrackId,
-      'useSecondaryAsActivePlayer': _useSecondaryAsActivePlayer,
-      'activePlayer': {
-        'volume': _player.volume,
-        'positionMs': _player.position.inMilliseconds,
-        'durationMs': _player.duration?.inMilliseconds,
-        'playing': _player.playing,
-        'processingState': _player.processingState.toString(),
-        'currentIndex': _player.currentIndex,
-        'hasNext': _player.hasNext,
-        'hasPrevious': _player.hasPrevious,
-        'audioSourceSet': _player.audioSource != null,
-      },
-      'primaryPlayer': {
-        'volume': _primaryPlayer.volume,
-        'positionMs': _primaryPlayer.position.inMilliseconds,
-        'durationMs': _primaryPlayer.duration?.inMilliseconds,
-        'playing': _primaryPlayer.playing,
-        'processingState': _primaryPlayer.processingState.toString(),
-        'currentIndex': _primaryPlayer.currentIndex,
-        'audioSourceSet': _primaryPlayer.audioSource != null,
-      },
-      'secondaryPlayer': {
-        'volume': _secondaryPlayer.volume,
-        'positionMs': _secondaryPlayer.position.inMilliseconds,
-        'durationMs': _secondaryPlayer.duration?.inMilliseconds,
-        'playing': _secondaryPlayer.playing,
-        'processingState': _secondaryPlayer.processingState.toString(),
-        'currentIndex': _secondaryPlayer.currentIndex,
-        'audioSourceSet': _secondaryPlayer.audioSource != null,
+      'isPreloadInProgress': _isPreloadInProgress,
+      'preloadGeneration': _preloadGeneration,
+      'engine': {
+        'isPlaying': engineState.isPlaying,
+        'isBuffering': engineState.isBuffering,
+        'positionMs': engineState.position.inMilliseconds,
+        'durationMs': engineState.duration.inMilliseconds,
+        'volume': engineState.volume,
+        'sourceUri': engineState.source?.uri.toString(),
+        'preloadedSourceUri': engineState.preloadedSource?.uri.toString(),
+        'isTransitioning': engineState.isTransitioning,
+        'error': engineState.error?.toString(),
       },
       'savedVolume': _savedVolume,
       'lastVolume': _lastVolume,
@@ -2933,8 +2245,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       'lastNotifiedPositionMs': _lastNotifiedPosition.inMilliseconds,
       'lastPositionNotifyMs': _lastPositionNotifyMs,
       'lastPositionUpdateMs': _lastPositionUpdateMs,
-      'lastMediaPositionMs': _lastMediaPositionMs,
-      'lastMediaUpdateMs': _lastMediaUpdateMs,
       'lastKnownDurationMs': _lastKnownDuration?.inMilliseconds,
       'rpcLastSecond': _rpcLastSecond,
       'playlistPlaybackEnabled': _playlistPlaybackEnabled,
@@ -2945,7 +2255,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       'isHandoffHost': _isHandoffHost,
       'prefetchWindowSize': _prefetchWindowSize,
       'prefetchGeneration': _prefetchGeneration,
-      'prefetchedAudioSources': _prefetchedAudioSources.keys.toList(),
+      'prefetchedSources': _prefetchedSources.keys.toList(),
       'prefetchSourceTasks': _prefetchSourceTasks.keys.toList(),
       'streamUrlCache': _streamUrlCache.map(
         (key, value) => MapEntry(key, {
@@ -2956,56 +2266,42 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       ),
       'streamUrlTasks': _streamUrlTasks.keys.toList(),
       'videoIdTasks': _videoIdTasks.keys.toList(),
+      'outputDevices': _availableOutputDevices
+          .map((d) => {'id': d.id, 'name': d.name})
+          .toList(),
+      'activeOutputDevice': _activeOutputDevice == null
+          ? null
+          : {'id': _activeOutputDevice!.id, 'name': _activeOutputDevice!.name},
       'subscriptions': {
-        'position': _positionSubscription != null,
-        'processingState': _processingStateSubscription != null,
-        'playing': _playingSubscription != null,
-        'currentIndex': _currentIndexSubscription != null,
+        'engineState': _engineStateSubscription != null,
+        'engineCompleted': _engineCompletedSubscription != null,
+        'outputDevices': _outputDevicesSubscription != null,
+        'activeOutputDevice': _activeOutputDeviceSubscription != null,
         'connectivity': _connectivitySubscription != null,
       },
-      'timers': {
-        'rpc': _rpcTimer != null,
-        'crossfade': _crossfadeTimer != null,
-        'mpris': _mprisTimer != null,
-      },
+      'timers': {'rpc': _rpcTimer != null, 'mpris': _mprisTimer != null},
     };
-  }
-
-  audio_service.AudioServiceRepeatMode _repeatModeFromString(String value) {
-    switch (value) {
-      case 'RepeatMode.one':
-        return audio_service.AudioServiceRepeatMode.one;
-      case 'RepeatMode.all':
-        return audio_service.AudioServiceRepeatMode.all;
-      case 'RepeatMode.off':
-      default:
-        return audio_service.AudioServiceRepeatMode.none;
-    }
   }
 
   @override
   Future<void> stop() async {
-    _stopCrossfadeTimer();
-    await _primaryPlayer.stop();
-    await _secondaryPlayer.stop();
-    _invalidateCrossfadePreload();
+    await _engine.stop();
+    _clearPreloadBookkeeping();
     _setState(PlaybackState.idle);
   }
 
   @override
   void dispose() {
     _saveVolumePrefs();
-    _positionSubscription?.cancel();
-    _processingStateSubscription?.cancel();
-    _playingSubscription?.cancel();
-    _currentIndexSubscription?.cancel();
+    _engineStateSubscription?.cancel();
+    _engineCompletedSubscription?.cancel();
+    _outputDevicesSubscription?.cancel();
+    _activeOutputDeviceSubscription?.cancel();
     _connectivitySubscription?.cancel();
-    _playbackEventSubscription?.cancel();
-    _stopCrossfadeTimer();
     _stopRpcTimer();
+    _stopMprisTimer();
     DiscordRpcService.instance.dispose();
-    _primaryPlayer.dispose();
-    _secondaryPlayer.dispose();
+    unawaited(_engine.dispose());
     _youtube.dispose();
     super.dispose();
   }
