@@ -928,43 +928,64 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   /// Asks the engine to swap onto whatever it already has preloaded. All
-  /// fading (or the lack of it, for gapless) happens inside the engine;
-  /// this only updates our own index/track bookkeeping and session state
-  /// once the swap has happened.
+  /// fading (or the lack of it, for gapless) happens inside the engine.
+  ///
+  /// The next track is *already preloaded* by the time this is called (both
+  /// callers verify that via `_isPreloadReady`), so as far as the UI/session
+  /// is concerned the swap is effectively immediate — the engine is fading
+  /// into it right now. We update our bookkeeping synchronously up front
+  /// instead of waiting on `_engine.transitionToPreloaded()` to resolve:
+  /// that future's completion is tied to the engine's own fade/output
+  /// lifecycle and isn't a reliable signal for "the new track is now
+  /// current" — gating the UI update on it is what caused the old bug
+  /// where the player bar would flicker toward the next track, revert to
+  /// the outgoing one, and only actually switch once the outgoing track's
+  /// full duration had elapsed.
+  ///
+  /// Because nothing here is a real load (the source is already buffered),
+  /// we deliberately do NOT flip `_isTrackTransitioning` — that flag exists
+  /// for genuine hard loads in `_loadTrackAtIndex()` where the UI should
+  /// show a spinner while waiting on network/buffering. A crossfade/gapless
+  /// swap has nothing to spin for.
   Future<void> _transitionToNext({int? token}) async {
     final nextIndex = _preloadedNextIndex;
     final nextTrack = _preloadedNextTrack;
     if (nextIndex == null || nextTrack == null) return;
 
     final requestToken = token ?? ++_trackChangeToken;
-    _setTrackTransitioning(true);
+
+    // Clear + commit bookkeeping immediately (and before any `await`) so a
+    // second, concurrently-triggered call to this method sees
+    // `_preloadedNextIndex == null` and bails out at the guard above,
+    // rather than racing on the engine call below.
+    _preloadedNextIndex = null;
+    _preloadedNextTrack = null;
+    _currentIndex = nextIndex;
+    _currentTrack = nextTrack;
+    _errorMessage = null;
+    _updateMediaItem();
+    _setState(PlaybackState.playing);
+    _broadcastPlaybackState();
+    _ensureRpcTimer();
+    _ensureMprisTimer();
+    _updateDiscordPresence(force: true);
+    _saveQueue();
+    _queueCaching(nextTrack);
+    notifyListeners();
+    unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: nextIndex));
+    unawaited(_scheduleNextTrackPreload());
+
     try {
       await _engine.transitionToPreloaded(play: true);
-      if (requestToken != _trackChangeToken) return;
-
-      _currentIndex = nextIndex;
-      _currentTrack = nextTrack;
-      _preloadedNextIndex = null;
-      _preloadedNextTrack = null;
-      _errorMessage = null;
-      _updateMediaItem();
-      _setState(PlaybackState.playing);
-      _broadcastPlaybackState();
-      _ensureRpcTimer();
-      _ensureMprisTimer();
-      _updateDiscordPresence(force: true);
-      _saveQueue();
-      _queueCaching(nextTrack);
-      notifyListeners();
-      unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: nextIndex));
-      unawaited(_scheduleNextTrackPreload());
     } catch (e) {
       logger.w('[Audio/Player] Transition to preloaded track failed', error: e);
-      _errorMessage = e.toString();
-      _setState(PlaybackState.error);
-    } finally {
+      // We've already committed to the new track in the UI/session — the
+      // engine call failing after the fade has visually/audibly started is
+      // an engine-level playback error, not a reason to snap the UI back
+      // to the track that's already fading out.
       if (requestToken == _trackChangeToken) {
-        _setTrackTransitioning(false);
+        _errorMessage = e.toString();
+        _setState(PlaybackState.error);
       }
     }
   }

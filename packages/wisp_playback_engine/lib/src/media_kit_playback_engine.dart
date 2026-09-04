@@ -24,6 +24,20 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   bool _isTransitioning = false;
   Future<void> _operations = Future.value();
 
+  // While a crossfade is running, `_active`/`_standby` still refer to the
+  // outgoing/incoming *players* (they only swap once the fade physically
+  // finishes, since that's when it's safe to reuse the outgoing slot for
+  // the next preload). But callers should see position/duration/source for
+  // the incoming track from the moment the fade starts, not from whenever
+  // the swap happens — otherwise `state` keeps reporting the outgoing
+  // track's numbers for the entire crossfade window, which makes it look
+  // like nothing has changed until the fade finishes. `_reportingPlayer`
+  // and `_fadeOutgoingSource` let `_publishState()`/`_cancelTransition()`
+  // report (and restore, on abort) the correct track independently of
+  // when the underlying slot swap actually occurs.
+  Player? _reportingPlayer;
+  PlaybackSource? _fadeOutgoingSource;
+
   final _states = StreamController<PlaybackEngineState>.broadcast();
   final _completed = StreamController<void>.broadcast();
   final _outputDevices =
@@ -142,8 +156,20 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
               _active.state.playing &&
               play;
           final incomingSource = _preloadedSource!;
+
+          if (shouldFade) {
+            // The fade is starting now: as far as callers are concerned the
+            // incoming track is "current" from this instant, even though
+            // internally we keep fading the outgoing player in the
+            // background under the old `_active` reference until the fade
+            // completes and the slots swap.
+            _fadeOutgoingSource = _activeSource;
+            _reportingPlayer = _standby;
+            _activeSource = incomingSource;
+          }
           _isTransitioning = shouldFade;
           _publishState();
+
           if (shouldFade) {
             if (!await _crossfade()) return;
           } else {
@@ -151,14 +177,18 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
             _swapSlots();
             await _active.setVolume(_volume * 100);
             if (play) await _active.play();
+            _activeSource = incomingSource;
           }
           _preloadedSource = null;
           _isTransitioning = false;
-          _activeSource = incomingSource;
+          _reportingPlayer = null;
+          _fadeOutgoingSource = null;
           _lastError = null;
           _publishState();
         } catch (error) {
           _isTransitioning = false;
+          _reportingPlayer = null;
+          _fadeOutgoingSource = null;
           _publishFailure('transitionToPreloaded', error);
           rethrow;
         }
@@ -273,6 +303,10 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     }
     await outgoing.stop();
     _swapSlots();
+    // `_active` now *is* the former incoming player, so the reporting
+    // override is no longer needed — `_active` alone is accurate again.
+    _reportingPlayer = null;
+    _fadeOutgoingSource = null;
     await _active.setVolume(_volume * 100);
     return true;
   }
@@ -280,6 +314,16 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   void _cancelTransition() {
     _transitionGeneration++;
     _isTransitioning = false;
+    if (_reportingPlayer != null) {
+      // A fade was reporting the incoming track as active; since it's being
+      // cancelled before the slots ever swapped, the outgoing track is
+      // still the one genuinely playing (or about to be paused/stopped/
+      // seeked by whichever command triggered this cancellation), so put
+      // the reported source back.
+      _reportingPlayer = null;
+      _activeSource = _fadeOutgoingSource;
+      _fadeOutgoingSource = null;
+    }
   }
 
   Future<bool> _abortCrossfade(Player outgoing, Player incoming) async {
@@ -291,6 +335,9 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
       incoming.stop(),
     ]);
     _isTransitioning = false;
+    _reportingPlayer = null;
+    _activeSource = _fadeOutgoingSource ?? _activeSource;
+    _fadeOutgoingSource = null;
     _publishState();
     return false;
   }
@@ -342,11 +389,15 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
 
   void _publishState() {
     if (_disposed) return;
+    // During a crossfade this is the incoming player, so position/duration/
+    // isPlaying line up with `_activeSource` (also already flipped to the
+    // incoming track) instead of lagging behind until the slots swap.
+    final reportingPlayer = _reportingPlayer ?? _active;
     _state = PlaybackEngineState(
-      isPlaying: _active.state.playing,
-      isBuffering: _active.state.buffering,
-      position: _active.state.position,
-      duration: _reportedDuration(),
+      isPlaying: reportingPlayer.state.playing,
+      isBuffering: reportingPlayer.state.buffering,
+      position: reportingPlayer.state.position,
+      duration: _reportedDuration(reportingPlayer),
       volume: _volume,
       source: _activeSource,
       preloadedSource: _preloadedSource,
@@ -356,8 +407,8 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     _states.add(_state);
   }
 
-  Duration _reportedDuration() {
-    final actual = _active.state.duration;
+  Duration _reportedDuration(Player player) {
+    final actual = player.state.duration;
     final expected = _activeSource?.expectedDuration;
     if (expected == null || expected <= Duration.zero) return actual;
     // Some native decoders report an inflated duration for HE-AAC. Metadata

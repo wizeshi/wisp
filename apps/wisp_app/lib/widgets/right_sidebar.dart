@@ -59,6 +59,7 @@ class _RightSidebarState extends State<RightSidebar> {
         onEnter: (_) => setState(() => _isHoveringSidebar = true),
         onExit: (_) => setState(() => _isHoveringSidebar = false),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _ResizeHandle(onResize: widget.onResize),
             Expanded(
