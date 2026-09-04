@@ -1497,10 +1497,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (_isCrossfading ||
         _crossfadeFadeOutActive ||
         _crossfadeFadeInActive ||
-        _isTrackTransitioning ||
-        _player.playing) {
+        _isTrackTransitioning) {
       return;
     }
+    // `playing` is deliberately not a completion guard. just_audio keeps
+    // this flag true after it emits ProcessingState.completed, so using it
+    // here makes the completion fallback a no-op. That is most visible when
+    // the app is backgrounded: position updates may be throttled and never
+    // start the crossfade before the native player reaches the end.
     _isHandlingCompletion = true;
     final token = _trackChangeToken;
     () async {
@@ -2047,7 +2051,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (videoId != null && _getCachedStreamUrl(videoId) != null) return;
 
     try {
-      final artistNames = track.artists.map((a) => a.name).join(', ');
       if (videoId == null) {
         videoId = await _getVideoIdForTrack(track);
         if (videoId == null) return;

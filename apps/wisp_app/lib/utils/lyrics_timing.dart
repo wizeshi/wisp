@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 
 import '../models/metadata_models.dart';
 
-const int kLyricsWaitingGapThresholdMs = 5000;
+const int kLyricsWaitingGapThresholdMs = 10000;
+const int kLyricsInitialWaitingGapThresholdMs =
+    kLyricsWaitingGapThresholdMs ~/ 2;
 const int kLyricsFadeOutWindowMs = 140;
 
 class LyricsTimingState {
@@ -26,8 +28,12 @@ class LyricsTimingState {
     required this.fadeOutProgress,
   });
 
-  bool get showWaitingDots =>
-      activeIndex < 0 && nextIndex != null && gapMs > kLyricsWaitingGapThresholdMs;
+  bool get showWaitingDots {
+    final thresholdMs = previousIndex == null
+        ? kLyricsInitialWaitingGapThresholdMs
+        : kLyricsWaitingGapThresholdMs;
+    return activeIndex < 0 && nextIndex != null && gapMs > thresholdMs;
+  }
 
   bool get shouldFadePreviousLine =>
       previousIndex != null &&
