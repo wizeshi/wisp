@@ -20,6 +20,7 @@ import 'package:wisp/services/connect/lan_connect_service.dart';
 import 'package:wisp/services/connect/connect_transport.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/utils/logger.dart';
+import 'package:wisp_playback_engine/wisp_playback_engine.dart';
 
 // Structured error codes so the UI can react without brittle string matching.
 // Add new codes here as needed.
@@ -1601,14 +1602,10 @@ class ConnectSessionProvider extends ChangeNotifier
 
   Future<void> _startOutputRouteMonitoring() async {
     try {
-      final session = await AudioSession.instance;
-      _audioDevicesSubscription ??= session.devicesStream.listen(
-        _updateAvailableOutputDevices,
-      );
-      final devices = await session.getDevices(
-        includeInputs: false,
-        includeOutputs: true,
-      );
+      if (_audioHandler == null) return; 
+
+      final devices = _audioHandler!.outputDevices.toSet();
+
       _updateAvailableOutputDevices(devices);
     } catch (error) {
       logger.w('[Handoff] Output route monitoring unavailable.', error: error);
@@ -1623,18 +1620,17 @@ class ConnectSessionProvider extends ChangeNotifier
 
   Future<void> _refreshOutputDevicesInternal() async {
     try {
-      final session = await AudioSession.instance;
-      final devices = await session.getDevices(
-        includeInputs: false,
-        includeOutputs: true,
-      );
+      if (_audioHandler == null) return; 
+
+      final devices = _audioHandler!.outputDevices.toSet();
+
       _updateAvailableOutputDevices(devices);
     } catch (error) {
       logger.w('[Handoff] Failed to refresh output routes.', error: error);
     }
   }
 
-  void _updateAvailableOutputDevices(Set<AudioDevice> devices) {
+  void _updateAvailableOutputDevices(Set<PlaybackOutputDevice> devices) {
     final localName = _localDeviceName.trim().isEmpty
         ? 'This Device'
         : _localDeviceName;
@@ -1643,7 +1639,6 @@ class ConnectSessionProvider extends ChangeNotifier
     ];
 
     for (final device in devices) {
-      if (!device.isOutput) continue;
       final kind = _mapAudioDeviceToOutputKind(device);
       if (kind == null) continue;
       final name = device.name.trim().isEmpty
@@ -1663,7 +1658,7 @@ class ConnectSessionProvider extends ChangeNotifier
     final nextPreferredExternal = dedupedDevices.firstWhere(
       (device) => device.kind == ConnectOutputKind.bluetooth,
       orElse: () => dedupedDevices.firstWhere(
-        (device) => device.kind == ConnectOutputKind.wired,
+        (device) => device.kind == ConnectOutputKind.display,
         orElse: () => const ConnectOutputDevice(kind: ConnectOutputKind.local),
       ),
     );
@@ -1713,19 +1708,25 @@ class ConnectSessionProvider extends ChangeNotifier
     }
   }
 
-  ConnectOutputKind? _mapAudioDeviceToOutputKind(AudioDevice device) {
-    final typeName = '${device.type}'.toLowerCase();
-    if (typeName.contains('bluetooth') || typeName.contains('hearingaid')) {
-      return ConnectOutputKind.bluetooth;
+  ConnectOutputKind? _mapAudioDeviceToOutputKind(PlaybackOutputDevice device) {
+    AudioDeviceCategory deviceCategory = AudioDeviceCategory.fromDeviceName(device.name);
+
+    switch (deviceCategory) {
+      case AudioDeviceCategory.earbuds:
+        return ConnectOutputKind.earbuds;
+      case AudioDeviceCategory.headphones:
+        return ConnectOutputKind.headphones;
+      case AudioDeviceCategory.speakers:
+        return ConnectOutputKind.speakers;
+      case AudioDeviceCategory.bluetooth:
+        return ConnectOutputKind.bluetooth;
+      case AudioDeviceCategory.hdmiDisplay:
+        return ConnectOutputKind.display;
+      case AudioDeviceCategory.virtual:
+        return ConnectOutputKind.virtual;
+      case AudioDeviceCategory.unknown:
+        return null;
     }
-    if (typeName.contains('wired') ||
-        typeName.contains('line') ||
-        typeName.contains('aux') ||
-        typeName.contains('usb') ||
-        typeName.contains('dock')) {
-      return ConnectOutputKind.wired;
-    }
-    return null;
   }
 
   bool _sameOutputDevices(

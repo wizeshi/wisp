@@ -54,6 +54,9 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     _second = Player();
     _active = _first;
     _standby = _second;
+
+    print('[MediaKitPlaybackEngine] INIT. Audio devices: ${_first.state.audioDevices.map((d) => d.name).join(', ')}');
+
     _listenToPlayers();
     _publishOutputDevices(_first.state.audioDevices);
   }

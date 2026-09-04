@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/services/connect/connect_packet_models.dart';
 
@@ -309,7 +310,11 @@ class _CurrentOutputCard extends StatelessWidget {
     final subtitle = outputKind == ConnectOutputKind.local
         ? 'This Device'
         : switch (outputKind) {
-            ConnectOutputKind.wired => 'Wired connection',
+            ConnectOutputKind.display => 'Display Audio',
+            ConnectOutputKind.virtual => 'Virtual Audio',
+            ConnectOutputKind.headphones => 'Headphones',
+            ConnectOutputKind.earbuds => 'Earbuds',
+            ConnectOutputKind.speakers => 'Speakers',
             ConnectOutputKind.bluetooth => 'Bluetooth audio',
             ConnectOutputKind.handoffDesktop => 'Handoff on desktop',
             ConnectOutputKind.handoffMobile => 'Handoff on mobile',
@@ -888,10 +893,14 @@ class _OutputIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = switch (kind) {
-      ConnectOutputKind.wired => Icons.headphones,
-      ConnectOutputKind.bluetooth => Icons.hearing,
-      ConnectOutputKind.handoffMobile => Icons.smartphone,
-      ConnectOutputKind.handoffDesktop => Icons.computer,
+      ConnectOutputKind.headphones => Icons.headphones,
+      ConnectOutputKind.earbuds => Symbols.earbud_case,
+      ConnectOutputKind.speakers => Icons.speaker,
+      ConnectOutputKind.display => Icons.tv,
+      ConnectOutputKind.virtual => Icons.devices_other,
+      ConnectOutputKind.bluetooth => Icons.bluetooth_audio,
+      ConnectOutputKind.handoffMobile => Symbols.smartphone,
+      ConnectOutputKind.handoffDesktop => Symbols.computer,
       ConnectOutputKind.local => Icons.play_circle_outline,
     };
 

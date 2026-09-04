@@ -320,8 +320,6 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(output.icon, size: 14, color: Colors.white70),
-              const SizedBox(width: 6),
               Flexible(
                 child: MarqueeText(
                   text: output.deviceName,
@@ -2615,21 +2613,6 @@ class _MobileOutputInfo {
   const _MobileOutputInfo({required this.kind, required this.deviceName});
 
   bool get isExternal => kind.isExternal;
-
-  IconData get icon {
-    switch (kind) {
-      case ConnectOutputKind.wired:
-        return CupertinoIcons.headphones;
-      case ConnectOutputKind.bluetooth:
-        return CupertinoIcons.bluetooth;
-      case ConnectOutputKind.handoffDesktop:
-        return CupertinoIcons.desktopcomputer;
-      case ConnectOutputKind.handoffMobile:
-        return CupertinoIcons.device_phone_portrait;
-      case ConnectOutputKind.local:
-        return CupertinoIcons.device_phone_portrait;
-    }
-  }
 
   factory _MobileOutputInfo.fromProvider(ConnectSessionProvider connect) {
     final kind = connect.activeOutputKind;

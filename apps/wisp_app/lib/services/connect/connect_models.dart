@@ -49,9 +49,50 @@ extension HandoffSecurityLevelJson on HandoffSecurityLevel {
   }
 }
 
+enum AudioDeviceCategory {
+  earbuds(
+    r'\b(buds?|airpods?|earbuds?|in-ear|in ear|earphones?|freelace|galaxy buds|linkbuds|wf-\d+|c500|tune\s*\d+tws)\b',
+  ),
+  headphones(
+    r'\b(headphones?|headset|over-ear|on-ear|wh-\d+|q30|q45|space|xm\d+|pXC|hd\s*\d+)\b',
+  ),
+  speakers(
+    r'\b(speaker|loudspeaker|desktop speaker|internal speaker|built-in|soundbar)\b',
+  ),
+  bluetooth(
+    r'\b(bluetooth|bt\b|wireless|hands-free)\b',
+  ),
+  hdmiDisplay(
+    r'\b(hdmi|displayport|dp|tv|monitor|receiver|nvidia|amd)\b',
+  ),
+  virtual(
+    r'\b(virtual|cable|vb-audio|steam|obs|aggregate|loopback)\b',
+  ),
+  unknown('');
+
+  final String pattern;
+  const AudioDeviceCategory(this.pattern);
+
+  static AudioDeviceCategory fromDeviceName(String rawName) {
+    final clean = rawName.toLowerCase();
+
+    for (final category in AudioDeviceCategory.values) {
+      if (category == unknown) continue;
+      if (RegExp(category.pattern, caseSensitive: false).hasMatch(clean)) {
+        return category;
+      }
+    }
+    return AudioDeviceCategory.unknown;
+  }
+}
+
 enum ConnectOutputKind {
   local,
-  wired,
+  headphones,
+  earbuds,
+  speakers,
+  display,
+  virtual,
   bluetooth,
   handoffDesktop,
   handoffMobile,
@@ -64,10 +105,18 @@ extension ConnectOutputKindUi on ConnectOutputKind {
     switch (this) {
       case ConnectOutputKind.local:
         return 'This device';
-      case ConnectOutputKind.wired:
-        return 'Wired connection';
+      case ConnectOutputKind.headphones:
+        return 'Headphones';
+      case ConnectOutputKind.earbuds:
+        return 'Earbuds';
+      case ConnectOutputKind.speakers:
+        return 'Speakers';
+      case ConnectOutputKind.display:
+        return 'Display';
+      case ConnectOutputKind.virtual:
+        return 'Virtual';
       case ConnectOutputKind.bluetooth:
-        return 'Bluetooth audio';
+        return 'Bluetooth';
       case ConnectOutputKind.handoffDesktop:
         return 'Handoff - Desktop';
       case ConnectOutputKind.handoffMobile:

@@ -513,21 +513,6 @@ class PlayerStateView extends StatelessWidget {
                             ),
                           ],
                         ),
-                        SimpleRowWithEqualHeight(
-                          children: [
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Crossfade Target Volume (0.0 - 1.0)",
-                              value: _uppercaseFirstLetter(playerInfo['crossfadeTargetVolume'].toString()),
-                            ),
-
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Is Crossfading?",
-                              value: _uppercaseFirstLetter(playerInfo['isCrossfading'].toString()),
-                            ),
-                          ]
-                        )
                       ]
                     )
                     : SimpleRowWithEqualHeight(
@@ -549,18 +534,6 @@ class PlayerStateView extends StatelessWidget {
                           label: "Crossfade Duration (seconds)",
                           value: _uppercaseFirstLetter(playerInfo['crossfadeDurationSeconds'].toString()),
                         ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Crossfade Target Volume (0.0 - 1.0)",
-                          value: _uppercaseFirstLetter(playerInfo['crossfadeTargetVolume'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Is Crossfading?",
-                          value: _uppercaseFirstLetter(playerInfo['isCrossfading'].toString()),
-                        ),
                       ],
                     ),
 
@@ -571,21 +544,27 @@ class PlayerStateView extends StatelessWidget {
                         SimpleRowWithEqualHeight(
                           children: [
                             PlayerStateViewElement(
-                              flex: 1,
+                              flex: 2,
                               label: "Is Track Transitioning?",
                               value: _uppercaseFirstLetter(playerInfo['isTrackTransitioning'].toString()),
                             ),
-
+                            
                             PlayerStateViewElement(
-                              flex: 1,
-                              label: "Crossfade Out Active?",
-                              value: _uppercaseFirstLetter(playerInfo['crossfadeFadeOutActive'].toString()),
+                              flex: 2,
+                              label: "Preloaded Next Index",
+                              value: _uppercaseFirstLetter(playerInfo['preloadedNextIndex'].toString()),
                             ),
 
                             PlayerStateViewElement(
-                              flex: 1,
-                              label: "Crossfade In Active?",
-                              value: _uppercaseFirstLetter(playerInfo['crossfadeFadeInActive'].toString()),
+                              flex: 6,
+                              label: "Preloaded Next Track",
+                              value: _uppercaseFirstLetter(playerInfo['preloadedNextTrack']?.toString() ?? "None"),
+                              valueOverride: playerInfo['preloadedNextTrack'] != null
+                                ? Container(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: SimpleTrackRow(track: GenericSong.fromJson(playerInfo['preloadedNextTrack'])),
+                                )
+                                : null,
                             ),
                           ]
                         ),
@@ -594,14 +573,14 @@ class PlayerStateView extends StatelessWidget {
                           children: [
                             PlayerStateViewElement(
                               flex: 1,
-                              label: "Is Crossfade Preload in Progress?",
-                              value: _uppercaseFirstLetter(playerInfo['isCrossfadePreloadInProgress'].toString()),
+                              label: "Is Preload in Progress?",
+                              value: _uppercaseFirstLetter(playerInfo['isPreloadInProgress'].toString()),
                             ),
 
                             PlayerStateViewElement(
                               flex: 1,
-                              label: "Crossfade Preload Generation",
-                              value: _uppercaseFirstLetter(playerInfo['crossfadePreloadGeneration'].toString()),
+                              label: "Preload Generation",
+                              value: _uppercaseFirstLetter(playerInfo['preloadGeneration'].toString()),
                             ),
                           ]
                         )
@@ -614,29 +593,16 @@ class PlayerStateView extends StatelessWidget {
                           label: "Is Track Transitioning?",
                           value: _uppercaseFirstLetter(playerInfo['isTrackTransitioning'].toString()),
                         ),
-
                         PlayerStateViewElement(
                           flex: 1,
-                          label: "Crossfade Out Active?",
-                          value: _uppercaseFirstLetter(playerInfo['crossfadeFadeOutActive'].toString()),
+                          label: "Preload in Progress?",
+                          value: _uppercaseFirstLetter(playerInfo['isPreloadInProgress'].toString()),
                         ),
 
                         PlayerStateViewElement(
                           flex: 1,
-                          label: "Crossfade In Active?",
-                          value: _uppercaseFirstLetter(playerInfo['crossfadeFadeInActive'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Is Crossfade Preload in Progress?",
-                          value: _uppercaseFirstLetter(playerInfo['isCrossfadePreloadInProgress'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Crossfade Preload Generation",
-                          value: _uppercaseFirstLetter(playerInfo['crossfadePreloadGeneration'].toString()),
+                          label: "Preload Generation",
+                          value: _uppercaseFirstLetter(playerInfo['preloadGeneration'].toString()),
                         ),
                       ],
                     ),
@@ -668,13 +634,6 @@ class PlayerStateView extends StatelessWidget {
                               label: "Preloaded Next Index",
                               value: _uppercaseFirstLetter(playerInfo['preloadedNextIndex'].toString()),
                             ),
-
-                            PlayerStateViewElement(
-                              flex: 2,
-                              label: "Inactive Preload Track ID",
-                              // Case Sensitive 
-                              value: playerInfo['inactivePreloadTrackId'].toString(),
-                            ),
                           ],
                         )
                       ]
@@ -682,13 +641,13 @@ class PlayerStateView extends StatelessWidget {
                     : SimpleRowWithEqualHeight(
                       children: [
                         PlayerStateViewElement(
-                          flex: 1,
+                          flex: 2,
                           label: "Preloaded Next Index",
                           value: _uppercaseFirstLetter(playerInfo['preloadedNextIndex'].toString()),
                         ),
                         
                         PlayerStateViewElement(
-                          flex: 2,
+                          flex: 3,
                           label: "Preloaded Next Track",
                           value: _uppercaseFirstLetter(playerInfo['preloadedNextTrack']?.toString() ?? "None"),
                           valueOverride: playerInfo['preloadedNextTrack'] != null
@@ -698,19 +657,7 @@ class PlayerStateView extends StatelessWidget {
                             )
                             : null,
                         ),
-
-                        PlayerStateViewElement(
-                          flex: 3,
-                          label: "Inactive Preload Track ID",
-                          // Case Sensitive 
-                          value: playerInfo['inactivePreloadTrackId'].toString(),
-                        ),
                       ],
-                    ),
-
-                    PlayerStateViewRow(
-                      label: "Use Secondary as Active Player?",
-                      value: _uppercaseFirstLetter(playerInfo['useSecondaryAsActivePlayer'].toString()),
                     ),
 
                     isMobile
@@ -958,6 +905,87 @@ class PlayerStateView extends StatelessWidget {
                       label: "Video ID Tasks",
                       value: _uppercaseFirstLetter(playerInfo['videoIdTasks'].toString()),
                     ),
+
+                    PlayerStateViewRow(
+                      label: "Output Devices",
+                      value: _uppercaseFirstLetter(playerInfo['outputDevices'].map((device) => device['name']).join(', ')),
+                    ),
+
+                    PlayerStateViewRow(
+                      label: "Active Output Device",
+                      value: _uppercaseFirstLetter(playerInfo['activeOutputDevice'] ?? "Auto"),
+                    ),
+                  ]
+                ),
+
+                PlayerStateViewSection(
+                  title: "Engine Info",
+                  children: [
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Playing",
+                          value: _uppercaseFirstLetter(playerInfo['engine']['isPlaying'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Buffering?",
+                          value: _uppercaseFirstLetter(playerInfo['engine']['isBuffering'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Is Transitioning?",
+                          value: _uppercaseFirstLetter(playerInfo['engine']['isTransitioning'].toString()),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Volume",
+                          value: _uppercaseFirstLetter(playerInfo['engine']['volume'].toString()),
+                        ),
+                      ]
+                    ),
+
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Position",
+                          value: _formatDuration(int.tryParse(playerInfo['engine']['positionMs'].toString()) ?? 0, miliseconds: true),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Duration",
+                          value: _formatDuration(int.tryParse(playerInfo['engine']['durationMs'].toString()) ?? 0, miliseconds: true),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Error Message",
+                          value: _formatDuration(int.tryParse(playerInfo['engine']['error'].toString()) ?? 0, miliseconds: true),
+                        ),
+                      ]
+                    ),
+                    
+                    SimpleRowWithEqualHeight(
+                      children: [
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Source URI",
+                          value: playerInfo['engine']['sourceUri'].toString(),
+                        ),
+
+                        PlayerStateViewElement(
+                          flex: 1,
+                          label: "Preloaded Source URI",
+                          value: playerInfo['engine']['preloadedSourceUri'].toString(),
+                        ),
+                      ]
+                    ),
                   ]
                 ),
 
@@ -972,14 +1000,14 @@ class PlayerStateView extends StatelessWidget {
                           children: [
                             PlayerStateViewElement(
                               flex: 1,
-                              label: "Position Subscription Active?",
-                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['position'].toString()),
+                              label: "Engine State Subscription Active?",
+                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['engineState'].toString()),
                             ),
 
                             PlayerStateViewElement(
                               flex: 1,
-                              label: "Playing Subscription Active?",
-                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['playing'].toString()),
+                              label: "Engine Completed Subscription Active?",
+                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['engineCompleted'].toString()),
                             ),
                           ]
                         ),
@@ -988,8 +1016,8 @@ class PlayerStateView extends StatelessWidget {
                           children: [
                             PlayerStateViewElement(
                               flex: 1,
-                              label: "Processing State Subscription Active?",
-                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['processingState'].toString()),
+                              label: "Output Devices Subscription Active?",
+                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['outputDevices'].toString()),
                             ),
                           ]
                         ),
@@ -998,8 +1026,8 @@ class PlayerStateView extends StatelessWidget {
                           children: [
                             PlayerStateViewElement(
                               flex: 1,
-                              label: "Current Index Subscription Active?",
-                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['currentIndex'].toString()),
+                              label: "Active Output Device Subscription Active?",
+                              value: _uppercaseFirstLetter(playerInfo['subscriptions']['activeOutputDevice'].toString()),
                             ),
 
                             PlayerStateViewElement(
@@ -1015,330 +1043,32 @@ class PlayerStateView extends StatelessWidget {
                       children: [
                         PlayerStateViewElement(
                           flex: 1,
-                          label: "Position Subscription Active?",
-                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['position'].toString()),
+                          label: "Engine State Subscription Active?",
+                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['engineState'].toString()),
                         ),
 
                         PlayerStateViewElement(
                           flex: 1,
-                          label: "Processing State Subscription Active?",
-                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['processingState'].toString()),
+                          label: "Engine Completed Subscription Active?",
+                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['engineCompleted'].toString()),
                         ),
 
                         PlayerStateViewElement(
                           flex: 1,
-                          label: "Playing Subscription Active?",
-                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['playing'].toString()),
+                          label: "Output Devices Subscription Active?",
+                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['outputDevices'].toString()),
                         ),
 
                         PlayerStateViewElement(
                           flex: 1,
-                          label: "Current Index Subscription Active?",
-                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['currentIndex'].toString()),
+                          label: "Active Output Device Subscription Active?",
+                          value: _uppercaseFirstLetter(playerInfo['subscriptions']['activeOutputDevice'].toString()),
                         ),
 
                         PlayerStateViewElement(
                           flex: 1,
                           label: "Connectivity Subscription Active?",
                           value: _uppercaseFirstLetter(playerInfo['subscriptions']['connectivity'].toString()),
-                        ),
-                      ],
-                    ),
-                  ]
-                ),
-
-                PlayerStateViewSection(
-                  title: "Active Player Info",
-                  children: [
-                    SimpleRowWithEqualHeight(
-                      children: [
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Volume",
-                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['volume'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Position",
-                          value: _formatDuration(int.tryParse(playerInfo['activePlayer']['positionMs'].toString()) ?? 0, miliseconds: true),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Duration",
-                          value: _formatDuration(int.tryParse(playerInfo['activePlayer']['durationMs'].toString()) ?? 0, miliseconds: true),
-                        ),
-                      ],
-                    ),
-                    
-                    SimpleRowWithEqualHeight(
-                      children: [
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Is Online?",
-                          value: _uppercaseFirstLetter(playerInfo['isOnline'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Is Playing?",
-                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['playing'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Processing State",
-                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['processingState'].toString().split('.').last),
-                        ),
-                      ],
-                    ),
-
-                    isMobile
-                    ? Column(
-                      spacing: 6,
-                      children: [
-                        SimpleRowWithEqualHeight(
-                          children: [
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Current Index",
-                              value: _uppercaseFirstLetter(playerInfo['activePlayer']['currentIndex'].toString()),
-                            ),
-
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Has Next?",
-                              value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasNext'].toString()),
-                            )
-                          ]
-                        ),
-
-                        SimpleRowWithEqualHeight(
-                          children: [
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Has Previous?",
-                              value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasPrevious'].toString()),
-                            ),
-                            
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Audio Source Set?",
-                              value: _uppercaseFirstLetter(playerInfo['activePlayer']['audioSourceSet'].toString()),
-                            ),
-                          ]
-                        ),
-                      ]
-                    )
-                    : SimpleRowWithEqualHeight(
-                      children: [
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Current Index",
-                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['currentIndex'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Has Next?",
-                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasNext'].toString()),
-                        )
-                        ,
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Has Previous?",
-                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['hasPrevious'].toString()),
-                        ),
-                        
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Audio Source Set?",
-                          value: _uppercaseFirstLetter(playerInfo['activePlayer']['audioSourceSet'].toString()),
-                        ),
-                      ],
-                    ),
-                  ]
-                ),
-
-                PlayerStateViewSection(
-                  title: "Primary Player Info",
-                  children: [
-                    SimpleRowWithEqualHeight(
-                      children: [
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Volume",
-                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['volume'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Position",
-                          value: _formatDuration(int.tryParse(playerInfo['primaryPlayer']['positionMs'].toString()) ?? 0, miliseconds: true),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Duration",
-                          value: _formatDuration(int.tryParse(playerInfo['primaryPlayer']['durationMs'].toString()) ?? 0, miliseconds: true),
-                        ),
-                      ],
-                    ),
-
-                    isMobile
-                    ? Column(
-                      spacing: 6,
-                      children: [
-                        SimpleRowWithEqualHeight(
-                          children: [
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Is Playing?",
-                              value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['playing'].toString()),
-                            ),
-
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Processing State",
-                              value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['processingState'].toString().split('.').last),
-                            ),
-                          ]
-                        ),
-                        
-                        SimpleRowWithEqualHeight(
-                          children: [
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Current Index",
-                              value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['currentIndex'].toString()),
-                            ),
-                            
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Audio Source Set?",
-                              value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['audioSourceSet'].toString()),
-                            ),
-                          ]
-                        ),
-                      ],
-                    )
-                    : SimpleRowWithEqualHeight(
-                      children: [
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Is Playing?",
-                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['playing'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Processing State",
-                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['processingState'].toString().split('.').last),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Current Index",
-                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['currentIndex'].toString()),
-                        ),
-                        
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Audio Source Set?",
-                          value: _uppercaseFirstLetter(playerInfo['primaryPlayer']['audioSourceSet'].toString()),
-                        ),
-                      ],
-                    ),
-                  ]
-                ),
-
-                PlayerStateViewSection(
-                  title: "Secondary Player Info",
-                  children: [
-                    SimpleRowWithEqualHeight(
-                      children: [
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Volume",
-                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['volume'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Position",
-                          value: _formatDuration(int.tryParse(playerInfo['secondaryPlayer']['positionMs'].toString()) ?? 0, miliseconds: true),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Duration",
-                          value: _formatDuration(int.tryParse(playerInfo['secondaryPlayer']['durationMs'].toString()) ?? 0, miliseconds: true),
-                        ),
-                      ],
-                    ),
-
-                    isMobile
-                    ? Column(
-                      spacing: 6,
-                      children: [
-                        SimpleRowWithEqualHeight(
-                          children: [
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Is Playing?",
-                              value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['playing'].toString()),
-                            ),
-
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Processing State",
-                              value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['processingState'].toString().split('.').last),
-                            ),
-                          ]
-                        ),
-                        
-                        SimpleRowWithEqualHeight(
-                          children: [
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Current Index",
-                              value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['currentIndex'].toString()),
-                            ),
-                            
-                            PlayerStateViewElement(
-                              flex: 1,
-                              label: "Audio Source Set?",
-                              value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['audioSourceSet'].toString()),
-                            ),
-                          ]
-                        ),
-                      ],
-                    )
-                    : SimpleRowWithEqualHeight(
-                      children: [
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Is Playing?",
-                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['playing'].toString()),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Processing State",
-                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['processingState'].toString().split('.').last),
-                        ),
-
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Current Index",
-                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['currentIndex'].toString()),
-                        ),
-                        
-                        PlayerStateViewElement(
-                          flex: 1,
-                          label: "Audio Source Set?",
-                          value: _uppercaseFirstLetter(playerInfo['secondaryPlayer']['audioSourceSet'].toString()),
                         ),
                       ],
                     ),
