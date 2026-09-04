@@ -469,47 +469,7 @@ class _LyricsViewState extends State<LyricsView> {
                 appBar: widget.hideHeader
                     ? null
                     : AppBar(
-                        title: SizedBox(
-                          width: 96,
-                          child: TextField(
-                            controller: _delayController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              signed: true,
-                              decimal: true,
-                            ),
-                            onChanged: _handleDelayChanged,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Delay (s)',
-                              hintStyle: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 12,
-                              ),
-                              isDense: true,
-                              filled: true,
-                              fillColor: Colors.black.withValues(alpha: 0.35),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: Colors.grey[700]!,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                        title: _buildDelayInput(),
                         actions: [
                           if (!widget.hideHeader)
                             Padding(
@@ -1100,6 +1060,50 @@ class _LyricsViewState extends State<LyricsView> {
     );
   }
 
+  Widget _buildDelayInput() {
+    return SizedBox(
+      width: 96,
+      child: TextField(
+        controller: _delayController,
+        keyboardType: const TextInputType.numberWithOptions(
+          signed: true,
+          decimal: true,
+        ),
+        onChanged: _handleDelayChanged,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Delay (s)',
+          hintStyle: TextStyle(
+            color: Colors.grey[500],
+            fontSize: 12,
+          ),
+          isDense: true,
+          filled: true,
+          fillColor: Colors.black.withValues(alpha: 0.35),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 8,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: Colors.grey[700]!,
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildLyricsControls(
     LyricsProvider lyricsProvider,
     GenericSong track,
@@ -1118,6 +1122,7 @@ class _LyricsViewState extends State<LyricsView> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          _isDesktop ? _buildDelayInput() : const SizedBox.shrink(),
           IconButton(
             icon: const Icon(Icons.refresh, size: 18),
             color: Colors.white,
