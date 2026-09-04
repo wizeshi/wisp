@@ -266,10 +266,10 @@ class _LyricsViewState extends State<LyricsView> {
   }) {
     final fontSize = _isDesktop ? 42.0 : 30.0;
     final lineStyle = TextStyle(
+      letterSpacing: _isDesktop ? -1.5 : 0.25,
+      fontWeight: _isDesktop ? FontWeight.w700 : FontWeight.w900,
+      height: _isDesktop ? 1.4 : 1,
       fontSize: fontSize,
-      letterSpacing: _isDesktop ? -1.5 : 0.6,
-      fontWeight: FontWeight.w700,
-      height: _isDesktop ? 1.4 : 1.06,
     );
     final textMaxWidth = (viewportWidth - (horizontalPadding * 2)).clamp(
       120.0,
@@ -802,7 +802,7 @@ class _LyricsViewState extends State<LyricsView> {
                                     : inactiveColor,
                                 fontSize: fontSize,
                                 letterSpacing: _isDesktop ? -1.5 : 0.25,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: _isDesktop ? FontWeight.w700 : FontWeight.w900,
                                 height: _isDesktop ? 1.4 : 1,
                                 decoration: underline,
                                 decorationColor: Colors.white70,

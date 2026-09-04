@@ -6,6 +6,7 @@ class ComponentSelectStep extends StatelessWidget {
   bool Function(InstallationComponent) isComponentSelected;
   Future<void> Function() onStartInstallation;
   String detectedPlatform;
+  bool isWindows;
   
   ComponentSelectStep({
     super.key, 
@@ -13,6 +14,7 @@ class ComponentSelectStep extends StatelessWidget {
     required this.isComponentSelected,
     required this.onStartInstallation,
     required this.detectedPlatform,
+    required this.isWindows,
   });
 
   @override
@@ -82,6 +84,21 @@ class ComponentSelectStep extends StatelessWidget {
                 },
                 isRequired: true,
               ),
+              if (isWindows)
+                buildComponentSelectionItem(
+                  context,
+                  title: 'Edge WebView2',
+                  description:
+                      "Microsoft Edge's WebView2 Runtime.\nWon't install if already detected on your system.",
+                  isSelected: true,
+                  onChanged: (value) {
+                    toggleComponentSelection(
+                      InstallationComponent.EdgeWebView2,
+                      value,
+                    );
+                  },
+                  isRequired: true,
+                ),
 
               buildComponentSelectionSection(
                 title: 'YouTube Engines',

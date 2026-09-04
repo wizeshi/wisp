@@ -217,7 +217,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       _setLoading(false);
     } catch (e) {
       _errorMessage = '[Metadata/Spotify-Internal] Login failed: $e';
-      logger.d(_errorMessage);
+      logger.d(_errorMessage!);
     } finally {
       _setLoading(false);
       notifyListeners();
@@ -238,7 +238,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       _tokenRefreshFailed = false;
     } catch (e) {
       _errorMessage = '[Metadata/Spotify-Internal] Logout failed: $e';
-      logger.d(_errorMessage);
+      logger.d(_errorMessage!);
     } finally {
       _setLoading(false);
       notifyListeners();

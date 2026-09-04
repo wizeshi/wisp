@@ -14,6 +14,7 @@ import 'package:fvp/fvp.dart' as fvp;
 import 'package:wisp/providers/audio/youtube.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/services/protocol_registrar.dart';
+import 'package:wisp_assets/wisp_assets.dart';
 import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
 import 'providers/metadata/youtube.dart';
 import 'services/wisp_audio_handler.dart';
@@ -50,6 +51,8 @@ void main() async {
   }
 
   final appLinks = AppLinks();
+
+  initializeWindowsCertificates();
 
   // Initialize Flutter Video Player (FVP) for Linux platform
   fvp.registerWith(

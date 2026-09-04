@@ -24,6 +24,8 @@ enum InstallationComponent {
   // ignore: constant_identifier_names
   Core,
   // ignore: constant_identifier_names
+  EdgeWebView2,
+  // ignore: constant_identifier_names
   NewPipeExtractor,
   // ignore: constant_identifier_names
   YT_DLP,
@@ -41,6 +43,7 @@ class _AppShellState extends State<AppShell> {
   bool isLicenseAccepted = false;
   Map<InstallationComponent, bool> selectedComponents = {
     InstallationComponent.Core: true,
+    InstallationComponent.EdgeWebView2: true,
     InstallationComponent.NewPipeExtractor: true,
     InstallationComponent.YT_DLP: true,
   };
@@ -129,6 +132,7 @@ class _AppShellState extends State<AppShell> {
       toggleComponentSelection: toggleComponentSelection,
       isComponentSelected: isComponentSelected,
       detectedPlatform: detectedPlatform,
+      isWindows: Platform.isWindows,
       onStartInstallation: startInstallation,
     );
   }

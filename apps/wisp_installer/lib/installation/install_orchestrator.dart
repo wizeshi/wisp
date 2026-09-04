@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:wisp_newpipe_manager/installer/newpipe_installer.dart';
 import 'package:wisp_ytdlp_manager/installer/ytdlp_installer.dart';
@@ -24,6 +25,8 @@ class InstallOrchestrator {
         switch (_controller.tasks[i]) {
           case InstallTaskId.installCore:
             await _installCore();
+          case InstallTaskId.installEdgeWebView2:
+            await _installEdgeWebView2();
           case InstallTaskId.integrateOs:
             await _integrateOs();
           case InstallTaskId.downloadNewPipe:
@@ -175,6 +178,101 @@ class InstallOrchestrator {
       category,
       'Installed wisp to ${installationDirectory.path}.',
     );
+  }
+
+  Future<void> _installEdgeWebView2() async {
+    const category = 'Install/WebView2';
+    if (!Platform.isWindows) {
+      throw UnsupportedError('Edge WebView2 can only be installed on Windows.');
+    }
+
+    if (await _isEdgeWebView2Installed()) {
+      _controller.setTaskProgress(1.0);
+      _controller.log(category, 'Microsoft Edge WebView2 Runtime is already installed.');
+      return;
+    }
+
+    final temporaryDirectory = await Directory.systemTemp.createTemp(
+      'wisp_webview2_',
+    );
+    final installer = File(
+      p.join(temporaryDirectory.path, 'MicrosoftEdgeWebview2Setup.exe'),
+    );
+    final client = http.Client();
+    try {
+      _controller.log(category, 'Downloading Microsoft Edge WebView2 Runtime...');
+      final response = await client.send(
+        http.Request(
+          'GET',
+          Uri.parse('https://go.microsoft.com/fwlink/p/?LinkId=2124703'),
+        ),
+      );
+      if (response.statusCode != 200) {
+        throw HttpException(
+          'WebView2 download failed with HTTP ${response.statusCode}.',
+        uri: response.request?.url,
+      );
+      }
+
+      final contentLength = response.contentLength;
+      var received = 0;
+      final sink = installer.openWrite();
+      await for (final chunk in response.stream) {
+        sink.add(chunk);
+        received += chunk.length;
+        _controller.logTaskProgress(
+          category,
+          received,
+          contentLength,
+          taskProgressStart: 0.0,
+          taskProgressEnd: 0.8,
+        );
+      }
+      await sink.close();
+
+      _controller.setTaskProgress(0.8);
+      _controller.log(
+        category,
+        'Installing Microsoft Edge WebView2 Runtime...',
+      );
+      final result = await Process.run(
+        installer.path,
+        const ['/silent', '/install'],
+      );
+      if (result.exitCode != 0) {
+        throw ProcessException(
+          installer.path,
+          const ['/silent', '/install'],
+          'WebView2 installer failed: ${result.stderr}',
+          result.exitCode,
+        );
+      }
+      _controller.setTaskProgress(1.0);
+      _controller.log(
+        category,
+        'Microsoft Edge WebView2 Runtime installed successfully.',
+      );
+    } finally {
+      client.close();
+      if (await temporaryDirectory.exists()) {
+        await temporaryDirectory.delete(recursive: true);
+      }
+    }
+  }
+
+  Future<bool> _isEdgeWebView2Installed() async {
+    final architecture = (Platform.environment['PROCESSOR_ARCHITEW6432'] ??
+            Platform.environment['PROCESSOR_ARCHITECTURE'] ?? '')
+        .toLowerCase();
+    final is64Bit = architecture.contains('64');
+    const clientId = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
+    final registryPath = is64Bit
+        ? r'HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\' +
+              clientId
+        : r'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\EdgeUpdate\Clients\' +
+              clientId;
+    final result = await Process.run('reg', ['query', registryPath]);
+    return result.exitCode == 0;
   }
 
   // ---------------------------------------------------------------------
@@ -413,15 +511,25 @@ Categories=AudioVideo;Audio;Player;
     const category = 'Install/NewPipe';
 
     final installer = NewPipeInstaller();
+    var isDownloadingNewPipe = false;
     try {
       await for (final progress in installer.installNewPipeExtractor()) {
         _controller.log(category, progress.stage);
+
+        if (progress.stage.startsWith('Downloading NewPipeStreamExtractor')) {
+          isDownloadingNewPipe = true;
+        }
 
         if (progress.totalBytes != null && progress.totalBytes! > 0) {
           _controller.logTaskProgress(
             category,
             progress.bytesReceived ?? 0,
             progress.totalBytes,
+            // The Java runtime and extractor each represent half of this
+            // single task. Mapping their independent download percentages
+            // keeps overall progress monotonic between the two downloads.
+            taskProgressStart: isDownloadingNewPipe ? 0.5 : 0.0,
+            taskProgressEnd: isDownloadingNewPipe ? 1.0 : 0.5,
           );
         }
       }
@@ -439,15 +547,23 @@ Categories=AudioVideo;Audio;Player;
     const category = 'Install/YT-DLP';
 
     final installer = YtDlpInstaller();
+    var isDownloadingNode = false;
     try {
       await for (final progress in installer.installYtDlpAndNode()) {
         _controller.log(category, progress.stage);
+
+        if (progress.stage.startsWith('Downloading Node.js')) {
+          isDownloadingNode = true;
+        }
 
         if (progress.totalBytes != null && progress.totalBytes! > 0) {
           _controller.logTaskProgress(
             category,
             progress.bytesReceived ?? 0,
             progress.totalBytes,
+            // yt-dlp and Node.js each use half the task's 25% weight.
+            taskProgressStart: isDownloadingNode ? 0.5 : 0.0,
+            taskProgressEnd: isDownloadingNode ? 1.0 : 0.5,
           );
         }
       }

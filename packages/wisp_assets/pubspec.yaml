@@ -26,6 +26,7 @@ flutter:
   assets:
     - assets/wisp.png
     - assets/wisp.ico
+    - certs/cacert.pem
   fonts:
     - family: SpotifyMixUI
       fonts:

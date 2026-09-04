@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:wisp_assets/wisp_assets.dart';
 import 'package:wisp_installer/navigation/shell.dart';
 import 'package:wisp_installer/utils/logger.dart';
 import 'package:wisp_installer/utils/theme.dart';
@@ -13,6 +14,8 @@ void main() async {
     await _relaunchElevated();
     exit(0);
   }
+
+  initializeWindowsCertificates();
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     try {

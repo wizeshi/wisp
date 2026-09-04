@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
-import 'package:wisp_shared/networking/http_overrides.dart';
 
 class DownloadService {
   Future<File> download({
@@ -9,7 +8,6 @@ class DownloadService {
     required File destination,
     required void Function(int received, int? total) onProgress,
   }) async {
-    HttpOverrides.global = WispHttpOverrides();
     final client = http.Client();
     IOSink? sink;
 
