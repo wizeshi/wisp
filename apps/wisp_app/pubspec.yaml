@@ -3,7 +3,7 @@ description: "The Open, Fast & Unified music player."
 publish_to: 'none'
 resolution: workspace
 
-version: 26.9.1+80
+version: 26.9.1+81
 
 environment:
   sdk: ^3.10.7

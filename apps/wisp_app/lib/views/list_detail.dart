@@ -3875,6 +3875,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: visibleCount,
             itemBuilder: (context, idx) {
+              return Builder(builder: (context) {
               // `player` is only needed here to pass into onPressed/onTap
               // callbacks, so `read` (no rebuild) is enough for it.
               final player = context
@@ -4359,6 +4360,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                   ),
                 ),
               );
+              });
             },
           ),
           if (bottomSpacer > 0) SizedBox(height: bottomSpacer),
@@ -4373,6 +4375,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       physics: const NeverScrollableScrollPhysics(),
       itemCount: totalCount,
       itemBuilder: (context, idx) {
+        return Builder(builder: (context) {
         final player = context.read<global_audio_player.WispAudioHandler>();
         final index = _sortedIndices[idx];
         final item = _items[index];
@@ -4825,6 +4828,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             ),
           ),
         );
+        });
       },
     );
   }
