@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:wisp/providers/preferences/preferences_provider.dart';
 
 import '../providers/library/library_state.dart';
 import '../providers/navigation_state.dart';
@@ -44,6 +45,21 @@ class _AppShellState extends State<AppShell> {
   final FocusNode _searchFocusNode = FocusNode();
   Timer? _searchAutoSwitchTimer;
   String _lastWindowTitle = 'wisp';
+  final GlobalKey<ScaffoldMessengerState> _contentMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
+  /// Displays a snackbar within the active navigation page rather than across
+  /// the whole app shell.
+  late final void Function(String) showSnackBar = _showContentSnackBar;
+
+  void _showContentSnackBar(String message) {
+    final messenger = _contentMessengerKey.currentState;
+    if (messenger == null) return;
+
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   void initState() {
@@ -61,15 +77,35 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
+  final _allowedDebugKeys = [
+    LogicalKeyboardKey.arrowUp,
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+  ];
+  final _debugKeySequence = [
+    LogicalKeyboardKey.arrowUp,
+    LogicalKeyboardKey.arrowUp,
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+  ];
+  List<LogicalKeyboardKey> _lastKeysPressed = [];
+
   bool _handleKeyEvent(KeyEvent event) {
     if (!mounted) return false;
     if (event is! KeyDownEvent) return false;
 
     final logicalKey = event.logicalKey;
 
+    final isEditingText = _isEditingText();
+
     if (logicalKey == LogicalKeyboardKey.space) {
       // Don't intercept space when the user is typing in a text field.
-      if (_isEditingText()) return false;
+      if (isEditingText) return false;
       final coordinator = context.read<PlaybackCoordinator>();
       if (coordinator.effectiveIsPlaying) {
         unawaited(coordinator.pause());
@@ -83,6 +119,32 @@ class _AppShellState extends State<AppShell> {
       if (NavigationHistory.instance.currentRouteName == '/fullplayer') {
         unawaited(AppNavigation.instance.closeFullPlayer());
         return true;
+      }
+    }
+
+    // Code for detecting the debug key sequence (Konami code)
+    if (!isEditingText && _allowedDebugKeys.contains(logicalKey)) {
+      _lastKeysPressed.add(logicalKey);
+      if (_lastKeysPressed.length > _debugKeySequence.length) {
+        _lastKeysPressed.removeAt(0);
+      }
+      if (_lastKeysPressed.length == _debugKeySequence.length) {
+        bool isMatch = true;
+        for (int i = 0; i < _debugKeySequence.length; i++) {
+          if (_lastKeysPressed[i] != _debugKeySequence[i]) {
+            isMatch = false;
+            break;
+          }
+        }
+        if (isMatch) {
+          final prefs = context.read<PreferencesProvider>();
+          prefs.setDebugModeEnabled(true).then((newMode) {
+            if (mounted) {
+              showSnackBar('Debug mode enabled');
+            }
+          });
+          _lastKeysPressed.clear();
+        }
       }
     }
 
@@ -246,11 +308,17 @@ class _AppShellState extends State<AppShell> {
                 if (_isDesktop && !isDesktopImmersive)
                   _LeftResizeHandle(onResize: navState.adjustLeftSidebarWidth),
                 Expanded(
-                  child: Navigator(
-                    key: NavigationHistory.instance.navigatorKey,
-                    observers: [NavigationHistory.instance.observer],
-                    initialRoute: TabRoutes.home,
-                    onGenerateRoute: _onGenerateRoute,
+                  child: ScaffoldMessenger(
+                    key: _contentMessengerKey,
+                    child: Scaffold(
+                      backgroundColor: Colors.transparent,
+                      body: Navigator(
+                        key: NavigationHistory.instance.navigatorKey,
+                        observers: [NavigationHistory.instance.observer],
+                        initialRoute: TabRoutes.home,
+                        onGenerateRoute: _onGenerateRoute,
+                      ),
+                    ),
                   ),
                 ),
                 if (_isDesktop &&

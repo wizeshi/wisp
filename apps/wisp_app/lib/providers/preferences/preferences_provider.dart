@@ -21,6 +21,7 @@ class PreferencesProvider extends ChangeNotifier {
   static const _keyLyricsSpotifyEnabled = 'lyrics_spotify_enabled';
   static const _keyHandoffSecurityLevel = 'handoff_security_level';
   static const _keyTrustedDevices = 'handoff_trusted_devices';
+  static const _keyDebugModeEnabled = 'debug_mode_enabled';
 
   static const bool _defaultAllowWriting = true;
   static const bool _defaultMetadataSpotifyEnabled = true;
@@ -33,6 +34,8 @@ class PreferencesProvider extends ChangeNotifier {
   static const bool _defaultLyricsSpotifyEnabled = true;
   static const HandoffSecurityLevel _defaultHandoffSecurityLevel =
       HandoffSecurityLevel.keyExchange;
+
+  static const bool _defaultDebugModeEnabled = false;
 
   AppStyle _style = AppStyle.Spotify;
   AppStyle get style => _style;
@@ -73,6 +76,9 @@ class PreferencesProvider extends ChangeNotifier {
   List<TrustedDevice> _trustedDevices = <TrustedDevice>[];
   List<TrustedDevice> get trustedDevices =>
       List.unmodifiable(_trustedDevices);
+
+  bool _debugModeEnabled = _defaultDebugModeEnabled;
+  bool get debugModeEnabled => _debugModeEnabled;
 
   bool get hasMetadataProviderEnabled =>
       _metadataSpotifyEnabled || _metadataYouTubeEnabled;
@@ -118,6 +124,8 @@ class PreferencesProvider extends ChangeNotifier {
       _handoffSecurityLevel = HandoffSecurityLevelJson.fromJson(
         prefs.getString(_keyHandoffSecurityLevel),
       );
+      _debugModeEnabled =
+          prefs.getBool(_keyDebugModeEnabled) ?? _defaultDebugModeEnabled;
       _trustedDevices = _decodeTrustedDevices(
         prefs.getString(_keyTrustedDevices),
       );
@@ -176,6 +184,24 @@ class PreferencesProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_keyLyricsSpotifyEnabled) ??
         _defaultLyricsSpotifyEnabled;
+  }
+
+  static Future<bool> isDebugModeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyDebugModeEnabled) ?? _defaultDebugModeEnabled;
+  }
+
+  Future<bool> setDebugModeEnabled(bool enabled) async {
+    if (enabled == _debugModeEnabled) return false;
+    _debugModeEnabled = enabled;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyDebugModeEnabled, enabled);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> setStyle(AppStyle style) async {

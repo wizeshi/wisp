@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
 import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/providers/preferences/preferences_provider.dart';
 import 'package:wisp/services/app_navigation.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import '../services/navigation_history.dart';
@@ -210,9 +211,20 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                     // Notifications button
                     _buildNotificationButton(context),
 
-                    const SizedBox(width: 8),
-
-                    _buildDebugButton(context),
+                    Selector<PreferencesProvider, bool>(
+                      selector: (context, prefs) => prefs.debugModeEnabled,
+                      builder: (context, debugModeEnabled, child) {
+                        if (!debugModeEnabled) {
+                          return const SizedBox.shrink();
+                        }
+                        return Row(
+                          children: [
+                            const SizedBox(width: 8),
+                            _buildDebugButton(context),
+                          ]
+                        );
+                      },
+                    ),
 
                     const SizedBox(width: 8),
 

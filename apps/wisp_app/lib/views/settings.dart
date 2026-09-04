@@ -614,6 +614,7 @@ class _SettingsPageState extends State<SettingsPage> {
       buildAnimatedCanvasRow: _buildAnimatedCanvasPreferenceRow,
       buildAllowWritingRow: _buildAllowWritingPreferenceRow,
       buildCreditsSection: _buildCreditsSection,
+      buildDebugSection: _buildDebugSection,
       showSnackBar: _showSnackBar,
       onEditProviderPreferences: _showProviderPreferencesDialog,
     );
@@ -1525,6 +1526,49 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildDebugSection() {
+    return Selector<PreferencesProvider, bool>(
+      selector: (context, prefs) => prefs.debugModeEnabled,
+      builder: (context, debugModeEnabled, child) {
+        if (_isDesktop && !debugModeEnabled) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            Text(
+              'DEBUG',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[600],
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF181818),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.all(12),
+              child: _buildToggleSetting(
+                'Debug Mode',
+                'Enables debug features, such as the menu on the titlebar.\n A certain code is required to enable this feature.',
+                debugModeEnabled,
+                (value) {
+                  context.read<PreferencesProvider>().setDebugModeEnabled(value);
+                },
+              ),
+            )
+          ]
+        );
+      },
+    );
+  }
+
   Widget _buildCreditsSection() {
     return Container(
       decoration: BoxDecoration(
@@ -1730,6 +1774,7 @@ class SettingsContent extends StatelessWidget {
   final Widget Function() buildAnimatedCanvasRow;
   final Widget Function() buildAllowWritingRow;
   final Widget Function() buildCreditsSection;
+  final Widget Function() buildDebugSection;
   final void Function(String) showSnackBar;
   final VoidCallback onEditProviderPreferences;
 
@@ -1743,6 +1788,7 @@ class SettingsContent extends StatelessWidget {
     required this.buildAnimatedCanvasRow,
     required this.buildAllowWritingRow,
     required this.buildCreditsSection,
+    required this.buildDebugSection,
     required this.showSnackBar,
     required this.onEditProviderPreferences,
   });
@@ -2031,6 +2077,8 @@ class SettingsContent extends StatelessWidget {
             ],
           ),
         ),
+
+        buildDebugSection(),
 
         const SizedBox(height: 16),
         Text(
