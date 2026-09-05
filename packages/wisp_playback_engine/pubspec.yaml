@@ -14,6 +14,8 @@ dependencies:
 
   media_kit: ^1.2.6
 
+  wisp_audio_output_info: any
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

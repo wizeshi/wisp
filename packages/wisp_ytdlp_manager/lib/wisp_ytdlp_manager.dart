@@ -10,7 +10,7 @@ import 'package:wisp_ytdlp_manager/services/wisp_support_directory.dart';
 class WispYtdlpManager implements YoutubeEngine {
   static final WispYtdlpManager _instance = WispYtdlpManager._internal();
 
-  static const platform = MethodChannel('com.wizeshi.wisp_ytdlp_manager');
+  static const platform = MethodChannel('dev.wizeshi.wisp_ytdlp_manager');
 
   late final WispSupportDirectory _supportDirectory;
 

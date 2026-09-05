@@ -86,7 +86,7 @@ class NativeAndroidNewPipeDelegate implements NewPipeAndroidDelegate {
 
 class YouTubeProvider {
   final YoutubeExplode _youtube = YoutubeExplode();
-  static const _platform = MethodChannel('com.wizeshi.wisp/youtube');
+  static const _platform = MethodChannel('dev.wizeshi.wisp/youtube');
 
   List<YouTubeEngine> preferredEngineOrder = [
     YouTubeEngine.YouTubeKit,

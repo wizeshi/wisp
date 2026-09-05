@@ -5,9 +5,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:audio_session/audio_session.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/models/metadata_models.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
@@ -20,7 +20,7 @@ import 'package:wisp/services/connect/lan_connect_service.dart';
 import 'package:wisp/services/connect/connect_transport.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/utils/logger.dart';
-import 'package:wisp_playback_engine/wisp_playback_engine.dart';
+import 'package:wisp_audio_output_info/models/types.dart';
 
 // Structured error codes so the UI can react without brittle string matching.
 // Add new codes here as needed.
@@ -111,20 +111,38 @@ class ConnectSessionProvider extends ChangeNotifier
   ConnectLinkMode _nextOutgoingLinkMode = ConnectLinkMode.fullHandoff;
   ConnectLinkMode get nextOutgoingLinkMode => _nextOutgoingLinkMode;
 
-  ConnectOutputKind _activeOutputKind = ConnectOutputKind.local;
-  ConnectOutputKind get activeOutputKind => _activeOutputKind;
+  // Audio (local output-device switching) and Handoff (linked-device
+  // control) are mutually exclusive; `_activeConnectionKind` says which one,
+  // if either, currently "owns" where playback is going.
+  ConnectionKind _activeConnectionKind = ConnectionKind.none;
+  ConnectionKind get activeConnectionKind => _activeConnectionKind;
 
-  String? _activeOutputDeviceName;
-  String? get activeOutputDeviceName => _activeOutputDeviceName;
+  AudioOutputDevice? _activeAudioOutputDevice;
+  AudioOutputDevice? get activeAudioOutputDevice => _activeAudioOutputDevice;
 
-  List<ConnectOutputDevice> _availableOutputDevices = const [];
-  List<ConnectOutputDevice> get availableOutputDevices =>
+  HandoffDeviceType? _linkedDeviceType;
+  HandoffDeviceType? get linkedDeviceType => _linkedDeviceType;
+
+  /// Convenience label for whichever destination (audio device or handoff
+  /// peer) is currently active, or null if neither is.
+  String? get activeOutputDeviceName {
+    switch (_activeConnectionKind) {
+      case ConnectionKind.audio:
+        return _activeAudioOutputDevice?.name;
+      case ConnectionKind.handoff:
+        return _linkedPeerName;
+      case ConnectionKind.none:
+        return null;
+    }
+  }
+
+  List<AudioOutputDevice> _availableOutputDevices = const [];
+  List<AudioOutputDevice> get availableOutputDevices =>
       List.unmodifiable(_availableOutputDevices);
 
-  ConnectOutputKind? _manualOutputKind;
-  String? _manualOutputDeviceName;
+  AudioOutputDevice? _manualAudioOutputDevice;
 
-  bool get hasExternalOutput => _activeOutputKind.isExternal;
+  bool get hasExternalOutput => _activeConnectionKind != ConnectionKind.none;
 
   bool _rememberModeForNextLink = false;
   bool get rememberModeForNextLink => _rememberModeForNextLink;
@@ -148,7 +166,6 @@ class ConnectSessionProvider extends ChangeNotifier
   StreamSubscription<ConnectCommandAck>? _commandAckSubscription;
   StreamSubscription<ConnectUnlinkEvent>? _unlinkSubscription;
   // legacy playback pulse subscription removed
-  StreamSubscription<Set<AudioDevice>>? _audioDevicesSubscription;
   Timer? _pruneTimer;
   Timer? _targetPulseTimer;
   Timer? _hostInterpolationTimer;
@@ -207,6 +224,13 @@ class ConnectSessionProvider extends ChangeNotifier
         if (initFuture != null) {
           await initFuture;
         }
+        // Don't touch permission_handler before the first frame — the
+        // Activity may not be attached to the engine yet on cold start,
+        // which throws PlatformException('PermissionHandler.PermissionManager',
+        // 'Unable to detect current Android Activity.'). Mirrors the
+        // addPostFrameCallback gating main.dart already uses for the
+        // notification-permission request.
+        await WidgetsBinding.instance.waitUntilFirstFrameRasterized;
         startDiscovery();
       }),
     );
@@ -300,7 +324,28 @@ class ConnectSessionProvider extends ChangeNotifier
   String get localPlatform => Platform.operatingSystem;
 
   void bindAudioHandler(WispAudioHandler audioHandler) {
+    if (identical(_audioHandler, audioHandler)) return;
+    _audioHandler?.removeListener(_onAudioHandlerChanged);
     _audioHandler = audioHandler;
+    audioHandler.addListener(_onAudioHandlerChanged);
+    // _startOutputRouteMonitoring() (called from _initialize()) almost
+    // certainly ran before this binding existed, and the handler's own
+    // activeOutputDevice/outputDevices may still be resolving asynchronously
+    // at this point — reconcile now with whatever it already has, and stay
+    // subscribed via _onAudioHandlerChanged so we pick up whatever it
+    // resolves next, instead of only refreshing once here.
+    _onAudioHandlerChanged();
+  }
+
+  /// Fires on every WispAudioHandler.notifyListeners() call (playback
+  /// state, queue, volume, output devices, etc.) — not just output-device
+  /// changes. That's fine: _updateAvailableOutputDevices() is cheap and
+  /// only notifies our own listeners when something it cares about
+  /// actually changed, so unrelated handler updates are a no-op here.
+  void _onAudioHandlerChanged() {
+    final audio = _audioHandler;
+    if (audio == null) return;
+    _updateAvailableOutputDevices(audio.outputDevices.toSet());
   }
 
   void bindPlaybackCoordinator(PlaybackCoordinator playbackCoordinator) {
@@ -660,21 +705,79 @@ class ConnectSessionProvider extends ChangeNotifier
     notifyListeners();
   }
 
-  void setActiveOutputDestination(
-    ConnectOutputKind kind, {
-    String? deviceName,
-  }) {
-    final nextName = kind == ConnectOutputKind.local ? null : deviceName;
-    if (_activeOutputKind == kind && _activeOutputDeviceName == nextName) {
+  /// Switches this device's own audio output to [device] (by its platform
+  /// id), or back to the default/built-in output when [device] is null.
+  ///
+  /// Audio and Handoff are non-simultaneous: if a handoff link is currently
+  /// active, it's torn down first.
+  Future<void> setActiveAudioOutput(AudioOutputDevice? device) async {
+    if (isLinked) {
+      unlink();
+    }
+
+    if (device == null) {
+      _manualAudioOutputDevice = null;
+      final builtInId = _builtInOutputDevice?.id;
+      if (builtInId == null) {
+        logger.w(
+          '[Audio] No built-in output device known; cannot reset to default.',
+        );
+      } else {
+        try {
+          await _audioHandler?.setOutputDevice(builtInId);
+        } catch (error, stackTrace) {
+          logger.e(
+            '[Audio] Failed to reset output device to default.',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
+      }
+      if (_activeConnectionKind == ConnectionKind.audio) {
+        _activeConnectionKind = ConnectionKind.none;
+        _activeAudioOutputDevice = null;
+        notifyListeners();
+      }
       return;
     }
-    _activeOutputKind = kind;
-    _activeOutputDeviceName = nextName;
-    if (!isLinked) {
-      _manualOutputKind = kind;
-      _manualOutputDeviceName = nextName;
+
+    final deviceId = device.id;
+    if (deviceId == null) {
+      logger.w('[Audio] Cannot switch output: device has no id.');
+      setError('That output device is unavailable.');
+      return;
     }
+
+    _manualAudioOutputDevice = device;
+    if (_activeConnectionKind == ConnectionKind.audio &&
+        _activeAudioOutputDevice?.id == deviceId) {
+      return;
+    }
+
+    try {
+      await _audioHandler?.setOutputDevice(deviceId);
+    } catch (error, stackTrace) {
+      logger.e(
+        '[Audio] Failed to switch output device id=$deviceId.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      setError('Failed to switch audio output device.');
+      return;
+    }
+
+    _activeConnectionKind = ConnectionKind.audio;
+    _activeAudioOutputDevice = device;
     notifyListeners();
+  }
+
+  /// The device the platform considers "built-in" (integrated), used as the
+  /// target when resetting away from a manually-selected output.
+  AudioOutputDevice? get _builtInOutputDevice {
+    final matches = _availableOutputDevices.where(
+      (d) => d.connectionType == AudioConnectionType.integrated,
+    );
+    return matches.isNotEmpty ? matches.first : null;
   }
 
   void setRememberModeForNextLink(bool remember) {
@@ -1051,10 +1154,10 @@ class ConnectSessionProvider extends ChangeNotifier
     _linkedIsPlaying = resumePlaying;
     _linkedPositionUpdatedAt = DateTime.now();
     if (!isLinked) {
-      _activeOutputKind = ConnectOutputKind.local;
-      _activeOutputDeviceName = null;
-      _manualOutputKind = null;
-      _manualOutputDeviceName = null;
+      _clearHandoffOutputDestination();
+      // A physical output device may already be attached; re-detect it now
+      // that the handoff link is no longer claiming the "active" slot.
+      unawaited(_refreshOutputDevicesInternal());
     }
     _lastAppliedSequence = -1;
     _lastAckedSequence = -1;
@@ -1105,12 +1208,7 @@ class ConnectSessionProvider extends ChangeNotifier
     _stopHostInterpolationTimer();
     _pairingTimeoutTimer?.cancel();
     _pairingTimeoutTimer = null;
-    _activeOutputKind = ConnectOutputKind.local;
-    _activeOutputDeviceName = null;
-    _activeOutputKind = ConnectOutputKind.local;
-    _activeOutputDeviceName = null;
-    _manualOutputKind = null;
-    _manualOutputDeviceName = null;
+    _clearHandoffOutputDestination();
     notifyListeners();
   }
 
@@ -1581,124 +1679,121 @@ class ConnectSessionProvider extends ChangeNotifier
     );
   }
 
+  /// Handoff owns the "active destination" slot for as long as a link is up;
+  /// this just reflects that into `_activeConnectionKind`/`_linkedDeviceType`.
+  /// It never touches this device's own audio-output routing.
   void _syncLinkedOutputDestination() {
     final linkedId = _linkedDeviceId;
     if (linkedId == null || linkedId.isEmpty) {
-      setActiveOutputDestination(ConnectOutputKind.local);
+      _clearHandoffOutputDestination();
       return;
     }
 
     final device = _discoveredById[linkedId];
-    final name = device?.name ?? _linkedPeerName ?? linkedId;
-    final platform = (device?.platform ?? '').trim().toLowerCase();
-    final kind = switch (platform) {
-      'android' || 'ios' || 'iphone' || 'ipad' =>
-        ConnectOutputKind.handoffMobile,
-      'linux' || 'macos' || 'windows' => ConnectOutputKind.handoffDesktop,
-      _ => ConnectOutputKind.handoffDesktop,
-    };
-    setActiveOutputDestination(kind, deviceName: name);
+    final type = HandoffDeviceTypeUi.fromPlatform(device?.platform);
+    if (_activeConnectionKind == ConnectionKind.handoff &&
+        _linkedDeviceType == type) {
+      return;
+    }
+    _activeConnectionKind = ConnectionKind.handoff;
+    _linkedDeviceType = type;
+    notifyListeners();
+  }
+
+  void _clearHandoffOutputDestination() {
+    if (_activeConnectionKind != ConnectionKind.handoff) return;
+    _activeConnectionKind = ConnectionKind.none;
+    _linkedDeviceType = null;
+    notifyListeners();
   }
 
   Future<void> _startOutputRouteMonitoring() async {
     try {
-      if (_audioHandler == null) return; 
+      if (_audioHandler == null) return;
 
       final devices = _audioHandler!.outputDevices.toSet();
 
       _updateAvailableOutputDevices(devices);
     } catch (error) {
-      logger.w('[Handoff] Output route monitoring unavailable.', error: error);
-      _availableOutputDevices = [
-        ConnectOutputDevice(
-          kind: ConnectOutputKind.local,
-          name: _localDeviceName,
-        ),
-      ];
+      logger.w('[Audio] Output route monitoring unavailable.', error: error);
+      _availableOutputDevices = const [];
     }
   }
 
   Future<void> _refreshOutputDevicesInternal() async {
     try {
-      if (_audioHandler == null) return; 
+      if (_audioHandler == null) return;
 
       final devices = _audioHandler!.outputDevices.toSet();
 
       _updateAvailableOutputDevices(devices);
     } catch (error) {
-      logger.w('[Handoff] Failed to refresh output routes.', error: error);
+      logger.w('[Audio] Failed to refresh output routes.', error: error);
     }
   }
 
-  void _updateAvailableOutputDevices(Set<PlaybackOutputDevice> devices) {
-    final localName = _localDeviceName.trim().isEmpty
-        ? 'This Device'
-        : _localDeviceName;
-    final nextDevices = <ConnectOutputDevice>[
-      ConnectOutputDevice(kind: ConnectOutputKind.local, name: localName),
-    ];
+  /// Reconciles the platform's reported output devices with local state.
+  ///
+  /// Audio-device auto-detection (reflecting whatever the OS already
+  /// considers "current", e.g. the user paired Bluetooth headphones outside
+  /// the app) is skipped while a handoff link is active, since handoff owns
+  /// the active destination slot until it's unlinked.
+  void _updateAvailableOutputDevices(Set<AudioOutputDevice> devices) {
+    final nextDevices = devices.toList()
+      ..sort((a, b) => (a.name ?? '').compareTo(b.name ?? ''));
 
-    for (final device in devices) {
-      final kind = _mapAudioDeviceToOutputKind(device);
-      if (kind == null) continue;
-      final name = device.name.trim().isEmpty
-          ? kind.label
-          : device.name.trim();
-      nextDevices.add(ConnectOutputDevice(kind: kind, name: name));
-    }
-
-    final dedupedDevices = <ConnectOutputDevice>[];
-    final seen = <String>{};
-    for (final device in nextDevices) {
-      final key = '${device.kind.name}|${device.name ?? ''}'.toLowerCase();
-      if (!seen.add(key)) continue;
-      dedupedDevices.add(device);
-    }
-
-    final nextPreferredExternal = dedupedDevices.firstWhere(
-      (device) => device.kind == ConnectOutputKind.bluetooth,
-      orElse: () => dedupedDevices.firstWhere(
-        (device) => device.kind == ConnectOutputKind.display,
-        orElse: () => const ConnectOutputDevice(kind: ConnectOutputKind.local),
-      ),
-    );
-
-    final wasChanged = !_sameOutputDevices(
-      _availableOutputDevices,
-      dedupedDevices,
-    );
-    _availableOutputDevices = dedupedDevices;
+    final wasChanged = !_sameOutputDevices(_availableOutputDevices, nextDevices);
+    _availableOutputDevices = nextDevices;
 
     var activeChanged = false;
-    if (!isLinked) {
-      ConnectOutputDevice nextOutput = nextPreferredExternal;
-      final manualKind = _manualOutputKind;
-      if (manualKind != null) {
-        final manualName = _manualOutputDeviceName;
-        final manualMatch = dedupedDevices.where((device) {
-          if (device.kind != manualKind) {
-            return false;
-          }
-          if (manualKind == ConnectOutputKind.local) {
-            return true;
-          }
-          return (device.name ?? '').trim().toLowerCase() ==
-              (manualName ?? '').trim().toLowerCase();
-        });
-        if (manualMatch.isNotEmpty) {
+    if (_activeConnectionKind != ConnectionKind.handoff) {
+      // Prefer the handler's own `activeOutputDevice` — it's fed by the
+      // engine's dedicated "active device changed" stream, so it's the
+      // authoritative signal for what the OS currently considers active.
+      // Falling back to scanning each device's own `isCurrent` flag is
+      // what caused the original bug: that flag can lag or be unset for a
+      // beat right after startup, well before the device list itself goes
+      // stale, so it isn't safe to treat as the source of truth on its own.
+      AudioOutputDevice? nextOutput = _audioHandler?.activeOutputDevice;
+      if (nextOutput == null) {
+        final currentMatches = nextDevices.where((d) => d.isCurrent);
+        nextOutput = currentMatches.isNotEmpty ? currentMatches.first : null;
+      }
+      // Guard against the handler's pick having fallen out of the latest
+      // device list (e.g. it was just unplugged and the list updated
+      // first).
+      if (nextOutput != null &&
+          !nextDevices.any((d) => d.id == nextOutput!.id)) {
+        nextOutput = null;
+      }
+
+      final manual = _manualAudioOutputDevice;
+      if (manual != null) {
+        final manualMatch = nextDevices.where((d) => d.id == manual.id);
+        if (manualMatch.isEmpty) {
+          _manualAudioOutputDevice = null;
+        } else if (nextOutput == null || nextOutput.id != manual.id) {
+          // The OS hasn't confirmed our manual pick as "current" yet (or
+          // can't report it); keep showing what the user chose.
           nextOutput = manualMatch.first;
-        } else {
-          _manualOutputKind = null;
-          _manualOutputDeviceName = null;
         }
       }
 
-      final nextKind = nextOutput.kind;
-      final nextName =
-          nextKind == ConnectOutputKind.local ? null : nextOutput.name;
-      if (_activeOutputKind != nextKind || _activeOutputDeviceName != nextName) {
-        _activeOutputKind = nextKind;
-        _activeOutputDeviceName = nextName;
+      // Desktop platforms have no meaningful "no external device" state —
+      // whatever output the OS reports as current (even the built-in
+      // speakers) IS the active audio device. Only mobile collapses an
+      // integrated device (phone earpiece/speaker) down to "none".
+      final isMobile = Platform.isAndroid || Platform.isIOS;
+      final isBuiltIn = nextOutput == null ||
+          (isMobile &&
+              nextOutput.connectionType == AudioConnectionType.integrated);
+      final nextKind = isBuiltIn ? ConnectionKind.none : ConnectionKind.audio;
+      final nextDevice = isBuiltIn ? null : nextOutput;
+
+      if (_activeConnectionKind != nextKind ||
+          _activeAudioOutputDevice?.id != nextDevice?.id) {
+        _activeConnectionKind = nextKind;
+        _activeAudioOutputDevice = nextDevice;
         activeChanged = true;
       }
     }
@@ -1708,36 +1803,17 @@ class ConnectSessionProvider extends ChangeNotifier
     }
   }
 
-  ConnectOutputKind? _mapAudioDeviceToOutputKind(PlaybackOutputDevice device) {
-    AudioDeviceCategory deviceCategory = AudioDeviceCategory.fromDeviceName(device.name);
-
-    switch (deviceCategory) {
-      case AudioDeviceCategory.earbuds:
-        return ConnectOutputKind.earbuds;
-      case AudioDeviceCategory.headphones:
-        return ConnectOutputKind.headphones;
-      case AudioDeviceCategory.speakers:
-        return ConnectOutputKind.speakers;
-      case AudioDeviceCategory.bluetooth:
-        return ConnectOutputKind.bluetooth;
-      case AudioDeviceCategory.hdmiDisplay:
-        return ConnectOutputKind.display;
-      case AudioDeviceCategory.virtual:
-        return ConnectOutputKind.virtual;
-      case AudioDeviceCategory.unknown:
-        return null;
-    }
-  }
-
   bool _sameOutputDevices(
-    List<ConnectOutputDevice> previous,
-    List<ConnectOutputDevice> next,
+    List<AudioOutputDevice> previous,
+    List<AudioOutputDevice> next,
   ) {
     if (previous.length != next.length) {
       return false;
     }
     for (var i = 0; i < previous.length; i++) {
-      if (previous[i].kind != next[i].kind || previous[i].name != next[i].name) {
+      if (previous[i].id != next[i].id ||
+          previous[i].name != next[i].name ||
+          previous[i].isCurrent != next[i].isCurrent) {
         return false;
       }
     }
@@ -2048,7 +2124,7 @@ class ConnectSessionProvider extends ChangeNotifier
         final posMs = payload['position_ms'];
         return 'payloadSize=seek(posMs=$posMs)';
       default:
-        return 'payloadSize=${command}(keys=${payload.keys.length})';
+        return 'payloadSize=$command(keys=${payload.keys.length})';
     }
   }
 
@@ -2251,6 +2327,7 @@ class ConnectSessionProvider extends ChangeNotifier
 
   @override
   void dispose() {
+    _audioHandler?.removeListener(_onAudioHandlerChanged);
     _pruneTimer?.cancel();
     _deviceSubscription?.cancel();
     _pairRequestSubscription?.cancel();
@@ -2263,10 +2340,24 @@ class ConnectSessionProvider extends ChangeNotifier
     _commandAckSubscription?.cancel();
     _unlinkSubscription?.cancel();
     // legacy playback pulse subscription removed
-    _audioDevicesSubscription?.cancel();
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
     _transport.dispose();
     super.dispose();
+  }
+}
+
+class SystemUi {
+  static const _channel = MethodChannel('dev.wizeshi.wisp/system_ui');
+
+  /// Returns false if unsupported (pre-Android 11, or this isn't Android
+  /// at all) — callers should keep their existing fallback UI in that case.
+  static Future<bool> showOutputSwitcher() async {
+    try {
+      final opened = await _channel.invokeMethod<bool>('showOutputSwitcher');
+      return opened ?? false;
+    } on PlatformException {
+      return false;
+    }
   }
 }

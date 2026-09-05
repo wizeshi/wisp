@@ -1,4 +1,4 @@
-package com.wizeshi.wisp
+package dev.wizeshi.wisp
 
 import io.flutter.app.FlutterApplication
 import kotlinx.coroutines.CoroutineScope

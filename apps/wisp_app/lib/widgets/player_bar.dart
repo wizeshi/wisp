@@ -616,7 +616,7 @@ class _DesktopPlayerBar extends StatelessWidget {
                     ),
                   ),
                 ],
-              )
+              ),
             ),
           ),
           if (handoffMessage != null)
@@ -732,10 +732,7 @@ class _DesktopProgressBar extends StatelessWidget {
                       width: 56,
                       child: Text(
                         _formatDuration(animatedPosition),
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
                         textAlign: TextAlign.right,
                       ),
                     ),
@@ -750,9 +747,7 @@ class _DesktopProgressBar extends StatelessWidget {
                         overlayShape: RoundSliderOverlayShape(
                           overlayRadius: 12,
                         ),
-                        activeTrackColor: Theme.of(
-                          context,
-                        ).colorScheme.primary,
+                        activeTrackColor: Theme.of(context).colorScheme.primary,
                         inactiveTrackColor: Colors.grey[800],
                         thumbColor: Colors.white,
                         overlayColor: (Theme.of(
@@ -766,9 +761,7 @@ class _DesktopProgressBar extends StatelessWidget {
                             milliseconds: (value * duration.inMilliseconds)
                                 .toInt(),
                           );
-                          context.read<PlaybackCoordinator>().seek(
-                            newPosition,
-                          );
+                          context.read<PlaybackCoordinator>().seek(newPosition);
                         },
                       ),
                     ),
@@ -779,10 +772,7 @@ class _DesktopProgressBar extends StatelessWidget {
                       width: 56,
                       child: Text(
                         _formatDuration(duration),
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
                         textAlign: TextAlign.left,
                       ),
                     ),
@@ -828,9 +818,7 @@ class _DesktopTrackName extends StatelessWidget {
       text: track.title,
       style: style,
       builder: (context, textStyle) => HoverUnderline(
-        cursor: hasAlbum
-            ? SystemMouseCursors.click
-            : SystemMouseCursors.basic,
+        cursor: hasAlbum ? SystemMouseCursors.click : SystemMouseCursors.basic,
         onTap: hasAlbum
             ? () {
                 AppNavigation.instance.openSharedList(
@@ -2607,19 +2595,16 @@ class _PlayPauseData {
 }
 
 class _MobileOutputInfo {
-  final ConnectOutputKind kind;
+  final bool isExternal;
   final String deviceName;
 
-  const _MobileOutputInfo({required this.kind, required this.deviceName});
-
-  bool get isExternal => kind.isExternal;
+  const _MobileOutputInfo({required this.isExternal, required this.deviceName});
 
   factory _MobileOutputInfo.fromProvider(ConnectSessionProvider connect) {
-    final kind = connect.activeOutputKind;
     final name = connect.activeOutputDeviceName?.trim();
     return _MobileOutputInfo(
-      kind: kind,
-      deviceName: (name == null || name.isEmpty) ? kind.label : name,
+      isExternal: connect.hasExternalOutput,
+      deviceName: (name == null || name.isEmpty) ? 'Connected' : name,
     );
   }
 }

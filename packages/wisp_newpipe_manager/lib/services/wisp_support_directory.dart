@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 /// `getApplicationSupportDirectory` resolves the installer bundle's directory,
 /// so its parent is used to target the main application's bundle identifier.
 class WispSupportDirectory {
-  static const _applicationId = 'com.wizeshi.wisp';
+  static const _applicationId = 'dev.wizeshi.wisp';
 
   Future<Directory> get() async {
     if (Platform.isMacOS) {

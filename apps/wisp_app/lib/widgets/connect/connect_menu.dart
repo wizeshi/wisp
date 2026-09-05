@@ -1,9 +1,12 @@
 // Copyright © 2026 wizeshi
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/services/connect/connect_packet_models.dart';
+import 'package:wisp_audio_output_info/models/types.dart';
 
 import '../../providers/connect/connect_session_provider.dart';
 import '../../services/connect/connect_models.dart';
@@ -54,40 +57,28 @@ class ConnectMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
 
+    final isMobile = Platform.isAndroid || Platform.isIOS;
+
     return Consumer<ConnectSessionProvider>(
       builder: (context, connect, child) {
         final devices = connect.discoveredDevices
             .where((device) => device.id != connect.localDeviceId)
             .toList();
         final availableOutputs = connect.availableOutputDevices;
-        final hasExternalOutputs = availableOutputs.any(
-          (device) => device.kind != ConnectOutputKind.local,
-        );
+        final activeAudioDeviceId =
+            connect.activeConnectionKind == ConnectionKind.audio
+            ? connect.activeAudioOutputDevice?.id
+            : null;
         final errorMessage = connect.errorMessage;
         final securityRetryError =
           connect.errorCode == ConnectErrorCode.securityLevelTooLow;
 
-        bool isCurrentOutput(ConnectOutputDevice device) {
-          if (device.kind != connect.activeOutputKind) {
-            return false;
-          }
-          if (device.kind == ConnectOutputKind.local) {
-            return true;
-          }
-          final activeName = (connect.activeOutputDeviceName ?? '').trim();
-          final deviceName = (device.name ?? '').trim();
-          if (activeName.isNotEmpty && deviceName.isNotEmpty) {
-            return activeName.toLowerCase() == deviceName.toLowerCase();
-          }
-          return true;
-        }
-
         final outputDevices = availableOutputs
             .where(
-              (device) => hasExternalOutputs ||
-                  device.kind != ConnectOutputKind.local,
+              (device) =>
+                  activeAudioDeviceId == null ||
+                  device.id != activeAudioDeviceId,
             )
-            .where((device) => !isCurrentOutput(device))
             .toList();
 
         return Container(
@@ -99,6 +90,7 @@ class ConnectMenu extends StatelessWidget {
                 onClose: onClose,
                 accent: accent,
                 compact: compact,
+                deviceName: connect.localDeviceName,
               ),
               const SizedBox(height: 4),
               if (connect.hasPendingSecurityWarning)
@@ -162,27 +154,29 @@ class ConnectMenu extends StatelessWidget {
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
                   children: [
-                    const _ListSectionLabel(text: 'Audio outputs'),
-                    const SizedBox(height: 8),
-                    if (outputDevices.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _ListInlineEmpty(
-                          accent: accent,
-                          text: 'No other audio outputs are available.',
+                    if (!isMobile && outputDevices.isNotEmpty) ...[
+                      const _ListSectionLabel(text: 'Audio outputs'),
+                      const SizedBox(height: 8),
+                      if (outputDevices.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _ListInlineEmpty(
+                            accent: accent,
+                            text: 'No other audio outputs are available.',
+                          ),
+                        ),
+                      ...outputDevices.map(
+                        (outputDevice) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _OutputDeviceCard(
+                            connect: connect,
+                            accent: accent,
+                            device: outputDevice,
+                          ),
                         ),
                       ),
-                    ...outputDevices.map(
-                      (outputDevice) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _OutputDeviceCard(
-                          connect: connect,
-                          accent: accent,
-                          device: outputDevice,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                    ],
                     const _ListSectionLabel(text: 'Handoff devices'),
                     const SizedBox(height: 8),
                     if (devices.isEmpty)
@@ -238,15 +232,20 @@ class _ConnectMenuHeader extends StatelessWidget {
   final VoidCallback onClose;
   final Color accent;
   final bool compact;
+  final String deviceName;
 
   const _ConnectMenuHeader({
     required this.onClose,
     required this.accent,
     required this.compact,
+    required this.deviceName,
   });
 
   @override
   Widget build(BuildContext context) {
+    final trimmedName = deviceName.trim();
+    final title = trimmedName.isEmpty ? 'Connect' : 'Connect - $trimmedName';
+
     return Padding(
       padding: EdgeInsets.fromLTRB(14, compact ? 8 : 16, 10, 10),
       child: Column(
@@ -270,7 +269,9 @@ class _ConnectMenuHeader extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Connect',
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: compact ? 18 : 20,
@@ -305,24 +306,39 @@ class _CurrentOutputCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final outputKind = connect.activeOutputKind;
-    final outputName = connect.activeOutputDeviceName;
-    final subtitle = outputKind == ConnectOutputKind.local
-        ? 'This Device'
-        : switch (outputKind) {
-            ConnectOutputKind.display => 'Display Audio',
-            ConnectOutputKind.virtual => 'Virtual Audio',
-            ConnectOutputKind.headphones => 'Headphones',
-            ConnectOutputKind.earbuds => 'Earbuds',
-            ConnectOutputKind.speakers => 'Speakers',
-            ConnectOutputKind.bluetooth => 'Bluetooth audio',
-            ConnectOutputKind.handoffDesktop => 'Handoff on desktop',
-            ConnectOutputKind.handoffMobile => 'Handoff on mobile',
-            ConnectOutputKind.local => 'This Device',
-          };
-    final title = outputKind == ConnectOutputKind.local
-        ? connect.localDeviceName
-        : (outputName ?? outputKind.label);
+    final connectionKind = connect.activeConnectionKind;
+    final audioDevice = connect.activeAudioOutputDevice;
+    final handoffType = connect.linkedDeviceType;
+
+    final isMobile = Platform.isAndroid || Platform.isIOS;
+
+    late final Widget icon;
+    late final String title;
+    late final String subtitle;
+    switch (connectionKind) {
+      case ConnectionKind.none:
+        icon = _LocalOutputIcon(accent: accent);
+        title = connect.localDeviceName;
+        subtitle = 'This Device';
+        break;
+      case ConnectionKind.audio:
+        icon = audioDevice == null
+            ? _LocalOutputIcon(accent: accent)
+            : _AudioOutputIcon(device: audioDevice, accent: accent);
+        final kindLabel = audioDevice?.kind.label ?? 'Audio device';
+        subtitle = '$kindLabel - This Device';
+        final name = audioDevice?.name?.trim();
+        title = (name == null || name.isEmpty) ? kindLabel : name;
+        break;
+      case ConnectionKind.handoff:
+        final type = handoffType ?? HandoffDeviceType.desktop;
+        icon = _HandoffIcon(type: type, accent: accent);
+        subtitle = type == HandoffDeviceType.mobile
+            ? 'Handoff on mobile'
+            : 'Handoff on desktop';
+        title = connect.activeOutputDeviceName ?? 'Handoff device';
+        break;
+    }
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -333,7 +349,7 @@ class _CurrentOutputCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _OutputIcon(kind: outputKind, accent: accent),
+          icon,
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -357,22 +373,22 @@ class _CurrentOutputCard extends StatelessWidget {
               ],
             ),
           ),
+          if (isMobile)
+            IconButton(
+              tooltip: 'Switch System Output',
+              onPressed: SystemUi.showOutputSwitcher,
+              icon: Icon(Icons.output, color: Colors.grey[200], size: 20),
+            ),
           IconButton(
             tooltip: 'Refresh devices',
             onPressed: connect.refreshConnectMenuData,
             icon: Icon(Icons.refresh, color: Colors.grey[200], size: 20),
           ),
-          if (connect.isLinked)
+          if (connectionKind == ConnectionKind.handoff)
             TextButton(
               onPressed: () => connect.unlink(localResumed: true),
               child: const Text('Unlink'),
             )
-          else if (outputKind != ConnectOutputKind.local)
-            TextButton(
-              onPressed: () =>
-                  connect.setActiveOutputDestination(ConnectOutputKind.local),
-              child: const Text('Use this device'),
-            ),
         ],
       ),
     );
@@ -503,7 +519,7 @@ class _ConnectNoticeCard extends StatelessWidget {
 class _OutputDeviceCard extends StatelessWidget {
   final ConnectSessionProvider connect;
   final Color accent;
-  final ConnectOutputDevice device;
+  final AudioOutputDevice device;
 
   const _OutputDeviceCard({
     required this.connect,
@@ -514,15 +530,11 @@ class _OutputDeviceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected =
-        connect.activeOutputKind == device.kind &&
-        (device.kind == ConnectOutputKind.local ||
-            connect.activeOutputDeviceName == device.name);
-    final title = device.kind == ConnectOutputKind.local
-        ? connect.localDeviceName
-        : (device.name ?? device.kind.label);
-    final subtitle = device.kind == ConnectOutputKind.local
-        ? 'This Device'
-        : device.kind.label;
+        connect.activeConnectionKind == ConnectionKind.audio &&
+        connect.activeAudioOutputDevice?.id == device.id;
+    final subtitle = device.kind.label;
+    final name = device.name?.trim();
+    final title = (name == null || name.isEmpty) ? subtitle : name;
 
     return Material(
       color: selected
@@ -531,10 +543,7 @@ class _OutputDeviceCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => connect.setActiveOutputDestination(
-          device.kind,
-          deviceName: device.name,
-        ),
+        onTap: () => connect.setActiveAudioOutput(device),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -545,7 +554,7 @@ class _OutputDeviceCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _OutputIcon(kind: device.kind, accent: accent),
+              _AudioOutputIcon(device: device, accent: accent),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -670,8 +679,6 @@ class _DeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final platform = device.platform.trim().toLowerCase();
-
     return Material(
       color: selected
           ? accent.withValues(alpha: 0.18)
@@ -690,7 +697,10 @@ class _DeviceCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _OutputIcon(kind: _kindFromPlatform(platform), accent: accent),
+              _HandoffIcon(
+                type: HandoffDeviceTypeUi.fromPlatform(device.platform),
+                accent: accent,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -884,31 +894,20 @@ class _PendingPairRequestCard extends StatelessWidget {
   }
 }
 
-class _OutputIcon extends StatelessWidget {
-  final ConnectOutputKind kind;
+/// Icon shell shared by both audio-device and handoff-device tiles.
+class _OutputIconShell extends StatelessWidget {
+  final IconData icon;
   final Color accent;
 
-  const _OutputIcon({required this.kind, required this.accent});
+  const _OutputIconShell({required this.icon, required this.accent});
 
   @override
   Widget build(BuildContext context) {
-    final icon = switch (kind) {
-      ConnectOutputKind.headphones => Icons.headphones,
-      ConnectOutputKind.earbuds => Symbols.earbud_case,
-      ConnectOutputKind.speakers => Icons.speaker,
-      ConnectOutputKind.display => Icons.tv,
-      ConnectOutputKind.virtual => Icons.devices_other,
-      ConnectOutputKind.bluetooth => Icons.bluetooth_audio,
-      ConnectOutputKind.handoffMobile => Symbols.smartphone,
-      ConnectOutputKind.handoffDesktop => Symbols.computer,
-      ConnectOutputKind.local => Icons.play_circle_outline,
-    };
-
     return Container(
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: kind.isExternal ? 0.18 : 0.1),
+        color: accent.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(icon, color: accent, size: 20),
@@ -916,14 +915,72 @@ class _OutputIcon extends StatelessWidget {
   }
 }
 
-ConnectOutputKind _kindFromPlatform(String platform) {
-  if (platform.contains('android') || platform.contains('ios')) {
-    return ConnectOutputKind.handoffMobile;
+/// This device's own default output (no audio-device switch, no handoff).
+class _LocalOutputIcon extends StatelessWidget {
+  final Color accent;
+
+  const _LocalOutputIcon({required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(Icons.play_circle_outline, color: accent, size: 20),
+    );
   }
-  if (platform.contains('windows') ||
-      platform.contains('macos') ||
-      platform.contains('linux')) {
-    return ConnectOutputKind.handoffDesktop;
+}
+
+class _AudioOutputIcon extends StatelessWidget {
+  final AudioOutputDevice device;
+  final Color accent;
+
+  const _AudioOutputIcon({required this.device, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    IconData icon;
+    if (device.connectionType == AudioConnectionType.bluetooth ||
+        device.connectionType == AudioConnectionType.bluetoothLe) {
+      icon = Icons.bluetooth_audio;
+    } else {
+      icon = switch (device.kind) {
+        AudioOutputKind.headphones ||
+        AudioOutputKind.headset => Icons.headphones,
+        AudioOutputKind.earbuds => Symbols.earbud_case,
+        AudioOutputKind.hearingAid => Icons.hearing,
+        AudioOutputKind.speakers => Icons.speaker,
+        AudioOutputKind.receiver ||
+        AudioOutputKind.amplifier ||
+        AudioOutputKind.soundbar => Icons.speaker_group,
+        AudioOutputKind.television ||
+        AudioOutputKind.hdmi ||
+        AudioOutputKind.displayPort => Icons.tv,
+        AudioOutputKind.lineOut || AudioOutputKind.digitalOut => Icons.cable,
+        AudioOutputKind.virtual => Icons.devices_other,
+        AudioOutputKind.remote => Icons.cast_connected,
+        AudioOutputKind.unknown => Icons.speaker,
+      };
+    }
+    return _OutputIconShell(icon: icon, accent: accent);
   }
-  return ConnectOutputKind.handoffDesktop;
+}
+
+class _HandoffIcon extends StatelessWidget {
+  final HandoffDeviceType type;
+  final Color accent;
+
+  const _HandoffIcon({required this.type, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = type == HandoffDeviceType.mobile
+        ? Symbols.smartphone
+        : Symbols.computer;
+    return _OutputIconShell(icon: icon, accent: accent);
+  }
 }

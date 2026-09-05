@@ -1,4 +1,4 @@
-group = "com.wizeshi.wisp_ytdlp_manager"
+group = "dev.wizeshi.wisp_ytdlp_manager"
 version = "1.0-SNAPSHOT"
 
 buildscript {
@@ -26,7 +26,7 @@ plugins {
 }
 
 android {
-    namespace = "com.wizeshi.wisp_ytdlp_manager"
+    namespace = "dev.wizeshi.wisp_ytdlp_manager"
 
     compileSdk = 37
 

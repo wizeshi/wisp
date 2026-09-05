@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:wisp/models/metadata_models.dart';
+import 'package:wisp_audio_output_info/models/types.dart';
 
 enum ConnectPhase {
   idle,
@@ -16,6 +17,52 @@ enum ConnectPhase {
 enum ConnectRole { none, host, target }
 
 enum ConnectLinkMode { fullHandoff, controlOnly }
+
+/// The two mutually-exclusive ways playback can leave "this device".
+/// Never both at once: picking one always tears down the other.
+enum ConnectionKind {
+  /// Nothing external is active; playback stays on this device's default
+  /// output.
+  none,
+
+  /// Local output routing only: the AudioHandler's current output device
+  /// has been switched to some other device known to the OS (headphones,
+  /// speakers, a display, etc.) via that device's id. No peer is involved.
+  audio,
+
+  /// A full Connect handoff/control link to another device on the network.
+  handoff,
+}
+
+/// The kind of peer device a handoff link is connected to, used purely for
+/// display (e.g. choosing an icon/label). Replaces the old
+/// ConnectOutputKind.handoffDesktop / handoffMobile split.
+enum HandoffDeviceType { mobile, desktop }
+
+extension HandoffDeviceTypeUi on HandoffDeviceType {
+  String get label {
+    switch (this) {
+      case HandoffDeviceType.mobile:
+        return 'Mobile';
+      case HandoffDeviceType.desktop:
+        return 'Desktop';
+    }
+  }
+
+  /// Best-effort guess from a peer's reported `platform` string
+  /// (e.g. 'android', 'ios', 'macos', 'windows', 'linux').
+  static HandoffDeviceType fromPlatform(String? platform) {
+    switch ((platform ?? '').trim().toLowerCase()) {
+      case 'android':
+      case 'ios':
+      case 'iphone':
+      case 'ipad':
+        return HandoffDeviceType.mobile;
+      default:
+        return HandoffDeviceType.desktop;
+    }
+  }
+}
 
 enum HandoffSecurityLevel { keyExchange, pinBased }
 
@@ -45,82 +92,6 @@ extension HandoffSecurityLevelJson on HandoffSecurityLevel {
         return 'Key-Exchange';
       case HandoffSecurityLevel.pinBased:
         return 'PIN-based';
-    }
-  }
-}
-
-enum AudioDeviceCategory {
-  earbuds(
-    r'\b(buds?|airpods?|earbuds?|in-ear|in ear|earphones?|freelace|galaxy buds|linkbuds|wf-\d+|c500|tune\s*\d+tws)\b',
-  ),
-  headphones(
-    r'\b(headphones?|headset|over-ear|on-ear|wh-\d+|q30|q45|space|xm\d+|pXC|hd\s*\d+)\b',
-  ),
-  speakers(
-    r'\b(speaker|loudspeaker|desktop speaker|internal speaker|built-in|soundbar)\b',
-  ),
-  bluetooth(
-    r'\b(bluetooth|bt\b|wireless|hands-free)\b',
-  ),
-  hdmiDisplay(
-    r'\b(hdmi|displayport|dp|tv|monitor|receiver|nvidia|amd)\b',
-  ),
-  virtual(
-    r'\b(virtual|cable|vb-audio|steam|obs|aggregate|loopback)\b',
-  ),
-  unknown('');
-
-  final String pattern;
-  const AudioDeviceCategory(this.pattern);
-
-  static AudioDeviceCategory fromDeviceName(String rawName) {
-    final clean = rawName.toLowerCase();
-
-    for (final category in AudioDeviceCategory.values) {
-      if (category == unknown) continue;
-      if (RegExp(category.pattern, caseSensitive: false).hasMatch(clean)) {
-        return category;
-      }
-    }
-    return AudioDeviceCategory.unknown;
-  }
-}
-
-enum ConnectOutputKind {
-  local,
-  headphones,
-  earbuds,
-  speakers,
-  display,
-  virtual,
-  bluetooth,
-  handoffDesktop,
-  handoffMobile,
-}
-
-extension ConnectOutputKindUi on ConnectOutputKind {
-  bool get isExternal => this != ConnectOutputKind.local;
-
-  String get label {
-    switch (this) {
-      case ConnectOutputKind.local:
-        return 'This device';
-      case ConnectOutputKind.headphones:
-        return 'Headphones';
-      case ConnectOutputKind.earbuds:
-        return 'Earbuds';
-      case ConnectOutputKind.speakers:
-        return 'Speakers';
-      case ConnectOutputKind.display:
-        return 'Display';
-      case ConnectOutputKind.virtual:
-        return 'Virtual';
-      case ConnectOutputKind.bluetooth:
-        return 'Bluetooth';
-      case ConnectOutputKind.handoffDesktop:
-        return 'Handoff - Desktop';
-      case ConnectOutputKind.handoffMobile:
-        return 'Handoff - Mobile';
     }
   }
 }
@@ -244,13 +215,6 @@ class TrustedDevice {
       lastConnectionAt: DateTime.parse(json['last_connection_at'] as String),
     );
   }
-}
-
-class ConnectOutputDevice {
-  final ConnectOutputKind kind;
-  final String? name;
-
-  const ConnectOutputDevice({required this.kind, this.name});
 }
 
 class ConnectPlaybackSnapshot {
@@ -474,5 +438,46 @@ class ConnectPositionPulse {
       positionMs: (json['position_ms'] as int?) ?? 0,
       bufferedMs: json['buffered_ms'] as int?,
     );
+  }
+}
+
+extension AudioOutputKindUi on AudioOutputKind {
+  /// Display label used when a device doesn't report its own name, and as
+  /// a grouping label in output-picker UIs.
+  String get label {
+    switch (this) {
+      case AudioOutputKind.speakers:
+        return 'Speakers';
+      case AudioOutputKind.headphones:
+        return 'Headphones';
+      case AudioOutputKind.headset:
+        return 'Headset';
+      case AudioOutputKind.earbuds:
+        return 'Earbuds';
+      case AudioOutputKind.hearingAid:
+        return 'Hearing Aid';
+      case AudioOutputKind.receiver:
+        return 'Receiver';
+      case AudioOutputKind.amplifier:
+        return 'Amplifier';
+      case AudioOutputKind.soundbar:
+        return 'Soundbar';
+      case AudioOutputKind.television:
+        return 'TV';
+      case AudioOutputKind.lineOut:
+        return 'Line Out';
+      case AudioOutputKind.digitalOut:
+        return 'Digital Out';
+      case AudioOutputKind.hdmi:
+        return 'HDMI';
+      case AudioOutputKind.displayPort:
+        return 'DisplayPort';
+      case AudioOutputKind.virtual:
+        return 'Virtual';
+      case AudioOutputKind.remote:
+        return 'Remote';
+      case AudioOutputKind.unknown:
+        return 'Device';
+    }
   }
 }

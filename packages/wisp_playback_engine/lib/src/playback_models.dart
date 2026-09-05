@@ -45,14 +45,6 @@ class PlaybackEngineSettings {
   );
 }
 
-class PlaybackOutputDevice {
-  /// Stable native backend identifier (e.g. mpv's `wasapi/...` identifier).
-  final String id;
-  final String name;
-
-  const PlaybackOutputDevice({required this.id, required this.name});
-}
-
 /// A playback failure reported by an engine operation or its native backend.
 /// The handler can present [message] while retaining [operation] for logs and
 /// retry policy without importing a backend-specific exception type.

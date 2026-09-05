@@ -11,6 +11,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wisp_audio_output_info/models/types.dart';
 import 'package:wisp_playback_engine/wisp_playback_engine.dart';
 
 import '../models/metadata_models.dart';
@@ -99,8 +100,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool _engineIsBuffering = false;
   bool _engineIsTransitioning = false;
   PlaybackEngineError? _lastEngineError;
-  List<PlaybackOutputDevice> _availableOutputDevices = const [];
-  PlaybackOutputDevice? _activeOutputDevice;
+  List<AudioOutputDevice> _availableOutputDevices = const [];
+  AudioOutputDevice? _activeOutputDevice;
 
   // Preload bookkeeping. Unlike the old handler, this is index/track
   // bookkeeping only — the engine owns whatever slots/players it needs to
@@ -122,8 +123,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   // Subscriptions
   StreamSubscription<PlaybackEngineState>? _engineStateSubscription;
   StreamSubscription<void>? _engineCompletedSubscription;
-  StreamSubscription<List<PlaybackOutputDevice>>? _outputDevicesSubscription;
-  StreamSubscription<PlaybackOutputDevice?>? _activeOutputDeviceSubscription;
+  StreamSubscription<List<AudioOutputDevice>>? _outputDevicesSubscription;
+  StreamSubscription<AudioOutputDevice?>? _activeOutputDeviceSubscription;
   StreamSubscription? _connectivitySubscription;
   Timer? _rpcTimer;
   Timer? _mprisTimer;
@@ -193,8 +194,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   String? get playbackContextName => _playbackContextName;
   String? get playbackContextID => _playbackContextID;
   SongSource? get playbackContextSource => _playbackContextSource;
-  List<PlaybackOutputDevice> get outputDevices => _availableOutputDevices;
-  PlaybackOutputDevice? get activeOutputDevice => _activeOutputDevice;
+  List<AudioOutputDevice> get outputDevices => _availableOutputDevices;
+  AudioOutputDevice? get activeOutputDevice => _activeOutputDevice;
 
   ConnectPlaybackSnapshot buildConnectSnapshot() {
     return ConnectPlaybackSnapshot(
@@ -533,6 +534,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     });
 
     _outputDevicesSubscription = _engine.outputDevices.listen((devices) {
+      print("[Audio/Player] output devices: $devices");
+
       _availableOutputDevices = devices;
       notifyListeners();
     });
@@ -1080,6 +1083,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (_engineIsBuffering) {
       return audio_service.AudioProcessingState.buffering;
     }
+    
     return audio_service.AudioProcessingState.ready;
   }
 

@@ -71,7 +71,7 @@ void main() async {
   final handler = await AudioService.init(
     builder: () => WispAudioHandler(),
     config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.wizeshi.wisp.channel.audio',
+      androidNotificationChannelId: 'dev.wizeshi.wisp.channel.audio',
       androidNotificationChannelName: 'wisp',
       androidNotificationChannelDescription: 'Media playback controls',
       androidNotificationIcon: 'drawable/ic_stat_wisp',

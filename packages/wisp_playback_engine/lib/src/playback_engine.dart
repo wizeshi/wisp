@@ -1,3 +1,5 @@
+import 'package:wisp_audio_output_info/models/types.dart';
+
 import 'playback_models.dart';
 
 /// Backend-neutral playback contract. Queue and handoff code deliberately do
@@ -9,8 +11,8 @@ abstract interface class WispPlaybackEngine {
   /// Emits when the active source finishes naturally. The queue owner decides
   /// whether that means repeat, advance, or stop.
   Stream<void> get completed;
-  Stream<List<PlaybackOutputDevice>> get outputDevices;
-  Stream<PlaybackOutputDevice?> get activeOutputDevice;
+  Stream<List<AudioOutputDevice>> get outputDevices;
+  Stream<AudioOutputDevice?> get activeOutputDevice;
 
   Future<void> updateSettings(PlaybackEngineSettings settings);
   Future<void> loadCurrent(PlaybackSource source, {

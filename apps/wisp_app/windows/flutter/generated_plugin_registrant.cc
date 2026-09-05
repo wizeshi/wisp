@@ -18,6 +18,7 @@
 #include <url_launcher_windows/url_launcher_windows.h>
 #include <video_player_win/video_player_win_plugin_c_api.h>
 #include <window_manager/window_manager_plugin.h>
+#include <wisp_audio_output_info/wisp_audio_output_info_plugin_c_api.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   AppLinksPluginCApiRegisterWithRegistrar(
@@ -44,4 +45,6 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("VideoPlayerWinPluginCApi"));
   WindowManagerPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("WindowManagerPlugin"));
+  WispAudioOutputInfoPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("WispAudioOutputInfoPluginCApi"));
 }

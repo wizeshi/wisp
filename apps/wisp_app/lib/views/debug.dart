@@ -913,7 +913,7 @@ class PlayerStateView extends StatelessWidget {
 
                     PlayerStateViewRow(
                       label: "Active Output Device",
-                      value: _uppercaseFirstLetter(playerInfo['activeOutputDevice'] ?? "Auto"),
+                      value: _uppercaseFirstLetter(playerInfo['activeOutputDevice']['name'] ?? "Unknown"),
                     ),
                   ]
                 ),

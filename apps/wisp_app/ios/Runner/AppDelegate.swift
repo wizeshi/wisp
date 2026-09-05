@@ -19,7 +19,7 @@ import YouTubeKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
 
     let platformChannel = FlutterMethodChannel(
-      name: "com.wizeshi.wisp/youtube",
+      name: "dev.wizeshi.wisp/youtube",
       binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
 
@@ -78,7 +78,7 @@ import YouTubeKit
         .highestAudioBitrateStream()
     else {
       throw NSError(
-        domain: "com.wizeshi.wisp.youtube",
+        domain: "dev.wizeshi.wisp.youtube",
         code: -1,
         userInfo: [NSLocalizedDescriptionKey: "No m4a audio-only stream available for \(videoId)"]
       )

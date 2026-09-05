@@ -42,7 +42,7 @@ flutter:
   plugin:
     platforms:
       android:
-        package: com.wizeshi.wisp_ytdlp_manager
+        package: dev.wizeshi.wisp_ytdlp_manager
         pluginClass: WispYtdlpManagerPlugin
 
   # To add assets to your plugin package, add an assets section, like this:

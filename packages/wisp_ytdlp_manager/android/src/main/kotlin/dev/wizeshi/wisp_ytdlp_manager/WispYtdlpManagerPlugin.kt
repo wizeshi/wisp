@@ -1,4 +1,4 @@
-package com.wizeshi.wisp_ytdlp_manager
+package dev.wizeshi.wisp_ytdlp_manager
 
 import android.content.Context
 import android.os.Build
@@ -89,7 +89,7 @@ class WispYtdlpManagerPlugin :
     }
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        channel = MethodChannel(flutterPluginBinding.binaryMessenger, "com.wizeshi.wisp_ytdlp_manager")
+        channel = MethodChannel(flutterPluginBinding.binaryMessenger, "dev.wizeshi.wisp_ytdlp_manager")
         channel.setMethodCallHandler(this)
         context = flutterPluginBinding.applicationContext
 

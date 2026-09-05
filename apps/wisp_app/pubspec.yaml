@@ -1,9 +1,10 @@
 name: wisp
 description: "The Open, Fast & Unified music player."
 publish_to: 'none'
+
 resolution: workspace
 
-version: 26.9.1+100
+version: 26.9.1+154
 
 environment:
   sdk: ^3.10.7
@@ -91,6 +92,7 @@ dependencies:
   wisp_ytdlp_manager: any
   wisp_assets: any
   wisp_playback_engine: any
+  wisp_audio_output_info: any
 
 
 dev_dependencies:

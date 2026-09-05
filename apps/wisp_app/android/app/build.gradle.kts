@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.wizeshi.wisp"
+    namespace = "dev.wizeshi.wisp"
     compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
@@ -16,7 +16,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.wizeshi.wisp"
+        applicationId = "dev.wizeshi.wisp"
         minSdk = 24
         targetSdk = 37
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION

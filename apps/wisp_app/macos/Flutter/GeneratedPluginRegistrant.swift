@@ -23,6 +23,7 @@ import sqflite_darwin
 import url_launcher_macos
 import video_player_avfoundation
 import window_manager
+import wisp_audio_output_info
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   AppLinksMacosPlugin.register(with: registry.registrar(forPlugin: "AppLinksMacosPlugin"))
@@ -43,4 +44,5 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   UrlLauncherPlugin.register(with: registry.registrar(forPlugin: "UrlLauncherPlugin"))
   VideoPlayerPlugin.register(with: registry.registrar(forPlugin: "VideoPlayerPlugin"))
   WindowManagerPlugin.register(with: registry.registrar(forPlugin: "WindowManagerPlugin"))
+  WispAudioOutputInfoPlugin.register(with: registry.registrar(forPlugin: "WispAudioOutputInfoPlugin"))
 }

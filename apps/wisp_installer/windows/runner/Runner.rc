@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.wizeshi" "\0"
+            VALUE "CompanyName", "dev.wizeshi" "\0"
             VALUE "FileDescription", "wisp_installer" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "wisp_installer" "\0"
-            VALUE "LegalCopyright", "Copyright © 2026 com.wizeshi. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright © 2026 dev.wizeshi." "\0"
             VALUE "OriginalFilename", "wisp_installer.exe" "\0"
             VALUE "ProductName", "wisp_installer" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

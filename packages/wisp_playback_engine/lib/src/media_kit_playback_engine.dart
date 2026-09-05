@@ -1,9 +1,21 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:wisp_audio_output_info/models/types.dart';
+import 'package:wisp_audio_output_info/wisp_audio_output_info.dart';
 
 import 'playback_engine.dart';
 import 'playback_models.dart';
+
+void log(String message) {
+  if (kDebugMode) {
+    print('[MediaKitPlaybackEngine]: $message');
+  }
+  return;
+}
 
 /// A two-slot MediaKit engine. The inactive slot is private so callers cannot
 /// accidentally disrupt a preload or a transition.
@@ -40,25 +52,21 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
 
   final _states = StreamController<PlaybackEngineState>.broadcast();
   final _completed = StreamController<void>.broadcast();
-  final _outputDevices =
-      StreamController<List<PlaybackOutputDevice>>.broadcast();
-  final _activeOutputDevice =
-      StreamController<PlaybackOutputDevice?>.broadcast();
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
   MediaKitPlaybackEngine({
     PlaybackEngineSettings? settings,
   }) : _settings = settings ?? PlaybackEngineSettings() {
     MediaKit.ensureInitialized();
+    
+    log('[MediaKitPlaybackEngine]: initialized with settings: $_settings');
+    
     _first = Player();
     _second = Player();
     _active = _first;
     _standby = _second;
 
-    print('[MediaKitPlaybackEngine] INIT. Audio devices: ${_first.state.audioDevices.map((d) => d.name).join(', ')}');
-
     _listenToPlayers();
-    _publishOutputDevices(_first.state.audioDevices);
   }
 
   @override
@@ -74,11 +82,10 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   Stream<void> get completed => _completed.stream;
 
   @override
-  Stream<List<PlaybackOutputDevice>> get outputDevices => _outputDevices.stream;
+  Stream<List<AudioOutputDevice>> get outputDevices => WispAudioOutputInfo.outputDevices;
 
   @override
-  Stream<PlaybackOutputDevice?> get activeOutputDevice =>
-      _activeOutputDevice.stream;
+  Stream<AudioOutputDevice?> get activeOutputDevice => WispAudioOutputInfo.activeOutputDevice;
 
   @override
   Future<void> updateSettings(PlaybackEngineSettings settings) =>
@@ -239,11 +246,26 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
 
   @override
   Future<void> setOutputDevice(String deviceId) => _enqueue(() async {
+    print('[MediaKitPlaybackEngine] setOutputDevice: $deviceId');
+
+    print('[MediaKitPlaybackEngine] _first.state.audioDevices: ${_first.state.audioDevices.map((d) => d.name).toList()}');
+
+    unawaited((() async {
+      final audioDevices = await (_first.platform as NativePlayer).getProperty('audio-device-list');
+      print('[MediaKitPlaybackEngine] mpv inner state: ${audioDevices}');
+    })());
+
+    String filteredDeviceId = deviceId;
+
+    if (Platform.isWindows) {
+      filteredDeviceId = "wasapi/${deviceId.split('.').last}";
+    }
+
     final device = _first.state.audioDevices
-        .where((candidate) => candidate.name == deviceId)
+        .where((candidate) => candidate.name == filteredDeviceId)
         .firstOrNull;
     if (device == null) {
-      throw ArgumentError.value(deviceId, 'deviceId', 'Unknown audio device');
+      throw ArgumentError.value(filteredDeviceId, 'deviceId', 'Unknown audio device');
     }
     // Both slots must use the same route or a crossfade can split between
     // hardware outputs.
@@ -273,8 +295,6 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     await Future.wait([_first.dispose(), _second.dispose()]);
     await _states.close();
     await _completed.close();
-    await _outputDevices.close();
-    await _activeOutputDevice.close();
   }
 
   Future<bool> _crossfade() async {
@@ -373,11 +393,6 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
           _publishFailure('nativePlayback', error);
         }
       }));
-      _subscriptions.add(player.stream.audioDevices.listen(_publishOutputDevices));
-      _subscriptions.add(player.stream.audioDevice.listen((device) {
-        if (!identical(player, _active)) return;
-        _activeOutputDevice.add(_toOutputDevice(device));
-      }));
     }
   }
 
@@ -420,17 +435,6 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     if (actual <= Duration.zero || actual > expected) return expected;
     return actual;
   }
-
-  void _publishOutputDevices(List<AudioDevice> devices) {
-    if (_disposed) return;
-    _outputDevices.add(devices.map(_toOutputDevice).toList(growable: false));
-  }
-
-  PlaybackOutputDevice _toOutputDevice(AudioDevice device) =>
-      PlaybackOutputDevice(
-        id: device.name,
-        name: device.description.isEmpty ? device.name : device.description,
-      );
 
   Future<void> _enqueue(Future<void> Function() action) {
     final next = _operations.then((_) {

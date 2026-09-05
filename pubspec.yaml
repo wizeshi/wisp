@@ -10,3 +10,7 @@ workspace:
   - packages/wisp_newpipe_manager
   - packages/wisp_ytdlp_manager
   - packages/wisp_playback_engine
+  - packages/wisp_audio_output_info
+
+dev_dependencies:
+  cider: ^0.2.10

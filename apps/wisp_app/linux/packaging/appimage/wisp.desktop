@@ -8,4 +8,4 @@ Exec=wisp %U
 Categories=AudioVideo;Audio;Music;Player;
 Keywords=song;music;player;audio;
 StartupNotify=true
-StartupWMClass=com.wizeshi.wisp
+StartupWMClass=dev.wizeshi.wisp

@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/services/connect/connect_packet_models.dart';
@@ -86,20 +87,46 @@ class LanConnectService implements ConnectTransport {
   String? _localDeviceName;
   String? _localPlatform;
 
-  Future<bool> _hasLocalNetworkPermission() async {
-    final status = await Permission.accessLocalNetwork.request();
-    if (!status.isGranted) {
-      logger.w('[Connect/LAN] Local network permission denied: $status');
-    }
-    return status.isGranted;
-  }
-
+  /// permission_handler needs a live Android Activity attached to the
+  /// Flutter engine to check/request permissions — Android's underlying
+  /// permission APIs are Activity-scoped, not just Context-scoped. Right
+  /// at app startup there's a narrow, timing-dependent window where the
+  /// engine exists but onAttachedToActivity() hasn't fired yet (more
+  /// likely on cold starts / slower devices), during which any
+  /// permission_handler call throws PlatformException with the code
+  /// 'PermissionHandler.PermissionManager' and this exact message. That's
+  /// a transient startup race, not a real denial or misconfiguration — so
+  /// it's handled here with a short, bounded retry rather than failing
+  /// LAN discovery outright the first time this happens to lose the race.
   Future<bool> _requestLocalNetworkPermission() async {
-    final status = await Permission.accessLocalNetwork.request();
-    if (!status.isGranted) {
-      logger.w('[Connect/LAN] Local network permission denied: $status');
+    const maxAttempts = 5;
+    const retryDelay = Duration(milliseconds: 200);
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final status = await Permission.accessLocalNetwork.request();
+        if (!status.isGranted) {
+          logger.w('[Connect/LAN] Local network permission denied: $status');
+        }
+        return status.isGranted;
+      } on PlatformException catch (error) {
+        final isActivityNotReady =
+            error.code == 'PermissionHandler.PermissionManager' &&
+            (error.message?.contains(
+                  'Unable to detect current Android Activity',
+                ) ??
+                false);
+        if (!isActivityNotReady || attempt == maxAttempts) {
+          rethrow;
+        }
+        logger.w(
+          '[Connect/LAN] Android Activity not attached yet '
+          '(attempt $attempt/$maxAttempts), retrying...',
+        );
+        await Future.delayed(retryDelay);
+      }
     }
-    return status.isGranted;
+    return false;
   }
 
   @override
@@ -116,19 +143,16 @@ class LanConnectService implements ConnectTransport {
     _multicastLock = FlutterMulticastLock();
 
     try {
-      if (!await _hasLocalNetworkPermission()) {
-        logger.w('[Connect/LAN] Local network permission not granted, requesting...');
-        if (!await _requestLocalNetworkPermission()) {
-          logger.e('[Connect/LAN] Local network permission denied, cannot start LAN service.');
-          throw Exception('Local network permission denied');
-        }
+      if (!await _requestLocalNetworkPermission()) {
+        logger.e(
+          '[Connect/LAN] Local network permission denied, cannot start LAN service.',
+        );
+        throw Exception('Local network permission denied');
       }
 
       _multicastLock!.acquireMulticastLock();
       if (await _multicastLock!.isMulticastLockHeld()) {
-        logger.i(
-          '[Connect/LAN] Multicast lock acquired successfully',
-        );
+        logger.i('[Connect/LAN] Multicast lock acquired successfully');
       }
 
       _discoverySocket = await RawDatagramSocket.bind(
@@ -139,9 +163,16 @@ class LanConnectService implements ConnectTransport {
       );
       _discoverySocket!
         ..broadcastEnabled = true
-        ..listen(_onDiscoverySocketEvent, onError: (e, st) {
-        logger.w('[Connect/LAN] Discovery socket stream error', error: e, stackTrace: st);
-        });
+        ..listen(
+          _onDiscoverySocketEvent,
+          onError: (e, st) {
+            logger.w(
+              '[Connect/LAN] Discovery socket stream error',
+              error: e,
+              stackTrace: st,
+            );
+          },
+        );
 
       _controlSocket = await RawDatagramSocket.bind(
         InternetAddress.anyIPv4,
@@ -846,7 +877,11 @@ class LanConnectService implements ConnectTransport {
         '[Handoff/LAN] <- hello from=${device.id} name=${device.name} platform=${device.platform} address=${device.address}',
       );
     } catch (error, stackTrace) {
-      logger.e('[Connect/LAN] Error parsing incoming discovery packet', error: error, stackTrace: stackTrace);
+      logger.e(
+        '[Connect/LAN] Error parsing incoming discovery packet',
+        error: error,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -983,7 +1018,7 @@ class LanConnectService implements ConnectTransport {
       socket.send(data, InternetAddress('255.255.255.255'), _discoveryPort);
     } on SocketException {
       logger.e(
-        '[Connect/LAN] Failed to broadcast discovery to global broadcast subnet (255.255.255.255).'
+        '[Connect/LAN] Failed to broadcast discovery to global broadcast subnet (255.255.255.255).',
       );
     } catch (_) {}
   }
