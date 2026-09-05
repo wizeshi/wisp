@@ -832,6 +832,7 @@ class HomePageState extends State<HomePage> {
                           ? (isLocalThumb
                                 ? Image.file(
                                     File(imageUrl.replaceFirst('file://', '')),
+                                    filterQuality: FilterQuality.medium,
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, url, error) => Icon(
                                       Icons.music_note,
@@ -840,6 +841,7 @@ class HomePageState extends State<HomePage> {
                                   )
                                 : CachedNetworkImage(
                                     imageUrl: imageUrl,
+                                    filterQuality: FilterQuality.medium,
                                     fit: BoxFit.cover,
                                     placeholder: (context, url) =>
                                         Container(color: Colors.grey[800]),
@@ -1058,6 +1060,7 @@ class HomePageState extends State<HomePage> {
                           ? (isLocalThumb
                                 ? Image.file(
                                     File(imageUrl.replaceFirst('file://', '')),
+                                    filterQuality: FilterQuality.medium,
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, url, error) => Icon(
                                       Icons.music_note,
@@ -1067,6 +1070,7 @@ class HomePageState extends State<HomePage> {
                                   )
                                 : CachedNetworkImage(
                                     imageUrl: imageUrl,
+                                    filterQuality: FilterQuality.medium,
                                     fit: BoxFit.cover,
                                     placeholder: (context, url) =>
                                         Container(color: Colors.grey[800]),
@@ -1712,6 +1716,7 @@ class HomePageState extends State<HomePage> {
                       child: track.thumbnailUrl.isNotEmpty
                           ? CachedNetworkImage(
                               imageUrl: track.thumbnailUrl,
+                              filterQuality: FilterQuality.medium,
                               fit: BoxFit.cover,
                               placeholder: (context, url) =>
                                   Container(color: Colors.grey[800]),
@@ -1958,6 +1963,7 @@ class HomePageState extends State<HomePage> {
                           child: artist.thumbnailUrl.isNotEmpty
                               ? CachedNetworkImage(
                                   imageUrl: artist.thumbnailUrl,
+                                  filterQuality: FilterQuality.medium,
                                   fit: BoxFit.cover,
                                   placeholder: (context, url) =>
                                       Container(color: Colors.grey[800]),
@@ -2137,6 +2143,7 @@ class _ArtistCard extends StatelessWidget {
       thumbnail: artist.thumbnailUrl.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: artist.thumbnailUrl,
+              filterQuality: FilterQuality.medium,
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(color: Colors.grey[800]),
               errorWidget: (context, url, error) =>
@@ -2194,6 +2201,7 @@ class _AlbumCard extends StatelessWidget {
       thumbnail: album.thumbnailUrl.isNotEmpty
           ? CachedNetworkImage(
               imageUrl: album.thumbnailUrl,
+              filterQuality: FilterQuality.medium,
               fit: BoxFit.cover,
               placeholder: (context, url) => Container(color: Colors.grey[800]),
               errorWidget: (context, url, error) =>
@@ -2258,6 +2266,7 @@ class _PlaylistCard extends StatelessWidget {
               : (playlist.thumbnailUrl.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: playlist.thumbnailUrl,
+                        filterQuality: FilterQuality.medium,
                         fit: BoxFit.cover,
                         placeholder: (context, url) =>
                             Container(color: Colors.grey[800]),
@@ -2361,6 +2370,7 @@ class _SpecialCard extends StatelessWidget {
                               child: thumbnailUrl.isNotEmpty
                                   ? CachedNetworkImage(
                                       imageUrl: thumbnailUrl,
+                                      filterQuality: FilterQuality.medium,
                                       fit: BoxFit.cover,
                                       placeholder: (context, url) =>
                                           Container(color: Colors.grey[800]),
