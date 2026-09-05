@@ -246,13 +246,13 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
 
   @override
   Future<void> setOutputDevice(String deviceId) => _enqueue(() async {
-    print('[MediaKitPlaybackEngine] setOutputDevice: $deviceId');
+    log('[MediaKitPlaybackEngine] setOutputDevice: $deviceId');
 
-    print('[MediaKitPlaybackEngine] _first.state.audioDevices: ${_first.state.audioDevices.map((d) => d.name).toList()}');
+    log('[MediaKitPlaybackEngine] _first.state.audioDevices: ${_first.state.audioDevices.map((d) => d.name).toList()}');
 
     unawaited((() async {
       final audioDevices = await (_first.platform as NativePlayer).getProperty('audio-device-list');
-      print('[MediaKitPlaybackEngine] mpv inner state: ${audioDevices}');
+      log('[MediaKitPlaybackEngine] mpv inner state: ${audioDevices}');
     })());
 
     String filteredDeviceId = deviceId;

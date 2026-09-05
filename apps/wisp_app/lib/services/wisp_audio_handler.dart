@@ -534,7 +534,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     });
 
     _outputDevicesSubscription = _engine.outputDevices.listen((devices) {
-      print("[Audio/Player] output devices: $devices");
+      logger.i("[Audio/Player] output devices: $devices");
 
       _availableOutputDevices = devices;
       notifyListeners();
