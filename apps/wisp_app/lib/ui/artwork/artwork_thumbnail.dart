@@ -152,7 +152,7 @@ class ArtworkThumbnail extends StatelessWidget {
       // Proportional to size rather than a fixed magic number, so small
       // and large artwork both look correctly rounded instead of sharing
       // one radius that's too subtle at 160px or too aggressive at 32px.
-      : BorderRadius.circular(_renderSize * 0.09);
+      : BorderRadius.circular(_renderSize * 0.045);
 
   @override
   Widget build(BuildContext context) {

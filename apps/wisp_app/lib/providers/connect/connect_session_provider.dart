@@ -263,6 +263,10 @@ class ConnectSessionProvider extends ChangeNotifier
         _localDeviceName = 'iPhone';
       }
     }
+    if (_localDeviceName.trim().endsWith(".local")) {
+      // macOS has a weird tendency of ending MacBook names with .local. No idea why.
+      _localDeviceName = _localDeviceName.trim().replaceAll(RegExp(r'\.local$'), '');
+    }
     if (_localDeviceName.trim().isEmpty) {
       _localDeviceName = '${Platform.operatingSystem} device';
     }

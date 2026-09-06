@@ -99,6 +99,9 @@ class LanConnectService implements ConnectTransport {
   /// it's handled here with a short, bounded retry rather than failing
   /// LAN discovery outright the first time this happens to lose the race.
   Future<bool> _requestLocalNetworkPermission() async {
+    // Neither Linux nor macOS need to request this permission.
+    if (Platform.isMacOS || Platform.isLinux) return true;
+
     const maxAttempts = 5;
     const retryDelay = Duration(milliseconds: 200);
 

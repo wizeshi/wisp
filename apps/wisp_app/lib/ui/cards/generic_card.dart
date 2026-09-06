@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wisp/ui/cards/hover_overlay.dart';
+import 'package:wisp/utils/text_parser.dart';
 
 /// Fixed height reserved for the subtitle line, whether or not a card
 /// actually has one. Keeps every card in a row the same height by
@@ -130,9 +131,28 @@ class GenericCard extends StatelessWidget {
                 height: _kSubtitleLineHeight,
                 child: subtitle == null
                     ? null
-                    : Text(
+                    : TextParser.needsParsing(subtitle!) 
+                      ? buildParsedText(
+                        context,
                         subtitle!,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                        linkStyle: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          decoration: TextDecoration.underline,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ) 
+                      : Text(
+                        subtitle!,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
