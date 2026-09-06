@@ -2,6 +2,14 @@
 
 Well, I doubt you really want to contribute, but here it goes:
 
+### DIRECTIONS
+
+This repository is divided into two sections: ```apps``` & ```packages```.
+Apps are the actual executable you can run, so the wisp app itself, and its installer.
+Packages are supplementary functions used in the app, usually ones that need native interfacing (though not necessary). This is done to not overcomplicate things in the apps themselves, therefore improving the debugging experience.
+
+The following instructions are for building the entire project. You'll most likely never have to know each individual package's dependencies, but it shouldn't be hard to do so, since they are made with minimal dependency requirements. 
+
 ### REQUIREMENTS
 #### MULTI-PLATFORM
 

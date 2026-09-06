@@ -3,8 +3,9 @@ Here's the TODOs for version v26.08.xx:
 - Bugs:
   - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
   - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
-  - [ ] Fix song autoadvance not working on macOS if either gapless playback or crossfade are off.
-  - [ ] Crossfade doesn't work when app is in background (mobile).
+  - [ ] Fix performance issues. Right now, app has two major performance issues I've seen:
+    - [ ] Unnecessary redraws on player state updates. A lot of components use/watch the player handler as a whole, when they just use a specific element of it (e.g. the current track).
+    - [ ] Downloads performance. For some reason, downloads, besides taking a long time, increase app CPU usage by 5-7%. Need to find out the root of the issue (be it dio's download parameters, or just like in the above, irrelevant UI updates due to downloading)
 - Future changes: 
   - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
   - [ ] Add special card from the home screen on mobile. 
@@ -13,11 +14,11 @@ Here's the TODOs for version v26.08.xx:
   - [ ] Make the playerbar on mobile see-through, so that the user can see the content behind it.
 - Planned features:
   - [ ] Add CI/CD pipeline
-    - [ ] Replace installer remote download with local extraction
-    - [ ] Windows
+    - [x] Replace installer remote download with local extraction
+    - [x] Windows
       - [x] Setup script
       - [x] Build app script
-      - [ ] Build installer script
+      - [x] Build installer script
     - [ ] macOS
       - [ ] Setup script
       - [ ] Build app script
