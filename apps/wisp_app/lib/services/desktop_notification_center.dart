@@ -43,7 +43,8 @@ class DesktopNotification {
 }
 
 class DesktopNotificationCenter extends ChangeNotifier {
-  static final DesktopNotificationCenter instance = DesktopNotificationCenter._();
+  static final DesktopNotificationCenter instance =
+      DesktopNotificationCenter._();
 
   DesktopNotificationCenter._();
 

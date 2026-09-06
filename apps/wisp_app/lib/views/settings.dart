@@ -53,9 +53,9 @@ class _SettingsPageState extends State<SettingsPage> {
               builder: (context, prefs, child) {
                 return SingleChildScrollView(
                   child: Theme(
-                    data: Theme.of(context).copyWith(
-                      dividerColor: Colors.transparent,
-                    ),
+                    data: Theme.of(
+                      context,
+                    ).copyWith(dividerColor: Colors.transparent),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -72,10 +72,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                 style: TextStyle(color: Colors.white),
                               ),
                               value: prefs.metadataSpotifyEnabled,
-                              activeThumbColor:
-                                  Theme.of(context).colorScheme.primary,
+                              activeThumbColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               onChanged: (enabled) async {
-                                final hasAny = enabled || prefs.metadataYouTubeEnabled;
+                                final hasAny =
+                                    enabled || prefs.metadataYouTubeEnabled;
                                 await prefs.setMetadataSpotifyEnabled(enabled);
                                 if (!hasAny) {
                                   _showSnackBar(
@@ -90,10 +92,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                 style: TextStyle(color: Colors.white),
                               ),
                               value: prefs.metadataYouTubeEnabled,
-                              activeThumbColor:
-                                  Theme.of(context).colorScheme.primary,
+                              activeThumbColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               onChanged: (enabled) async {
-                                final hasAny = enabled || prefs.metadataSpotifyEnabled;
+                                final hasAny =
+                                    enabled || prefs.metadataSpotifyEnabled;
                                 await prefs.setMetadataYouTubeEnabled(enabled);
                                 if (!hasAny) {
                                   _showSnackBar(
@@ -116,8 +120,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                 style: TextStyle(color: Colors.white),
                               ),
                               value: prefs.audioYouTubeEnabled,
-                              activeThumbColor:
-                                  Theme.of(context).colorScheme.primary,
+                              activeThumbColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               onChanged: (enabled) async {
                                 final hasAny = enabled;
                                 await prefs.setAudioYouTubeEnabled(enabled);
@@ -142,10 +147,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                 style: TextStyle(color: Colors.white),
                               ),
                               value: prefs.lyricsLrclibEnabled,
-                              activeThumbColor:
-                                  Theme.of(context).colorScheme.primary,
+                              activeThumbColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               onChanged: (enabled) async {
-                                final hasAny = enabled || prefs.lyricsSpotifyEnabled;
+                                final hasAny =
+                                    enabled || prefs.lyricsSpotifyEnabled;
                                 await prefs.setLyricsLrclibEnabled(enabled);
                                 if (!hasAny) {
                                   _showSnackBar(
@@ -160,10 +167,12 @@ class _SettingsPageState extends State<SettingsPage> {
                                 style: TextStyle(color: Colors.white),
                               ),
                               value: prefs.lyricsSpotifyEnabled,
-                              activeThumbColor:
-                                  Theme.of(context).colorScheme.primary,
+                              activeThumbColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               onChanged: (enabled) async {
-                                final hasAny = enabled || prefs.lyricsLrclibEnabled;
+                                final hasAny =
+                                    enabled || prefs.lyricsLrclibEnabled;
                                 await prefs.setLyricsSpotifyEnabled(enabled);
                                 if (!hasAny) {
                                   _showSnackBar(
@@ -179,7 +188,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 );
               },
-
             ),
           ),
           actions: [
@@ -227,13 +235,15 @@ class _SettingsPageState extends State<SettingsPage> {
       'audio': 'Audio',
       'metadata': 'Metadata',
       'lyrics': 'Lyrics',
-      'yt-sp-link': 'Youtube - Spotify Link'
+      'yt-sp-link': 'Youtube - Spotify Link',
     };
 
     // Dynamically create a map using the types above, as to not have
     // to update both code sections when adding new cache types
-    Map<String, bool> cacheDeleteEnabled = cacheTypes.map((key, value) => MapEntry(key, false));
-    
+    Map<String, bool> cacheDeleteEnabled = cacheTypes.map(
+      (key, value) => MapEntry(key, false),
+    );
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -249,9 +259,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 width: 520,
                 child: SingleChildScrollView(
                   child: Theme(
-                    data: Theme.of(context).copyWith(
-                      dividerColor: Colors.transparent,
-                    ),
+                    data: Theme.of(
+                      context,
+                    ).copyWith(dividerColor: Colors.transparent),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: cacheTypes.entries.map((entry) {
@@ -409,10 +419,9 @@ class _SettingsPageState extends State<SettingsPage> {
                               width: 40,
                               height: 40,
                               decoration: BoxDecoration(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.18),
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.18),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
@@ -465,12 +474,14 @@ class _SettingsPageState extends State<SettingsPage> {
                             const SizedBox(width: 8),
                             TextButton(
                               onPressed: () async {
-                                final confirmed = await showDialog<bool>(
+                                final confirmed =
+                                    await showDialog<bool>(
                                       context: dialogContext,
                                       builder: (confirmContext) {
                                         return AlertDialog(
-                                          backgroundColor:
-                                              const Color(0xFF282828),
+                                          backgroundColor: const Color(
+                                            0xFF282828,
+                                          ),
                                           title: const Text(
                                             'Forget device?',
                                             style: TextStyle(
@@ -613,6 +624,7 @@ class _SettingsPageState extends State<SettingsPage> {
       buildHandoffPreferenceRow: _buildHandoffPreferenceRow,
       buildAnimatedCanvasRow: _buildAnimatedCanvasPreferenceRow,
       buildAllowWritingRow: _buildAllowWritingPreferenceRow,
+      buildPausedBackgroundWidgetsRow: _buildPausedBackgroundWidgetsRow,
       buildCreditsSection: _buildCreditsSection,
       buildDebugSection: _buildDebugSection,
       showSnackBar: _showSnackBar,
@@ -820,7 +832,10 @@ class _SettingsPageState extends State<SettingsPage> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
             Text(
               valueLabel,
               style: TextStyle(
@@ -837,8 +852,9 @@ class _SettingsPageState extends State<SettingsPage> {
             activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor: Colors.grey[800],
             thumbColor: Theme.of(context).colorScheme.primary,
-            overlayColor:
-                Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+            overlayColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.2),
             trackHeight: 4,
           ),
           child: Slider(
@@ -865,7 +881,10 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+              Text(
+                label,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+              ),
               const SizedBox(height: 2),
               Text(
                 description,
@@ -965,11 +984,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildStylePreferenceRow() {
-    final options = [
-      AppStyle.Spotify,
-      AppStyle.AppleMusic,
-      AppStyle.Original
-    ];
+    final options = [AppStyle.Spotify, AppStyle.AppleMusic, AppStyle.Original];
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF181818),
@@ -980,7 +995,7 @@ class _SettingsPageState extends State<SettingsPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Expanded(
-            child:  Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -990,9 +1005,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 Text(
                   "Replicates a style you're familiar with",
                   style: TextStyle(color: Colors.grey, fontSize: 12),
-                )
+                ),
               ],
-            )
+            ),
           ),
           Selector<PreferencesProvider, AppStyle>(
             selector: (context, prefs) => prefs.style,
@@ -1002,13 +1017,19 @@ class _SettingsPageState extends State<SettingsPage> {
                   borderRadius: BorderRadius.circular(8),
                   onTap: () => _showStyleSelectionSheet(selectedStyle, options),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           selectedStyle.toString(),
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
                         ),
                         const SizedBox(width: 6),
                         const Icon(
@@ -1028,13 +1049,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   value: selectedStyle,
                   mouseCursor: SystemMouseCursors.click,
                   items: options
-                      .map((style) => DropdownMenuItem(
-                            value: style,
-                            child: Text(
-                              style.toString(),
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ))
+                      .map(
+                        (style) => DropdownMenuItem(
+                          value: style,
+                          child: Text(
+                            style.toString(),
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      )
                       .toList(),
                   onChanged: (value) {
                     if (value == null) return;
@@ -1126,20 +1149,20 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   const Expanded(
-                  child:  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Gapless Playback',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                      Text(
-                        'Minimizes empty space between tracks',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      )
-                    ],
-                  )
-                ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Gapless Playback',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        Text(
+                          'Minimizes empty space between tracks',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
                   Switch(
                     value: prefs.gaplessPlaybackEnabled,
                     onChanged: (value) async {
@@ -1158,20 +1181,20 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   const Expanded(
-                  child:  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Crossfade',
-                        style: TextStyle(color: Colors.white, fontSize: 14),
-                      ),
-                      Text(
-                        'Seamlessly transition between songs',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      )
-                    ],
-                  )
-                ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Crossfade',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        Text(
+                          'Seamlessly transition between songs',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
                   Switch(
                     value: crossfadeEnabled,
                     onChanged: (value) async {
@@ -1191,7 +1214,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Row(
                   children: [
                     const Expanded(
-                      child:  Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
@@ -1201,9 +1224,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           Text(
                             'How long the crossfade lasts',
                             style: TextStyle(color: Colors.grey, fontSize: 12),
-                          )
+                          ),
                         ],
-                      )
+                      ),
                     ),
                     /* const Spacer(), */
                     Text(
@@ -1221,10 +1244,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     activeTrackColor: Theme.of(context).colorScheme.primary,
                     inactiveTrackColor: Colors.grey[800],
                     thumbColor: Theme.of(context).colorScheme.primary,
-                    overlayColor: Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.2),
+                    overlayColor: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.2),
                     trackHeight: 4,
                   ),
                   child: Slider(
@@ -1271,7 +1293,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   const Expanded(
-                    child:  Column(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
@@ -1281,9 +1303,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         Text(
                           'Determines how securely devices are authenticated for handoff',
                           style: TextStyle(color: Colors.grey, fontSize: 12),
-                        )
+                        ),
                       ],
-                    )
+                    ),
                   ),
                   if (_isMobile)
                     InkWell(
@@ -1348,7 +1370,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   const Expanded(
-                    child:  Column(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
@@ -1358,9 +1380,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         Text(
                           'Devices that are auto-allowed for handoff',
                           style: TextStyle(color: Colors.grey, fontSize: 12),
-                        )
+                        ),
                       ],
-                    )
+                    ),
                   ),
                   TextButton(
                     onPressed: _showTrustedDevicesDialog,
@@ -1413,10 +1435,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       _handoffSecuritySheetDescription(level),
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     ),
                   ),
                   trailing: level == selectedLevel
@@ -1455,7 +1474,7 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Row(
             children: [
               const Expanded(
-                child:  Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -1463,18 +1482,18 @@ class _SettingsPageState extends State<SettingsPage> {
                       style: TextStyle(color: Colors.white, fontSize: 14),
                     ),
                     Text(
-                      'Enable animated canvas rendering',
+                      'Enable animated canvas rendering. This increases CPU usage, but looks better.',
                       style: TextStyle(color: Colors.grey, fontSize: 12),
-                    )
+                    ),
                   ],
-                )
+                ),
               ),
               Switch(
                 value: enabled,
                 onChanged: (value) {
-                  context
-                      .read<PreferencesProvider>()
-                      .setAnimatedCanvasEnabled(value);
+                  context.read<PreferencesProvider>().setAnimatedCanvasEnabled(
+                    value,
+                  );
                 },
                 activeThumbColor: Theme.of(context).colorScheme.primary,
               ),
@@ -1482,6 +1501,116 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildPausedBackgroundWidgetsRow(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF181818),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Paused Background Widgets',
+                  style: TextStyle(color: Colors.white, fontSize: 14),
+                ),
+                Text(
+                  'Widgets paused when app is in the background',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          FilledButton(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: const Text('Paused Background Widgets'),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Some background widgets are paused when the app is not in focus.\n'
+                          'This saves CPU performance while you\'re doing other things, like gaming or streaming.\n'
+                          'If you want some widgets to be active, because you have a multi-monitor setup, you can disable this for them below.',
+                        ),
+                        const SizedBox(height: 16),
+                        Selector<
+                          PreferencesProvider,
+                          List<PausedBackgroundWidget>
+                        >(
+                          selector: (context, prefs) =>
+                              prefs.pausedBackgroundWidgetsEnabled,
+                          builder: (context, selectedWidgets, child) {
+                            return Column(
+                              children: PausedBackgroundWidget.values.map((
+                                widget,
+                              ) {
+                                final isSelected = selectedWidgets.contains(
+                                  widget,
+                                );
+                                return CheckboxListTile(
+                                  title: Text(
+                                    widget.displayName,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                  value: isSelected,
+                                  onChanged: (value) {
+                                    final prefs = context
+                                        .read<PreferencesProvider>();
+                                    prefs.setPausedBackgroundWidgetsEnabled(
+                                      isSelected
+                                          ? selectedWidgets
+                                                .where((w) => w != widget)
+                                                .toList()
+                                          : [...selectedWidgets, widget],
+                                    );
+                                  },
+                                  activeColor: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                  checkColor: Colors.white,
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+            child: const Text(
+              'Manage',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1498,7 +1627,7 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Row(
             children: [
               const Expanded(
-                child:  Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -1508,9 +1637,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     Text(
                       'Allow modifications to playlists/library',
                       style: TextStyle(color: Colors.grey, fontSize: 12),
-                    )
+                    ),
                   ],
-                )
+                ),
               ),
               Switch(
                 value: enabled,
@@ -1559,11 +1688,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Enables debug features, such as the menu on the titlebar.\n A certain code is required to enable this feature.',
                 debugModeEnabled,
                 (value) {
-                  context.read<PreferencesProvider>().setDebugModeEnabled(value);
+                  context.read<PreferencesProvider>().setDebugModeEnabled(
+                    value,
+                  );
                 },
               ),
-            )
-          ]
+            ),
+          ],
         );
       },
     );
@@ -1584,8 +1715,8 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 Image.asset(
                   WispIcons.logo,
-                  width: _isDesktop ? 96: 32,
-                  height: _isDesktop ? 96: 32,
+                  width: _isDesktop ? 96 : 32,
+                  height: _isDesktop ? 96 : 32,
                   filterQuality: FilterQuality.high,
                 ),
                 Column(
@@ -1601,19 +1732,16 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     Text(
                       'made with <3 by wizeshi',
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 12,
-                      ),
-                    )
-                  ]
-                )
-              ]
-            )
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          UpdateWidget()
-        ]
-      )
+          UpdateWidget(),
+        ],
+      ),
     );
   }
 }
@@ -1628,37 +1756,50 @@ class UpdateWidget extends StatefulWidget {
 class _UpdateWidgetState extends State<UpdateWidget> {
   // Store the future instance here
   late Future<bool> _isUpdated;
-  final bool _isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  final bool _isDesktop =
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   @override
   void initState() {
     super.initState();
     // Initialize the fetch task once
-    _isUpdated = _fetchData(); 
+    _isUpdated = _fetchData();
   }
 
   Future<bool> _fetchData() async {
     bool isUpdated = true;
 
     final response = await http.get(
-      Uri.parse("https://api.github.com/repos/${WispInfo.author}/wisp/releases/latest")
+      Uri.parse(
+        "https://api.github.com/repos/${WispInfo.author}/wisp/releases/latest",
+      ),
     );
 
     if (response.statusCode != 200) {
-      logger.e("[Settings/Update]: Failed to fetch latest release info. Status code: ${response.statusCode}");
+      logger.e(
+        "[Settings/Update]: Failed to fetch latest release info. Status code: ${response.statusCode}",
+      );
       return isUpdated; // Return true to avoid showing update available on error
     }
-    
+
     final latestVersion = jsonDecode(response.body)['name'] as String;
 
     final latestVersionMajor = int.parse(latestVersion.split('.').first);
-    final latestVersionMinor = int.parse(latestVersion.split('.').skip(1).first);
-    final latestVersionPatch = int.parse(latestVersion.split('.').skip(2).first);
+    final latestVersionMinor = int.parse(
+      latestVersion.split('.').skip(1).first,
+    );
+    final latestVersionPatch = int.parse(
+      latestVersion.split('.').skip(2).first,
+    );
 
     final currentVersion = WispInfo.version;
     final currentVersionMajor = int.parse(currentVersion.split('.').first);
-    final currentVersionMinor = int.parse(currentVersion.split('.').skip(1).first);
-    final currentVersionPatch = int.parse(currentVersion.split('.').skip(2).first);
+    final currentVersionMinor = int.parse(
+      currentVersion.split('.').skip(1).first,
+    );
+    final currentVersionPatch = int.parse(
+      currentVersion.split('.').skip(2).first,
+    );
 
     if (latestVersionMajor > currentVersionMajor) {
       isUpdated = false;
@@ -1678,7 +1819,7 @@ class _UpdateWidgetState extends State<UpdateWidget> {
       logger.e("[Settings/Update]: Could not launch $url");
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     const iconSize = 32.0;
@@ -1699,30 +1840,31 @@ class _UpdateWidgetState extends State<UpdateWidget> {
           return Row(
             spacing: _isDesktop ? 8 : 0,
             children: [
-              if (isUpdated) IconButton(
-                icon: Center(
-                  child: OverflowBox(
-                    minWidth: 0,
-                    minHeight: 0,
-                    maxWidth: double.infinity,
-                    maxHeight: double.infinity,
-                    child: Icon(
-                      SimpleIcons.github,
-                      color: Colors.grey[700],
-                      size: 32,
+              if (isUpdated)
+                IconButton(
+                  icon: Center(
+                    child: OverflowBox(
+                      minWidth: 0,
+                      minHeight: 0,
+                      maxWidth: double.infinity,
+                      maxHeight: double.infinity,
+                      child: Icon(
+                        SimpleIcons.github,
+                        color: Colors.grey[700],
+                        size: 32,
+                      ),
                     ),
                   ),
+                  onPressed: () {
+                    _launchUrl(WispInfo.github);
+                  },
+                  constraints: BoxConstraints(
+                    minWidth: iconSize,
+                    minHeight: iconSize,
+                    maxWidth: iconSize,
+                    maxHeight: iconSize,
+                  ),
                 ),
-                onPressed: () {
-                  _launchUrl(WispInfo.github);
-                },
-                constraints: BoxConstraints(
-                  minWidth: iconSize,
-                  minHeight: iconSize,
-                  maxWidth: iconSize,
-                  maxHeight: iconSize,
-                ),
-              ),
               if (_isDesktop) const SizedBox.shrink(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -1737,24 +1879,19 @@ class _UpdateWidgetState extends State<UpdateWidget> {
                   ),
                   Text(
                     'v${WispInfo.version}',
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
-                    ),
-                  )
-                ]
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                  ),
+                ],
               ),
               if (!_isDesktop) const SizedBox(width: 8),
-              isUpdated ? Icon(
-                Icons.check_circle,
-                color: Colors.green,
-                size: iconSize,
-              ) : Icon(
-                Icons.update,
-                color: Colors.orange,
-                size: iconSize,
-              ),
-            ]
+              isUpdated
+                  ? Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: iconSize,
+                    )
+                  : Icon(Icons.update, color: Colors.orange, size: iconSize),
+            ],
           );
         } else {
           return const Text('No data');
@@ -1766,7 +1903,7 @@ class _UpdateWidgetState extends State<UpdateWidget> {
 
 class SettingsContent extends StatelessWidget {
   final Widget Function(BuildContext, MetadataProvider, String, IconData, Color)
-      buildProviderCard;
+  buildProviderCard;
   final Widget Function(BuildContext) buildCacheSettingsCard;
   final Widget Function() buildStylePreferenceRow;
   final Widget Function() buildAudioPreferenceRow;
@@ -1775,6 +1912,7 @@ class SettingsContent extends StatelessWidget {
   final Widget Function() buildAllowWritingRow;
   final Widget Function() buildCreditsSection;
   final Widget Function() buildDebugSection;
+  final Widget Function(BuildContext) buildPausedBackgroundWidgetsRow;
   final void Function(String) showSnackBar;
   final VoidCallback onEditProviderPreferences;
 
@@ -1786,6 +1924,7 @@ class SettingsContent extends StatelessWidget {
     required this.buildAudioPreferenceRow,
     required this.buildHandoffPreferenceRow,
     required this.buildAnimatedCanvasRow,
+    required this.buildPausedBackgroundWidgetsRow,
     required this.buildAllowWritingRow,
     required this.buildCreditsSection,
     required this.buildDebugSection,
@@ -1797,16 +1936,16 @@ class SettingsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<Widget Function()> providerConsumers = [
       () => Consumer<SpotifyInternalProvider>(
-            builder: (context, providerInstance, child) {
-              return buildProviderCard(
-                context,
-                providerInstance,
-                providerInstance.name,
-                Icons.library_music,
-                Theme.of(context).colorScheme.primary,
-              );
-            },
-          ),
+        builder: (context, providerInstance, child) {
+          return buildProviderCard(
+            context,
+            providerInstance,
+            providerInstance.name,
+            Icons.library_music,
+            Theme.of(context).colorScheme.primary,
+          );
+        },
+      ),
     ];
 
     final providerCards = providerConsumers
@@ -1857,6 +1996,8 @@ class SettingsContent extends StatelessWidget {
         buildAnimatedCanvasRow(),
         const SizedBox(height: 16),
         buildAllowWritingRow(),
+        const SizedBox(height: 16),
+        buildPausedBackgroundWidgetsRow(context),
         const SizedBox(height: 16),
         Text(
           'AUDIO',
@@ -1914,8 +2055,10 @@ class SettingsContent extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 padding: const EdgeInsets.all(16),
-                child:
-                    Text('No trashed playlists', style: TextStyle(color: Colors.grey[500])),
+                child: Text(
+                  'No trashed playlists',
+                  style: TextStyle(color: Colors.grey[500]),
+                ),
               );
             }
             return Container(
@@ -1928,7 +2071,10 @@ class SettingsContent extends StatelessWidget {
                 children: trashed.map((p) {
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: Text(p.title, style: const TextStyle(color: Colors.white)),
+                    title: Text(
+                      p.title,
+                      style: const TextStyle(color: Colors.white),
+                    ),
                     subtitle: Text(
                       p.authorName,
                       style: TextStyle(color: Colors.grey[500], fontSize: 12),
@@ -1951,7 +2097,10 @@ class SettingsContent extends StatelessWidget {
                         ),
                         IconButton(
                           tooltip: 'Delete permanently',
-                          icon: Icon(Icons.delete_outline, color: Colors.red[400]),
+                          icon: Icon(
+                            Icons.delete_outline,
+                            color: Colors.red[400],
+                          ),
                           onPressed: () async {
                             final confirm = await showDialog<bool>(
                               context: context,
@@ -2010,7 +2159,7 @@ class SettingsContent extends StatelessWidget {
           child: Row(
             children: [
               const Expanded(
-                child:  Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -2020,9 +2169,9 @@ class SettingsContent extends StatelessWidget {
                     Text(
                       'If you accidentally hid (not deleted) a playlist, and you know its provider ID, you can unhide it here. This is inteded for advanced users.',
                       style: TextStyle(color: Colors.grey, fontSize: 12),
-                    )
+                    ),
                   ],
-                )
+                ),
               ),
               const SizedBox(width: 12),
               OutlinedButton(
@@ -2069,7 +2218,9 @@ class SettingsContent extends StatelessWidget {
                     await context
                         .read<LocalPlaylistState>()
                         .unhideProviderPlaylist(providerId);
-                    showSnackBar('Provider id unhidden — open provider playlist to restore');
+                    showSnackBar(
+                      'Provider id unhidden — open provider playlist to restore',
+                    );
                   }
                 },
                 child: const Text('Unhide'),

@@ -192,17 +192,17 @@ class ConnectSessionProvider extends ChangeNotifier
   SharedPreferences? _prefs;
   final Map<String, ConnectLinkMode> _preferredModesByDevice =
       <String, ConnectLinkMode>{};
-    PreferencesProvider? _preferences;
+  PreferencesProvider? _preferences;
   String? _pendingTrustPromptDeviceId;
   String? _pendingTrustPromptDeviceName;
-    String? _pendingTrustPromptDevicePlatform;
-    String? _pendingSecurityWarningMessage;
+  String? _pendingTrustPromptDevicePlatform;
+  String? _pendingSecurityWarningMessage;
   String? get pendingTrustPromptDeviceId => _pendingTrustPromptDeviceId;
   String? get pendingTrustPromptDeviceName => _pendingTrustPromptDeviceName;
-    String? get pendingTrustPromptDevicePlatform =>
+  String? get pendingTrustPromptDevicePlatform =>
       _pendingTrustPromptDevicePlatform;
-    String? get pendingSecurityWarningMessage => _pendingSecurityWarningMessage;
-    bool get hasPendingSecurityWarning => _pendingSecurityWarningMessage != null;
+  String? get pendingSecurityWarningMessage => _pendingSecurityWarningMessage;
+  bool get hasPendingSecurityWarning => _pendingSecurityWarningMessage != null;
   String? get lastRejectedPairingTargetDeviceId =>
       _lastRejectedPairingTargetDeviceId;
   bool get hasPendingTrustPrompt =>
@@ -265,7 +265,10 @@ class ConnectSessionProvider extends ChangeNotifier
     }
     if (_localDeviceName.trim().endsWith(".local")) {
       // macOS has a weird tendency of ending MacBook names with .local. No idea why.
-      _localDeviceName = _localDeviceName.trim().replaceAll(RegExp(r'\.local$'), '');
+      _localDeviceName = _localDeviceName.trim().replaceAll(
+        RegExp(r'\.local$'),
+        '',
+      );
     }
     if (_localDeviceName.trim().isEmpty) {
       _localDeviceName = '${Platform.operatingSystem} device';
@@ -782,7 +785,8 @@ class ConnectSessionProvider extends ChangeNotifier
   }
 
   bool isTrustedIncomingDevice(String deviceId) {
-    final trustedDevices = _preferences?.trustedDevices ?? const <TrustedDevice>[];
+    final trustedDevices =
+        _preferences?.trustedDevices ?? const <TrustedDevice>[];
     return trustedDevices.any((device) => device.id == deviceId);
   }
 
@@ -1274,26 +1278,23 @@ class ConnectSessionProvider extends ChangeNotifier
     _pairResponseSubscription ??= _transport.pairResponseStream.listen(
       _onPairResponse,
     );
-    _snapshotSubscription ??= _transport.snapshotStream.listen(
-      _onSnapshotSync,
-    );
+    _snapshotSubscription ??= _transport.snapshotStream.listen(_onSnapshotSync);
     _stateDeltaSubscription ??= _transport.stateDeltaStream.listen(
       _onStateDelta,
     );
     _positionPulseSubscription ??= _transport.positionPulseStream.listen(
       _onPositionPulse,
     );
-    _commandIntentSubscription ??= _transport.commandIntentStream
-        .listen(_onCommandIntent);
+    _commandIntentSubscription ??= _transport.commandIntentStream.listen(
+      _onCommandIntent,
+    );
     _commandApplySubscription ??= _transport.commandApplyStream.listen(
       _onCommandApply,
     );
     _commandAckSubscription ??= _transport.commandAckStream.listen(
       _onCommandAck,
     );
-    _unlinkSubscription ??= _transport.unlinkStream.listen(
-      _onUnlinkEvent,
-    );
+    _unlinkSubscription ??= _transport.unlinkStream.listen(_onUnlinkEvent);
     // legacy playback pulse removed
 
     _pruneTimer ??= Timer.periodic(const Duration(seconds: 5), (_) {
@@ -1424,13 +1425,13 @@ class ConnectSessionProvider extends ChangeNotifier
       _linkedPeerAddress = response.fromAddress;
       _linkedPeerName = response.fromDeviceName;
       _syncLinkedOutputDestination();
-      
+
       // For full handoff: Host sends its snapshot to Target
       // For control-only: Target will send its snapshot to Host, so don't send
       if (response.linkMode == ConnectLinkMode.fullHandoff) {
         _sendCurrentSnapshotToTarget(response.fromAddress);
       }
-      
+
       unawaited(_pauseLocalPlaybackAsHost());
     } else {
       logger.d(
@@ -1463,7 +1464,8 @@ class ConnectSessionProvider extends ChangeNotifier
     );
 
     _linkedPeerAddress = sync.fromAddress;
-    final isHostSnapshot = isHost ||
+    final isHostSnapshot =
+        isHost ||
         (_pairingTargetDeviceId != null &&
             sync.fromDeviceId == _pairingTargetDeviceId &&
             _role != ConnectRole.target);
@@ -1490,7 +1492,8 @@ class ConnectSessionProvider extends ChangeNotifier
 
     _linkedPeerAddress = deltasync.fromAddress;
     if (isHost) {
-      if (_linkedDeviceId != null && deltasync.fromDeviceId != _linkedDeviceId) {
+      if (_linkedDeviceId != null &&
+          deltasync.fromDeviceId != _linkedDeviceId) {
         return;
       }
 
@@ -1504,7 +1507,8 @@ class ConnectSessionProvider extends ChangeNotifier
       // Host receives deltas from Target to update UI.
       final mergedPlaying = deltasync.delta.isPlaying ?? _linkedIsPlaying;
       final mergedPosition = Duration(
-        milliseconds: deltasync.delta.positionMs ?? _linkedPosition.inMilliseconds,
+        milliseconds:
+            deltasync.delta.positionMs ?? _linkedPosition.inMilliseconds,
       );
       _setLinkedPlaybackState(
         isPlaying: mergedPlaying,
@@ -1594,9 +1598,7 @@ class ConnectSessionProvider extends ChangeNotifier
       return;
     }
 
-    logger.d(
-      '[Handoff] Command ack from target seq=${ack.sequence}',
-    );
+    logger.d('[Handoff] Command ack from target seq=${ack.sequence}');
     _linkedPeerAddress = ack.fromAddress;
     _linkedPeerName ??= _discoveredById[ack.fromDeviceId]?.name;
     markCommandAcked(ack.sequence);
@@ -1644,7 +1646,8 @@ class ConnectSessionProvider extends ChangeNotifier
   // legacy playback pulse handler removed; use position_pulse instead
 
   void _onUnlinkEvent(ConnectUnlinkEvent event) {
-    final matchesLinkedPeer = event.fromDeviceId == _linkedDeviceId ||
+    final matchesLinkedPeer =
+        event.fromDeviceId == _linkedDeviceId ||
         event.fromDeviceId == _pairingTargetDeviceId;
     if (!matchesLinkedPeer) {
       return;
@@ -1728,7 +1731,10 @@ class ConnectSessionProvider extends ChangeNotifier
     final nextDevices = devices.toList()
       ..sort((a, b) => (a.name ?? '').compareTo(b.name ?? ''));
 
-    final wasChanged = !_sameOutputDevices(_availableOutputDevices, nextDevices);
+    final wasChanged = !_sameOutputDevices(
+      _availableOutputDevices,
+      nextDevices,
+    );
     _availableOutputDevices = nextDevices;
 
     var activeChanged = false;
@@ -1770,7 +1776,8 @@ class ConnectSessionProvider extends ChangeNotifier
       // speakers) IS the active audio device. Only mobile collapses an
       // integrated device (phone earpiece/speaker) down to "none".
       final isMobile = Platform.isAndroid || Platform.isIOS;
-      final isBuiltIn = nextOutput == null ||
+      final isBuiltIn =
+          nextOutput == null ||
           (isMobile &&
               nextOutput.connectionType == AudioConnectionType.integrated);
       final nextKind = isBuiltIn ? ConnectionKind.none : ConnectionKind.audio;
@@ -1902,7 +1909,8 @@ class ConnectSessionProvider extends ChangeNotifier
     final now = DateTime.now();
     final lastAppliedAt = _lastHostSnapshotAppliedAt;
     final appliedRecently =
-        lastAppliedAt != null && now.difference(lastAppliedAt).inMilliseconds < 900;
+        lastAppliedAt != null &&
+        now.difference(lastAppliedAt).inMilliseconds < 900;
 
     if (appliedRecently && fingerprint == _lastHostSnapshotFingerprint) {
       return false;
@@ -1969,7 +1977,9 @@ class ConnectSessionProvider extends ChangeNotifier
     if (!isTarget) return;
     final peerAddress = _linkedPeerAddress ?? _pairingTargetAddress;
     if (peerAddress == null || peerAddress.isEmpty) {
-      logger.w('[Handoff] _sendTargetPlaybackPulse: no valid peer address (linked=$_linkedPeerAddress, pairing=$_pairingTargetAddress)');
+      logger.w(
+        '[Handoff] _sendTargetPlaybackPulse: no valid peer address (linked=$_linkedPeerAddress, pairing=$_pairingTargetAddress)',
+      );
       return;
     }
 
@@ -2096,11 +2106,11 @@ class ConnectSessionProvider extends ChangeNotifier
 
   String _summarizePayload(String command, Map<String, dynamic> payload) {
     if (payload.isEmpty) return 'payload={}';
-    
+
     switch (command) {
       case 'set_queue':
-        final trackCount = (payload['tracks'] is List) 
-            ? (payload['tracks'] as List).length 
+        final trackCount = (payload['tracks'] is List)
+            ? (payload['tracks'] as List).length
             : 0;
         return 'payloadSize=set_queue(tracks=$trackCount)';
       case 'seek':
@@ -2187,18 +2197,26 @@ class ConnectSessionProvider extends ChangeNotifier
       // source address, but fall back to our linked peer or discovered
       // device entry if the source looks invalid (eg. 0.0.0.0).
       String? targetAddr = apply.fromAddress;
-      logger.d('[Handoff] Preparing command_ack: packet.fromAddress=${apply.fromAddress} linkedPeer=$_linkedPeerAddress discovered=${_discoveredById[apply.fromDeviceId]?.address} pairingTarget=$_pairingTargetAddress');
+      logger.d(
+        '[Handoff] Preparing command_ack: packet.fromAddress=${apply.fromAddress} linkedPeer=$_linkedPeerAddress discovered=${_discoveredById[apply.fromDeviceId]?.address} pairingTarget=$_pairingTargetAddress',
+      );
       if (targetAddr == null || targetAddr.isEmpty || targetAddr == '0.0.0.0') {
         targetAddr = _linkedPeerAddress;
       }
       if (targetAddr == null || targetAddr.isEmpty || targetAddr == '0.0.0.0') {
-        targetAddr = _discoveredById[apply.fromDeviceId]?.address ?? _pairingTargetAddress;
+        targetAddr =
+            _discoveredById[apply.fromDeviceId]?.address ??
+            _pairingTargetAddress;
       }
 
       if (targetAddr == null || targetAddr.isEmpty || targetAddr == '0.0.0.0') {
-        logger.w('[Handoff] No valid address to send command_ack for seq=${apply.sequence} to ${apply.fromDeviceId}; resolved targetAddr=$targetAddr');
+        logger.w(
+          '[Handoff] No valid address to send command_ack for seq=${apply.sequence} to ${apply.fromDeviceId}; resolved targetAddr=$targetAddr',
+        );
       } else {
-        logger.d('[Handoff] Sending command_ack seq=${apply.sequence} to $targetAddr (fromDevice=${apply.fromDeviceId})');
+        logger.d(
+          '[Handoff] Sending command_ack seq=${apply.sequence} to $targetAddr (fromDevice=${apply.fromDeviceId})',
+        );
         _transport.sendCommandAck(
           targetAddress: targetAddr,
           fromDeviceId: _localDeviceId,

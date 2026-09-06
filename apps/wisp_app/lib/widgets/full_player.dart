@@ -20,6 +20,7 @@ import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp/utils/text_parser.dart';
 import 'package:wisp/widgets/connect/connect_menu.dart';
 import 'package:wisp/widgets/marquee_text.dart';
+import '../services/app_focus_service.dart';
 import '../services/app_navigation.dart';
 import '../services/cache_manager.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
@@ -1351,10 +1352,17 @@ class _CanvasVideoState extends State<_CanvasVideo> {
   bool _initFailed = false;
   bool? _lastShouldPlay;
 
+  // Whether the "freeze while unfocused" behavior is turned on for this
+  // widget, per the user's preference. Kept in sync from build(). Reuses
+  // the "Animated Canvas - Sidebar" preference since it's the only canvas
+  // toggle exposed, covering this fullscreen instance too.
+  bool _freezeWhenUnfocused = false;
+
   @override
   void initState() {
     super.initState();
     _initialize();
+    AppFocusService.instance.isFocused.addListener(_handleFocusChanged);
   }
 
   @override
@@ -1368,8 +1376,22 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   @override
   void dispose() {
+    AppFocusService.instance.isFocused.removeListener(_handleFocusChanged);
     _disposeController();
     super.dispose();
+  }
+
+  void _handleFocusChanged() {
+    // Re-evaluate play/pause immediately: no need to wait for a rebuild
+    // driven by the playback provider to freeze/resume this animated canvas.
+    final controller = _controller;
+    if (!mounted || controller == null || !controller.value.isInitialized) {
+      return;
+    }
+    final shouldPlay =
+        context.read<PlaybackCoordinator>().effectiveIsPlaying &&
+        (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
+    _syncPlayback(controller, shouldPlay);
   }
 
   Future<void> _initialize() async {
@@ -1422,9 +1444,21 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   @override
   Widget build(BuildContext context) {
-    final shouldPlay = context.select<PlaybackCoordinator, bool>(
+    final effectiveIsPlaying = context.select<PlaybackCoordinator, bool>(
       (coordinator) => coordinator.effectiveIsPlaying,
     );
+    final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
+      (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+        PausedBackgroundWidget.animatedCanvasSidebar,
+      ),
+    );
+    _freezeWhenUnfocused = freezeWhenUnfocused;
+    // Freeze this animated canvas (stop decoding/painting video frames)
+    // whenever the app/window is unfocused and the user has enabled that
+    // behavior for it, regardless of playback state.
+    final shouldPlay =
+        effectiveIsPlaying &&
+        (!freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
     final controller = _controller;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
       return CachedNetworkImage(
@@ -1467,13 +1501,28 @@ class _RotatingBlurredCoverBackgroundState
     duration: const Duration(seconds: 50),
   );
 
+  bool _isMinimized = false;
+
+  // Whether the "freeze while unfocused" behavior is turned on for this
+  // widget, per the user's preference. Kept in sync from build().
+  bool _freezeWhenUnfocused = false;
+
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+
+  /// Whether the rotation should be running: not minimized, and either the
+  /// freeze-when-unfocused preference is off or the app/window currently has
+  /// focus (covers window blur on desktop and backgrounding on mobile,
+  /// freezing this expensive blurred background whenever it isn't visible).
+  bool get _shouldAnimate =>
+      !_isMinimized &&
+      (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
 
   @override
   void initState() {
     super.initState();
     _rotationController.repeat();
+    AppFocusService.instance.isFocused.addListener(_syncAnimationState);
     if (_isDesktop) {
       windowManager.addListener(this);
       _syncMinimizedState();
@@ -1484,28 +1533,37 @@ class _RotatingBlurredCoverBackgroundState
     try {
       final minimized = await windowManager.isMinimized();
       if (!mounted) return;
-      if (minimized) {
-        _rotationController.stop(canceled: false);
-      } else if (!_rotationController.isAnimating) {
-        _rotationController.repeat();
-      }
+      _isMinimized = minimized;
+      _syncAnimationState();
     } catch (_) {}
   }
 
-  @override
-  void onWindowMinimize() {
-    _rotationController.stop(canceled: false);
-  }
-
-  @override
-  void onWindowRestore() {
-    if (!_rotationController.isAnimating) {
-      _rotationController.repeat();
+  void _syncAnimationState() {
+    if (!mounted) return;
+    if (_shouldAnimate) {
+      if (!_rotationController.isAnimating) {
+        _rotationController.repeat();
+      }
+    } else {
+      _rotationController.stop(canceled: false);
     }
   }
 
   @override
+  void onWindowMinimize() {
+    _isMinimized = true;
+    _syncAnimationState();
+  }
+
+  @override
+  void onWindowRestore() {
+    _isMinimized = false;
+    _syncAnimationState();
+  }
+
+  @override
   void dispose() {
+    AppFocusService.instance.isFocused.removeListener(_syncAnimationState);
     if (_isDesktop) {
       windowManager.removeListener(this);
     }
@@ -1515,6 +1573,16 @@ class _RotatingBlurredCoverBackgroundState
 
   @override
   Widget build(BuildContext context) {
+    final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
+      (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+        PausedBackgroundWidget.rotatingAlbumArtFullScreen,
+      ),
+    );
+    if (freezeWhenUnfocused != _freezeWhenUnfocused) {
+      _freezeWhenUnfocused = freezeWhenUnfocused;
+      _syncAnimationState();
+    }
+
     if (widget.imageUrl.isEmpty) {
       return Container(color: const Color(0xFF101010));
     }

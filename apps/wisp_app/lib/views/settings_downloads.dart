@@ -40,13 +40,17 @@ class DownloadsSettingsPage extends StatelessWidget {
               if (activeDownloads.isNotEmpty) ...[
                 _buildSectionHeader(context, 'DOWNLOADING'),
                 const SizedBox(height: 10),
-                ...activeDownloads.map((task) => _buildActiveTile(context, task)),
+                ...activeDownloads.map(
+                  (task) => _buildActiveTile(context, task),
+                ),
                 const SizedBox(height: 20),
               ],
               if (downloadedTracks.isNotEmpty) ...[
                 _buildSectionHeader(context, 'DOWNLOADED'),
                 const SizedBox(height: 10),
-                ...downloadedTracks.map((entry) => _buildCompletedTile(context, entry)),
+                ...downloadedTracks.map(
+                  (entry) => _buildCompletedTile(context, entry),
+                ),
               ],
             ],
           );

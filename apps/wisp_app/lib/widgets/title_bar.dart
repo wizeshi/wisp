@@ -55,7 +55,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
         WispIcons.logo,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.high,
-      )
+      ),
     );
 
     if (Platform.isMacOS) {
@@ -78,7 +78,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           ],
-        )
+        ),
       );
     }
   }
@@ -176,7 +176,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
               // Leading edge. Left empty on macOS — that space belongs to
               // the native traffic lights, which this widget can't
               // reposition, so nothing should be drawn under them.
-              if (!isMac) 
+              if (!isMac)
                 Positioned(
                   left: 0,
                   top: 0,
@@ -184,15 +184,10 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                   child: Row(
                     spacing: 16,
                     children: [
-                      buildBrandedArea(), 
-                      buildNavButtons(
-                        context,
-                        canGoBack,
-                        canGoForward,
-                        route,
-                      ),
-                    ]
-                  ) 
+                      buildBrandedArea(),
+                      buildNavButtons(context, canGoBack, canGoForward, route),
+                    ],
+                  ),
                 ),
 
               // Search field: centered on the *whole* bar width, not just
@@ -221,7 +216,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                           children: [
                             const SizedBox(width: 8),
                             _buildDebugButton(context),
-                          ]
+                          ],
                         );
                       },
                     ),

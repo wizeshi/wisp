@@ -51,15 +51,18 @@ class SpotifyLyricsProvider {
   Future<void> _refreshTokens() async {
     _log("Trying to refresh tokens...");
     if (_lastTokenRefresh != null &&
-      DateTime.now().isBefore(_lastTokenRefresh!.add(const Duration(minutes: 30)))
-    ) {
-      _log("Tokens are still within validity period (30 minutes), skipping refresh.");
+        DateTime.now().isBefore(
+          _lastTokenRefresh!.add(const Duration(minutes: 30)),
+        )) {
+      _log(
+        "Tokens are still within validity period (30 minutes), skipping refresh.",
+      );
       return;
     }
     _accessToken = null;
     _clientToken = null;
     _lastTokenRefresh = null;
-    
+
     await _initialize();
   }
 
@@ -141,7 +144,9 @@ class SpotifyLyricsProvider {
 
       return LyricsResult(
         provider: LyricsProviderType.spotify,
-        syncMode: syncType == 'LINE_SYNCED' ? LyricsSyncMode.line : LyricsSyncMode.unsynced,
+        syncMode: syncType == 'LINE_SYNCED'
+            ? LyricsSyncMode.line
+            : LyricsSyncMode.unsynced,
         lines: lines,
       );
     } catch (e, stackTrace) {

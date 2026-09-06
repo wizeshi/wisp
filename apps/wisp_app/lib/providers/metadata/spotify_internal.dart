@@ -5,7 +5,7 @@
 // This one is more flexible, faster and more reliable than the old one,
 // but it also requires way more work to implement.
 // This one requires the user to log in to their Spotify account in-app (through a webview),
-// instead of opening the browser, which is a bit of a hassle, and slightly less trustworthy, 
+// instead of opening the browser, which is a bit of a hassle, and slightly less trustworthy,
 // but we need it to "steal" the cookies, to then fetch tokens to access the internal API.
 
 import 'dart:async';
@@ -39,13 +39,16 @@ class SpotifyInternalProvider extends MetadataProvider {
   String get displayName => 'Spotify (Internal)';
 
   @override
-  String get description => 'Spotify internal API metadata provider. Requires login.';
+  String get description =>
+      'Spotify internal API metadata provider. Requires login.';
 
   @override
-  String get logoURL => 'https://upload.wikimedia.org/wikipedia/commons/d/d0/2024_Spotify_Logo_%28black%29.svg';
-  
+  String get logoURL =>
+      'https://upload.wikimedia.org/wikipedia/commons/d/d0/2024_Spotify_Logo_%28black%29.svg';
+
   @override
-  String get iconURL => 'https://upload.wikimedia.org/wikipedia/commons/5/54/2024_Spotify_logo_without_text.svg';
+  String get iconURL =>
+      'https://upload.wikimedia.org/wikipedia/commons/5/54/2024_Spotify_logo_without_text.svg';
 
   final CredentialsService _credentialsService = CredentialsService();
   final MetadataCacheStore _metadataCache = MetadataCacheStore.instance;
@@ -70,7 +73,7 @@ class SpotifyInternalProvider extends MetadataProvider {
   bool _lastAuthInitFailed = false;
   int _startupAuthRetryCount = 0;
   bool _startupAuthRetryScheduled = false;
-  
+
   // Guard against concurrent token refresh attempts
   DateTime? _lastTokenRefreshAt;
   Future<void>? _tokenRefreshInProgress;
@@ -186,7 +189,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
 
       logger.d('[Metadata/Spotify-Internal] Got login result');
-      
+
       if (result != null && result.isNotEmpty) {
         await _credentialsService.saveSpotifyCookies(result);
         logger.d('[Metadata/Spotify-Internal] Saved cookies');
@@ -397,8 +400,10 @@ class SpotifyInternalProvider extends MetadataProvider {
     final tokens = await fetchSpotifyTokens(cookie, log);
     _bearerToken = tokens.accessToken;
     _clientToken = tokens.clientToken;
-    final expiresAt = DateTime.fromMillisecondsSinceEpoch(tokens.accessTokenExpiresAtMs);
-    
+    final expiresAt = DateTime.fromMillisecondsSinceEpoch(
+      tokens.accessTokenExpiresAtMs,
+    );
+
     final token = SpotifyToken(
       accessToken: _bearerToken ?? '',
       refreshToken: '',
@@ -426,10 +431,9 @@ class SpotifyInternalProvider extends MetadataProvider {
 
     final tokenTimestamp = _lastTokenRefreshAt ?? _lastAuthInitAttemptAt;
     final hasUsableTokens = _bearerToken != null && _clientToken != null;
-    final estimatedTokenStillValid = tokenTimestamp != null &&
-        DateTime.now().isBefore(
-          tokenTimestamp.add(_estimatedTokenLifetime),
-        );
+    final estimatedTokenStillValid =
+        tokenTimestamp != null &&
+        DateTime.now().isBefore(tokenTimestamp.add(_estimatedTokenLifetime));
 
     if (!forceRefresh && hasUsableTokens && estimatedTokenStillValid) {
       return;
@@ -689,9 +693,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       await _ensureTokens(forceRefresh: forceTokenRefresh);
     } catch (e) {
       // If token refresh fails due to invalid/expired cookie, return a 401-like error
-      logger.w(
-        '[Metadata/Spotify-Internal] Token refresh failed: $e',
-      );
+      logger.w('[Metadata/Spotify-Internal] Token refresh failed: $e');
       if (forceTokenRefresh) {
         // Already tried to refresh, no point retrying
         throw StateError(
@@ -2863,7 +2865,7 @@ class SpotifyInternalProvider extends MetadataProvider {
             );
           }
 
-            final jsonResponse = jsonDecode(response.body);
+          final jsonResponse = jsonDecode(response.body);
           return spotifyInternalUserListToGeneric(jsonResponse);
         } catch (e) {
           logger.w(
@@ -3077,7 +3079,10 @@ class SpotifyInternalProvider extends MetadataProvider {
       id: 'library',
       policy: policy,
       fetcher: () async {
-        GenericLibrary library = await _fetchUserLibrary([], sortMode: sortMode);
+        GenericLibrary library = await _fetchUserLibrary(
+          [],
+          sortMode: sortMode,
+        );
 
         final initialAll = library.all_organized ?? [];
         final remoteFolderIds = <String>[];
@@ -3097,7 +3102,10 @@ class SpotifyInternalProvider extends MetadataProvider {
         }
 
         if (remoteFolderIds.isNotEmpty) {
-          library = await _fetchUserLibrary(remoteFolderIds, sortMode: sortMode);
+          library = await _fetchUserLibrary(
+            remoteFolderIds,
+            sortMode: sortMode,
+          );
         }
 
         final finalAll = library.all_organized ?? [];
@@ -3186,9 +3194,9 @@ class SpotifyInternalProvider extends MetadataProvider {
   }
 
   Future<GenericLibrary> _fetchUserLibrary(
-    List<String>? expandedFoldersIDs,
-    {LibrarySortMode sortMode = LibrarySortMode.recent}
-  ) async {
+    List<String>? expandedFoldersIDs, {
+    LibrarySortMode sortMode = LibrarySortMode.recent,
+  }) async {
     if (!_isAuthenticated) {
       throw StateError(
         '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
@@ -3321,7 +3329,9 @@ class SpotifyInternalProvider extends MetadataProvider {
     required String playlistId,
     required String folderId,
   }) async {
-    logger.d('[SpotifyInternal] addPlaylistToFolder playlistId=$playlistId, folderId=$folderId');
+    logger.d(
+      '[SpotifyInternal] addPlaylistToFolder playlistId=$playlistId, folderId=$folderId',
+    );
     if (!_isAuthenticated) {
       throw StateError(
         '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
@@ -3361,7 +3371,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       }
     }
 
-    final url = 'https://spclient.wg.spotify.com/playlist/v2/user/$userId/rootlist/changes';
+    final url =
+        'https://spclient.wg.spotify.com/playlist/v2/user/$userId/rootlist/changes';
     final body = {
       "deltas": [
         {
@@ -3373,24 +3384,22 @@ class SpotifyInternalProvider extends MetadataProvider {
                   {
                     // this is the playlist id
                     "uri": "spotify:playlist:$truePlaylistId",
-                    "attributes": {}
-                  }
+                    "attributes": {},
+                  },
                 ],
                 "addAfterItem": {
                   // this is the folder id. idk why its named "start-group" but it is
                   "uri": "spotify:start-group:$trueFolderId",
-                  "attributes": {}
-                }
-              }
-            }
+                  "attributes": {},
+                },
+              },
+            },
           ],
           "info": {
-            "source": {
-              "client": "WEBPLAYER"
-            }
-          }
-        }
-      ]
+            "source": {"client": "WEBPLAYER"},
+          },
+        },
+      ],
     };
 
     final headers = {
@@ -3421,7 +3430,7 @@ class SpotifyInternalProvider extends MetadataProvider {
     final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
 
     // Spotify usually updates the frontend state right after the request is made
-    // When it fails, the response says it needs a resync. 
+    // When it fails, the response says it needs a resync.
     // So we throw a failure here.
     if (responseJson['changeRequiresResync'] == true) {
       throw Exception(
@@ -3430,10 +3439,10 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
   }
 
-  Future<void> removePlaylistFromFolder({
-    required String playlistId,
-  }) async {
-    logger.d('[SpotifyInternal] removePlaylistFromFolder playlistId=$playlistId');
+  Future<void> removePlaylistFromFolder({required String playlistId}) async {
+    logger.d(
+      '[SpotifyInternal] removePlaylistFromFolder playlistId=$playlistId',
+    );
     if (!_isAuthenticated) {
       throw StateError(
         '[Metadata/Spotify-Internal] Not authenticated. Please log in.',
@@ -3463,7 +3472,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       }
     }
 
-    final url = 'https://spclient.wg.spotify.com/playlist/v2/user/$userId/rootlist/changes';
+    final url =
+        'https://spclient.wg.spotify.com/playlist/v2/user/$userId/rootlist/changes';
     final body = {
       "deltas": [
         {
@@ -3475,20 +3485,18 @@ class SpotifyInternalProvider extends MetadataProvider {
                   {
                     // this is the playlist id
                     "uri": "spotify:playlist:$truePlaylistId",
-                    "attributes": {}
-                  }
+                    "attributes": {},
+                  },
                 ],
-                "addFirst": true
-              }
-            }
+                "addFirst": true,
+              },
+            },
           ],
           "info": {
-            "source": {
-              "client": "WEBPLAYER"
-            }
-          }
-        }
-      ]
+            "source": {"client": "WEBPLAYER"},
+          },
+        },
+      ],
     };
 
     final headers = {
@@ -3519,7 +3527,7 @@ class SpotifyInternalProvider extends MetadataProvider {
     final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
 
     // Spotify usually updates the frontend state right after the request is made
-    // When it fails, the response says it needs a resync. 
+    // When it fails, the response says it needs a resync.
     // So we throw a failure here.
     if (responseJson['changeRequiresResync'] == true) {
       throw Exception(
@@ -3532,14 +3540,18 @@ class SpotifyInternalProvider extends MetadataProvider {
     required String itemId,
     required String itemType,
   }) async {
-    // Even though we can't make it work due to Spotify's anti-external-requests measures, 
-    // I'll leave this stub here. Maybe in the future we can figure out something, 
+    // Even though we can't make it work due to Spotify's anti-external-requests measures,
+    // I'll leave this stub here. Maybe in the future we can figure out something,
     // or repurpose it for something else. For now, it does nothing.
     // logger.d('[SpotifyInternal] reportItemPlayed itemId=$itemId, itemType=$itemType');
   }
 
   @override
-  Future<GenericAlbum?> getCachedAlbumInfo(String albumId, {int offset = 0, int limit = 50}) {
+  Future<GenericAlbum?> getCachedAlbumInfo(
+    String albumId, {
+    int offset = 0,
+    int limit = 50,
+  }) {
     // TODO: implement getCachedAlbumInfo
     throw UnimplementedError();
   }
@@ -3551,7 +3563,11 @@ class SpotifyInternalProvider extends MetadataProvider {
   }
 
   @override
-  Future<GenericPlaylist?> getCachedPlaylistInfo(String playlistId, {int offset = 0, int limit = 50}) {
+  Future<GenericPlaylist?> getCachedPlaylistInfo(
+    String playlistId, {
+    int offset = 0,
+    int limit = 50,
+  }) {
     // TODO: implement getCachedPlaylistInfo
     throw UnimplementedError();
   }
@@ -3563,19 +3579,30 @@ class SpotifyInternalProvider extends MetadataProvider {
   }
 
   @override
-  Future<GenericSong> getTrackInfo(String trackId, {MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired}) {
+  Future<GenericSong> getTrackInfo(
+    String trackId, {
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) {
     // TODO: implement getTrackInfo
     throw UnimplementedError();
   }
 
   @override
-  Future<List<GenericSimpleArtist>> getUserTopArtists({int limit = 20, String timeRange = 'short_term', MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired}) {
+  Future<List<GenericSimpleArtist>> getUserTopArtists({
+    int limit = 20,
+    String timeRange = 'short_term',
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) {
     // TODO: implement getUserTopArtists
     throw UnimplementedError();
   }
 
   @override
-  Future<List<GenericSong>> getUserTopTracks({int limit = 20, String timeRange = 'short_term', MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired}) {
+  Future<List<GenericSong>> getUserTopTracks({
+    int limit = 20,
+    String timeRange = 'short_term',
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) {
     // TODO: implement getUserTopTracks
     throw UnimplementedError();
   }

@@ -160,8 +160,14 @@ class LyricsProvider extends ChangeNotifier {
     await _writeCachedDelay(trackId, seconds);
   }
 
-  Future<LyricsResult?> _fetchLyrics(GenericSong track, LyricsSyncMode mode) async {
-    final betterLyricsResult = await _betterLyricsProvider.getLyrics(track, mode);
+  Future<LyricsResult?> _fetchLyrics(
+    GenericSong track,
+    LyricsSyncMode mode,
+  ) async {
+    final betterLyricsResult = await _betterLyricsProvider.getLyrics(
+      track,
+      mode,
+    );
     if (betterLyricsResult != null) {
       return _normalizeResult(betterLyricsResult, mode);
     }
@@ -192,7 +198,8 @@ class LyricsProvider extends ChangeNotifier {
   }
 
   LyricsResult _normalizeResult(LyricsResult result, LyricsSyncMode mode) {
-    if (mode == LyricsSyncMode.unsynced && result.syncMode != LyricsSyncMode.unsynced) {
+    if (mode == LyricsSyncMode.unsynced &&
+        result.syncMode != LyricsSyncMode.unsynced) {
       return LyricsResult(
         provider: result.provider,
         syncMode: LyricsSyncMode.unsynced,
@@ -257,27 +264,27 @@ class LyricsProvider extends ChangeNotifier {
   }
 
   Map<String, dynamic> _lyricsToJson(LyricsResult result) => {
-        'provider': result.provider.name,
-        'syncMode': result.syncMode.name,
-        'lines': result.lines
-            .map(
-              (line) => {
-                'content': line.content,
-                'startTimeMs': line.startTimeMs,
-                'endTimeMs': line.endTimeMs,
-                'words': line.words
-                    .map(
-                      (word) => {
-                        'content': word.content,
-                        'startTimeMs': word.startTimeMs,
-                        'endTimeMs': word.endTimeMs,
-                      },
-                    )
-                    .toList(),
-              },
-            )
-            .toList(),
-      };
+    'provider': result.provider.name,
+    'syncMode': result.syncMode.name,
+    'lines': result.lines
+        .map(
+          (line) => {
+            'content': line.content,
+            'startTimeMs': line.startTimeMs,
+            'endTimeMs': line.endTimeMs,
+            'words': line.words
+                .map(
+                  (word) => {
+                    'content': word.content,
+                    'startTimeMs': word.startTimeMs,
+                    'endTimeMs': word.endTimeMs,
+                  },
+                )
+                .toList(),
+          },
+        )
+        .toList(),
+  };
 
   LyricsResult? _lyricsFromJson(Map<String, dynamic> json) {
     try {
@@ -353,8 +360,5 @@ class _LyricsCacheResult {
   final LyricsResult lyrics;
   final bool isExpired;
 
-  const _LyricsCacheResult({
-    required this.lyrics,
-    required this.isExpired,
-  });
+  const _LyricsCacheResult({required this.lyrics, required this.isExpired});
 }

@@ -15,7 +15,7 @@ class MarqueeText extends StatefulWidget {
     this.gap = 24.0,
     this.scrollSpeed = 40.0,
     this.pauseDuration = const Duration(seconds: 3),
-    this.pauseWhenUnfocused = false,
+    this.pauseWhenUnfocused = true,
   });
 
   final String text;
@@ -32,9 +32,8 @@ class MarqueeText extends StatefulWidget {
 
 class _MarqueeTextState extends State<MarqueeText>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-  )..addStatusListener(_handleAnimationStatus);
+  late final AnimationController _controller = AnimationController(vsync: this)
+    ..addStatusListener(_handleAnimationStatus);
 
   Timer? _pauseTimer;
   double _viewportWidth = 0;
@@ -150,7 +149,9 @@ class _MarqueeTextState extends State<MarqueeText>
 
     final distance = _textWidth + widget.gap;
     final durationMs = (distance / widget.scrollSpeed * 1000).round();
-    _controller.duration = Duration(milliseconds: durationMs < 1 ? 1 : durationMs);
+    _controller.duration = Duration(
+      milliseconds: durationMs < 1 ? 1 : durationMs,
+    );
     _controller.forward(from: _controller.value);
   }
 
@@ -265,11 +266,7 @@ class _MarqueeTextState extends State<MarqueeText>
                 child: Stack(
                   clipBehavior: Clip.hardEdge,
                   children: [
-                    Positioned(
-                      left: -currentOffset,
-                      top: 0,
-                      child: textChild,
-                    ),
+                    Positioned(left: -currentOffset, top: 0, child: textChild),
                     Positioned(
                       left: -currentOffset + singleWidth,
                       top: 0,

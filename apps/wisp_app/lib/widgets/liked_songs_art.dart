@@ -17,28 +17,22 @@ class LikedSongsArt extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF7B2FF7),
-            Color(0xFFF6F0FF),
-          ],
+          colors: [Color(0xFF7B2FF7), Color(0xFFF6F0FF)],
         ),
       ),
       child: Center(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final iconSize = (constraints.maxWidth < constraints.maxHeight
-          ? constraints.maxWidth
-          : constraints.maxHeight) *
-          0.5;
-            return Icon(
-              Icons.favorite,
-              color: Colors.white,
-              size: iconSize,
-            );
+            final iconSize =
+                (constraints.maxWidth < constraints.maxHeight
+                    ? constraints.maxWidth
+                    : constraints.maxHeight) *
+                0.5;
+            return Icon(Icons.favorite, color: Colors.white, size: iconSize);
           },
-        )
         ),
-      );
+      ),
+    );
 
     if (size == null) return child;
     return SizedBox(width: size, height: size, child: child);

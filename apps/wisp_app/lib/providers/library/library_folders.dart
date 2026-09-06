@@ -59,7 +59,8 @@ class LibraryFolderState extends ChangeNotifier {
 
   List<PlaylistFolder> get folders => List.unmodifiable(_folders);
   LibrarySortMode get sortMode => _sortMode;
-  bool isFolderCollapsed(String folderId) => _collapsedFolderIds.contains(folderId);
+  bool isFolderCollapsed(String folderId) =>
+      _collapsedFolderIds.contains(folderId);
 
   bool get isCustomSort => false;
 
@@ -67,7 +68,9 @@ class LibraryFolderState extends ChangeNotifier {
     return _orderPlaylists(playlists);
   }
 
-  List<PlaylistFolder> sortFolders(Map<String, List<GenericPlaylist>> assigned) {
+  List<PlaylistFolder> sortFolders(
+    Map<String, List<GenericPlaylist>> assigned,
+  ) {
     return _orderFolders(assigned);
   }
 
@@ -147,18 +150,12 @@ class LibraryFolderState extends ChangeNotifier {
       _prefsFolders,
       json.encode(_folders.map((f) => f.toJson()).toList()),
     );
-    await prefs.setString(
-      _prefsAssignments,
-      json.encode(_playlistFolderIds),
-    );
+    await prefs.setString(_prefsAssignments, json.encode(_playlistFolderIds));
     await prefs.setString(
       _prefsPlaylistOrder,
       json.encode(_customPlaylistOrder),
     );
-    await prefs.setString(
-      _prefsFolderOrder,
-      json.encode(_customFolderOrder),
-    );
+    await prefs.setString(_prefsFolderOrder, json.encode(_customFolderOrder));
     await prefs.setString(
       _prefsLastPlayed,
       json.encode(
@@ -178,15 +175,13 @@ class LibraryFolderState extends ChangeNotifier {
     _originalPlaylistOrder
       ..clear()
       ..addAll(
-        playlists
-            .where((p) => !isLikedSongsPlaylistId(p.id))
-            .map((p) => p.id),
+        playlists.where((p) => !isLikedSongsPlaylistId(p.id)).map((p) => p.id),
       );
 
     final playlistIds = playlists
-      .where((p) => !isLikedSongsPlaylistId(p.id))
-      .map((p) => p.id)
-      .toSet();
+        .where((p) => !isLikedSongsPlaylistId(p.id))
+        .map((p) => p.id)
+        .toSet();
 
     _customPlaylistOrder.removeWhere((id) => !playlistIds.contains(id));
     for (final id in _originalPlaylistOrder) {
@@ -312,7 +307,9 @@ class LibraryFolderState extends ChangeNotifier {
     await _savePrefs();
   }
 
-  Future<void> batchAssignPlaylistsToFolders(Map<String, String> assignments) async {
+  Future<void> batchAssignPlaylistsToFolders(
+    Map<String, String> assignments,
+  ) async {
     var changed = false;
     for (final entry in assignments.entries) {
       if (isLikedSongsPlaylistId(entry.key)) continue;
@@ -335,7 +332,8 @@ class LibraryFolderState extends ChangeNotifier {
     await _savePrefs();
   }
 
-  Future<void> markPlaylistPlayed(String playlistId) => markItemPlayed(playlistId);
+  Future<void> markPlaylistPlayed(String playlistId) =>
+      markItemPlayed(playlistId);
 
   Future<void> setSortMode(LibrarySortMode mode) async {
     if (_sortMode == mode) return;
@@ -474,10 +472,7 @@ class LibraryFolderState extends ChangeNotifier {
     for (final folder in orderedFolders) {
       final list = assigned[folder.id] ?? [];
       folderGroups.add(
-        LibraryFolderGroup(
-          folder: folder,
-          playlists: _orderPlaylists(list),
-        ),
+        LibraryFolderGroup(folder: folder, playlists: _orderPlaylists(list)),
       );
     }
 
@@ -508,7 +503,9 @@ class LibraryFolderState extends ChangeNotifier {
         folders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return folders;
       case LibrarySortMode.alphabetical:
-        folders.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        folders.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
         return folders;
     }
   }
@@ -526,7 +523,9 @@ class LibraryFolderState extends ChangeNotifier {
 
   List<GenericPlaylist> _orderByAlphabetical(List<GenericPlaylist> playlists) {
     final sorted = List<GenericPlaylist>.from(playlists);
-    sorted.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    sorted.sort(
+      (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+    );
     return sorted;
   }
 
@@ -548,7 +547,9 @@ class LibraryFolderState extends ChangeNotifier {
     return sorted;
   }
 
-  List<GenericPlaylist> _orderByRecentlyPlayed(List<GenericPlaylist> playlists) {
+  List<GenericPlaylist> _orderByRecentlyPlayed(
+    List<GenericPlaylist> playlists,
+  ) {
     final orderIndex = <String, int>{};
     for (var i = 0; i < _originalPlaylistOrder.length; i++) {
       orderIndex[_originalPlaylistOrder[i]] = i;

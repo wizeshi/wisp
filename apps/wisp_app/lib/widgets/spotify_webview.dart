@@ -61,7 +61,8 @@ class _SpotifyWebviewState extends State<SpotifyWebview> {
             InAppWebView(
               initialUrlRequest: URLRequest(url: WebUri(widget.initialUrl)),
               initialSettings: InAppWebViewSettings(
-                userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+                userAgent:
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
                 thirdPartyCookiesEnabled: true,
                 javaScriptEnabled: true,
               ),
@@ -84,8 +85,7 @@ class _SpotifyWebviewState extends State<SpotifyWebview> {
                 logger.d('[SpotifyWebview][WebView] ${message.message}');
               },
             ),
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator()),
+            if (_isLoading) const Center(child: CircularProgressIndicator()),
           ],
         ),
       ),

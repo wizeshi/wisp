@@ -200,16 +200,13 @@ class AppNavigation {
     );
   }
 
-  void openDebug(
-    BuildContext context
-  ) {
+  void openDebug(BuildContext context) {
     _shellNavigator?.push(
       PageRouteBuilder(
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
         settings: const RouteSettings(name: '/debug'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            DebugView(),
+        pageBuilder: (context, animation, secondaryAnimation) => DebugView(),
       ),
     );
   }

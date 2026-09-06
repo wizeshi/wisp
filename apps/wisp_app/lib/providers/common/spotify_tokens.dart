@@ -15,7 +15,7 @@ const _spotifyClientTokenUrl = 'https://clienttoken.spotify.com/v1/clienttoken';
 
 const spotifyUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-  '(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
+    '(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
 const spotifyVersion = '1.2.96.238';
 const _spotifyEndHash = "g5c95ebca";
 const spotifyAppVersion = '$spotifyVersion.$_spotifyEndHash';
@@ -31,7 +31,6 @@ const _allowInsecureSpotifySecretsTls = bool.fromEnvironment(
 // Hosts TOTP secrets
 const _secretsUrl =
     'https://git.gay/thereallo/totp-secrets/raw/branch/main/secrets/secrets.json';
-
 
 class _TotpPayload {
   final String otp;
@@ -52,7 +51,10 @@ class SpotifyTokens {
   });
 }
 
-Future<SpotifyTokens> fetchSpotifyTokens(String cookie, void Function(String) logger) async {
+Future<SpotifyTokens> fetchSpotifyTokens(
+  String cookie,
+  void Function(String) logger,
+) async {
   String? accessToken = "";
   String? clientToken = "";
   int? accessTokenExpiresAtMs;
@@ -67,7 +69,8 @@ Future<SpotifyTokens> fetchSpotifyTokens(String cookie, void Function(String) lo
     throw StateError('Invalid access token response');
   }
 
-  accessTokenExpiresAtMs = accessJson['accessTokenExpirationTimestampMs'] as int? ?? 3600;
+  accessTokenExpiresAtMs =
+      accessJson['accessTokenExpirationTimestampMs'] as int? ?? 3600;
 
   accessToken = accessTokenResponse;
 

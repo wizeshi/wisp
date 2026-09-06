@@ -71,7 +71,7 @@ class ConnectMenu extends StatelessWidget {
             : null;
         final errorMessage = connect.errorMessage;
         final securityRetryError =
-          connect.errorCode == ConnectErrorCode.securityLevelTooLow;
+            connect.errorCode == ConnectErrorCode.securityLevelTooLow;
 
         final outputDevices = availableOutputs
             .where(
@@ -105,8 +105,7 @@ class ConnectMenu extends StatelessWidget {
                     onAction: connect.clearPendingSecurityWarning,
                   ),
                 ),
-              if (connect.hasPendingSecurityWarning)
-                const SizedBox(height: 12),
+              if (connect.hasPendingSecurityWarning) const SizedBox(height: 12),
               if (errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -115,15 +114,13 @@ class ConnectMenu extends StatelessWidget {
                     icon: Icons.error_outline,
                     title: 'Request Failed',
                     message: errorMessage,
-                    actionLabel:
-                        securityRetryError ? 'Retry' : 'Dismiss',
+                    actionLabel: securityRetryError ? 'Retry' : 'Dismiss',
                     onAction: securityRetryError
                         ? () => _showSecurityRetryDialog(context, connect)
                         : connect.clearErrorMessage,
                   ),
                 ),
-              if (errorMessage != null)
-                const SizedBox(height: 12),
+              if (errorMessage != null) const SizedBox(height: 12),
               if (connect.pendingPairRequest != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -388,7 +385,7 @@ class _CurrentOutputCard extends StatelessWidget {
             TextButton(
               onPressed: () => connect.unlink(localResumed: true),
               child: const Text('Unlink'),
-            )
+            ),
         ],
       ),
     );
@@ -734,7 +731,7 @@ class _DeviceCard extends StatelessWidget {
                 builder: (context, connect, child) {
                   final isPairingThisDevice =
                       connect.pairingTargetDeviceId == device.id &&
-                          connect.phase == ConnectPhase.pairing;
+                      connect.phase == ConnectPhase.pairing;
                   if (!isPairingThisDevice) {
                     return Icon(
                       selected ? Icons.check_circle : Icons.chevron_right,
@@ -750,8 +747,9 @@ class _DeviceCard extends StatelessWidget {
                         height: 28,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white70),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white70,
+                          ),
                         ),
                       ),
                       IconButton(
@@ -823,10 +821,7 @@ class _PendingPairRequestCard extends StatelessWidget {
                       'from ${request.fromDeviceName}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     ),
                   ],
                 ),
@@ -879,10 +874,7 @@ class _PendingPairRequestCard extends StatelessWidget {
                   ),
                   child: const Text(
                     'Accept',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),

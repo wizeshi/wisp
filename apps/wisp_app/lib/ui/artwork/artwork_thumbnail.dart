@@ -24,9 +24,7 @@ sealed class ArtworkSource {
       return const ArtworkSource.none();
     }
     if (urlOrPath.startsWith('/') || urlOrPath.startsWith('file://')) {
-      return ArtworkSource.file(
-        File(urlOrPath.replaceFirst('file://', '')),
-      );
+      return ArtworkSource.file(File(urlOrPath.replaceFirst('file://', '')));
     }
     return ArtworkSource.network(urlOrPath);
   }
@@ -186,11 +184,7 @@ class ArtworkThumbnail extends StatelessWidget {
       label: semanticLabel,
       child: ClipRRect(
         borderRadius: _borderRadius,
-        child: SizedBox(
-          width: renderSize,
-          height: renderSize,
-          child: image,
-        ),
+        child: SizedBox(width: renderSize, height: renderSize, child: image),
       ),
     );
   }

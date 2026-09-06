@@ -67,7 +67,8 @@ class _LikeButtonState extends State<LikeButton> {
       return const SizedBox.shrink();
     }
 
-    final isSpotifyTrack = track.source == SongSource.spotify ||
+    final isSpotifyTrack =
+        track.source == SongSource.spotify ||
         track.source == SongSource.spotifyInternal;
 
     return Selector<SpotifyInternalProvider, bool>(
@@ -78,8 +79,8 @@ class _LikeButtonState extends State<LikeButton> {
         final color = !isSpotifyTrack
             ? Colors.white
             : isLiked
-                ? widget.color
-                : Colors.white;
+            ? widget.color
+            : Colors.white;
 
         final button = IconButton(
           padding: widget.padding,
@@ -87,9 +88,9 @@ class _LikeButtonState extends State<LikeButton> {
           icon: Icon(icon, size: widget.iconSize, color: color),
           onPressed: isSpotifyTrack
               ? () async {
-                  await context
-                      .read<SpotifyInternalProvider>()
-                      .toggleTrackLike(track);
+                  await context.read<SpotifyInternalProvider>().toggleTrackLike(
+                    track,
+                  );
                 }
               : null,
         );

@@ -238,7 +238,9 @@ class LocalPlaylistState extends ChangeNotifier {
 
   List<LocalPlaylist> get trashedPlaylists => List.unmodifiable(_trashed);
 
-  Future<LocalPlaylist> ensureLinkedFromProvider(GenericPlaylist playlist) async {
+  Future<LocalPlaylist> ensureLinkedFromProvider(
+    GenericPlaylist playlist,
+  ) async {
     final existing = getById(playlist.id);
     if (existing != null) return existing;
     _hiddenProviderPlaylistIds.remove(playlist.id);
@@ -297,7 +299,9 @@ class LocalPlaylistState extends ChangeNotifier {
     );
     if (savedPath == null) return;
     if (playlist.thumbnailPath != null && playlist.thumbnailPath!.isNotEmpty) {
-      await FolderThumbnailStore.instance.deleteThumbnail(playlist.thumbnailPath);
+      await FolderThumbnailStore.instance.deleteThumbnail(
+        playlist.thumbnailPath,
+      );
     }
     _playlists[index] = playlist.copyWith(
       thumbnailPath: savedPath,

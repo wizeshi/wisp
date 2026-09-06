@@ -71,23 +71,27 @@ class AppTheme {
     return ThemeData(
       fontFamily: appStyle == AppStyle.AppleMusic ? 'SF Pro' : 'SpotifyMixUI',
       package: "wisp_assets",
-      textTheme: (appStyle == AppStyle.AppleMusic && (Platform.isMacOS || Platform.isIOS)) ? TextTheme(
-        bodyLarge: withAppleLetterSpacing,
-        bodyMedium: withAppleLetterSpacing,
-        bodySmall: withAppleLetterSpacing,
-        labelLarge: withAppleLetterSpacing,
-        labelMedium: withAppleLetterSpacing,
-        labelSmall: withAppleLetterSpacing,
-        titleLarge: withAppleLetterSpacing,
-        titleMedium: withAppleLetterSpacing,
-        titleSmall: withAppleLetterSpacing,
-        displayLarge: withAppleLetterSpacing,
-        displayMedium: withAppleLetterSpacing,
-        displaySmall: withAppleLetterSpacing,
-        headlineLarge: withAppleLetterSpacing,
-        headlineMedium: withAppleLetterSpacing,
-        headlineSmall: withAppleLetterSpacing,
-      ) : null,
+      textTheme:
+          (appStyle == AppStyle.AppleMusic &&
+              (Platform.isMacOS || Platform.isIOS))
+          ? TextTheme(
+              bodyLarge: withAppleLetterSpacing,
+              bodyMedium: withAppleLetterSpacing,
+              bodySmall: withAppleLetterSpacing,
+              labelLarge: withAppleLetterSpacing,
+              labelMedium: withAppleLetterSpacing,
+              labelSmall: withAppleLetterSpacing,
+              titleLarge: withAppleLetterSpacing,
+              titleMedium: withAppleLetterSpacing,
+              titleSmall: withAppleLetterSpacing,
+              displayLarge: withAppleLetterSpacing,
+              displayMedium: withAppleLetterSpacing,
+              displaySmall: withAppleLetterSpacing,
+              headlineLarge: withAppleLetterSpacing,
+              headlineMedium: withAppleLetterSpacing,
+              headlineSmall: withAppleLetterSpacing,
+            )
+          : null,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: _scaffoldBackground,
       cardColor: _surface,
@@ -106,9 +110,8 @@ class AppTheme {
       filledButtonTheme: const FilledButtonThemeData(
         style: ButtonStyle(mouseCursor: clickableCursor),
       ),
-      listTileTheme: const ListTileThemeData(
-        mouseCursor: clickableCursor,
-      ),
+      listTileTheme: const ListTileThemeData(mouseCursor: clickableCursor),
+      checkboxTheme: const CheckboxThemeData(mouseCursor: clickableCursor),
       useMaterial3: true,
     );
   }

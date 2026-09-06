@@ -12,11 +12,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../utils/logger.dart';
 
-enum MetadataFetchPolicy {
-  cacheFirst,
-  refreshIfExpired,
-  refreshAlways,
-}
+enum MetadataFetchPolicy { cacheFirst, refreshIfExpired, refreshAlways }
 
 class MetadataCacheEntry {
   final String key;
@@ -42,16 +38,16 @@ class MetadataCacheEntry {
   bool get isExpired => DateTime.now().isAfter(expiresAt);
 
   Map<String, dynamic> toJson() => {
-        'schemaVersion': 1,
-        'key': key,
-        'provider': provider,
-        'type': type,
-        'id': id,
-        'pageKey': pageKey,
-        'fetchedAt': fetchedAt.toIso8601String(),
-        'expiresAt': expiresAt.toIso8601String(),
-        'payload': payload,
-      };
+    'schemaVersion': 1,
+    'key': key,
+    'provider': provider,
+    'type': type,
+    'id': id,
+    'pageKey': pageKey,
+    'fetchedAt': fetchedAt.toIso8601String(),
+    'expiresAt': expiresAt.toIso8601String(),
+    'payload': payload,
+  };
 
   factory MetadataCacheEntry.fromJson(Map<String, dynamic> json) {
     return MetadataCacheEntry(
@@ -134,11 +130,7 @@ class MetadataCacheStore {
         id: id,
         pageKey: pageKey,
       );
-      final file = await _fileForKey(
-        provider: provider,
-        type: type,
-        key: key,
-      );
+      final file = await _fileForKey(provider: provider, type: type, key: key);
       if (file == null || !await file.exists()) return null;
       final content = await file.readAsString();
       if (content.trim().isEmpty) return null;
@@ -177,11 +169,7 @@ class MetadataCacheStore {
         payload: payload,
       );
 
-      final file = await _fileForKey(
-        provider: provider,
-        type: type,
-        key: key,
-      );
+      final file = await _fileForKey(provider: provider, type: type, key: key);
       if (file == null) return;
 
       await file.writeAsString(jsonEncode(entry.toJson()));

@@ -800,7 +800,11 @@ enum LyricsSyncMode {
   line,
   unsynced;
 
-  String get label => this == LyricsSyncMode.word ? 'Word' : this == LyricsSyncMode.line ? 'Line' : 'Unsynced';
+  String get label => this == LyricsSyncMode.word
+      ? 'Word'
+      : this == LyricsSyncMode.line
+      ? 'Line'
+      : 'Unsynced';
 }
 
 class LyricsWord {

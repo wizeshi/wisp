@@ -117,7 +117,10 @@ LyricsWordTimingState resolveWordLyricsTiming(
 
 /// Aligns timed [words] against [lineContent] and returns whether each word
 /// should be preceded by a space. Syllables of the same word stay unspaced.
-List<bool> resolveWordLeadingSpaces(String lineContent, List<LyricsWord> words) {
+List<bool> resolveWordLeadingSpaces(
+  String lineContent,
+  List<LyricsWord> words,
+) {
   if (words.isEmpty) {
     return const [];
   }
@@ -168,7 +171,9 @@ InlineSpan buildLyricsLineSpan({
   required Color inactiveWordColor,
   required bool highlightWords,
 }) {
-  if (!highlightWords || syncMode != LyricsSyncMode.word || !line.hasWordTiming) {
+  if (!highlightWords ||
+      syncMode != LyricsSyncMode.word ||
+      !line.hasWordTiming) {
     return TextSpan(text: line.content, style: baseStyle);
   }
 
@@ -267,8 +272,9 @@ LyricsTimingState resolveSyncedLyricsTiming(
   if (previousIndex == null) {
     final nextStart = nextIndex == null ? 0 : lines[nextIndex].startTimeMs;
     final gapMs = nextStart < 0 ? 0 : nextStart;
-    final progress =
-        gapMs <= 0 ? 0.0 : (safePositionMs.clamp(0, gapMs) / gapMs);
+    final progress = gapMs <= 0
+        ? 0.0
+        : (safePositionMs.clamp(0, gapMs) / gapMs);
 
     return LyricsTimingState(
       activeIndex: -1,
@@ -293,8 +299,9 @@ LyricsTimingState resolveSyncedLyricsTiming(
 
   final previousStart = lines[previousIndex].startTimeMs;
   final nextStart = lines[nextIndex].startTimeMs;
-  final startToStartSpanMs =
-      (nextStart - previousStart).clamp(0, 1 << 31).toInt();
+  final startToStartSpanMs = (nextStart - previousStart)
+      .clamp(0, 1 << 31)
+      .toInt();
 
   final estimatedActiveMs = _estimateLineActiveMs(
     lines[previousIndex].content,
@@ -304,20 +311,18 @@ LyricsTimingState resolveSyncedLyricsTiming(
   final lineEndMs = math.min(estimatedLineEndMs, nextStart);
 
   final gapMs = (nextStart - lineEndMs).clamp(0, 1 << 31).toInt();
-    final isPastLineEnd = safePositionMs >= lineEndMs;
+  final isPastLineEnd = safePositionMs >= lineEndMs;
 
   final progress = gapMs <= 0
       ? 1.0
       : ((safePositionMs - lineEndMs).clamp(0, gapMs) / gapMs).toDouble();
 
-    final fadeWindowMs = gapMs <= 0
-      ? 0
-      : math.min(gapMs, kLyricsFadeOutWindowMs);
-    final fadeStartMs = nextStart - fadeWindowMs;
-    final fadeOutProgress = fadeWindowMs <= 0
-        ? 0.0
-        : ((safePositionMs - fadeStartMs).clamp(0, fadeWindowMs) / fadeWindowMs)
-        .toDouble();
+  final fadeWindowMs = gapMs <= 0 ? 0 : math.min(gapMs, kLyricsFadeOutWindowMs);
+  final fadeStartMs = nextStart - fadeWindowMs;
+  final fadeOutProgress = fadeWindowMs <= 0
+      ? 0.0
+      : ((safePositionMs - fadeStartMs).clamp(0, fadeWindowMs) / fadeWindowMs)
+            .toDouble();
 
   final isLongGap = gapMs > kLyricsWaitingGapThresholdMs;
   final activeIndex = isLongGap && isPastLineEnd ? -1 : previousIndex;
@@ -341,7 +346,10 @@ int _estimateLineActiveMs(String content, int availableSpanMs) {
   }
 
   final charCount = trimmed.length;
-  final wordCount = trimmed.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+  final wordCount = trimmed
+      .split(RegExp(r'\s+'))
+      .where((w) => w.isNotEmpty)
+      .length;
   final punctuationCount = RegExp(r'[\.,;:!?]').allMatches(trimmed).length;
 
   final estimatedMs =

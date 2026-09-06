@@ -211,10 +211,7 @@ class CoverArtKMeans {
     var scheme = ColorScheme.fromSeed(
       seedColor: primary,
       brightness: Brightness.dark,
-    ).copyWith(
-      primary: primary,
-      onPrimary: _bestOnColor(primary),
-    );
+    ).copyWith(primary: primary, onPrimary: _bestOnColor(primary));
 
     if (secondary != null) {
       scheme = scheme.copyWith(
@@ -260,9 +257,15 @@ class CoverArtKMeans {
   }
 
   static double _rgbDistanceSquared(Color a, Color b) {
-    final dr = ((a.r * 255.0).round().clamp(0, 255)) - ((b.r * 255.0).round().clamp(0, 255));
-    final dg = ((a.g * 255.0).round().clamp(0, 255)) - ((b.g * 255.0).round().clamp(0, 255));
-    final db = ((a.b * 255.0).round().clamp(0, 255)) - ((b.b * 255.0).round().clamp(0, 255));
+    final dr =
+        ((a.r * 255.0).round().clamp(0, 255)) -
+        ((b.r * 255.0).round().clamp(0, 255));
+    final dg =
+        ((a.g * 255.0).round().clamp(0, 255)) -
+        ((b.g * 255.0).round().clamp(0, 255));
+    final db =
+        ((a.b * 255.0).round().clamp(0, 255)) -
+        ((b.b * 255.0).round().clamp(0, 255));
     return (dr * dr + dg * dg + db * db).toDouble();
   }
 
@@ -295,9 +298,7 @@ class CoverArtKMeans {
       redGreenness * redGreenness + yellowBlueness * yellowBlueness,
     );
     final luminance = math.sqrt(
-      0.299 * rgb.r * rgb.r +
-          0.587 * rgb.g * rgb.g +
-          0.114 * rgb.b * rgb.b,
+      0.299 * rgb.r * rgb.r + 0.587 * rgb.g * rgb.g + 0.114 * rgb.b * rgb.b,
     );
     final darkness = 1 - luminance;
     return chroma * _scoreColorfulness +
@@ -308,9 +309,7 @@ class CoverArtKMeans {
   static Color _sanitizeColor(Color color) {
     final rgb = _toUnitRgb(color);
     final luminance = math.sqrt(
-      0.299 * rgb.r * rgb.r +
-          0.587 * rgb.g * rgb.g +
-          0.114 * rgb.b * rgb.b,
+      0.299 * rgb.r * rgb.r + 0.587 * rgb.g * rgb.g + 0.114 * rgb.b * rgb.b,
     );
     if (luminance <= _minLuminance || luminance >= _maxLuminance) {
       final target = luminance <= _minLuminance ? 0.18 : 0.82;

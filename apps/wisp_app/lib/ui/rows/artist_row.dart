@@ -4,20 +4,20 @@ import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/services/app_navigation.dart';
 import 'package:wisp/services/playback/playback_coordinator.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
+import 'package:wisp/ui/rows/generic_row.dart';
 import 'package:wisp/widgets/entity_context_menus.dart';
 
 import '../../models/metadata_models.dart';
 import '../artwork/artwork_thumbnail.dart';
 import '../playback/playback_selectors.dart';
-import 'generic_card.dart';
 
-class ArtistCard extends StatelessWidget {
+class ArtistRow extends StatelessWidget {
   final GenericSimpleArtist artist;
   final double width;
 
   final String? subtitle;
 
-  const ArtistCard({
+  const ArtistRow({
     super.key,
     required this.artist,
     this.subtitle,
@@ -81,7 +81,7 @@ class ArtistCard extends StatelessWidget {
       artistId: artist.id,
       artistName: artist.name,
     );
-    return GenericCard(
+    return GenericRow(
       title: artist.name,
       subtitle: subtitle ?? 'Artist',
       artwork: ArtworkThumbnail(

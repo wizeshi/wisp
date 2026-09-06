@@ -286,7 +286,9 @@ class _WispNavigationState extends State<WispNavigation> {
     final isDoubleTap =
         previousTime != null &&
         previousKey == key &&
-        timestamp.millisecondsSinceEpoch - previousTime.millisecondsSinceEpoch <= _doubleTapTimeoutMs;
+        timestamp.millisecondsSinceEpoch -
+                previousTime.millisecondsSinceEpoch <=
+            _doubleTapTimeoutMs;
 
     if (isDoubleTap) {
       _lastSidebarTapTime = null;

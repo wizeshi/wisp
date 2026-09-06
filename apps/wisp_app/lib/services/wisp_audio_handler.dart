@@ -597,7 +597,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _lastKnownDuration = engineState.duration;
     }
 
-    if (engineState.error != null && !identical(engineState.error, _lastEngineError)) {
+    if (engineState.error != null &&
+        !identical(engineState.error, _lastEngineError)) {
       _lastEngineError = engineState.error;
       logger.e('[Audio/Engine] ${engineState.error}');
       _errorMessage = engineState.error!.message;
@@ -611,7 +612,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     // Don't let a mid-transition buffering/playing blip flip our
     // higher-level state — _transitionToNext()/_loadTrackAtIndex() already
     // own state transitions while a transition/load is in flight.
-    if (!_engineIsTransitioning && !_isTrackTransitioning && _currentTrack != null) {
+    if (!_engineIsTransitioning &&
+        !_isTrackTransitioning &&
+        _currentTrack != null) {
       if (_engineIsBuffering) {
         _setState(PlaybackState.loading);
       } else if (_engineIsPlaying) {
@@ -1122,7 +1125,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (_engineIsBuffering) {
       return audio_service.AudioProcessingState.buffering;
     }
-    
+
     return audio_service.AudioProcessingState.ready;
   }
 
@@ -1201,7 +1204,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> _prepareCurrentTrackOnStartup() async {
     if (_currentTrack == null || _engine.state.source != null) return;
     try {
-      await _loadTrackAtIndex(_currentIndex < 0 ? 0 : _currentIndex, play: false);
+      await _loadTrackAtIndex(
+        _currentIndex < 0 ? 0 : _currentIndex,
+        play: false,
+      );
       unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: _currentIndex));
       unawaited(_scheduleNextTrackPreload());
     } catch (e) {
@@ -1355,7 +1361,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
       if (safeIndex < _queue.length - 1) {
         await Future.delayed(const Duration(seconds: 2));
-        if (_state == PlaybackState.error && requestToken == _trackChangeToken) {
+        if (_state == PlaybackState.error &&
+            requestToken == _trackChangeToken) {
           await _advanceToNext();
         }
       }
@@ -1379,7 +1386,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
     }
 
-    await _loadTrackAtIndex(nextIndex, play: true, token: token ?? ++_trackChangeToken);
+    await _loadTrackAtIndex(
+      nextIndex,
+      play: true,
+      token: token ?? ++_trackChangeToken,
+    );
   }
 
   Future<void> _reloadCurrentTrackSource() async {
@@ -1387,7 +1398,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (track == null) return;
     final wasPlaying = _engineIsPlaying;
     final targetPosition = _engine.state.position;
-    await _loadTrackAtIndex(_currentIndex, play: wasPlaying, position: targetPosition);
+    await _loadTrackAtIndex(
+      _currentIndex,
+      play: wasPlaying,
+      position: targetPosition,
+    );
   }
 
   bool _shouldRefreshSourceOnLoadError(Object error) {
@@ -2200,17 +2215,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         orElse: () => SongSource.spotify,
       );
 
-      if (contextId != null && contextId.isNotEmpty
-        && contextName != null && contextName.isNotEmpty
-      ) {
+      if (contextId != null &&
+          contextId.isNotEmpty &&
+          contextName != null &&
+          contextName.isNotEmpty) {
         _playbackContext = PlaybackContext(
           id: contextId,
           name: contextName,
           type: contextType,
-          source: contextSource
+          source: contextSource,
         );
       }
-
 
       _savedVolume = prefs.getDouble('player_volume');
       final savedLastVolume = prefs.getDouble('player_last_volume');

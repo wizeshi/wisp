@@ -72,10 +72,13 @@ class NativeAndroidNewPipeDelegate implements NewPipeAndroidDelegate {
     final url = 'https://www.youtube.com/watch?v=$videoId';
     final video = await VideoExtractor.getStream(url);
 
-    final List<AudioOnlyStream> sortedStreams = List.from(video.audioOnlyStreams);
+    final List<AudioOnlyStream> sortedStreams = List.from(
+      video.audioOnlyStreams,
+    );
     sortedStreams.sort((a, b) => b.averageBitrate.compareTo(a.averageBitrate));
 
-    final bestAudioUrl = video.audioWithBestAacQuality?.url ?? sortedStreams.first.url;
+    final bestAudioUrl =
+        video.audioWithBestAacQuality?.url ?? sortedStreams.first.url;
     if (bestAudioUrl == null || bestAudioUrl.isEmpty) {
       throw Exception('No audio streams available');
     }
@@ -296,7 +299,8 @@ class YouTubeProvider {
         videosWithScores.add(MapEntry(video, score ?? 0));
       }
 
-      final videosSortedByScore = videosWithScores..sort((a, b) => b.value.compareTo(a.value));
+      final videosSortedByScore = videosWithScores
+        ..sort((a, b) => b.value.compareTo(a.value));
 
       return videosSortedByScore.take(limit).map((entry) {
         final video = entry.key;

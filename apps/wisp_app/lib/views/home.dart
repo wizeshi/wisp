@@ -14,18 +14,19 @@ import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/ui/cards/album_card.dart';
 import 'package:wisp/ui/cards/artist_card.dart';
 import 'package:wisp/ui/cards/playlist_card.dart';
-import 'package:wisp/utils/text_parser.dart';
+import 'package:wisp/ui/rails/card_rail.dart';
+import 'package:wisp/ui/rows/album_row.dart';
+import 'package:wisp/ui/rows/artist_row.dart';
+import 'package:wisp/ui/rows/playlist_row.dart';
 import '../models/library_folder.dart';
 import '../utils/logger.dart';
 import '../services/wisp_audio_handler.dart';
 import '../models/metadata_models.dart';
 import '../services/metadata_cache.dart';
-import '../widgets/navigation.dart';
 import 'list_detail.dart';
 import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
-import '../providers/navigation_state.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/app_navigation.dart';
 import '../services/playback/playback_coordinator.dart';
@@ -95,10 +96,6 @@ class HomePageState extends State<HomePage> {
   VoidCallback? _localPlaylistListener;
   VoidCallback? _refreshListener;
   int _lastRefreshTick = 0;
-
-  NavigationState get _navState => context.read<NavigationState>();
-  LibraryView get _currentLibraryView => _navState.selectedLibraryView;
-  int get _currentNavIndex => _navState.selectedNavIndex;
 
   _PlaybackHighlight _watchPlaybackHighlight() {
     return context.select<WispAudioHandler, _PlaybackHighlight>(
@@ -938,18 +935,15 @@ class HomePageState extends State<HomePage> {
         ? 1
         : 0;
 
-    final firstDynamicSectionCards =
+    final firstDynamicSectionItems =
         (dynamicEntries.isNotEmpty && rightSectionIndex < dynamicEntries.length)
         ? dynamicEntries[rightSectionIndex].value
-              .map<Widget?>((item) => _buildHomeCard(item))
-              .whereType<Widget>()
-              .toList()
-        : const <Widget>[];
+        : const <dynamic>[];
     final firstDynamicSectionWidget =
-        dynamicEntries.isNotEmpty && firstDynamicSectionCards.isNotEmpty
+        dynamicEntries.isNotEmpty && firstDynamicSectionItems.isNotEmpty
         ? _buildSection(
             dynamicEntries[rightSectionIndex].key,
-            firstDynamicSectionCards,
+            firstDynamicSectionItems,
             showTitle: !shouldShowNewMusicSpecialCard,
           )
         : null;
@@ -1064,124 +1058,20 @@ class HomePageState extends State<HomePage> {
     );
   }
 
-  bool _isActivePlaylist(_PlaybackHighlight playback, GenericPlaylist item) {
-    if (playback.playbackContext?.type != PlaybackContextType.playlist)
-      return false;
-    if (playback.playbackContext?.id == item.id) return true;
-    final contextName = playback.playbackContext?.name.trim();
-    return contextName != null &&
-        contextName.isNotEmpty &&
-        contextName == item.title.trim();
-  }
-
-  bool _isActiveAlbum(_PlaybackHighlight playback, GenericAlbum item) {
-    if (playback.playbackContext?.type == PlaybackContextType.album) {
-      if (playback.playbackContext?.id == item.id) return true;
-      final contextName = playback.playbackContext?.name.trim();
-      return contextName != null &&
-          contextName.isNotEmpty &&
-          contextName == item.title.trim();
-    }
-    return playback.currentAlbumId == item.id;
-  }
-
-  bool _isActiveArtist(_PlaybackHighlight playback, GenericSimpleArtist item) {
-    if (playback.playbackContext?.type == PlaybackContextType.artist) {
-      if (playback.playbackContext?.id == item.id) return true;
-      final contextName = playback.playbackContext?.name.trim();
-      return contextName != null &&
-          contextName.isNotEmpty &&
-          contextName == item.name.trim();
-    }
-    return playback.currentArtistIds.split('\u0001').contains(item.id);
-  }
-
   Widget? _buildHomeQuickTile(dynamic item, _PlaybackHighlight playback) {
-    final isPlaying = playback.isPlaying;
     if (item is GenericPlaylist) {
-      final isActive = _isActivePlaylist(playback, item);
-      return _HomeQuickTile(
-        imageUrl: item.thumbnailUrl,
-        title: item.title,
-        subtitle: _playlistSubtitle(item),
-        isActive: isActive,
-        isPlaying: isPlaying,
-        showPlayingWaveform: true,
-        customArt: isLikedSongsPlaylistId(item.id)
-            ? const LikedSongsArt()
-            : null,
-        onTap: () => _openSharedList(
-          SharedListType.playlist,
-          item.id,
-          title: item.title,
-          thumbnailUrl: item.thumbnailUrl,
-        ),
-        onPlay: () => _playPlaylist(item.id, contextNameOverride: item.title),
-        onSecondaryTapDown: (details) {
-          EntityContextMenus.showPlaylistMenu(
-            context,
-            playlist: item,
-            globalPosition: details.globalPosition,
-          );
-        },
-        onLongPress: () {
-          EntityContextMenus.showPlaylistMenu(context, playlist: item);
-        },
-      );
+      return PlaylistRow(playlist: item);
     }
 
     if (item is GenericAlbum) {
-      final isActive = _isActiveAlbum(playback, item);
-      return _HomeQuickTile(
-        imageUrl: item.thumbnailUrl,
-        title: item.title,
-        subtitle: item.artists.map((a) => a.name).join(', '),
-        isActive: isActive,
-        isPlaying: isPlaying,
-        onTap: () => _openSharedList(
-          SharedListType.album,
-          item.id,
-          title: item.title,
-          thumbnailUrl: item.thumbnailUrl,
-        ),
-        onPlay: () => _playAlbum(item.id),
-        onSecondaryTapDown: (details) {
-          EntityContextMenus.showAlbumMenu(
-            context,
-            album: item,
-            globalPosition: details.globalPosition,
-          );
-        },
-        onLongPress: () {
-          EntityContextMenus.showAlbumMenu(context, album: item);
-        },
-      );
+      return AlbumRow(album: item);
     }
 
     if (item is GenericSimpleArtist) {
-      final isActive = _isActiveArtist(playback, item);
-      return _HomeQuickTile(
-        imageUrl: item.thumbnailUrl,
-        title: item.name,
-        subtitle: 'Artist',
-        isActive: isActive,
-        isPlaying: isPlaying,
-        onTap: () => _openArtist(item),
-        onPlay: () => _playArtist(item.id),
-        onSecondaryTapDown: (details) {
-          EntityContextMenus.showArtistMenu(
-            context,
-            artist: item,
-            globalPosition: details.globalPosition,
-          );
-        },
-        onLongPress: () {
-          EntityContextMenus.showArtistMenu(context, artist: item);
-        },
-      );
+      return ArtistRow(artist: item);
     }
 
-    if (item is GenericSong) {
+    /* if (item is GenericSong) {
       final isActive = playback.currentTrackId == item.id;
       return _HomeQuickTile(
         imageUrl: item.thumbnailUrl,
@@ -1208,7 +1098,7 @@ class HomePageState extends State<HomePage> {
           EntityContextMenus.showTrackMenu(context, track: item);
         },
       );
-    }
+    } */
 
     return null;
   }
@@ -1227,24 +1117,18 @@ class HomePageState extends State<HomePage> {
     for (var i = 0; i < entries.length; i++) {
       if (skipEntryIndexes.contains(i)) continue;
       final entry = entries[i];
+      if (entry.value.isEmpty) continue;
       final useSpecialCardStyle =
           allowSpecialCardStyle &&
           i == 0 &&
           entry.key.trim().toLowerCase() == 'new music';
-      final cards = entry.value
-          .map<Widget?>(
-            (item) =>
-                _buildHomeCard(item, useSpecialCardStyle: useSpecialCardStyle),
-          )
-          .whereType<Widget>()
-          .toList();
-      if (cards.isEmpty) continue;
       widgets.add(
         _buildSection(
           entry.key,
-          cards,
+          entry.value, // raw items now, not pre-built widgets
           showTitle: !useSpecialCardStyle,
           expandCardsToRowWidth: useSpecialCardStyle,
+          useSpecialCardStyle: useSpecialCardStyle,
         ),
       );
     }
@@ -1253,78 +1137,16 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget? _buildHomeCard(dynamic item, {bool useSpecialCardStyle = false}) {
-    final playback = _watchPlaybackHighlight();
-    final isPlaying = playback.isPlaying;
     if (item is GenericPlaylist) {
-      final isActive = _isActivePlaylist(playback, item);
-      if (useSpecialCardStyle) {
-        return _SpecialCard(
-          title: item.title,
-          subtitle: _playlistSubtitle(item),
-          id: item.id,
-          thumbnailUrl: item.thumbnailUrl,
-          onTap: () => _openSharedList(
-            SharedListType.playlist,
-            item.id,
-            title: item.title,
-            thumbnailUrl: item.thumbnailUrl,
-          ),
-          onPlay: () => _playPlaylist(item.id, contextNameOverride: item.title),
-          isActive: isActive,
-          isPlaying: isPlaying,
-          currentLibraryView: _currentLibraryView,
-          currentNavIndex: _currentNavIndex,
-        );
-      }
-      return PlaylistCard(
-        playlist: item,
-      );
+      return PlaylistCard(playlist: item);
     }
 
     if (item is GenericAlbum) {
-      final isActive = _isActiveAlbum(playback, item);
-      if (useSpecialCardStyle) {
-        final subtitle = item.artists.map((a) => a.name).join(', ');
-        return _SpecialCard(
-          title: item.title,
-          subtitle: subtitle,
-          id: item.id,
-          thumbnailUrl: item.thumbnailUrl,
-          onTap: () => _openSharedList(
-            SharedListType.album,
-            item.id,
-            title: item.title,
-            thumbnailUrl: item.thumbnailUrl,
-          ),
-          onPlay: () => _playAlbum(item.id),
-          isActive: isActive,
-          isPlaying: isPlaying,
-          currentLibraryView: _currentLibraryView,
-          currentNavIndex: _currentNavIndex,
-        );
-      }
       return AlbumCard(album: item);
     }
 
     if (item is GenericSimpleArtist) {
-      final isActive = _isActiveArtist(playback, item);
-      if (useSpecialCardStyle) {
-        return _SpecialCard(
-          title: item.name,
-          subtitle: 'Artist',
-          id: item.id,
-          thumbnailUrl: item.thumbnailUrl,
-          onTap: () => _openArtist(item),
-          onPlay: () => _playArtist(item.id),
-          isActive: isActive,
-          isPlaying: isPlaying,
-          currentLibraryView: _currentLibraryView,
-          currentNavIndex: _currentNavIndex,
-        );
-      }
-      return ArtistCard(
-        artist: item,
-      );
+      return ArtistCard(artist: item);
     }
 
     return null;
@@ -1332,927 +1154,23 @@ class HomePageState extends State<HomePage> {
 
   Widget _buildSection(
     String title,
-    List<Widget> cards, {
+    List<dynamic> items, {
     bool showTitle = true,
     bool expandCardsToRowWidth = false,
+    bool useSpecialCardStyle = false,
   }) {
-    return _ScrollableCardSection(
+    return CardRail<dynamic>(
       title: title,
-      cards: cards,
+      items: items,
       showTitle: showTitle,
-      expandCardsToRowWidth: expandCardsToRowWidth,
-    );
-  }
-
-  Future<void> _playAlbum(String albumId) async {
-    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
-    if (audioHandler != null) {
-      final currentPlaybackContext = audioHandler.playbackContext;
-      if (currentPlaybackContext != null && currentPlaybackContext.type == PlaybackContextType.album && currentPlaybackContext.id == albumId) {
-        if (!audioHandler.isPlaying) {
-          // If the current playback context is already the same album, just resume playback
-          return await audioHandler.play();
-        }
-        return await audioHandler.pause();
-      }
-    }
-    final spotify = context.read<SpotifyInternalProvider>();
-    try {
-      final album = await spotify.getAlbumInfo(albumId);
-      final tracks = album.songs ?? [];
-      if (tracks.isEmpty) return;
-      await context.read<PlaybackCoordinator>().setQueue(
-        tracks,
-        startIndex: 0,
-        play: true,
-        playbackContext: PlaybackContext(
-          type: PlaybackContextType.album,
-          name: album.title,
-          id: album.id,
-          source: album.source,
-        ),
-      );
-    } catch (_) {}
-  }
-
-  Future<void> _playPlaylist(
-    String playlistId, {
-    String? contextNameOverride,
-  }) async {
-    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
-    if (audioHandler != null) {
-      final currentPlaybackContext = audioHandler.playbackContext;
-      if (currentPlaybackContext != null && currentPlaybackContext.type == PlaybackContextType.playlist && currentPlaybackContext.id == playlistId) {
-        if (!audioHandler.isPlaying) {
-          // If the current playback context is already the same playlist, just resume playback
-          return await audioHandler.play();
-        }
-        return await audioHandler.pause();
-      }
-    }
-
-    final spotify = context.read<SpotifyInternalProvider>();
-    try {
-      final playlist = await spotify.getPlaylistInfo(playlistId);
-      final items = playlist.songs ?? [];
-      if (items.isEmpty) return;
-      final tracks = items
-          .map(
-            (item) => GenericSong(
-              id: item.id,
-              source: item.source,
-              title: item.title,
-              artists: item.artists,
-              thumbnailUrl: item.thumbnailUrl,
-              explicit: item.explicit,
-              album: item.album,
-              durationSecs: item.durationSecs,
-            ),
-          )
-          .toList();
-      await context.read<PlaybackCoordinator>().setQueue(
-        tracks,
-        startIndex: 0,
-        play: true,
-        playbackContext: PlaybackContext(
-          type: PlaybackContextType.playlist,
-          name: (contextNameOverride != null && contextNameOverride.isNotEmpty)
-              ? contextNameOverride
-              : playlist.title,
-          id: playlist.id,
-          source: playlist.source,
-        ),
-      );
-      context.read<LibraryFolderState>().markPlaylistPlayed(playlistId);
-    } catch (_) {}
-  }
-
-  Future<void> _playArtist(String artistId) async {
-    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
-    if (audioHandler != null) {
-      final currentPlaybackContext = audioHandler.playbackContext;
-      if (currentPlaybackContext != null && currentPlaybackContext.type == PlaybackContextType.artist && currentPlaybackContext.id == artistId) {
-        if (!audioHandler.isPlaying) {
-          // If the current playback context is already the same artist, just resume playback
-          return await audioHandler.play();
-        }
-        return await audioHandler.pause();
-      }
-    }
-
-    final spotify = context.read<SpotifyInternalProvider>();
-    try {
-      final artist = await spotify.getArtistInfo(artistId);
-      final tracks = artist.topSongs;
-      if (tracks.isEmpty) return;
-      await context.read<PlaybackCoordinator>().setQueue(
-        tracks,
-        startIndex: 0,
-        play: true,
-        playbackContext: PlaybackContext(
-          type: PlaybackContextType.artist,
-          name: artist.name,
-          id: artist.id,
-          source: artist.source,
-        ),
-      );
-    } catch (_) {}
-  }
-}
-
-class _SpecialCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String id;
-  final String thumbnailUrl;
-  final VoidCallback onTap;
-  final VoidCallback onPlay;
-  final bool isActive;
-  final bool isPlaying;
-  final LibraryView? currentLibraryView;
-  final int? currentNavIndex;
-
-  const _SpecialCard({
-    required this.title,
-    required this.subtitle,
-    required this.id,
-    required this.thumbnailUrl,
-    required this.onTap,
-    required this.onPlay,
-    required this.isActive,
-    required this.isPlaying,
-    this.currentLibraryView,
-    this.currentNavIndex,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fallbackColor = const Color(0xFF181818);
-
-    Widget buildCard(Color backgroundColor) {
-      return SizedBox(
-        width: double.infinity,
-        child: ClipRect(
-          child: Material(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(8),
-            child: _HoverPlayCard(
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "New Release",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        _HoverPlayThumbnail(
-                          borderRadius: 6,
-                          isActive: isActive,
-                          isPlaying: isPlaying,
-                          onPressed: onPlay,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: SizedBox(
-                              width: 120,
-                              height: 120,
-                              child: thumbnailUrl.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: thumbnailUrl,
-                                      filterQuality: FilterQuality.medium,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          Container(color: Colors.grey[800]),
-                                      errorWidget: (context, url, error) =>
-                                          const Icon(
-                                            Icons.music_note,
-                                            size: 48,
-                                            color: Colors.grey,
-                                          ),
-                                    )
-                                  : const Icon(
-                                      Icons.music_note,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                fontSize: 24,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            buildParsedText(
-                              context,
-                              subtitle,
-                              style: TextStyle(
-                                color: Colors.grey[200],
-                                fontSize: 18,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    buildParsedText(
-                      context,
-                      "Listen to this brand new release from $subtitle",
-                      style: TextStyle(color: Colors.grey[300], fontSize: 16),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (thumbnailUrl.isEmpty) {
-      return buildCard(fallbackColor);
-    }
-
-    return buildCard(Theme.of(context).colorScheme.primary);
-  }
-}
-
-class _HomeQuickTile extends StatefulWidget {
-  final String imageUrl;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final VoidCallback onPlay;
-  final bool isActive;
-  final bool isPlaying;
-  final bool showPlayingWaveform;
-  final GestureTapDownCallback? onSecondaryTapDown;
-  final VoidCallback? onLongPress;
-  final Widget? customArt;
-
-  const _HomeQuickTile({
-    required this.imageUrl,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    required this.onPlay,
-    required this.isActive,
-    required this.isPlaying,
-    this.showPlayingWaveform = false,
-    this.onSecondaryTapDown,
-    this.onLongPress,
-    this.customArt,
-  });
-
-  @override
-  State<_HomeQuickTile> createState() => _HomeQuickTileState();
-}
-
-class _HomeQuickTileState extends State<_HomeQuickTile> {
-  bool _isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    final isLocalThumb =
-        widget.imageUrl.isNotEmpty && _isLocalThumbnailPath(widget.imageUrl);
-
-    return MouseRegion(
-      cursor: isDesktop ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: (_) => setState(() => _isHovering = true),
-      onExit: (_) => setState(() => _isHovering = false),
-      child: Material(
-        color: Colors.transparent,
-        child: GestureDetector(
-          onSecondaryTapDown: isDesktop ? widget.onSecondaryTapDown : null,
-          onLongPress: isDesktop ? null : widget.onLongPress,
-          behavior: HitTestBehavior.opaque,
-          child: InkWell(
-            mouseCursor: isDesktop ? SystemMouseCursors.click : null,
-            onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      color: Colors.grey[900],
-                      child:
-                          widget.customArt ??
-                          (widget.imageUrl.isNotEmpty
-                              ? (isLocalThumb
-                                    ? Image.file(
-                                        File(
-                                          widget.imageUrl.replaceFirst(
-                                            'file://',
-                                            '',
-                                          ),
-                                        ),
-                                        fit: BoxFit.cover,
-                                        filterQuality: FilterQuality.high,
-                                        errorBuilder: (context, url, error) =>
-                                            Icon(
-                                              Icons.music_note,
-                                              color: Colors.grey[700],
-                                            ),
-                                      )
-                                    : CachedNetworkImage(
-                                        imageUrl: widget.imageUrl,
-                                        fit: BoxFit.cover,
-                                        filterQuality: FilterQuality.high,
-                                        placeholder: (context, url) =>
-                                            Container(color: Colors.grey[800]),
-                                        errorWidget: (context, url, error) =>
-                                            Icon(
-                                              Icons.music_note,
-                                              color: Colors.grey[700],
-                                            ),
-                                      ))
-                              : Icon(
-                                  Icons.music_note,
-                                  color: Colors.grey[700],
-                                )),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            widget.title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          /* const SizedBox(height: 2),
-                          Text(
-                            widget.subtitle,
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ), */
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6.0),
-                    child: SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          AnimatedOpacity(
-                            opacity:
-                                widget.showPlayingWaveform &&
-                                    widget.isActive &&
-                                    widget.isPlaying
-                                ? 1
-                                : 0,
-                            duration: const Duration(milliseconds: 120),
-                            child: _AnimatedQuickWaveform(
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                          AnimatedOpacity(
-                            opacity: _isHovering ? 1 : 0,
-                            duration: const Duration(milliseconds: 120),
-                            child: IgnorePointer(
-                              ignoring: !_isHovering,
-                              child: IconButton(
-                                style: ButtonStyle(
-                                  backgroundColor: WidgetStatePropertyAll(
-                                    Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                                icon: Icon(
-                                  widget.isActive && widget.isPlaying
-                                      ? Icons.pause
-                                      : Icons.play_arrow,
-                                  color: Colors.black,
-                                ),
-                                onPressed: () {
-                                  final player = context
-                                      .read<WispAudioHandler>();
-                                  final coordinator = context
-                                      .read<PlaybackCoordinator>();
-                                  if (widget.isActive) {
-                                    if (player.isPlaying) {
-                                      unawaited(coordinator.pause());
-                                    } else if (!player.isLoading &&
-                                        !player.isBuffering) {
-                                      unawaited(coordinator.play());
-                                    }
-                                    return;
-                                  }
-                                  widget.onPlay();
-                                },
-                                splashRadius: 18,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AnimatedQuickWaveform extends StatefulWidget {
-  final Color color;
-
-  const _AnimatedQuickWaveform({required this.color});
-
-  @override
-  State<_AnimatedQuickWaveform> createState() => _AnimatedQuickWaveformState();
-}
-
-class _AnimatedQuickWaveformState extends State<_AnimatedQuickWaveform>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final t = _controller.value * 2 * pi;
-        double barHeight(double phase) {
-          final value = (sin(t + phase) + 1) / 2;
-          return 4 + value * 10;
-        }
-
-        return SizedBox(
-          width: 16,
-          height: 16,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _waveBar(widget.color, barHeight(0.0)),
-              const SizedBox(width: 2),
-              _waveBar(widget.color, barHeight(1.4)),
-              const SizedBox(width: 2),
-              _waveBar(widget.color, barHeight(2.8)),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _waveBar(Color color, double height) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-      width: 3,
-      height: height,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(2),
-      ),
-    );
-  }
-}
-
-class _HoverPlayScope extends InheritedWidget {
-  final bool hovering;
-
-  const _HoverPlayScope({required this.hovering, required Widget child})
-    : super(child: child);
-
-  static _HoverPlayScope? of(BuildContext context) {
-    return context.dependOnInheritedWidgetOfExactType<_HoverPlayScope>();
-  }
-
-  @override
-  bool updateShouldNotify(covariant _HoverPlayScope oldWidget) {
-    return oldWidget.hovering != hovering;
-  }
-}
-
-class _HoverPlayCard extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onTap;
-  final GestureTapDownCallback? onSecondaryTapDown;
-  final VoidCallback? onLongPress;
-
-  const _HoverPlayCard({
-    required this.child,
-    required this.onTap,
-    this.onSecondaryTapDown,
-    this.onLongPress,
-  });
-
-  @override
-  State<_HoverPlayCard> createState() => _HoverPlayCardState();
-}
-
-class _HoverPlayCardState extends State<_HoverPlayCard> {
-  bool _isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    return MouseRegion(
-      cursor: isDesktop ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: (_) {
-        if (isDesktop) setState(() => _isHovering = true);
-      },
-      onExit: (_) {
-        if (isDesktop) setState(() => _isHovering = false);
-      },
-      child: InkWell(
-        mouseCursor: isDesktop ? SystemMouseCursors.click : null,
-        onSecondaryTapDown: widget.onSecondaryTapDown,
-        onLongPress: widget.onLongPress,
-        onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: _HoverPlayScope(
-          hovering: _isHovering,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: widget.child,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HoverPlayThumbnail extends StatefulWidget {
-  final Widget child;
-  final double borderRadius;
-  final bool isActive;
-  final bool isPlaying;
-  final VoidCallback onPressed;
-
-  const _HoverPlayThumbnail({
-    required this.child,
-    required this.borderRadius,
-    required this.isActive,
-    required this.isPlaying,
-    required this.onPressed,
-  });
-
-  @override
-  State<_HoverPlayThumbnail> createState() => _HoverPlayThumbnailState();
-}
-
-class _HoverPlayThumbnailState extends State<_HoverPlayThumbnail> {
-  bool _isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    final icon = widget.isActive && widget.isPlaying
-        ? Icons.pause
-        : Icons.play_arrow;
-
-    // Clip only the image widget itself so the play button isn't clipped
-    final imageWidget = (widget.borderRadius >= 360)
-        ? ClipOval(child: widget.child)
-        : ClipRRect(
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-            child: widget.child,
-          );
-
-    final parentScope = _HoverPlayScope.of(context);
-    final parentHovering = parentScope?.hovering ?? false;
-
-    final thumbnail = Stack(
-      clipBehavior: Clip.none,
-      children: [
-        imageWidget,
-        Positioned(
-          right: 8,
-          bottom: 8,
-          child: AnimatedOpacity(
-            opacity: isDesktop && (_isHovering || parentHovering) ? 1 : 0,
-            duration: const Duration(milliseconds: 120),
-            child: IgnorePointer(
-              ignoring: !(isDesktop && (_isHovering || parentHovering)),
-              child: Builder(
-                builder: (context) {
-                  final colorScheme = Theme.of(context).colorScheme;
-                  return SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: Material(
-                      color: colorScheme.primary,
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        iconSize: 22,
-                        icon: Icon(icon, color: colorScheme.onPrimary),
-                        onPressed: () {
-                          final player = context.read<WispAudioHandler>();
-                          final coordinator = context
-                              .read<PlaybackCoordinator>();
-                          if (widget.isActive) {
-                            if (player.isPlaying) {
-                              unawaited(coordinator.pause());
-                            } else if (!player.isLoading &&
-                                !player.isBuffering) {
-                              unawaited(coordinator.play());
-                            }
-                            return;
-                          }
-                          widget.onPressed();
-                        },
-                        splashRadius: 22,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-
-    return MouseRegion(
-      cursor: isDesktop ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: (_) {
-        if (isDesktop) setState(() => _isHovering = true);
-      },
-      onExit: (_) {
-        if (isDesktop) setState(() => _isHovering = false);
-      },
-      child: thumbnail,
-    );
-  }
-}
-
-class _ScrollableCardSection extends StatefulWidget {
-  final String title;
-  final List<Widget> cards;
-  final bool showTitle;
-  final bool expandCardsToRowWidth;
-
-  const _ScrollableCardSection({
-    required this.title,
-    required this.cards,
-    this.showTitle = true,
-    this.expandCardsToRowWidth = false,
-  });
-
-  @override
-  State<_ScrollableCardSection> createState() => _ScrollableCardSectionState();
-}
-
-class _ScrollableCardSectionState extends State<_ScrollableCardSection> {
-  final ScrollController _controller = ScrollController();
-  bool _canScrollLeft = false;
-  bool _canScrollRight = false;
-  bool _isHovered = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_updateArrows);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
-  }
-
-  @override
-  void dispose() {
-    _controller.removeListener(_updateArrows);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _updateArrows() {
-    if (!_controller.hasClients) return;
-    final maxExtent = _controller.position.maxScrollExtent;
-    final offset = _controller.offset;
-    final canLeft = offset > 4;
-    final canRight = offset < (maxExtent - 4);
-    if (canLeft == _canScrollLeft && canRight == _canScrollRight) return;
-    setState(() {
-      _canScrollLeft = canLeft;
-      _canScrollRight = canRight;
-    });
-  }
-
-  void _scrollBy(double delta) {
-    if (!_controller.hasClients) return;
-    final target = (_controller.offset + delta).clamp(
-      0.0,
-      _controller.position.maxScrollExtent,
-    );
-    _controller.animateTo(
-      target,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.cards.isEmpty) return const SizedBox.shrink();
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    final showArrows = isDesktop && _isHovered;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (widget.showTitle)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              widget.title,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return MouseRegion(
-              cursor: SystemMouseCursors.basic,
-              onEnter: isDesktop
-                  ? (_) => setState(() => _isHovered = true)
-                  : null,
-              onExit: isDesktop
-                  ? (_) => setState(() => _isHovered = false)
-                  : null,
-              child: Stack(
-                children: [
-                  SingleChildScrollView(
-                    controller: _controller,
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.only(bottom: 4),
-                    // Note: this used to be wrapped in IntrinsicHeight so that
-                    // cards of varying natural height (e.g. artist cards with
-                    // no subtitle vs. album/playlist cards with a subtitle)
-                    // would line up. IntrinsicHeight forces an extra
-                    // dry-layout pass that computes the max intrinsic height
-                    // of every descendant, which is very expensive for a
-                    // horizontally scrolling row containing many complex
-                    // cards (Material/InkWell/Stack/AnimatedOpacity, etc).
-                    // Cards now reserve a fixed-height slot for their
-                    // subtitle (see _kSubtitleLineHeight in _GenericCard) so
-                    // they are all naturally the same height, and this
-                    // wrapper is no longer needed.
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (int i = 0; i < widget.cards.length; i++) ...[
-                          if (i != 0) const SizedBox(width: 12),
-                          widget.expandCardsToRowWidth
-                              ? SizedBox(
-                                  width: constraints.maxWidth,
-                                  child: widget.cards[i],
-                                )
-                              : widget.cards[i],
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (_canScrollRight)
-                    Positioned(
-                      top: 0,
-                      bottom: 0,
-                      right: 0,
-                      child: IgnorePointer(
-                        child: Container(
-                          width: 52,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                              colors: [
-                                Colors.transparent,
-                                const Color(0xFF121212).withValues(alpha: 0.78),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (showArrows && _canScrollLeft)
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Center(
-                        child: _ScrollArrowButton(
-                          icon: Icons.chevron_left,
-                          onPressed: () => _scrollBy(-240),
-                        ),
-                      ),
-                    ),
-                  if (showArrows && _canScrollRight)
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Center(
-                        child: _ScrollArrowButton(
-                          icon: Icons.chevron_right,
-                          onPressed: () => _scrollBy(240),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-        ),
-        SizedBox(height: isDesktop ? 32 : 4),
-      ],
-    );
-  }
-}
-
-class _ScrollArrowButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onPressed;
-
-  const _ScrollArrowButton({required this.icon, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.black.withValues(alpha: 0.5),
-      shape: const CircleBorder(),
-      child: IconButton(
-        icon: Icon(icon, color: Colors.white),
-        onPressed: onPressed,
-        splashRadius: 18,
-      ),
+      expandItemsToRailWidth: expandCardsToRowWidth,
+      itemWidth: 160,
+      itemHeight: useSpecialCardStyle
+          ? 168
+          : null, // null falls back to the GenericCard default
+      itemBuilder: (context, item) =>
+          _buildHomeCard(item, useSpecialCardStyle: useSpecialCardStyle) ??
+          const SizedBox.shrink(),
     );
   }
 }

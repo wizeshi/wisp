@@ -57,21 +57,24 @@ class _SlidingTrackBackgroundState extends State<SlidingTrackBackground> {
       },
       transitionBuilder: (child, animation) {
         final isOutgoing = animation.status == AnimationStatus.reverse;
-        final outgoingTarget =
-          slideDirection > 0 ? const Offset(-1, 0) : const Offset(1, 0);
-        final incomingStart =
-          slideDirection > 0 ? const Offset(1, 0) : const Offset(-1, 0);
+        final outgoingTarget = slideDirection > 0
+            ? const Offset(-1, 0)
+            : const Offset(1, 0);
+        final incomingStart = slideDirection > 0
+            ? const Offset(1, 0)
+            : const Offset(-1, 0);
 
         final slide = isOutgoing
-          ? Tween<Offset>(begin: Offset.zero, end: outgoingTarget)
-            .animate(ReverseAnimation(animation))
-          : Tween<Offset>(begin: incomingStart, end: Offset.zero)
-            .animate(animation);
+            ? Tween<Offset>(
+                begin: Offset.zero,
+                end: outgoingTarget,
+              ).animate(ReverseAnimation(animation))
+            : Tween<Offset>(
+                begin: incomingStart,
+                end: Offset.zero,
+              ).animate(animation);
 
-        return SlideTransition(
-          position: slide,
-          child: child,
-        );
+        return SlideTransition(position: slide, child: child);
       },
       child: KeyedSubtree(
         key: ValueKey<String>(

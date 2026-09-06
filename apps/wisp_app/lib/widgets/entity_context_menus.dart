@@ -40,16 +40,18 @@ class EntityContextMenus {
     if (!_isSpotifySource(source)) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Share is only available for Spotify sources')),
+        const SnackBar(
+          content: Text('Share is only available for Spotify sources'),
+        ),
       );
       return;
     }
     final url = 'https://open.spotify.com/$type/${_idWithoutPrefix(id)}';
     await Clipboard.setData(ClipboardData(text: url));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copied to clipboard')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
   }
 
   static IconData _sourceIcon(SongSource source) {
@@ -69,7 +71,8 @@ class EntityContextMenus {
     BuildContext context,
     GenericPlaylist playlist,
   ) async {
-    final fromModel = playlist.songs
+    final fromModel =
+        playlist.songs
             ?.map(
               (item) => GenericSong(
                 id: item.id,
@@ -128,9 +131,9 @@ class EntityContextMenus {
     List<GenericSong> tracks,
   ) async {
     if (tracks.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No tracks available')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No tracks available')));
       return;
     }
     final player = context.read<global_audio_player.WispAudioHandler>();
@@ -159,7 +162,9 @@ class EntityContextMenus {
     var startIndex = 0;
     final currentTrackId = player.currentTrack?.id;
     if (currentTrackId != null) {
-      final found = mergedQueue.indexWhere((track) => track.id == currentTrackId);
+      final found = mergedQueue.indexWhere(
+        (track) => track.id == currentTrackId,
+      );
       if (found >= 0) startIndex = found;
     }
 
@@ -242,15 +247,16 @@ class EntityContextMenus {
           final message = switch (result) {
             QueueDownloadResult.queued => 'Queued track for download',
             QueueDownloadResult.alreadyCached => 'Track already cached',
-            QueueDownloadResult.alreadyQueued => 'Track already in download queue',
+            QueueDownloadResult.alreadyQueued =>
+              'Track already in download queue',
             QueueDownloadResult.blockedByNetworkPolicy =>
               'Downloads blocked by your WiFi/Ethernet-only setting',
             QueueDownloadResult.blockedByNetworkOnlyMode =>
               'Downloads blocked because Network-only mode is enabled',
           };
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
         },
       ),
       ContextMenuAction(
@@ -394,7 +400,8 @@ class EntityContextMenus {
                       color: Colors.grey[900],
                       child: Icon(Icons.music_note, color: Colors.grey[600]),
                     ),
-                    placeholder: (context, url) => Container(color: Colors.grey[850]),
+                    placeholder: (context, url) =>
+                        Container(color: Colors.grey[850]),
                   ),
                 ),
               ),
@@ -459,7 +466,9 @@ class EntityContextMenus {
       for (final folder in folders)
         ContextMenuAction(
           id: 'move-${folder.id}',
-          label: currentFolderId == folder.id ? '✓ ${folder.title}' : folder.title,
+          label: currentFolderId == folder.id
+              ? '✓ ${folder.title}'
+              : folder.title,
           icon: Icons.folder,
           onSelected: (_) async {
             await folderState.movePlaylistIntoFolder(playlist.id, folder.id);
@@ -488,7 +497,8 @@ class EntityContextMenus {
         id: 'edit-details',
         label: 'Edit Details',
         icon: Icons.edit,
-        onSelected: (_) => PlaylistFolderModals.showRenamePlaylistDialog(context, playlist),
+        onSelected: (_) =>
+            PlaylistFolderModals.showRenamePlaylistDialog(context, playlist),
       ),
       ContextMenuAction(
         id: 'delete',
@@ -501,7 +511,9 @@ class EntityContextMenus {
             builder: (dialogContext) {
               return AlertDialog(
                 title: const Text('Delete playlist?'),
-                content: const Text('Delete confirmation is still a placeholder for now.'),
+                content: const Text(
+                  'Delete confirmation is still a placeholder for now.',
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -545,17 +557,22 @@ class EntityContextMenus {
               if (!context.mounted) return;
               if (tracks.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No tracks available to download')),
+                  const SnackBar(
+                    content: Text('No tracks available to download'),
+                  ),
                 );
                 return;
               }
-              final player = context.read<global_audio_player.WispAudioHandler>();
+              final player = context
+                  .read<global_audio_player.WispAudioHandler>();
               final results = await player.downloadTracks(tracks);
               if (!context.mounted) return;
               final queued = results[QueueDownloadResult.queued] ?? 0;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Queued $queued track${queued == 1 ? '' : 's'} for download'),
+                  content: Text(
+                    'Queued $queued track${queued == 1 ? '' : 's'} for download',
+                  ),
                 ),
               );
             },
@@ -635,7 +652,9 @@ class EntityContextMenus {
           if (!spotifyInternal.isAuthenticated) {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Spotify (Internal) is not connected.')),
+              const SnackBar(
+                content: Text('Spotify (Internal) is not connected.'),
+              ),
             );
             return;
           }
@@ -649,7 +668,11 @@ class EntityContextMenus {
             }
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(isSaved ? 'Album removed from library' : 'Album saved')),
+              SnackBar(
+                content: Text(
+                  isSaved ? 'Album removed from library' : 'Album saved',
+                ),
+              ),
             );
           } catch (e) {
             if (!context.mounted) return;
@@ -693,17 +716,22 @@ class EntityContextMenus {
               if (!context.mounted) return;
               if (tracks.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No tracks available to download')),
+                  const SnackBar(
+                    content: Text('No tracks available to download'),
+                  ),
                 );
                 return;
               }
-              final player = context.read<global_audio_player.WispAudioHandler>();
+              final player = context
+                  .read<global_audio_player.WispAudioHandler>();
               final results = await player.downloadTracks(tracks);
               if (!context.mounted) return;
               final queued = results[QueueDownloadResult.queued] ?? 0;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Queued $queued track${queued == 1 ? '' : 's'} for download'),
+                  content: Text(
+                    'Queued $queued track${queued == 1 ? '' : 's'} for download',
+                  ),
                 ),
               );
             },
@@ -752,7 +780,9 @@ class EntityContextMenus {
           if (!spotifyInternal.isAuthenticated) {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Spotify (Internal) is not connected.')),
+              const SnackBar(
+                content: Text('Spotify (Internal) is not connected.'),
+              ),
             );
             return;
           }
@@ -766,12 +796,18 @@ class EntityContextMenus {
             }
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(isFollowed ? 'Unfollowed artist' : 'Followed artist')),
+              SnackBar(
+                content: Text(
+                  isFollowed ? 'Unfollowed artist' : 'Followed artist',
+                ),
+              ),
             );
           } catch (e) {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to update artist follow state: $e')),
+              SnackBar(
+                content: Text('Failed to update artist follow state: $e'),
+              ),
             );
           }
         },
@@ -782,7 +818,9 @@ class EntityContextMenus {
         icon: Icons.download_outlined,
         onSelected: (_) async {
           try {
-            await context.read<SpotifyInternalProvider>().getArtistInfo(artist.id);
+            await context.read<SpotifyInternalProvider>().getArtistInfo(
+              artist.id,
+            );
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Artist metadata refreshed')),
@@ -827,20 +865,23 @@ class EntityContextMenus {
         id: 'rename',
         label: 'Rename',
         icon: Icons.edit,
-        onSelected: (_) => PlaylistFolderModals.showRenameFolderDialog(context, folder),
+        onSelected: (_) =>
+            PlaylistFolderModals.showRenameFolderDialog(context, folder),
       ),
       ContextMenuAction(
         id: 'change-thumbnail',
         label: 'Change thumbnail',
         icon: Icons.image_outlined,
-        onSelected: (_) => PlaylistFolderModals.showChangeThumbnailDialog(context, folder),
+        onSelected: (_) =>
+            PlaylistFolderModals.showChangeThumbnailDialog(context, folder),
       ),
       ContextMenuAction(
         id: 'delete',
         label: 'Delete',
         icon: Icons.delete_outline,
         destructive: true,
-        onSelected: (_) => context.read<LibraryFolderState>().deleteFolder(folder.id),
+        onSelected: (_) =>
+            context.read<LibraryFolderState>().deleteFolder(folder.id),
       ),
     ];
 

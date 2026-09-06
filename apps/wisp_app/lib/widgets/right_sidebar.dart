@@ -13,6 +13,7 @@ import 'package:wisp/widgets/marquee_text.dart';
 
 import '../models/metadata_models.dart';
 import '../providers/navigation_state.dart';
+import '../services/app_focus_service.dart';
 import '../services/wisp_audio_handler.dart';
 import '../providers/lyrics/provider.dart';
 import '../providers/library/library_state.dart';
@@ -24,6 +25,7 @@ import '../utils/lyrics_timing.dart';
 import '../views/list_detail.dart';
 import 'full_player.dart';
 import 'animated_lyrics_preview.dart';
+import 'focus_freeze_builder.dart';
 import 'connect/connect_menu.dart';
 import 'entity_context_menus.dart';
 import 'hover_underline.dart';
@@ -796,10 +798,15 @@ class _CanvasVideoState extends State<_CanvasVideo> {
   bool _initFailed = false;
   bool? _lastShouldPlay;
 
+  // Whether the "freeze while unfocused" behavior is turned on for this
+  // widget, per the user's preference. Kept in sync from build().
+  bool _freezeWhenUnfocused = false;
+
   @override
   void initState() {
     super.initState();
     _initialize();
+    AppFocusService.instance.isFocused.addListener(_handleFocusChanged);
   }
 
   @override
@@ -813,8 +820,22 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   @override
   void dispose() {
+    AppFocusService.instance.isFocused.removeListener(_handleFocusChanged);
     _disposeController();
     super.dispose();
+  }
+
+  void _handleFocusChanged() {
+    // Re-evaluate play/pause immediately: no need to wait for a rebuild
+    // driven by the playback provider to freeze/resume this animated canvas.
+    final controller = _controller;
+    if (!mounted || controller == null || !controller.value.isInitialized) {
+      return;
+    }
+    final shouldPlay =
+        context.read<PlaybackCoordinator>().effectiveIsPlaying &&
+        (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
+    _syncPlayback(controller, shouldPlay);
   }
 
   Future<void> _initialize() async {
@@ -865,9 +886,21 @@ class _CanvasVideoState extends State<_CanvasVideo> {
 
   @override
   Widget build(BuildContext context) {
-    final shouldPlay = context.select<PlaybackCoordinator, bool>(
+    final effectiveIsPlaying = context.select<PlaybackCoordinator, bool>(
       (coordinator) => coordinator.effectiveIsPlaying,
     );
+    final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
+      (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+        PausedBackgroundWidget.animatedCanvasSidebar,
+      ),
+    );
+    _freezeWhenUnfocused = freezeWhenUnfocused;
+    // Freeze this animated canvas (stop decoding/painting video frames)
+    // whenever the app/window is unfocused and the user has enabled that
+    // behavior for it, regardless of playback state.
+    final shouldPlay =
+        effectiveIsPlaying &&
+        (!freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
     final controller = _controller;
     final hasSize = widget.width != null || widget.height != null;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
@@ -916,10 +949,15 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
   bool _initFailed = false;
   bool? _lastShouldPlay;
 
+  // Whether the "freeze while unfocused" behavior is turned on for this
+  // widget, per the user's preference. Kept in sync from build().
+  bool _freezeWhenUnfocused = false;
+
   @override
   void initState() {
     super.initState();
     _initialize();
+    AppFocusService.instance.isFocused.addListener(_handleFocusChanged);
   }
 
   @override
@@ -933,8 +971,22 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
 
   @override
   void dispose() {
+    AppFocusService.instance.isFocused.removeListener(_handleFocusChanged);
     _disposeController();
     super.dispose();
+  }
+
+  void _handleFocusChanged() {
+    // Re-evaluate play/pause immediately: no need to wait for a rebuild
+    // driven by the playback provider to freeze/resume this animated canvas.
+    final controller = _controller;
+    if (!mounted || controller == null || !controller.value.isInitialized) {
+      return;
+    }
+    final shouldPlay =
+        context.read<PlaybackCoordinator>().effectiveIsPlaying &&
+        (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
+    _syncPlayback(controller, shouldPlay);
   }
 
   Future<void> _initialize() async {
@@ -985,9 +1037,21 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
 
   @override
   Widget build(BuildContext context) {
-    final shouldPlay = context.select<PlaybackCoordinator, bool>(
+    final effectiveIsPlaying = context.select<PlaybackCoordinator, bool>(
       (coordinator) => coordinator.effectiveIsPlaying,
     );
+    final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
+      (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+        PausedBackgroundWidget.animatedCanvasSidebar,
+      ),
+    );
+    _freezeWhenUnfocused = freezeWhenUnfocused;
+    // Freeze this animated canvas (stop decoding/painting video frames)
+    // whenever the app/window is unfocused and the user has enabled that
+    // behavior for it, regardless of playback state.
+    final shouldPlay =
+        effectiveIsPlaying &&
+        (!freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
     final controller = _controller;
     if (_initFailed || controller == null || !controller.value.isInitialized) {
       return const SizedBox.shrink();
@@ -1365,24 +1429,35 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                   .effectiveThrottledPosition
                                   .inMilliseconds,
                               builder: (context, positionMs, child) {
-                                final delaySeconds = lyricsProvider
-                                    .getDelaySecondsCached(track.id);
-                                final delayMs = (delaySeconds * 1000).round();
-                                final adjustedPosition = positionMs - delayMs;
-                                final effectivePosition = adjustedPosition < 0
-                                    ? 0
-                                    : adjustedPosition;
-                                return AnimatedLyricsPreviewList(
-                                  lines: _getPreviewLines(
-                                    lyrics!,
-                                    effectivePosition,
-                                  ),
-                                  resetKey: track.id,
-                                  textStyle: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                // Freeze the scrolling lyrics preview while
+                                // the app/window is unfocused instead of
+                                // rebuilding it on every position tick.
+                                return FocusFreezeBuilder<int>(
+                                  value: positionMs,
+                                  builder: (context, positionMs) {
+                                    final delaySeconds = lyricsProvider
+                                        .getDelaySecondsCached(track.id);
+                                    final delayMs = (delaySeconds * 1000)
+                                        .round();
+                                    final adjustedPosition =
+                                        positionMs - delayMs;
+                                    final effectivePosition =
+                                        adjustedPosition < 0
+                                        ? 0
+                                        : adjustedPosition;
+                                    return AnimatedLyricsPreviewList(
+                                      lines: _getPreviewLines(
+                                        lyrics!,
+                                        effectivePosition,
+                                      ),
+                                      resetKey: track.id,
+                                      textStyle: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    );
+                                  },
                                 );
                               },
                             ),

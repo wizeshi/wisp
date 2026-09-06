@@ -7,6 +7,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/theme/app_theme.dart';
 
+enum PausedBackgroundWidget {
+  lyricsView,
+  lyricsPreview,
+  lyricsFullscreen,
+  animatedCanvasSidebar,
+  rotatingAlbumArtFullScreen,
+  animatedWaveform,
+  playerProgressBar,
+}
+
+extension PausedBackgroundWidgetNames on PausedBackgroundWidget {
+  String get displayName {
+    switch (this) {
+      case PausedBackgroundWidget.lyricsView:
+        return 'Lyrics View';
+      case PausedBackgroundWidget.lyricsPreview:
+        return 'Lyrics Preview';
+      case PausedBackgroundWidget.lyricsFullscreen:
+        return 'Lyrics View - Fullscreen';
+      case PausedBackgroundWidget.playerProgressBar:
+        return 'Player Progress Bar';
+      case PausedBackgroundWidget.animatedWaveform:
+        return 'Animated Waveform';
+      case PausedBackgroundWidget.animatedCanvasSidebar:
+        return 'Animated Canvas - Sidebar';
+      case PausedBackgroundWidget.rotatingAlbumArtFullScreen:
+        return 'Rotating Album Art - Fullscreen';
+    }
+  }
+}
+
 class PreferencesProvider extends ChangeNotifier {
   static const _keyStyle = 'preferred_style';
   static const _keyAnimatedCanvas = 'animated_canvas_enabled';
@@ -22,6 +53,8 @@ class PreferencesProvider extends ChangeNotifier {
   static const _keyHandoffSecurityLevel = 'handoff_security_level';
   static const _keyTrustedDevices = 'handoff_trusted_devices';
   static const _keyDebugModeEnabled = 'debug_mode_enabled';
+  static const _keyPausedBackgroundWidgetsEnabled =
+      'paused_background_widgets_enabled';
 
   static const bool _defaultAllowWriting = true;
   static const bool _defaultMetadataSpotifyEnabled = true;
@@ -34,7 +67,8 @@ class PreferencesProvider extends ChangeNotifier {
   static const bool _defaultLyricsSpotifyEnabled = true;
   static const HandoffSecurityLevel _defaultHandoffSecurityLevel =
       HandoffSecurityLevel.keyExchange;
-
+  static const List<PausedBackgroundWidget>
+  _defaultPausedBackgroundWidgetsEnabled = PausedBackgroundWidget.values;
   static const bool _defaultDebugModeEnabled = false;
 
   AppStyle _style = AppStyle.Spotify;
@@ -74,8 +108,12 @@ class PreferencesProvider extends ChangeNotifier {
   HandoffSecurityLevel get handoffSecurityLevel => _handoffSecurityLevel;
 
   List<TrustedDevice> _trustedDevices = <TrustedDevice>[];
-  List<TrustedDevice> get trustedDevices =>
-      List.unmodifiable(_trustedDevices);
+  List<TrustedDevice> get trustedDevices => List.unmodifiable(_trustedDevices);
+
+  List<PausedBackgroundWidget> _pausedBackgroundWidgetsEnabled =
+      _defaultPausedBackgroundWidgetsEnabled;
+  List<PausedBackgroundWidget> get pausedBackgroundWidgetsEnabled =>
+      List.unmodifiable(_pausedBackgroundWidgetsEnabled);
 
   bool _debugModeEnabled = _defaultDebugModeEnabled;
   bool get debugModeEnabled => _debugModeEnabled;
@@ -116,8 +154,7 @@ class PreferencesProvider extends ChangeNotifier {
           prefs.getDouble(_keyCrossfadeDurationSeconds) ??
           _defaultCrossfadeDurationSeconds;
       _lyricsLrclibEnabled =
-          prefs.getBool(_keyLyricsLrclibEnabled) ??
-          _defaultLyricsLrclibEnabled;
+          prefs.getBool(_keyLyricsLrclibEnabled) ?? _defaultLyricsLrclibEnabled;
       _lyricsSpotifyEnabled =
           prefs.getBool(_keyLyricsSpotifyEnabled) ??
           _defaultLyricsSpotifyEnabled;
@@ -129,6 +166,14 @@ class PreferencesProvider extends ChangeNotifier {
       _trustedDevices = _decodeTrustedDevices(
         prefs.getString(_keyTrustedDevices),
       );
+      _pausedBackgroundWidgetsEnabled =
+          (prefs.getStringList(_keyPausedBackgroundWidgetsEnabled) ?? [])
+              .expand(
+                (name) => PausedBackgroundWidget.values.where(
+                  (widget) => widget.name == name,
+                ),
+              )
+              .toList(growable: false);
       notifyListeners();
     } catch (_) {
       // Ignore load errors; keep default
@@ -154,7 +199,8 @@ class PreferencesProvider extends ChangeNotifier {
 
   static Future<bool> isAudioYouTubeEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyAudioYouTubeEnabled) ?? _defaultAudioYouTubeEnabled;
+    return prefs.getBool(_keyAudioYouTubeEnabled) ??
+        _defaultAudioYouTubeEnabled;
   }
 
   static Future<bool> isGaplessPlaybackEnabled() async {
@@ -211,6 +257,24 @@ class PreferencesProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyStyle, style.toString());
+    } catch (_) {
+      // Ignore save errors
+    }
+  }
+
+  Future<void> setPausedBackgroundWidgetsEnabled(
+    List<PausedBackgroundWidget> widgets,
+  ) async {
+    _pausedBackgroundWidgetsEnabled = List<PausedBackgroundWidget>.from(
+      widgets,
+    );
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _keyPausedBackgroundWidgetsEnabled,
+        widgets.map((widget) => widget.name).toList(),
+      );
     } catch (_) {
       // Ignore save errors
     }
@@ -321,9 +385,7 @@ class PreferencesProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> setHandoffSecurityLevel(
-    HandoffSecurityLevel level,
-  ) async {
+  Future<void> setHandoffSecurityLevel(HandoffSecurityLevel level) async {
     if (level == _handoffSecurityLevel) return;
     _handoffSecurityLevel = level;
     notifyListeners();

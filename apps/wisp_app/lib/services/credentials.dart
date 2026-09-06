@@ -11,15 +11,12 @@ class SpotifyCredentials {
   final String clientId;
   final String clientSecret;
 
-  SpotifyCredentials({
-    required this.clientId,
-    required this.clientSecret,
-  });
+  SpotifyCredentials({required this.clientId, required this.clientSecret});
 
   Map<String, String> toJson() => {
-        'client_id': clientId,
-        'client_secret': clientSecret,
-      };
+    'client_id': clientId,
+    'client_secret': clientSecret,
+  };
 
   factory SpotifyCredentials.fromJson(Map<String, dynamic> json) {
     return SpotifyCredentials(
@@ -41,29 +38,27 @@ class SpotifyToken {
   });
 
   bool get isExpired => DateTime.now().isAfter(expiresAt);
-  
+
   bool get isValid => !isExpired && accessToken.isNotEmpty;
 
   Map<String, dynamic> toJson() => {
-        'access_token': accessToken,
-        'refresh_token': refreshToken,
-        'expires_at': expiresAt.millisecondsSinceEpoch,
-      };
+    'access_token': accessToken,
+    'refresh_token': refreshToken,
+    'expires_at': expiresAt.millisecondsSinceEpoch,
+  };
 
   factory SpotifyToken.fromJson(Map<String, dynamic> json) {
     return SpotifyToken(
       accessToken: json['access_token'] as String,
       refreshToken: json['refresh_token'] as String,
-      expiresAt: DateTime.fromMillisecondsSinceEpoch(
-        json['expires_at'] as int,
-      ),
+      expiresAt: DateTime.fromMillisecondsSinceEpoch(json['expires_at'] as int),
     );
   }
 }
 
 class CredentialsService {
   static const _storage = FlutterSecureStorage();
-  
+
   // Storage keys
   static const _keySpotifyCredentials = 'spotify_credentials';
   static const _keySpotifyToken = 'spotify_token';
@@ -82,7 +77,7 @@ class CredentialsService {
   Future<SpotifyCredentials?> getSpotifyCredentials() async {
     final json = await _storage.read(key: _keySpotifyCredentials);
     if (json == null || json.isEmpty) return null;
-    
+
     try {
       return SpotifyCredentials.fromJson(jsonDecode(json));
     } catch (e) {
@@ -110,7 +105,7 @@ class CredentialsService {
   Future<SpotifyToken?> getSpotifyToken() async {
     final json = await _storage.read(key: _keySpotifyToken);
     if (json == null || json.isEmpty) return null;
-    
+
     try {
       return SpotifyToken.fromJson(jsonDecode(json));
     } catch (e) {

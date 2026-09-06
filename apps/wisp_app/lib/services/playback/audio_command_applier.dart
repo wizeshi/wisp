@@ -71,10 +71,15 @@ class AudioCommandApplier {
       case 'set_queue':
         final tracksJsonRaw = payload['tracks'];
         final tracksJson = (tracksJsonRaw is List)
-            ? tracksJsonRaw.whereType<Map<String, dynamic>>().toList(growable: false)
+            ? tracksJsonRaw.whereType<Map<String, dynamic>>().toList(
+                growable: false,
+              )
             : <Map<String, dynamic>>[];
 
-        List<GenericSong> parseSongs(List<Map<String, dynamic>> items, String label) {
+        List<GenericSong> parseSongs(
+          List<Map<String, dynamic>> items,
+          String label,
+        ) {
           final songs = <GenericSong>[];
           for (var index = 0; index < items.length; index++) {
             final item = items[index];
@@ -94,7 +99,9 @@ class AudioCommandApplier {
         final tracks = parseSongs(tracksJson, 'tracks');
         final originalQueueJsonRaw = payload['original_queue'];
         final originalQueueJson = (originalQueueJsonRaw is List)
-            ? originalQueueJsonRaw.whereType<Map<String, dynamic>>().toList(growable: false)
+            ? originalQueueJsonRaw.whereType<Map<String, dynamic>>().toList(
+                growable: false,
+              )
             : <Map<String, dynamic>>[];
         final originalQueue = parseSongs(originalQueueJson, 'original_queue');
         try {
@@ -103,13 +110,19 @@ class AudioCommandApplier {
             startIndex: (payload['start_index'] as int?) ?? 0,
             play: (payload['play'] as bool?) ?? true,
             playbackContext: payload['context'] is Map<String, dynamic>
-                ? PlaybackContext.fromJson(payload['context'] as Map<String, dynamic>)
+                ? PlaybackContext.fromJson(
+                    payload['context'] as Map<String, dynamic>,
+                  )
                 : null,
             shuffleEnabled: (payload['shuffle_enabled'] as bool?) ?? false,
             originalQueue: originalQueue.isEmpty ? null : originalQueue,
           );
         } catch (e, st) {
-          logger.e('[Handoff] AudioCommandApplier.set_queue: failed to apply queue', error: e, stackTrace: st);
+          logger.e(
+            '[Handoff] AudioCommandApplier.set_queue: failed to apply queue',
+            error: e,
+            stackTrace: st,
+          );
           rethrow;
         }
         break;
@@ -133,9 +146,15 @@ class AudioCommandApplier {
         autoPlay: autoPlay,
         preserveVolume: preserveVolume,
       );
-      logger.d('[Handoff] AudioCommandApplier.applySnapshot: applied successfully');
+      logger.d(
+        '[Handoff] AudioCommandApplier.applySnapshot: applied successfully',
+      );
     } catch (e, st) {
-      logger.e('[Handoff] AudioCommandApplier.applySnapshot failed', error: e, stackTrace: st);
+      logger.e(
+        '[Handoff] AudioCommandApplier.applySnapshot failed',
+        error: e,
+        stackTrace: st,
+      );
       rethrow;
     }
   }

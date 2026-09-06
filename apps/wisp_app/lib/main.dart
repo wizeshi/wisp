@@ -1,4 +1,4 @@
-// Copyright © 2026 wizeshi 
+// Copyright © 2026 wizeshi
 
 import 'dart:io';
 import 'dart:async';
@@ -182,20 +182,14 @@ class WispApp extends StatelessWidget {
       providers: [
         // Providers for various services and state management
         ChangeNotifierProvider(create: (_) => SpotifyInternalProvider()),
-        ChangeNotifierProvider(create: (_) => PreferencesProvider()),
         ChangeNotifierProvider(create: (_) => YouTubeMetadataProvider()),
-        ChangeNotifierProvider.value(value: audioHandler),
-        ChangeNotifierProvider.value(value: playbackCoordinator),
-        ChangeNotifierProxyProvider<WispAudioHandler, CoverArtPaletteProvider>(
-          create: (_) => CoverArtPaletteProvider(),
-          update: (_, player, palette) {
-            final provider = palette ?? CoverArtPaletteProvider();
-            provider.updateForTrack(player.currentTrack);
-            return provider;
-          },
-        ),
+
         ChangeNotifierProvider(create: (_) => LyricsProvider()),
+
         ChangeNotifierProvider(create: (_) => LocalPlaylistState()),
+
+        ChangeNotifierProvider(create: (_) => PreferencesProvider()),
+
         ChangeNotifierProxyProvider<LocalPlaylistState, LibraryState>(
           create: (_) => LibraryState(),
           update: (_, local, library) {
@@ -206,6 +200,19 @@ class WispApp extends StatelessWidget {
           },
         ),
         ChangeNotifierProvider(create: (_) => LibraryFolderState()),
+
+        ChangeNotifierProvider.value(value: audioHandler),
+        ChangeNotifierProvider.value(value: playbackCoordinator),
+
+        ChangeNotifierProxyProvider<WispAudioHandler, CoverArtPaletteProvider>(
+          create: (_) => CoverArtPaletteProvider(),
+          update: (_, player, palette) {
+            final provider = palette ?? CoverArtPaletteProvider();
+            provider.updateForTrack(player.currentTrack);
+            return provider;
+          },
+        ),
+
         ChangeNotifierProxyProvider3<
           WispAudioHandler,
           PlaybackCoordinator,

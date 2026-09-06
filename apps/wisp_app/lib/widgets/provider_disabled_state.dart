@@ -23,10 +23,7 @@ class ProviderDisabledState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[300],
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey[300]),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(

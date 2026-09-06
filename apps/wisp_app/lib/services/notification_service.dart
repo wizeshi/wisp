@@ -12,21 +12,23 @@ import 'desktop_notification_center.dart';
 class NotificationService {
   static final NotificationService _instance = NotificationService._();
   static NotificationService get instance => _instance;
-  
+
   NotificationService._();
-  
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
   bool _permissionRequested = false;
-  
+
   /// Notification channel ID for downloads
   static const String _downloadChannelId = 'download_progress';
   static const String _downloadChannelName = 'Download Progress';
-  static const String _downloadChannelDesc = 'Shows progress of audio downloads';
+  static const String _downloadChannelDesc =
+      'Shows progress of audio downloads';
   static const String _downloadGroupKey = 'download_progress_group';
   static const int _downloadSummaryId = 1000001;
   static const bool _mobileNotificationsEnabled = false;
-  
+
   /// Initialize the notification service
   Future<void> initialize() async {
     if (_initialized) return;
@@ -38,29 +40,33 @@ class NotificationService {
       _initialized = true;
       return;
     }
-    
+
     try {
       // Android settings
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
+
       // iOS settings
       const iosSettings = DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
         requestSoundPermission: false,
       );
-      
+
       const initSettings = InitializationSettings(
         android: androidSettings,
         iOS: iosSettings,
       );
-      
+
       await _notifications.initialize(settings: initSettings);
-      
+
       // Create Android notification channel
       if (Platform.isAndroid) {
         final androidPlugin = _notifications
-            .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
 
         await androidPlugin?.createNotificationChannel(
           const AndroidNotificationChannel(
@@ -74,11 +80,14 @@ class NotificationService {
           ),
         );
       }
-      
+
       _initialized = true;
       logger.i('[Services/Notification] Service initialized successfully');
     } catch (e) {
-      logger.e('[Services/Notification] Error initializing notifications', error: e);
+      logger.e(
+        '[Services/Notification] Error initializing notifications',
+        error: e,
+      );
     }
   }
 
@@ -91,13 +100,15 @@ class NotificationService {
     if (!_mobileNotificationsEnabled) return;
     try {
       final androidPlugin = _notifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       await androidPlugin?.requestNotificationsPermission();
     } catch (e) {
       logger.e('[Services/Notification] Error requesting permission', error: e);
     }
   }
-  
+
   /// Show or update download progress notification
   Future<void> showDownloadProgress({
     required int id,
@@ -106,7 +117,8 @@ class NotificationService {
     required int progress,
     required int maxProgress,
   }) async {
-    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+    if ((Platform.isAndroid || Platform.isIOS) &&
+        !_mobileNotificationsEnabled) {
       return;
     }
     if (Platform.isAndroid) {
@@ -123,11 +135,19 @@ class NotificationService {
       return;
     }
     if (!_initialized || (!Platform.isAndroid && !Platform.isIOS)) {
-      logger.d('[Services/Notification] Not showing (initialized=$_initialized, platform=${Platform.isAndroid ? 'Android' : Platform.isIOS ? 'iOS' : 'Other'})');
+      logger.d(
+        '[Services/Notification] Not showing (initialized=$_initialized, platform=${Platform.isAndroid
+            ? 'Android'
+            : Platform.isIOS
+            ? 'iOS'
+            : 'Other'})',
+      );
       return;
     }
-    
-    logger.d('[Services/Notification] Showing progress: $title ($progress/$maxProgress)');
+
+    logger.d(
+      '[Services/Notification] Showing progress: $title ($progress/$maxProgress)',
+    );
     try {
       final androidDetails = AndroidNotificationDetails(
         _downloadChannelId,
@@ -148,32 +168,41 @@ class NotificationService {
         setAsGroupSummary: false,
         groupAlertBehavior: GroupAlertBehavior.summary,
       );
-      
+
       const iosDetails = DarwinNotificationDetails(
         presentAlert: false,
         presentBadge: false,
         presentSound: false,
       );
-      
+
       final details = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
-      
-      await _notifications.show(id: id, title: title, body: body, notificationDetails: details);
+
+      await _notifications.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
       logger.d('[Services/Notification] Progress notification shown (id=$id)');
     } catch (e) {
-      logger.e('[Services/Notification] Error showing progress notification', error: e);
+      logger.e(
+        '[Services/Notification] Error showing progress notification',
+        error: e,
+      );
     }
   }
-  
+
   /// Show download complete notification
   Future<void> showDownloadComplete({
     required int id,
     required String title,
     required String body,
   }) async {
-    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+    if ((Platform.isAndroid || Platform.isIOS) &&
+        !_mobileNotificationsEnabled) {
       return;
     }
     if (Platform.isAndroid) {
@@ -188,7 +217,7 @@ class NotificationService {
       return;
     }
     if (!_initialized || (!Platform.isAndroid && !Platform.isIOS)) return;
-    
+
     logger.d('[Services/Notification] Showing completion: $title');
     try {
       final androidDetails = AndroidNotificationDetails(
@@ -206,27 +235,35 @@ class NotificationService {
         setAsGroupSummary: false,
         groupAlertBehavior: GroupAlertBehavior.summary,
       );
-      
+
       const iosDetails = DarwinNotificationDetails(
         presentAlert: false,
         presentBadge: false,
         presentSound: false,
       );
-      
+
       final details = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
-      
-      await _notifications.show(id: id, title: title, body: body, notificationDetails: details);
+
+      await _notifications.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
       logger.d('[Services/Notification] Complete notification shown (id=$id)');
-      
+
       // Auto dismiss after 3 seconds
       Future.delayed(const Duration(seconds: 3), () {
         cancelNotification(id);
       });
     } catch (e) {
-      logger.e('[Services/Notification] Error showing complete notification', error: e);
+      logger.e(
+        '[Services/Notification] Error showing complete notification',
+        error: e,
+      );
     }
   }
 
@@ -236,7 +273,8 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
-    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+    if ((Platform.isAndroid || Platform.isIOS) &&
+        !_mobileNotificationsEnabled) {
       return;
     }
     if (Platform.isAndroid) {
@@ -280,15 +318,24 @@ class NotificationService {
         iOS: iosDetails,
       );
 
-      await _notifications.show(id: id, title: title, body: body, notificationDetails: details);
+      await _notifications.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
     } catch (e) {
-      logger.e('[Services/Notification] Error showing alert notification', error: e);
+      logger.e(
+        '[Services/Notification] Error showing alert notification',
+        error: e,
+      );
     }
   }
-  
+
   /// Cancel a specific notification
   Future<void> cancelNotification(int id) async {
-    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+    if ((Platform.isAndroid || Platform.isIOS) &&
+        !_mobileNotificationsEnabled) {
       return;
     }
     if (!Platform.isAndroid && !Platform.isIOS) {
@@ -296,11 +343,14 @@ class NotificationService {
       return;
     }
     if (!_initialized || (!Platform.isAndroid && !Platform.isIOS)) return;
-    
+
     try {
       await _notifications.cancel(id: id);
     } catch (e) {
-      logger.e('[Services/Notification] Error cancelling notification', error: e);
+      logger.e(
+        '[Services/Notification] Error cancelling notification',
+        error: e,
+      );
     }
   }
 
@@ -334,9 +384,17 @@ class NotificationService {
       );
 
       final details = NotificationDetails(android: androidDetails);
-      await _notifications.show(id: _downloadSummaryId, title: title, body: body, notificationDetails: details);
+      await _notifications.show(
+        id: _downloadSummaryId,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
     } catch (e) {
-      logger.e('[Services/Notification] Error showing download summary', error: e);
+      logger.e(
+        '[Services/Notification] Error showing download summary',
+        error: e,
+      );
     }
   }
 
@@ -344,10 +402,10 @@ class NotificationService {
     await cancelNotification(_downloadSummaryId);
   }
 
-  
   /// Cancel all notifications
   Future<void> cancelAllNotifications() async {
-    if ((Platform.isAndroid || Platform.isIOS) && !_mobileNotificationsEnabled) {
+    if ((Platform.isAndroid || Platform.isIOS) &&
+        !_mobileNotificationsEnabled) {
       return;
     }
     if (!Platform.isAndroid && !Platform.isIOS) {
@@ -355,11 +413,14 @@ class NotificationService {
       return;
     }
     if (!_initialized || (!Platform.isAndroid && !Platform.isIOS)) return;
-    
+
     try {
       await _notifications.cancelAll();
     } catch (e) {
-      logger.e('[Services/Notification] Error cancelling all notifications', error: e);
+      logger.e(
+        '[Services/Notification] Error cancelling all notifications',
+        error: e,
+      );
     }
   }
 }

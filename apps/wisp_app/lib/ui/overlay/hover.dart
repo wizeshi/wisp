@@ -72,10 +72,7 @@ class _HoverRegionState extends State<HoverRegion> {
         onLongPress: widget.onLongPress,
         onSecondaryTapDown: widget.onSecondaryTapDown,
         borderRadius: widget.borderRadius,
-        child: _HoverRegionScope(
-          isHovering: _isHovering,
-          child: widget.child,
-        ),
+        child: _HoverRegionScope(isHovering: _isHovering, child: widget.child),
       ),
     );
   }
@@ -84,10 +81,7 @@ class _HoverRegionState extends State<HoverRegion> {
 class _HoverRegionScope extends InheritedWidget {
   final bool isHovering;
 
-  const _HoverRegionScope({
-    required this.isHovering,
-    required super.child,
-  });
+  const _HoverRegionScope({required this.isHovering, required super.child});
 
   @override
   bool updateShouldNotify(_HoverRegionScope oldWidget) =>
@@ -109,7 +103,7 @@ class _HoverRegionScope extends InheritedWidget {
 /// [HoverRegion] reports hovering — so wrapping a whole card in a
 /// [HoverRegion] reveals the button even when the cursor is over the
 /// title text, not just the artwork.
-class HoverPlayOverlay extends StatefulWidget {
+class CardHoverPlayOverlay extends StatefulWidget {
   final Widget child;
   final bool isPlaying;
   final VoidCallback onPressed;
@@ -129,7 +123,7 @@ class HoverPlayOverlay extends StatefulWidget {
   /// actions for playback on mobile instead of a persistent overlay button.
   final bool showOnMobile;
 
-  const HoverPlayOverlay({
+  const CardHoverPlayOverlay({
     super.key,
     required this.child,
     required this.isPlaying,
@@ -142,10 +136,10 @@ class HoverPlayOverlay extends StatefulWidget {
   });
 
   @override
-  State<HoverPlayOverlay> createState() => _HoverPlayOverlayState();
+  State<CardHoverPlayOverlay> createState() => _HoverPlayOverlayState();
 }
 
-class _HoverPlayOverlayState extends State<HoverPlayOverlay> {
+class _HoverPlayOverlayState extends State<CardHoverPlayOverlay> {
   bool _isHovering = false;
 
   void _setHovering(bool value) {
@@ -155,7 +149,8 @@ class _HoverPlayOverlayState extends State<HoverPlayOverlay> {
   @override
   Widget build(BuildContext context) {
     final parentHovering = HoverRegion.of(context) ?? false;
-    final visible = widget.showOnMobile ||
+    final visible =
+        widget.showOnMobile ||
         (isDesktopPlatform && (_isHovering || parentHovering));
 
     return MouseRegion(
@@ -220,6 +215,27 @@ class _PlayPauseButton extends StatelessWidget {
           onPressed: onPressed,
         ),
       ),
+    );
+  }
+}
+
+class HoverVisible extends StatelessWidget {
+  final Widget child;
+  final bool alwaysVisible;
+
+  const HoverVisible({
+    super.key,
+    required this.child,
+    this.alwaysVisible = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = alwaysVisible || (HoverRegion.of(context) ?? false);
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: const Duration(milliseconds: 120),
+      child: IgnorePointer(ignoring: !visible, child: child),
     );
   }
 }

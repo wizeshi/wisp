@@ -17,7 +17,8 @@ class AppFocusService with WindowListener, WidgetsBindingObserver {
 
   final ValueNotifier<bool> isFocused = ValueNotifier(true);
 
-  bool get _isDesktop => Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+  bool get _isDesktop =>
+      Platform.isLinux || Platform.isWindows || Platform.isMacOS;
 
   @override
   void onWindowFocus() => _setFocused(true);
@@ -32,10 +33,17 @@ class AppFocusService with WindowListener, WidgetsBindingObserver {
         _setFocused(true);
         break;
       case AppLifecycleState.inactive:
+        // For some reason, Windows treats inactive as both when it's in the background (minimized),
+        // but also when it's in the foreground but not focused. I prefer to just pause it then, but
+        // a TODO is enable a toggle for this behavior in the settings page.
+        if (_isDesktop) {
+          _setFocused(false);
+        } else {
+          _setFocused(true);
+        }
+        break;
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
-        _setFocused(false);
-        break;
       case AppLifecycleState.hidden:
         _setFocused(false);
         break;

@@ -54,28 +54,29 @@ class LocalPlaylist {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-      'thumbnail_path': thumbnailPath,
-        'linked_id': linkedId,
-        'linked_source': linkedSource?.toJson(),
-        'author_name': authorName,
-        'tracks': tracks.map((t) => t.toJson()).toList(),
-        'created_at': createdAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'title': title,
+    'thumbnail_path': thumbnailPath,
+    'linked_id': linkedId,
+    'linked_source': linkedSource?.toJson(),
+    'author_name': authorName,
+    'tracks': tracks.map((t) => t.toJson()).toList(),
+    'created_at': createdAt.toIso8601String(),
+    'updated_at': updatedAt.toIso8601String(),
+  };
 
   factory LocalPlaylist.fromJson(Map<String, dynamic> json) {
     return LocalPlaylist(
       id: json['id'] as String,
       title: json['title'] as String,
-        thumbnailPath: json['thumbnail_path'] as String?,
+      thumbnailPath: json['thumbnail_path'] as String?,
       linkedId: json['linked_id'] as String?,
       linkedSource: json['linked_source'] != null
           ? SongSource.fromJson(json['linked_source'] as String)
           : null,
       authorName: json['author_name'] as String? ?? 'You',
-      tracks: (json['tracks'] as List?)
+      tracks:
+          (json['tracks'] as List?)
               ?.map((t) => PlaylistItem.fromJson(t as Map<String, dynamic>))
               .toList() ??
           <PlaylistItem>[],

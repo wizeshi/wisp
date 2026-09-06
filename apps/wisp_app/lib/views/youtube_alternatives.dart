@@ -13,7 +13,8 @@ class YouTubeAlternativesView extends StatefulWidget {
   const YouTubeAlternativesView({super.key, required this.track});
 
   @override
-  State<YouTubeAlternativesView> createState() => _YouTubeAlternativesViewState();
+  State<YouTubeAlternativesView> createState() =>
+      _YouTubeAlternativesViewState();
 }
 
 class _YouTubeAlternativesViewState extends State<YouTubeAlternativesView> {
@@ -115,9 +116,7 @@ class _YouTubeAlternativesViewState extends State<YouTubeAlternativesView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Search Alternatives'),
-      ),
+      appBar: AppBar(title: const Text('Search Alternatives')),
       body: Column(
         children: [
           ListTile(
@@ -153,10 +152,7 @@ class _YouTubeAlternativesViewState extends State<YouTubeAlternativesView> {
             children: [
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
-              FilledButton(
-                onPressed: _runSearch,
-                child: const Text('Retry'),
-              ),
+              FilledButton(onPressed: _runSearch, child: const Text('Retry')),
             ],
           ),
         ),
@@ -165,7 +161,8 @@ class _YouTubeAlternativesViewState extends State<YouTubeAlternativesView> {
 
     return ListView.separated(
       itemCount: _results.length + 1,
-      separatorBuilder: (ctx, index) => Divider(height: 1, color: Colors.grey[900]),
+      separatorBuilder: (ctx, index) =>
+          Divider(height: 1, color: Colors.grey[900]),
       itemBuilder: (context, index) {
         if (index == 0) {
           return ListTile(
@@ -186,7 +183,7 @@ class _YouTubeAlternativesViewState extends State<YouTubeAlternativesView> {
               child: Image.network(
                 result.thumbnailUrl,
                 fit: BoxFit.cover,
-                  errorBuilder: (ctx, error, stackTrace) => const ColoredBox(
+                errorBuilder: (ctx, error, stackTrace) => const ColoredBox(
                   color: Colors.black12,
                   child: Icon(Icons.music_note),
                 ),

@@ -1,6 +1,5 @@
 // Copyright © 2026 wizeshi
 
-/// Full-screen lyrics view
 library;
 
 import 'dart:async';
@@ -10,9 +9,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/metadata_models.dart';
 import '../widgets/sliding_track_background.dart';
+import '../services/app_focus_service.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../providers/lyrics/provider.dart';
+import '../providers/preferences/preferences_provider.dart';
 import '../utils/logger.dart';
 import '../utils/lyrics_timing.dart';
 
@@ -48,6 +49,12 @@ class _LyricsViewState extends State<LyricsView> {
   int _hoveredLineIndex = -1;
   String? _delaySyncTrackId;
   double? _delaySyncValue;
+
+  // Whether the "freeze while unfocused" behavior is turned on for this
+  // widget, per the user's preference. Kept in sync from build(). Which
+  // preference key applies depends on whether this is the standalone
+  // lyrics route or the version embedded (hideHeader) in the full player.
+  bool _freezeWhenUnfocused = false;
 
   static const Duration _lineScrollDuration = Duration(milliseconds: 620);
 
@@ -141,6 +148,11 @@ class _LyricsViewState extends State<LyricsView> {
     if (_positionTimer != null) return;
     _positionTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
       if (!mounted) return;
+      // Freeze line-highlighting/auto-scroll while the app/window is
+      // unfocused, if the user has enabled that behavior for this widget.
+      if (_freezeWhenUnfocused && !AppFocusService.instance.isFocused.value) {
+        return;
+      }
       final player = _playerRef;
       final lyrics = _activeLyrics;
       if (player == null || lyrics == null) return;
@@ -436,6 +448,15 @@ class _LyricsViewState extends State<LyricsView> {
 
   @override
   Widget build(BuildContext context) {
+    final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
+      (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+        widget.hideHeader
+            ? PausedBackgroundWidget.lyricsFullscreen
+            : PausedBackgroundWidget.lyricsView,
+      ),
+    );
+    _freezeWhenUnfocused = freezeWhenUnfocused;
+
     final theme = Theme.of(context);
     final dominantColor = theme.colorScheme.primary;
     final backgroundColor = _tintedDominantColor(dominantColor);
@@ -762,7 +783,9 @@ class _LyricsViewState extends State<LyricsView> {
                                     : inactiveColor,
                                 fontSize: fontSize,
                                 letterSpacing: _isDesktop ? -1.5 : 0.25,
-                                fontWeight: _isDesktop ? FontWeight.w700 : FontWeight.w900,
+                                fontWeight: _isDesktop
+                                    ? FontWeight.w700
+                                    : FontWeight.w900,
                                 height: _isDesktop ? 1.4 : 1,
                                 decoration: underline,
                                 decorationColor: Colors.white70,
@@ -1070,16 +1093,10 @@ class _LyricsViewState extends State<LyricsView> {
           decimal: true,
         ),
         onChanged: _handleDelayChanged,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-        ),
+        style: const TextStyle(color: Colors.white, fontSize: 12),
         decoration: InputDecoration(
           hintText: 'Delay (s)',
-          hintStyle: TextStyle(
-            color: Colors.grey[500],
-            fontSize: 12,
-          ),
+          hintStyle: TextStyle(color: Colors.grey[500], fontSize: 12),
           isDense: true,
           filled: true,
           fillColor: Colors.black.withValues(alpha: 0.35),
@@ -1089,9 +1106,7 @@ class _LyricsViewState extends State<LyricsView> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: Colors.grey[700]!,
-            ),
+            borderSide: BorderSide(color: Colors.grey[700]!),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),

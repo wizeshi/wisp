@@ -8,8 +8,11 @@ class NavigationHistory {
   static final NavigationHistory instance = NavigationHistory._();
 
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-  late final NavigationHistoryObserver observer = NavigationHistoryObserver(this);
-  final ValueNotifier<Route<dynamic>?> currentRoute = ValueNotifier<Route<dynamic>?>(null);
+  late final NavigationHistoryObserver observer = NavigationHistoryObserver(
+    this,
+  );
+  final ValueNotifier<Route<dynamic>?> currentRoute =
+      ValueNotifier<Route<dynamic>?>(null);
 
   final List<Route<dynamic>> _history = [];
   int _index = -1;

@@ -31,11 +31,11 @@ class PlaylistFolder {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'thumbnail_path': thumbnailPath,
-        'created_at': createdAt.toIso8601String(),
-      };
+    'id': id,
+    'title': title,
+    'thumbnail_path': thumbnailPath,
+    'created_at': createdAt.toIso8601String(),
+  };
 
   factory PlaylistFolder.fromJson(Map<String, dynamic> json) {
     return PlaylistFolder(

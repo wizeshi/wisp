@@ -17,11 +17,12 @@ import 'download_foreground_service.dart';
 import '../utils/logger.dart';
 
 /// Metadata for a cached audio file
-  String _buildSafeCacheFileName(String trackId, String videoId) {
-    final input = '$trackId|$videoId';
-    final digest = sha1.convert(utf8.encode(input)).toString();
-    return 'track_$digest.m4a';
-  }
+String _buildSafeCacheFileName(String trackId, String videoId) {
+  final input = '$trackId|$videoId';
+  final digest = sha1.convert(utf8.encode(input)).toString();
+  return 'track_$digest.m4a';
+}
+
 class CacheEntry {
   final String trackId;
   final String videoId;
@@ -64,7 +65,6 @@ class CacheEntry {
     downloadDate: DateTime.parse(json['downloadDate'] as String),
     lastPlayedDate: DateTime.parse(json['lastPlayedDate'] as String),
   );
-
 }
 
 /// Download task status
@@ -187,21 +187,22 @@ class AudioCacheManager extends ChangeNotifier {
   }
 
   List<DownloadTask> get recentActiveDownloads {
-    final active = _downloadQueue.values
-        .where(
-          (task) =>
-              task.status == DownloadStatus.downloading ||
-              task.status == DownloadStatus.queued,
-        )
-        .toList()
-      ..sort((a, b) {
-        final rankA = a.status == DownloadStatus.downloading ? 0 : 1;
-        final rankB = b.status == DownloadStatus.downloading ? 0 : 1;
-        if (rankA != rankB) {
-          return rankA.compareTo(rankB);
-        }
-        return b.queuedAt.compareTo(a.queuedAt);
-      });
+    final active =
+        _downloadQueue.values
+            .where(
+              (task) =>
+                  task.status == DownloadStatus.downloading ||
+                  task.status == DownloadStatus.queued,
+            )
+            .toList()
+          ..sort((a, b) {
+            final rankA = a.status == DownloadStatus.downloading ? 0 : 1;
+            final rankB = b.status == DownloadStatus.downloading ? 0 : 1;
+            if (rankA != rankB) {
+              return rankA.compareTo(rankB);
+            }
+            return b.queuedAt.compareTo(a.queuedAt);
+          });
     return List.unmodifiable(active);
   }
 
@@ -232,7 +233,9 @@ class AudioCacheManager extends ChangeNotifier {
       _isOnWifi = _isWifiOrEthernet(result);
 
       _initialized = true;
-      logger.i("[Services/CacheManager] Initilizing at ${_cacheDirectory!.path}");
+      logger.i(
+        "[Services/CacheManager] Initilizing at ${_cacheDirectory!.path}",
+      );
       logger.i(
         '[Services/CacheManager] Initialization complete: ${_cacheEntries.length} entries, ${currentCacheSizeMB}MB used',
       );
@@ -316,7 +319,9 @@ class AudioCacheManager extends ChangeNotifier {
     final key = _normalizeTrackId(trackId);
     if (!_initialized) await initialize();
     if (_networkOnlyMode) {
-      logger.d('[Services/CacheManager] Download skipped (network-only mode): $trackTitle');
+      logger.d(
+        '[Services/CacheManager] Download skipped (network-only mode): $trackTitle',
+      );
       return QueueDownloadResult.blockedByNetworkOnlyMode;
     }
     if (!await _hasPreferredNetwork()) {
@@ -326,15 +331,21 @@ class AudioCacheManager extends ChangeNotifier {
       return QueueDownloadResult.blockedByNetworkPolicy;
     }
     if (isTrackCached(key)) {
-      logger.d('[Services/CacheManager] Download skipped (already cached): $trackTitle');
+      logger.d(
+        '[Services/CacheManager] Download skipped (already cached): $trackTitle',
+      );
       return QueueDownloadResult.alreadyCached;
     }
     if (_downloadQueue.containsKey(key)) {
-      logger.d('[Services/CacheManager] Download skipped (already queued): $trackTitle');
+      logger.d(
+        '[Services/CacheManager] Download skipped (already queued): $trackTitle',
+      );
       return QueueDownloadResult.alreadyQueued;
     }
 
-    logger.i('[Services/CacheManager] Queued download: $trackTitle - $artistName');
+    logger.i(
+      '[Services/CacheManager] Queued download: $trackTitle - $artistName',
+    );
     _downloadQueue[key] = DownloadTask(
       trackId: key,
       trackTitle: trackTitle,
@@ -358,7 +369,9 @@ class AudioCacheManager extends ChangeNotifier {
   /// Process the download queue
   void _processDownloadQueue() {
     if (_wifiOnlyDownloads && !_isOnWifi) {
-      logger.d('[Services/CacheManager] Skipping downloads - not on WiFi/Ethernet');
+      logger.d(
+        '[Services/CacheManager] Skipping downloads - not on WiFi/Ethernet',
+      );
       return;
     }
 
@@ -391,7 +404,9 @@ class AudioCacheManager extends ChangeNotifier {
 
   Future<bool> _hasPreferredNetwork() async {
     try {
-      logger.d('[Services/CacheManager] Checking network connectivity for download...');
+      logger.d(
+        '[Services/CacheManager] Checking network connectivity for download...',
+      );
       final result = await _connectivity.checkConnectivity();
       if (result.contains(ConnectivityResult.none)) {
         if (_wifiOnlyDownloads) {
@@ -400,7 +415,9 @@ class AudioCacheManager extends ChangeNotifier {
           );
           return _isOnWifi;
         }
-        logger.w('[Services/CacheManager] Connectivity unknown; allowing download.');
+        logger.w(
+          '[Services/CacheManager] Connectivity unknown; allowing download.',
+        );
         return true;
       }
       if (_wifiOnlyDownloads && !_isWifiOrEthernet(result)) {
@@ -421,7 +438,9 @@ class AudioCacheManager extends ChangeNotifier {
     final pending = _pendingDownloads[trackId];
     if (task == null) return;
     if (pending == null) {
-      logger.w('[Services/CacheManager] Missing pending download: ${task.trackTitle}');
+      logger.w(
+        '[Services/CacheManager] Missing pending download: ${task.trackTitle}',
+      );
       task.status = DownloadStatus.failed;
       task.errorMessage = 'Missing download resolver';
       onDownloadComplete?.call(trackId, false, task.errorMessage);
@@ -465,7 +484,9 @@ class AudioCacheManager extends ChangeNotifier {
       await _ensureSpace(50 * 1024 * 1024); // Assume 50MB per track max
 
       // Resolve video ID and get stream URL (YouTube search happens HERE, not at queue time)
-      logger.d('[Services/CacheManager] Resolving video for: ${task.trackTitle}');
+      logger.d(
+        '[Services/CacheManager] Resolving video for: ${task.trackTitle}',
+      );
       final (resolvedId, streamUrl) = await pending.resolveAndGetStream();
 
       // Download to file (sanitize for Windows/Unix)
@@ -598,7 +619,9 @@ class AudioCacheManager extends ChangeNotifier {
 
       if (e is DioException && e.type == DioExceptionType.cancel) {
         task.status = DownloadStatus.cancelled;
-        logger.i('[Services/CacheManager] Download cancelled: ${task.trackTitle}');
+        logger.i(
+          '[Services/CacheManager] Download cancelled: ${task.trackTitle}',
+        );
         shouldRemovePending = true;
         _retryAfter.remove(trackId);
       } else {
@@ -619,7 +642,10 @@ class AudioCacheManager extends ChangeNotifier {
         } else {
           task.status = DownloadStatus.failed;
           task.errorMessage = e.toString();
-          logger.e('[Services/CacheManager] Download failed: ${task.trackTitle}', error: e);
+          logger.e(
+            '[Services/CacheManager] Download failed: ${task.trackTitle}',
+            error: e,
+          );
           onDownloadComplete?.call(trackId, false, e.toString());
           shouldRemovePending = true;
           _retryAfter.remove(trackId);
@@ -651,7 +677,9 @@ class AudioCacheManager extends ChangeNotifier {
       0,
       (sum, task) => sum + task.progress.clamp(0.0, 1.0),
     );
-    final overallPercent = ((totalProgress / total) * 100).clamp(0, 100).toInt();
+    final overallPercent = ((totalProgress / total) * 100)
+        .clamp(0, 100)
+        .toInt();
     final activeCount = _activeDownloads.length;
     return '$activeCount active • $completed/$total ($overallPercent%)';
   }
@@ -668,7 +696,9 @@ class AudioCacheManager extends ChangeNotifier {
       0,
       (sum, task) => sum + task.progress.clamp(0.0, 1.0),
     );
-    final overallPercent = ((totalProgress / total) * 100).clamp(0, 100).toInt();
+    final overallPercent = ((totalProgress / total) * 100)
+        .clamp(0, 100)
+        .toInt();
     if (!force && overallPercent == _lastOverallProgressPercent) return;
     _lastOverallProgressPercent = overallPercent;
 
@@ -690,7 +720,9 @@ class AudioCacheManager extends ChangeNotifier {
   void cancelDownload(String trackId) {
     final task = _downloadQueue[trackId];
     if (task != null) {
-      logger.i('[Services/CacheManager] Cancelling download: ${task.trackTitle}');
+      logger.i(
+        '[Services/CacheManager] Cancelling download: ${task.trackTitle}',
+      );
       task.cancelToken?.cancel();
       _downloadQueue.remove(trackId);
       _pendingDownloads.remove(trackId);
@@ -741,7 +773,9 @@ class AudioCacheManager extends ChangeNotifier {
 
   /// Remove a track from cache
   Future<void> removeFromCache(String trackId) async {
-    logger.i('[Services/CacheManager] Manually removing track from cache: $trackId');
+    logger.i(
+      '[Services/CacheManager] Manually removing track from cache: $trackId',
+    );
     await _removeEntry(trackId);
     await _calculateCacheSize();
     logger.d(
@@ -789,7 +823,9 @@ class AudioCacheManager extends ChangeNotifier {
     }
 
     if (oldest != null) {
-      logger.d('[Services/CacheManager] Evicting oldest entry: ${oldest.trackId}');
+      logger.d(
+        '[Services/CacheManager] Evicting oldest entry: ${oldest.trackId}',
+      );
       await _removeEntry(oldest.trackId);
     }
   }
@@ -891,7 +927,9 @@ class AudioCacheManager extends ChangeNotifier {
   }
 
   Future<void> setAutoCacheEnabled(bool value) async {
-    logger.d('[Services/CacheManager] Auto-cache: ${value ? 'enabled' : 'disabled'}');
+    logger.d(
+      '[Services/CacheManager] Auto-cache: ${value ? 'enabled' : 'disabled'}',
+    );
     _autoCacheEnabled = value;
     await _saveSettings();
     notifyListeners();
@@ -955,7 +993,10 @@ class AudioCacheManager extends ChangeNotifier {
               _cacheEntries[entry.key] = cacheEntry;
             }
           } catch (e) {
-            logger.w('[Services/CacheManager] Error loading entry ${entry.key}', error: e);
+            logger.w(
+              '[Services/CacheManager] Error loading entry ${entry.key}',
+              error: e,
+            );
           }
         }
       }
@@ -992,8 +1033,5 @@ class _PendingDownload {
   resolveAndGetStream;
   final Map<String, String>? requestHeaders;
 
-  _PendingDownload({
-    required this.resolveAndGetStream,
-    this.requestHeaders,
-  });
+  _PendingDownload({required this.resolveAndGetStream, this.requestHeaders});
 }

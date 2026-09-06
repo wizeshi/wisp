@@ -43,7 +43,10 @@ class DownloadForegroundService {
     _initialized = true;
   }
 
-  static Future<void> start({required String title, required String text}) async {
+  static Future<void> start({
+    required String title,
+    required String text,
+  }) async {
     if (!Platform.isAndroid) return;
     if (!_androidForegroundDownloadNotificationEnabled) return;
     await initialize();

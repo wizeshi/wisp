@@ -80,7 +80,9 @@ class Logger {
     StackTrace? stackTrace,
   }) {
     _logger.i(message, error: error, stackTrace: stackTrace, time: time);
-    _writeToLogFile("[${time ?? getCurrentTime()}] [INFO]: $message\n${error != null ? " Error: $error\n" : ""}${stackTrace != null ? "StackTrace: $stackTrace\n" : ""}");
+    _writeToLogFile(
+      "[${time ?? getCurrentTime()}] [INFO]: $message\n${error != null ? " Error: $error\n" : ""}${stackTrace != null ? "StackTrace: $stackTrace\n" : ""}",
+    );
   }
 
   void d(
@@ -90,7 +92,9 @@ class Logger {
     StackTrace? stackTrace,
   }) {
     _logger.d(message, error: error, stackTrace: stackTrace, time: time);
-    _writeToLogFile("[${time ?? getCurrentTime()}] [DEBUG]: $message\n${error != null ? " Error: $error\n" : ""}${stackTrace != null ? "StackTrace: $stackTrace\n" : ""}");
+    _writeToLogFile(
+      "[${time ?? getCurrentTime()}] [DEBUG]: $message\n${error != null ? " Error: $error\n" : ""}${stackTrace != null ? "StackTrace: $stackTrace\n" : ""}",
+    );
   }
 
   void w(
@@ -100,7 +104,9 @@ class Logger {
     StackTrace? stackTrace,
   }) {
     _logger.w(message, error: error, stackTrace: stackTrace, time: time);
-    _writeToLogFile("[${time ?? getCurrentTime()}] [WARN]: $message\n${error != null ? " Error: $error\n" : ""}${stackTrace != null ? "StackTrace: $stackTrace\n" : ""}");
+    _writeToLogFile(
+      "[${time ?? getCurrentTime()}] [WARN]: $message\n${error != null ? " Error: $error\n" : ""}${stackTrace != null ? "StackTrace: $stackTrace\n" : ""}",
+    );
   }
 
   void e(
@@ -110,7 +116,9 @@ class Logger {
     StackTrace? stackTrace,
   }) {
     _logger.e(message, error: error, stackTrace: stackTrace, time: time);
-    _writeToLogFile("[${time ?? getCurrentTime()}] [ERROR]: $message\n${error != null ? " Error: $error\n" : ""}${stackTrace != null ? "StackTrace: $stackTrace\n" : ""}");
+    _writeToLogFile(
+      "[${time ?? getCurrentTime()}] [ERROR]: $message\n${error != null ? " Error: $error\n" : ""}${stackTrace != null ? "StackTrace: $stackTrace\n" : ""}",
+    );
   }
 
   String getCurrentTime() {
@@ -124,17 +132,19 @@ class Logger {
   /// made before initialization finishes are simply queued behind it
   /// rather than dropped.
   Future<void> _writeToLogFile(String data) {
-    _writeQueue = _writeQueue.then((_) async {
-      await _initFuture;
+    _writeQueue = _writeQueue
+        .then((_) async {
+          await _initFuture;
 
-      if (_sink == null) {
-        throw Exception("Log file is not initialized");
-      }
+          if (_sink == null) {
+            throw Exception("Log file is not initialized");
+          }
 
-      _sink!.write(data);
-    }).catchError((err) {
-      print("Failed to write to log file: $err");
-    });
+          _sink!.write(data);
+        })
+        .catchError((err) {
+          print("Failed to write to log file: $err");
+        });
 
     return _writeQueue;
   }

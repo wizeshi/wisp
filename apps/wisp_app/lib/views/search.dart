@@ -1571,8 +1571,10 @@ class _SearchViewState extends State<SearchView> {
           type: PlaybackContextType.searchResults,
           name: _lastQuery,
           id: '',
-          source: SongSource.values.firstWhere((source) => source.name == _searchState.selectedSource),
-        )
+          source: SongSource.values.firstWhere(
+            (source) => source.name == _searchState.selectedSource,
+          ),
+        ),
       ),
     );
   }
@@ -1637,7 +1639,7 @@ class _SearchViewState extends State<SearchView> {
           name: album.title,
           id: album.id,
           source: album.source,
-        )
+        ),
       );
     } catch (_) {}
   }
@@ -1679,7 +1681,7 @@ class _SearchViewState extends State<SearchView> {
           name: playlist.title,
           id: playlist.id,
           source: playlist.source,
-        )
+        ),
       );
 
       context.read<LibraryFolderState>().markPlaylistPlayed(playlistId);

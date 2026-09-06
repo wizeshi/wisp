@@ -62,7 +62,9 @@ class DiscordRpcService {
           throw ArgumentError('Unsupported source: $parsedSource');
       }
 
-      final id = parsedID.startsWith("spotify:") ? parsedID.split(":")[2] : parsedID;
+      final id = parsedID.startsWith("spotify:")
+          ? parsedID.split(":")[2]
+          : parsedID;
 
       return 'wisp://play/$type/$id?source=$source';
     } else {
@@ -97,7 +99,9 @@ class DiscordRpcService {
       smallImage: isPlaying ? _pauseIconKey : _playIconKey,
     );
 
-    String trackID = track.id.startsWith("spotify:") ? track.id.split(":")[2] : track.id;
+    String trackID = track.id.startsWith("spotify:")
+        ? track.id.split(":")[2]
+        : track.id;
 
     String trackURL = '';
 
@@ -145,20 +149,14 @@ class DiscordRpcService {
       if (track.album != null && track.album!.id == contextId) {
         // It's an album
         final albumURL = getWispUrlForElement("album", track.album!.toJson());
-        playlistButton = RPCButton(
-          label: 'View Album',
-          url: albumURL,
-        );
+        playlistButton = RPCButton(label: 'View Album', url: albumURL);
       } else {
         // It's a playlist
         final playlistURL = getWispUrlForElement("playlist", {
           'source': track.source.toJson(),
           'id': contextId,
         });
-        playlistButton = RPCButton(
-          label: 'View Playlist',
-          url: playlistURL,
-        );
+        playlistButton = RPCButton(label: 'View Playlist', url: playlistURL);
       }
     }
 
@@ -172,8 +170,8 @@ class DiscordRpcService {
       timestamps: isPlaying && endMs != null
           ? RPCTimestamps(start: startMs, end: endMs)
           : isPlaying
-            ? RPCTimestamps(start: startMs)
-            : null,
+          ? RPCTimestamps(start: startMs)
+          : null,
     );
 
     await DiscordRpcApi.instance.setActivity(activity: activity);

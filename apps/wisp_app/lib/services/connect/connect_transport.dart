@@ -16,7 +16,6 @@ abstract class ConnectTransport {
   Stream<ConnectCommandApply> get commandApplyStream;
   Stream<ConnectCommandAck> get commandAckStream;
   Stream<ConnectUnlinkEvent> get unlinkStream;
-  
 
   Future<void> start({
     required String localDeviceId,
@@ -95,5 +94,4 @@ abstract class ConnectTransport {
     required String targetAddress,
     required String fromDeviceId,
   });
-  
 }

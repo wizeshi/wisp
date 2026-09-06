@@ -19,7 +19,7 @@ abstract class MetadataProvider extends ChangeNotifier {
   String? _errorMessage;
   String? _userDisplayName;
   String? _userId;
-  
+
   // Getters
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
@@ -73,7 +73,7 @@ abstract class MetadataProvider extends ChangeNotifier {
     String albumId, {
     int offset = 0,
     int limit = 50,
-  }) ;
+  });
 
   /// Get playlist information with pagination support
   Future<GenericPlaylist> getPlaylistInfo(
@@ -145,10 +145,7 @@ abstract class MetadataProvider extends ChangeNotifier {
 
   Future<void> deletePlaylist(String playlistId);
 
-  Future<void> addTracksToPlaylist(
-    String playlistId,
-    List<String> trackIds,
-  );
+  Future<void> addTracksToPlaylist(String playlistId, List<String> trackIds);
 
   /// Get user's saved albums
   Future<List<GenericAlbum>> getUserAlbums({
@@ -191,4 +188,3 @@ abstract class MetadataProvider extends ChangeNotifier {
 
   Map<String, dynamic> dumpJson();
 }
-

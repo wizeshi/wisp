@@ -12,6 +12,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
 import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp/widgets/marquee_text.dart';
+import 'focus_freeze_builder.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../models/metadata_models.dart';
 import 'full_player.dart';
@@ -503,6 +504,34 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             ? effectivePosition.inMilliseconds / duration.inMilliseconds
             : 0.0;
 
+        // Freeze the mini progress bar while the app is unfocused instead of
+        // rebuilding it on every position update.
+        if (context.select<PreferencesProvider, bool>(
+          (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+            PausedBackgroundWidget.playerProgressBar,
+          ),
+        )) {
+          return FocusFreezeBuilder<(int, int)>(
+            value: (effectivePosition.inMilliseconds, duration.inMilliseconds),
+            builder: (context, _) {
+              return TweenAnimationBuilder<double>(
+                tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+                duration: const Duration(milliseconds: 200),
+                builder: (context, animatedProgress, child) {
+                  return SizedBox(
+                    height: 3,
+                    child: LinearProgressIndicator(
+                      value: animatedProgress,
+                      backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        }
+
         return TweenAnimationBuilder<double>(
           tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
           duration: const Duration(milliseconds: 200),
@@ -714,73 +743,91 @@ class _DesktopProgressBar extends StatelessWidget {
             ? data.position.inMilliseconds / duration.inMilliseconds
             : 0.0;
 
-        return TweenAnimationBuilder<double>(
-          tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-          duration: const Duration(milliseconds: 200),
-          builder: (context, animatedProgress, child) {
-            final animatedPosition = Duration(
-              milliseconds: (animatedProgress * duration.inMilliseconds)
-                  .round(),
-            );
+        // Freeze the ticking progress bar (text + slider) while the app or
+        // window is unfocused, instead of rebuilding it on every position
+        // update.
+        if (context.select<PreferencesProvider, bool>(
+          (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+            PausedBackgroundWidget.playerProgressBar,
+          ),
+        )) {
+          return FocusFreezeBuilder<_PositionData>(
+            value: data,
+            builder: (context, _) {
+              return buildBaseProgressBar(context, duration, progress);
+            },
+          );
+        }
 
-            return Center(
-              child: Row(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8.0),
-                    child: SizedBox(
-                      width: 56,
-                      child: Text(
-                        _formatDuration(animatedPosition),
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
+        return buildBaseProgressBar(context, duration, progress);
+      },
+    );
+  }
+
+  Widget buildBaseProgressBar(
+    BuildContext context,
+    Duration duration,
+    double progress,
+  ) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+      duration: const Duration(milliseconds: 200),
+      builder: (context, animatedProgress, child) {
+        final animatedPosition = Duration(
+          milliseconds: (animatedProgress * duration.inMilliseconds).round(),
+        );
+
+        return Center(
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 8.0),
+                child: SizedBox(
+                  width: 56,
+                  child: Text(
+                    _formatDuration(animatedPosition),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    textAlign: TextAlign.right,
                   ),
-                  Expanded(
-                    child: SliderTheme(
-                      data: SliderThemeData(
-                        trackHeight: 4,
-                        thumbShape: RoundSliderThumbShape(
-                          enabledThumbRadius: 6,
-                        ),
-                        overlayShape: RoundSliderOverlayShape(
-                          overlayRadius: 12,
-                        ),
-                        activeTrackColor: Theme.of(context).colorScheme.primary,
-                        inactiveTrackColor: Colors.grey[800],
-                        thumbColor: Colors.white,
-                        overlayColor: (Theme.of(
-                          context,
-                        ).colorScheme.primary).withValues(alpha: 0.2),
-                      ),
-                      child: Slider(
-                        value: animatedProgress,
-                        onChanged: (value) {
-                          final newPosition = Duration(
-                            milliseconds: (value * duration.inMilliseconds)
-                                .toInt(),
-                          );
-                          context.read<PlaybackCoordinator>().seek(newPosition);
-                        },
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: SizedBox(
-                      width: 56,
-                      child: Text(
-                        _formatDuration(duration),
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                        textAlign: TextAlign.left,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            );
-          },
+              Expanded(
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 4,
+                    thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
+                    activeTrackColor: Theme.of(context).colorScheme.primary,
+                    inactiveTrackColor: Colors.grey[800],
+                    thumbColor: Colors.white,
+                    overlayColor: (Theme.of(
+                      context,
+                    ).colorScheme.primary).withValues(alpha: 0.2),
+                  ),
+                  child: Slider(
+                    value: animatedProgress,
+                    onChanged: (value) {
+                      final newPosition = Duration(
+                        milliseconds: (value * duration.inMilliseconds).toInt(),
+                      );
+                      context.read<PlaybackCoordinator>().seek(newPosition);
+                    },
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: SizedBox(
+                  width: 56,
+                  child: Text(
+                    _formatDuration(duration),
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    textAlign: TextAlign.left,
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

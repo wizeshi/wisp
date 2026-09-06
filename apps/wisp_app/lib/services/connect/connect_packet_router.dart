@@ -126,7 +126,10 @@ class ConnectPacketRouter {
               payload['from_device_name'],
               fallback: 'Unknown device',
             ),
-            fromPlatform: _string(payload['from_platform'], fallback: 'unknown'),
+            fromPlatform: _string(
+              payload['from_platform'],
+              fallback: 'unknown',
+            ),
             fromAddress: sourceAddress,
             controlPort: _int(payload['control_port'], fallback: 47111),
             requestedMode: ConnectLinkModeJson.fromJson(
@@ -148,7 +151,10 @@ class ConnectPacketRouter {
               payload['from_device_name'],
               fallback: 'Unknown device',
             ),
-            fromPlatform: _string(payload['from_platform'], fallback: 'unknown'),
+            fromPlatform: _string(
+              payload['from_platform'],
+              fallback: 'unknown',
+            ),
             fromAddress: sourceAddress,
             controlPort: _int(payload['control_port'], fallback: 47111),
             linkMode: ConnectLinkModeJson.fromJson(

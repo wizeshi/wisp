@@ -275,7 +275,8 @@ class ConnectPlaybackSnapshot {
           .toList(),
       currentIndex: (json['current_index'] as int?) ?? -1,
       positionMs: (json['position_ms'] as int?) ?? 0,
-        durationMs: (json['duration_ms'] as int?) ??
+      durationMs:
+          (json['duration_ms'] as int?) ??
           (json['duration_ms'] as num?)?.toInt(),
       isPlaying: (json['is_playing'] as bool?) ?? false,
       shuffleEnabled: (json['shuffle_enabled'] as bool?) ?? false,
@@ -335,7 +336,7 @@ class ConnectStateDelta {
   final String deviceId; // Sender device ID for tie-breaker
   final int seq; // Sequence number for ordering
   final int ts; // Sender timestamp in milliseconds (for last-writer-wins)
-  
+
   // Optional delta fields (present if changed)
   final int? positionMs;
   final int? currentIndex;
@@ -343,7 +344,8 @@ class ConnectStateDelta {
   final bool? shuffleEnabled;
   final String? repeatMode;
   final int? durationMs;
-  final List<GenericSong>? queue; // Full queue if changed; use snapshot for size changes
+  final List<GenericSong>?
+  queue; // Full queue if changed; use snapshot for size changes
   final double? volume;
 
   const ConnectStateDelta({

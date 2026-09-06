@@ -77,7 +77,8 @@ extension PlaybackSelectors on BuildContext {
   }) {
     return select<WispAudioHandler, bool>((player) {
       if (!player.isPlaying) return false;
-      if (player.playbackContext?.type != PlaybackContextType.playlist) return false;
+      if (player.playbackContext?.type != PlaybackContextType.playlist)
+        return false;
       if (player.playbackContext?.id == playlistId) return true;
       final contextName = player.playbackContext?.name.trim();
       return contextName != null &&

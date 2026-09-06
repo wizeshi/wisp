@@ -4,19 +4,19 @@ import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/services/app_navigation.dart';
 import 'package:wisp/services/playback/playback_coordinator.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
+import 'package:wisp/ui/rows/generic_row.dart';
 import 'package:wisp/views/list_detail.dart';
 import 'package:wisp/widgets/entity_context_menus.dart';
 
 import '../../models/metadata_models.dart';
 import '../artwork/artwork_thumbnail.dart';
 import '../playback/playback_selectors.dart';
-import 'generic_card.dart';
 
-class AlbumCard extends StatelessWidget {
+class AlbumRow extends StatelessWidget {
   final GenericAlbum album;
   final double width;
 
-  const AlbumCard({super.key, required this.album, this.width = 160});
+  const AlbumRow({super.key, required this.album, this.width = 160});
 
   Future<void> _startAlbumPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();
@@ -75,7 +75,7 @@ class AlbumCard extends StatelessWidget {
       albumId: album.id,
       albumTitle: album.title,
     );
-    return GenericCard(
+    return GenericRow(
       title: album.title,
       subtitle: album.artists.map((artist) => artist.name).join(', '),
       artwork: ArtworkThumbnail(

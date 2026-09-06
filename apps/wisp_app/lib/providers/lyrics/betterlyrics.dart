@@ -12,36 +12,37 @@ import 'package:xml/xml.dart';
 
 const _betterLyricsBaseUrl = "https://lyrics-api.boidu.dev/getLyrics";
 const _betterLyricsUserAgent =
-		'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-		'(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 wisp/${WispInfo.version}';
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 wisp/${WispInfo.version}';
 
 class BetterLyricsProvider {
   Future<LyricsResult?> getLyrics(GenericSong song, LyricsSyncMode mode) async {
     final artistName = song.artists.map((artist) => artist.name).join(", ");
     final trackName = song.title;
 
-    final uri = Uri.parse(_betterLyricsBaseUrl).replace(
-			queryParameters: {
-				'artist': artistName,
-				'song': trackName,
-			},
-		);
+    final uri = Uri.parse(
+      _betterLyricsBaseUrl,
+    ).replace(queryParameters: {'artist': artistName, 'song': trackName});
 
     final response = await http.get(
-			uri,
-			headers: {
-				'Accept': 'application/json',
-				'User-Agent': _betterLyricsUserAgent,
-			},
-		);
+      uri,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': _betterLyricsUserAgent,
+      },
+    );
 
     if (response.statusCode == 401) {
-      logger.e("[Lyrics/BetterLyrics]: Failed to fetch lyrics for ${song.title} - $artistName: Unauthorized. This song is not cached by them yet.");
+      logger.e(
+        "[Lyrics/BetterLyrics]: Failed to fetch lyrics for ${song.title} - $artistName: Unauthorized. This song is not cached by them yet.",
+      );
       return null;
     }
 
     if (response.statusCode != 200) {
-      logger.e("[Lyrics/BetterLyrics]: Failed to fetch lyrics for ${song.title} - $artistName. Status code: ${response.statusCode}");
+      logger.e(
+        "[Lyrics/BetterLyrics]: Failed to fetch lyrics for ${song.title} - $artistName. Status code: ${response.statusCode}",
+      );
       return null;
     }
 
@@ -100,18 +101,15 @@ class BetterLyricsProvider {
       provider: LyricsProviderType.betterlyrics,
       syncMode: LyricsSyncMode.unsynced,
       lines: result.lines
-          .map(
-            (line) => LyricsLine(
-              content: line.content,
-              startTimeMs: 0,
-            ),
-          )
+          .map((line) => LyricsLine(content: line.content, startTimeMs: 0))
           .toList(),
     );
   }
 
   LyricsResult _parseTtmlLyrics(String ttml) {
-    final sanitizedTtml = ttml.contains(r'\"') ? ttml.replaceAll(r'\"', '"') : ttml;
+    final sanitizedTtml = ttml.contains(r'\"')
+        ? ttml.replaceAll(r'\"', '"')
+        : ttml;
     final document = XmlDocument.parse(sanitizedTtml);
     final lines = <LyricsLine>[];
 
@@ -141,9 +139,9 @@ class BetterLyricsProvider {
 
   String _normalizeTtmlSource(String ttml) {
     return ttml
-      .replaceAll('\\"', '"')
-      .replaceAll('\\n', '\n')
-      .replaceAll('\\r', '\r');
+        .replaceAll('\\"', '"')
+        .replaceAll('\\n', '\n')
+        .replaceAll('\\r', '\r');
   }
 
   LyricsResult _normalizeTimings(LyricsResult result) {
@@ -155,7 +153,9 @@ class BetterLyricsProvider {
       }
     }
 
-    final positiveTimestamps = timestamps.where((value) => value > 0).toList(growable: false);
+    final positiveTimestamps = timestamps
+        .where((value) => value > 0)
+        .toList(growable: false);
     if (positiveTimestamps.isEmpty) {
       return result;
     }
@@ -165,7 +165,8 @@ class BetterLyricsProvider {
       return result;
     }
 
-    int shiftValue(int value) => (value - minTimestamp).clamp(0, 1 << 31).toInt();
+    int shiftValue(int value) =>
+        (value - minTimestamp).clamp(0, 1 << 31).toInt();
 
     return LyricsResult(
       provider: result.provider,
@@ -175,13 +176,17 @@ class BetterLyricsProvider {
             (line) => LyricsLine(
               content: line.content,
               startTimeMs: shiftValue(line.startTimeMs),
-              endTimeMs: line.endTimeMs == null ? null : shiftValue(line.endTimeMs!),
+              endTimeMs: line.endTimeMs == null
+                  ? null
+                  : shiftValue(line.endTimeMs!),
               words: line.words
                   .map(
                     (word) => LyricsWord(
                       content: word.content,
                       startTimeMs: shiftValue(word.startTimeMs),
-                      endTimeMs: word.endTimeMs == null ? null : shiftValue(word.endTimeMs!),
+                      endTimeMs: word.endTimeMs == null
+                          ? null
+                          : shiftValue(word.endTimeMs!),
                     ),
                   )
                   .toList(growable: false),
@@ -191,7 +196,10 @@ class BetterLyricsProvider {
     );
   }
 
-  List<LyricsWord> _extractWordMatches(XmlElement paragraph, int fallbackStartMs) {
+  List<LyricsWord> _extractWordMatches(
+    XmlElement paragraph,
+    int fallbackStartMs,
+  ) {
     final words = <LyricsWord>[];
 
     void visit(XmlNode node) {
@@ -207,7 +215,8 @@ class BetterLyricsProvider {
           if (innerText.isNotEmpty) {
             final startTimeMs =
                 _parseTimeMs(node.getAttribute('begin')) ?? fallbackStartMs;
-            final endTimeMs = _parseTimeMs(node.getAttribute('end')) ??
+            final endTimeMs =
+                _parseTimeMs(node.getAttribute('end')) ??
                 _parseTimeMs(node.getAttribute('dur'));
 
             words.add(
@@ -245,7 +254,9 @@ class BetterLyricsProvider {
     }
 
     if (lower.endsWith('s')) {
-      final seconds = double.tryParse(lower.substring(0, lower.length - 1).trim());
+      final seconds = double.tryParse(
+        lower.substring(0, lower.length - 1).trim(),
+      );
       return seconds == null ? null : (seconds * 1000).round();
     }
 

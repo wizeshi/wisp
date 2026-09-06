@@ -29,19 +29,25 @@ class DiscordRpcApi {
   bool get isConnected => _connected;
 
   Future<void> initialize(String clientId) async {
-    logger.d('[Services/DiscordRPC-API] Initializing Discord RPC with client ID: $clientId');
+    logger.d(
+      '[Services/DiscordRPC-API] Initializing Discord RPC with client ID: $clientId',
+    );
     _clientId = clientId;
   }
 
   Future<void> connect() async {
-    logger.d('[Services/DiscordRPC-API] Initializing connection to Discord RPC...');
+    logger.d(
+      '[Services/DiscordRPC-API] Initializing connection to Discord RPC...',
+    );
     final clientId = _clientId;
     if (clientId == null || clientId.isEmpty) {
       logger.e('[Services/DiscordRPC-API] Discord RPC client ID is not set.');
       throw StateError('Discord RPC client has not been initialized.');
     }
 
-    logger.d('[Services/DiscordRPC-API] Disconnecting existing connection (if any)...');
+    logger.d(
+      '[Services/DiscordRPC-API] Disconnecting existing connection (if any)...',
+    );
     await disconnect();
     _transport = await _connectTransport();
 
@@ -50,7 +56,9 @@ class DiscordRpcApi {
 
     final ready = await _readFrame();
     if (ready['cmd'] != 'DISPATCH' || ready['evt'] != 'READY') {
-      logger.e('[Services/DiscordRPC-API] Discord RPC handshake failed: $ready');
+      logger.e(
+        '[Services/DiscordRPC-API] Discord RPC handshake failed: $ready',
+      );
       await disconnect();
       throw StateError('Discord RPC handshake failed: $ready');
     }
@@ -261,7 +269,9 @@ class DiscordRpcApi {
   }
 
   Future<_IpcTransport> _connectTransport() async {
-    logger.d('[Services/DiscordRPC-API] Attempting to connect to Discord IPC transport...');
+    logger.d(
+      '[Services/DiscordRPC-API] Attempting to connect to Discord IPC transport...',
+    );
     Object? lastError;
 
     for (var index = 0; index < 10; index += 1) {
@@ -278,7 +288,9 @@ class DiscordRpcApi {
       }
     }
 
-    logger.e('[Services/DiscordRPC-API] Discord IPC pipe was not found: $lastError');
+    logger.e(
+      '[Services/DiscordRPC-API] Discord IPC pipe was not found: $lastError',
+    );
     throw StateError('Discord IPC pipe was not found: $lastError');
   }
 

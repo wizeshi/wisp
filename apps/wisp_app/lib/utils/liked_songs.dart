@@ -10,10 +10,7 @@ const String likedSongsTitle = 'Liked Songs';
 
 bool isLikedSongsPlaylistId(String? id) => id == likedSongsPlaylistId;
 
-GenericPlaylist buildLikedSongsPlaylist({
-  String? userDisplayName,
-  int? total,
-}) {
+GenericPlaylist buildLikedSongsPlaylist({String? userDisplayName, int? total}) {
   return GenericPlaylist(
     id: likedSongsPlaylistId,
     source: SongSource.spotifyInternal,
