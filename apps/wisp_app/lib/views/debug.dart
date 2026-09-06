@@ -829,13 +829,13 @@ class PlayerStateView extends StatelessWidget {
                         PlayerStateViewElement(
                           flex: 1,
                           label: "Playback Context Type",
-                          value: _uppercaseFirstLetter(playerInfo['playbackContextType'].toString()),
+                          value: _uppercaseFirstLetter(playerInfo['playbackContext']['type'].toString()),
                         ),
 
                         PlayerStateViewElement(
                           flex: 1,
                           label: "Playback Context Name",
-                          value: _uppercaseFirstLetter(playerInfo['playbackContextName'].toString()),
+                          value: _uppercaseFirstLetter(playerInfo['playbackContext']['name'].toString()),
                         ),
                       ],
                     ),
@@ -845,13 +845,13 @@ class PlayerStateView extends StatelessWidget {
                         PlayerStateViewElement(
                           flex: 1,
                           label: "Playback Context ID",
-                          value: _uppercaseFirstLetter(playerInfo['playbackContextID'].toString()),
+                          value: _uppercaseFirstLetter(playerInfo['playbackContext']['id'].toString()),
                         ),
 
                         PlayerStateViewElement(
                           flex: 1,
                           label: "Playback Context Source",
-                          value: _uppercaseFirstLetter(playerInfo['playbackContextSource'].toString()),
+                          value: _uppercaseFirstLetter(playerInfo['playbackContext']['source'].toString()),
                         ),
                       ],
                     ),

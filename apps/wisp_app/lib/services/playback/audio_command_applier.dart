@@ -102,12 +102,9 @@ class AudioCommandApplier {
             tracks,
             startIndex: (payload['start_index'] as int?) ?? 0,
             play: (payload['play'] as bool?) ?? true,
-            contextType: payload['context_type'] as String?,
-            contextName: payload['context_name'] as String?,
-            contextID: payload['context_id'] as String?,
-            contextSource: SongSource.fromJson(
-              payload['context_source'] as String? ?? SongSource.spotify.toJson(),
-            ),
+            playbackContext: payload['context'] is Map<String, dynamic>
+                ? PlaybackContext.fromJson(payload['context'] as Map<String, dynamic>)
+                : null,
             shuffleEnabled: (payload['shuffle_enabled'] as bool?) ?? false,
             originalQueue: originalQueue.isEmpty ? null : originalQueue,
           );

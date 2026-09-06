@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:wisp/models/metadata_models.dart';
+import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 
 enum ConnectPhase {
@@ -226,10 +227,7 @@ class ConnectPlaybackSnapshot {
   final bool isPlaying;
   final bool shuffleEnabled;
   final String repeatMode;
-  final String? contextType;
-  final String? contextName;
-  final String? contextId;
-  final SongSource? contextSource;
+  final PlaybackContext? playbackContext;
   final double? volume;
   final Map<String, String> resolvedYoutubeIds;
 
@@ -243,10 +241,7 @@ class ConnectPlaybackSnapshot {
     required this.shuffleEnabled,
     required this.repeatMode,
     required this.resolvedYoutubeIds,
-    this.contextType,
-    this.contextName,
-    this.contextId,
-    this.contextSource,
+    this.playbackContext,
     this.volume,
   });
 
@@ -259,10 +254,7 @@ class ConnectPlaybackSnapshot {
     'is_playing': isPlaying,
     'shuffle_enabled': shuffleEnabled,
     'repeat_mode': repeatMode,
-    'context_type': contextType,
-    'context_name': contextName,
-    'context_id': contextId,
-    'context_source': contextSource?.toJson(),
+    'context': playbackContext?.toJson(),
     'volume': volume,
     'resolved_youtube_ids': resolvedYoutubeIds,
   };
@@ -288,11 +280,8 @@ class ConnectPlaybackSnapshot {
       isPlaying: (json['is_playing'] as bool?) ?? false,
       shuffleEnabled: (json['shuffle_enabled'] as bool?) ?? false,
       repeatMode: (json['repeat_mode'] as String?) ?? 'RepeatMode.off',
-      contextType: json['context_type'] as String?,
-      contextName: json['context_name'] as String?,
-      contextId: json['context_id'] as String?,
-      contextSource: json['context_source'] != null
-          ? SongSource.fromJson(json['context_source'] as String)
+      playbackContext: json['context'] is Map<String, dynamic>
+          ? PlaybackContext.fromJson(json['context'] as Map<String, dynamic>)
           : null,
       volume: (json['volume'] as num?)?.toDouble(),
       resolvedYoutubeIds: resolvedIdsJson.map(

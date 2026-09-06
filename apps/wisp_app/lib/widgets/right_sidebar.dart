@@ -253,9 +253,9 @@ class _NowPlayingCard extends StatelessWidget {
         return Selector<WispAudioHandler, _NowPlayingData>(
           selector: (context, player) => _NowPlayingData(
             track: player.currentTrack,
-            playbackContextName: player.playbackContextName,
-            playbackContextType: player.playbackContextType,
-            playbackContextID: player.playbackContextID,
+            playbackContextName: player.playbackContext?.name,
+            playbackContextType: player.playbackContext?.type,
+            playbackContextID: player.playbackContext?.id,
           ),
           builder: (context, data, child) {
             final useCanvas = context.select<PreferencesProvider, bool>(
@@ -271,9 +271,9 @@ class _NowPlayingCard extends StatelessWidget {
             final canOpenContext =
                 data.playbackContextID != null &&
                 data.playbackContextID!.isNotEmpty &&
-                (data.playbackContextType == 'playlist' ||
-                    data.playbackContextType == 'album' ||
-                    data.playbackContextType == 'artist');
+                (data.playbackContextType == PlaybackContextType.playlist ||
+                    data.playbackContextType == PlaybackContextType.album ||
+                    data.playbackContextType == PlaybackContextType.artist);
             final album = track?.album;
             final canUseCanvas =
                 !animatedCanvasDisabled &&
@@ -610,20 +610,20 @@ class _NowPlayingCard extends StatelessWidget {
     }
 
     switch (contextType) {
-      case 'playlist':
+      case PlaybackContextType.playlist:
         final playlist = libraryState.playlists
             .cast<GenericPlaylist?>()
             .firstWhere((item) => item?.id == contextId, orElse: () => null);
         final title = playlist?.title.trim();
         return _isUsableContextName(title) ? title : null;
-      case 'album':
+      case PlaybackContextType.album:
         final album = libraryState.albums.cast<GenericAlbum?>().firstWhere(
           (item) => item?.id == contextId,
           orElse: () => null,
         );
         final title = album?.title.trim();
         return _isUsableContextName(title) ? title : null;
-      case 'artist':
+      case PlaybackContextType.artist:
         final artist = libraryState.artists
             .cast<GenericSimpleArtist?>()
             .firstWhere((item) => item?.id == contextId, orElse: () => null);
@@ -666,7 +666,7 @@ class _NowPlayingCard extends StatelessWidget {
 
   void _openPlaybackContext(
     BuildContext context,
-    String contextType,
+    PlaybackContextType contextType,
     String contextId,
     String? contextName,
   ) {
@@ -690,7 +690,7 @@ class _NowPlayingCard extends StatelessWidget {
       return;
     }
 
-    if (contextType == 'playlist') {
+    if (contextType == PlaybackContextType.playlist) {
       final playlist = libraryState.playlists
           .cast<GenericPlaylist?>()
           .firstWhere((item) => item?.id == contextId, orElse: () => null);
@@ -704,7 +704,7 @@ class _NowPlayingCard extends StatelessWidget {
       return;
     }
 
-    if (contextType == 'album') {
+    if (contextType == PlaybackContextType.album) {
       final album = libraryState.albums.cast<GenericAlbum?>().firstWhere(
         (item) => item?.id == contextId,
         orElse: () => null,
@@ -719,7 +719,7 @@ class _NowPlayingCard extends StatelessWidget {
       return;
     }
 
-    if (contextType == 'artist') {
+    if (contextType == PlaybackContextType.artist) {
       final artist = libraryState.artists
           .cast<GenericSimpleArtist?>()
           .firstWhere((item) => item?.id == contextId, orElse: () => null);
@@ -1608,7 +1608,7 @@ List<LyricsLine> _getPreviewLines(LyricsResult lyrics, int positionMs) {
 class _NowPlayingData {
   final GenericSong? track;
   final String? playbackContextName;
-  final String? playbackContextType;
+  final PlaybackContextType? playbackContextType;
   final String? playbackContextID;
 
   const _NowPlayingData({

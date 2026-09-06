@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp/utils/text_parser.dart';
 
@@ -720,10 +721,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       queue,
       startIndex: index,
       play: true,
-      contextType: 'playlist',
-      contextName: playlist?.title ?? '',
-      contextID: playlist?.id ?? widget.id,
-      contextSource: playlist?.source,
+      playbackContext: PlaybackContext(
+        type: PlaybackContextType.playlist,
+        id: playlist?.id ?? widget.id,
+        name: playlist?.title ?? '',
+        source: playlist?.source ?? SongSource.spotifyInternal,
+      ),
       shuffleEnabled: false,
     );
     if (!mounted) return;
@@ -1065,9 +1068,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final queue = List<GenericSong>.from(originalQueue);
     if (queue.isEmpty || index < 0 || index >= queue.length) return;
 
-    final contextType = widget.type == SharedListType.playlist
-        ? 'playlist'
-        : 'album';
     final contextName = widget.type == SharedListType.playlist
         ? (_playlist?.title ?? '')
         : (_album?.title ?? '');
@@ -1089,10 +1089,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       queue,
       startIndex: startIndex,
       play: true,
-      contextType: contextType,
-      contextName: contextName,
-      contextID: contextID,
-      contextSource: contextSource,
+      playbackContext: PlaybackContext(
+        type: widget.type == SharedListType.playlist
+            ? PlaybackContextType.playlist
+            : PlaybackContextType.album,
+        id: contextID,
+        name: contextName,
+        source: contextSource ?? SongSource.spotifyInternal,
+      ),
       shuffleEnabled: player.shuffleEnabled,
       originalQueue: player.shuffleEnabled ? originalQueue : null,
     );
@@ -1125,9 +1129,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       queue.shuffle(Random());
     }
 
-    final contextType = widget.type == SharedListType.playlist
-        ? 'playlist'
-        : 'album';
     final contextName = widget.type == SharedListType.playlist
         ? (_playlist?.title ?? '')
         : (_album?.title ?? '');
@@ -1140,10 +1141,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       queue,
       startIndex: 0,
       play: true,
-      contextType: contextType,
-      contextName: contextName,
-      contextID: contextID,
-      contextSource: contextSource,
+      playbackContext: PlaybackContext(
+        type: widget.type == SharedListType.playlist
+            ? PlaybackContextType.playlist
+            : PlaybackContextType.album,
+        id: contextID,
+        name: contextName,
+        source: contextSource ?? SongSource.spotifyInternal,
+      ),
       shuffleEnabled: _preShuffleEnabled || shouldShuffle,
       originalQueue: (_preShuffleEnabled || shouldShuffle)
           ? originalQueue
@@ -1164,24 +1169,24 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   bool _isCurrentListPlaying(global_audio_player.WispAudioHandler player) {
     final contextType = widget.type == SharedListType.playlist
-        ? 'playlist'
-        : 'album';
+        ? PlaybackContextType.playlist
+        : PlaybackContextType.album;
     final contextName = widget.type == SharedListType.playlist
         ? (_playlist?.title ?? '')
         : (_album?.title ?? '');
     final contextId = widget.id;
 
     if (player.currentTrack == null ||
-        player.playbackContextType != contextType) {
+        player.playbackContext?.type != contextType) {
       return false;
     }
 
-    final playerContextId = player.playbackContextID;
+    final playerContextId = player.playbackContext?.id;
     if (playerContextId != null && playerContextId.isNotEmpty) {
       return playerContextId == contextId;
     }
 
-    final playerContextName = player.playbackContextName;
+    final playerContextName = player.playbackContext?.name;
     if (playerContextName == null || playerContextName.isEmpty) {
       return false;
     }
@@ -1358,10 +1363,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       mergedQueue,
       startIndex: startIndex,
       play: player.currentTrack != null ? player.isPlaying : false,
-      contextType: player.playbackContextType ?? contextType,
-      contextName: player.playbackContextName ?? contextName,
-      contextID: player.playbackContextID,
-      contextSource: player.playbackContextSource ?? contextSource,
+      playbackContext: PlaybackContext(
+        type: contextType == 'playlist'
+            ? PlaybackContextType.playlist
+            : PlaybackContextType.album,
+        id: widget.id,
+        name: contextName,
+        source: contextSource ?? SongSource.spotifyInternal,
+      ),
       shuffleEnabled: player.shuffleEnabled,
       originalQueue: player.shuffleEnabled
           ? List<GenericSong>.from(player.originalQueueTracks)

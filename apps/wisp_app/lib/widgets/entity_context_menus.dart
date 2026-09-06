@@ -167,10 +167,7 @@ class EntityContextMenus {
       mergedQueue,
       startIndex: startIndex,
       play: player.currentTrack != null ? player.isPlaying : false,
-      contextType: player.playbackContextType,
-      contextName: player.playbackContextName,
-      contextID: player.playbackContextID,
-      contextSource: player.playbackContextSource,
+      playbackContext: player.playbackContext,
       shuffleEnabled: player.shuffleEnabled,
       originalQueue: player.shuffleEnabled
           ? List<GenericSong>.from(player.originalQueueTracks)

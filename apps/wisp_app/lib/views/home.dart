@@ -11,15 +11,16 @@ import 'dart:io' show Platform, File;
 import 'dart:math';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
+import 'package:wisp/ui/cards/album_card.dart';
+import 'package:wisp/ui/cards/artist_card.dart';
+import 'package:wisp/ui/cards/playlist_card.dart';
 import 'package:wisp/utils/text_parser.dart';
 import '../models/library_folder.dart';
 import '../utils/logger.dart';
 import '../services/wisp_audio_handler.dart';
 import '../models/metadata_models.dart';
 import '../services/metadata_cache.dart';
-import '../widgets/hover_underline.dart';
 import '../widgets/navigation.dart';
-import '../widgets/like_button.dart';
 import 'list_detail.dart';
 import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
@@ -33,20 +34,12 @@ import '../widgets/liked_songs_art.dart';
 import '../widgets/provider_disabled_state.dart';
 import '../widgets/entity_context_menus.dart';
 
-// Fixed height reserved for the (optional) subtitle line under a card
-// title. Every _GenericCard reserves this same slot whether or not it
-// has a subtitle, so cards in a row are always the same height without
-// needing an IntrinsicHeight pass to equalize them.
-const double _kSubtitleLineHeight = 16;
-
 typedef _PlaybackHighlight = ({
   bool isPlaying,
   String? currentTrackId,
   String? currentAlbumId,
   String currentArtistIds,
-  String? contextType,
-  String? contextId,
-  String? contextName,
+  PlaybackContext? playbackContext,
 });
 
 _PlaybackHighlight _playbackHighlightOf(WispAudioHandler player) {
@@ -58,9 +51,7 @@ _PlaybackHighlight _playbackHighlightOf(WispAudioHandler player) {
     currentArtistIds: track == null || track.artists.isEmpty
         ? ''
         : track.artists.map((a) => a.id).join('\u0001'),
-    contextType: player.playbackContextType,
-    contextId: player.playbackContextID,
-    contextName: player.playbackContextName,
+    playbackContext: player.playbackContext,
   );
 }
 
@@ -92,14 +83,11 @@ class HomePage extends StatefulWidget {
 class HomePageState extends State<HomePage> {
   bool _isLoading = true;
   bool _isFetchingData = false;
-  List<GenericSong> _topTracks = [];
-  List<GenericSimpleArtist> _topArtists = [];
   List<GenericAlbum> _savedAlbums = [];
   List<GenericPlaylist> _savedPlaylists = [];
   List<GenericPlaylist> _remotePlaylists = [];
   List<GenericSimpleArtist> _followedArtists = [];
   Map<String, List<dynamic>> _homeSections = {};
-  String? _hoveredTrackId;
 
   late final SpotifyInternalProvider _spotifyProvider;
   late final LocalPlaylistState _localPlaylistState;
@@ -669,125 +657,6 @@ class HomePageState extends State<HomePage> {
             ),
           ),
 
-          // "this past month" section
-          if (_topTracks.isNotEmpty || _topArtists.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-                child: Text(
-                  'this past month',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-
-          // Top Tracks horizontal scroll
-          if (_topTracks.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: Text(
-                      'your top tracks',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    height: 220,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: _topTracks.take(5).length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(width: 16),
-                      itemBuilder: (context, index) {
-                        final track = _topTracks[index];
-                        return _buildMobileHorizontalCard(
-                          imageUrl: track.thumbnailUrl,
-                          title: track.title,
-                          subtitle: track.artists.map((a) => a.name).join(', '),
-                          onTap: () async {
-                            final coordinator = context
-                                .read<PlaybackCoordinator>();
-                            await coordinator.setQueue(
-                              [track],
-                              startIndex: 0,
-                              play: true,
-                            );
-                          },
-                          onLongPress: () {
-                            EntityContextMenus.showTrackMenu(
-                              context,
-                              track: track,
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Top Artists horizontal scroll
-          if (_topArtists.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-                      child: Text(
-                        'your top artists',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      height: 220,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: _topArtists.take(5).length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(width: 16),
-                        itemBuilder: (context, index) {
-                          final artist = _topArtists[index];
-                          return _buildMobileHorizontalCard(
-                            imageUrl: artist.thumbnailUrl,
-                            title: artist.name,
-                            subtitle: 'Artist',
-                            onTap: () => _openArtist(artist),
-                            onLongPress: () {
-                              EntityContextMenus.showArtistMenu(
-                                context,
-                                artist: artist,
-                              );
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
           // Bottom padding
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
@@ -1023,95 +892,6 @@ class HomePageState extends State<HomePage> {
     return null;
   }
 
-  Widget _buildMobileHorizontalCard({
-    required String imageUrl,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    VoidCallback? onLongPress,
-    Widget? customArt,
-  }) {
-    final isLocalThumb = imageUrl.isNotEmpty && _isLocalThumbnailPath(imageUrl);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 160,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.25),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Container(
-                  width: 144,
-                  height: 144,
-                  color: Colors.grey[900],
-                  child:
-                      customArt ??
-                      (imageUrl.isNotEmpty
-                          ? (isLocalThumb
-                                ? Image.file(
-                                    File(imageUrl.replaceFirst('file://', '')),
-                                    filterQuality: FilterQuality.medium,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, url, error) => Icon(
-                                      Icons.music_note,
-                                      color: Colors.grey[700],
-                                      size: 48,
-                                    ),
-                                  )
-                                : CachedNetworkImage(
-                                    imageUrl: imageUrl,
-                                    filterQuality: FilterQuality.medium,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) =>
-                                        Container(color: Colors.grey[800]),
-                                    errorWidget: (context, url, error) => Icon(
-                                      Icons.music_note,
-                                      color: Colors.grey[700],
-                                      size: 48,
-                                    ),
-                                  ))
-                          : Icon(
-                              Icons.music_note,
-                              color: Colors.grey[700],
-                              size: 48,
-                            )),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _openSharedList(
     SharedListType type,
     String id, {
@@ -1208,7 +988,7 @@ class HomePageState extends State<HomePage> {
           ),
         ),
         const SizedBox(height: 16),
-        if (quickRows != null) quickRows,
+        ?quickRows,
         if (newMusicSpecialCard != null && firstDynamicSectionWidget != null)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1228,39 +1008,9 @@ class HomePageState extends State<HomePage> {
             padding: const EdgeInsets.only(bottom: 24),
             child: newMusicSpecialCard,
           )
-        else if (firstDynamicSectionWidget != null)
-          firstDynamicSectionWidget,
+        else
+          ?firstDynamicSectionWidget,
         ...dynamicSections,
-
-        // Top Tracks as a table/list
-        if (_topTracks.isNotEmpty) ...[
-          Text(
-            'Your Top Tracks',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          SizedBox(height: 16),
-          SizedBox(height: 300, child: _buildTopTracksTable()),
-          SizedBox(height: 32),
-        ],
-
-        // Top Artists as a table
-        if (_topArtists.isNotEmpty) ...[
-          Text(
-            'Your Top Artists',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          SizedBox(height: 16),
-          SizedBox(height: 300, child: _buildTopArtistsTable()),
-          SizedBox(height: 32),
-        ],
       ],
     );
   }
@@ -1315,18 +1065,19 @@ class HomePageState extends State<HomePage> {
   }
 
   bool _isActivePlaylist(_PlaybackHighlight playback, GenericPlaylist item) {
-    if (playback.contextType != 'playlist') return false;
-    if (playback.contextId == item.id) return true;
-    final contextName = playback.contextName?.trim();
+    if (playback.playbackContext?.type != PlaybackContextType.playlist)
+      return false;
+    if (playback.playbackContext?.id == item.id) return true;
+    final contextName = playback.playbackContext?.name.trim();
     return contextName != null &&
         contextName.isNotEmpty &&
         contextName == item.title.trim();
   }
 
   bool _isActiveAlbum(_PlaybackHighlight playback, GenericAlbum item) {
-    if (playback.contextType == 'album') {
-      if (playback.contextId == item.id) return true;
-      final contextName = playback.contextName?.trim();
+    if (playback.playbackContext?.type == PlaybackContextType.album) {
+      if (playback.playbackContext?.id == item.id) return true;
+      final contextName = playback.playbackContext?.name.trim();
       return contextName != null &&
           contextName.isNotEmpty &&
           contextName == item.title.trim();
@@ -1335,9 +1086,9 @@ class HomePageState extends State<HomePage> {
   }
 
   bool _isActiveArtist(_PlaybackHighlight playback, GenericSimpleArtist item) {
-    if (playback.contextType == 'artist') {
-      if (playback.contextId == item.id) return true;
-      final contextName = playback.contextName?.trim();
+    if (playback.playbackContext?.type == PlaybackContextType.artist) {
+      if (playback.playbackContext?.id == item.id) return true;
+      final contextName = playback.playbackContext?.name.trim();
       return contextName != null &&
           contextName.isNotEmpty &&
           contextName == item.name.trim();
@@ -1525,22 +1276,8 @@ class HomePageState extends State<HomePage> {
           currentNavIndex: _currentNavIndex,
         );
       }
-      return _PlaylistCard(
+      return PlaylistCard(
         playlist: item,
-        onTap: () => _openSharedList(
-          SharedListType.playlist,
-          item.id,
-          title: item.title,
-          thumbnailUrl: item.thumbnailUrl,
-        ),
-        onPlay: () => _playPlaylist(item.id, contextNameOverride: item.title),
-        isActive: isActive,
-        isPlaying: isPlaying,
-        playlists: _savedPlaylists,
-        albums: _savedAlbums,
-        artists: _followedArtists,
-        currentLibraryView: _currentLibraryView,
-        currentNavIndex: _currentNavIndex,
       );
     }
 
@@ -1566,23 +1303,7 @@ class HomePageState extends State<HomePage> {
           currentNavIndex: _currentNavIndex,
         );
       }
-      return _AlbumCard(
-        album: item,
-        onTap: () => _openSharedList(
-          SharedListType.album,
-          item.id,
-          title: item.title,
-          thumbnailUrl: item.thumbnailUrl,
-        ),
-        onPlay: () => _playAlbum(item.id),
-        isActive: isActive,
-        isPlaying: isPlaying,
-        playlists: _savedPlaylists,
-        albums: _savedAlbums,
-        artists: _followedArtists,
-        currentLibraryView: _currentLibraryView,
-        currentNavIndex: _currentNavIndex,
-      );
+      return AlbumCard(album: item);
     }
 
     if (item is GenericSimpleArtist) {
@@ -1601,423 +1322,12 @@ class HomePageState extends State<HomePage> {
           currentNavIndex: _currentNavIndex,
         );
       }
-      return _ArtistCard(
+      return ArtistCard(
         artist: item,
-        onTap: () => _openArtist(item),
-        onPlay: () => _playArtist(item.id),
-        isActive: isActive,
-        isPlaying: isPlaying,
-        playlists: _savedPlaylists,
-        albums: _savedAlbums,
-        artists: _followedArtists,
-        currentLibraryView: _currentLibraryView,
-        currentNavIndex: _currentNavIndex,
       );
     }
 
     return null;
-  }
-
-  Widget _buildTopTracksTable() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Color(0xFF181818).withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ListView.builder(
-        itemCount: _topTracks.length,
-        itemBuilder: (context, index) {
-          final track = _topTracks[index];
-          final isEven = index % 2 == 0;
-          return _buildTrackRow(track, index, isEven);
-        },
-      ),
-    );
-  }
-
-  Widget _buildTrackRow(GenericSong track, int index, bool isEven) {
-    final playback = _watchPlaybackHighlight();
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    final album = track.album;
-    final primaryArtist = track.artists.isNotEmpty ? track.artists.first : null;
-    final isHovering = _hoveredTrackId == track.id;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) {
-        if (!isDesktop) return;
-        setState(() => _hoveredTrackId = track.id);
-      },
-      onExit: (_) {
-        if (!isDesktop) return;
-        setState(() => _hoveredTrackId = null);
-      },
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onSecondaryTapDown: isDesktop
-            ? (details) {
-                EntityContextMenus.showTrackMenu(
-                  context,
-                  track: track,
-                  globalPosition: details.globalPosition,
-                );
-              }
-            : null,
-        onLongPress: isDesktop
-            ? null
-            : () {
-                EntityContextMenus.showTrackMenu(context, track: track);
-              },
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            mouseCursor: SystemMouseCursors.click,
-            onTap: () async {
-              final coordinator = context.read<PlaybackCoordinator>();
-
-              try {
-                await coordinator.setQueue([track], startIndex: 0, play: true);
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to play track: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isEven
-                    ? Colors.transparent
-                    : Colors.black.withValues(alpha: 0.1),
-              ),
-              child: Row(
-                children: [
-                  // Number
-                  SizedBox(
-                    width: 32,
-                    child: Text(
-                      '${index + 1}',
-                      style: TextStyle(color: Colors.grey[400], fontSize: 16),
-                    ),
-                  ),
-                  // Album art
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      color: Colors.grey[900],
-                      child: track.thumbnailUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: track.thumbnailUrl,
-                              filterQuality: FilterQuality.medium,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) =>
-                                  Container(color: Colors.grey[800]),
-                              errorWidget: (context, url, error) => Icon(
-                                Icons.music_note,
-                                color: Colors.grey[700],
-                              ),
-                            )
-                          : Icon(Icons.music_note, color: Colors.grey[700]),
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  // Track info
-                  Expanded(
-                    flex: 3,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        (isDesktop && album != null && album.id.isNotEmpty)
-                            ? HoverUnderline(
-                                onTap: () {
-                                  _openSharedList(
-                                    SharedListType.album,
-                                    album.id,
-                                    title: album.title,
-                                    thumbnailUrl: album.thumbnailUrl,
-                                  );
-                                },
-                                builder: (isHovering) => Text(
-                                  track.title,
-                                  style: TextStyle(
-                                    color: playback.currentTrackId == track.id
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    decoration: isHovering
-                                        ? TextDecoration.underline
-                                        : TextDecoration.none,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              )
-                            : Text(
-                                track.title,
-                                style: TextStyle(
-                                  color: playback.currentTrackId == track.id
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                        if (track.artists.isNotEmpty) ...[
-                          SizedBox(height: 2),
-                          (isDesktop && primaryArtist != null)
-                              ? HoverUnderline(
-                                  onTap: () => _openArtist(primaryArtist),
-                                  onSecondaryTapDown: (details) {
-                                    EntityContextMenus.showTrackMenu(
-                                      context,
-                                      track: track,
-                                      globalPosition: details.globalPosition,
-                                    );
-                                  },
-                                  builder: (isHovering) => Text(
-                                    track.artists.map((a) => a.name).join(', '),
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 12,
-                                      decoration: isHovering
-                                          ? TextDecoration.underline
-                                          : TextDecoration.none,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                )
-                              : Text(
-                                  track.artists.map((a) => a.name).join(', '),
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  // Album name
-                  Expanded(
-                    flex: 2,
-                    child: (isDesktop && album != null && album.id.isNotEmpty)
-                        ? HoverUnderline(
-                            onTap: () {
-                              _openSharedList(
-                                SharedListType.album,
-                                album.id,
-                                title: album.title,
-                                thumbnailUrl: album.thumbnailUrl,
-                              );
-                            },
-                            onSecondaryTapDown: (details) {
-                              EntityContextMenus.showTrackMenu(
-                                context,
-                                track: track,
-                                globalPosition: details.globalPosition,
-                              );
-                            },
-                            builder: (isHovering) => Text(
-                              album.title,
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 13,
-                                decoration: isHovering
-                                    ? TextDecoration.underline
-                                    : TextDecoration.none,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          )
-                        : Text(
-                            track.album?.title ?? '',
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 13,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                  ),
-                  SizedBox(width: 16),
-                  if (isDesktop) ...[
-                    AnimatedOpacity(
-                      opacity: isHovering ? 1 : 0,
-                      duration: const Duration(milliseconds: 120),
-                      child: IgnorePointer(
-                        ignoring: !isHovering,
-                        child: LikeButton(
-                          track: track,
-                          iconSize: 16,
-                          padding: const EdgeInsets.all(2),
-                          constraints: const BoxConstraints(
-                            minWidth: 24,
-                            minHeight: 24,
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                  ],
-                  // Duration
-                  SizedBox(
-                    width: 50,
-                    child: Text(
-                      _formatDuration(track.durationSecs * 1000),
-                      style: TextStyle(color: Colors.grey[400], fontSize: 13),
-                      textAlign: TextAlign.right,
-                    ),
-                  ),
-                  SizedBox(width: isDesktop ? 16 : 12),
-                  // Spotify icon
-                  Icon(
-                    Icons.graphic_eq,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 20,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopArtistsTable() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Color(0xFF181818).withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ListView.builder(
-        itemCount: _topArtists.length,
-        itemBuilder: (context, index) {
-          final artist = _topArtists[index];
-          final isEven = index % 2 == 0;
-          final isDesktop =
-              Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-          return GestureDetector(
-            onSecondaryTapDown: isDesktop
-                ? (details) {
-                    EntityContextMenus.showArtistMenu(
-                      context,
-                      artist: artist,
-                      globalPosition: details.globalPosition,
-                    );
-                  }
-                : null,
-            onLongPress: isDesktop
-                ? null
-                : () {
-                    EntityContextMenus.showArtistMenu(context, artist: artist);
-                  },
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                mouseCursor: SystemMouseCursors.click,
-                onTap: () {
-                  _openArtist(artist);
-                },
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isEven
-                        ? Colors.transparent
-                        : Colors.black.withValues(alpha: 0.1),
-                  ),
-                  child: Row(
-                    children: [
-                      // Number
-                      SizedBox(
-                        width: 32,
-                        child: Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      // Artist image
-                      ClipOval(
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          color: Colors.grey[900],
-                          child: artist.thumbnailUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: artist.thumbnailUrl,
-                                  filterQuality: FilterQuality.medium,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) =>
-                                      Container(color: Colors.grey[800]),
-                                  errorWidget: (context, url, error) => Icon(
-                                    Icons.person,
-                                    color: Colors.grey[700],
-                                  ),
-                                )
-                              : Icon(Icons.person, color: Colors.grey[700]),
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      // Artist name
-                      Expanded(
-                        child: Text(
-                          artist.name,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      // Artist label
-                      Text(
-                        'Artist',
-                        style: TextStyle(color: Colors.grey[400], fontSize: 13),
-                      ),
-                      SizedBox(width: 8),
-                      // Spotify icon
-                      Icon(
-                        Icons.graphic_eq,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  String _formatDuration(int? durationMs) {
-    if (durationMs == null) return '--:--';
-    final minutes = durationMs ~/ 60000;
-    final seconds = (durationMs % 60000) ~/ 1000;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
   Widget _buildSection(
@@ -2035,6 +1345,17 @@ class HomePageState extends State<HomePage> {
   }
 
   Future<void> _playAlbum(String albumId) async {
+    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
+    if (audioHandler != null) {
+      final currentPlaybackContext = audioHandler.playbackContext;
+      if (currentPlaybackContext != null && currentPlaybackContext.type == PlaybackContextType.album && currentPlaybackContext.id == albumId) {
+        if (!audioHandler.isPlaying) {
+          // If the current playback context is already the same album, just resume playback
+          return await audioHandler.play();
+        }
+        return await audioHandler.pause();
+      }
+    }
     final spotify = context.read<SpotifyInternalProvider>();
     try {
       final album = await spotify.getAlbumInfo(albumId);
@@ -2044,10 +1365,12 @@ class HomePageState extends State<HomePage> {
         tracks,
         startIndex: 0,
         play: true,
-        contextType: 'album',
-        contextName: album.title,
-        contextID: album.id,
-        contextSource: album.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.album,
+          name: album.title,
+          id: album.id,
+          source: album.source,
+        ),
       );
     } catch (_) {}
   }
@@ -2056,6 +1379,18 @@ class HomePageState extends State<HomePage> {
     String playlistId, {
     String? contextNameOverride,
   }) async {
+    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
+    if (audioHandler != null) {
+      final currentPlaybackContext = audioHandler.playbackContext;
+      if (currentPlaybackContext != null && currentPlaybackContext.type == PlaybackContextType.playlist && currentPlaybackContext.id == playlistId) {
+        if (!audioHandler.isPlaying) {
+          // If the current playback context is already the same playlist, just resume playback
+          return await audioHandler.play();
+        }
+        return await audioHandler.pause();
+      }
+    }
+
     final spotify = context.read<SpotifyInternalProvider>();
     try {
       final playlist = await spotify.getPlaylistInfo(playlistId);
@@ -2079,19 +1414,32 @@ class HomePageState extends State<HomePage> {
         tracks,
         startIndex: 0,
         play: true,
-        contextType: 'playlist',
-        contextName:
-            (contextNameOverride != null && contextNameOverride.isNotEmpty)
-            ? contextNameOverride
-            : playlist.title,
-        contextID: playlist.id,
-        contextSource: playlist.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.playlist,
+          name: (contextNameOverride != null && contextNameOverride.isNotEmpty)
+              ? contextNameOverride
+              : playlist.title,
+          id: playlist.id,
+          source: playlist.source,
+        ),
       );
       context.read<LibraryFolderState>().markPlaylistPlayed(playlistId);
     } catch (_) {}
   }
 
   Future<void> _playArtist(String artistId) async {
+    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
+    if (audioHandler != null) {
+      final currentPlaybackContext = audioHandler.playbackContext;
+      if (currentPlaybackContext != null && currentPlaybackContext.type == PlaybackContextType.artist && currentPlaybackContext.id == artistId) {
+        if (!audioHandler.isPlaying) {
+          // If the current playback context is already the same artist, just resume playback
+          return await audioHandler.play();
+        }
+        return await audioHandler.pause();
+      }
+    }
+
     final spotify = context.read<SpotifyInternalProvider>();
     try {
       final artist = await spotify.getArtistInfo(artistId);
@@ -2101,203 +1449,14 @@ class HomePageState extends State<HomePage> {
         tracks,
         startIndex: 0,
         play: true,
-        contextType: 'artist',
-        contextName: artist.name,
-        contextID: artist.id,
-        contextSource: artist.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.artist,
+          name: artist.name,
+          id: artist.id,
+          source: artist.source,
+        ),
       );
     } catch (_) {}
-  }
-}
-
-class _ArtistCard extends StatelessWidget {
-  final GenericSimpleArtist artist;
-  final VoidCallback onTap;
-  final VoidCallback onPlay;
-  final bool isActive;
-  final bool isPlaying;
-  final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
-  final LibraryView? currentLibraryView;
-  final int? currentNavIndex;
-
-  const _ArtistCard({
-    required this.artist,
-    required this.onTap,
-    required this.onPlay,
-    required this.isActive,
-    required this.isPlaying,
-    required this.playlists,
-    required this.albums,
-    required this.artists,
-    this.currentLibraryView,
-    this.currentNavIndex,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _GenericCard(
-      title: artist.name,
-      subtitle: "Artist",
-      thumbnail: artist.thumbnailUrl.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: artist.thumbnailUrl,
-              filterQuality: FilterQuality.medium,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(color: Colors.grey[800]),
-              errorWidget: (context, url, error) =>
-                  const Icon(Icons.person, size: 48, color: Colors.grey),
-            )
-          : const Icon(Icons.person, size: 48, color: Colors.grey),
-      isActive: isActive,
-      isPlaying: isPlaying,
-      onTap: onTap,
-      onPlay: onPlay,
-      onLongPress: () {
-        EntityContextMenus.showArtistMenu(context, artist: artist);
-      },
-      onSecondaryTapDown: (details) {
-        EntityContextMenus.showArtistMenu(
-          context,
-          artist: artist,
-          globalPosition: details.globalPosition,
-        );
-      },
-    );
-  }
-}
-
-class _AlbumCard extends StatelessWidget {
-  final GenericAlbum album;
-  final VoidCallback onTap;
-  final VoidCallback onPlay;
-  final bool isActive;
-  final bool isPlaying;
-  final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
-  final LibraryView? currentLibraryView;
-  final int? currentNavIndex;
-
-  const _AlbumCard({
-    required this.album,
-    required this.onTap,
-    required this.onPlay,
-    required this.isActive,
-    required this.isPlaying,
-    required this.playlists,
-    required this.albums,
-    required this.artists,
-    this.currentLibraryView,
-    this.currentNavIndex,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _GenericCard(
-      title: album.title,
-      subtitle: album.artists.map((a) => a.name).join(', '),
-      thumbnail: album.thumbnailUrl.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: album.thumbnailUrl,
-              filterQuality: FilterQuality.medium,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(color: Colors.grey[800]),
-              errorWidget: (context, url, error) =>
-                  const Icon(Icons.album, size: 48, color: Colors.grey),
-            )
-          : const Icon(Icons.album, size: 48, color: Colors.grey),
-      isActive: isActive,
-      isPlaying: isPlaying,
-      onLongPress: () {
-        EntityContextMenus.showAlbumMenu(context, album: album);
-      },
-      onSecondaryTapDown: (details) {
-        EntityContextMenus.showAlbumMenu(
-          context,
-          album: album,
-          globalPosition: details.globalPosition,
-        );
-      },
-      onTap: onTap,
-      onPlay: onPlay,
-    );
-  }
-}
-
-class _PlaylistCard extends StatelessWidget {
-  final GenericPlaylist playlist;
-  final VoidCallback onTap;
-  final VoidCallback onPlay;
-  final bool isActive;
-  final bool isPlaying;
-  final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
-  final LibraryView? currentLibraryView;
-  final int? currentNavIndex;
-
-  const _PlaylistCard({
-    required this.playlist,
-    required this.onTap,
-    required this.onPlay,
-    required this.isActive,
-    required this.isPlaying,
-    required this.playlists,
-    required this.albums,
-    required this.artists,
-    this.currentLibraryView,
-    this.currentNavIndex,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isLiked = isLikedSongsPlaylistId(playlist.id);
-    return _GenericCard(
-      title: playlist.title,
-      subtitle: _playlistSubtitle(playlist),
-      thumbnail: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: AspectRatio(
-          aspectRatio: 1,
-          child: isLiked
-              ? const LikedSongsArt()
-              : (playlist.thumbnailUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: playlist.thumbnailUrl,
-                        filterQuality: FilterQuality.medium,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) =>
-                            Container(color: Colors.grey[800]),
-                        errorWidget: (context, url, error) => const Icon(
-                          Icons.playlist_play,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.playlist_play,
-                        size: 48,
-                        color: Colors.grey,
-                      )),
-        ),
-      ),
-      isActive: isActive,
-      isPlaying: isPlaying,
-      onTap: onTap,
-      onPlay: onPlay,
-      onLongPress: () {
-        EntityContextMenus.showPlaylistMenu(context, playlist: playlist);
-      },
-      onSecondaryTapDown: (details) {
-        EntityContextMenus.showPlaylistMenu(
-          context,
-          playlist: playlist,
-          globalPosition: details.globalPosition,
-        );
-      },
-    );
   }
 }
 
@@ -3094,127 +2253,6 @@ class _ScrollArrowButton extends StatelessWidget {
         onPressed: onPressed,
         splashRadius: 18,
       ),
-    );
-  }
-}
-
-class _GenericCard extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  final Widget thumbnail;
-  final bool isActive;
-  final bool isPlaying;
-  final VoidCallback onTap;
-  final VoidCallback onPlay;
-  final VoidCallback onLongPress;
-  final void Function(TapDownDetails) onSecondaryTapDown;
-
-  const _GenericCard({
-    required this.title,
-    this.subtitle,
-    required this.thumbnail,
-    required this.isActive,
-    required this.isPlaying,
-    required this.onTap,
-    required this.onPlay,
-    required this.onLongPress,
-    required this.onSecondaryTapDown,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: isDesktop ? 180 : 140,
-          child: ClipRect(
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              child: _HoverPlayCard(
-                onTap: onTap,
-                onSecondaryTapDown: isDesktop
-                    ? (details) {
-                        onSecondaryTapDown(details);
-                      }
-                    : null,
-                onLongPress: isDesktop
-                    ? null
-                    : () {
-                        onLongPress();
-                      },
-                child: Padding(
-                  padding: EdgeInsets.all(isDesktop ? 8.0 : 4.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _HoverPlayThumbnail(
-                        borderRadius: 6,
-                        isActive: isActive,
-                        isPlaying: isPlaying,
-                        onPressed: onPlay,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: AspectRatio(aspectRatio: 1, child: thumbnail),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      // Reserve a fixed-height slot for the subtitle whether
-                      // or not it is present. This keeps every card in a row
-                      // the same height by construction, so the expensive
-                      // IntrinsicHeight pass in _ScrollableCardSection is no
-                      // longer needed to keep rows visually aligned.
-                      SizedBox(
-                        height: _kSubtitleLineHeight,
-                        child: subtitle == null
-                            ? null
-                            : (TextParser.needsParsing(subtitle!)
-                                  ? buildParsedText(
-                                      context,
-                                      subtitle!,
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 12,
-                                      ),
-                                      linkStyle: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 12,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    )
-                                  : Text(
-                                      subtitle!,
-                                      style: TextStyle(
-                                        color: Colors.grey[400],
-                                        fontSize: 12,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    )),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

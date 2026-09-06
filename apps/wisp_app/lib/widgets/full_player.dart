@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/services/connect/connect_models.dart';
+import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp/utils/text_parser.dart';
 import 'package:wisp/widgets/connect/connect_menu.dart';
@@ -242,8 +243,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
         final connect = context.watch<ConnectSessionProvider>();
-        final contextType = player.playbackContextType;
-        final contextName = player.playbackContextName;
+        final contextType = player.playbackContext?.type;
+        final contextName = player.playbackContext?.name;
 
         String firstLine = 'playing from';
         String secondLine = '';
@@ -251,7 +252,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         if (contextType != null &&
             contextName != null &&
             contextName.isNotEmpty) {
-          if (contextType == 'artist') {
+          if (contextType == PlaybackContextType.artist) {
             secondLine = 'Top 10 - $contextName';
           } else {
             secondLine = contextName;
@@ -2251,7 +2252,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   ) {
     final queue = player.queueTracks;
     final currentIndex = player.currentIndex;
-    final contextName = player.playbackContextName;
+    final contextName = player.playbackContext?.name;
     final continuePlayingSource = contextName != null && contextName.isNotEmpty
         ? contextName
         : 'Queue';
@@ -2751,8 +2752,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     return Consumer<global_audio_player.WispAudioHandler>(
       builder: (context, player, child) {
         final connect = context.watch<ConnectSessionProvider>();
-        final contextType = player.playbackContextType;
-        final contextName = player.playbackContextName;
+        final contextType = player.playbackContext?.type;
+        final contextName = player.playbackContext?.name;
 
         String firstLine = 'playing from';
         String secondLine = '';
@@ -2760,7 +2761,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         if (contextType != null &&
             contextName != null &&
             contextName.isNotEmpty) {
-          if (contextType == 'artist') {
+          if (contextType == PlaybackContextType.artist) {
             secondLine = 'Top 10 - $contextName';
           } else {
             secondLine = contextName;
@@ -5502,7 +5503,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
       _SpotifyDisplayMode.artwork ||
       _SpotifyDisplayMode.canvas => 'Listening to',
     };
-    final contextName = player.playbackContextName ?? 'Now Playing';
+    final contextName = player.playbackContext?.name ?? 'Now Playing';
 
     return AnimatedSlide(
       offset: visible ? Offset.zero : const Offset(0, -1),

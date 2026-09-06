@@ -559,10 +559,7 @@ class ConnectSessionProvider extends ChangeNotifier
     List<GenericSong> tracks, {
     int startIndex = 0,
     bool play = true,
-    String? contextType,
-    String? contextName,
-    String? contextID,
-    SongSource? contextSource,
+    PlaybackContext? playbackContext,
     bool shuffleEnabled = false,
     List<GenericSong>? originalQueue,
   }) async {
@@ -572,10 +569,7 @@ class ConnectSessionProvider extends ChangeNotifier
         tracks,
         startIndex: startIndex,
         play: play,
-        contextType: contextType,
-        contextName: contextName,
-        contextID: contextID,
-        contextSource: contextSource,
+        playbackContext: playbackContext,
         shuffleEnabled: shuffleEnabled,
         originalQueue: originalQueue,
       );
@@ -590,10 +584,7 @@ class ConnectSessionProvider extends ChangeNotifier
         tracks,
         startIndex: startIndex,
         play: play,
-        contextType: contextType,
-        contextName: contextName,
-        contextID: contextID,
-        contextSource: contextSource,
+        playbackContext: playbackContext,
         shuffleEnabled: shuffleEnabled,
         originalQueue: originalQueue,
       );
@@ -606,10 +597,7 @@ class ConnectSessionProvider extends ChangeNotifier
         'tracks': tracks.map((t) => t.toJson()).toList(growable: false),
         'start_index': startIndex,
         'play': play,
-        'context_type': contextType,
-        'context_name': contextName,
-        'context_id': contextID,
-        'context_source': contextSource?.toJson(),
+        'context': playbackContext?.toJson(),
         'shuffle_enabled': shuffleEnabled,
         'original_queue': originalQueue
             ?.map((t) => t.toJson())
@@ -676,10 +664,7 @@ class ConnectSessionProvider extends ChangeNotifier
     List<GenericSong> tracks, {
     int startIndex = 0,
     bool play = true,
-    String? contextType,
-    String? contextName,
-    String? contextID,
-    SongSource? contextSource,
+    PlaybackContext? playbackContext,
     bool shuffleEnabled = false,
     List<GenericSong>? originalQueue,
   }) => _sendLinkedCommand(
@@ -688,10 +673,7 @@ class ConnectSessionProvider extends ChangeNotifier
       'tracks': tracks.map((t) => t.toJson()).toList(growable: false),
       'start_index': startIndex,
       'play': play,
-      'context_type': contextType,
-      'context_name': contextName,
-      'context_id': contextID,
-      'context_source': contextSource?.toJson(),
+      'context': playbackContext?.toJson(),
       'shuffle_enabled': shuffleEnabled,
       'original_queue': originalQueue
           ?.map((t) => t.toJson())
@@ -1941,10 +1923,7 @@ class ConnectSessionProvider extends ChangeNotifier
       isPlaying: delta.isPlaying ?? base.isPlaying,
       shuffleEnabled: delta.shuffleEnabled ?? base.shuffleEnabled,
       repeatMode: delta.repeatMode ?? base.repeatMode,
-      contextType: base.contextType,
-      contextName: base.contextName,
-      contextId: base.contextId,
-      contextSource: base.contextSource,
+      playbackContext: audio.playbackContext ?? base.playbackContext,
       volume: delta.volume ?? base.volume,
       resolvedYoutubeIds: base.resolvedYoutubeIds,
     );

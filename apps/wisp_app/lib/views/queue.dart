@@ -102,7 +102,7 @@ class _QueueViewState extends State<QueueView> {
   Widget _buildQueueContent() {
     return Consumer<WispAudioHandler>(
       builder: (context, player, child) {
-        final contextName = player.playbackContextName;
+        final contextName = player.playbackContext?.name ?? '';
         final queue = player.queueTracks;
         final currentIndex = player.currentIndex;
 

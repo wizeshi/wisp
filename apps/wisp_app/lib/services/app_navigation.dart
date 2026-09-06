@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/views/debug.dart';
 import 'dart:io' show Platform;
 
@@ -270,16 +271,16 @@ class AppNavigation {
 
   void openPlaybackContext(
     BuildContext context, {
-    required String contextType,
+    required PlaybackContextType contextType,
     required String contextId,
     String? contextName,
   }) {
-    if (contextType == 'artist') {
+    if (contextType == PlaybackContextType.artist) {
       openArtist(context, artistId: contextId, fallbackName: contextName);
       return;
     }
 
-    final type = contextType == 'album'
+    final type = contextType == PlaybackContextType.album
         ? SharedListType.album
         : SharedListType.playlist;
 

@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/material.dart';
+import 'package:wisp/services/wisp_audio_handler.dart';
 
 import '../services/app_navigation.dart';
 import '../widgets/hover_underline.dart';
@@ -18,10 +19,10 @@ class TextParser {
 	);
 	static final RegExp _htmlEntityRegex = RegExp(r'&(#x?[0-9A-Fa-f]+|[A-Za-z]+);');
 
-	static const Set<String> _supportedSpotifyTypes = {
-		'artist',
-		'album',
-		'playlist',
+	static const Set<PlaybackContextType> _supportedSpotifyTypes = {
+		PlaybackContextType.artist,
+		PlaybackContextType.album,
+		PlaybackContextType.playlist,
 	};
 
 	const TextParser._();
@@ -167,9 +168,12 @@ class TextParser {
 			return null;
 		}
 
-		final type = parts[1].toLowerCase();
+		final type = PlaybackContextType.values.firstWhere(
+			(t) => t.name.toLowerCase() == parts[1].toLowerCase(),
+			orElse: () => PlaybackContextType.unknown,
+		);
 		final id = parts.sublist(2).join(':');
-		if (type.isEmpty || id.isEmpty) {
+		if (type == PlaybackContextType.unknown || id.isEmpty) {
 			return null;
 		}
 
@@ -231,7 +235,7 @@ class TextParser {
 }
 
 class _SpotifyLink {
-	final String type;
+	final PlaybackContextType type;
 	final String id;
 
 	const _SpotifyLink({required this.type, required this.id});

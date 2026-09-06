@@ -222,10 +222,7 @@ class PlaybackCoordinator extends ChangeNotifier {
     List<GenericSong> tracks, {
     int startIndex = 0,
     bool play = true,
-    String? contextType,
-    String? contextName,
-    String? contextID,
-    SongSource? contextSource,
+    PlaybackContext? playbackContext,
     bool shuffleEnabled = false,
     List<GenericSong>? originalQueue,
   }) async {
@@ -238,10 +235,7 @@ class PlaybackCoordinator extends ChangeNotifier {
         tracks,
         startIndex: startIndex,
         play: play,
-        contextType: contextType,
-        contextName: contextName,
-        contextID: contextID,
-        contextSource: contextSource,
+        playbackContext: playbackContext,
         shuffleEnabled: shuffleEnabled,
         originalQueue: originalQueue,
       );
@@ -252,10 +246,7 @@ class PlaybackCoordinator extends ChangeNotifier {
       tracks,
       startIndex: startIndex,
       play: play,
-      contextType: contextType,
-      contextName: contextName,
-      contextID: contextID,
-      contextSource: contextSource,
+      playbackContext: playbackContext,
       shuffleEnabled: shuffleEnabled,
       originalQueue: originalQueue,
     );

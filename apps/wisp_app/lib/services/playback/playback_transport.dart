@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/foundation.dart';
+import 'package:wisp/services/wisp_audio_handler.dart';
 
 import '../../models/metadata_models.dart';
 
@@ -26,10 +27,7 @@ abstract class PlaybackTransport implements Listenable {
     List<GenericSong> tracks, {
     int startIndex,
     bool play,
-    String? contextType,
-    String? contextName,
-    String? contextID,
-    SongSource? contextSource,
+    PlaybackContext? playbackContext,
     bool shuffleEnabled,
     List<GenericSong>? originalQueue,
   });

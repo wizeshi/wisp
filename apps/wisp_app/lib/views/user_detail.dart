@@ -533,8 +533,8 @@ class _UserDetailViewState extends State<UserDetailView> {
   Widget _buildPlaylistCard(GenericSimplePlaylist playlist) {
     final player = context.watch<WispAudioHandler>();
     final isActive =
-        player.playbackContextType == 'playlist' &&
-        player.playbackContextID == playlist.id;
+        player.playbackContext?.type == PlaybackContextType.playlist &&
+        player.playbackContext?.id == playlist.id;
     final isPlaying = player.isPlaying;
 
     return _buildCard(
@@ -590,8 +590,8 @@ class _UserDetailViewState extends State<UserDetailView> {
   Widget _buildArtistCard(GenericSimpleArtist artist) {
     final player = context.watch<WispAudioHandler>();
     final isActive =
-        player.playbackContextType == 'artist' &&
-        player.playbackContextID == artist.id;
+        player.playbackContext?.type == PlaybackContextType.artist &&
+        player.playbackContext?.id == artist.id;
     final isPlaying = player.isPlaying;
 
     return _buildCard(
@@ -779,10 +779,12 @@ class _UserDetailViewState extends State<UserDetailView> {
         tracks,
         startIndex: 0,
         play: true,
-        contextType: 'playlist',
-        contextName: info.title,
-        contextID: info.id,
-        contextSource: info.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.playlist,
+          name: info.title,
+          id: info.id,
+          source: info.source,
+        ),
       );
     } catch (_) {}
   }
@@ -797,10 +799,12 @@ class _UserDetailViewState extends State<UserDetailView> {
         info.topSongs,
         startIndex: 0,
         play: true,
-        contextType: 'artist',
-        contextName: info.name,
-        contextID: info.id,
-        contextSource: info.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.artist,
+          name: info.name,
+          id: info.id,
+          source: info.source,
+        ),
       );
     } catch (_) {}
   }

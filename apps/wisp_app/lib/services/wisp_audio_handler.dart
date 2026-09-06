@@ -54,6 +54,60 @@ enum RepeatMode {
   }
 }
 
+enum PlaybackContextType {
+  artist,
+  album,
+  playlist,
+  searchResults,
+  unknown;
+
+  String toJson() => name;
+
+  static PlaybackContextType fromJson(String json) {
+    return PlaybackContextType.values.firstWhere(
+      (e) => e.name == json,
+      orElse: () => PlaybackContextType.unknown,
+    );
+  }
+}
+
+class PlaybackContext {
+  final PlaybackContextType type;
+  final String id;
+  final String name;
+  final SongSource source;
+
+  PlaybackContext({
+    required this.type,
+    required this.id,
+    required this.name,
+    required this.source,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type.toJson(),
+      'id': id,
+      'name': name,
+      'source': source.toJson(),
+    };
+  }
+
+  static PlaybackContext? fromJson(Map<String, dynamic>? json) {
+    if (json == null) return null;
+    return PlaybackContext(
+      type: PlaybackContextType.fromJson(
+        json['type'] as String? ?? PlaybackContextType.unknown.toJson(),
+      ),
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      source: SongSource.fromJson(
+        json['source'] as String? ?? SongSource.spotify.toJson(),
+      ),
+    );
+  }
+}
+
 class _StreamUrlCacheEntry {
   final String url;
   final DateTime expiresAt;
@@ -87,10 +141,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   double _crossfadeDurationSeconds = 3.0;
 
   // Playback context
-  String? _playbackContextType;
-  String? _playbackContextName;
-  String? _playbackContextID;
-  SongSource? _playbackContextSource;
+  PlaybackContext? _playbackContext;
 
   // Mirrors the engine's own PlaybackEngineState so getters stay cheap and
   // synchronous. This handler never reaches into the engine's players —
@@ -190,10 +241,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   double get userVolume => _savedVolume ?? _lastVolume;
   bool get isOnline => _isOnline;
   String? get errorMessage => _errorMessage;
-  String? get playbackContextType => _playbackContextType;
-  String? get playbackContextName => _playbackContextName;
-  String? get playbackContextID => _playbackContextID;
-  SongSource? get playbackContextSource => _playbackContextSource;
+  PlaybackContext? get playbackContext => _playbackContext;
   List<AudioOutputDevice> get outputDevices => _availableOutputDevices;
   AudioOutputDevice? get activeOutputDevice => _activeOutputDevice;
 
@@ -207,10 +255,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       isPlaying: isPlaying,
       shuffleEnabled: _shuffleEnabled,
       repeatMode: _repeatMode.toString(),
-      contextType: _playbackContextType,
-      contextName: _playbackContextName,
-      contextId: _playbackContextID,
-      contextSource: _playbackContextSource,
+      playbackContext: _playbackContext,
       volume: _engineVolume,
       resolvedYoutubeIds: getResolvedYoutubeIdsForTracks(_queue),
     );
@@ -242,10 +287,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       snapshot.queue,
       startIndex: snapshot.currentIndex < 0 ? 0 : snapshot.currentIndex,
       play: autoPlay,
-      contextType: snapshot.contextType,
-      contextName: snapshot.contextName,
-      contextID: snapshot.contextId,
-      contextSource: snapshot.contextSource,
+      playbackContext: snapshot.playbackContext,
       shuffleEnabled: snapshot.shuffleEnabled,
       originalQueue: snapshot.originalQueue,
     );
@@ -333,14 +375,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       changed = true;
     }
 
-    if (_playbackContextType != snapshot.contextType ||
-        _playbackContextName != snapshot.contextName ||
-        _playbackContextID != snapshot.contextId ||
-        _playbackContextSource != snapshot.contextSource) {
-      _playbackContextType = snapshot.contextType;
-      _playbackContextName = snapshot.contextName;
-      _playbackContextID = snapshot.contextId;
-      _playbackContextSource = snapshot.contextSource;
+    if (_playbackContext?.type != snapshot.playbackContext?.type ||
+        _playbackContext?.name != snapshot.playbackContext?.name ||
+        _playbackContext?.id != snapshot.playbackContext?.id ||
+        _playbackContext?.source != snapshot.playbackContext?.source) {
+      _playbackContext = snapshot.playbackContext;
       changed = true;
     }
 
@@ -1589,7 +1628,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       isPlaying: isPlaying,
       position: position,
       duration: duration,
-      contextId: _playbackContextID,
+      contextId: _playbackContext?.id,
     );
   }
 
@@ -1840,10 +1879,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     List<GenericSong> tracks, {
     int startIndex = 0,
     bool play = true,
-    String? contextType,
-    String? contextName,
-    String? contextID,
-    SongSource? contextSource,
+    PlaybackContext? playbackContext,
     bool shuffleEnabled = false,
     List<GenericSong>? originalQueue,
   }) async {
@@ -1857,10 +1893,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _queue = List.from(tracks);
     _originalQueue = originalQueue ?? [];
     _shuffleEnabled = shuffleEnabled;
-    _playbackContextType = contextType;
-    _playbackContextName = contextName;
-    _playbackContextID = contextID;
-    _playbackContextSource = contextSource;
+    if (playbackContext != null) {
+      _playbackContext = playbackContext;
+    }
 
     _broadcastQueue();
 
@@ -2154,23 +2189,29 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           orElse: () => RepeatMode.off,
         );
       }
-      final contextType = prefs.getString('playback_context_type');
+      final contextType = PlaybackContextType.values.firstWhere(
+        (e) => e.toString() == prefs.getString('playback_context_type'),
+        orElse: () => PlaybackContextType.unknown,
+      );
       final contextName = prefs.getString('playback_context_name');
       final contextId = prefs.getString('playback_context_id');
-      _playbackContextType = contextType?.isNotEmpty == true
-          ? contextType
-          : null;
-      _playbackContextName = contextName?.isNotEmpty == true
-          ? contextName
-          : null;
-      _playbackContextID = contextId?.isNotEmpty == true ? contextId : null;
-      final contextSourceRaw = prefs.getString('playback_context_source');
-      if (contextSourceRaw != null && contextSourceRaw.isNotEmpty) {
-        _playbackContextSource = SongSource.values.firstWhere(
-          (e) => e.toString() == contextSourceRaw,
-          orElse: () => SongSource.spotify,
+      final contextSource = SongSource.values.firstWhere(
+        (e) => e.toString() == prefs.getString('playback_context_source'),
+        orElse: () => SongSource.spotify,
+      );
+
+      if (contextId != null && contextId.isNotEmpty
+        && contextName != null && contextName.isNotEmpty
+      ) {
+        _playbackContext = PlaybackContext(
+          id: contextId,
+          name: contextName,
+          type: contextType,
+          source: contextSource
         );
       }
+
+
       _savedVolume = prefs.getDouble('player_volume');
       final savedLastVolume = prefs.getDouble('player_last_volume');
       if (savedLastVolume != null) {
@@ -2203,16 +2244,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await prefs.setString('repeat_mode', _repeatMode.toString());
       await prefs.setString(
         'playback_context_type',
-        _playbackContextType ?? '',
+        _playbackContext?.type.toString() ?? '',
       );
       await prefs.setString(
         'playback_context_name',
-        _playbackContextName ?? '',
+        _playbackContext?.name ?? '',
       );
-      await prefs.setString('playback_context_id', _playbackContextID ?? '');
+      await prefs.setString('playback_context_id', _playbackContext?.id ?? '');
       await prefs.setString(
         'playback_context_source',
-        _playbackContextSource?.toString() ?? '',
+        _playbackContext?.source.toString() ?? '',
       );
     } catch (e) {
       logger.e('[Audio/Player] Save queue error', error: e);
@@ -2273,10 +2314,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       'lastKnownDurationMs': _lastKnownDuration?.inMilliseconds,
       'rpcLastSecond': _rpcLastSecond,
       'playlistPlaybackEnabled': _playlistPlaybackEnabled,
-      'playbackContextType': _playbackContextType,
-      'playbackContextName': _playbackContextName,
-      'playbackContextID': _playbackContextID,
-      'playbackContextSource': _playbackContextSource?.toString(),
+      'playbackContext': _playbackContext?.toJson(),
       'isHandoffHost': _isHandoffHost,
       'prefetchWindowSize': _prefetchWindowSize,
       'prefetchGeneration': _prefetchGeneration,

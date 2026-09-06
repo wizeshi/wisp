@@ -1567,8 +1567,12 @@ class _SearchViewState extends State<SearchView> {
         queue,
         startIndex: index,
         play: true,
-        contextType: 'search',
-        contextName: 'Search results',
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.searchResults,
+          name: _lastQuery,
+          id: '',
+          source: SongSource.values.firstWhere((source) => source.name == _searchState.selectedSource),
+        )
       ),
     );
   }
@@ -1628,10 +1632,12 @@ class _SearchViewState extends State<SearchView> {
         tracks,
         startIndex: 0,
         play: true,
-        contextType: 'album',
-        contextName: album.title,
-        contextID: album.id,
-        contextSource: album.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.album,
+          name: album.title,
+          id: album.id,
+          source: album.source,
+        )
       );
     } catch (_) {}
   }
@@ -1668,10 +1674,12 @@ class _SearchViewState extends State<SearchView> {
         tracks,
         startIndex: 0,
         play: true,
-        contextType: 'playlist',
-        contextName: playlist.title,
-        contextID: playlist.id,
-        contextSource: playlist.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.playlist,
+          name: playlist.title,
+          id: playlist.id,
+          source: playlist.source,
+        )
       );
 
       context.read<LibraryFolderState>().markPlaylistPlayed(playlistId);
@@ -1695,10 +1703,12 @@ class _SearchViewState extends State<SearchView> {
         tracks,
         startIndex: 0,
         play: true,
-        contextType: 'artist',
-        contextName: artist.name,
-        contextID: artist.id,
-        contextSource: artist.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.artist,
+          name: artist.name,
+          id: artist.id,
+          source: artist.source,
+        ),
       );
     } catch (_) {}
   }

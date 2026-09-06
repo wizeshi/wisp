@@ -26,7 +26,7 @@ enum LibrarySidebarEntryType { item, unassignedHeader }
 
 typedef _SidebarPlaybackHighlight = ({
   bool isPlaying,
-  String? contextType,
+  PlaybackContextType? contextType,
   String? contextId,
   String? contextName,
   String currentArtistIds,
@@ -155,10 +155,12 @@ class _WispNavigationState extends State<WispNavigation> {
         queueTracks,
         startIndex: 0,
         play: true,
-        contextType: 'playlist',
-        contextName: resolvedItem.title,
-        contextID: resolvedItem.id,
-        contextSource: resolvedItem.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.playlist,
+          name: resolvedItem.title,
+          id: resolvedItem.id,
+          source: resolvedItem.source,
+        ),
       );
       if (!mounted) return;
       context.read<LibraryFolderState>().markPlaylistPlayed(resolvedItem.id);
@@ -180,10 +182,12 @@ class _WispNavigationState extends State<WispNavigation> {
         tracks,
         startIndex: 0,
         play: true,
-        contextType: 'album',
-        contextName: fullAlbum.title,
-        contextID: fullAlbum.id,
-        contextSource: fullAlbum.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.album,
+          name: fullAlbum.title,
+          id: fullAlbum.id,
+          source: fullAlbum.source,
+        ),
       );
       if (!mounted) return;
       context.read<LibraryFolderState>().markItemPlayed(albumId);
@@ -204,10 +208,12 @@ class _WispNavigationState extends State<WispNavigation> {
         tracks,
         startIndex: 0,
         play: true,
-        contextType: 'artist',
-        contextName: artist.name,
-        contextID: artist.id,
-        contextSource: artist.source,
+        playbackContext: PlaybackContext(
+          type: PlaybackContextType.artist,
+          name: artist.name,
+          id: artist.id,
+          source: artist.source,
+        ),
       );
       if (!mounted) return;
       context.read<LibraryFolderState>().markItemPlayed(resolvedItem.id);
@@ -219,23 +225,23 @@ class _WispNavigationState extends State<WispNavigation> {
   }
 
   bool _isSidebarItemActive(dynamic resolvedItem, WispAudioHandler player) {
-    final playbackType = player.playbackContextType;
-    final playbackId = player.playbackContextID;
-    final playbackName = player.playbackContextName?.trim();
+    final playbackType = player.playbackContext?.type;
+    final playbackId = player.playbackContext?.id;
+    final playbackName = player.playbackContext?.name.trim();
 
     return switch (resolvedItem) {
       GenericPlaylist playlist =>
-        playbackType == 'playlist' &&
+        playbackType == PlaybackContextType.playlist &&
             (playbackId == playlist.id ||
                 playbackName == playlist.title.trim()),
       GenericAlbum album =>
-        playbackType == 'album' &&
+        playbackType == PlaybackContextType.album &&
             (playbackId == album.id || playbackName == album.title.trim()),
       GenericSimpleAlbum album =>
-        playbackType == 'album' &&
+        playbackType == PlaybackContextType.album &&
             (playbackId == album.id || playbackName == album.title.trim()),
       GenericSimpleArtist artist =>
-        (playbackType == 'artist' &&
+        (playbackType == PlaybackContextType.artist &&
                 (playbackId == artist.id ||
                     playbackName == artist.name.trim())) ||
             (player.currentTrack?.artists.any((a) => a.id == artist.id) ??
@@ -986,17 +992,17 @@ class _WispNavigationState extends State<WispNavigation> {
     final playbackName = playback.contextName;
     final isCurrentPlaybackItem = switch (resolvedItem) {
       GenericPlaylist playlist =>
-        playbackType == 'playlist' &&
+        playbackType == PlaybackContextType.playlist &&
             (playbackId == playlist.id ||
                 playbackName == playlist.title.trim()),
       GenericAlbum album =>
-        playbackType == 'album' &&
+        playbackType == PlaybackContextType.album &&
             (playbackId == album.id || playbackName == album.title.trim()),
       GenericSimpleAlbum album =>
-        playbackType == 'album' &&
+        playbackType == PlaybackContextType.album &&
             (playbackId == album.id || playbackName == album.title.trim()),
       GenericSimpleArtist artist =>
-        (playbackType == 'artist' &&
+        (playbackType == PlaybackContextType.artist &&
                 (playbackId == artist.id ||
                     playbackName == artist.name.trim())) ||
             (playback.currentArtistIds.isNotEmpty &&
@@ -1565,9 +1571,9 @@ class _SidebarLibraryItem extends StatelessWidget {
           final track = player.currentTrack;
           return (
             isPlaying: player.isPlaying,
-            contextType: player.playbackContextType,
-            contextId: player.playbackContextID,
-            contextName: player.playbackContextName?.trim(),
+            contextType: player.playbackContext?.type,
+            contextId: player.playbackContext?.id,
+            contextName: player.playbackContext?.name.trim(),
             currentArtistIds: track == null || track.artists.isEmpty
                 ? ''
                 : track.artists.map((artist) => artist.id).join('\u0001'),

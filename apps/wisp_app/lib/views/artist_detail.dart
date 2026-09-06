@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/providers/theme/cover_art_palette_provider.dart';
+import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/theme/app_theme.dart';
 import 'package:wisp/utils/text_parser.dart';
 
@@ -137,18 +138,20 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       tracks,
       startIndex: index,
       play: true,
-      contextType: 'artist',
-      contextName: _artist?.name ?? '',
-      contextID: _artist?.id ?? '',
-      contextSource: _artist?.source ?? SongSource.spotify,
+      playbackContext: PlaybackContext(
+        type: PlaybackContextType.artist,
+        name: _artist?.name ?? '',
+        id: _artist?.id ?? '',
+        source: _artist?.source ?? SongSource.spotify,
+      ),
     );
   }
 
   bool _isCurrentArtistPlaying(global_audio_player.WispAudioHandler player) {
-    final contextType = 'artist';
+    final contextType = PlaybackContextType.artist;
     final contextName = _artist?.name ?? '';
-    return player.playbackContextType == contextType &&
-        player.playbackContextName == contextName &&
+    return player.playbackContext?.type == contextType &&
+        player.playbackContext?.name == contextName &&
         player.currentTrack != null;
   }
 
