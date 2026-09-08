@@ -14,6 +14,8 @@ import '../playback/playback_selectors.dart';
 class ArtistRow extends StatelessWidget {
   final GenericSimpleArtist artist;
   final double width;
+  final EdgeInsetsGeometry padding;
+  final GenericRowPlayPosition playPosition;
 
   final String? subtitle;
 
@@ -22,6 +24,8 @@ class ArtistRow extends StatelessWidget {
     required this.artist,
     this.subtitle,
     this.width = 160,
+    this.padding = EdgeInsets.zero,
+    this.playPosition = GenericRowPlayPosition.end,
   });
 
   Future<void> _startArtistPlayback(BuildContext context) async {
@@ -82,6 +86,9 @@ class ArtistRow extends StatelessWidget {
       artistName: artist.name,
     );
     return GenericRow(
+      width: width,
+      padding: padding,
+      playPosition: playPosition,
       title: artist.name,
       subtitle: subtitle ?? 'Artist',
       artwork: ArtworkThumbnail(
@@ -105,7 +112,6 @@ class ArtistRow extends StatelessWidget {
       onLongPress: () {
         EntityContextMenus.showArtistMenu(context, artist: artist);
       },
-      width: width,
     );
   }
 }

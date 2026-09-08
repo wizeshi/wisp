@@ -5,12 +5,15 @@ library;
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:wisp/utils/logger.dart';
+import 'package:wisp_assets/wisp_assets.dart';
+import 'package:yaml/yaml.dart';
 import '../../models/metadata_models.dart';
 
 const _lrclibBaseUrl = 'https://lrclib.net/api/get';
 const _lrclibUserAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-    '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 wisp/1.0.0';
+    '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 wisp/${WispInfo.version}';
 
 class LrcLibLyricsProvider {
   Future<LyricsResult?> getLyrics(GenericSong song, LyricsSyncMode mode) async {
@@ -36,6 +39,27 @@ class LrcLibLyricsProvider {
 
     try {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
+      // This is for logging purposes. LRCLIB is recently implementing their new LyricsFile format, which is not yet supported, but there are plans.
+      // Because of this, we log the response body to see if it's already avaliable, and which format it supports: plain, line-synced or word-synced.
+
+      final lyricsFileYaml = loadYaml(data['lyricsfile']);
+
+      List<String> avaliableFormats = [];
+
+      if (lyricsFileYaml['plain'] != null) {
+        avaliableFormats.add('plain');
+      }
+
+      if (lyricsFileYaml['lines'] != null) {
+        avaliableFormats.add('line-synced');
+        if (lyricsFileYaml['lines']!['words'] != null) {
+          avaliableFormats.add('word-synced');
+        }
+      }
+
+      logger.d("[Lyrics/LRCLIB] Debug data for new LyricsFile format:");
+      logger.d("[Lyrics/LRCLIB] Avaliable formats: ${avaliableFormats.join(', ')}");
+
       final syncedLyrics = (data['syncedLyrics'] as String?) ?? '';
       final plainLyrics = (data['plainLyrics'] as String?) ?? '';
 

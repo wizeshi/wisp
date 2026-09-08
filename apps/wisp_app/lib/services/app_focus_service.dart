@@ -34,8 +34,7 @@ class AppFocusService with WindowListener, WidgetsBindingObserver {
         break;
       case AppLifecycleState.inactive:
         // For some reason, Windows treats inactive as both when it's in the background (minimized),
-        // but also when it's in the foreground but not focused. I prefer to just pause it then, but
-        // a TODO is enable a toggle for this behavior in the settings page.
+        // but also when it's in the foreground but not focused. I prefer to just pause it then.
         if (_isDesktop) {
           _setFocused(false);
         } else {

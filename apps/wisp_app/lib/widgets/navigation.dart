@@ -7,6 +7,11 @@ import 'dart:io' show Platform, File;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/ui/rows/album_row.dart';
+import 'package:wisp/ui/rows/artist_row.dart';
+import 'package:wisp/ui/rows/folder_row.dart';
+import 'package:wisp/ui/rows/generic_row.dart';
+import 'package:wisp/ui/rows/playlist_row.dart';
 import '../models/metadata_models.dart';
 import '../models/library_folder.dart';
 import '../providers/library/library_folders.dart';
@@ -978,7 +983,57 @@ class _WispNavigationState extends State<WispNavigation> {
     required LibraryState libraryState,
     required _SidebarPlaybackHighlight playback,
   }) {
+    Widget tile = SizedBox.shrink();
+    
     final entry = item is LibrarySidebarEntry
+        ? item
+        : LibrarySidebarEntry.item(item);
+    
+    if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
+      tile = SizedBox.shrink();
+    }
+
+    final resolvedItem = entry.item;
+
+    const basePadding = EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0);
+    const folderChildIndent = 8.0;
+    final rowPadding = entry.folderId != null
+        ? basePadding.add(const EdgeInsets.only(left: folderChildIndent))
+        : basePadding;
+
+    final playButtonPosition = GenericRowPlayPosition.cover;
+
+    if (resolvedItem is PlaylistFolder) {
+      tile = FolderRow(
+        folder: resolvedItem,
+        padding: rowPadding,
+        playPosition: playButtonPosition,
+      );
+    } else if (resolvedItem is GenericPlaylist) {
+      tile = PlaylistRow(
+        playlist: resolvedItem,
+        padding: rowPadding,
+        playPosition: playButtonPosition
+      );
+    } else if (resolvedItem is GenericAlbum || resolvedItem is GenericSimpleAlbum) {
+      tile = AlbumRow(
+        album: resolvedItem,
+        padding: rowPadding,
+        playPosition: playButtonPosition
+      );
+    } else if (resolvedItem is GenericSimpleArtist || resolvedItem is GenericArtist) {
+      tile = ArtistRow(
+        artist: resolvedItem,
+        padding: rowPadding,
+        playPosition: playButtonPosition
+      );
+    } else {
+      tile = SizedBox.shrink();
+    }
+
+    return tile;
+
+    /* final entry = item is LibrarySidebarEntry
         ? item
         : LibrarySidebarEntry.item(item);
     final isDesktop = _isDesktop();
@@ -1509,7 +1564,7 @@ class _WispNavigationState extends State<WispNavigation> {
       tile = folderDropTarget;
     }
 
-    return tile;
+    return tile; */
   }
 
   Widget _buildMobileBottomNav() {

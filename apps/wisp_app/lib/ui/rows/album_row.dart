@@ -15,8 +15,16 @@ import '../playback/playback_selectors.dart';
 class AlbumRow extends StatelessWidget {
   final GenericAlbum album;
   final double width;
+  final EdgeInsetsGeometry padding;
+  final GenericRowPlayPosition playPosition;
 
-  const AlbumRow({super.key, required this.album, this.width = 160});
+  const AlbumRow({
+    super.key,
+    required this.album,
+    this.width = 160,
+    this.padding = EdgeInsets.zero,
+    this.playPosition = GenericRowPlayPosition.end,
+  });
 
   Future<void> _startAlbumPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();
@@ -76,6 +84,9 @@ class AlbumRow extends StatelessWidget {
       albumTitle: album.title,
     );
     return GenericRow(
+      width: width,
+      padding: padding,
+      playPosition: playPosition,
       title: album.title,
       subtitle: album.artists.map((artist) => artist.name).join(', '),
       artwork: ArtworkThumbnail(
@@ -103,7 +114,6 @@ class AlbumRow extends StatelessWidget {
       onLongPress: () {
         EntityContextMenus.showAlbumMenu(context, album: album);
       },
-      width: width,
     );
   }
 }

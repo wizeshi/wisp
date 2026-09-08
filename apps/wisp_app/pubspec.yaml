@@ -4,7 +4,7 @@ publish_to: 'none'
 
 resolution: workspace
 
-version: 26.9.1+171
+version: 26.9.1+174
 
 environment:
   sdk: ^3.10.7
@@ -93,6 +93,7 @@ dependencies:
   wisp_assets: any
   wisp_playback_engine: any
   wisp_audio_output_info: any
+  yaml: ^3.1.4
 
 
 dev_dependencies:

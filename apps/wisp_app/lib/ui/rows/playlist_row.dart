@@ -7,6 +7,7 @@ import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/ui/rows/generic_row.dart';
 import 'package:wisp/views/list_detail.dart';
 import 'package:wisp/widgets/entity_context_menus.dart';
+import 'package:wisp/widgets/liked_songs_art.dart';
 
 import '../../models/metadata_models.dart';
 import '../artwork/artwork_thumbnail.dart';
@@ -27,8 +28,16 @@ String playlistSubtitle(GenericPlaylist playlist) {
 class PlaylistRow extends StatelessWidget {
   final GenericPlaylist playlist;
   final double width;
+  final EdgeInsetsGeometry padding;
+  final GenericRowPlayPosition playPosition;
 
-  const PlaylistRow({super.key, required this.playlist, this.width = 160});
+  const PlaylistRow({
+    super.key,
+    required this.playlist,
+    this.width = 160,
+    this.padding = EdgeInsets.zero,
+    this.playPosition = GenericRowPlayPosition.end,
+  });
 
   Future<void> _startPlaylistPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();
@@ -114,14 +123,22 @@ class PlaylistRow extends StatelessWidget {
       playlistTitle: playlist.title,
     );
     return GenericRow(
+      width: width,
+      padding: padding,
+      playPosition: playPosition,
       title: playlist.title,
       subtitle: playlistSubtitle(playlist),
-      artwork: ArtworkThumbnail(
-        source: ArtworkSource.fromUrl(playlist.thumbnailUrl),
-        size: ArtworkSize.large,
-        fallbackIcon: Icons.playlist_play,
-        semanticLabel: 'Artwork for ${playlist.title}',
-      ),
+      artwork: (playlist.title == "Liked Songs")
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LikedSongsArt(size: ArtworkSize.large.logicalSize),
+            )
+          : ArtworkThumbnail(
+              source: ArtworkSource.fromUrl(playlist.thumbnailUrl),
+              size: ArtworkSize.large,
+              fallbackIcon: Icons.playlist_play,
+              semanticLabel: 'Artwork for ${playlist.title}',
+            ),
       isPlaying: isPlaying,
       onTap: () => AppNavigation.instance.openSharedList(
         context,
@@ -141,7 +158,6 @@ class PlaylistRow extends StatelessWidget {
       onLongPress: () {
         EntityContextMenus.showPlaylistMenu(context, playlist: playlist);
       },
-      width: width,
     );
   }
 }
