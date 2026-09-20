@@ -292,6 +292,7 @@ class _AppShellState extends State<AppShell> {
             ),
           Expanded(
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_isDesktop && !isDesktopImmersive)
                   WispNavigation(

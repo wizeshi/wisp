@@ -5,6 +5,7 @@ import 'dart:io' show Platform;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
@@ -57,11 +58,12 @@ class _RightSidebarState extends State<RightSidebar> {
 
     return SizedBox(
       width: widget.width,
+      height: double.infinity,
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHoveringSidebar = true),
         onExit: (_) => setState(() => _isHoveringSidebar = false),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _ResizeHandle(onResize: widget.onResize),
             Expanded(
@@ -82,6 +84,16 @@ class _RightSidebarState extends State<RightSidebar> {
                       duration: const Duration(milliseconds: 240),
                       switchInCurve: Curves.easeOutCubic,
                       switchOutCurve: Curves.easeInCubic,
+                      layoutBuilder: (currentChild, previousChildren) {
+                        return Stack(
+                          fit: StackFit.expand,
+                          alignment: Alignment.topCenter,
+                          children: [
+                            ...previousChildren,
+                            ?currentChild,
+                          ],
+                        );
+                      },
                       transitionBuilder: (child, animation) {
                         final offset = Tween<Offset>(
                           begin: const Offset(0, 0.08),
@@ -293,7 +305,7 @@ class _NowPlayingCard extends StatelessWidget {
                 borderRadius: 0,
                 showBottomFade: hasCanvas,
                 bottomFadeColor: const Color(0xFF0F0F0F),
-                bottomFadeHeight: 28,
+                bottomFadeHeight: 6,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -318,14 +330,16 @@ class _NowPlayingCard extends StatelessWidget {
                                   child: IconButton(
                                     tooltip: 'Hide sidebar',
                                     icon: const Icon(
-                                      Icons.keyboard_arrow_right,
+                                      Symbols.right_panel_close,
                                     ),
-                                    iconSize: 18,
+                                    iconSize: 20,
                                     visualDensity: VisualDensity.compact,
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(
-                                      minWidth: 28,
-                                      minHeight: 28,
+                                      minWidth: 20,
+                                      maxWidth: 20,
+                                      minHeight: 20,
+                                      maxHeight: 20,
                                     ),
                                     onPressed: () {
                                       context
