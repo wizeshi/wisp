@@ -1308,6 +1308,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
           queueFirstId: queueFirst?.id,
           shuffleEnabled: player.shuffleEnabled,
           repeatMode: player.repeatMode,
+          isDJMode: player.isDJMode,
         );
       },
       builder: (context, data, child) {
@@ -1321,16 +1322,21 @@ class _DesktopPlaybackControls extends StatelessWidget {
             IconButton(
               padding: EdgeInsets.all(4),
               constraints: BoxConstraints(),
+              tooltip: data.isDJMode ? 'Unavailable in DJ mode' : 'Shuffle',
               icon: Icon(
                 isAppleStyle ? CupertinoIcons.shuffle : Icons.shuffle,
-                color: data.shuffleEnabled
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.grey[400],
+                color: data.isDJMode
+                    ? Colors.grey[600]
+                    : (data.shuffleEnabled
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey[400]),
                 size: 20,
               ),
-              onPressed: () {
-                context.read<PlaybackCoordinator>().toggleShuffle();
-              },
+              onPressed: data.isDJMode
+                  ? null
+                  : () {
+                      context.read<PlaybackCoordinator>().toggleShuffle();
+                    },
             ),
 
             SizedBox(width: controlSpacing),
@@ -1384,20 +1390,25 @@ class _DesktopPlaybackControls extends StatelessWidget {
             IconButton(
               padding: EdgeInsets.all(4),
               constraints: BoxConstraints(),
+              tooltip: data.isDJMode ? 'Unavailable in DJ mode' : 'Repeat',
               icon: Icon(
                 data.repeatMode == global_audio_player.RepeatMode.one
                     ? (isAppleStyle
                           ? CupertinoIcons.repeat_1
                           : Icons.repeat_one)
                     : (isAppleStyle ? CupertinoIcons.repeat : Icons.repeat),
-                color: data.repeatMode != global_audio_player.RepeatMode.off
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.grey[400],
+                color: data.isDJMode
+                    ? Colors.grey[600]
+                    : (data.repeatMode != global_audio_player.RepeatMode.off
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey[400]),
                 size: 20,
               ),
-              onPressed: () {
-                context.read<PlaybackCoordinator>().toggleRepeat();
-              },
+              onPressed: data.isDJMode
+                  ? null
+                  : () {
+                      context.read<PlaybackCoordinator>().toggleRepeat();
+                    },
             ),
           ],
         );
@@ -2623,6 +2634,7 @@ class _PlayPauseData {
   final String? queueFirstId;
   final bool shuffleEnabled;
   final global_audio_player.RepeatMode? repeatMode;
+  final bool isDJMode;
 
   const _PlayPauseData({
     required this.isPlaying,
@@ -2636,6 +2648,7 @@ class _PlayPauseData {
     required this.queueFirstId,
     this.shuffleEnabled = false,
     this.repeatMode,
+    this.isDJMode = false,
   });
 
   @override
@@ -2651,7 +2664,8 @@ class _PlayPauseData {
       other.queueNotEmpty == queueNotEmpty &&
       other.queueFirstId == queueFirstId &&
       other.shuffleEnabled == shuffleEnabled &&
-      other.repeatMode == repeatMode;
+      other.repeatMode == repeatMode &&
+      other.isDJMode == isDJMode;
 
   @override
   int get hashCode => Object.hash(
@@ -2666,6 +2680,7 @@ class _PlayPauseData {
     queueFirstId,
     shuffleEnabled,
     repeatMode,
+    isDJMode,
   );
 }
 

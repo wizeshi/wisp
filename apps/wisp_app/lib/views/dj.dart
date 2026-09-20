@@ -22,37 +22,6 @@ const djTextInputHints = [
   'I want to hear songs that remind me of...',
 ];
 
-const Map<String, String> djSuggestions = {
-  '60s': 'Bring me back to the 60s',
-  '70s': 'I want to groove to the 70s',
-  '80s': 'Take me to the 80s',
-  '90s': 'I want to relive the 90s',
-  '2000s': 'Play some hits from the 2000s',
-  'chill': 'I want to chill and relax',
-  'hood': 'Gimme some hood music',
-  'party': 'I want to party and dance',
-  'r&b': 'I want to vibe to some R&B',
-  'rap': 'Play some rap and hip-hop',
-  'rock': 'I want to rock out',
-
-  // | ------------------ |
-  // | International area |
-  // | ------------------ |
-
-  // English
-  'en_underground': 'Get me some underground English music',
-  'en_pop': 'I want to listen to English pop music',
-
-  // Portuguese (PT)
-  'pt_pt_fado': 'Play me some Fado',
-  'pt_pt_pop': 'I want to listen to Portuguese pop music',
-  'pt_pt_rap': 'Put on some Portuguese rap music',
-
-  // Portuguese (BR)
-  'pt_br_mpb': 'Play some Popular Brazilian Music',
-  'pt_br_samba': 'I want to listen to some Samba',
-};
-
 const Map<String, List<String>> djTagKeywords = {
   '60s': [
     '60s',
@@ -426,6 +395,10 @@ class DJChatMessage {
   DJChatMessage({required this.text, required this.isUser});
 }
 
+/// In-memory session message store for the DJ chat.
+/// Preserved during the app session and automatically resets on app restart.
+final List<DJChatMessage> _sessionDJMessages = [];
+
 class DJView extends StatefulWidget {
   const DJView({super.key});
 
@@ -434,9 +407,8 @@ class DJView extends StatefulWidget {
 }
 
 class _DJViewState extends State<DJView> {
-  final List<DJChatMessage> _messages = [];
-  final ValueNotifier<List<DJChatMessage>> _chatMessagesNotifier =
-      ValueNotifier([]);
+  late final List<DJChatMessage> _messages;
+  late final ValueNotifier<List<DJChatMessage>> _chatMessagesNotifier;
   late final TextEditingController _textSubmissionController;
   final ScrollController _scrollController = ScrollController();
 
@@ -495,6 +467,8 @@ class _DJViewState extends State<DJView> {
   @override
   void initState() {
     super.initState();
+    _messages = _sessionDJMessages;
+    _chatMessagesNotifier = ValueNotifier(List.from(_messages));
     _textSubmissionController = TextEditingController();
 
     _randomSuggestions = _buildDynamicSuggestions();
@@ -505,6 +479,9 @@ class _DJViewState extends State<DJView> {
       if (mounted) {
         final spotify = context.read<SpotifyInternalProvider>();
         ListeningHabitsService.instance.bindSpotifyProvider(spotify);
+        if (_messages.isNotEmpty) {
+          _scrollToBottom();
+        }
       }
     });
   }
@@ -529,8 +506,35 @@ class _DJViewState extends State<DJView> {
     });
   }
 
-  /// AI decision algorithm: detects which track tag best matches the user query.
-  String? _detectAITag(String query) {
+  String? _detectArtist(String query) {
+    final clean = query.trim().toLowerCase();
+    if (clean.isEmpty) return null;
+
+    final artists = ListeningHabitsService.instance.allUniqueArtists.toList();
+    artists.sort((a, b) {
+      final aWords = a.split(' ').length;
+      final bWords = b.split(' ').length;
+      if (aWords != bWords) {
+        return bWords.compareTo(aWords);
+      }
+      return b.length.compareTo(a.length);
+    });
+
+    for (final artist in artists) {
+      final pattern = RegExp(
+        r'(?:^|[^a-zA-Z0-9])' + RegExp.escape(artist.toLowerCase()) + r'(?:$|[^a-zA-Z0-9])',
+        caseSensitive: false,
+      );
+      if (pattern.hasMatch(clean)) {
+        return artist;
+      }
+    }
+
+    return null;
+  }
+
+  /// Detects which track tag or genre best matches the user query.
+  String? _detectGenreTag(String query) {
     final clean = query.trim().toLowerCase();
     if (clean.isEmpty) return null;
 
@@ -542,15 +546,7 @@ class _DJViewState extends State<DJView> {
       }
     }
 
-    // 2. Direct match with legacy preset suggestions
-    for (final entry in djSuggestions.entries) {
-      final suggestionLower = entry.value.toLowerCase();
-      if (clean == suggestionLower || clean.contains(suggestionLower)) {
-        return entry.key;
-      }
-    }
-
-    // 3. Direct match with tag keys
+    // 2. Direct match with tag keys
     if (_randomSuggestions.containsKey(clean)) {
       return clean;
     }
@@ -558,7 +554,7 @@ class _DJViewState extends State<DJView> {
       return clean;
     }
 
-    // 4. Specific & generic candidate matching sorted by specificity
+    // 3. Specific & generic candidate matching sorted by specificity
     // Multi-word phrases (e.g. 'rap tuga', 'hip hop tuga') MUST be checked before
     // single-word genres (e.g. 'rap') to ensure specific queries are honored.
     final candidates = <(String keyword, String tag)>[];
@@ -613,8 +609,93 @@ class _DJViewState extends State<DJView> {
     return null;
   }
 
-  String _generateDJResponse(String query) {
-    final detectedTag = _detectAITag(query);
+  /// AI decision algorithm: checks for artists (first) and genres.
+  /// If a known artist is mentioned, but no genre is detected/available
+  /// (either unknown, not in DB, or artist does not have that genre),
+  /// the genre is ignored.
+  ({String? artist, String? tag}) _detectIntent(String query) {
+    final clean = query.trim().toLowerCase();
+    if (clean.isEmpty) return (artist: null, tag: null);
+
+    // 1. Direct match with current dynamic suggestions
+    for (final entry in _randomSuggestions.entries) {
+      final suggestionLower = entry.value.toLowerCase();
+      if (clean == suggestionLower || clean.contains(suggestionLower)) {
+        return (artist: null, tag: entry.key);
+      }
+    }
+
+    // 2. Check if a known artist is specified (checked before genre checking)
+    final detectedArtist = _detectArtist(query);
+
+    // 3. Check for genre tag
+    final detectedTag = _detectGenreTag(query);
+
+    if (detectedArtist != null) {
+      if (detectedTag != null) {
+        final artistGenres =
+            ListeningHabitsService.instance.getGenresForArtist(detectedArtist);
+        final (keywords, _, _, _) = _getFilterForTag(detectedTag);
+
+        final artistHasGenre = artistGenres.any((ag) {
+          final agClean = ag.toLowerCase().trim();
+          final tagClean = detectedTag.toLowerCase().trim();
+          if (agClean == tagClean ||
+              agClean.contains(tagClean) ||
+              tagClean.contains(agClean)) {
+            return true;
+          }
+          return keywords.any(
+            (kw) =>
+                agClean == kw.toLowerCase().trim() ||
+                agClean.contains(kw.toLowerCase().trim()) ||
+                kw.toLowerCase().trim().contains(agClean),
+          );
+        });
+
+        if (artistHasGenre) {
+          return (artist: detectedArtist, tag: detectedTag);
+        } else {
+          // Artist does not have that genre -> ignore the genre
+          return (artist: detectedArtist, tag: null);
+        }
+      } else {
+        // No genre detected or available -> ignore the genre
+        return (artist: detectedArtist, tag: null);
+      }
+    }
+
+    return (artist: null, tag: detectedTag);
+  }
+
+  String _generateDJResponse({
+    String? detectedArtist,
+    String? detectedTag,
+  }) {
+    if (detectedArtist != null && detectedTag != null) {
+      final genreTitle = detectedTag
+          .split(' ')
+          .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+          .join(' ');
+      final comboResponses = [
+        'Dialing into some $genreTitle from $detectedArtist! Pure vibes coming right up.',
+        'Coming right up! Queueing up $genreTitle tracks by $detectedArtist.',
+        'Locked in on $detectedArtist with that $genreTitle sound. Enjoy the set!',
+        'Spinning some top-tier $genreTitle cuts from $detectedArtist right now.',
+      ];
+      return (List<String>.from(comboResponses)..shuffle()).first;
+    }
+
+    if (detectedArtist != null) {
+      final artistResponses = [
+        'Cueing up the best of $detectedArtist! Let\'s dive into their sound.',
+        'Locked in on $detectedArtist. Dropping into their catalog and similar tracks right now.',
+        'Great choice! Setting up a curated $detectedArtist session for you.',
+        'Spinning $detectedArtist! Let the music take over.',
+      ];
+      return (List<String>.from(artistResponses)..shuffle()).first;
+    }
+
     if (detectedTag != null) {
       if (djTagResponses.containsKey(detectedTag)) {
         final responses = djTagResponses[detectedTag]!;
@@ -718,18 +799,27 @@ class _DJViewState extends State<DJView> {
   /// 3. Gathers the rest of the user's matching listened tracks.
   /// 4. Shuffles the combined rest list (similar from endpoint + other listened).
   /// 5. Starts playing the first track (the safe one) followed by the shuffled rest.
-  Future<List<GenericSong>?> _buildQueueForTag(
-    String detectedTag,
-    SpotifyInternalProvider spotify,
-  ) async {
-    final (keywords, requiredLanguages, minYear, maxYear) =
-        _getFilterForTag(detectedTag);
+  /// Builds the DJ session queue:
+  /// 1. Grabs a safe option that the user has listened to (just one).
+  /// 2. Fetches similar tracks using that safe track via the similar-tracks endpoint.
+  /// 3. Gathers the rest of the user's matching listened tracks.
+  /// 4. Shuffles the combined rest list (similar from endpoint + other listened).
+  /// 5. Starts playing the first track (the safe one) followed by the shuffled rest.
+  Future<List<GenericSong>?> _buildQueue({
+    String? detectedTag,
+    String? detectedArtist,
+    required SpotifyInternalProvider spotify,
+  }) async {
+    final (keywords, requiredLanguages, minYear, maxYear) = detectedTag != null
+        ? _getFilterForTag(detectedTag)
+        : (<String>[], <String>[], null, null);
 
     final historyTracks = ListeningHabitsService.instance.getTracksMatchingTag(
       keywords: keywords,
       requiredLanguages: requiredLanguages,
       minYear: minYear,
       maxYear: maxYear,
+      artistName: detectedArtist,
     );
 
     GenericSong? rawSafeTrack;
@@ -746,7 +836,9 @@ class _DJViewState extends State<DJView> {
       rawSafeTrack = sorted.first;
     } else {
       try {
-        final queryTerm = keywords.isNotEmpty ? keywords.first : detectedTag;
+        final queryTerm = detectedArtist != null
+            ? (detectedTag != null ? '$detectedArtist $detectedTag' : detectedArtist)
+            : (keywords.isNotEmpty ? keywords.first : (detectedTag ?? ''));
         final searchResults = await spotify.search(queryTerm);
         if (searchResults.tracks.isNotEmpty) {
           rawSafeTrack = searchResults.tracks.first;
@@ -832,13 +924,19 @@ class _DJViewState extends State<DJView> {
     _chatMessagesNotifier.value = List.from(_messages);
     _scrollToBottom();
 
-    // Detect tag and start queue building in background immediately
-    final detectedTag = _detectAITag(query);
+    // Detect intent (artist and/or tag) and start queue building in background immediately
+    final intent = _detectIntent(query);
+    final detectedTag = intent.tag;
+    final detectedArtist = intent.artist;
     final spotify = context.read<SpotifyInternalProvider>();
     ListeningHabitsService.instance.bindSpotifyProvider(spotify);
     Future<List<GenericSong>?>? queueFuture;
-    if (detectedTag != null) {
-      queueFuture = _buildQueueForTag(detectedTag, spotify);
+    if (detectedTag != null || detectedArtist != null) {
+      queueFuture = _buildQueue(
+        detectedTag: detectedTag,
+        detectedArtist: detectedArtist,
+        spotify: spotify,
+      );
     }
 
     // 2. Artificial thinking period
@@ -848,7 +946,10 @@ class _DJViewState extends State<DJView> {
     if (!mounted) return;
 
     // 3. Response builds word by word
-    final responseText = _generateDJResponse(query);
+    final responseText = _generateDJResponse(
+      detectedArtist: detectedArtist,
+      detectedTag: detectedTag,
+    );
     final words = responseText.split(' ');
 
     final djMessage = DJChatMessage(
@@ -896,14 +997,18 @@ class _DJViewState extends State<DJView> {
         _chatMessagesNotifier.value = List.from(_messages);
         _scrollToBottom();
 
+        final contextId = detectedArtist != null
+            ? 'dj_artist_${detectedArtist.toLowerCase().replaceAll(RegExp(r'\s+'), '_')}'
+            : 'dj_${detectedTag ?? 'session'}';
+
         await audioHandler.setQueue(
           tracks,
           startIndex: 0,
           play: true,
           playbackContext: PlaybackContext(
-            type: PlaybackContextType.unknown,
-            id: 'dj_$detectedTag',
-            name: 'DJ: $detectedTag',
+            type: PlaybackContextType.dj,
+            id: contextId,
+            name: 'DJ',
             source: SongSource.spotify,
           ),
         );

@@ -182,6 +182,7 @@ class WispApp extends StatelessWidget {
     SpotifyInternalProvider? spotifyProvider,
   }) : spotifyProvider = spotifyProvider ?? SpotifyInternalProvider() {
     ListeningHabitsService.instance.bindSpotifyProvider(this.spotifyProvider);
+    audioHandler.bindSpotifyProvider(this.spotifyProvider);
   }
 
   @override

@@ -1606,16 +1606,20 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 ),
                 const SizedBox(width: 12),
                 IconButton(
-                  onPressed: player.toggleShuffle,
+                  onPressed: player.isDJMode ? null : player.toggleShuffle,
+                  tooltip: player.isDJMode ? 'Unavailable in DJ mode' : null,
                   icon: Icon(
                     useAppleIcons ? CupertinoIcons.shuffle : Icons.shuffle,
-                    color: player.shuffleEnabled
-                        ? colorScheme.primary
-                        : Colors.grey[300],
+                    color: player.isDJMode
+                        ? Colors.grey[600]
+                        : (player.shuffleEnabled
+                            ? colorScheme.primary
+                            : Colors.grey[300]),
                   ),
                 ),
                 IconButton(
-                  onPressed: player.toggleRepeat,
+                  onPressed: player.isDJMode ? null : player.toggleRepeat,
+                  tooltip: player.isDJMode ? 'Unavailable in DJ mode' : null,
                   icon: Icon(
                     player.repeatMode == global_audio_player.RepeatMode.one
                         ? (useAppleIcons
@@ -1624,10 +1628,11 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                         : (useAppleIcons
                               ? CupertinoIcons.repeat
                               : Icons.repeat),
-                    color:
-                        player.repeatMode == global_audio_player.RepeatMode.off
-                        ? Colors.grey[300]
-                        : colorScheme.primary,
+                    color: player.isDJMode
+                        ? Colors.grey[600]
+                        : (player.repeatMode == global_audio_player.RepeatMode.off
+                            ? Colors.grey[300]
+                            : colorScheme.primary),
                   ),
                 ),
                 Builder(

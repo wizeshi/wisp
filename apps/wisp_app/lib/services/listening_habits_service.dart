@@ -11,6 +11,7 @@ import '../models/metadata_models.dart';
 import '../providers/metadata/spotify_internal.dart';
 import '../utils/json.dart';
 import '../utils/logger.dart';
+import 'desktop_notification_center.dart';
 
 /// Represents a single recorded track playback completion event.
 class TrackListeningRecord {
@@ -95,6 +96,9 @@ class ListeningHabitsService extends ChangeNotifier {
 
   SpotifyInternalProvider? _spotifyProvider;
   final List<TrackListeningRecord> _history = [];
+  final List<_TasteIngestionBatch> _ingestionQueue = [];
+  bool _isProcessingQueue = false;
+  static int _nextNotificationId = 70000;
   bool _initialized = false;
   File? _storeFile;
 
@@ -104,6 +108,38 @@ class ListeningHabitsService extends ChangeNotifier {
     final set = <String>{};
     for (final record in _history) {
       set.addAll(record.genres);
+    }
+    return set;
+  }
+
+  Set<String> get allUniqueArtists {
+    final set = <String>{};
+    for (final record in _history) {
+      for (final artist in record.artistNames) {
+        final trimmed = artist.trim();
+        if (trimmed.isNotEmpty) {
+          set.add(trimmed);
+        }
+      }
+    }
+    return set;
+  }
+
+  Set<String> getGenresForArtist(String artistName) {
+    final set = <String>{};
+    final artistLower = artistName.trim().toLowerCase();
+    for (final record in _history) {
+      final matches = record.artistNames.any(
+        (a) => a.trim().toLowerCase() == artistLower,
+      );
+      if (matches) {
+        for (final genre in record.genres) {
+          final trimmed = genre.trim().toLowerCase();
+          if (trimmed.isNotEmpty) {
+            set.add(trimmed);
+          }
+        }
+      }
     }
     return set;
   }
@@ -130,11 +166,13 @@ class ListeningHabitsService extends ChangeNotifier {
   /// - [keywords]: genre or tag keywords (e.g. `['rap', 'hip hop']`).
   /// - [requiredLanguages]: ISO language codes or names (e.g. `['pt', 'por']`).
   /// - [minYear] / [maxYear]: decade or release period filtering (e.g. 1980..1989 for 80s).
+  /// - [artistName]: optional artist name filter.
   List<GenericSong> getTracksMatchingTag({
     List<String> keywords = const [],
     List<String> requiredLanguages = const [],
     int? minYear,
     int? maxYear,
+    String? artistName,
   }) {
     if (_history.isEmpty) return const [];
 
@@ -148,6 +186,15 @@ class ListeningHabitsService extends ChangeNotifier {
 
     for (final record in _history.reversed) {
       if (seen.contains(record.trackId)) continue;
+
+      // 0. Artist constraint (if specified)
+      if (artistName != null && artistName.trim().isNotEmpty) {
+        final target = artistName.trim().toLowerCase();
+        final matchesArtist = record.artistNames.any(
+          (a) => a.trim().toLowerCase() == target,
+        );
+        if (!matchesArtist) continue;
+      }
 
       // 1. Language constraint (if specified)
       if (requiredLanguages.isNotEmpty) {
@@ -455,5 +502,199 @@ class ListeningHabitsService extends ChangeNotifier {
       logger.w('[ListeningHabits] Failed to save history: $e');
     }
   }
+
+  /// Queues a collection of tracks (from a playlist or album) to be ingested into listening habits.
+  ///
+  /// Requests for track metadata and genres are rate-limited (~2.8 to 3.3 per second) to prevent
+  /// 429 rate limit responses, and a persistent progress item is displayed in the notification center.
+  Future<void> enqueueTasteIngestion(
+    List<GenericSong> tracks, {
+    String? sourceTitle,
+  }) async {
+    if (tracks.isEmpty) return;
+    await initialize();
+
+    final seen = <String>{};
+    final uniqueTracks = <GenericSong>[];
+    for (final t in tracks) {
+      final clean = t.id.startsWith('spotify:track:')
+          ? t.id.split(':').last
+          : t.id;
+      if (clean.isNotEmpty && seen.add(clean)) {
+        uniqueTracks.add(t);
+      }
+    }
+
+    if (uniqueTracks.isEmpty) return;
+
+    final notifId = _nextNotificationId++;
+    final title = (sourceTitle != null && sourceTitle.isNotEmpty)
+        ? sourceTitle
+        : 'playlist';
+
+    DesktopNotificationCenter.instance.showProgress(
+      id: notifId,
+      title: 'Adding ${uniqueTracks.length} songs to your tastes...',
+      body: '0 of ${uniqueTracks.length} processed',
+      progress: 0,
+      maxProgress: uniqueTracks.length,
+    );
+
+    _ingestionQueue.add(
+      _TasteIngestionBatch(
+        notificationId: notifId,
+        sourceTitle: title,
+        tracks: uniqueTracks,
+      ),
+    );
+
+    unawaited(_processQueue());
+  }
+
+  Future<void> _processQueue() async {
+    if (_isProcessingQueue) return;
+    _isProcessingQueue = true;
+
+    try {
+      while (_ingestionQueue.isNotEmpty) {
+        final batch = _ingestionQueue.removeAt(0);
+        await _processBatch(batch);
+      }
+    } finally {
+      _isProcessingQueue = false;
+    }
+  }
+
+  Future<void> _processBatch(_TasteIngestionBatch batch) async {
+    final total = batch.tracks.length;
+    var processed = 0;
+    var unsavedChanges = 0;
+    final spotify = _spotifyProvider;
+
+    for (final track in batch.tracks) {
+      final cleanTrackId = track.id.startsWith('spotify:track:')
+          ? track.id.split(':').last
+          : track.id;
+
+      // Check if already in history with genres
+      final existingIndex = _history.indexWhere((r) {
+        final rClean = r.trackId.startsWith('spotify:track:')
+            ? r.trackId.split(':').last
+            : r.trackId;
+        return rClean == cleanTrackId;
+      });
+
+      if (existingIndex >= 0 && _history[existingIndex].genres.isNotEmpty) {
+        processed++;
+        DesktopNotificationCenter.instance.showProgress(
+          id: batch.notificationId,
+          title: 'Adding $total songs to your tastes...',
+          body: '$processed of $total processed • ${_history[existingIndex].title}',
+          progress: processed,
+          maxProgress: total,
+        );
+        continue;
+      }
+
+      GenericSong? info;
+      List<String> genres = const [];
+
+      if (spotify != null) {
+        // 1. Fetch full track info
+        try {
+          info = await spotify.getTrackInfo(cleanTrackId);
+        } catch (e) {
+          logger.w('[ListeningHabits] Ingestion getTrackInfo failed for $cleanTrackId: $e');
+        }
+
+        // 2. Fetch track genres
+        try {
+          genres = await spotify.getTrackGenres(cleanTrackId);
+        } catch (e) {
+          logger.w('[ListeningHabits] Ingestion getTrackGenres failed for $cleanTrackId: $e');
+        }
+      }
+
+      final resolvedTitle = (info != null && info.title.isNotEmpty) ? info.title : track.title;
+      final resolvedArtists = (info != null && info.artists.isNotEmpty) ? info.artists : track.artists;
+      final resolvedThumbnail = (info != null && info.thumbnailUrl.isNotEmpty)
+          ? info.thumbnailUrl
+          : track.thumbnailUrl;
+      final resolvedAlbum = info?.album ?? track.album;
+      final resolvedLanguages = (info?.languages != null && info!.languages!.isNotEmpty)
+          ? info.languages!
+          : (track.languages ?? const []);
+      final releaseDate = resolvedAlbum?.releaseDate;
+      final releaseYear = (releaseDate != null && releaseDate.year > 0)
+          ? releaseDate.year
+          : null;
+
+      final record = TrackListeningRecord(
+        trackId: track.id,
+        title: resolvedTitle,
+        artistNames: resolvedArtists.map((a) => a.name).toList(),
+        artistIds: resolvedArtists.map((a) => a.id).toList(),
+        thumbnailUrl: resolvedThumbnail,
+        albumName: resolvedAlbum?.title,
+        albumId: resolvedAlbum?.id,
+        releaseDate: releaseDate,
+        releaseYear: releaseYear,
+        genres: genres.isNotEmpty
+            ? genres
+            : (existingIndex >= 0 ? _history[existingIndex].genres : const []),
+        languages: resolvedLanguages,
+        completedAt: DateTime.now(),
+      );
+
+      if (existingIndex >= 0) {
+        _history[existingIndex] = record;
+      } else {
+        _history.add(record);
+      }
+      unsavedChanges++;
+      processed++;
+
+      // Periodically persist every 5 tracks
+      if (unsavedChanges >= 5) {
+        await _saveHistory();
+        notifyListeners();
+        unsavedChanges = 0;
+      }
+
+      DesktopNotificationCenter.instance.showProgress(
+        id: batch.notificationId,
+        title: 'Adding $total songs to your tastes...',
+        body: '$processed of $total processed • $resolvedTitle',
+        progress: processed,
+        maxProgress: total,
+      );
+
+      // Rate limit delay: ~350ms (~2.8 requests/sec) to avoid 429
+      await Future.delayed(const Duration(milliseconds: 350));
+    }
+
+    if (unsavedChanges > 0) {
+      await _saveHistory();
+      notifyListeners();
+    }
+
+    DesktopNotificationCenter.instance.showComplete(
+      id: batch.notificationId,
+      title: 'Added $total songs to your tastes',
+      body: 'Finished updating your listening habits from ${batch.sourceTitle}',
+    );
+  }
+}
+
+class _TasteIngestionBatch {
+  final int notificationId;
+  final String sourceTitle;
+  final List<GenericSong> tracks;
+
+  _TasteIngestionBatch({
+    required this.notificationId,
+    required this.sourceTitle,
+    required this.tracks,
+  });
 }
 

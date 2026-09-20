@@ -20,6 +20,7 @@ import '../services/discord_rpc_service.dart';
 import '../services/listening_habits_service.dart';
 import '../utils/logger.dart';
 import '../providers/audio/youtube.dart';
+import '../providers/metadata/spotify_internal.dart';
 import '../providers/preferences/preferences_provider.dart';
 import '../services/connect/connect_models.dart';
 
@@ -60,6 +61,7 @@ enum PlaybackContextType {
   album,
   playlist,
   searchResults,
+  dj,
   unknown;
 
   String toJson() => name;
@@ -77,6 +79,8 @@ class PlaybackContext {
   final String id;
   final String name;
   final SongSource source;
+
+  bool get isDJ => type == PlaybackContextType.dj;
 
   PlaybackContext({
     required this.type,
@@ -259,6 +263,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool get isOnline => _isOnline;
   String? get errorMessage => _errorMessage;
   PlaybackContext? get playbackContext => _playbackContext;
+  bool get isDJMode => _playbackContext?.type == PlaybackContextType.dj;
+
+  SpotifyInternalProvider? _spotifyProvider;
+
+  void bindSpotifyProvider(SpotifyInternalProvider spotifyProvider) {
+    _spotifyProvider = spotifyProvider;
+  }
+
   List<AudioOutputDevice> get outputDevices => _availableOutputDevices;
   AudioOutputDevice? get activeOutputDevice => _activeOutputDevice;
 
@@ -823,7 +835,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return nextIndex;
     }
 
-    if (_repeatMode == RepeatMode.all) {
+    if (!isDJMode && _repeatMode == RepeatMode.all) {
       return 0;
     }
 
@@ -840,7 +852,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return nextIndex;
     }
 
-    if (_repeatMode != RepeatMode.all) {
+    if (isDJMode || _repeatMode != RepeatMode.all) {
       return null;
     }
 
@@ -888,6 +900,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         : const Duration(seconds: 10);
     final remaining = trackDuration - position;
     if (remaining > preloadLead) return;
+
+    if (isDJMode && _currentIndex >= _queue.length - 1) {
+      unawaited(_tryAppendDJSimilarTracks());
+    }
 
     final nextIndex = _nextQueueIndex();
     if (nextIndex == null) return;
@@ -1198,7 +1214,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
 
       if (_playlistPlaybackEnabled && _queue.isNotEmpty) {
-        final nextIndex = _nextQueueIndex();
+        var nextIndex = _nextQueueIndex();
+        if (nextIndex == null && isDJMode) {
+          await _tryAppendDJSimilarTracks();
+          nextIndex = _nextQueueIndex();
+        }
         if (nextIndex != null) {
           final nextTrack = _queue[nextIndex];
           if (_isPreloadReady(nextIndex, nextTrack)) {
@@ -1408,7 +1428,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     int nextIndex = _currentIndex + 1;
 
     if (nextIndex >= _queue.length) {
-      if (_repeatMode == RepeatMode.all) {
+      if (isDJMode) {
+        final appended = await _tryAppendDJSimilarTracks();
+        if (appended && nextIndex < _queue.length) {
+          // Successfully appended tracks to DJ queue
+        } else {
+          logger.i('[Audio/Player] Reached end of DJ queue, could not append tracks');
+          _setState(PlaybackState.idle);
+          return;
+        }
+      } else if (_repeatMode == RepeatMode.all) {
         nextIndex = 0;
       } else {
         logger.i('[Audio/Player] Reached end of queue');
@@ -1422,6 +1451,103 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       play: true,
       token: token ?? ++_trackChangeToken,
     );
+  }
+
+  bool _isFetchingDJSimilarTracks = false;
+
+  Future<bool> _tryAppendDJSimilarTracks() async {
+    if (!isDJMode || _queue.isEmpty) return false;
+    if (_isFetchingDJSimilarTracks) {
+      while (_isFetchingDJSimilarTracks) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      return true;
+    }
+
+    final spotify = _spotifyProvider;
+    if (spotify == null) {
+      logger.w('[Audio/DJ] Cannot fetch similar tracks: Spotify provider not bound');
+      return false;
+    }
+
+    final lastTrack = _queue.last;
+    final cleanId = lastTrack.id.startsWith('spotify:track:')
+        ? lastTrack.id.split(':').last
+        : lastTrack.id;
+
+    _isFetchingDJSimilarTracks = true;
+    try {
+      logger.i(
+        '[Audio/DJ] Fetching similar tracks for end of queue: ${lastTrack.title} ($cleanId)',
+      );
+      final similar = await spotify.getSimilarTracks(cleanId);
+      if (similar == null || similar.isEmpty) {
+        logger.w('[Audio/DJ] getSimilarTracks returned null or empty');
+        return false;
+      }
+
+      final existingIds = _queue.map((t) => t.id).toSet();
+      final newTracks = <GenericSong>[];
+
+      for (final item in similar) {
+        if (!existingIds.contains(item.id)) {
+          newTracks.add(
+            GenericSong(
+              id: item.id,
+              source: item.source,
+              title: item.title,
+              artists: item.artists,
+              thumbnailUrl: item.thumbnailUrl,
+              explicit: item.explicit,
+              durationSecs: item.durationSecs,
+              album: item.album,
+            ),
+          );
+        }
+      }
+
+      final tracksToAdd = newTracks.isNotEmpty
+          ? newTracks
+          : similar
+              .where((t) => t.id != lastTrack.id)
+              .map(
+                (item) => GenericSong(
+                  id: item.id,
+                  source: item.source,
+                  title: item.title,
+                  artists: item.artists,
+                  thumbnailUrl: item.thumbnailUrl,
+                  explicit: item.explicit,
+                  durationSecs: item.durationSecs,
+                  album: item.album,
+                ),
+              )
+              .toList();
+
+      if (tracksToAdd.isEmpty) {
+        return false;
+      }
+
+      _queue.addAll(tracksToAdd);
+      _broadcastQueue();
+      _saveQueue();
+      _invalidatePlaybackPrefetch();
+      notifyListeners();
+      unawaited(_scheduleNextTrackPreload());
+      logger.i(
+        '[Audio/DJ] Appended ${tracksToAdd.length} similar tracks to queue',
+      );
+      return true;
+    } catch (e, stack) {
+      logger.e(
+        '[Audio/DJ] Failed to fetch and append similar tracks',
+        error: e,
+        stackTrace: stack,
+      );
+      return false;
+    } finally {
+      _isFetchingDJSimilarTracks = false;
+    }
   }
 
   Future<void> _reloadCurrentTrackSource() async {
@@ -1864,6 +1990,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> setShuffleMode(
     audio_service.AudioServiceShuffleMode shuffleMode,
   ) async {
+    if (isDJMode) return;
     final shouldEnable =
         shuffleMode == audio_service.AudioServiceShuffleMode.all;
     setShuffleEnabled(shouldEnable);
@@ -1873,6 +2000,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> setRepeatMode(
     audio_service.AudioServiceRepeatMode repeatMode,
   ) async {
+    if (isDJMode) return;
     switch (repeatMode) {
       case audio_service.AudioServiceRepeatMode.one:
         setRepeatModeUi(RepeatMode.one);
@@ -1941,6 +2069,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _shuffleEnabled = shuffleEnabled;
     if (playbackContext != null) {
       _playbackContext = playbackContext;
+    }
+    if (isDJMode) {
+      _shuffleEnabled = false;
+      _repeatMode = RepeatMode.off;
     }
 
     _broadcastQueue();
@@ -2051,9 +2183,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
-  void toggleShuffle() => setShuffleEnabled(!_shuffleEnabled);
+  void toggleShuffle() {
+    if (isDJMode) return;
+    setShuffleEnabled(!_shuffleEnabled);
+  }
 
   void setShuffleEnabled(bool enabled) {
+    if (isDJMode && enabled) return;
     if (_shuffleEnabled == enabled) {
       _broadcastPlaybackState();
       return;
@@ -2112,12 +2248,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   void toggleRepeat() {
+    if (isDJMode) return;
     final next =
         RepeatMode.values[(_repeatMode.index + 1) % RepeatMode.values.length];
     setRepeatModeUi(next);
   }
 
   void setRepeatModeUi(RepeatMode mode) {
+    if (isDJMode && mode != RepeatMode.off) return;
     if (_repeatMode == mode) {
       _broadcastPlaybackState();
       return;

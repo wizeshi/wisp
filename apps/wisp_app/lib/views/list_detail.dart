@@ -21,6 +21,7 @@ import 'package:wisp/ui/rows/track_row.dart';
 import 'package:wisp/utils/text_parser.dart';
 
 import '../models/metadata_models.dart';
+import '../services/listening_habits_service.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../services/playback/playback_coordinator.dart';
 import '../providers/library/library_folders.dart';
@@ -1513,6 +1514,33 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           ),
         ),
         ContextMenuAction(
+          id: 'add-tastes',
+          label: 'Add to Tastes',
+          icon: Icons.auto_awesome,
+          onSelected: (_) async {
+            final tracks = listSongs.isNotEmpty ? listSongs : _buildQueueSongs();
+            if (tracks.isEmpty) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No tracks available in playlist')),
+              );
+              return;
+            }
+            await ListeningHabitsService.instance.enqueueTasteIngestion(
+              tracks,
+              sourceTitle: title,
+            );
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Adding ${tracks.length} songs to your tastes in the background...',
+                ),
+              ),
+            );
+          },
+        ),
+        ContextMenuAction(
           id: 'edit-details',
           label: 'Edit Details',
           icon: Icons.edit,
@@ -1567,6 +1595,33 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           contextName: title,
           contextSource: source,
         ),
+      ),
+      ContextMenuAction(
+        id: 'add-tastes',
+        label: 'Add to Tastes',
+        icon: Icons.auto_awesome,
+        onSelected: (_) async {
+          final tracks = listSongs.isNotEmpty ? listSongs : _buildQueueSongs();
+          if (tracks.isEmpty) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No tracks available in album')),
+            );
+            return;
+          }
+          await ListeningHabitsService.instance.enqueueTasteIngestion(
+            tracks,
+            sourceTitle: title,
+          );
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Adding ${tracks.length} songs to your tastes in the background...',
+              ),
+            ),
+          );
+        },
       ),
       ContextMenuAction(
         id: 'download',

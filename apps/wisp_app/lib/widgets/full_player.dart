@@ -982,11 +982,16 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         IconButton(
           icon: const Icon(Icons.shuffle),
           iconSize: 28,
-          color: player.shuffleEnabled ? bgColor : Colors.grey[300],
+          color: player.isDJMode
+              ? Colors.grey[600]
+              : (player.shuffleEnabled ? bgColor : Colors.grey[300]),
           padding: const EdgeInsets.all(8),
-          onPressed: () {
-            context.read<PlaybackCoordinator>().toggleShuffle();
-          },
+          tooltip: player.isDJMode ? 'Unavailable in DJ mode' : null,
+          onPressed: player.isDJMode
+              ? null
+              : () {
+                  context.read<PlaybackCoordinator>().toggleShuffle();
+                },
         ),
         // Previous
         IconButton(
@@ -1022,13 +1027,18 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 : Icons.repeat,
           ),
           iconSize: 28,
-          color: player.repeatMode != global_audio_player.RepeatMode.off
-              ? bgColor
-              : Colors.grey[300],
+          color: player.isDJMode
+              ? Colors.grey[600]
+              : (player.repeatMode != global_audio_player.RepeatMode.off
+                  ? bgColor
+                  : Colors.grey[300]),
           padding: const EdgeInsets.all(8),
-          onPressed: () {
-            context.read<PlaybackCoordinator>().toggleRepeat();
-          },
+          tooltip: player.isDJMode ? 'Unavailable in DJ mode' : null,
+          onPressed: player.isDJMode
+              ? null
+              : () {
+                  context.read<PlaybackCoordinator>().toggleRepeat();
+                },
         ),
       ],
     );
@@ -3254,26 +3264,29 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     _buildModeActionButton(
-                      tooltip: 'Shuffle',
+                      tooltip: player.isDJMode ? 'Unavailable in DJ mode' : 'Shuffle',
                       icon: CupertinoIcons.shuffle,
-                      selected: player.shuffleEnabled,
-                      onTap: () =>
-                          context.read<PlaybackCoordinator>().toggleShuffle(),
+                      selected: !player.isDJMode && player.shuffleEnabled,
+                      onTap: player.isDJMode
+                          ? null
+                          : () => context.read<PlaybackCoordinator>().toggleShuffle(),
                       activeColor: btnColor,
                     ),
                     const SizedBox(width: 6),
                     _buildModeActionButton(
-                      tooltip: 'Repeat',
+                      tooltip: player.isDJMode ? 'Unavailable in DJ mode' : 'Repeat',
                       icon:
                           player.repeatMode ==
                               global_audio_player.RepeatMode.one
                           ? CupertinoIcons.repeat_1
                           : CupertinoIcons.repeat,
                       selected:
+                          !player.isDJMode &&
                           player.repeatMode !=
                           global_audio_player.RepeatMode.off,
-                      onTap: () =>
-                          context.read<PlaybackCoordinator>().toggleRepeat(),
+                      onTap: player.isDJMode
+                          ? null
+                          : () => context.read<PlaybackCoordinator>().toggleRepeat(),
                       activeColor: btnColor,
                     ),
                     const SizedBox(width: 6),
@@ -3528,11 +3541,13 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         Expanded(
           child: _buildMobileNowPlayingActionButton(
             icon: CupertinoIcons.shuffle,
-            selected: player.shuffleEnabled,
+            selected: !player.isDJMode && player.shuffleEnabled,
             activeColor: btnColor,
-            onTap: () => _deferAsyncAction(
-              () => context.read<PlaybackCoordinator>().toggleShuffle(),
-            ),
+            onTap: player.isDJMode
+                ? null
+                : () => _deferAsyncAction(
+                    () => context.read<PlaybackCoordinator>().toggleShuffle(),
+                  ),
           ),
         ),
         const SizedBox(width: 12),
@@ -3541,11 +3556,14 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             icon: repeatMode == global_audio_player.RepeatMode.one
                 ? CupertinoIcons.repeat_1
                 : CupertinoIcons.repeat,
-            selected: repeatMode != global_audio_player.RepeatMode.off,
+            selected: !player.isDJMode &&
+                repeatMode != global_audio_player.RepeatMode.off,
             activeColor: btnColor,
-            onTap: () => _deferAsyncAction(
-              () => context.read<PlaybackCoordinator>().toggleRepeat(),
-            ),
+            onTap: player.isDJMode
+                ? null
+                : () => _deferAsyncAction(
+                    () => context.read<PlaybackCoordinator>().toggleRepeat(),
+                  ),
           ),
         ),
       ],
@@ -3576,12 +3594,17 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     required IconData icon,
     required bool selected,
     required Color activeColor,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
-    final color = selected ? Colors.white : Colors.grey[200]!;
-    final background = selected
-        ? activeColor.withValues(alpha: 0.34)
-        : Colors.white.withValues(alpha: 0.13);
+    final isEnabled = onTap != null;
+    final color = !isEnabled
+        ? Colors.grey[600]!
+        : (selected ? Colors.white : Colors.grey[200]!);
+    final background = !isEnabled
+        ? Colors.white.withValues(alpha: 0.05)
+        : (selected
+            ? activeColor.withValues(alpha: 0.34)
+            : Colors.white.withValues(alpha: 0.13));
 
     return SizedBox(
       height: 48,

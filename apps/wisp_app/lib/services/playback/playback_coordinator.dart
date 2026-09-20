@@ -141,7 +141,7 @@ class PlaybackCoordinator extends ChangeNotifier {
 
   Future<void> toggleShuffle() async {
     final audio = _audioHandler;
-    if (audio == null) return;
+    if (audio == null || audio.isDJMode) return;
 
     final transport = _transport;
     if (transport?.isHost ?? false) {
@@ -154,7 +154,7 @@ class PlaybackCoordinator extends ChangeNotifier {
 
   Future<void> toggleRepeat() async {
     final audio = _audioHandler;
-    if (audio == null) return;
+    if (audio == null || audio.isDJMode) return;
 
     final transport = _transport;
     if (transport?.isHost ?? false) {

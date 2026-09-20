@@ -16,6 +16,7 @@ import '../providers/library/library_state.dart';
 import '../providers/metadata/spotify_internal.dart';
 import '../services/app_navigation.dart';
 import '../services/cache_manager.dart';
+import '../services/listening_habits_service.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import 'adaptive_context_menu.dart';
@@ -64,6 +65,71 @@ class EntityContextMenus {
       case SongSource.spotifyInternal:
       case SongSource.local:
         return Icons.music_note;
+    }
+  }
+
+  static Future<List<GenericSong>> _resolveAllPlaylistTracks(
+    BuildContext context,
+    GenericPlaylist playlist,
+  ) async {
+    try {
+      final spotify = context.read<SpotifyInternalProvider>();
+      final items = <PlaylistItem>[...?(playlist.songs)];
+
+      if (items.isEmpty) {
+        final firstPage = await spotify.getPlaylistInfo(
+          playlist.id,
+          offset: 0,
+          limit: 50,
+        );
+        items.addAll(firstPage.songs ?? const []);
+      }
+
+      int offset = items.length;
+      final total = playlist.total;
+      while (total != null && offset < total) {
+        final morePlaylist = await spotify.getPlaylistInfo(
+          playlist.id,
+          offset: offset,
+          limit: 50,
+        );
+        final more = morePlaylist.songs ?? const <PlaylistItem>[];
+        if (more.isEmpty) break;
+        items.addAll(more);
+        offset = items.length;
+        if (more.length < 50) break;
+      }
+
+      return items
+          .map(
+            (item) => GenericSong(
+              id: item.id,
+              source: item.source,
+              title: item.title,
+              artists: item.artists,
+              thumbnailUrl: item.thumbnailUrl,
+              explicit: item.explicit,
+              album: item.album,
+              durationSecs: item.durationSecs,
+            ),
+          )
+          .toList();
+    } catch (_) {
+      return playlist.songs
+              ?.map(
+                (item) => GenericSong(
+                  id: item.id,
+                  source: item.source,
+                  title: item.title,
+                  artists: item.artists,
+                  thumbnailUrl: item.thumbnailUrl,
+                  explicit: item.explicit,
+                  album: item.album,
+                  durationSecs: item.durationSecs,
+                ),
+              )
+              .toList() ??
+          const <GenericSong>[];
     }
   }
 
@@ -495,6 +561,33 @@ class EntityContextMenus {
         },
       ),
       ContextMenuAction(
+        id: 'add-tastes',
+        label: 'Add to Tastes',
+        icon: Icons.auto_awesome,
+        onSelected: (_) async {
+          final tracks = await _resolveAllPlaylistTracks(context, playlist);
+          if (tracks.isEmpty) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No tracks available in playlist')),
+            );
+            return;
+          }
+          await ListeningHabitsService.instance.enqueueTasteIngestion(
+            tracks,
+            sourceTitle: playlist.title,
+          );
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Adding ${tracks.length} songs to your tastes in the background...',
+              ),
+            ),
+          );
+        },
+      ),
+      ContextMenuAction(
         id: 'edit-details',
         label: 'Edit Details',
         icon: Icons.edit,
@@ -691,6 +784,33 @@ class EntityContextMenus {
           final tracks = await _resolveAlbumTracks(context, resolvedAlbum);
           if (!context.mounted) return;
           await _appendTracksToQueue(context, tracks);
+        },
+      ),
+      ContextMenuAction(
+        id: 'add-tastes',
+        label: 'Add to Tastes',
+        icon: Icons.auto_awesome,
+        onSelected: (_) async {
+          final tracks = await _resolveAlbumTracks(context, resolvedAlbum);
+          if (tracks.isEmpty) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No tracks available in album')),
+            );
+            return;
+          }
+          await ListeningHabitsService.instance.enqueueTasteIngestion(
+            tracks,
+            sourceTitle: resolvedAlbum.title,
+          );
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Adding ${tracks.length} songs to your tastes in the background...',
+              ),
+            ),
+          );
         },
       ),
       ContextMenuAction(
