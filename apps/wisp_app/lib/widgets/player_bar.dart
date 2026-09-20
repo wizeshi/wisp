@@ -7,6 +7,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
@@ -1542,12 +1543,39 @@ class _DesktopRightControls extends StatelessWidget {
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (!isFullScreenOpen)
+                  Selector<global_audio_player.WispAudioHandler, bool>(
+                    selector: (context, player) {
+                      return player.playbackContext != null && player.playbackContext!.id.toLowerCase().startsWith("dj");
+                    },
+                    builder:(context, value, child) {
+                      return Row(
+                        children: [
+                        IconButton(
+                          icon: Icon(
+                            Symbols.headphones,
+                            color: value ? activeColor : inactiveColor,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            NavigationHistory
+                                  .instance
+                                  .currentRoute
+                                  .value
+                                  ?.settings
+                                  .name == '/dj' ? NavigationHistory.instance.goBack() : AppNavigation.instance.navigateToDJView(context);
+                          }
+                        ),
+                        SizedBox(width: controlSpacing),
+                      ]);
+                    },
+                  ),
                 if (!isFullScreenOpen) ...[
                   IconButton(
                     icon: Icon(
                       isAppleStyle
                           ? CupertinoIcons.sidebar_right
-                          : Icons.view_sidebar_outlined,
+                          : Symbols.view_sidebar,
                       color: isSidebarOpen ? activeColor : inactiveColor,
                       size: 20,
                     ),
