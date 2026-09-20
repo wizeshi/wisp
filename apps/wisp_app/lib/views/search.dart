@@ -4,15 +4,18 @@ library;
 
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'dart:math' as math;
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/ui/cards/album_card.dart';
 import 'package:wisp/ui/cards/artist_card.dart';
+import 'package:wisp/ui/cards/best_match_card.dart';
 import 'package:wisp/ui/cards/playlist_card.dart';
 import 'package:wisp/ui/rails/card_rail.dart';
+import 'package:wisp/ui/rows/album_row.dart';
+import 'package:wisp/ui/rows/artist_row.dart';
+import 'package:wisp/ui/rows/generic_row.dart';
+import 'package:wisp/ui/rows/playlist_row.dart';
+import 'package:wisp/ui/rows/track_row.dart';
 
 import '../models/metadata_models.dart';
 import '../providers/library/library_folders.dart';
@@ -24,11 +27,9 @@ import '../services/app_navigation.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../services/wisp_audio_handler.dart';
 import '../widgets/entity_context_menus.dart';
-import '../widgets/hover_underline.dart';
 import '../widgets/like_button.dart';
 import '../widgets/navigation.dart';
 import '../widgets/provider_disabled_state.dart';
-import 'list_detail.dart';
 
 enum SearchTab { tracks, artists, albums, playlists }
 
@@ -71,20 +72,14 @@ class _SearchViewState extends State<SearchView> {
   List<GenericPlaylist> _playlists = [];
   SearchBestMatch? _bestMatch;
 
-  int _hoveredSongIndex = -1;
-  bool _isBestMatchHovered = false;
   String? _activePlayContext;
-  bool _suppressRowTrackContextMenu = false;
   SearchTab _selectedTab = SearchTab.tracks;
 
   static const int _desktopTopSongsCount = 4;
 
   double _desktopTopPanelHeight() {
-    const panelVerticalPadding = 0;
-    const rowVisualHeight = 44.0 + 10.0 * 2;
-    const rowVerticalMargin = 3.0 * 2;
-    const rowTotalHeight = rowVisualHeight + rowVerticalMargin;
-    return panelVerticalPadding + (rowTotalHeight * _desktopTopSongsCount);
+    const rowTotalHeight = 70.0;
+    return rowTotalHeight * _desktopTopSongsCount;
   }
 
   @override
@@ -275,6 +270,12 @@ class _SearchViewState extends State<SearchView> {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
+    // The parent Scaffold has resizeToAvoidBottomInset: false (the player bar
+    // and nav bar live outside it in the Column, so enabling it there causes
+    // the body to over-shrink). We handle keyboard avoidance here instead.
+    final keyboardHeight =
+        isDesktop ? 0.0 : MediaQuery.viewInsetsOf(context).bottom;
+
     return SafeArea(
       bottom: false,
       child: Column(
@@ -293,7 +294,12 @@ class _SearchViewState extends State<SearchView> {
               ),
             ),
           const SizedBox(height: 4),
-          Expanded(child: _buildContent(isDesktop, effectiveSource)),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: keyboardHeight),
+              child: _buildContent(isDesktop, effectiveSource),
+            ),
+          ),
         ],
       ),
     );
@@ -387,164 +393,40 @@ class _SearchViewState extends State<SearchView> {
       return _buildEmptyCard('No best match');
     }
 
-    String title;
-    String subtitle;
-    String imageUrl;
-    bool isPlaying = false;
-    VoidCallback onTap;
-
-    final player = context.watch<WispAudioHandler>();
+    VoidCallback? onPlay;
+    VoidCallback? onTap;
 
     switch (best.kind) {
       case SearchBestMatchKind.track:
         final track = best.track!;
-        title = track.title;
-        subtitle = track.artists.map((a) => a.name).join(', ');
-        imageUrl = track.thumbnailUrl;
-        isPlaying = player.isPlaying && player.currentTrack?.id == track.id;
         onTap = () => _playSearchTrack(track);
+        onPlay = () => _toggleTrackPlayback(track);
       case SearchBestMatchKind.artist:
         final artist = best.artist!;
-        title = artist.name;
-        subtitle = 'Artist';
-        imageUrl = artist.thumbnailUrl;
-        isPlaying =
-            _activePlayContext == 'artist:${artist.id}' && player.isPlaying;
-        onTap = () {
-          AppNavigation.instance.openArtist(
-            context,
-            artistId: artist.id,
-            initialArtist: artist,
-          );
-        };
+        onPlay = () => _toggleContextPlayback(
+              contextKey: 'artist:${artist.id}',
+              playAction: () => _playArtist(context, artist.id),
+            );
       case SearchBestMatchKind.album:
         final album = best.album!;
-        title = album.title;
-        subtitle = album.artists.map((a) => a.name).join(', ');
-        imageUrl = album.thumbnailUrl;
-        isPlaying =
-            _activePlayContext == 'album:${album.id}' && player.isPlaying;
-        onTap = () {
-          AppNavigation.instance.openSharedList(
-            context,
-            id: album.id,
-            type: SharedListType.album,
-            initialTitle: album.title,
-            initialThumbnailUrl: album.thumbnailUrl,
-          );
-        };
+        onPlay = () => _toggleContextPlayback(
+              contextKey: 'album:${album.id}',
+              playAction: () => _playAlbum(context, album.id),
+            );
       case SearchBestMatchKind.playlist:
         final playlist = best.playlist!;
-        title = playlist.title;
-        subtitle = playlist.author.displayName;
-        imageUrl = playlist.thumbnailUrl;
-        isPlaying =
-            _activePlayContext == 'playlist:${playlist.id}' && player.isPlaying;
-        onTap = () {
-          AppNavigation.instance.openSharedList(
-            context,
-            id: playlist.id,
-            type: SharedListType.playlist,
-            initialTitle: playlist.title,
-            initialThumbnailUrl: playlist.thumbnailUrl,
-          );
-        };
+        onPlay = () => _toggleContextPlayback(
+              contextKey: 'playlist:${playlist.id}',
+              playAction: () => _playPlaylist(context, playlist.id),
+            );
     }
 
-    return GestureDetector(
-      onSecondaryTapDown: (details) {
-        _showBestMatchContextMenu(best, globalPosition: details.globalPosition);
-      },
-      onLongPress: () => _showBestMatchContextMenu(best),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              _buildMobileLeadingArtwork(
-                imageUrl: imageUrl,
-                isPlaying: isPlaying,
-                icon: best.kind == SearchBestMatchKind.artist
-                    ? Icons.person
-                    : Icons.music_note,
-                circular: best.kind == SearchBestMatchKind.artist,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return BestMatchCard(
+      bestMatch: best,
+      isMobile: true,
+      onTap: onTap,
+      onPlay: onPlay,
     );
-  }
-
-  void _showBestMatchContextMenu(
-    SearchBestMatch best, {
-    Offset? globalPosition,
-  }) {
-    switch (best.kind) {
-      case SearchBestMatchKind.track:
-        final track = best.track;
-        if (track == null) return;
-        EntityContextMenus.showTrackMenu(
-          context,
-          track: track,
-          globalPosition: globalPosition,
-        );
-      case SearchBestMatchKind.artist:
-        final artist = best.artist;
-        if (artist == null) return;
-        EntityContextMenus.showArtistMenu(
-          context,
-          artist: artist,
-          globalPosition: globalPosition,
-        );
-      case SearchBestMatchKind.album:
-        final album = best.album;
-        if (album == null) return;
-        EntityContextMenus.showAlbumMenu(
-          context,
-          album: album,
-          globalPosition: globalPosition,
-        );
-      case SearchBestMatchKind.playlist:
-        final playlist = best.playlist;
-        if (playlist == null) return;
-        EntityContextMenus.showPlaylistMenu(
-          context,
-          playlist: playlist,
-          globalPosition: globalPosition,
-        );
-    }
   }
 
   Widget _buildMobileTypePills(String effectiveSource) {
@@ -580,7 +462,7 @@ class _SearchViewState extends State<SearchView> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              side: BorderSide(color: Colors.transparent),
+              side: const BorderSide(color: Colors.transparent),
             ),
           );
         }).toList(),
@@ -626,164 +508,85 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildMobileTrackRow(GenericSong track) {
-    final player = context.watch<WispAudioHandler>();
-    final isPlaying = player.isPlaying && player.currentTrack?.id == track.id;
+    final searchContext = PlaybackContext(
+      type: PlaybackContextType.searchResults,
+      name: _lastQuery,
+      id: '',
+      source: SongSource.values.firstWhere(
+        (source) => source.name == _searchState.selectedSource,
+        orElse: () => SongSource.spotify,
+      ),
+    );
 
-    return _MobileResultRow(
-      title: track.title,
-      subtitle: track.artists.map((a) => a.name).join(', '),
-      imageUrl: track.thumbnailUrl,
-      trailing: _formatDuration(track.durationSecs),
-      isPlaying: isPlaying,
-      icon: Icons.music_note,
-      onTap: () => _playSearchTrack(track),
-      onSecondaryTapDown: (details) {
-        EntityContextMenus.showTrackMenu(
-          context,
-          track: track,
-          globalPosition: details.globalPosition,
-        );
-      },
-      onLongPress: () {
-        EntityContextMenus.showTrackMenu(context, track: track);
-      },
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: TrackRow(
+        track: track,
+        viewContext: searchContext,
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        showArtistInline: true,
+        showDuration: true,
+        durationColumnWidth: 50,
+        onTap: () => _playSearchTrack(track),
+        onPlayPause: () => _toggleTrackPlayback(track),
+        onSecondaryTapDown: (details) {
+          EntityContextMenus.showTrackMenu(
+            context,
+            track: track,
+            globalPosition: details.globalPosition,
+          );
+        },
+        onLongPress: () {
+          EntityContextMenus.showTrackMenu(context, track: track);
+        },
+        onMoreTap: (buttonContext) =>
+            _openTrackMenuFromButton(buttonContext, track),
+        onArtistTap: (artist) {
+          AppNavigation.instance.openArtist(
+            context,
+            artistId: artist.id,
+            initialArtist: artist,
+          );
+        },
+      ),
     );
   }
 
   Widget _buildMobileArtistRow(GenericSimpleArtist artist) {
-    final player = context.watch<WispAudioHandler>();
-    final isPlaying =
-        _activePlayContext == 'artist:${artist.id}' && player.isPlaying;
-
-    return _MobileResultRow(
-      title: artist.name,
-      subtitle: 'Artist',
-      imageUrl: artist.thumbnailUrl,
-      trailing: null,
-      isPlaying: isPlaying,
-      icon: Icons.person,
-      circularImage: true,
-      onTap: () {
-        AppNavigation.instance.openArtist(
-          context,
-          artistId: artist.id,
-          initialArtist: artist,
-        );
-      },
-      onSecondaryTapDown: (details) {
-        EntityContextMenus.showArtistMenu(
-          context,
-          artist: artist,
-          globalPosition: details.globalPosition,
-        );
-      },
-      onLongPress: () {
-        EntityContextMenus.showArtistMenu(context, artist: artist);
-      },
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: ArtistRow(
+        artist: artist,
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        playPosition: GenericRowPlayPosition.cover,
+      ),
     );
   }
 
   Widget _buildMobileAlbumRow(GenericAlbum album) {
-    final player = context.watch<WispAudioHandler>();
-    final isPlaying =
-        _activePlayContext == 'album:${album.id}' && player.isPlaying;
-
-    return _MobileResultRow(
-      title: album.title,
-      subtitle: album.artists.map((a) => a.name).join(', '),
-      imageUrl: album.thumbnailUrl,
-      trailing: null,
-      isPlaying: isPlaying,
-      icon: Icons.album,
-      onTap: () {
-        AppNavigation.instance.openSharedList(
-          context,
-          id: album.id,
-          type: SharedListType.album,
-          initialTitle: album.title,
-          initialThumbnailUrl: album.thumbnailUrl,
-        );
-      },
-      onSecondaryTapDown: (details) {
-        EntityContextMenus.showAlbumMenu(
-          context,
-          album: album,
-          globalPosition: details.globalPosition,
-        );
-      },
-      onLongPress: () {
-        EntityContextMenus.showAlbumMenu(context, album: album);
-      },
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: AlbumRow(
+        album: album,
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        playPosition: GenericRowPlayPosition.cover,
+      ),
     );
   }
 
   Widget _buildMobilePlaylistRow(GenericPlaylist playlist) {
-    final player = context.watch<WispAudioHandler>();
-    final isPlaying =
-        _activePlayContext == 'playlist:${playlist.id}' && player.isPlaying;
-
-    return _MobileResultRow(
-      title: playlist.title,
-      subtitle: playlist.author.displayName,
-      imageUrl: playlist.thumbnailUrl,
-      trailing: null,
-      isPlaying: isPlaying,
-      icon: Icons.playlist_play,
-      onTap: () {
-        AppNavigation.instance.openSharedList(
-          context,
-          id: playlist.id,
-          type: SharedListType.playlist,
-          initialTitle: playlist.title,
-          initialThumbnailUrl: playlist.thumbnailUrl,
-        );
-      },
-      onSecondaryTapDown: (details) {
-        EntityContextMenus.showPlaylistMenu(
-          context,
-          playlist: playlist,
-          globalPosition: details.globalPosition,
-        );
-      },
-      onLongPress: () {
-        EntityContextMenus.showPlaylistMenu(context, playlist: playlist);
-      },
-    );
-  }
-
-  Widget _buildMobileLeadingArtwork({
-    required String imageUrl,
-    required bool isPlaying,
-    required IconData icon,
-    bool circular = false,
-  }) {
-    final artwork = SizedBox(
-      width: 56,
-      height: 56,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: _ArtworkImage(imageUrl: imageUrl, icon: icon),
-          ),
-          if (isPlaying)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.45),
-                alignment: Alignment.center,
-                child: _AnimatedQuickWaveform(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: PlaylistRow(
+        playlist: playlist,
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        playPosition: GenericRowPlayPosition.cover,
       ),
     );
-
-    if (circular) {
-      return ClipOval(child: artwork);
-    }
-
-    return ClipRRect(borderRadius: BorderRadius.circular(6), child: artwork);
   }
 
   String _labelForTab(SearchTab tab) {
@@ -926,368 +729,106 @@ class _SearchViewState extends State<SearchView> {
       return _buildEmptyCard('No top result');
     }
 
-    final isArtist = best.kind == SearchBestMatchKind.artist;
-    final player = context.watch<WispAudioHandler>();
-
-    String title;
-    String subtitle;
-    String imageUrl;
-    VoidCallback onTap;
     VoidCallback? onPlay;
-    bool isPlaying = false;
-
     switch (best.kind) {
       case SearchBestMatchKind.track:
         final track = best.track!;
-        title = track.title;
-        subtitle = track.artists.map((a) => a.name).join(', ');
-        imageUrl = track.thumbnailUrl;
-        onTap = () => _openAlbumFromTrack(track);
         onPlay = () => _toggleTrackPlayback(track);
-        isPlaying = player.isPlaying && player.currentTrack?.id == track.id;
       case SearchBestMatchKind.artist:
         final artist = best.artist!;
-        title = artist.name;
-        subtitle = 'Artist';
-        imageUrl = artist.thumbnailUrl;
-        onTap = () {
-          AppNavigation.instance.openArtist(
-            context,
-            artistId: artist.id,
-            initialArtist: artist,
-          );
-        };
         onPlay = () => _toggleContextPlayback(
-          contextKey: 'artist:${artist.id}',
-          playAction: () => _playArtist(context, artist.id),
-        );
-        isPlaying =
-            _activePlayContext == 'artist:${artist.id}' && player.isPlaying;
+              contextKey: 'artist:${artist.id}',
+              playAction: () => _playArtist(context, artist.id),
+            );
       case SearchBestMatchKind.album:
         final album = best.album!;
-        title = album.title;
-        subtitle = album.artists.map((a) => a.name).join(', ');
-        imageUrl = album.thumbnailUrl;
-        onTap = () {
-          AppNavigation.instance.openSharedList(
-            context,
-            id: album.id,
-            type: SharedListType.album,
-            initialTitle: album.title,
-            initialThumbnailUrl: album.thumbnailUrl,
-          );
-        };
         onPlay = () => _toggleContextPlayback(
-          contextKey: 'album:${album.id}',
-          playAction: () => _playAlbum(context, album.id),
-        );
-        isPlaying =
-            _activePlayContext == 'album:${album.id}' && player.isPlaying;
+              contextKey: 'album:${album.id}',
+              playAction: () => _playAlbum(context, album.id),
+            );
       case SearchBestMatchKind.playlist:
         final playlist = best.playlist!;
-        title = playlist.title;
-        subtitle = playlist.author.displayName;
-        imageUrl = playlist.thumbnailUrl;
-        onTap = () {
-          AppNavigation.instance.openSharedList(
-            context,
-            id: playlist.id,
-            type: SharedListType.playlist,
-            initialTitle: playlist.title,
-            initialThumbnailUrl: playlist.thumbnailUrl,
-          );
-        };
         onPlay = () => _toggleContextPlayback(
-          contextKey: 'playlist:${playlist.id}',
-          playAction: () => _playPlaylist(context, playlist.id),
-        );
-        isPlaying =
-            _activePlayContext == 'playlist:${playlist.id}' && player.isPlaying;
+              contextKey: 'playlist:${playlist.id}',
+              playAction: () => _playPlaylist(context, playlist.id),
+            );
     }
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isBestMatchHovered = true),
-      onExit: (_) => setState(() => _isBestMatchHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        onSecondaryTapDown: (details) {
-          final track = best.track;
-          final artist = best.artist;
-          final album = best.album;
-          final playlist = best.playlist;
-          if (track != null) {
-            EntityContextMenus.showTrackMenu(
+    return BestMatchCard(
+      bestMatch: best,
+      onPlay: onPlay,
+    );
+  }
+
+  Widget _buildSongsPanel(List<GenericSong> songs, {int maxItems = 4}) {
+    if (songs.isEmpty) {
+      return _buildEmptyCard('No songs found');
+    }
+
+    final visibleSongs = songs.take(maxItems).toList();
+    final searchContext = PlaybackContext(
+      type: PlaybackContextType.searchResults,
+      name: _lastQuery,
+      id: '',
+      source: SongSource.values.firstWhere(
+        (source) => source.name == _searchState.selectedSource,
+        orElse: () => SongSource.spotify,
+      ),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: visibleSongs.map((track) {
+        return TrackRow(
+          track: track,
+          viewContext: searchContext,
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          showArtistInline: true,
+          showDuration: true,
+          durationColumnWidth: 60,
+          onArtistTap: (artist) {
+            AppNavigation.instance.openArtist(
               context,
-              track: track,
-              globalPosition: details.globalPosition,
+              artistId: artist.id,
+              initialArtist: artist,
             );
-          } else if (artist != null) {
+          },
+          onArtistSecondaryTapDown: (artist, details) {
             EntityContextMenus.showArtistMenu(
               context,
               artist: artist,
               globalPosition: details.globalPosition,
             );
-          } else if (album != null) {
-            EntityContextMenus.showAlbumMenu(
+          },
+          onTap: () => _playSearchTrack(track),
+          onPlayPause: () => _toggleTrackPlayback(track),
+          onSecondaryTapDown: (details) {
+            EntityContextMenus.showTrackMenu(
               context,
-              album: album,
+              track: track,
               globalPosition: details.globalPosition,
             );
-          } else if (playlist != null) {
-            EntityContextMenus.showPlaylistMenu(
-              context,
-              playlist: playlist,
-              globalPosition: details.globalPosition,
-            );
-          }
-        },
-        child: Stack(
-          fit: StackFit.expand,
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Container(
-              width: double.infinity,
-              height: double.infinity,
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.045),
-                borderRadius: BorderRadius.circular(14),
+          },
+          onMoreTap: (buttonContext) =>
+              _openTrackMenuFromButton(buttonContext, track),
+          trailing: SizedBox(
+            width: 28,
+            child: LikeButton(
+              track: track,
+              showTooltip: false,
+              hoverOnlyWhenUnliked: true,
+              iconSize: 16,
+              padding: const EdgeInsets.all(2),
+              constraints: const BoxConstraints(
+                minWidth: 24,
+                minHeight: 24,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 126,
-                    height: 126,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(isArtist ? 63 : 10),
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: _ArtworkImage(
-                              imageUrl: imageUrl,
-                              icon: isArtist ? Icons.person : Icons.music_note,
-                            ),
-                          ),
-                          AnimatedOpacity(
-                            opacity: _isBestMatchHovered ? 1 : 0,
-                            duration: const Duration(milliseconds: 170),
-                            child: Container(
-                              color: Colors.black.withValues(alpha: 0.4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 46,
-                      fontWeight: FontWeight.w700,
-                      height: 0.98,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 16),
-                  ),
-                  const Spacer(),
-                ],
-              ),
+              color: Theme.of(context).colorScheme.primary,
             ),
-            Positioned(
-              right: 10,
-              bottom: 10,
-              child: _HoverPlayFab(
-                visible: _isBestMatchHovered,
-                isPlaying: isPlaying,
-                onPressed: onPlay,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSongsPanel(List<GenericSong> songs, {int maxItems = 7}) {
-    if (songs.isEmpty) {
-      return _buildEmptyCard('No songs found');
-    }
-
-    final player = context.watch<WispAudioHandler>();
-    final visibleSongs = songs.take(maxItems).toList();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ...visibleSongs.asMap().entries.map((entry) {
-            final listIndex = entry.key;
-            final track = entry.value;
-            final isHovered = _hoveredSongIndex == listIndex;
-            final isCurrent = player.currentTrack?.id == track.id;
-            final isPlaying = isCurrent && player.isPlaying;
-
-            return MouseRegion(
-              onEnter: (_) => setState(() => _hoveredSongIndex = listIndex),
-              onExit: (_) => setState(() => _hoveredSongIndex = -1),
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: () => _playSearchTrack(track),
-                onSecondaryTapDown: (details) {
-                  if (_suppressRowTrackContextMenu) {
-                    _suppressRowTrackContextMenu = false;
-                    return;
-                  }
-                  EntityContextMenus.showTrackMenu(
-                    context,
-                    track: track,
-                    globalPosition: details.globalPosition,
-                  );
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 130),
-                  margin: const EdgeInsets.symmetric(vertical: 3),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isHovered
-                        ? Colors.white.withValues(alpha: 0.085)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Stack(
-                            children: [
-                              Positioned.fill(
-                                child: _ArtworkImage(
-                                  imageUrl: track.thumbnailUrl,
-                                  icon: Icons.music_note,
-                                ),
-                              ),
-                              AnimatedOpacity(
-                                opacity: isHovered ? 1 : 0,
-                                duration: const Duration(milliseconds: 130),
-                                child: Container(
-                                  color: Colors.black.withValues(alpha: 0.45),
-                                ),
-                              ),
-                              if (isHovered)
-                                Positioned.fill(
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      onTap: () => _toggleTrackPlayback(track),
-                                      child: Icon(
-                                        isPlaying
-                                            ? Icons.pause
-                                            : Icons.play_arrow,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              track.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: isCurrent
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 29 / 2,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            _buildSongArtistsLine(track.artists),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      LikeButton(
-                        track: track,
-                        showTooltip: false,
-                        showIfUnliked: isHovered,
-                        iconSize: 16,
-                        padding: const EdgeInsets.all(2),
-                        constraints: const BoxConstraints(
-                          minWidth: 24,
-                          minHeight: 24,
-                        ),
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        _formatDuration(track.durationSecs),
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 22 / 2,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      AnimatedOpacity(
-                        opacity: isHovered ? 1 : 0.65,
-                        duration: const Duration(milliseconds: 130),
-                        child: Builder(
-                          builder: (buttonContext) => IconButton(
-                            mouseCursor: SystemMouseCursors.click,
-                            iconSize: 18,
-                            constraints: const BoxConstraints(
-                              minWidth: 28,
-                              minHeight: 28,
-                            ),
-                            padding: EdgeInsets.zero,
-                            tooltip: 'More actions',
-                            onPressed: () =>
-                                _openTrackMenuFromButton(buttonContext, track),
-                            icon: Icon(
-                              Icons.more_horiz,
-                              color: Colors.grey[500],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }),
-        ],
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -1610,19 +1151,6 @@ class _SearchViewState extends State<SearchView> {
     } catch (_) {}
   }
 
-  void _openAlbumFromTrack(GenericSong track) {
-    final album = track.album;
-    if (album == null) return;
-
-    AppNavigation.instance.openSharedList(
-      context,
-      id: album.id,
-      type: SharedListType.album,
-      initialTitle: album.title,
-      initialThumbnailUrl: album.thumbnailUrl,
-    );
-  }
-
   void _openTrackMenuFromButton(BuildContext buttonContext, GenericSong track) {
     final renderBox = buttonContext.findRenderObject() as RenderBox?;
     if (renderBox == null) {
@@ -1642,461 +1170,6 @@ class _SearchViewState extends State<SearchView> {
       context,
       track: track,
       anchorRect: anchorRect,
-    );
-  }
-
-  Widget _buildSongArtistsLine(List<GenericSimpleArtist> artists) {
-    if (artists.isEmpty) {
-      return Text(
-        'Unknown artist',
-        style: TextStyle(color: Colors.grey[400], fontSize: 13),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      );
-    }
-
-    return Wrap(
-      children: [
-        for (int i = 0; i < artists.length; i++) ...[
-          HoverUnderline(
-            onTap: () {
-              AppNavigation.instance.openArtist(
-                context,
-                artistId: artists[i].id,
-                initialArtist: artists[i],
-              );
-            },
-            onSecondaryTapDown: (details) {
-              _suppressRowTrackContextMenu = true;
-              EntityContextMenus.showArtistMenu(
-                context,
-                artist: artists[i],
-                globalPosition: details.globalPosition,
-              );
-            },
-            builder: (isHovering) => Text(
-              artists[i].name,
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 13,
-                decoration: isHovering
-                    ? TextDecoration.underline
-                    : TextDecoration.none,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (i < artists.length - 1)
-            Text(', ', style: TextStyle(color: Colors.grey[400], fontSize: 13)),
-        ],
-      ],
-    );
-  }
-
-  String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-    return '$minutes:${secs.toString().padLeft(2, '0')}';
-  }
-}
-
-class _ArtworkImage extends StatelessWidget {
-  final String imageUrl;
-  final IconData icon;
-
-  const _ArtworkImage({required this.imageUrl, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    if (imageUrl.isNotEmpty) {
-      return CachedNetworkImage(
-        imageUrl: imageUrl,
-        fit: BoxFit.cover,
-        errorWidget: (_, _, _) => Container(
-          color: Colors.grey[900],
-          child: Icon(icon, color: Colors.grey[600]),
-        ),
-      );
-    }
-
-    return Container(
-      color: Colors.grey[900],
-      child: Icon(icon, color: Colors.grey[600]),
-    );
-  }
-}
-
-class _HoverPlayFab extends StatelessWidget {
-  final bool visible;
-  final bool isPlaying;
-  final VoidCallback onPressed;
-
-  const _HoverPlayFab({
-    required this.visible,
-    required this.isPlaying,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      ignoring: !visible,
-      child: AnimatedSlide(
-        duration: const Duration(milliseconds: 190),
-        curve: Curves.easeOutCubic,
-        offset: visible ? Offset.zero : const Offset(0, 0.55),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 150),
-          opacity: visible ? 1 : 0,
-          child: SizedBox(
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: FloatingActionButton(
-                heroTag: null,
-                mouseCursor: SystemMouseCursors.click,
-                shape: const CircleBorder(),
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                onPressed: onPressed,
-                child: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MobileResultRow extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String imageUrl;
-  final String? trailing;
-  final bool isPlaying;
-  final IconData icon;
-  final bool circularImage;
-  final VoidCallback onTap;
-  final GestureTapDownCallback? onSecondaryTapDown;
-  final VoidCallback? onLongPress;
-
-  const _MobileResultRow({
-    required this.title,
-    required this.subtitle,
-    required this.imageUrl,
-    required this.trailing,
-    required this.isPlaying,
-    required this.icon,
-    required this.onTap,
-    this.onSecondaryTapDown,
-    this.onLongPress,
-    this.circularImage = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final artwork = SizedBox(
-      width: 52,
-      height: 52,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: _ArtworkImage(imageUrl: imageUrl, icon: icon),
-          ),
-          if (isPlaying)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.45),
-                alignment: Alignment.center,
-                child: _AnimatedQuickWaveform(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: GestureDetector(
-        onSecondaryTapDown: onSecondaryTapDown,
-        onLongPress: onLongPress,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Row(
-                children: [
-                  circularImage
-                      ? ClipOval(child: artwork)
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: artwork,
-                        ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isPlaying
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (trailing != null)
-                    Text(
-                      trailing!,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AnimatedQuickWaveform extends StatefulWidget {
-  final Color color;
-
-  const _AnimatedQuickWaveform({required this.color});
-
-  @override
-  State<_AnimatedQuickWaveform> createState() => _AnimatedQuickWaveformState();
-}
-
-class _AnimatedQuickWaveformState extends State<_AnimatedQuickWaveform>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final t = _controller.value * 2 * math.pi;
-        double barHeight(double phase) {
-          final value = (math.sin(t + phase) + 1) / 2;
-          return 4 + value * 10;
-        }
-
-        return SizedBox(
-          width: 16,
-          height: 16,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _waveBar(widget.color, barHeight(0.0)),
-              const SizedBox(width: 2),
-              _waveBar(widget.color, barHeight(1.4)),
-              const SizedBox(width: 2),
-              _waveBar(widget.color, barHeight(2.8)),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _waveBar(Color color, double height) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
-      curve: Curves.easeOut,
-      width: 3,
-      height: height,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(2),
-      ),
-    );
-  }
-}
-
-class _HorizontalRailSection extends StatefulWidget {
-  final String title;
-  final List<dynamic> items;
-  final Widget Function(BuildContext context, dynamic item) itemBuilder;
-
-  const _HorizontalRailSection({
-    required this.title,
-    required this.items,
-    required this.itemBuilder,
-  });
-
-  @override
-  State<_HorizontalRailSection> createState() => _HorizontalRailSectionState();
-}
-
-class _HorizontalRailSectionState extends State<_HorizontalRailSection> {
-  final ScrollController _controller = ScrollController();
-  bool _canScrollRight = false;
-  bool _isHovered = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_updateScrollState);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateScrollState());
-  }
-
-  @override
-  void dispose() {
-    _controller.removeListener(_updateScrollState);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _updateScrollState() {
-    if (!_controller.hasClients) return;
-    final maxExtent = _controller.position.maxScrollExtent;
-    final canScrollRight = _controller.offset < (maxExtent - 4);
-    if (canScrollRight == _canScrollRight) return;
-    setState(() => _canScrollRight = canScrollRight);
-  }
-
-  void _scrollBy(double delta) {
-    if (!_controller.hasClients) return;
-    final target = (_controller.offset + delta).clamp(
-      0.0,
-      _controller.position.maxScrollExtent,
-    );
-    _controller.animateTo(
-      target,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.items.isEmpty) return const SizedBox.shrink();
-
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    final showArrow = isDesktop && _isHovered && _canScrollRight;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 32,
-            fontWeight: FontWeight.w700,
-            height: 1,
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 264,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.basic,
-            onEnter: isDesktop
-                ? (_) => setState(() => _isHovered = true)
-                : null,
-            onExit: isDesktop
-                ? (_) => setState(() => _isHovered = false)
-                : null,
-            child: Stack(
-              children: [
-                ListView.separated(
-                  controller: _controller,
-                  scrollDirection: Axis.horizontal,
-                  itemCount: widget.items.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 18),
-                  itemBuilder: (context, index) =>
-                      widget.itemBuilder(context, widget.items[index]),
-                ),
-                if (_canScrollRight)
-                  Positioned(
-                    top: 0,
-                    bottom: 0,
-                    right: 0,
-                    child: IgnorePointer(
-                      child: Container(
-                        width: 52,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [
-                              Colors.transparent,
-                              const Color(0xFF121212).withValues(alpha: 0.78),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                if (showArrow)
-                  Positioned(
-                    top: 0,
-                    bottom: 0,
-                    right: 0,
-                    child: Center(
-                      child: Material(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        shape: const CircleBorder(),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.chevron_right,
-                            color: Colors.white,
-                          ),
-                          onPressed: () => _scrollBy(240),
-                          splashRadius: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

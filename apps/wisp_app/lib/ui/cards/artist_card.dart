@@ -13,7 +13,7 @@ import 'generic_card.dart';
 
 class ArtistCard extends StatelessWidget {
   final GenericSimpleArtist artist;
-  final double width;
+  final double? width;
 
   final String? subtitle;
 
@@ -21,7 +21,7 @@ class ArtistCard extends StatelessWidget {
     super.key,
     required this.artist,
     this.subtitle,
-    this.width = 160,
+    this.width,
   });
 
   Future<void> _startArtistPlayback(BuildContext context) async {

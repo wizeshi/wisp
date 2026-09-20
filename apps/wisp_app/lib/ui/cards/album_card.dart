@@ -14,9 +14,9 @@ import 'generic_card.dart';
 
 class AlbumCard extends StatelessWidget {
   final GenericAlbum album;
-  final double width;
+  final double? width;
 
-  const AlbumCard({super.key, required this.album, this.width = 160});
+  const AlbumCard({super.key, required this.album, this.width});
 
   Future<void> _startAlbumPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();

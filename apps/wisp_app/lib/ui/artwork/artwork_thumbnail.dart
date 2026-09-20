@@ -145,47 +145,72 @@ class ArtworkThumbnail extends StatelessWidget {
 
   double get _renderSize => sizeOverride ?? size.logicalSize;
 
-  BorderRadius get _borderRadius => shape == ArtworkShape.circle
-      ? BorderRadius.circular(_renderSize / 2)
-      // Proportional to size rather than a fixed magic number, so small
-      // and large artwork both look correctly rounded instead of sharing
-      // one radius that's too subtle at 160px or too aggressive at 32px.
-      : BorderRadius.circular(_renderSize * 0.045);
-
   @override
   Widget build(BuildContext context) {
-    final renderSize = _renderSize;
-    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-    // Decode/cache at the actual physical pixel size the artwork will be
-    // painted at — sharp on high-DPI displays, and never wastefully large
-    // on small ones. Computed once, here, instead of per-screen guesswork.
-    final cacheDimension = (renderSize * devicePixelRatio).round();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hasBoundedWidth = constraints.hasBoundedWidth &&
+            constraints.maxWidth.isFinite &&
+            constraints.maxWidth > 0;
+        final hasBoundedHeight = constraints.hasBoundedHeight &&
+            constraints.maxHeight.isFinite &&
+            constraints.maxHeight > 0;
 
-    final Widget image = switch (source) {
-      _NetworkArtwork(:final url) => CachedNetworkImage(
-        imageUrl: url,
-        fit: BoxFit.cover,
-        memCacheWidth: cacheDimension,
-        memCacheHeight: cacheDimension,
-        placeholder: (context, url) => _placeholder(),
-        errorWidget: (context, url, error) => _fallback(),
-      ),
-      _FileArtwork(:final file) => Image.file(
-        file,
-        fit: BoxFit.cover,
-        filterQuality: FilterQuality.high,
-        errorBuilder: (context, error, stackTrace) => _fallback(),
-      ),
-      _NoArtwork() => _fallback(),
-    };
+        final double renderSize;
+        if (sizeOverride != null) {
+          renderSize = sizeOverride!;
+        } else if (hasBoundedWidth && hasBoundedHeight) {
+          renderSize = constraints.maxWidth < constraints.maxHeight
+              ? constraints.maxWidth
+              : constraints.maxHeight;
+        } else if (hasBoundedWidth) {
+          renderSize = constraints.maxWidth;
+        } else if (hasBoundedHeight) {
+          renderSize = constraints.maxHeight;
+        } else {
+          renderSize = size.logicalSize;
+        }
 
-    return Semantics(
-      image: true,
-      label: semanticLabel,
-      child: ClipRRect(
-        borderRadius: _borderRadius,
-        child: SizedBox(width: renderSize, height: renderSize, child: image),
-      ),
+        final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+        final cacheDimension =
+            (renderSize * devicePixelRatio).round().clamp(1, 4096);
+
+        final borderRadius = shape == ArtworkShape.circle
+            ? BorderRadius.circular(renderSize / 2)
+            : BorderRadius.circular(renderSize * 0.045);
+
+        final Widget image = switch (source) {
+          _NetworkArtwork(:final url) => CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.cover,
+              memCacheWidth: cacheDimension,
+              memCacheHeight: cacheDimension,
+              placeholder: (context, url) => _placeholder(),
+              errorWidget: (context, url, error) => _fallback(renderSize),
+            ),
+          _FileArtwork(:final file) => Image.file(
+              file,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
+              errorBuilder: (context, error, stackTrace) =>
+                  _fallback(renderSize),
+            ),
+          _NoArtwork() => _fallback(renderSize),
+        };
+
+        return Semantics(
+          image: true,
+          label: semanticLabel,
+          child: ClipRRect(
+            borderRadius: borderRadius,
+            child: SizedBox(
+              width: renderSize,
+              height: renderSize,
+              child: image,
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -193,14 +218,15 @@ class ArtworkThumbnail extends StatelessWidget {
     return Container(color: Colors.grey[900]);
   }
 
-  Widget _fallback() {
+  Widget _fallback([double? size]) {
+    final iconScale = size ?? _renderSize;
     return Container(
       color: Colors.grey[900],
       alignment: Alignment.center,
       child: Icon(
         fallbackIcon,
         color: Colors.grey[600],
-        size: _renderSize * 0.4,
+        size: iconScale * 0.4,
       ),
     );
   }

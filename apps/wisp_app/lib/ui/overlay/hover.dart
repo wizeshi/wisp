@@ -157,22 +157,26 @@ class _HoverPlayOverlayState extends State<CardHoverPlayOverlay> {
       onEnter: (_) => _setHovering(true),
       onExit: (_) => _setHovering(false),
       child: Stack(
+        fit: StackFit.expand,
         clipBehavior: Clip.none,
         alignment: widget.alignment,
         children: [
           widget.child,
-          Padding(
-            padding: widget.padding,
-            child: AnimatedOpacity(
-              opacity: visible ? 1 : 0,
-              duration: const Duration(milliseconds: 120),
-              child: IgnorePointer(
-                ignoring: !visible,
-                child: _PlayPauseButton(
-                  isPlaying: widget.isPlaying,
-                  onPressed: widget.onPressed,
-                  size: widget.buttonSize,
-                  iconSize: widget.iconSize,
+          Align(
+            alignment: widget.alignment,
+            child: Padding(
+              padding: widget.padding,
+              child: AnimatedOpacity(
+                opacity: visible ? 1 : 0,
+                duration: const Duration(milliseconds: 120),
+                child: IgnorePointer(
+                  ignoring: !visible,
+                  child: _PlayPauseButton(
+                    isPlaying: widget.isPlaying,
+                    onPressed: widget.onPressed,
+                    size: widget.buttonSize,
+                    iconSize: widget.iconSize,
+                  ),
                 ),
               ),
             ),

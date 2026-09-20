@@ -272,6 +272,16 @@ class _AppShellState extends State<AppShell> {
 
     final enableExitPrompt = !_isDesktop;
 
+    // On mobile, hide the player bar and nav bar whenever the software
+    // keyboard is visible. In Flutter's edge-to-edge mode, viewInsets.bottom
+    // reports the keyboard height. When the keyboard is open, the bars would
+    // sit between the content and the keyboard creating a dead zone of the
+    // same height as the bars. Hiding them lets the content fill all the way
+    // to the keyboard edge; individual views handle their own bottom inset via
+    // MediaQuery.viewInsetsOf(context).bottom.
+    final keyboardVisible =
+        !_isDesktop && MediaQuery.viewInsetsOf(context).bottom > 0;
+
     final shell = Material(
       color: const Color(0xFF121212),
       child: Column(
@@ -313,6 +323,14 @@ class _AppShellState extends State<AppShell> {
                     key: _contentMessengerKey,
                     child: Scaffold(
                       backgroundColor: Colors.transparent,
+                      // The player bar and nav bar sit outside this Scaffold in
+                      // the parent Column. If we allow the Scaffold to resize
+                      // for the keyboard, it over-shrinks the body by an extra
+                      // (playerBar + navBar) height, pushing content up and
+                      // creating a gap at the top. Each individual view that
+                      // needs keyboard avoidance (e.g. search) handles it
+                      // itself via MediaQuery.viewInsetsOf(context).bottom.
+                      resizeToAvoidBottomInset: false,
                       body: Navigator(
                         key: NavigationHistory.instance.navigatorKey,
                         observers: [NavigationHistory.instance.observer],
@@ -332,10 +350,10 @@ class _AppShellState extends State<AppShell> {
               ],
             ),
           ),
-          if (navState.selectedNavIndex != 3 && !_isDesktop)
+          if (navState.selectedNavIndex != 3 && !_isDesktop && !keyboardVisible)
             const WispPlayerBar(),
           if (_isDesktop && !isDesktopImmersive) const WispPlayerBar(),
-          if (!_isDesktop && navState.selectedNavIndex != 3)
+          if (!_isDesktop && navState.selectedNavIndex != 3 && !keyboardVisible)
             WispNavigation(
               selectedView: navState.selectedLibraryView,
               onViewChanged: navState.setLibraryView,

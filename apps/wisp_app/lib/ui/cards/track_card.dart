@@ -11,7 +11,7 @@ class TrackCard extends StatelessWidget {
   final VoidCallback onPlay;
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
-  final double width;
+  final double? width;
 
   const TrackCard({
     super.key,
@@ -20,7 +20,7 @@ class TrackCard extends StatelessWidget {
     required this.onPlay,
     this.onLongPress,
     this.onSecondaryTapDown,
-    this.width = 160,
+    this.width,
   });
 
   @override

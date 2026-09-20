@@ -26,9 +26,9 @@ String playlistSubtitle(GenericPlaylist playlist) {
 
 class PlaylistCard extends StatelessWidget {
   final GenericPlaylist playlist;
-  final double width;
+  final double? width;
 
-  const PlaylistCard({super.key, required this.playlist, this.width = 160});
+  const PlaylistCard({super.key, required this.playlist, this.width});
 
   Future<void> _startPlaylistPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();

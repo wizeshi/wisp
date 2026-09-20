@@ -588,8 +588,12 @@ class TrackRow extends StatelessWidget {
                                 minHeight: 24,
                               ),
                               icon: Icon(
-                                CupertinoIcons.ellipsis,
-                                color: Theme.of(context).colorScheme.primary,
+                                isApple
+                                    ? CupertinoIcons.ellipsis
+                                    : Icons.more_horiz,
+                                color: isApple
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.grey[400],
                                 size: 18,
                               ),
                               onPressed: () => onMoreTap!(buttonContext),

@@ -973,7 +973,7 @@ class HomePageState extends State<HomePage> {
       items: items,
       showTitle: showTitle,
       expandItemsToRailWidth: expandCardsToRowWidth,
-      itemWidth: 160,
+      itemWidth: 200,
       itemHeight: useSpecialCardStyle
           ? 168
           : null, // null falls back to the GenericCard default
