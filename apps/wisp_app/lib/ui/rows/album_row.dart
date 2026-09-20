@@ -15,15 +15,21 @@ import '../playback/playback_selectors.dart';
 class AlbumRow extends StatelessWidget {
   final GenericAlbum album;
   final double width;
+  final double height;
   final EdgeInsetsGeometry padding;
   final GenericRowPlayPosition playPosition;
+  final Color? backgroundColor;
+  final bool showSubtitle;
 
   const AlbumRow({
     super.key,
     required this.album,
     this.width = 160,
+    this.height = 48,
     this.padding = EdgeInsets.zero,
     this.playPosition = GenericRowPlayPosition.end,
+    this.backgroundColor,
+    this.showSubtitle = true,
   });
 
   Future<void> _startAlbumPlayback(BuildContext context) async {
@@ -85,8 +91,11 @@ class AlbumRow extends StatelessWidget {
     );
     return GenericRow(
       width: width,
+      height: height,
       padding: padding,
       playPosition: playPosition,
+      backgroundColor: backgroundColor,
+      showSubtitle: showSubtitle,
       title: album.title,
       subtitle: album.artists.map((artist) => artist.name).join(', '),
       artwork: ArtworkThumbnail(

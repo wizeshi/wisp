@@ -14,18 +14,24 @@ import '../playback/playback_selectors.dart';
 class ArtistRow extends StatelessWidget {
   final GenericSimpleArtist artist;
   final double width;
+  final double height;
   final EdgeInsetsGeometry padding;
   final GenericRowPlayPosition playPosition;
 
   final String? subtitle;
+  final Color? backgroundColor;
+  final bool showSubtitle;
 
   const ArtistRow({
     super.key,
     required this.artist,
     this.subtitle,
     this.width = 160,
+    this.height = 48,
     this.padding = EdgeInsets.zero,
     this.playPosition = GenericRowPlayPosition.end,
+    this.backgroundColor,
+    this.showSubtitle = true,
   });
 
   Future<void> _startArtistPlayback(BuildContext context) async {
@@ -87,8 +93,11 @@ class ArtistRow extends StatelessWidget {
     );
     return GenericRow(
       width: width,
+      height: height,
       padding: padding,
       playPosition: playPosition,
+      backgroundColor: backgroundColor,
+      showSubtitle: showSubtitle,
       title: artist.name,
       subtitle: subtitle ?? 'Artist',
       artwork: ArtworkThumbnail(

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wisp/ui/overlay/cover_play_button.dart';
 import 'package:wisp/ui/overlay/hover.dart';
 
-enum GenericRowPlayPosition { cover, end }
+enum GenericRowPlayPosition { cover, end, none }
 
 class GenericRow extends StatelessWidget {
   final String title;
@@ -26,6 +26,9 @@ class GenericRow extends StatelessWidget {
 
   final EdgeInsetsGeometry padding;
 
+  final Color? backgroundColor;
+  final bool showSubtitle;
+
   const GenericRow({
     super.key,
     required this.title,
@@ -40,11 +43,16 @@ class GenericRow extends StatelessWidget {
     this.width = double.infinity,
     this.playPosition = GenericRowPlayPosition.end,
     this.padding = EdgeInsets.zero,
+    this.backgroundColor,
+    this.showSubtitle = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
+      color: backgroundColor ?? Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.antiAlias,
       child: HoverRegion(
         onTap: onTap,
         onLongPress: isDesktopPlatform ? null : onLongPress,
@@ -89,13 +97,15 @@ class GenericRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (subtitle != null)
+                    if (showSubtitle && subtitle != null) ...[
+                      const SizedBox(height: 2),
                       Text(
                         subtitle!,
                         style: TextStyle(color: Colors.grey[400], fontSize: 12),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                    ],
                   ],
                 ),
               ),

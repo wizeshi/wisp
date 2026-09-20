@@ -7,70 +7,33 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-import 'dart:io' show Platform, File;
+import 'dart:io' show Platform;
 import 'dart:math';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:wisp/ui/artwork/artwork_thumbnail.dart';
 import 'package:wisp/ui/cards/album_card.dart';
 import 'package:wisp/ui/cards/artist_card.dart';
 import 'package:wisp/ui/cards/playlist_card.dart';
 import 'package:wisp/ui/rails/card_rail.dart';
 import 'package:wisp/ui/rows/album_row.dart';
 import 'package:wisp/ui/rows/artist_row.dart';
+import 'package:wisp/ui/rows/generic_row.dart';
 import 'package:wisp/ui/rows/playlist_row.dart';
 import '../models/library_folder.dart';
 import '../utils/logger.dart';
-import '../services/wisp_audio_handler.dart';
 import '../models/metadata_models.dart';
 import '../services/metadata_cache.dart';
-import 'list_detail.dart';
 import '../providers/library/library_state.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/preferences/preferences_provider.dart';
+import '../theme/app_theme.dart';
 import '../services/app_navigation.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../utils/liked_songs.dart';
-import '../widgets/liked_songs_art.dart';
 import '../widgets/provider_disabled_state.dart';
 import '../widgets/entity_context_menus.dart';
-
-typedef _PlaybackHighlight = ({
-  bool isPlaying,
-  String? currentTrackId,
-  String? currentAlbumId,
-  String currentArtistIds,
-  PlaybackContext? playbackContext,
-});
-
-_PlaybackHighlight _playbackHighlightOf(WispAudioHandler player) {
-  final track = player.currentTrack;
-  return (
-    isPlaying: player.isPlaying,
-    currentTrackId: track?.id,
-    currentAlbumId: track?.album?.id,
-    currentArtistIds: track == null || track.artists.isEmpty
-        ? ''
-        : track.artists.map((a) => a.id).join('\u0001'),
-    playbackContext: player.playbackContext,
-  );
-}
-
-bool _isLocalThumbnailPath(String path) {
-  return path.startsWith('/') || path.startsWith('file://');
-}
-
-String _playlistSubtitle(GenericPlaylist playlist) {
-  final author = playlist.author.displayName.trim();
-  final description = playlist.description?.trim() ?? '';
-  if (author.toLowerCase() == 'spotify' && description.isNotEmpty) {
-    return description;
-  }
-  if (author.isEmpty && description.isNotEmpty) {
-    return description;
-  }
-  return author;
-}
 
 class HomePage extends StatefulWidget {
   final ValueListenable<int>? refreshSignal;
@@ -96,12 +59,6 @@ class HomePageState extends State<HomePage> {
   VoidCallback? _localPlaylistListener;
   VoidCallback? _refreshListener;
   int _lastRefreshTick = 0;
-
-  _PlaybackHighlight _watchPlaybackHighlight() {
-    return context.select<WispAudioHandler, _PlaybackHighlight>(
-      _playbackHighlightOf,
-    );
-  }
 
   @override
   void initState() {
@@ -415,35 +372,22 @@ class HomePageState extends State<HomePage> {
   }
 
   bool _isUnknownHomeItem(dynamic item) {
-    if (item is GenericPlaylist) {
-      return _unknownHomeTitles.contains(item.title.trim().toLowerCase());
-    }
-    if (item is GenericAlbum) {
-      return _unknownHomeTitles.contains(item.title.trim().toLowerCase());
-    }
-    if (item is GenericSimpleArtist) {
-      return _unknownHomeTitles.contains(item.name.trim().toLowerCase());
-    }
-    return false;
+    final title = switch (item) {
+      GenericPlaylist(:final title) => title,
+      GenericAlbum(:final title) => title,
+      GenericSimpleArtist(:final name) => name,
+      _ => null,
+    };
+    return title != null && _unknownHomeTitles.contains(title.trim().toLowerCase());
   }
 
   void _logUnknownHomeItem(dynamic item, String section) {
-    String type = item.runtimeType.toString();
-    String id = '';
-    String title = '';
-    if (item is GenericPlaylist) {
-      type = 'playlist';
-      id = item.id;
-      title = item.title;
-    } else if (item is GenericAlbum) {
-      type = 'album';
-      id = item.id;
-      title = item.title;
-    } else if (item is GenericSimpleArtist) {
-      type = 'artist';
-      id = item.id;
-      title = item.name;
-    }
+    final (type, id, title) = switch (item) {
+      GenericPlaylist p => ('playlist', p.id, p.title),
+      GenericAlbum a => ('album', a.id, a.title),
+      GenericSimpleArtist a => ('artist', a.id, a.name),
+      _ => (item.runtimeType.toString(), '', ''),
+    };
 
     logger.w(
       '[Views/Home] Dropping unknown home card in "$section": '
@@ -510,9 +454,14 @@ class HomePageState extends State<HomePage> {
       );
     }
 
+    final style = context.watch<PreferencesProvider>().style;
+    final isApple = style == AppStyle.AppleMusic;
+
     return RefreshIndicator(
       onRefresh: () => _loadData(policy: MetadataFetchPolicy.refreshAlways),
-      child: _buildMobileHomeContent(),
+      child: isApple
+          ? _buildMobileHomeContentApple()
+          : _buildMobileHomeContentSpotify(),
     );
   }
 
@@ -550,7 +499,42 @@ class HomePageState extends State<HomePage> {
     return greetings[random.nextInt(greetings.length)];
   }
 
-  Widget _buildMobileHomeContent() {
+  List<Widget> _buildMobileHeaderActions({bool useAppleIcon = false}) {
+    return [
+      Selector<PreferencesProvider, bool>(
+        selector: (context, prefs) => prefs.debugModeEnabled,
+        builder: (context, debugModeEnabled, child) {
+          if (!debugModeEnabled) {
+            return const SizedBox.shrink();
+          }
+          return IconButton(
+            icon: const Icon(
+              Icons.bug_report_outlined,
+              color: Colors.white,
+              size: 24,
+            ),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            onPressed: () => AppNavigation.instance.openDebug(context),
+          );
+        },
+      ),
+      IconButton(
+        icon: Icon(
+          useAppleIcon
+              ? CupertinoIcons.person_crop_circle
+              : Icons.settings_outlined,
+          color: Colors.white,
+          size: useAppleIcon ? 26 : 24,
+        ),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        onPressed: () => AppNavigation.instance.openSettings(),
+      ),
+    ];
+  }
+
+  Widget _buildMobileHomeContentSpotify() {
     final spotify = context.read<SpotifyInternalProvider>();
     final greeting = _getRandomGreeting(spotify);
     final dynamicSections = _buildDynamicHomeSections(skipFirst: true);
@@ -586,44 +570,7 @@ class HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  Selector<PreferencesProvider, bool>(
-                    selector: (context, prefs) => prefs.debugModeEnabled,
-                    builder: (context, debugModeEnabled, child) {
-                      if (!debugModeEnabled) {
-                        return const SizedBox.shrink();
-                      }
-                      return IconButton(
-                        icon: const Icon(
-                          Icons.bug_report_outlined,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 40,
-                        ),
-                        onPressed: () {
-                          AppNavigation.instance.openDebug(context);
-                        },
-                      );
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.settings_outlined,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 40,
-                      minHeight: 40,
-                    ),
-                    onPressed: () {
-                      AppNavigation.instance.openSettings();
-                    },
-                  ),
+                  ..._buildMobileHeaderActions(useAppleIcon: false),
                 ],
               ),
             ),
@@ -664,96 +611,57 @@ class HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildMobileGridItem({
-    required String imageUrl,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    VoidCallback? onLongPress,
-    Widget? customArt,
-  }) {
-    final isLocalThumb = imageUrl.isNotEmpty && _isLocalThumbnailPath(imageUrl);
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        mouseCursor: isDesktop ? SystemMouseCursors.click : null,
-        onTap: onTap,
-        onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  color: Colors.grey[900],
-                  child:
-                      customArt ??
-                      (imageUrl.isNotEmpty
-                          ? (isLocalThumb
-                                ? Image.file(
-                                    File(imageUrl.replaceFirst('file://', '')),
-                                    filterQuality: FilterQuality.medium,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, url, error) => Icon(
-                                      Icons.music_note,
-                                      color: Colors.grey[700],
-                                    ),
-                                  )
-                                : CachedNetworkImage(
-                                    imageUrl: imageUrl,
-                                    filterQuality: FilterQuality.medium,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) =>
-                                        Container(color: Colors.grey[800]),
-                                    errorWidget: (context, url, error) => Icon(
-                                      Icons.music_note,
-                                      color: Colors.grey[700],
-                                    ),
-                                  ))
-                          : Icon(Icons.music_note, color: Colors.grey[700])),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+  Widget _buildMobileHomeContentApple() {
+    final dynamicSections = _buildDynamicHomeSections(skipFirst: false);
+
+    return SafeArea(
+      bottom: false,
+      child: CustomScrollView(
+        slivers: [
+          // iOS-style Large Title Header
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          fontSize: 14,
+                      const Expanded(
+                        child: Text(
+                          'Home',
+                          style: TextStyle(
+                            fontSize: 34,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      /* Text(
-                        subtitle,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ), */
+                      ..._buildMobileHeaderActions(useAppleIcon: true),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  const Divider(color: Colors.white12, height: 1),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+          ...dynamicSections.map(
+            (section) => SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: section,
+              ),
+            ),
+          ),
+
+          // Bottom padding
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ],
       ),
     );
   }
@@ -761,13 +669,10 @@ class HomePageState extends State<HomePage> {
   List<Widget> _buildMobileQuickGridTiles() {
     final sourceItems = <dynamic>[];
 
-    GenericPlaylist? likedPlaylist;
-    for (final playlist in _savedPlaylists) {
-      if (isLikedSongsPlaylistId(playlist.id)) {
-        likedPlaylist = playlist;
-        break;
-      }
-    }
+    final likedPlaylist = _savedPlaylists.cast<GenericPlaylist?>().firstWhere(
+      (p) => isLikedSongsPlaylistId(p?.id),
+      orElse: () => null,
+    );
     if (likedPlaylist != null) {
       sourceItems.add(likedPlaylist);
     }
@@ -783,7 +688,7 @@ class HomePageState extends State<HomePage> {
       if (key == null || seen.contains(key)) continue;
       seen.add(key);
 
-      final tile = _buildMobileQuickTile(item);
+      final tile = _buildQuickTile(item, isMobile: true);
       if (tile != null) {
         tiles.add(
           Padding(padding: const EdgeInsets.only(bottom: 12), child: tile),
@@ -796,123 +701,74 @@ class HomePageState extends State<HomePage> {
       return tiles;
     }
 
-    final fallback = <Widget>[];
-    for (final playlist in _savedPlaylists.take(4)) {
-      fallback.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildMobileQuickTile(playlist) ?? const SizedBox.shrink(),
-        ),
-      );
-    }
-    for (final album in _savedAlbums.take(4)) {
-      fallback.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildMobileQuickTile(album) ?? const SizedBox.shrink(),
-        ),
-      );
-    }
-    return fallback;
+    return [
+      for (final playlist in _savedPlaylists.take(4))
+        if (_buildQuickTile(playlist, isMobile: true) case final tile?)
+          Padding(padding: const EdgeInsets.only(bottom: 12), child: tile),
+      for (final album in _savedAlbums.take(4))
+        if (_buildQuickTile(album, isMobile: true) case final tile?)
+          Padding(padding: const EdgeInsets.only(bottom: 12), child: tile),
+    ];
   }
 
-  String? _mobileQuickItemKey(dynamic item) {
-    if (item is GenericPlaylist) return 'playlist:${item.id}';
-    if (item is GenericAlbum) return 'album:${item.id}';
-    if (item is GenericSimpleArtist) return 'artist:${item.id}';
-    if (item is GenericSong) return 'song:${item.id}';
-    return null;
-  }
+  String? _mobileQuickItemKey(dynamic item) => switch (item) {
+    GenericPlaylist(:final id) => 'playlist:$id',
+    GenericAlbum(:final id) => 'album:$id',
+    GenericSimpleArtist(:final id) => 'artist:$id',
+    GenericSong(:final id) => 'song:$id',
+    _ => null,
+  };
 
-  Widget? _buildMobileQuickTile(dynamic item) {
-    if (item is GenericPlaylist) {
-      return _buildMobileGridItem(
-        imageUrl: item.thumbnailUrl,
-        title: item.title,
-        subtitle: _playlistSubtitle(item),
-        customArt: isLikedSongsPlaylistId(item.id)
-            ? const LikedSongsArt()
-            : null,
-        onTap: () => _openSharedList(
-          SharedListType.playlist,
-          item.id,
-          title: item.title,
-          thumbnailUrl: item.thumbnailUrl,
+  Widget? _buildQuickTile(dynamic item, {bool isMobile = false}) {
+    const tileBg = Color(0x0DFFFFFF);
+    final height = isMobile ? 56.0 : 48.0;
+    final playPosition =
+        isMobile ? GenericRowPlayPosition.none : GenericRowPlayPosition.end;
+
+    return switch (item) {
+      GenericPlaylist playlist => PlaylistRow(
+        playlist: playlist,
+        height: height,
+        backgroundColor: tileBg,
+        showSubtitle: !isMobile,
+        playPosition: playPosition,
+      ),
+      GenericAlbum album => AlbumRow(
+        album: album,
+        height: height,
+        backgroundColor: tileBg,
+        showSubtitle: !isMobile,
+        playPosition: playPosition,
+      ),
+      GenericSimpleArtist artist => ArtistRow(
+        artist: artist,
+        height: height,
+        backgroundColor: tileBg,
+        showSubtitle: !isMobile,
+        playPosition: playPosition,
+      ),
+      GenericSong song => GenericRow(
+        title: song.title,
+        height: height,
+        showSubtitle: !isMobile,
+        backgroundColor: tileBg,
+        playPosition: playPosition,
+        artwork: ArtworkThumbnail(
+          source: ArtworkSource.fromUrl(song.thumbnailUrl),
+          size: ArtworkSize.large,
+          fallbackIcon: Icons.music_note,
+          semanticLabel: 'Artwork for ${song.title}',
         ),
-        onLongPress: () {
-          EntityContextMenus.showPlaylistMenu(context, playlist: item);
-        },
-      );
-    }
-
-    if (item is GenericAlbum) {
-      return _buildMobileGridItem(
-        imageUrl: item.thumbnailUrl,
-        title: item.title,
-        subtitle: item.artists.map((a) => a.name).join(', '),
-        onTap: () => _openSharedList(
-          SharedListType.album,
-          item.id,
-          title: item.title,
-          thumbnailUrl: item.thumbnailUrl,
-        ),
-        onLongPress: () {
-          EntityContextMenus.showAlbumMenu(context, album: item);
-        },
-      );
-    }
-
-    if (item is GenericSimpleArtist) {
-      return _buildMobileGridItem(
-        imageUrl: item.thumbnailUrl,
-        title: item.name,
-        subtitle: 'Artist',
-        onTap: () => _openArtist(item),
-        onLongPress: () {
-          EntityContextMenus.showArtistMenu(context, artist: item);
-        },
-      );
-    }
-
-    if (item is GenericSong) {
-      return _buildMobileGridItem(
-        imageUrl: item.thumbnailUrl,
-        title: item.title,
-        subtitle: item.artists.map((a) => a.name).join(', '),
         onTap: () async {
           final coordinator = context.read<PlaybackCoordinator>();
-          await coordinator.setQueue([item], startIndex: 0, play: true);
+          await coordinator.setQueue([song], startIndex: 0, play: true);
         },
         onLongPress: () {
-          EntityContextMenus.showTrackMenu(context, track: item);
+          EntityContextMenus.showTrackMenu(context, track: song);
         },
-      );
-    }
-
-    return null;
-  }
-
-  void _openSharedList(
-    SharedListType type,
-    String id, {
-    String? title,
-    String? thumbnailUrl,
-  }) {
-    AppNavigation.instance.openSharedList(
-      context,
-      id: id,
-      type: type,
-      initialTitle: title,
-      initialThumbnailUrl: thumbnailUrl,
-    );
-  }
-
-  void _openArtist(GenericSimpleArtist artist) {
-    AppNavigation.instance.openArtist(
-      context,
-      artistId: artist.id,
-      initialArtist: artist,
-    );
+      ),
+      _ => null,
+    };
   }
 
   Widget _buildContentArea() {
@@ -1015,14 +871,13 @@ class HomePageState extends State<HomePage> {
   Widget? _buildDesktopQuickRows() {
     if (_homeSections.isEmpty) return null;
     final firstSection = _homeSections.entries.first;
-    final playback = _watchPlaybackHighlight();
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
         final itemsPerRow = (maxWidth / 220).floor().clamp(1, 4);
         final maxItems = min(itemsPerRow * 2, 8);
         final cards = firstSection.value
-            .map<Widget?>((item) => _buildHomeQuickTile(item, playback))
+            .map<Widget?>((item) => _buildQuickTile(item, isMobile: false))
             .whereType<Widget>()
             .take(maxItems)
             .toList();
@@ -1061,51 +916,6 @@ class HomePageState extends State<HomePage> {
     );
   }
 
-  Widget? _buildHomeQuickTile(dynamic item, _PlaybackHighlight playback) {
-    if (item is GenericPlaylist) {
-      return PlaylistRow(playlist: item);
-    }
-
-    if (item is GenericAlbum) {
-      return AlbumRow(album: item);
-    }
-
-    if (item is GenericSimpleArtist) {
-      return ArtistRow(artist: item);
-    }
-
-    /* if (item is GenericSong) {
-      final isActive = playback.currentTrackId == item.id;
-      return _HomeQuickTile(
-        imageUrl: item.thumbnailUrl,
-        title: item.title,
-        subtitle: item.artists.map((a) => a.name).join(', '),
-        isActive: isActive,
-        isPlaying: isPlaying,
-        onTap: () async {
-          final coordinator = context.read<PlaybackCoordinator>();
-          await coordinator.setQueue([item], startIndex: 0, play: true);
-        },
-        onPlay: () async {
-          final coordinator = context.read<PlaybackCoordinator>();
-          await coordinator.setQueue([item], startIndex: 0, play: true);
-        },
-        onSecondaryTapDown: (details) {
-          EntityContextMenus.showTrackMenu(
-            context,
-            track: item,
-            globalPosition: details.globalPosition,
-          );
-        },
-        onLongPress: () {
-          EntityContextMenus.showTrackMenu(context, track: item);
-        },
-      );
-    } */
-
-    return null;
-  }
-
   List<Widget> _buildDynamicHomeSections({
     bool skipFirst = false,
     Set<int> skipEntryIndexes = const <int>{},
@@ -1119,8 +929,12 @@ class HomePageState extends State<HomePage> {
             .toList(growable: false);
     for (var i = 0; i < entries.length; i++) {
       if (skipEntryIndexes.contains(i)) continue;
-      final entry = entries[i];
+      MapEntry<String, List<dynamic>> entry = entries[i];
       if (entry.value.isEmpty) continue;
+      // The first section is called "Section 1", so we'll rename it to "Recents" for clarity.
+      if (!skipFirst && i == 0) {
+        entry = MapEntry('Recents', entry.value);
+      }
       final useSpecialCardStyle =
           allowSpecialCardStyle &&
           i == 0 &&
@@ -1139,21 +953,13 @@ class HomePageState extends State<HomePage> {
     return widgets;
   }
 
-  Widget? _buildHomeCard(dynamic item, {bool useSpecialCardStyle = false}) {
-    if (item is GenericPlaylist) {
-      return PlaylistCard(playlist: item);
-    }
-
-    if (item is GenericAlbum) {
-      return AlbumCard(album: item);
-    }
-
-    if (item is GenericSimpleArtist) {
-      return ArtistCard(artist: item);
-    }
-
-    return null;
-  }
+  Widget? _buildHomeCard(dynamic item, {bool useSpecialCardStyle = false}) =>
+      switch (item) {
+        GenericPlaylist playlist => PlaylistCard(playlist: playlist),
+        GenericAlbum album => AlbumCard(album: album),
+        GenericSimpleArtist artist => ArtistCard(artist: artist),
+        _ => null,
+      };
 
   Widget _buildSection(
     String title,

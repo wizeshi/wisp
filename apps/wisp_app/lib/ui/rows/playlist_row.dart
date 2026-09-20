@@ -8,6 +8,7 @@ import 'package:wisp/ui/rows/generic_row.dart';
 import 'package:wisp/views/list_detail.dart';
 import 'package:wisp/widgets/entity_context_menus.dart';
 import 'package:wisp/widgets/liked_songs_art.dart';
+import 'package:wisp/utils/liked_songs.dart';
 
 import '../../models/metadata_models.dart';
 import '../artwork/artwork_thumbnail.dart';
@@ -28,15 +29,21 @@ String playlistSubtitle(GenericPlaylist playlist) {
 class PlaylistRow extends StatelessWidget {
   final GenericPlaylist playlist;
   final double width;
+  final double height;
   final EdgeInsetsGeometry padding;
   final GenericRowPlayPosition playPosition;
+  final Color? backgroundColor;
+  final bool showSubtitle;
 
   const PlaylistRow({
     super.key,
     required this.playlist,
     this.width = 160,
+    this.height = 48,
     this.padding = EdgeInsets.zero,
     this.playPosition = GenericRowPlayPosition.end,
+    this.backgroundColor,
+    this.showSubtitle = true,
   });
 
   Future<void> _startPlaylistPlayback(BuildContext context) async {
@@ -113,11 +120,14 @@ class PlaylistRow extends StatelessWidget {
     );
     return GenericRow(
       width: width,
+      height: height,
       padding: padding,
       playPosition: playPosition,
+      backgroundColor: backgroundColor,
+      showSubtitle: showSubtitle,
       title: playlist.title,
       subtitle: playlistSubtitle(playlist),
-      artwork: (playlist.title == "Liked Songs")
+      artwork: (playlist.title == "Liked Songs" || isLikedSongsPlaylistId(playlist.id))
           ? ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: LikedSongsArt(size: ArtworkSize.large.logicalSize),
