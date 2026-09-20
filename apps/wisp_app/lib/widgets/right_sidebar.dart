@@ -289,7 +289,6 @@ class _NowPlayingCard extends StatelessWidget {
                 (data.playbackContextType == PlaybackContextType.playlist ||
                     data.playbackContextType == PlaybackContextType.album ||
                     data.playbackContextType == PlaybackContextType.artist);
-            final album = track?.album;
             final canUseCanvas =
                 !animatedCanvasDisabled &&
                 useCanvas &&
@@ -468,71 +467,17 @@ class _NowPlayingCard extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  HoverUnderline(
-                                    cursor: album != null && album.id.isNotEmpty
-                                        ? SystemMouseCursors.click
-                                        : SystemMouseCursors.basic,
-                                    onTap: album != null && album.id.isNotEmpty
-                                        ? () => _openAlbum(context, album)
-                                        : null,
-                                    onSecondaryTapDown: (details) {
-                                      EntityContextMenus.showTrackMenu(
-                                        context,
-                                        track: track,
-                                        globalPosition: details.globalPosition,
-                                      );
-                                    },
-                                    builder: (isHovering) => MarqueeText(
-                                      text: track.title,
-                                      pauseWhenUnfocused: true,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                        decoration: isHovering && album != null
-                                            ? TextDecoration.underline
-                                            : TextDecoration.none,
-                                      ),
-                                    ),
-                                  ),
-                                  Row(
-                                    children: track.artists
-                                        .map(
-                                          (artist) => HoverUnderline(
-                                            cursor: SystemMouseCursors.click,
-                                            onTap: () =>
-                                                _openArtist(context, artist),
-                                            onSecondaryTapDown: (details) {
-                                              EntityContextMenus.showArtistMenu(
-                                                context,
-                                                artist: artist,
-                                                globalPosition:
-                                                    details.globalPosition,
-                                              );
-                                            },
-                                            builder: (isHovering) => Text(
-                                              artist.name +
-                                                  (track.artists.last != artist
-                                                      ? ', '
-                                                      : ''),
-                                              style: TextStyle(
-                                                color: Colors.grey[200],
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w500,
-                                                decoration: isHovering
-                                                    ? TextDecoration.underline
-                                                    : TextDecoration.none,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                  ),
-                                ],
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildTrackTitle(context, track),
+                                    const SizedBox(height: 2),
+                                    _buildTrackArtists(context, track),
+                                  ],
+                                ),
                               ),
+                              const SizedBox(width: 8),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -661,6 +606,125 @@ class _NowPlayingCard extends StatelessWidget {
         normalized != 'unknown playlist' &&
         normalized != 'unknown album' &&
         normalized != 'unknown artist';
+  }
+
+  Widget _buildTrackTitle(BuildContext context, GenericSong track) {
+    final album = track.album;
+    final hasAlbum = album != null && album.id.isNotEmpty;
+    const style = TextStyle(
+      color: Colors.white,
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+    );
+
+    return MarqueeText(
+      text: track.title,
+      style: style,
+      pauseWhenUnfocused: true,
+      builder: (context, textStyle) => HoverUnderline(
+        cursor: hasAlbum ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onTap: hasAlbum ? () => _openAlbum(context, album) : null,
+        onSecondaryTapDown: (details) {
+          EntityContextMenus.showTrackMenu(
+            context,
+            track: track,
+            globalPosition: details.globalPosition,
+          );
+        },
+        builder: (isHovering) => Text(
+          track.title,
+          style: textStyle.copyWith(
+            decoration: isHovering && hasAlbum
+                ? TextDecoration.underline
+                : TextDecoration.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTrackArtists(BuildContext context, GenericSong track) {
+    final artists = track.artists;
+    if (artists.isEmpty) return const SizedBox.shrink();
+
+    final joinedText = artists.map((a) => a.name).join(', ');
+    final style = TextStyle(
+      color: Colors.grey[200],
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textPainter = TextPainter(
+          text: TextSpan(text: joinedText, style: style),
+          maxLines: 1,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout();
+
+        final overflows =
+            constraints.hasBoundedWidth &&
+            textPainter.width > constraints.maxWidth;
+
+        if (overflows) {
+          return MarqueeText(
+            text: joinedText,
+            style: style,
+            pauseWhenUnfocused: true,
+            builder: artists.length == 1
+                ? (context, textStyle) => HoverUnderline(
+                    cursor: SystemMouseCursors.click,
+                    onTap: () => _openArtist(context, artists.first),
+                    onSecondaryTapDown: (details) {
+                      EntityContextMenus.showArtistMenu(
+                        context,
+                        artist: artists.first,
+                        globalPosition: details.globalPosition,
+                      );
+                    },
+                    builder: (isHovering) => Text(
+                      joinedText,
+                      style: textStyle.copyWith(
+                        decoration: isHovering
+                            ? TextDecoration.underline
+                            : TextDecoration.none,
+                      ),
+                    ),
+                  )
+                : null,
+          );
+        }
+
+        return Wrap(
+          children: [
+            for (int i = 0; i < artists.length; i++) ...[
+              HoverUnderline(
+                cursor: SystemMouseCursors.click,
+                onTap: () => _openArtist(context, artists[i]),
+                onSecondaryTapDown: (details) {
+                  EntityContextMenus.showArtistMenu(
+                    context,
+                    artist: artists[i],
+                    globalPosition: details.globalPosition,
+                  );
+                },
+                builder: (isHovering) => Text(
+                  artists[i].name,
+                  style: style.copyWith(
+                    decoration: isHovering
+                        ? TextDecoration.underline
+                        : TextDecoration.none,
+                  ),
+                ),
+              ),
+              if (i < artists.length - 1)
+                Text(', ', style: style),
+            ],
+          ],
+        );
+      },
+    );
   }
 
   void _openAlbum(BuildContext context, GenericSimpleAlbum album) {
