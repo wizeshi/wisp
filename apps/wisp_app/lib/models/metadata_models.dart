@@ -277,6 +277,7 @@ class GenericSong {
   final bool explicit;
   final GenericSimpleAlbum? album;
   final int durationSecs;
+  final List<String>? languages;
 
   GenericSong({
     required this.id,
@@ -285,8 +286,9 @@ class GenericSong {
     required this.artists,
     required this.thumbnailUrl,
     required this.explicit,
-    this.album,
     required this.durationSecs,
+    this.album,
+    this.languages,
   });
 
   Map<String, dynamic> toJson() => {
@@ -298,6 +300,7 @@ class GenericSong {
     'explicit': explicit,
     'album': album?.toJson(),
     'duration_secs': durationSecs,
+    'languages': languages,
   };
 
   factory GenericSong.fromJson(Map<String, dynamic> json) {
@@ -314,6 +317,9 @@ class GenericSong {
           ? GenericSimpleAlbum.fromJson(json['album'] as Map<String, dynamic>)
           : null,
       durationSecs: json['duration_secs'] as int,
+      languages: json['languages'] != null
+          ? (json['languages'] as List).map((l) => l as String).toList()
+          : null,
     );
   }
 

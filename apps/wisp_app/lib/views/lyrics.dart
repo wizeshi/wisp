@@ -348,8 +348,9 @@ class _LyricsViewState extends State<LyricsView> {
         final syncedState = provider.getState(track, mode);
         final syncedLyrics = syncedState.lyrics;
         if (syncedLyrics == null ||
-            syncedLyrics.syncMode == LyricsSyncMode.unsynced)
+            syncedLyrics.syncMode == LyricsSyncMode.unsynced) {
           return;
+        }
         final cleanedSyncedLyrics = removeEmptyLyricsLines(syncedLyrics);
         if (cleanedSyncedLyrics.lines.isEmpty) return;
         final positionMs = _effectivePositionMs();

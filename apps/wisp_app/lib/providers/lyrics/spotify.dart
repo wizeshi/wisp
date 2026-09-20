@@ -3,9 +3,9 @@
 /// Spotify lyrics provider using internal API + TOTP
 library;
 
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:wisp/providers/common/spotify_tokens.dart';
+import 'package:wisp/utils/json.dart';
 import '../../models/metadata_models.dart';
 import '../../services/credentials.dart';
 import '../../utils/logger.dart';
@@ -122,7 +122,8 @@ class SpotifyLyricsProvider {
     }
 
     try {
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final json =
+          (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
       final lyrics = json['lyrics'] as Map<String, dynamic>?;
       if (lyrics == null) return null;
       final syncType = lyrics['syncType'] as String? ?? 'LINE_UNSYNCED';

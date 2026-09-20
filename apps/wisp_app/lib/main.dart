@@ -34,6 +34,7 @@ import 'services/cache_manager.dart';
 import 'services/download_foreground_service.dart';
 import 'services/desktop_notification_center.dart';
 import 'services/discord_rpc_service.dart';
+import 'services/listening_habits_service.dart';
 import 'widgets/app_shell.dart';
 import 'package:wisp/utils/logger.dart';
 
@@ -119,6 +120,9 @@ void main() async {
   // Initialize Discord RPC (desktop only)
   await DiscordRpcService.instance.initialize();
 
+  // Initialize listening habits service
+  await ListeningHabitsService.instance.initialize();
+
   if (Platform.isAndroid) {
     NewPipeManager.instance.androidDelegate = NativeAndroidNewPipeDelegate();
   }
@@ -168,20 +172,24 @@ class WispApp extends StatelessWidget {
   final WispAudioHandler audioHandler;
   final PlaybackCoordinator playbackCoordinator;
   final AppLinks appLinks;
+  final SpotifyInternalProvider spotifyProvider;
 
-  const WispApp({
+  WispApp({
     super.key,
     required this.audioHandler,
     required this.playbackCoordinator,
     required this.appLinks,
-  });
+    SpotifyInternalProvider? spotifyProvider,
+  }) : spotifyProvider = spotifyProvider ?? SpotifyInternalProvider() {
+    ListeningHabitsService.instance.bindSpotifyProvider(this.spotifyProvider);
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         // Providers for various services and state management
-        ChangeNotifierProvider(create: (_) => SpotifyInternalProvider()),
+        ChangeNotifierProvider.value(value: spotifyProvider),
         ChangeNotifierProvider(create: (_) => YouTubeMetadataProvider()),
 
         ChangeNotifierProvider(create: (_) => LyricsProvider()),
@@ -203,6 +211,7 @@ class WispApp extends StatelessWidget {
 
         ChangeNotifierProvider.value(value: audioHandler),
         ChangeNotifierProvider.value(value: playbackCoordinator),
+        ChangeNotifierProvider.value(value: ListeningHabitsService.instance),
 
         ChangeNotifierProxyProvider<WispAudioHandler, CoverArtPaletteProvider>(
           create: (_) => CoverArtPaletteProvider(),

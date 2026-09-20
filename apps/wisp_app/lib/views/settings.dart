@@ -3,7 +3,6 @@
 /// Settings page with Spotify authentication
 library;
 
-import 'dart:convert';
 import 'dart:io' show Directory, Platform, Process;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -17,6 +16,7 @@ import 'package:wisp/services/connect/connect_models.dart';
 import 'package:wisp/providers/lyrics/provider.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/theme/app_theme.dart';
+import 'package:wisp/utils/json.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import '../providers/library/local_playlists.dart';
 import '../providers/preferences/preferences_provider.dart';
@@ -312,7 +312,9 @@ class _SettingsPageState extends State<SettingsPage> {
                             : 'Selected caches deleted.',
                       );
                     }
-                    Navigator.of(dialogContext).pop();
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
                   },
                   child: const Text('Delete'),
                 ),
@@ -1169,9 +1171,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       await context
                           .read<PreferencesProvider>()
                           .setGaplessPlaybackEnabled(value);
-                      await context
-                          .read<global_audio_player.WispAudioHandler>()
-                          .setGaplessPlaybackEnabled(value);
+                      if (context.mounted) {
+                        await context
+                            .read<global_audio_player.WispAudioHandler>()
+                            .setGaplessPlaybackEnabled(value);
+                      }
                     },
                     activeThumbColor: Theme.of(context).colorScheme.primary,
                   ),
@@ -1201,9 +1205,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       await context
                           .read<PreferencesProvider>()
                           .setCrossfadeEnabled(value);
-                      await context
-                          .read<global_audio_player.WispAudioHandler>()
-                          .setCrossfadeEnabled(value);
+
+                      if (context.mounted) {
+                        await context
+                            .read<global_audio_player.WispAudioHandler>()
+                            .setCrossfadeEnabled(value);
+                      }
                     },
                     activeThumbColor: Theme.of(context).colorScheme.primary,
                   ),
@@ -1258,9 +1265,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       await context
                           .read<PreferencesProvider>()
                           .setCrossfadeDurationSeconds(value);
-                      await context
-                          .read<global_audio_player.WispAudioHandler>()
-                          .setCrossfadeDurationSeconds(value);
+                      if (context.mounted) {
+                        await context
+                            .read<global_audio_player.WispAudioHandler>()
+                            .setCrossfadeDurationSeconds(value);
+                      }
                     },
                   ),
                 ),
@@ -1782,7 +1791,8 @@ class _UpdateWidgetState extends State<UpdateWidget> {
       return isUpdated; // Return true to avoid showing update available on error
     }
 
-    final latestVersion = jsonDecode(response.body)['name'] as String;
+    final latestVersion =
+        (await JsonUtils.decode(response.body))['name'] as String;
 
     final latestVersionMajor = int.parse(latestVersion.split('.').first);
     final latestVersionMinor = int.parse(
@@ -2134,6 +2144,7 @@ class SettingsContent extends StatelessWidget {
                               ),
                             );
                             if (confirm == true) {
+                              if (!context.mounted) return;
                               await context
                                   .read<LocalPlaylistState>()
                                   .permanentlyDeletePlaylist(p.id);
@@ -2215,6 +2226,7 @@ class SettingsContent extends StatelessWidget {
                       showSnackBar('No id entered');
                       return;
                     }
+                    if (!context.mounted) return;
                     await context
                         .read<LocalPlaylistState>()
                         .unhideProviderPlaylist(providerId);

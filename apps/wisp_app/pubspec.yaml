@@ -4,7 +4,7 @@ publish_to: 'none'
 
 resolution: workspace
 
-version: 26.9.1+174
+version: 26.9.1+191
 
 environment:
   sdk: ^3.10.7
@@ -32,7 +32,6 @@ dependencies:
   video_player: ^2.13.0
   video_player_win: ^3.2.2
   fvp: ^0.38.1
-  just_waveform: ^0.0.7
 
   # Audio playback and background service
   media_kit: ^1.2.6
@@ -94,6 +93,7 @@ dependencies:
   wisp_playback_engine: any
   wisp_audio_output_info: any
   yaml: ^3.1.4
+  protobuf: ^6.1.0
 
 
 dev_dependencies:

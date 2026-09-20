@@ -316,7 +316,7 @@ class LanConnectService implements ConnectTransport {
           'from_platform': localPlatform,
           'control_port': _controlPort,
           'link_mode': mode.toJson(),
-          if (rejectionReason != null) 'rejection_reason': rejectionReason,
+          'rejection_reason': ?rejectionReason,
         },
         metadata: {'ts': DateTime.now().toIso8601String()},
       ),

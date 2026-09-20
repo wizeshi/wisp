@@ -88,7 +88,9 @@ class PlaylistFolderModals {
         name,
       );
     } catch (e) {
-      _showSyncErrorSnack(context, 'Failed to rename on Spotify: $e');
+      if (context.mounted) {
+        _showSyncErrorSnack(context, 'Failed to rename on Spotify: $e');
+      }
     }
   }
 
@@ -113,7 +115,9 @@ class PlaylistFolderModals {
     try {
       await context.read<SpotifyInternalProvider>().deletePlaylist(linkedId);
     } catch (e) {
-      _showSyncErrorSnack(context, 'Failed to delete on Spotify: $e');
+      if (context.mounted) {
+        _showSyncErrorSnack(context, 'Failed to delete on Spotify: $e');
+      }
     }
   }
 
@@ -136,18 +140,24 @@ class PlaylistFolderModals {
         name: localPlaylist.title,
       );
     } catch (e) {
-      _showSyncErrorSnack(context, 'Failed to create on Spotify: $e');
+      if (context.mounted) {
+        _showSyncErrorSnack(context, 'Failed to create on Spotify: $e');
+      }
       return;
     }
     if (linkedId.isEmpty) {
-      _showSyncErrorSnack(context, 'Failed to create Spotify playlist.');
+      if (context.mounted) {
+        _showSyncErrorSnack(context, 'Failed to create Spotify playlist.');
+      }
       return;
     }
-    await context.read<LocalPlaylistState>().linkToProvider(
-      id: localPlaylist.id,
-      provider: SongSource.spotifyInternal,
-      providerId: linkedId,
-    );
+    if (context.mounted) {
+      await context.read<LocalPlaylistState>().linkToProvider(
+        id: localPlaylist.id,
+        provider: SongSource.spotifyInternal,
+        providerId: linkedId,
+      );
+    }
   }
 
   static Future<void> deletePlaylistWithSync(
@@ -158,7 +168,9 @@ class PlaylistFolderModals {
     final localPlaylist = localState.getById(playlistId);
     await localState.deletePlaylist(playlistId);
     if (localPlaylist != null) {
-      await _syncDeleteToProvider(context, localPlaylist);
+      if (context.mounted) {
+        await _syncDeleteToProvider(context, localPlaylist);
+      }
     }
   }
 
@@ -257,11 +269,8 @@ class PlaylistFolderModals {
     File? selectedFile;
 
     Future<void> pickThumbnail(StateSetter setModalState) async {
-      final result = await FilePicker.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
-      final filePath = result?.first.path;
+      final result = await FilePicker.pickFiles(type: FileType.image);
+      final filePath = result.first.path;
       if (filePath == null) return;
       setModalState(() {
         selectedFile = File(filePath);
@@ -275,7 +284,9 @@ class PlaylistFolderModals {
         title: title,
         thumbnailFile: selectedFile,
       );
-      Navigator.pop(modalContext);
+      if (modalContext.mounted) {
+        Navigator.pop(modalContext);
+      }
     }
 
     if (isMobile) {
@@ -444,11 +455,8 @@ class PlaylistFolderModals {
     File? selectedFile;
 
     Future<void> pickThumbnail(StateSetter setModalState) async {
-      final result = await FilePicker.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
-      final filePath = result?.first.path;
+      final result = await FilePicker.pickFiles(type: FileType.image);
+      final filePath = result.first.path;
       if (filePath == null) return;
       setModalState(() {
         selectedFile = File(filePath);
@@ -461,7 +469,11 @@ class PlaylistFolderModals {
       final localPlaylist = await modalContext
           .read<LocalPlaylistState>()
           .createPlaylist(title: name, thumbnailFile: selectedFile);
-      await _syncCreateToProvider(modalContext, localPlaylist);
+
+      if (modalContext.mounted) {
+        await _syncCreateToProvider(modalContext, localPlaylist);
+      }
+
       if (modalContext.mounted) {
         Navigator.of(modalContext).pop();
       }
@@ -672,7 +684,7 @@ class PlaylistFolderModals {
                 final localState = context.read<LocalPlaylistState>();
                 final localPlaylist = localState.getById(playlist.id);
                 await localState.renamePlaylist(playlist.id, name);
-                if (localPlaylist != null) {
+                if (localPlaylist != null && dialogContext.mounted) {
                   await _syncRenameToProvider(context, localPlaylist, name);
                 }
                 if (dialogContext.mounted) {
@@ -701,7 +713,10 @@ class PlaylistFolderModals {
         folder.id,
         title,
       );
-      Navigator.pop(modalContext);
+
+      if (modalContext.mounted) {
+        Navigator.pop(modalContext);
+      }
     }
 
     if (isMobile) {
@@ -818,32 +833,30 @@ class PlaylistFolderModals {
     BuildContext context,
     PlaylistFolder folder,
   ) async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-    );
-    final filePath = result?.first.path;
+    final result = await FilePicker.pickFiles(type: FileType.image);
+    final filePath = result.first.path;
     if (filePath == null) return;
-    await context.read<LibraryFolderState>().changeFolderThumbnail(
-      folder.id,
-      File(filePath),
-    );
+    if (context.mounted) {
+      await context.read<LibraryFolderState>().changeFolderThumbnail(
+        folder.id,
+        File(filePath),
+      );
+    }
   }
 
   static Future<void> showChangePlaylistThumbnailDialog(
     BuildContext context,
     GenericPlaylist playlist,
   ) async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-    );
-    final filePath = result?.first.path;
+    final result = await FilePicker.pickFiles(type: FileType.image);
+    final filePath = result.first.path;
     if (filePath == null) return;
-    await context.read<LocalPlaylistState>().updateThumbnail(
-      playlist.id,
-      File(filePath),
-    );
+    if (context.mounted) {
+      await context.read<LocalPlaylistState>().updateThumbnail(
+        playlist.id,
+        File(filePath),
+      );
+    }
   }
 
   static Future<void> showAddToFolderMenu(
@@ -1045,7 +1058,7 @@ class PlaylistFolderModals {
             Expanded(
               child: Text(label, style: const TextStyle(color: Colors.white)),
             ),
-            if (trailing != null) trailing,
+            ?trailing,
           ],
         ),
       ),

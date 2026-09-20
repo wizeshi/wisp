@@ -2200,7 +2200,7 @@ class ConnectSessionProvider extends ChangeNotifier
       logger.d(
         '[Handoff] Preparing command_ack: packet.fromAddress=${apply.fromAddress} linkedPeer=$_linkedPeerAddress discovered=${_discoveredById[apply.fromDeviceId]?.address} pairingTarget=$_pairingTargetAddress',
       );
-      if (targetAddr == null || targetAddr.isEmpty || targetAddr == '0.0.0.0') {
+      if (targetAddr.isEmpty || targetAddr == '0.0.0.0') {
         targetAddr = _linkedPeerAddress;
       }
       if (targetAddr == null || targetAddr.isEmpty || targetAddr == '0.0.0.0') {

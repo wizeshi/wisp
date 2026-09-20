@@ -2,15 +2,18 @@
 
 // Debug View for the app. Shows internal info about app state, player state, whatever needed.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/models/metadata_models.dart';
 import 'package:wisp/providers/metadata/spotify_internal.dart';
 import 'package:wisp/providers/metadata/youtube.dart';
+import 'package:wisp/services/listening_habits_service.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
 
 String _formatDuration(int? duration, {bool miliseconds = false}) {
@@ -34,7 +37,9 @@ enum DebugViewTab {
   // ignore: constant_identifier_names
   ProviderState,
   // ignore: constant_identifier_names
-  Handoff;
+  Handoff,
+  // ignore: constant_identifier_names
+  Genres;
 
   String toJson() => name;
 
@@ -109,6 +114,8 @@ class _DebugViewState extends State<DebugView> {
                     buildButton("Providers", DebugViewTab.ProviderState),
                     const SizedBox(height: 6),
                     buildButton("Handoff", DebugViewTab.Handoff),
+                    const SizedBox(height: 6),
+                    buildButton("Genres & Habits", DebugViewTab.Genres),
                   ],
                 ),
               ),
@@ -204,6 +211,8 @@ class _DebugViewState extends State<DebugView> {
                           DebugViewTab.ProviderState => ProviderStateView(),
 
                           DebugViewTab.Handoff => HandoffView(),
+
+                          DebugViewTab.Genres => const GenresDebugView(),
                         },
                       ),
                     ],
@@ -247,7 +256,7 @@ class NavigationHistoryView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(child: Text("Navigation History View"));
+    return Text("Navigation History View");
   }
 }
 
@@ -2014,7 +2023,555 @@ class HandoffView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(child: Text("Handoff View"));
+    return Text("Handoff View");
+  }
+}
+
+class GenresDebugView extends StatefulWidget {
+  const GenresDebugView({super.key});
+
+  @override
+  State<GenresDebugView> createState() => _GenresDebugViewState();
+}
+
+class _GenresDebugViewState extends State<GenresDebugView> {
+  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _lookupController = TextEditingController();
+  bool _sortByFrequency = true;
+  bool _isLookingUp = false;
+  List<String>? _liveLookupGenres;
+  String? _liveLookupError;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _lookupController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _performLiveLookup() async {
+    final input = _lookupController.text.trim();
+    if (input.isEmpty) return;
+
+    setState(() {
+      _isLookingUp = true;
+      _liveLookupError = null;
+      _liveLookupGenres = null;
+    });
+
+    try {
+      final spotify = context.read<SpotifyInternalProvider>();
+      final cleanId = input.startsWith('spotify:track:')
+          ? input.split(':').last
+          : input;
+      final genres = await spotify.getTrackGenres(cleanId);
+      if (mounted) {
+        setState(() {
+          _liveLookupGenres = genres;
+          _isLookingUp = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _liveLookupError = e.toString();
+          _isLookingUp = false;
+        });
+      }
+    }
+  }
+
+  void _copyToClipboard(BuildContext context, String text, String label) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label copied to clipboard!'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ListeningHabitsService>(
+      builder: (context, habits, _) {
+        final uniqueGenresSet = habits.allUniqueGenres;
+        final frequencyMap = habits.genreFrequency;
+        final searchQuery = _searchController.text.toLowerCase().trim();
+
+        var displayGenres = uniqueGenresSet.where((g) {
+          if (searchQuery.isEmpty) return true;
+          return g.toLowerCase().contains(searchQuery);
+        }).toList();
+
+        if (_sortByFrequency) {
+          displayGenres.sort((a, b) {
+            final fA = frequencyMap[a] ?? 0;
+            final fB = frequencyMap[b] ?? 0;
+            if (fB != fA) return fB.compareTo(fA);
+            return a.compareTo(b);
+          });
+        } else {
+          displayGenres.sort((a, b) => a.compareTo(b));
+        }
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Top Summary Cards
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _buildStatCard(
+                  title: "Unique Genres",
+                  value: "${uniqueGenresSet.length}",
+                  icon: Icons.category,
+                  color: Colors.purpleAccent,
+                ),
+                _buildStatCard(
+                  title: "Tracks Finished",
+                  value: "${habits.history.length}",
+                  icon: Icons.check_circle_outline,
+                  color: Colors.greenAccent,
+                ),
+                _buildStatCard(
+                  title: "Languages Detected",
+                  value: "${habits.history.expand((r) => r.languages).toSet().length}",
+                  icon: Icons.language,
+                  color: Colors.blueAccent,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // Live Test / Lookup Box
+            Card(
+              color: Colors.grey.shade900,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey.shade800),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.bolt, color: Colors.amberAccent, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          "Live Track Genre Lookup",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "Test any Spotify Track ID or URI to see what genres Spotify returns right now:",
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _lookupController,
+                            decoration: InputDecoration(
+                              hintText: "e.g. 3I0w0pdn5s2W44gGmBxsa0",
+                              hintStyle: TextStyle(color: Colors.grey.shade600),
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              filled: true,
+                              fillColor: Colors.black26,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(color: Colors.grey.shade700),
+                              ),
+                            ),
+                            onSubmitted: (_) => _performLiveLookup(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: _isLookingUp ? null : _performLiveLookup,
+                          icon: _isLookingUp
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.search, size: 18),
+                          label: const Text("Lookup"),
+                        ),
+                      ],
+                    ),
+                    if (_liveLookupGenres != null) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Text(
+                            "Result: ",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Expanded(
+                            child: _liveLookupGenres!.isEmpty
+                                ? const Text(
+                                    "No genres tagged by Spotify for this track",
+                                    style: TextStyle(color: Colors.amberAccent),
+                                  )
+                                : Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: _liveLookupGenres!
+                                        .map(
+                                          (g) => Chip(
+                                            label: Text(g),
+                                            backgroundColor: Colors.purple.shade900,
+                                            padding: EdgeInsets.zero,
+                                            materialTapTargetSize:
+                                                MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (_liveLookupError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        "Error: $_liveLookupError",
+                        style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Section Header & Actions
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "All Available Genres (${displayGenres.length})",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: _sortByFrequency
+                      ? "Sorted by Frequency (Click for A-Z)"
+                      : "Sorted Alphabetically (Click for Frequency)",
+                  icon: Icon(
+                    _sortByFrequency ? Icons.sort : Icons.sort_by_alpha,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _sortByFrequency = !_sortByFrequency;
+                    });
+                  },
+                ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.copy, size: 16),
+                  label: const Text("Copy JSON"),
+                  onPressed: uniqueGenresSet.isEmpty
+                      ? null
+                      : () {
+                          final jsonStr = jsonEncode(uniqueGenresSet.toList());
+                          _copyToClipboard(context, jsonStr, "Genres JSON");
+                        },
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.list, size: 16),
+                  label: const Text("Copy List"),
+                  onPressed: uniqueGenresSet.isEmpty
+                      ? null
+                      : () {
+                          final listStr = uniqueGenresSet.join(', ');
+                          _copyToClipboard(context, listStr, "Genres list");
+                        },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // Search input
+            TextField(
+              controller: _searchController,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: "Filter unique genres...",
+                prefixIcon: const Icon(Icons.filter_list, size: 20),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {});
+                        },
+                      )
+                    : null,
+                isDense: true,
+                filled: true,
+                fillColor: Colors.grey.shade900,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.grey.shade800),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            // The Set of Genres (Chips)
+            if (uniqueGenresSet.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.music_off, size: 48, color: Colors.grey.shade600),
+                      const SizedBox(height: 12),
+                      Text(
+                        "No genres logged yet.",
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade400,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Genres will appear here automatically as tracks finish playing.",
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: displayGenres.map((genre) {
+                  final count = frequencyMap[genre] ?? 0;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => _copyToClipboard(context, genre, 'Genre "$genre"'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withValues(alpha: 0.25),
+                        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.4)),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            genre,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                          if (count > 0) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.purpleAccent.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                "$count",
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+
+            const SizedBox(height: 30),
+
+            // Finished Track History
+            if (habits.history.isNotEmpty) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "Track Playback History (${habits.history.length})",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    "Most recent first",
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ...habits.history.reversed.take(50).map((record) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  color: Colors.grey.shade900,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Colors.grey.shade800),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    title: Text(
+                      record.title,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        Text(
+                          "${record.artistNames.join(', ')} • ${record.albumName ?? 'Unknown Album'} "
+                          "${record.releaseYear != null ? '(${record.releaseYear})' : ''} "
+                          "${record.languages.isNotEmpty ? '• Lang: ${record.languages.join(', ')}' : ''}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
+                        if (record.genres.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: record.genres
+                                .map(
+                                  (g) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.purple.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Colors.purpleAccent.withValues(alpha: 0.3),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      g,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.purpleAccent,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ],
+                      ],
+                    ),
+                    trailing: Text(
+                      _formatCompletedTime(record.completedAt),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      width: 180,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade800),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCompletedTime(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inMinutes < 1) return "Just now";
+    if (diff.inMinutes < 60) return "${diff.inMinutes}m ago";
+    if (diff.inHours < 24) return "${diff.inHours}h ago";
+    return "${diff.inDays}d ago";
   }
 }
 

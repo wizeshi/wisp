@@ -488,10 +488,11 @@ class _LeftResizeHandle extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragUpdate: (details) => onResize(details.delta.dx),
-        child: SizedBox(
-          width: 6,
+        child: Container(
+          color: Colors.black,
+          width: 8,
           child: Align(
-            alignment: Alignment.centerRight,
+            alignment: Alignment.center,
             child: Container(
               width: 2,
               height: 48,

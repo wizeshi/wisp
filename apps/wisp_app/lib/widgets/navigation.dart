@@ -1,10 +1,7 @@
 // Copyright © 2026 wizeshi
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'dart:io' show Platform, File;
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:io' show Platform;
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/ui/rows/album_row.dart';
@@ -17,13 +14,10 @@ import '../models/library_folder.dart';
 import '../providers/library/library_folders.dart';
 import '../providers/library/library_state.dart';
 import '../providers/metadata/spotify_internal.dart';
-import '../services/playback/playback_coordinator.dart';
 import '../services/wisp_audio_handler.dart';
 import '../services/navigation_history.dart';
 import 'playlist_folder_modals.dart';
-import 'entity_context_menus.dart';
 import '../utils/liked_songs.dart';
-import 'liked_songs_art.dart';
 
 enum LibraryView { all, playlists, albums, artists }
 
@@ -88,222 +82,9 @@ class _WispNavigationState extends State<WispNavigation> {
   bool _isCollapsed = false;
   bool _isHoveringHeader = false;
   bool _layoutCollapsed = false;
-  String? _hoveredSidebarItemKey;
-  DateTime? _lastSidebarTapTime;
-  String? _lastSidebarTapKey;
-
-  bool _isLocalPath(String? path) {
-    if (path == null || path.isEmpty) return false;
-    return path.startsWith('/') || path.startsWith('file://');
-  }
 
   bool _isDesktop() {
     return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-  }
-
-  String _sidebarItemHoverKey(dynamic resolvedItem) {
-    if (resolvedItem is PlaylistFolder) return 'folder:${resolvedItem.id}';
-    if (resolvedItem is GenericPlaylist) return 'playlist:${resolvedItem.id}';
-    if (resolvedItem is GenericAlbum) return 'album:${resolvedItem.id}';
-    if (resolvedItem is GenericSimpleArtist) return 'artist:${resolvedItem.id}';
-    try {
-      final dynamic obj = resolvedItem;
-      final id = obj.id;
-      if (id != null) return '${resolvedItem.runtimeType}:$id';
-      final title = obj.title ?? obj.name;
-      if (title != null) return '${resolvedItem.runtimeType}:$title';
-    } catch (_) {
-      // Ignore and fall back below.
-    }
-    return resolvedItem.runtimeType.toString();
-  }
-
-  Future<void> _playSidebarItem(dynamic resolvedItem) async {
-    if (resolvedItem is GenericPlaylist) {
-      final tracks =
-          resolvedItem.songs
-              ?.map(
-                (item) => GenericSong(
-                  id: item.id,
-                  source: item.source,
-                  title: item.title,
-                  artists: item.artists,
-                  thumbnailUrl: item.thumbnailUrl,
-                  explicit: item.explicit,
-                  album: item.album,
-                  durationSecs: item.durationSecs,
-                ),
-              )
-              .toList() ??
-          const <GenericSong>[];
-      final queueTracks = tracks.isNotEmpty
-          ? tracks
-          : (await context.read<SpotifyInternalProvider>().getPlaylistInfo(
-                      resolvedItem.id,
-                    )).songs
-                    ?.map(
-                      (item) => GenericSong(
-                        id: item.id,
-                        source: item.source,
-                        title: item.title,
-                        artists: item.artists,
-                        thumbnailUrl: item.thumbnailUrl,
-                        explicit: item.explicit,
-                        album: item.album,
-                        durationSecs: item.durationSecs,
-                      ),
-                    )
-                    .toList() ??
-                const <GenericSong>[];
-      if (queueTracks.isEmpty || !mounted) return;
-      await context.read<PlaybackCoordinator>().setQueue(
-        queueTracks,
-        startIndex: 0,
-        play: true,
-        playbackContext: PlaybackContext(
-          type: PlaybackContextType.playlist,
-          name: resolvedItem.title,
-          id: resolvedItem.id,
-          source: resolvedItem.source,
-        ),
-      );
-      if (!mounted) return;
-      context.read<LibraryFolderState>().markPlaylistPlayed(resolvedItem.id);
-      context.read<SpotifyInternalProvider>().reportItemPlayed(
-        itemId: resolvedItem.id,
-        itemType: 'playlist',
-      );
-      return;
-    }
-
-    if (resolvedItem is GenericAlbum || resolvedItem is GenericSimpleAlbum) {
-      final albumId = resolvedItem.id as String;
-      final fullAlbum = await context
-          .read<SpotifyInternalProvider>()
-          .getAlbumInfo(albumId);
-      final tracks = fullAlbum.songs ?? const <GenericSong>[];
-      if (tracks.isEmpty || !mounted) return;
-      await context.read<PlaybackCoordinator>().setQueue(
-        tracks,
-        startIndex: 0,
-        play: true,
-        playbackContext: PlaybackContext(
-          type: PlaybackContextType.album,
-          name: fullAlbum.title,
-          id: fullAlbum.id,
-          source: fullAlbum.source,
-        ),
-      );
-      if (!mounted) return;
-      context.read<LibraryFolderState>().markItemPlayed(albumId);
-      context.read<SpotifyInternalProvider>().reportItemPlayed(
-        itemId: albumId,
-        itemType: 'album',
-      );
-      return;
-    }
-
-    if (resolvedItem is GenericSimpleArtist) {
-      final artist = await context
-          .read<SpotifyInternalProvider>()
-          .getArtistInfo(resolvedItem.id);
-      final tracks = artist.topSongs;
-      if (tracks.isEmpty || !mounted) return;
-      await context.read<PlaybackCoordinator>().setQueue(
-        tracks,
-        startIndex: 0,
-        play: true,
-        playbackContext: PlaybackContext(
-          type: PlaybackContextType.artist,
-          name: artist.name,
-          id: artist.id,
-          source: artist.source,
-        ),
-      );
-      if (!mounted) return;
-      context.read<LibraryFolderState>().markItemPlayed(resolvedItem.id);
-      context.read<SpotifyInternalProvider>().reportItemPlayed(
-        itemId: resolvedItem.id,
-        itemType: 'artist',
-      );
-    }
-  }
-
-  bool _isSidebarItemActive(dynamic resolvedItem, WispAudioHandler player) {
-    final playbackType = player.playbackContext?.type;
-    final playbackId = player.playbackContext?.id;
-    final playbackName = player.playbackContext?.name.trim();
-
-    return switch (resolvedItem) {
-      GenericPlaylist playlist =>
-        playbackType == PlaybackContextType.playlist &&
-            (playbackId == playlist.id ||
-                playbackName == playlist.title.trim()),
-      GenericAlbum album =>
-        playbackType == PlaybackContextType.album &&
-            (playbackId == album.id || playbackName == album.title.trim()),
-      GenericSimpleAlbum album =>
-        playbackType == PlaybackContextType.album &&
-            (playbackId == album.id || playbackName == album.title.trim()),
-      GenericSimpleArtist artist =>
-        (playbackType == PlaybackContextType.artist &&
-                (playbackId == artist.id ||
-                    playbackName == artist.name.trim())) ||
-            (player.currentTrack?.artists.any((a) => a.id == artist.id) ??
-                false),
-      _ => false,
-    };
-  }
-
-  Future<void> _handleSidebarPlay(dynamic resolvedItem) async {
-    final player = context.read<WispAudioHandler>();
-    final coordinator = context.read<PlaybackCoordinator>();
-    final isActive = _isSidebarItemActive(resolvedItem, player);
-
-    if (isActive) {
-      if (player.isPlaying) {
-        await coordinator.pause();
-      } else {
-        if (player.isLoading || player.isBuffering) {
-          return;
-        }
-        await coordinator.play();
-      }
-      return;
-    }
-
-    await _playSidebarItem(resolvedItem);
-  }
-
-  static const _doubleTapTimeoutMs = 200; // milliseconds
-
-  void _handleSidebarPrimaryPointerDown(
-    DateTime timestamp,
-    dynamic resolvedItem,
-  ) {
-    if (!_isDesktop() || resolvedItem is PlaylistFolder) {
-      return;
-    }
-
-    final key = _sidebarItemHoverKey(resolvedItem);
-    final previousTime = _lastSidebarTapTime;
-    final previousKey = _lastSidebarTapKey;
-    final isDoubleTap =
-        previousTime != null &&
-        previousKey == key &&
-        timestamp.millisecondsSinceEpoch -
-                previousTime.millisecondsSinceEpoch <=
-            _doubleTapTimeoutMs;
-
-    if (isDoubleTap) {
-      _lastSidebarTapTime = null;
-      _playSidebarItem(resolvedItem);
-      return;
-    }
-
-    _lastSidebarTapKey = key;
-    _lastSidebarTapTime = timestamp;
-    widget.onLibraryItemSelected(resolvedItem);
   }
 
   String _itemTitle(dynamic item) {
@@ -983,14 +764,12 @@ class _WispNavigationState extends State<WispNavigation> {
     required LibraryState libraryState,
     required _SidebarPlaybackHighlight playback,
   }) {
-    Widget tile = SizedBox.shrink();
-    
     final entry = item is LibrarySidebarEntry
         ? item
         : LibrarySidebarEntry.item(item);
-    
+
     if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
-      tile = SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
     final resolvedItem = entry.item;
@@ -1001,8 +780,9 @@ class _WispNavigationState extends State<WispNavigation> {
         ? basePadding.add(const EdgeInsets.only(left: folderChildIndent))
         : basePadding;
 
-    final playButtonPosition = GenericRowPlayPosition.cover;
+    const playButtonPosition = GenericRowPlayPosition.cover;
 
+    Widget tile;
     if (resolvedItem is PlaylistFolder) {
       tile = FolderRow(
         folder: resolvedItem,
@@ -1013,465 +793,30 @@ class _WispNavigationState extends State<WispNavigation> {
       tile = PlaylistRow(
         playlist: resolvedItem,
         padding: rowPadding,
-        playPosition: playButtonPosition
+        playPosition: playButtonPosition,
       );
-    } else if (resolvedItem is GenericAlbum || resolvedItem is GenericSimpleAlbum) {
+    } else if (resolvedItem is GenericAlbum ||
+        resolvedItem is GenericSimpleAlbum) {
       tile = AlbumRow(
         album: resolvedItem,
         padding: rowPadding,
-        playPosition: playButtonPosition
+        playPosition: playButtonPosition,
       );
-    } else if (resolvedItem is GenericSimpleArtist || resolvedItem is GenericArtist) {
+    } else if (resolvedItem is GenericSimpleArtist ||
+        resolvedItem is GenericArtist) {
       tile = ArtistRow(
         artist: resolvedItem,
         padding: rowPadding,
-        playPosition: playButtonPosition
+        playPosition: playButtonPosition,
       );
     } else {
-      tile = SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
-    return tile;
-
-    /* final entry = item is LibrarySidebarEntry
-        ? item
-        : LibrarySidebarEntry.item(item);
-    final isDesktop = _isDesktop();
-    final allowDrag = true;
-
-    if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
-      return SizedBox.shrink();
-    }
-
-    final resolvedItem = entry.item;
-    final playbackType = playback.contextType;
-    final playbackId = playback.contextId;
-    final playbackName = playback.contextName;
-    final isCurrentPlaybackItem = switch (resolvedItem) {
-      GenericPlaylist playlist =>
-        playbackType == PlaybackContextType.playlist &&
-            (playbackId == playlist.id ||
-                playbackName == playlist.title.trim()),
-      GenericAlbum album =>
-        playbackType == PlaybackContextType.album &&
-            (playbackId == album.id || playbackName == album.title.trim()),
-      GenericSimpleAlbum album =>
-        playbackType == PlaybackContextType.album &&
-            (playbackId == album.id || playbackName == album.title.trim()),
-      GenericSimpleArtist artist =>
-        (playbackType == PlaybackContextType.artist &&
-                (playbackId == artist.id ||
-                    playbackName == artist.name.trim())) ||
-            (playback.currentArtistIds.isNotEmpty &&
-                playback.currentArtistIds.split('\u0001').contains(artist.id)),
-      _ => false,
-    };
-    final titleColor = isCurrentPlaybackItem
-        ? Theme.of(context).colorScheme.primary
-        : Colors.white;
-    final isArtist = resolvedItem is GenericSimpleArtist;
-    final hoverKey = _sidebarItemHoverKey(resolvedItem);
-    final showHoverPlayOverlay =
-        isDesktop &&
-        resolvedItem is! PlaylistFolder &&
-        _hoveredSidebarItemKey == hoverKey;
-    String? imageUrl;
-    String? filePath;
-    String title = '';
-    String? subtitle;
-    final isLiked =
-        resolvedItem is GenericPlaylist &&
-        isLikedSongsPlaylistId(resolvedItem.id);
-
+    // Folders can no longer be dragged themselves, but they still act as
+    // drop targets so playlists can be dragged into them.
     if (resolvedItem is PlaylistFolder) {
-      filePath = resolvedItem.thumbnailPath;
-      title = resolvedItem.title;
-      final count = libraryState.playlists
-          .where(
-            (p) => folderState.folderIdForPlaylist(p.id) == resolvedItem.id,
-          )
-          .length;
-      subtitle = '$count playlist${count == 1 ? '' : 's'}';
-    } else if (resolvedItem is GenericPlaylist) {
-      imageUrl = resolvedItem.thumbnailUrl;
-      title = resolvedItem.title;
-      subtitle = resolvedItem.author.displayName;
-    } else if (resolvedItem is GenericAlbum) {
-      imageUrl = resolvedItem.thumbnailUrl;
-      title = resolvedItem.title;
-      subtitle = resolvedItem.artists.map((a) => a.name).join(', ');
-    } else if (resolvedItem is GenericSimpleAlbum) {
-      imageUrl = resolvedItem.thumbnailUrl;
-      title = resolvedItem.title;
-      subtitle = resolvedItem.artists.map((a) => a.name).join(', ');
-    } else if (resolvedItem is GenericSimpleArtist) {
-      imageUrl = resolvedItem.thumbnailUrl;
-      title = resolvedItem.name;
-      subtitle = 'Artist';
-    } else {
-      try {
-        final dynamic obj = resolvedItem;
-        if (obj.thumbnailUrl != null) {
-          imageUrl = obj.thumbnailUrl as String;
-        }
-        if (obj.title != null) {
-          title = obj.title as String;
-        } else if (obj.name != null) {
-          title = obj.name as String;
-        }
-      } catch (e) {
-        title = 'Unknown';
-      }
-    }
-
-    Widget tile = MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: isDesktop
-          ? (_) {
-              if (resolvedItem is! PlaylistFolder) {
-                setState(() => _hoveredSidebarItemKey = hoverKey);
-              }
-            }
-          : null,
-      onExit: isDesktop
-          ? (_) {
-              if (_hoveredSidebarItemKey == hoverKey) {
-                setState(() => _hoveredSidebarItemKey = null);
-              }
-            }
-          : null,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          mouseCursor: SystemMouseCursors.click,
-          onSecondaryTapDown: !isDesktop
-              ? null
-              : (details) {
-                  if (resolvedItem is GenericPlaylist) {
-                    EntityContextMenus.showPlaylistMenu(
-                      context,
-                      playlist: resolvedItem,
-                      globalPosition: details.globalPosition,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is GenericAlbum ||
-                      resolvedItem is GenericSimpleAlbum) {
-                    EntityContextMenus.showAlbumMenu(
-                      context,
-                      album: resolvedItem,
-                      globalPosition: details.globalPosition,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is GenericSimpleArtist) {
-                    EntityContextMenus.showArtistMenu(
-                      context,
-                      artist: resolvedItem,
-                      globalPosition: details.globalPosition,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is PlaylistFolder) {
-                    EntityContextMenus.showFolderMenu(
-                      context,
-                      folder: resolvedItem,
-                      globalPosition: details.globalPosition,
-                    );
-                  }
-                },
-          onLongPress: isDesktop
-              ? null
-              : () {
-                  if (resolvedItem is GenericPlaylist) {
-                    EntityContextMenus.showPlaylistMenu(
-                      context,
-                      playlist: resolvedItem,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is GenericAlbum ||
-                      resolvedItem is GenericSimpleAlbum) {
-                    EntityContextMenus.showAlbumMenu(
-                      context,
-                      album: resolvedItem,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is GenericSimpleArtist) {
-                    EntityContextMenus.showArtistMenu(
-                      context,
-                      artist: resolvedItem,
-                    );
-                    return;
-                  }
-                  if (resolvedItem is PlaylistFolder) {
-                    EntityContextMenus.showFolderMenu(
-                      context,
-                      folder: resolvedItem,
-                    );
-                  }
-                },
-          onTap: () {
-            if (resolvedItem is PlaylistFolder) {
-              folderState.toggleFolderCollapsed(resolvedItem.id);
-            }
-
-            _handleSidebarPrimaryPointerDown(DateTime.now(), resolvedItem);
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            padding:
-                EdgeInsets.symmetric(
-                  horizontal: isCollapsed ? 8 : 12,
-                  vertical: 8,
-                ).add(
-                  EdgeInsets.only(
-                    left: ((entry.folderId != null) && !isCollapsed) ? 12 : 0,
-                  ),
-                ),
-            child: Row(
-              mainAxisAlignment: isCollapsed
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.start,
-              children: [
-                widgetForThumbnail(
-                  showHoverPlayOverlay
-                      ? _SidebarHoverPlayThumbnail(
-                          showOverlay: true,
-                          isActive: isCurrentPlaybackItem,
-                          isPlaying: playback.isPlaying,
-                          onPlayPressed: () => _handleSidebarPlay(resolvedItem),
-                          child: Container(
-                            width: 48,
-                            height: 48,
-                            color: Colors.grey[900],
-                            child: filePath != null
-                                ? Image.file(
-                                    File(filePath),
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, url, error) => Icon(
-                                      Icons.folder,
-                                      color: Colors.grey[700],
-                                    ),
-                                  )
-                                : (isLiked
-                                      ? const LikedSongsArt()
-                                      : (imageUrl != null
-                                            ? (_isLocalPath(imageUrl)
-                                                  ? Image.file(
-                                                      File(
-                                                        imageUrl.replaceFirst(
-                                                          'file://',
-                                                          '',
-                                                        ),
-                                                      ),
-                                                      filterQuality:
-                                                          FilterQuality.medium,
-                                                      fit: BoxFit.cover,
-                                                      errorBuilder:
-                                                          (
-                                                            context,
-                                                            url,
-                                                            error,
-                                                          ) => Icon(
-                                                            Icons.music_note,
-                                                            color: Colors
-                                                                .grey[700],
-                                                          ),
-                                                    )
-                                                  : CachedNetworkImage(
-                                                      imageUrl: imageUrl,
-                                                      filterQuality:
-                                                          FilterQuality.medium,
-                                                      fit: BoxFit.cover,
-                                                      errorWidget:
-                                                          (
-                                                            context,
-                                                            url,
-                                                            error,
-                                                          ) {
-                                                            return Icon(
-                                                              Icons.music_note,
-                                                              color: Colors
-                                                                  .grey[700],
-                                                            );
-                                                          },
-                                                      placeholder:
-                                                          (context, url) =>
-                                                              Container(
-                                                                color: Colors
-                                                                    .grey[800],
-                                                              ),
-                                                    ))
-                                            : Icon(
-                                                Icons.music_note,
-                                                color: Colors.grey[700],
-                                              ))),
-                          ),
-                        )
-                      : Container(
-                          width: 48,
-                          height: 48,
-                          color: Colors.grey[900],
-                          child: filePath != null
-                              ? Image.file(
-                                  File(filePath),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, url, error) => Icon(
-                                    Icons.folder,
-                                    color: Colors.grey[700],
-                                  ),
-                                )
-                              : (isLiked
-                                    ? const LikedSongsArt()
-                                    : (imageUrl != null
-                                          ? (_isLocalPath(imageUrl)
-                                                ? Image.file(
-                                                    File(
-                                                      imageUrl.replaceFirst(
-                                                        'file://',
-                                                        '',
-                                                      ),
-                                                    ),
-                                                    fit: BoxFit.cover,
-                                                    filterQuality:
-                                                        FilterQuality.medium,
-                                                    errorBuilder:
-                                                        (context, url, error) =>
-                                                            Icon(
-                                                              Icons.music_note,
-                                                              color: Colors
-                                                                  .grey[700],
-                                                            ),
-                                                  )
-                                                : CachedNetworkImage(
-                                                    imageUrl: imageUrl,
-                                                    fit: BoxFit.cover,
-                                                    filterQuality:
-                                                        FilterQuality.medium,
-                                                    errorWidget:
-                                                        (context, url, error) {
-                                                          return Icon(
-                                                            Icons.music_note,
-                                                            color: Colors
-                                                                .grey[700],
-                                                          );
-                                                        },
-                                                    placeholder:
-                                                        (context, url) =>
-                                                            Container(
-                                                              color: Colors
-                                                                  .grey[800],
-                                                            ),
-                                                  ))
-                                          : Icon(
-                                              Icons.music_note,
-                                              color: Colors.grey[700],
-                                            ))),
-                        ),
-                  isArtist,
-                ),
-                if (!isCollapsed) ...[
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            color: titleColor,
-                            fontSize: 14,
-                            fontWeight: resolvedItem is PlaylistFolder
-                                ? FontWeight.w700
-                                : FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (subtitle != null) ...[
-                          SizedBox(height: 2),
-                          Text(
-                            subtitle,
-                            style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 12,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  if (isCurrentPlaybackItem && playback.isPlaying) ...[
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.volume_up,
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 16,
-                    ),
-                  ] else if (resolvedItem is PlaylistFolder)
-                    Icon(
-                      folderState.isFolderCollapsed(resolvedItem.id)
-                          ? Icons.chevron_right
-                          : Icons.expand_more,
-                      color: Colors.grey[500],
-                      size: 20,
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    void ensureCustomSort() {}
-
-    if (allowDrag && resolvedItem is PlaylistFolder) {
-      final draggable = isDesktop
-          ? Draggable<_SidebarFolderDragData>(
-              data: _SidebarFolderDragData(resolvedItem.id),
-              feedback: _SidebarDragFeedback(
-                title: resolvedItem.title,
-                icon: Icons.folder,
-              ),
-              childWhenDragging: Opacity(opacity: 0.4, child: tile),
-              onDragStarted: ensureCustomSort,
-              child: tile,
-            )
-          : LongPressDraggable<_SidebarFolderDragData>(
-              delay: const Duration(milliseconds: 150),
-              data: _SidebarFolderDragData(resolvedItem.id),
-              feedback: _SidebarDragFeedback(
-                title: resolvedItem.title,
-                icon: Icons.folder,
-              ),
-              childWhenDragging: Opacity(opacity: 0.4, child: tile),
-              onDragStarted: ensureCustomSort,
-              child: tile,
-            );
-      final reorderTarget = DragTarget<_SidebarFolderDragData>(
-        onWillAccept: (data) =>
-            data != null && data.folderId != resolvedItem.id,
-        onAccept: (data) =>
-            folderState.moveFolderBefore(data.folderId, resolvedItem.id),
-        builder: (context, candidate, rejected) => Container(
-          decoration: candidate.isNotEmpty
-              ? BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(8),
-                )
-              : null,
-          child: draggable,
-        ),
-      );
-      final playlistDropTarget = DragTarget<_SidebarPlaylistDragData>(
+      return DragTarget<_SidebarPlaylistDragData>(
         onWillAccept: (data) => data != null,
         onAccept: (data) {
           folderState.movePlaylistIntoFolder(data.playlistId, resolvedItem.id);
@@ -1487,36 +832,28 @@ class _WispNavigationState extends State<WispNavigation> {
                   border: Border.all(color: Colors.white24),
                 )
               : null,
-          child: reorderTarget,
+          child: tile,
         ),
       );
-      tile = playlistDropTarget;
     }
 
-    if (allowDrag && resolvedItem is GenericPlaylist && !isLiked) {
-      final draggable = isDesktop
-          ? Draggable<_SidebarPlaylistDragData>(
-              data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
-              feedback: _SidebarDragFeedback(
-                title: resolvedItem.title,
-                icon: Icons.playlist_play,
-              ),
-              childWhenDragging: Opacity(opacity: 0.4, child: tile),
-              onDragStarted: ensureCustomSort,
-              child: tile,
-            )
-          : LongPressDraggable<_SidebarPlaylistDragData>(
-              delay: const Duration(milliseconds: 150),
-              data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
-              feedback: _SidebarDragFeedback(
-                title: resolvedItem.title,
-                icon: Icons.playlist_play,
-              ),
-              childWhenDragging: Opacity(opacity: 0.4, child: tile),
-              onDragStarted: ensureCustomSort,
-              child: tile,
-            );
-      final reorderTarget = DragTarget<_SidebarPlaylistDragData>(
+    final isLiked =
+        resolvedItem is GenericPlaylist &&
+        isLikedSongsPlaylistId(resolvedItem.id);
+
+    if (resolvedItem is GenericPlaylist && !isLiked) {
+      final feedbackWidth = isCollapsed
+          ? widget.collapsedWidth
+          : widget.expandedWidth;
+
+      final draggable = Draggable<_SidebarPlaylistDragData>(
+        data: _SidebarPlaylistDragData(resolvedItem.id, entry.folderId),
+        feedback: _SidebarDragFeedback(width: feedbackWidth, child: tile),
+        childWhenDragging: Opacity(opacity: 0.4, child: tile),
+        child: tile,
+      );
+
+      return DragTarget<_SidebarPlaylistDragData>(
         onWillAccept: (data) =>
             data != null && data.playlistId != resolvedItem.id,
         onAccept: (data) {
@@ -1545,26 +882,9 @@ class _WispNavigationState extends State<WispNavigation> {
           child: draggable,
         ),
       );
-      final folderDropTarget = DragTarget<_SidebarFolderDragData>(
-        onWillAccept: (data) => data != null,
-        onAccept: (data) => folderState.moveFolderBeforePlaylist(
-          data.folderId,
-          resolvedItem.id,
-        ),
-        builder: (context, candidate, rejected) => Container(
-          decoration: candidate.isNotEmpty
-              ? BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(8),
-                )
-              : null,
-          child: reorderTarget,
-        ),
-      );
-      tile = folderDropTarget;
     }
 
-    return tile; */
+    return tile;
   }
 
   Widget _buildMobileBottomNav() {
@@ -1647,100 +967,29 @@ class _SidebarPlaylistDragData {
   const _SidebarPlaylistDragData(this.playlistId, this.folderId);
 }
 
-class _SidebarFolderDragData {
-  final String folderId;
-
-  const _SidebarFolderDragData(this.folderId);
-}
-
+/// Drag feedback that mirrors the actual sidebar row (instead of a compact
+/// icon+title chip), so what follows the cursor while dragging a playlist
+/// looks the same as the row does at rest.
 class _SidebarDragFeedback extends StatelessWidget {
-  final String title;
-  final IconData icon;
+  final double width;
+  final Widget child;
 
-  const _SidebarDragFeedback({required this.title, required this.icon});
+  const _SidebarDragFeedback({required this.width, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
+      color: const Color(0xFF1E1E1E),
+      elevation: 6,
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        width: width,
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.white24),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                title,
-                style: const TextStyle(color: Colors.white),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SidebarHoverPlayThumbnail extends StatelessWidget {
-  final Widget child;
-  final bool showOverlay;
-  final bool isActive;
-  final bool isPlaying;
-  final VoidCallback onPlayPressed;
-
-  const _SidebarHoverPlayThumbnail({
-    required this.child,
-    required this.showOverlay,
-    required this.isActive,
-    required this.isPlaying,
-    required this.onPlayPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = isActive && isPlaying ? Icons.pause : Icons.play_arrow;
-
-    return SizedBox(
-      width: 48,
-      height: 48,
-      child: Stack(
-        fit: StackFit.expand,
-        clipBehavior: Clip.none,
-        children: [
-          child,
-          Positioned.fill(
-            child: AnimatedOpacity(
-              opacity: showOverlay ? 1 : 0,
-              duration: const Duration(milliseconds: 120),
-              child: IgnorePointer(
-                ignoring: !showOverlay,
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  alignment: Alignment.center,
-                  child: IconButton(
-                    icon: Icon(icon, color: Colors.white, size: 28),
-                    onPressed: onPlayPressed,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 48,
-                      minHeight: 48,
-                    ),
-                    splashRadius: 24,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        clipBehavior: Clip.antiAlias,
+        child: child,
       ),
     );
   }

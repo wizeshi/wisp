@@ -2,10 +2,9 @@
 
 library;
 
-import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 import 'package:wisp/models/metadata_models.dart';
+import 'package:wisp/utils/json.dart';
 import 'package:wisp/utils/logger.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import 'package:xml/xml.dart';
@@ -47,7 +46,8 @@ class BetterLyricsProvider {
     }
 
     try {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data =
+          (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
 
       final lyrics = _normalizeTtmlSource((data['ttml'] as String?) ?? '');
 

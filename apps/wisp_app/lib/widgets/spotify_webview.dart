@@ -7,7 +7,7 @@ import 'package:wisp/utils/logger.dart';
 
 class SpotifyWebview extends StatefulWidget {
   final String initialUrl;
-  const SpotifyWebview({Key? key, required this.initialUrl}) : super(key: key);
+  const SpotifyWebview({super.key, required this.initialUrl});
 
   @override
   _SpotifyWebviewState createState() => _SpotifyWebviewState();
@@ -49,6 +49,7 @@ class _SpotifyWebviewState extends State<SpotifyWebview> {
           TextButton(
             onPressed: () async {
               final cookies = await _collectCookiesForCurrentUrl();
+              if (!context.mounted) return;
               Navigator.of(context).pop(cookies.isNotEmpty ? cookies : null);
             },
             child: const Text('Done', style: TextStyle(color: Colors.white)),

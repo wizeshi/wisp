@@ -5,8 +5,6 @@ import '../artwork/artwork_thumbnail.dart';
 import '../playback/playback_selectors.dart';
 import 'generic_card.dart';
 
-/// A [GenericCard] for a [GenericSong] shown as a grid card (as opposed to
-/// a list row — see the `rows/` folder for that shape).
 class TrackCard extends StatelessWidget {
   final GenericSong track;
   final VoidCallback onTap;

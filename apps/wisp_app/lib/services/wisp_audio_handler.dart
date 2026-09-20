@@ -17,6 +17,7 @@ import 'package:wisp_playback_engine/wisp_playback_engine.dart';
 import '../models/metadata_models.dart';
 import '../services/cache_manager.dart';
 import '../services/discord_rpc_service.dart';
+import '../services/listening_habits_service.dart';
 import '../utils/logger.dart';
 import '../providers/audio/youtube.dart';
 import '../providers/preferences/preferences_provider.dart';
@@ -106,6 +107,21 @@ class PlaybackContext {
       ),
     );
   }
+
+  /// Whether [other] refers to the same playback context as this one —
+  /// the single matching rule other code used to reimplement per-screen
+  /// (`_isCurrentListPlaying` in list_detail.dart, `_isCurrentArtistPlaying`
+  /// in artist_detail.dart, the track-row selectors in
+  /// `playback_selectors.dart`). Prefers matching by [id] when both sides
+  /// have a non-empty one; falls back to [name] otherwise, since some
+  /// sources only ever surface a context name.
+  bool matches(PlaybackContext other) {
+    if (type != other.type) return false;
+    if (id.isNotEmpty && other.id.isNotEmpty) return id == other.id;
+    final thisName = name.trim();
+    final otherName = other.name.trim();
+    return thisName.isNotEmpty && thisName == otherName;
+  }
 }
 
 class _StreamUrlCacheEntry {
@@ -192,6 +208,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Duration? _lastKnownDuration;
 
   int _trackChangeToken = 0;
+  int? _lastRecordedFinishToken;
   // Set while _prepareCurrentTrackOnStartup() is in-flight so that play()
   // can wait for it instead of racing to call loadCurrent() concurrently.
   Future<void>? _startupPrepareFuture;
@@ -446,7 +463,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     if (delta.repeatMode != null) {
       final mode = _repeatModeFromString(delta.repeatMode!);
-      if (mode != _repeatMode) {
+
+      final internalMode = RepeatMode.fromJson(delta.repeatMode!);
+
+      if (internalMode != _repeatMode) {
         await setRepeatMode(mode);
         changed = true;
       }
@@ -969,6 +989,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     if (_engineIsTransitioning || _userPaused) return;
+    _markTrackFinished(_currentTrack, _trackChangeToken);
     await _transitionToNext();
   }
 
@@ -1163,12 +1184,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     _isHandlingCompletion = true;
     final token = _trackChangeToken;
+    final finishedTrack = _currentTrack;
     () async {
-      logger.i('[Audio/Player] Track completed: ${_currentTrack?.title}');
+      logger.i('[Audio/Player] Track completed: ${finishedTrack?.title}');
+      _markTrackFinished(finishedTrack, token);
 
       if (_repeatMode == RepeatMode.one) {
         await _engine.seek(Duration.zero);
         if (token != _trackChangeToken) return;
+        ++_trackChangeToken;
         await _engine.play();
         return;
       }
@@ -1199,6 +1223,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }().whenComplete(() {
       _isHandlingCompletion = false;
     });
+  }
+
+  void _markTrackFinished(GenericSong? track, int token) {
+    if (track == null) return;
+    if (_lastRecordedFinishToken == token) return;
+    _lastRecordedFinishToken = token;
+    unawaited(ListeningHabitsService.instance.recordTrackFinished(track));
   }
 
   Future<void> _prepareCurrentTrackOnStartup() async {

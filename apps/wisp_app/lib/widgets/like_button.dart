@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../models/metadata_models.dart';
 import '../providers/metadata/spotify_internal.dart';
+import '../ui/overlay/hover.dart';
 
 class LikeButton extends StatefulWidget {
   final GenericSong? track;
@@ -20,6 +21,14 @@ class LikeButton extends StatefulWidget {
   final IconData? likedIcon;
   final IconData? notLikedIcon;
 
+  /// When true, the button stays hidden until the row it's in is hovered,
+  /// *except* while the track is liked, in which case it's always visible
+  /// — the like-button behavior most music apps use in dense track lists
+  /// (see [TrackRow]). Requires an ambient [HoverRegion] (i.e. this button
+  /// needs to sit somewhere inside one) to know when that is; with none,
+  /// it behaves as if never hovered.
+  final bool hoverOnlyWhenUnliked;
+
   const LikeButton({
     super.key,
     required this.track,
@@ -31,6 +40,7 @@ class LikeButton extends StatefulWidget {
     this.color = Colors.white,
     this.likedIcon = Icons.favorite,
     this.notLikedIcon = Icons.favorite_border,
+    this.hoverOnlyWhenUnliked = false,
   });
 
   @override
@@ -95,16 +105,20 @@ class _LikeButtonState extends State<LikeButton> {
               : null,
         );
 
-        if (!widget.showTooltip) {
-          return button;
+        Widget content = widget.showTooltip
+            ? Tooltip(
+                message: isSpotifyTrack
+                    ? (isLiked ? 'Remove from Likes' : 'Add to Likes')
+                    : 'Spotify only',
+                child: button,
+              )
+            : button;
+
+        if (widget.hoverOnlyWhenUnliked) {
+          content = HoverVisible(alwaysVisible: isLiked, child: content);
         }
 
-        return Tooltip(
-          message: isSpotifyTrack
-              ? (isLiked ? 'Remove from Likes' : 'Add to Likes')
-              : 'Spotify only',
-          child: button,
-        );
+        return content;
       },
     );
   }

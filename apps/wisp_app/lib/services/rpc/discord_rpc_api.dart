@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:wisp/utils/json.dart';
 import 'package:wisp/utils/logger.dart';
 
 import 'types.dart';
@@ -158,7 +159,7 @@ class DiscordRpcApi {
           : await transport.read(length);
 
       if (opCode == _opPing) {
-        await _send(_opPong, _decodePayload(payloadBytes));
+        await _send(_opPong, await _decodePayload(payloadBytes));
         continue;
       }
 
@@ -167,13 +168,13 @@ class DiscordRpcApi {
         throw StateError('Discord RPC closed the connection.');
       }
 
-      return _decodePayload(payloadBytes);
+      return await _decodePayload(payloadBytes);
     }
   }
 
-  Map<String, dynamic> _decodePayload(Uint8List bytes) {
+  Future<Map<String, dynamic>> _decodePayload(Uint8List bytes) async {
     if (bytes.isEmpty) return <String, dynamic>{};
-    final decoded = jsonDecode(utf8.decode(bytes));
+    final decoded = (await JsonUtils.decode(utf8.decode(bytes)));
     if (decoded is Map<String, dynamic>) return decoded;
     return <String, dynamic>{};
   }

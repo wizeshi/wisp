@@ -7,6 +7,8 @@ library;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 
+import 'package:wisp/utils/json.dart';
+
 class SpotifyCredentials {
   final String clientId;
   final String clientSecret;
@@ -79,7 +81,7 @@ class CredentialsService {
     if (json == null || json.isEmpty) return null;
 
     try {
-      return SpotifyCredentials.fromJson(jsonDecode(json));
+      return SpotifyCredentials.fromJson((await JsonUtils.decode(json)));
     } catch (e) {
       return null;
     }
@@ -107,7 +109,7 @@ class CredentialsService {
     if (json == null || json.isEmpty) return null;
 
     try {
-      return SpotifyToken.fromJson(jsonDecode(json));
+      return SpotifyToken.fromJson((await JsonUtils.decode(json)));
     } catch (e) {
       return null;
     }
@@ -146,7 +148,8 @@ class CredentialsService {
     final jsonStr = await _storage.read(key: _keySpotifyCookies);
     if (jsonStr == null || jsonStr.isEmpty) return null;
     try {
-      final Map<String, dynamic> parsed = jsonDecode(jsonStr);
+      final Map<String, dynamic> parsed =
+          (await JsonUtils.decode(jsonStr)) as Map<String, dynamic>;
       return parsed.map((k, v) => MapEntry(k, v as String));
     } catch (e) {
       return null;

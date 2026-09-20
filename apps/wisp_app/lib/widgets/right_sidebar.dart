@@ -155,10 +155,11 @@ class _ResizeHandle extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragUpdate: (details) => onResize(details.delta.dx),
-        child: SizedBox(
-          width: 6,
+        child: Container(
+          color: Colors.black,
+          width: 8,
           child: Align(
-            alignment: Alignment.centerLeft,
+            alignment: Alignment.center,
             child: Container(
               width: 2,
               height: 48,
@@ -1272,8 +1273,6 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
     GenericSimpleArtist artist,
     String trackId,
   ) async {
-    /* final cached = await spotifyInternal.getCachedArtistInfo(artist.id);
-    if (cached != null) return cached; */
     try {
       if (!spotifyInternal.isAuthenticated) {
         await spotifyInternal.checkAuthState();
@@ -1286,7 +1285,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
       }
       return await spotifyInternal.getNpvArtistInfo(artist.id, trackId);
     } catch (_) {
-      /* return cached; */
+      throw Exception('Failed to load artist info');
     }
   }
 

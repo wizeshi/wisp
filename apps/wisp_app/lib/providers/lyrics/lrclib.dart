@@ -3,8 +3,8 @@
 /// LrcLib lyrics provider
 library;
 
-import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:wisp/utils/json.dart';
 import 'package:wisp/utils/logger.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import 'package:yaml/yaml.dart';
@@ -38,7 +38,8 @@ class LrcLibLyricsProvider {
     if (response.statusCode != 200) return null;
 
     try {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data =
+          (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
       // This is for logging purposes. LRCLIB is recently implementing their new LyricsFile format, which is not yet supported, but there are plans.
       // Because of this, we log the response body to see if it's already avaliable, and which format it supports: plain, line-synced or word-synced.
 
@@ -58,7 +59,9 @@ class LrcLibLyricsProvider {
       }
 
       logger.d("[Lyrics/LRCLIB] Debug data for new LyricsFile format:");
-      logger.d("[Lyrics/LRCLIB] Avaliable formats: ${avaliableFormats.join(', ')}");
+      logger.d(
+        "[Lyrics/LRCLIB] Avaliable formats: ${avaliableFormats.join(', ')}",
+      );
 
       final syncedLyrics = (data['syncedLyrics'] as String?) ?? '';
       final plainLyrics = (data['plainLyrics'] as String?) ?? '';

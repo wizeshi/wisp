@@ -63,11 +63,11 @@ class _HoverRegionState extends State<HoverRegion> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      cursor: isDesktopPlatform ? SystemMouseCursors.click : MouseCursor.defer,
+      cursor: (isDesktopPlatform && widget.onTap != null) ? SystemMouseCursors.click : MouseCursor.defer,
       onEnter: (_) => _setHovering(true),
       onExit: (_) => _setHovering(false),
       child: InkWell(
-        mouseCursor: isDesktopPlatform ? SystemMouseCursors.click : null,
+        mouseCursor: (isDesktopPlatform && widget.onTap != null) ? SystemMouseCursors.click : null,
         onTap: widget.onTap,
         onLongPress: widget.onLongPress,
         onSecondaryTapDown: widget.onSecondaryTapDown,

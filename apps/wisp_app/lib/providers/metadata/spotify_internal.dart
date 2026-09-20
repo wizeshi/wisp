@@ -20,11 +20,13 @@ import 'package:wisp/models/metadata_provider.dart';
 import 'package:wisp/providers/common/spotify_tokens.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
 import 'package:wisp/services/metadata_cache.dart';
+import 'package:wisp/utils/json.dart';
 import 'package:wisp/widgets/spotify_webview.dart';
 import 'package:wisp/services/credentials.dart';
 import 'package:wisp/utils/logger.dart';
 import 'package:wisp/models/spotify_internal_converters.dart';
 import 'package:wisp/providers/library/library_folders.dart';
+import 'package:wisp/utils/spotify_protobuf.dart';
 
 const _allowInsecureSpotifyTls = bool.fromEnvironment(
   'WISP_ALLOW_INSECURE_SPOTIFY_TLS',
@@ -497,7 +499,8 @@ class SpotifyInternalProvider extends MetadataProvider {
         '${response.statusCode} ${response.body}',
       );
     }
-    final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+    final jsonResponse =
+        (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
     _userId = jsonResponse['id'] as String?;
     _userDisplayName = jsonResponse['display_name'] as String?;
     if (_userId != null && _userId!.isNotEmpty) {
@@ -525,7 +528,7 @@ class SpotifyInternalProvider extends MetadataProvider {
   Future<http.Response> _postWithRetry(
     Uri url, {
     required Map<String, String> headers,
-    required String body,
+    required Object body,
   }) async {
     const maxRetries = 3;
     var retryCount = 0;
@@ -983,7 +986,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
     }
 
-    final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+    final jsonResponse =
+        (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
 
     await _writeCacheEntry(type: 'home', id: 'home', payload: jsonResponse);
 
@@ -1121,7 +1125,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           );
         }
 
-        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        final jsonResponse =
+            (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
         if (jsonResponse['errors'] is List &&
             (jsonResponse['errors'] as List).isNotEmpty) {
           throw Exception(
@@ -1201,8 +1206,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
     }
 
-    final jsonResponse = _decodeJsonResponse(response);
-    final recommendedTracks = jsonResponse['recommendedTracks'] as List?;
+    final jsonResponse = await _decodeJsonResponse(response);
+    final recommendedTracks = jsonResponse?['recommendedTracks'] as List?;
     if (recommendedTracks == null || recommendedTracks.isEmpty) {
       return const [];
     }
@@ -1290,22 +1295,28 @@ class SpotifyInternalProvider extends MetadataProvider {
     );
   }
 
-  Map<String, dynamic> _decodeJsonResponse(http.Response response) {
+  Future<Map<String, dynamic>?> _decodeJsonResponse(
+    http.Response response,
+  ) async {
     try {
-      final decodedUtf8 = jsonDecode(utf8.decode(response.bodyBytes));
+      final decodedUtf8 =
+          (await JsonUtils.decode(utf8.decode(response.bodyBytes)))
+              as Map<String, dynamic>?;
       if (decodedUtf8 is Map<String, dynamic>) return decodedUtf8;
     } catch (_) {
       // Try Latin-1 as a fallback for endpoints that return ISO-8859-1 text.
     }
 
     try {
-      final decodedLatin1 = jsonDecode(latin1.decode(response.bodyBytes));
+      final decodedLatin1 =
+          (await JsonUtils.decode(latin1.decode(response.bodyBytes)))
+              as Map<String, dynamic>?;
       if (decodedLatin1 is Map<String, dynamic>) return decodedLatin1;
     } catch (_) {
       // Fall through to the existing body-based decode.
     }
 
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    return (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
   }
 
   @override
@@ -1380,7 +1391,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           );
         }
 
-        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        final jsonResponse =
+            (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
         return spotifyInternalFullAlbumToGeneric(
           jsonResponse,
           offset: offset,
@@ -1490,7 +1502,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           );
         }
 
-        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        final jsonResponse =
+            (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
         final genericArtist = spotifyInternalFullArtistToGeneric(jsonResponse);
 
         logger.d("[Metadata/Spotify-Internal] Got artist info for $artistId");
@@ -1580,7 +1593,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           );
         }
 
-        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        final jsonResponse =
+            (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
         final genericArtist = spotifyInternalFullArtistToGeneric(jsonResponse);
 
         logger.d(
@@ -1690,7 +1704,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
     }
 
-    final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+    final jsonResponse =
+        (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
     final tracks =
         jsonResponse['data']?['me']?['library']?['tracks']
             as Map<String, dynamic>?;
@@ -1843,7 +1858,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           );
         }
 
-        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        final jsonResponse =
+            (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
         final lookup = jsonResponse['data']?['lookup'] as List? ?? [];
 
         final result = <String, bool>{};
@@ -1949,7 +1965,8 @@ class SpotifyInternalProvider extends MetadataProvider {
         );
       }
 
-      final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+      final jsonResponse =
+          (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
       final trackUnion =
           jsonResponse['data']?['trackUnion'] as Map<String, dynamic>?;
       final canvas = trackUnion?['canvas'] as Map<String, dynamic>?;
@@ -2230,7 +2247,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
     }
 
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    return (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
   }
 
   @override
@@ -2296,7 +2313,7 @@ class SpotifyInternalProvider extends MetadataProvider {
       }
 
       final createJson =
-          jsonDecode(createResponse.body) as Map<String, dynamic>;
+          (await JsonUtils.decode(createResponse.body)) as Map<String, dynamic>;
       final uri = createJson['uri'] as String?;
       if (uri == null || uri.isEmpty) {
         throw Exception('[Metadata/Spotify-Internal] Missing playlist URI');
@@ -2709,7 +2726,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
     }
 
-    final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+    final jsonResponse =
+        (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
     final profile =
         jsonResponse['data']?['me']?['profile'] as Map<String, dynamic>?;
     final username = profile?['username'] as String?;
@@ -2767,7 +2785,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           );
         }
 
-        final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+        final jsonResponse =
+            (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
         return spotifyInternalUserProfileToGeneric(
           jsonResponse['data']?['profile'] as Map<String, dynamic>? ??
               jsonResponse['profile'] as Map<String, dynamic>? ??
@@ -2817,7 +2836,8 @@ class SpotifyInternalProvider extends MetadataProvider {
           );
         }
 
-        final jsonResponse = jsonDecode(response.body);
+        final jsonResponse =
+            (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
         return spotifyInternalUserListToGeneric(jsonResponse);
       },
       itemToJson: (item) => item.toJson(),
@@ -2865,7 +2885,8 @@ class SpotifyInternalProvider extends MetadataProvider {
             );
           }
 
-          final jsonResponse = jsonDecode(response.body);
+          final jsonResponse =
+              (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
           return spotifyInternalUserListToGeneric(jsonResponse);
         } catch (e) {
           logger.w(
@@ -3274,7 +3295,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
     }
 
-    final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+    final jsonResponse =
+        (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
 
     final genericLibrary = spotifyInternalLibraryToGeneric(jsonResponse);
 
@@ -3427,7 +3449,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
     }
 
-    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final responseJson =
+        (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
 
     // Spotify usually updates the frontend state right after the request is made
     // When it fails, the response says it needs a resync.
@@ -3524,7 +3547,8 @@ class SpotifyInternalProvider extends MetadataProvider {
       );
     }
 
-    final responseJson = jsonDecode(response.body) as Map<String, dynamic>;
+    final responseJson =
+        (await JsonUtils.decode(response.body)) as Map<String, dynamic>;
 
     // Spotify usually updates the frontend state right after the request is made
     // When it fails, the response says it needs a resync.
@@ -3533,6 +3557,113 @@ class SpotifyInternalProvider extends MetadataProvider {
       throw Exception(
         '[Metadata/Spotify-Internal] Failed to remove playlist from folder.',
       );
+    }
+  }
+
+  Future<List<String>> getTrackGenres(String trackId) async {
+    try {
+      await _ensureTokens();
+
+      const url =
+          "https://gew1-spclient.spotify.com/extended-metadata/v0/extended-metadata";
+
+      final headers = {
+        'Authorization': 'Bearer $_bearerToken',
+        'App-Platform': 'Win32_x86_64',
+        'Accept': 'application/protobuf',
+        'Client-Token': _clientToken!,
+        'Content-Type': 'application/protobuf',
+        'Spotify-App-Version': spotifyAppVersion,
+        'User-Agent': spotifyUserAgent,
+      };
+
+      final bodyBytes = buildTrackDescriptorsRequest(
+        trackId: trackId,
+        country: 'PT',
+        catalogue: 'premium',
+      );
+
+      final response = await _postWithRetry(
+        Uri.parse(url),
+        headers: headers,
+        body: bodyBytes,
+      );
+
+      if (response.statusCode != 200) {
+        logger.w(
+          '[Metadata/Spotify-Internal] getTrackGenres HTTP ${response.statusCode}',
+        );
+        return const [];
+      }
+
+      final genres = parseTrackDescriptorsResponse(response.bodyBytes);
+      logger.d(
+        '[Metadata/Spotify-Internal] getTrackGenres for $trackId: $genres',
+      );
+      return genres;
+    } catch (e) {
+      logger.w('[Metadata/Spotify-Internal] getTrackGenres failed', error: e);
+      return const [];
+    }
+  }
+
+  Future<List<PlaylistItem>?> getSimilarTracks(String trackID) async {
+    try {
+      // This method is kinda scuffed, but it works.
+      // Essentially, we use Spotify's radio endpoint, which generates radio stations, which
+      // are playlists of similar tracks. We fetch the first 50 tracks from the radio station for the given track ID.
+
+      final headers = {
+        'Authorization': 'Bearer $_bearerToken',
+        'App-Platform': 'Win32_x86_64',
+        'Accept': 'application/protobuf',
+        'Client-Token': _clientToken!,
+        'Content-Type': 'application/protobuf',
+        'Spotify-App-Version': spotifyAppVersion,
+        'User-Agent': spotifyUserAgent,
+      };
+
+      // 1. First, we need to clean the track ID to ensure it's in the correct format.
+      final cleanTrackId = trackID.startsWith('spotify:track:')
+          ? trackID.split(':').last
+          : trackID;
+
+      // 2. Second, we use the clean track ID to get the radio station ID.
+      final radioStationRequestURL = Uri.parse(
+        'https://spclient.wg.spotify.com/inspiredby-mix/v2/seed_to_playlist/spotify:track:$cleanTrackId?response-format=json',
+      );
+
+      final radioStationResponse = await _getWithRetry(
+        radioStationRequestURL,
+        headers: headers,
+      );
+
+      if (radioStationResponse.statusCode != 200) {
+        throw Exception(
+          '[Metadata/Spotify-Internal] Failed to fetch radio station for track $cleanTrackId: ${radioStationResponse.statusCode} ${radioStationResponse.body}',
+        );
+      }
+
+      // This is in the spotify:playlist:{playlistId} format, so we need to extract the playlist ID.
+      final radioStationPlaylistID =
+          ((await JsonUtils.decode(radioStationResponse.body))
+                  as Map<String, dynamic>)['mediaItems'][0]['uri']
+              .toString()
+              .split(':')
+              .last;
+
+      final radioStationTracks = (await getPlaylistInfo(
+        radioStationPlaylistID,
+        policy: MetadataFetchPolicy.refreshAlways,
+      )).songs?.sublist(1); // Remove the first track, which is the original track itself.
+
+      return radioStationTracks;
+    } catch (e) {
+      logger.w(
+        '[Metadata/Spotify-Internal] getSimilarTracks failed for $trackID',
+        error: e,
+      );
+      return null;
     }
   }
 
@@ -3582,9 +3713,131 @@ class SpotifyInternalProvider extends MetadataProvider {
   Future<GenericSong> getTrackInfo(
     String trackId, {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
-  }) {
-    // TODO: implement getTrackInfo
-    throw UnimplementedError();
+  }) async {
+    try {
+      await _ensureTokens();
+
+      final cleanTrackId = trackId.startsWith('spotify:track:')
+          ? trackId.split(':').last
+          : trackId;
+      final hexGid = spotifyIdToHexGid(cleanTrackId);
+
+      logger.d(
+        '[Metadata/Spotify-Internal] Fetching track info for $cleanTrackId (gid: $hexGid)',
+      );
+
+      final url = Uri.parse(
+        "https://spclient.wg.spotify.com/metadata/4/track/$hexGid?market=from_token",
+      );
+
+      final headers = {
+        'Accept': 'application/json',
+        'App-Platform': 'WebPlayer',
+        'Authorization': 'Bearer $_bearerToken',
+        'Client-Token': _clientToken!,
+        'Origin': 'https://open.spotify.com',
+        'Referer': 'https://open.spotify.com/',
+        'Spotify-App-Version': spotifyAppVersion,
+        'User-Agent': spotifyUserAgent,
+      };
+
+      final getResponse = await _getWithRetry(url, headers: headers);
+
+      if (getResponse.statusCode != 200) {
+        throw Exception(
+          '[Metadata/Spotify-Internal] Failed to fetch track info: ${getResponse.statusCode} ${getResponse.body}',
+        );
+      }
+
+      final response =
+          (await JsonUtils.decode(getResponse.body)) as Map<String, dynamic>;
+
+      final rawLangs =
+          response['languages'] ?? response['language_of_performance'];
+      final languages = rawLangs != null && rawLangs is List
+          ? rawLangs.map((l) => l.toString()).toList()
+          : null;
+
+      final albumMap = response['album'] as Map<String, dynamic>?;
+      final dateMap =
+          (albumMap?['release_date'] ?? albumMap?['date'])
+              as Map<String, dynamic>?;
+
+      DateTime releaseDate;
+      if (dateMap != null) {
+        releaseDate = DateTime(
+          dateMap['year'] as int? ?? 0,
+          dateMap['month'] as int? ?? 1,
+          dateMap['day'] as int? ?? 1,
+        );
+      } else {
+        releaseDate = DateTime(0);
+      }
+
+      final trackGid = response['gid'] as String? ?? cleanTrackId;
+      final standardTrackId = hexGidToSpotifyId(trackGid);
+
+      return GenericSong(
+        id: standardTrackId,
+        source: SongSource.spotifyInternal,
+        title: response['name'] as String? ?? '',
+        durationSecs: response['duration'] != null
+            ? ((response['duration'] as num) / 1000).round()
+            : 0,
+        explicit: response['explicit'] as bool? ?? false,
+        languages: languages,
+        thumbnailUrl:
+            response['cover_group'] != null &&
+                response['cover_group']['image'] != null &&
+                (response['cover_group']['image'] as List).isNotEmpty
+            ? 'https://i.scdn.co/image/${response['cover_group']['image'][0]['file_id']}'
+            : '',
+        artists: response['artist'] != null
+            ? (response['artist'] as List<dynamic>)
+                  .map(
+                    (artist) => GenericSimpleArtist(
+                      id: hexGidToSpotifyId(artist['gid'] as String? ?? ''),
+                      name: artist['name'] as String? ?? '',
+                      source: SongSource.spotifyInternal,
+                      thumbnailUrl: '',
+                    ),
+                  )
+                  .toList()
+            : [],
+        album: albumMap != null
+            ? GenericSimpleAlbum(
+                id: hexGidToSpotifyId(albumMap['gid'] as String? ?? ''),
+                title: albumMap['name'] as String? ?? '',
+                source: SongSource.spotifyInternal,
+                thumbnailUrl:
+                    albumMap['cover_group'] != null &&
+                        albumMap['cover_group']['image'] != null &&
+                        (albumMap['cover_group']['image'] as List).isNotEmpty
+                    ? 'https://i.scdn.co/image/${albumMap['cover_group']['image'][0]['file_id']}'
+                    : '',
+                artists: albumMap['artist'] != null
+                    ? (albumMap['artist'] as List<dynamic>)
+                          .map(
+                            (artist) => GenericSimpleArtist(
+                              id: hexGidToSpotifyId(
+                                artist['gid'] as String? ?? '',
+                              ),
+                              name: artist['name'] as String? ?? '',
+                              source: SongSource.spotifyInternal,
+                              thumbnailUrl: '',
+                            ),
+                          )
+                          .toList()
+                    : [],
+                label: albumMap['label'] as String? ?? '',
+                releaseDate: releaseDate,
+              )
+            : null,
+      );
+    } catch (e) {
+      logger.w('[Metadata/Spotify-Internal] getTrackInfo failed', error: e);
+      rethrow;
+    }
   }
 
   @override

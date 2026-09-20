@@ -197,6 +197,7 @@ class EntityContextMenus {
   }) async {
     final spotifyInternal = context.read<SpotifyInternalProvider>();
     await spotifyInternal.ensureLikedTracksLoaded();
+    if (!context.mounted) return;
     final activeIconColor = Theme.of(context).colorScheme.primary;
 
     final cacheManager = AudioCacheManager.instance;

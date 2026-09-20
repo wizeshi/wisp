@@ -3,15 +3,13 @@
 // Full-screen player bottom sheet for mobile
 
 import 'dart:async';
-import 'dart:io' show File, Platform;
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:just_waveform/just_waveform.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/services/connect/connect_models.dart';
@@ -22,7 +20,6 @@ import 'package:wisp/widgets/connect/connect_menu.dart';
 import 'package:wisp/widgets/marquee_text.dart';
 import '../services/app_focus_service.dart';
 import '../services/app_navigation.dart';
-import '../services/cache_manager.dart';
 import '../services/wisp_audio_handler.dart' as global_audio_player;
 import '../providers/lyrics/provider.dart';
 import '../providers/metadata/spotify_internal.dart';
@@ -97,8 +94,9 @@ class _DesktopLyricsPreviewWidget extends StatelessWidget {
         : (() {
             final lines = nonEmptyLyricsLines(lyrics.lines);
             if (lines.isEmpty) return const <LyricsLine>[];
-            if (lyrics.syncMode != LyricsSyncMode.line)
+            if (lyrics.syncMode != LyricsSyncMode.line) {
               return lines.take(5).toList();
+            }
             final timing = resolveSyncedLyricsTiming(lines, effectivePosition);
             final startIndex = timing.activeIndex >= 0
                 ? timing.activeIndex
@@ -516,10 +514,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             layoutBuilder: (currentChild, previousChildren) {
               return Stack(
                 alignment: Alignment.centerLeft,
-                children: [
-                  ...previousChildren,
-                  if (currentChild != null) currentChild,
-                ],
+                children: [...previousChildren, ?currentChild],
               );
             },
             transitionBuilder: (child, animation) {
@@ -1652,8 +1647,7 @@ class _InlineDelayEditor extends StatefulWidget {
     required this.lyricsProvider,
     required this.trackId,
     required this.visible,
-    Key? key,
-  }) : super(key: key);
+  });
 
   @override
   State<_InlineDelayEditor> createState() => _InlineDelayEditorState();
@@ -1841,9 +1835,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-
-  bool get _isWaveformSupported =>
-      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
   void _setMode(_ApplePlayerViewMode mode) {
     _modeNotifier.value = mode;
@@ -2523,18 +2514,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       case _ApplePlayerViewMode.queue:
         child = _buildQueueModeContent(context, player, isMobile);
         break;
-      case _ApplePlayerViewMode.waveform:
-        if (!_isWaveformSupported) {
-          child = Center(
-            child: Text(
-              'Waveform is unsupported on this platform.',
-              style: TextStyle(color: Colors.grey[400], fontSize: 15),
-            ),
-          );
-        } else {
-          child = _buildWaveformModeContent(context, player);
-        }
-        break;
       case _ApplePlayerViewMode.artist:
         child = _buildArtistModeContent(context, player);
         break;
@@ -2544,27 +2523,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     }
 
     return SizedBox.expand(child: child);
-  }
-
-  Widget _buildWaveformModeContent(
-    BuildContext context,
-    global_audio_player.WispAudioHandler player,
-  ) {
-    final track = player.currentTrack;
-    if (track == null) {
-      return Center(
-        child: Text(
-          'No track playing',
-          style: TextStyle(color: Colors.grey[400], fontSize: 16),
-        ),
-      );
-    }
-
-    return _AppleWaveformPanel(
-      track: track,
-      position: player.throttledPosition,
-      duration: player.duration,
-    );
   }
 
   Widget _buildArtistModeContent(
@@ -3072,10 +3030,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         layoutBuilder: (currentChild, previousChildren) {
           return Stack(
             alignment: Alignment.centerLeft,
-            children: [
-              ...previousChildren,
-              if (currentChild != null) currentChild,
-            ],
+            children: [...previousChildren, ?currentChild],
           );
         },
         transitionBuilder: (child, animation) {
@@ -3498,7 +3453,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }
 
   Widget _buildDesktopModeActions(_ApplePlayerViewMode mode, Color btnColor) {
-    final waveformSupported = _isWaveformSupported;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -3523,22 +3477,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 ? _ApplePlayerViewMode.nowPlaying
                 : _ApplePlayerViewMode.queue,
           ),
-          activeColor: btnColor,
-        ),
-        const SizedBox(width: 6),
-        _buildModeActionButton(
-          tooltip: waveformSupported
-              ? 'Waveform'
-              : 'Unsupported on this platform',
-          icon: Icons.graphic_eq,
-          selected: waveformSupported && mode == _ApplePlayerViewMode.waveform,
-          onTap: waveformSupported
-              ? () => _setMode(
-                  mode == _ApplePlayerViewMode.waveform
-                      ? _ApplePlayerViewMode.nowPlaying
-                      : _ApplePlayerViewMode.waveform,
-                )
-              : null,
           activeColor: btnColor,
         ),
         const SizedBox(width: 6),
@@ -4406,254 +4344,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }
 }
 
-enum _ApplePlayerViewMode { nowPlaying, lyrics, queue, waveform, artist }
-
-class _AppleWaveformPanel extends StatefulWidget {
-  final GenericSong track;
-  final Duration position;
-  final Duration duration;
-
-  const _AppleWaveformPanel({
-    required this.track,
-    required this.position,
-    required this.duration,
-  });
-
-  @override
-  State<_AppleWaveformPanel> createState() => _AppleWaveformPanelState();
-}
-
-class _AppleWaveformPanelState extends State<_AppleWaveformPanel> {
-  StreamSubscription<WaveformProgress>? _extractSubscription;
-  Waveform? _waveform;
-  double _progress = 0;
-  String? _errorText;
-  String? _loadedTrackId;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadWaveform();
-  }
-
-  @override
-  void didUpdateWidget(covariant _AppleWaveformPanel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.track.id != widget.track.id) {
-      _loadWaveform();
-    }
-  }
-
-  @override
-  void dispose() {
-    _extractSubscription?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _loadWaveform() async {
-    if (_loadedTrackId == widget.track.id) return;
-    _loadedTrackId = widget.track.id;
-    _waveform = null;
-    _progress = 0;
-    _errorText = null;
-    await _extractSubscription?.cancel();
-
-    final cachedPath = AudioCacheManager.instance.getCachedPath(
-      widget.track.id,
-    );
-    if (cachedPath == null || cachedPath.isEmpty) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = 'Waveform is available for cached tracks.';
-      });
-      return;
-    }
-
-    try {
-      final audioInFile = File(cachedPath);
-      if (!audioInFile.existsSync()) {
-        if (!mounted) return;
-        setState(() {
-          _errorText = 'Cached audio file could not be found.';
-        });
-        return;
-      }
-
-      final tempDir = await getTemporaryDirectory();
-      final waveOutFile = File(
-        '${tempDir.path}/wisp_waveforms/${widget.track.id}.wave',
-      );
-      await waveOutFile.parent.create(recursive: true);
-
-      if (waveOutFile.existsSync()) {
-        final parsed = await JustWaveform.parse(waveOutFile);
-        if (!mounted) return;
-        setState(() {
-          _waveform = parsed;
-          _progress = 1;
-        });
-        return;
-      }
-
-      _extractSubscription =
-          JustWaveform.extract(
-            audioInFile: audioInFile,
-            waveOutFile: waveOutFile,
-            zoom: const WaveformZoom.pixelsPerSecond(110),
-          ).listen(
-            (waveProgress) {
-              if (!mounted) return;
-              setState(() {
-                _progress = waveProgress.progress;
-                if (waveProgress.waveform != null) {
-                  _waveform = waveProgress.waveform;
-                }
-              });
-            },
-            onError: (_) {
-              if (!mounted) return;
-              setState(() {
-                _errorText =
-                    'Waveform extraction is not available on this platform.';
-              });
-            },
-          );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _errorText = 'Unable to generate waveform for this track.';
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final waveform = _waveform;
-    if (_errorText != null) {
-      return Center(
-        child: Text(
-          _errorText!,
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey[350], fontSize: 15),
-        ),
-      );
-    }
-    if (waveform == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(strokeWidth: 2),
-            const SizedBox(height: 10),
-            Text(
-              'Generating waveform… ${(_progress * 100).toInt()}%',
-              style: TextStyle(color: Colors.grey[300], fontSize: 13),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final duration = widget.duration == Duration.zero
-        ? waveform.duration
-        : widget.duration;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white10,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          const Text(
-            'Waveform',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CustomPaint(
-                painter: _AppleWaveformPainter(
-                  waveform: waveform,
-                  position: widget.position,
-                  duration: duration,
-                ),
-                child: const SizedBox.expand(),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AppleWaveformPainter extends CustomPainter {
-  final Waveform waveform;
-  final Duration position;
-  final Duration duration;
-
-  _AppleWaveformPainter({
-    required this.waveform,
-    required this.position,
-    required this.duration,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0 || waveform.length <= 0) return;
-
-    final barWidth = 2.0;
-    const gap = 2.0;
-    final step = barWidth + gap;
-    final bars = (size.width / step).floor().clamp(1, waveform.length).toInt();
-    final pixelsPerBar = math.max(1, waveform.length ~/ bars);
-    final playedRatio = duration.inMilliseconds <= 0
-        ? 0.0
-        : (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
-
-    final playedPaint = Paint()
-      ..color = Colors.white
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = barWidth;
-    final unplayedPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.35)
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = barWidth;
-
-    for (var i = 0; i < bars; i++) {
-      final sampleIndex = (i * pixelsPerBar)
-          .clamp(0, waveform.length - 1)
-          .toInt();
-      final min = waveform.getPixelMin(sampleIndex);
-      final max = waveform.getPixelMax(sampleIndex);
-      final amplitude = ((max - min).abs() / 65535.0).clamp(0.06, 1.0);
-      final lineHeight = size.height * amplitude;
-      final x = i * step + (barWidth / 2);
-      final y1 = (size.height - lineHeight) / 2;
-      final y2 = y1 + lineHeight;
-      final ratio = bars <= 1 ? 0.0 : i / (bars - 1);
-      canvas.drawLine(
-        Offset(x, y1),
-        Offset(x, y2),
-        ratio <= playedRatio ? playedPaint : unplayedPaint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _AppleWaveformPainter oldDelegate) {
-    return oldDelegate.waveform != waveform ||
-        oldDelegate.position != position ||
-        oldDelegate.duration != duration;
-  }
-}
+enum _ApplePlayerViewMode { nowPlaying, lyrics, queue, artist }
 
 /// YouTube Music variant — currently reuses the Spotify layout.
 class YouTubeMusicFullScreenPlayer extends StatelessWidget {

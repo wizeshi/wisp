@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/views/debug.dart';
+import 'package:wisp/views/dj.dart';
 import 'dart:io' show Platform;
 
 import '../models/metadata_models.dart';
@@ -163,6 +164,17 @@ class AppNavigation {
         ),
       );
     }
+  }
+
+  void navigateToDJView(BuildContext context) {
+    _shellNavigator?.push(
+      PageRouteBuilder(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        settings: const RouteSettings(name: '/dj'),
+        pageBuilder: (context, animation, secondaryAnimation) => DJView(),
+      ),
+    );
   }
 
   void openSharedList(

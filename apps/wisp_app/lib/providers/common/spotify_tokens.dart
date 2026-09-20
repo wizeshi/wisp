@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'package:wisp/utils/json.dart' show JsonUtils;
 import 'package:wisp/utils/logger.dart';
 
 const _spotifyWebTokenUrl = 'https://open.spotify.com/api/token';
@@ -119,7 +120,8 @@ Future<SpotifyTokens> fetchSpotifyTokens(
   );
 
   final clientJson =
-      jsonDecode(clientTokenResponse.body) as Map<String, dynamic>;
+      (await JsonUtils.decode(clientTokenResponse.body))
+          as Map<String, dynamic>;
   final responseType = clientJson['response_type'] as String?;
   if (responseType == 'RESPONSE_GRANTED_TOKEN_RESPONSE') {
     final grantedToken =

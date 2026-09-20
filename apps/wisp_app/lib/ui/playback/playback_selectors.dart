@@ -21,10 +21,59 @@ import '../../services/wisp_audio_handler.dart';
 /// prop expected by `GenericCard` / `HoverPlayOverlay` / row widgets.
 extension PlaybackSelectors on BuildContext {
   /// Whether [trackId] is the currently loaded and playing track.
+  ///
+  /// Deliberately does *not* check playback context — it answers "is this
+  /// song, anywhere, the one making sound," which is what a mini-player or
+  /// a global "now playing" indicator wants. A row embedded in a specific
+  /// playlist/album/artist/search view almost always wants
+  /// [watchIsCurrentTrackHere] / [watchIsPlayingTrackHere] instead, or it
+  /// will show the same song as "playing" in every list that happens to
+  /// contain it.
   bool watchIsPlayingTrack(String trackId) {
     return select<WispAudioHandler, bool>(
       (player) => player.isPlaying && player.currentTrack?.id == trackId,
     );
+  }
+
+  /// Whether [trackId] is the current track *and* the current playback
+  /// context matches [viewContext] — i.e. the queue actually loaded is the
+  /// one this row's own view (this playlist, this album, this artist, this
+  /// search) would build, not just some other queue that happens to
+  /// contain the same song.
+  ///
+  /// Pass the [PlaybackContext] the calling view's queue is (or would be)
+  /// built with; pass `null` for a view with no stable context of its own
+  /// (the row will then never report itself as current there). Matching
+  /// prefers `id` when both sides have one and falls back to `name`,
+  /// mirroring [watchIsPlayingAlbum] / [watchIsPlayingArtist] /
+  /// [watchIsPlayingPlaylist] above — this is the same rule, just scoped to
+  /// a single track row instead of a whole entity card.
+  bool watchIsCurrentTrackHere({
+    required String trackId,
+    required PlaybackContext? viewContext,
+  }) {
+    if (viewContext == null) return false;
+    return select<WispAudioHandler, bool>((player) {
+      if (player.currentTrack?.id != trackId) return false;
+      final playerContext = player.playbackContext;
+      return playerContext != null && playerContext.matches(viewContext);
+    });
+  }
+
+  /// [watchIsCurrentTrackHere] narrowed to also require that playback is
+  /// actually active, not just loaded-and-paused. Use this to drive a
+  /// play/pause icon or waveform; use [watchIsCurrentTrackHere] to drive
+  /// "highlight this row as the current one" styling that should still
+  /// apply while paused.
+  bool watchIsPlayingTrackHere({
+    required String trackId,
+    required PlaybackContext? viewContext,
+  }) {
+    return watchIsCurrentTrackHere(
+          trackId: trackId,
+          viewContext: viewContext,
+        ) &&
+        select<WispAudioHandler, bool>((player) => player.isPlaying);
   }
 
   /// Whether the current playback context is the album [albumId] (or,
@@ -77,8 +126,9 @@ extension PlaybackSelectors on BuildContext {
   }) {
     return select<WispAudioHandler, bool>((player) {
       if (!player.isPlaying) return false;
-      if (player.playbackContext?.type != PlaybackContextType.playlist)
+      if (player.playbackContext?.type != PlaybackContextType.playlist) {
         return false;
+      }
       if (player.playbackContext?.id == playlistId) return true;
       final contextName = player.playbackContext?.name.trim();
       return contextName != null &&

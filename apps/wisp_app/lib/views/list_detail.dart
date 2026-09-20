@@ -16,6 +16,8 @@ import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/services/wisp_audio_handler.dart';
 import 'package:wisp/theme/app_theme.dart';
+import 'package:wisp/ui/playback/playback_selectors.dart';
+import 'package:wisp/ui/rows/track_row.dart';
 import 'package:wisp/utils/text_parser.dart';
 
 import '../models/metadata_models.dart';
@@ -1167,31 +1169,34 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
   }
 
-  bool _isCurrentListPlaying(global_audio_player.WispAudioHandler player) {
-    final contextType = widget.type == SharedListType.playlist
-        ? PlaybackContextType.playlist
-        : PlaybackContextType.album;
+  /// The [PlaybackContext] this view's own queue is (or would be) built
+  /// with — "this playlist" / "this album". Passed to every [TrackRow] so
+  /// a row only shows itself as current/playing when the queue actually
+  /// loaded in the player is *this* one, not some other list that happens
+  /// to contain the same song. Mirrors the context built in
+  /// [_setQueueAndPlay]; [_isCurrentListPlaying] compares against it via
+  /// [PlaybackContext.matches].
+  PlaybackContext get _viewContext {
     final contextName = widget.type == SharedListType.playlist
         ? (_playlist?.title ?? '')
         : (_album?.title ?? '');
-    final contextId = widget.id;
+    final contextSource = widget.type == SharedListType.playlist
+        ? _playlist?.source
+        : _album?.source;
+    return PlaybackContext(
+      type: widget.type == SharedListType.playlist
+          ? PlaybackContextType.playlist
+          : PlaybackContextType.album,
+      id: widget.id,
+      name: contextName,
+      source: contextSource ?? SongSource.spotifyInternal,
+    );
+  }
 
-    if (player.currentTrack == null ||
-        player.playbackContext?.type != contextType) {
-      return false;
-    }
-
-    final playerContextId = player.playbackContext?.id;
-    if (playerContextId != null && playerContextId.isNotEmpty) {
-      return playerContextId == contextId;
-    }
-
-    final playerContextName = player.playbackContext?.name;
-    if (playerContextName == null || playerContextName.isEmpty) {
-      return false;
-    }
-
-    return playerContextName == contextName;
+  bool _isCurrentListPlaying(global_audio_player.WispAudioHandler player) {
+    if (player.currentTrack == null) return false;
+    final playerContext = player.playbackContext;
+    return playerContext != null && playerContext.matches(_viewContext);
   }
 
   void _toggleListShuffle(global_audio_player.WispAudioHandler player) {
@@ -3047,6 +3052,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     required _SortMethod method,
     TextAlign textAlign = TextAlign.left,
     VoidCallback? onTap,
+    // Zero this out (keep vertical for tap-target height / hover highlight)
+    // when this header sits directly above a TrackRow column whose content
+    // has no matching inset — otherwise the label sits ~4px off from the
+    // row content it's labeling, even though the column widths match.
+    EdgeInsets padding = const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
   }) {
     final headerStyle = TextStyle(color: Colors.grey[400], fontSize: 12);
     final isSorted = _sortMethod == method;
@@ -3083,10 +3093,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         child: InkWell(
           borderRadius: BorderRadius.circular(6),
           onTap: onTap ?? () => _sortBy(method),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            child: content,
-          ),
+          child: Padding(padding: padding, child: content),
         ),
       ),
     );
@@ -3099,69 +3106,83 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final visibleColumns = _getVisibleColumns(availableWidth);
 
     if (visualStyle == _ListVisualStyle.apple) {
-      return Row(
-        children: [
-          SizedBox(
-            width: 40,
-            child: _buildSortableHeader(
-              text: '#',
-              method: _SortMethod.position,
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(width: 4),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 3,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _buildSortableHeader(
-                text: 'Song',
-                method: _SortMethod.title,
-              ),
-            ),
-          ),
-          // Artist column - shown when artist column should be visible
-          if (visibleColumns.showArtistColumn)
-            Expanded(
-              flex: 2,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _buildSortableHeader(
-                  text: 'Artist',
-                  method: _SortMethod.author,
-                ),
-              ),
-            ),
-          // Album column - hidden at smaller widths
-          if (visibleColumns.showAlbum)
-            Expanded(
-              flex: 2,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: _buildSortableHeader(
-                  text: 'Album',
-                  method: _SortMethod.album,
-                ),
-              ),
-            ),
-          // Time column - hidden at smallest width
-          if (visibleColumns.showTime)
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
             SizedBox(
-              width: 70,
+              width: 40,
               child: Align(
-                alignment: Alignment.centerRight,
+                alignment: Alignment.center,
                 child: _buildSortableHeader(
-                  text: 'Time',
-                  method: _SortMethod.duration,
-                  textAlign: TextAlign.right,
+                  text: '#',
+                  method: _SortMethod.position,
+                  textAlign: TextAlign.center,
+                  padding: const EdgeInsets.symmetric(vertical: 2),
                 ),
               ),
             ),
-          const SizedBox(
-            width: 48,
-          ), // Adjusted space for more context menu room
-        ],
+            const SizedBox(width: 8),
+            const SizedBox(width: 44),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 3,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildSortableHeader(
+                  text: 'Song',
+                  method: _SortMethod.title,
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                ),
+              ),
+            ),
+            // Artist column - shown when artist column should be visible
+            if (visibleColumns.showArtistColumn)
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _buildSortableHeader(
+                    text: 'Artist',
+                    method: _SortMethod.author,
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                  ),
+                ),
+              ),
+            // Album column - hidden at smaller widths
+            if (visibleColumns.showAlbum)
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _buildSortableHeader(
+                    text: 'Album',
+                    method: _SortMethod.album,
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                  ),
+                ),
+              ),
+            // Time column - hidden at smallest width
+            if (visibleColumns.showTime) ...[
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 70,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _buildSortableHeader(
+                    text: 'Time',
+                    method: _SortMethod.duration,
+                    textAlign: TextAlign.right,
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(
+              width: 48,
+            ), // Space for more context menu button
+          ],
+        ),
       );
     }
 
@@ -3177,6 +3198,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 text: '#',
                 method: _SortMethod.position,
                 textAlign: TextAlign.center,
+                padding: const EdgeInsets.symmetric(vertical: 2),
               ),
             ),
           ),
@@ -3193,6 +3215,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                     ? _SortMethod.author
                     : _SortMethod.title,
                 onTap: _handleTitleHeaderTap,
+                padding: const EdgeInsets.symmetric(vertical: 2),
               ),
             ),
           ),
@@ -3201,35 +3224,29 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             Expanded(
               flex: 2,
               child: Align(
-                alignment: Alignment.center,
+                alignment: Alignment.centerLeft,
                 child: _buildSortableHeader(
                   text: 'Album',
                   method: _SortMethod.album,
-                  textAlign: TextAlign.center,
+                  textAlign: TextAlign.left,
+                  padding: const EdgeInsets.symmetric(vertical: 2),
                 ),
               ),
-            )
-          else if (widget.type == SharedListType.playlist)
-            const SizedBox(width: 80)
-          else
-            const SizedBox(width: 80),
+            ),
           if (widget.type == SharedListType.playlist &&
               visibleColumns.showAddedAt)
             SizedBox(
               width: 120,
               child: Align(
-                alignment: Alignment.center,
+                alignment: Alignment.centerLeft,
                 child: _buildSortableHeader(
                   text: 'Added',
                   method: _SortMethod.addedAt,
-                  textAlign: TextAlign.center,
+                  textAlign: TextAlign.left,
+                  padding: const EdgeInsets.symmetric(vertical: 2),
                 ),
               ),
-            )
-          else if (widget.type == SharedListType.playlist)
-            const SizedBox(width: 120)
-          else
-            const SizedBox(width: 120),
+            ),
           const SizedBox(width: 28),
           const SizedBox(width: 8),
           SizedBox(
@@ -3240,6 +3257,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 text: 'Time',
                 method: _SortMethod.duration,
                 textAlign: TextAlign.right,
+                padding: const EdgeInsets.symmetric(vertical: 2),
               ),
             ),
           ),
@@ -3252,10 +3270,113 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 text: '',
                 method: _SortMethod.source,
                 textAlign: TextAlign.right,
+                padding: const EdgeInsets.symmetric(vertical: 2),
               ),
             ),
           ),
+          const SizedBox(
+            width: 48,
+          ), // Space for more context menu button
         ],
+      ),
+    );
+  }
+
+  /// Builds a single row for desktop track lists using [TrackRow], supporting
+  /// both Spotify and Apple Music styles.
+  Widget _buildDesktopTrackRow(
+    BuildContext context,
+    int rowIndex, {
+    required double availableWidth,
+  }) {
+    final player = context.read<global_audio_player.WispAudioHandler>();
+    final index = _sortedIndices[rowIndex];
+    final item = _items[index];
+    final song = _toGenericSong(item);
+    final album = _getAlbum(item);
+    final visibleColumns = _getVisibleColumns(availableWidth);
+    final isPlaylist = widget.type == SharedListType.playlist;
+    final viewContext = _viewContext;
+    // Computed here (during build) rather than inside `onPlayPause` below —
+    // `context.select` (which this wraps) is only valid during build, not
+    // inside a callback invoked later on tap.
+    final isCurrentHere = context.watchIsCurrentTrackHere(
+      trackId: song.id,
+      viewContext: viewContext,
+    );
+    final isApple =
+        context.select<PreferencesProvider, AppStyle>((p) => p.style) ==
+        AppStyle.AppleMusic;
+
+    return TrackRow(
+      track: song,
+      viewContext: viewContext,
+      index: rowIndex,
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      indexColumnWidth: 40,
+      dateColumnWidth: 120,
+      showArtistColumn: visibleColumns.showArtistColumn,
+      showArtistInline: visibleColumns.showArtistInline,
+      showAlbumName: (isApple || isPlaylist) && visibleColumns.showAlbum,
+      showDuration: visibleColumns.showTime,
+      showDateAdded: isPlaylist && visibleColumns.showAddedAt,
+      showSource: true,
+      dateAdded: _getAddedAt(item),
+      onAlbumTap: (album != null && album.id.isNotEmpty)
+          ? () => _openSharedList(
+              SharedListType.album,
+              album.id,
+              title: album.title,
+              thumbnailUrl: album.thumbnailUrl,
+            )
+          : null,
+      onAlbumSecondaryTapDown: (album != null && album.id.isNotEmpty)
+          ? (details) => EntityContextMenus.showAlbumMenu(
+              context,
+              album: GenericAlbum(
+                id: album.id,
+                source: album.source,
+                title: album.title,
+                thumbnailUrl: album.thumbnailUrl,
+                artists: album.artists,
+                label: album.label,
+                releaseDate: album.releaseDate,
+                explicit: song.explicit,
+                durationSecs: 0,
+              ),
+              globalPosition: details.globalPosition,
+            )
+          : null,
+      onArtistTap: (artist) => _openArtist(artist),
+      onArtistSecondaryTapDown: (artist, details) =>
+          EntityContextMenus.showArtistMenu(
+            context,
+            artist: artist,
+            globalPosition: details.globalPosition,
+          ),
+      onTap: () => _handleRowDoubleClick(song.id, () => _playQueueAt(rowIndex)),
+      onPlayPause: () {
+        if (isCurrentHere) {
+          _toggleCurrentTrackPlayback(player);
+        } else {
+          _playQueueAt(rowIndex);
+        }
+      },
+      onSecondaryTapDown: (details) =>
+          _showSongContextMenu(song, globalPosition: details.globalPosition),
+      onMoreTap: (buttonContext) =>
+          _showSongContextMenu(song, anchorContext: buttonContext),
+      trailing: SizedBox(
+        width: 28,
+        child: LikeButton(
+          track: song,
+          iconSize: 16,
+          padding: const EdgeInsets.all(2),
+          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+          color: Theme.of(context).colorScheme.primary,
+          hoverOnlyWhenUnliked: true,
+        ),
       ),
     );
   }
@@ -3866,11 +3987,20 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             itemBuilder: (context, idx) {
               return Builder(
                 builder: (context) {
+                  final rowIndex = startIndex + idx;
+
+                  if (isDesktop) {
+                    return _buildDesktopTrackRow(
+                      context,
+                      rowIndex,
+                      availableWidth: availableWidth,
+                    );
+                  }
+
                   // `player` is only needed here to pass into onPressed/onTap
                   // callbacks, so `read` (no rebuild) is enough for it.
                   final player = context
                       .read<global_audio_player.WispAudioHandler>();
-                  final rowIndex = startIndex + idx;
                   final index = _sortedIndices[rowIndex];
                   final item = _items[index];
                   final song = _toGenericSong(item);
@@ -4378,6 +4508,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       itemBuilder: (context, idx) {
         return Builder(
           builder: (context) {
+            if (isDesktop) {
+              return _buildDesktopTrackRow(
+                context,
+                idx,
+                availableWidth: availableWidth,
+              );
+            }
+
             final player = context.read<global_audio_player.WispAudioHandler>();
             final index = _sortedIndices[idx];
             final item = _items[index];
@@ -6057,12 +6195,9 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   return Column(
                     children: [
                       const SizedBox(height: 26),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: view._buildListHeaderContent(
-                          visualStyle: _ListVisualStyle.apple,
-                          availableWidth: availableWidth,
-                        ),
+                      view._buildListHeaderContent(
+                        visualStyle: _ListVisualStyle.apple,
+                        availableWidth: availableWidth,
                       ),
                       const SizedBox(height: 8),
                       ScrollConfiguration(

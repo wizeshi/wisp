@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wisp/ui/overlay/cover_play_button.dart';
 import 'package:wisp/ui/overlay/hover.dart';
 
-enum GenericRowPlayPosition {
-  cover,
-  end,
-}
+enum GenericRowPlayPosition { cover, end }
 
 class GenericRow extends StatelessWidget {
   final String title;
@@ -95,10 +92,7 @@ class GenericRow extends StatelessWidget {
                     if (subtitle != null)
                       Text(
                         subtitle!,
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

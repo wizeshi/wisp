@@ -228,7 +228,7 @@ class _CardRailState<T> extends State<CardRail<T>> {
             },
           ),
         ),
-        SizedBox(height: isDesktop ? 32 : 4),
+        SizedBox(height: isDesktop ? 16 : 4),
       ],
     );
   }

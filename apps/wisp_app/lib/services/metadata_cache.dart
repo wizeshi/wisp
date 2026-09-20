@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:wisp/utils/json.dart';
 
 import '../utils/logger.dart';
 
@@ -134,7 +135,8 @@ class MetadataCacheStore {
       if (file == null || !await file.exists()) return null;
       final content = await file.readAsString();
       if (content.trim().isEmpty) return null;
-      final jsonData = jsonDecode(content) as Map<String, dynamic>;
+      final jsonData =
+          (await JsonUtils.decode(content)) as Map<String, dynamic>;
       return MetadataCacheEntry.fromJson(jsonData);
     } catch (e) {
       logger.w('[Services/MetadataCache] Failed to read entry', error: e);

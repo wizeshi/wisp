@@ -108,10 +108,10 @@ class DiscordRpcService {
     switch (track.source) {
       case SongSource.spotify:
       case SongSource.spotifyInternal:
-        trackURL = 'https://open.spotify.com/track/${trackID}';
+        trackURL = 'https://open.spotify.com/track/$trackID';
         break;
       case SongSource.youtube:
-        trackURL = 'https://www.youtube.com/watch?v=${trackID}';
+        trackURL = 'https://www.youtube.com/watch?v=$trackID';
         break;
       case _:
         break;

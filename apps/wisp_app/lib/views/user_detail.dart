@@ -775,17 +775,19 @@ class _UserDetailViewState extends State<UserDetailView> {
           )
           .toList();
 
-      await context.read<PlaybackCoordinator>().setQueue(
-        tracks,
-        startIndex: 0,
-        play: true,
-        playbackContext: PlaybackContext(
-          type: PlaybackContextType.playlist,
-          name: info.title,
-          id: info.id,
-          source: info.source,
-        ),
-      );
+      if (mounted) {
+        await context.read<PlaybackCoordinator>().setQueue(
+          tracks,
+          startIndex: 0,
+          play: true,
+          playbackContext: PlaybackContext(
+            type: PlaybackContextType.playlist,
+            name: info.title,
+            id: info.id,
+            source: info.source,
+          ),
+        );
+      }
     } catch (_) {}
   }
 
@@ -795,17 +797,19 @@ class _UserDetailViewState extends State<UserDetailView> {
       final info = await spotify.getArtistInfo(artist.id);
       if (info.topSongs.isEmpty) return;
 
-      await context.read<PlaybackCoordinator>().setQueue(
-        info.topSongs,
-        startIndex: 0,
-        play: true,
-        playbackContext: PlaybackContext(
-          type: PlaybackContextType.artist,
-          name: info.name,
-          id: info.id,
-          source: info.source,
-        ),
-      );
+      if (mounted) {
+        await context.read<PlaybackCoordinator>().setQueue(
+          info.topSongs,
+          startIndex: 0,
+          play: true,
+          playbackContext: PlaybackContext(
+            type: PlaybackContextType.artist,
+            name: info.name,
+            id: info.id,
+            source: info.source,
+          ),
+        );
+      }
     } catch (_) {}
   }
 

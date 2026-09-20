@@ -88,23 +88,12 @@ class PlaylistRow extends StatelessWidget {
   }
 
   Future<void> _togglePlaylistPlayback(BuildContext context) async {
-    final startTime = DateTime.now();
-    print(
-      'Toggling playlist playback for ${playlist.title} at ${startTime.toIso8601String()}',
-    );
-
     final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
     // Check if playlist is currently active, and if so, whether it's playing or paused. If it's active and playing, pause it; otherwise, play it.
     if (audioHandler != null) {
       if (audioHandler.playbackContext?.type == PlaybackContextType.playlist &&
           audioHandler.playbackContext?.id == playlist.id) {
         if (audioHandler.isPlaying) {
-          print(
-            'Pausing playlist playback for ${playlist.title} at ${DateTime.now().toIso8601String()}',
-          );
-          print(
-            'Time taken to pause: ${DateTime.now().difference(startTime).inMilliseconds} ms',
-          );
           return audioHandler.pause();
         } else {
           return audioHandler.play();
@@ -140,13 +129,19 @@ class PlaylistRow extends StatelessWidget {
               semanticLabel: 'Artwork for ${playlist.title}',
             ),
       isPlaying: isPlaying,
-      onTap: () => AppNavigation.instance.openSharedList(
-        context,
-        id: playlist.id,
-        type: SharedListType.playlist,
-        initialTitle: playlist.title,
-        initialThumbnailUrl: playlist.thumbnailUrl,
-      ),
+      onTap: () {
+        if (playlist.source == SongSource.spotifyInternal && playlist.title == "DJ" && playlist.author.displayName == "Spotify") {
+          AppNavigation.instance.navigateToDJView(context);
+        } else {
+          AppNavigation.instance.openSharedList(
+            context,
+            id: playlist.id,
+            type: SharedListType.playlist,
+            initialTitle: playlist.title,
+            initialThumbnailUrl: playlist.thumbnailUrl,
+          );
+        }
+      },
       onPlay: () => _togglePlaylistPlayback(context),
       onSecondaryTapDown: (details) {
         EntityContextMenus.showPlaylistMenu(

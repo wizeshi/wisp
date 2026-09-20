@@ -48,10 +48,7 @@ class _SlidingTrackBackgroundState extends State<SlidingTrackBackground> {
         return ClipRect(
           child: Stack(
             fit: StackFit.expand,
-            children: [
-              ...previousChildren,
-              if (currentChild != null) currentChild,
-            ],
+            children: [...previousChildren, ?currentChild],
           ),
         );
       },

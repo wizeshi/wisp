@@ -242,36 +242,38 @@ class HomePageState extends State<HomePage> {
 
       // Import remote folders
       try {
-        final folderState = context.read<LibraryFolderState>();
-        final all = userLibrary.all_organized;
-        if (all != null && all.isNotEmpty) {
-          final remoteFolders = <PlaylistFolder>[];
-          for (final e in all) {
-            if (e is Map<String, dynamic>) {
-              final t = e['__typename'] as String? ?? e['type'] as String?;
-              if (t == 'Folder' || t == 'folder') {
-                final uri = e['uri'] as String? ?? e['id'] as String? ?? '';
-                final id = uri.isNotEmpty ? uri : (e['id'] as String? ?? '');
-                final name = e['name'] as String? ?? '';
-                remoteFolders.add(
-                  PlaylistFolder(
-                    id: id,
-                    title: name,
-                    createdAt: DateTime.now(),
-                  ),
-                );
+        if (mounted) {
+          final folderState = context.read<LibraryFolderState>();
+          final all = userLibrary.all_organized;
+          if (all != null && all.isNotEmpty) {
+            final remoteFolders = <PlaylistFolder>[];
+            for (final e in all) {
+              if (e is Map<String, dynamic>) {
+                final t = e['__typename'] as String? ?? e['type'] as String?;
+                if (t == 'Folder' || t == 'folder') {
+                  final uri = e['uri'] as String? ?? e['id'] as String? ?? '';
+                  final id = uri.isNotEmpty ? uri : (e['id'] as String? ?? '');
+                  final name = e['name'] as String? ?? '';
+                  remoteFolders.add(
+                    PlaylistFolder(
+                      id: id,
+                      title: name,
+                      createdAt: DateTime.now(),
+                    ),
+                  );
+                }
               }
             }
+            if (remoteFolders.isNotEmpty) {
+              await folderState.importRemoteFolders(remoteFolders);
+            }
           }
-          if (remoteFolders.isNotEmpty) {
-            await folderState.importRemoteFolders(remoteFolders);
-          }
-        }
 
-        if (userLibrary.folderAssignments != null) {
-          await folderState.batchAssignPlaylistsToFolders(
-            userLibrary.folderAssignments!,
-          );
+          if (userLibrary.folderAssignments != null) {
+            await folderState.batchAssignPlaylistsToFolders(
+              userLibrary.folderAssignments!,
+            );
+          }
         }
       } catch (e) {
         logger.w('[Views/Home] Failed to process remote folders: $e');
@@ -282,6 +284,7 @@ class HomePageState extends State<HomePage> {
         likedPlaylist,
         ...internalPlaylists.where((p) => p.id != likedSongsPlaylistId),
       ];
+      if (!mounted) return;
       final localState = context.read<LocalPlaylistState>();
       final localPlaylists = localState.genericPlaylists;
       _remotePlaylists = playlistsWithLiked;
