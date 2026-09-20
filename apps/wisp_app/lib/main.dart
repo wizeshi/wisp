@@ -36,6 +36,7 @@ import 'services/desktop_notification_center.dart';
 import 'services/discord_rpc_service.dart';
 import 'services/listening_habits_service.dart';
 import 'widgets/app_shell.dart';
+import 'widgets/smooth_scroll.dart';
 import 'package:wisp/utils/logger.dart';
 
 void main() async {
@@ -246,6 +247,7 @@ class WispApp extends StatelessWidget {
         builder: (context, palette, preferences, child) {
           return MaterialApp(
             title: 'Wisp',
+            scrollBehavior: const DesktopSmoothScrollBehavior(),
             theme: AppTheme.dark(
               paletteOverride: palette.palette,
               appStyle: preferences.style,

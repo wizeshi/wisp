@@ -43,6 +43,7 @@ import '../providers/audio/youtube.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/liked_songs_art.dart';
 import '../widgets/provider_disabled_state.dart';
+import '../widgets/smooth_scroll.dart';
 
 enum SharedListType { playlist, album }
 
@@ -5645,9 +5646,12 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
           Expanded(
             child: Stack(
               children: [
-                CustomScrollView(
+                WispSmoothScroll(
                   controller: view._mobileScrollController,
-                  slivers: [
+                  builder: (context, controller, physics) => CustomScrollView(
+                    controller: controller,
+                    physics: physics,
+                    slivers: [
                     SliverToBoxAdapter(
                       child: Container(
                         key: view._headerKey,
@@ -5701,7 +5705,8 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                     ),
                   ],
                 ),
-              ],
+              ),
+            ],
             ),
           ),
         ],
@@ -5739,10 +5744,13 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
           child: Column(
             children: [
               Expanded(
-                child: ListView(
+                child: WispSmoothScroll(
                   controller: view._desktopScrollController,
-                  padding: EdgeInsets.fromLTRB(0, 0, 0, 0),
-                  children: [
+                  builder: (context, controller, physics) => ListView(
+                    controller: controller,
+                    physics: physics,
+                    padding: EdgeInsets.fromLTRB(0, 0, 0, 0),
+                    children: [
                     Container(
                       key: view._headerKey,
                       width: double.infinity,
@@ -5824,6 +5832,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                   ],
                 ),
               ),
+            ),
             ],
           ),
         ),
@@ -5934,9 +5943,12 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
     return Stack(
       children: [
         Positioned.fill(child: Container(color: contentSurfaceColor)),
-        CustomScrollView(
+        WispSmoothScroll(
           controller: view._mobileScrollController,
-          slivers: [
+          builder: (context, controller, physics) => CustomScrollView(
+            controller: controller,
+            physics: physics,
+            slivers: [
             SliverAppBar(
               key: view._headerKey,
               backgroundColor: contentSurfaceColor,
@@ -6060,8 +6072,9 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             ),
           ],
         ),
-      ],
-    );
+      ),
+    ],
+  );
   }
 
   Widget _buildDesktop(BuildContext context) {
@@ -6076,10 +6089,13 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         Positioned.fill(child: Container(color: contentSurfaceColor)),
         SafeArea(
           bottom: false,
-          child: ListView(
+          child: WispSmoothScroll(
             controller: view._desktopScrollController,
-            padding: const EdgeInsets.fromLTRB(30, 30, 30, 18),
-            children: [
+            builder: (context, controller, physics) => ListView(
+              controller: controller,
+              physics: physics,
+              padding: const EdgeInsets.fromLTRB(30, 30, 30, 18),
+              children: [
               LayoutBuilder(
                 builder: (headerContext, headerConstraints) {
                   final availableWidth = headerConstraints.maxWidth;
@@ -6288,6 +6304,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             ],
           ),
         ),
+      ),
         Positioned(
           left: 0,
           right: 0,

@@ -25,6 +25,7 @@ import '../services/app_navigation.dart';
 import '../widgets/provider_disabled_state.dart';
 import '../widgets/entity_context_menus.dart';
 import 'list_detail.dart';
+import '../widgets/smooth_scroll.dart';
 
 bool _isLocalThumbnailPath(String path) {
   return path.startsWith('/') || path.startsWith('file://');
@@ -712,10 +713,13 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
     return RefreshIndicator(
       onRefresh: _refreshPlaylists,
-      child: ListView.builder(
-        key: const ValueKey('playlists'),
+      child: WispSmoothScroll(
         controller: _playlistScrollController,
-        padding: EdgeInsets.zero,
+        builder: (context, controller, physics) => ListView.builder(
+          key: const ValueKey('playlists'),
+          controller: controller,
+          physics: physics,
+          padding: EdgeInsets.zero,
         itemCount:
             entries.length + (_hasMorePlaylists || _isLoadingPlaylists ? 1 : 0),
         itemBuilder: (context, index) {
@@ -795,7 +799,8 @@ class LibraryTabViewState extends State<LibraryTabView> {
           );
         },
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildAlbumsContent(double padding) {
@@ -809,32 +814,36 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
     return RefreshIndicator(
       onRefresh: _refreshAlbums,
-      child: ListView.builder(
-        key: const ValueKey('albums'),
+      child: WispSmoothScroll(
         controller: _albumScrollController,
-        padding: EdgeInsets.zero,
-        itemCount:
-            _albums.length + (_hasMoreAlbums || _isLoadingAlbums ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index >= _albums.length) {
-            return _buildLoadingIndicator(
-              _isLoadingAlbums,
-              horizontalPadding: padding,
-            );
-          }
+        builder: (context, controller, physics) => ListView.builder(
+          key: const ValueKey('albums'),
+          controller: controller,
+          physics: physics,
+          padding: EdgeInsets.zero,
+          itemCount:
+              _albums.length + (_hasMoreAlbums || _isLoadingAlbums ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index >= _albums.length) {
+              return _buildLoadingIndicator(
+                _isLoadingAlbums,
+                horizontalPadding: padding,
+              );
+            }
 
-          final album = _albums[index];
-          return _AlbumListTile(
-            album: album,
-            horizontalPadding: padding,
-            onTap: () => _openAlbum(album),
-            playlists: _displayPlaylists,
-            albums: _albums,
-            artists: _artists,
-            currentLibraryView: _selectedTab,
-            currentNavIndex: 2,
-          );
-        },
+            final album = _albums[index];
+            return _AlbumListTile(
+              album: album,
+              horizontalPadding: padding,
+              onTap: () => _openAlbum(album),
+              playlists: _displayPlaylists,
+              albums: _albums,
+              artists: _artists,
+              currentLibraryView: _selectedTab,
+              currentNavIndex: 2,
+            );
+          },
+        ),
       ),
     );
   }
@@ -850,32 +859,36 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
     return RefreshIndicator(
       onRefresh: _refreshArtists,
-      child: ListView.builder(
-        key: const ValueKey('artists'),
+      child: WispSmoothScroll(
         controller: _artistScrollController,
-        padding: EdgeInsets.zero,
-        itemCount:
-            _artists.length + (_hasMoreArtists || _isLoadingArtists ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index >= _artists.length) {
-            return _buildLoadingIndicator(
-              _isLoadingArtists,
-              horizontalPadding: padding,
-            );
-          }
+        builder: (context, controller, physics) => ListView.builder(
+          key: const ValueKey('artists'),
+          controller: controller,
+          physics: physics,
+          padding: EdgeInsets.zero,
+          itemCount:
+              _artists.length + (_hasMoreArtists || _isLoadingArtists ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index >= _artists.length) {
+              return _buildLoadingIndicator(
+                _isLoadingArtists,
+                horizontalPadding: padding,
+              );
+            }
 
-          final artist = _artists[index];
-          return _ArtistListTile(
-            artist: artist,
-            horizontalPadding: padding,
-            onTap: () => _openArtist(artist),
-            playlists: _displayPlaylists,
-            albums: _albums,
-            artists: _artists,
-            currentLibraryView: _selectedTab,
-            currentNavIndex: 2,
-          );
-        },
+            final artist = _artists[index];
+            return _ArtistListTile(
+              artist: artist,
+              horizontalPadding: padding,
+              onTap: () => _openArtist(artist),
+              playlists: _displayPlaylists,
+              albums: _albums,
+              artists: _artists,
+              currentLibraryView: _selectedTab,
+              currentNavIndex: 2,
+            );
+          },
+        ),
       ),
     );
   }

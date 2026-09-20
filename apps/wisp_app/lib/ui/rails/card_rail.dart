@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import '../../widgets/smooth_scroll.dart';
 
 /// A horizontally scrolling row of cards, with a title header, edge fade,
 /// and hover-revealed scroll arrows on desktop.
@@ -60,7 +61,7 @@ class CardRail<T> extends StatefulWidget {
     double? itemHeight,
     this.itemSpacing = 16,
     this.expandItemsToRailWidth = false,
-  }) : itemHeight = itemHeight ?? itemWidth + 57;
+  }) : itemHeight = itemHeight ?? itemWidth + 58;
 
   @override
   State<CardRail<T>> createState() => _CardRailState<T>();
@@ -158,22 +159,28 @@ class _CardRailState<T> extends State<CardRail<T>> {
                     : null,
                 child: Stack(
                   children: [
-                    ListView.separated(
+                    WispSmoothScroll(
                       controller: _controller,
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.only(bottom: 4),
-                      itemCount: widget.items.length,
-                      separatorBuilder: (context, index) =>
-                          SizedBox(width: widget.itemSpacing),
-                      itemBuilder: (context, index) {
-                        final card = widget.itemBuilder(
-                          context,
-                          widget.items[index],
-                        );
-                        return widget.expandItemsToRailWidth
-                            ? SizedBox(width: constraints.maxWidth, child: card)
-                            : SizedBox(width: widget.itemWidth, child: card);
-                      },
+                      builder: (context, controller, physics) =>
+                          ListView.separated(
+                        controller: controller,
+                        physics: physics,
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.only(bottom: 4),
+                        itemCount: widget.items.length,
+                        separatorBuilder: (context, index) =>
+                            SizedBox(width: widget.itemSpacing),
+                        itemBuilder: (context, index) {
+                          final card = widget.itemBuilder(
+                            context,
+                            widget.items[index],
+                          );
+                          return widget.expandItemsToRailWidth
+                              ? SizedBox(width: constraints.maxWidth, child: card)
+                              : SizedBox(width: widget.itemWidth, child: card);
+                        },
+                      ),
                     ),
                     if (_canScrollRight)
                       Positioned(

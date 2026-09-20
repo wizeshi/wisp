@@ -30,6 +30,7 @@ import '../widgets/entity_context_menus.dart';
 import '../widgets/like_button.dart';
 import '../widgets/navigation.dart';
 import '../widgets/provider_disabled_state.dart';
+import '../widgets/smooth_scroll.dart';
 
 enum SearchTab { tracks, artists, albums, playlists }
 
@@ -622,44 +623,48 @@ class _SearchViewState extends State<SearchView> {
   Widget _buildDesktopContent() {
     final songs = _buildSuggestedSongs();
 
-    return SingleChildScrollView(
+    return WispSmoothScroll(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildDesktopTopRow(songs),
-            const SizedBox(height: 24),
-            if (_artists.isNotEmpty) ...[
-              CardRail(
-                title: 'Artists',
-                items: _artists.toList(),
-                itemBuilder: (context, artist) {
-                  return ArtistCard(artist: artist);
-                },
-              ),
+      builder: (context, controller, physics) => SingleChildScrollView(
+        controller: controller,
+        physics: physics,
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDesktopTopRow(songs),
+              const SizedBox(height: 24),
+              if (_artists.isNotEmpty) ...[
+                CardRail(
+                  title: 'Artists',
+                  items: _artists.toList(),
+                  itemBuilder: (context, artist) {
+                    return ArtistCard(artist: artist);
+                  },
+                ),
+              ],
+              if (_albums.isNotEmpty) ...[
+                CardRail(
+                  title: 'Albums',
+                  items: _albums.toList(),
+                  itemBuilder: (context, album) {
+                    return AlbumCard(album: album);
+                  },
+                ),
+              ],
+              if (_playlists.isNotEmpty) ...[
+                CardRail(
+                  title: 'Playlists',
+                  items: _playlists.toList(),
+                  itemBuilder: (context, playlist) {
+                    return PlaylistCard(playlist: playlist);
+                  },
+                ),
+              ],
             ],
-            if (_albums.isNotEmpty) ...[
-              CardRail(
-                title: 'Albums',
-                items: _albums.toList(),
-                itemBuilder: (context, album) {
-                  return AlbumCard(album: album);
-                },
-              ),
-            ],
-            if (_playlists.isNotEmpty) ...[
-              CardRail(
-                title: 'Playlists',
-                items: _playlists.toList(),
-                itemBuilder: (context, playlist) {
-                  return PlaylistCard(playlist: playlist);
-                },
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

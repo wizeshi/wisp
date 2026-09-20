@@ -33,6 +33,7 @@ import '../services/app_navigation.dart';
 import '../services/playback/playback_coordinator.dart';
 import '../utils/liked_songs.dart';
 import '../widgets/provider_disabled_state.dart';
+import '../widgets/smooth_scroll.dart';
 import '../widgets/entity_context_menus.dart';
 
 class HomePage extends StatefulWidget {
@@ -833,7 +834,7 @@ class HomePageState extends State<HomePage> {
       skipEntryIndexes: skipDynamicIndexes,
       allowSpecialCardStyle: canShowSpecialCard,
     );
-    return ListView(
+    return WispListView(
       padding: const EdgeInsets.all(24),
       children: [
         Text(
