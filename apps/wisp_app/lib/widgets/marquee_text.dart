@@ -254,29 +254,31 @@ class _MarqueeTextState extends State<MarqueeText>
 
         final singleWidth = textPainter.width + widget.gap;
 
-        return AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            final currentOffset = _controller.value * singleWidth;
+        return RepaintBoundary(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final currentOffset = _controller.value * singleWidth;
 
-            return SizedBox(
-              width: viewportWidth,
-              height: textPainter.height,
-              child: ClipRect(
-                child: Stack(
-                  clipBehavior: Clip.hardEdge,
-                  children: [
-                    Positioned(left: -currentOffset, top: 0, child: textChild),
-                    Positioned(
-                      left: -currentOffset + singleWidth,
-                      top: 0,
-                      child: textChild,
-                    ),
-                  ],
+              return SizedBox(
+                width: viewportWidth,
+                height: textPainter.height,
+                child: ClipRect(
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      Positioned(left: -currentOffset, top: 0, child: textChild),
+                      Positioned(
+                        left: -currentOffset + singleWidth,
+                        top: 0,
+                        child: textChild,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );

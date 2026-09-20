@@ -9,12 +9,14 @@ class PlayingWaveform extends StatefulWidget {
   final Color color;
   final double size;
   final Duration period;
+  final bool active;
 
   const PlayingWaveform({
     super.key,
     required this.color,
     this.size = 16,
     this.period = const Duration(milliseconds: 900),
+    this.active = true,
   });
 
   @override
@@ -36,9 +38,19 @@ class _PlayingWaveformState extends State<PlayingWaveform>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.period)
-      ..repeat();
+    _controller = AnimationController(vsync: this, duration: widget.period);
+    if (widget.active) {
+      _controller.repeat();
+    }
     AppFocusService.instance.isFocused.addListener(_handleFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant PlayingWaveform oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.active != widget.active) {
+      _applyFocusState();
+    }
   }
 
   @override
@@ -57,12 +69,14 @@ class _PlayingWaveformState extends State<PlayingWaveform>
   }
 
   void _applyFocusState() {
-    final shouldFreeze =
-        _freezeWhenUnfocused && !AppFocusService.instance.isFocused.value;
-    if (shouldFreeze) {
+    final shouldAnimate = widget.active &&
+        (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
+    if (shouldAnimate) {
+      if (!_controller.isAnimating) {
+        _controller.repeat();
+      }
+    } else {
       _controller.stop(canceled: false);
-    } else if (!_controller.isAnimating) {
-      _controller.repeat();
     }
   }
 

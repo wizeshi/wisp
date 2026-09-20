@@ -715,6 +715,7 @@ class _IndexOrPlayButton extends StatelessWidget {
           opacity: showWaveform ? 1 : 0,
           duration: const Duration(milliseconds: 120),
           child: PlayingWaveform(
+            active: showWaveform,
             color: Theme.of(context).colorScheme.primary,
             size: 14,
           ),

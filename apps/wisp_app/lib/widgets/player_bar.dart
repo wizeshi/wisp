@@ -41,7 +41,9 @@ class WispPlayerBar extends StatelessWidget {
           (player) => player.currentTrack,
         );
 
-    final appStyle = context.watch<PreferencesProvider>().style;
+    final appStyle = context.select<PreferencesProvider, AppStyle>(
+      (p) => p.style,
+    );
 
     if (_isMobile) {
       return _MobilePlayerBarAnimated(
@@ -471,83 +473,85 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
   Widget _buildMiniProgressBar() {
     // Simpler selection: read playback position and duration directly
-    return Builder(
-      builder: (context) {
-        final useHandoffState = context.select<PlaybackCoordinator, bool>(
-          (coordinator) => coordinator.useLinkedPlaybackState,
-        );
-        final effectivePosition = context.select<PlaybackCoordinator, Duration>(
-          (coordinator) => coordinator.effectiveThrottledPosition,
-        );
-
-        final duration = context
-            .select<global_audio_player.WispAudioHandler, Duration>(
-              (player) => player.duration,
-            );
-
-        final isLoading =
-            !useHandoffState &&
-            context.select<global_audio_player.WispAudioHandler, bool>(
-              (player) => player.isLoading || player.isBuffering,
-            );
-
-        if (isLoading) {
-          return const SizedBox(
-            height: 3,
-            child: LinearProgressIndicator(
-              backgroundColor: Colors.transparent,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
+    return RepaintBoundary(
+      child: Builder(
+        builder: (context) {
+          final useHandoffState = context.select<PlaybackCoordinator, bool>(
+            (coordinator) => coordinator.useLinkedPlaybackState,
           );
-        }
+          final effectivePosition = context.select<PlaybackCoordinator, Duration>(
+            (coordinator) => coordinator.effectiveThrottledPosition,
+          );
 
-        final progress = duration.inMilliseconds > 0
-            ? effectivePosition.inMilliseconds / duration.inMilliseconds
-            : 0.0;
-
-        // Freeze the mini progress bar while the app is unfocused instead of
-        // rebuilding it on every position update.
-        if (context.select<PreferencesProvider, bool>(
-          (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
-            PausedBackgroundWidget.playerProgressBar,
-          ),
-        )) {
-          return FocusFreezeBuilder<(int, int)>(
-            value: (effectivePosition.inMilliseconds, duration.inMilliseconds),
-            builder: (context, _) {
-              return TweenAnimationBuilder<double>(
-                tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-                duration: const Duration(milliseconds: 200),
-                builder: (context, animatedProgress, child) {
-                  return SizedBox(
-                    height: 3,
-                    child: LinearProgressIndicator(
-                      value: animatedProgress,
-                      backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  );
-                },
+          final duration = context
+              .select<global_audio_player.WispAudioHandler, Duration>(
+                (player) => player.duration,
               );
-            },
-          );
-        }
 
-        return TweenAnimationBuilder<double>(
-          tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-          duration: const Duration(milliseconds: 200),
-          builder: (context, animatedProgress, child) {
-            return SizedBox(
+          final isLoading =
+              !useHandoffState &&
+              context.select<global_audio_player.WispAudioHandler, bool>(
+                (player) => player.isLoading || player.isBuffering,
+              );
+
+          if (isLoading) {
+            return const SizedBox(
               height: 3,
               child: LinearProgressIndicator(
-                value: animatedProgress,
-                backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
+                backgroundColor: Colors.transparent,
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
               ),
             );
-          },
-        );
-      },
+          }
+
+          final progress = duration.inMilliseconds > 0
+              ? effectivePosition.inMilliseconds / duration.inMilliseconds
+              : 0.0;
+
+          // Freeze the mini progress bar while the app is unfocused instead of
+          // rebuilding it on every position update.
+          if (context.select<PreferencesProvider, bool>(
+            (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+              PausedBackgroundWidget.playerProgressBar,
+            ),
+          )) {
+            return FocusFreezeBuilder<(int, int)>(
+              value: (effectivePosition.inMilliseconds, duration.inMilliseconds),
+              builder: (context, _) {
+                return TweenAnimationBuilder<double>(
+                  tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+                  duration: const Duration(milliseconds: 200),
+                  builder: (context, animatedProgress, child) {
+                    return SizedBox(
+                      height: 3,
+                      child: LinearProgressIndicator(
+                        value: animatedProgress,
+                        backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          }
+
+          return TweenAnimationBuilder<double>(
+            tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
+            duration: const Duration(milliseconds: 200),
+            builder: (context, animatedProgress, child) {
+              return SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(
+                  value: animatedProgress,
+                  backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -714,54 +718,56 @@ class _DesktopProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Selector<global_audio_player.WispAudioHandler, _PositionData>(
-      selector: (context, player) => _PositionData(
-        position: player.throttledPosition,
-        duration: player.duration,
-        isLoading: player.isLoading || player.isBuffering,
-      ),
-      builder: (context, data, child) {
-        if (data.isLoading) {
-          return Center(
-            child: const Column(
-              children: [
-                SizedBox(height: 8),
-                SizedBox(
-                  height: 4,
-                  child: LinearProgressIndicator(
-                    backgroundColor: Colors.transparent,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+    return RepaintBoundary(
+      child: Selector<global_audio_player.WispAudioHandler, _PositionData>(
+        selector: (context, player) => _PositionData(
+          position: player.throttledPosition,
+          duration: player.duration,
+          isLoading: player.isLoading || player.isBuffering,
+        ),
+        builder: (context, data, child) {
+          if (data.isLoading) {
+            return Center(
+              child: const Column(
+                children: [
+                  SizedBox(height: 8),
+                  SizedBox(
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
                   ),
-                ),
-                SizedBox(height: 12),
-              ],
+                  SizedBox(height: 12),
+                ],
+              ),
+            );
+          }
+
+          final duration = data.duration;
+          final progress = duration.inMilliseconds > 0
+              ? data.position.inMilliseconds / duration.inMilliseconds
+              : 0.0;
+
+          // Freeze the ticking progress bar (text + slider) while the app or
+          // window is unfocused, instead of rebuilding it on every position
+          // update.
+          if (context.select<PreferencesProvider, bool>(
+            (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+              PausedBackgroundWidget.playerProgressBar,
             ),
-          );
-        }
+          )) {
+            return FocusFreezeBuilder<_PositionData>(
+              value: data,
+              builder: (context, _) {
+                return buildBaseProgressBar(context, duration, progress);
+              },
+            );
+          }
 
-        final duration = data.duration;
-        final progress = duration.inMilliseconds > 0
-            ? data.position.inMilliseconds / duration.inMilliseconds
-            : 0.0;
-
-        // Freeze the ticking progress bar (text + slider) while the app or
-        // window is unfocused, instead of rebuilding it on every position
-        // update.
-        if (context.select<PreferencesProvider, bool>(
-          (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
-            PausedBackgroundWidget.playerProgressBar,
-          ),
-        )) {
-          return FocusFreezeBuilder<_PositionData>(
-            value: data,
-            builder: (context, _) {
-              return buildBaseProgressBar(context, duration, progress);
-            },
-          );
-        }
-
-        return buildBaseProgressBar(context, duration, progress);
-      },
+          return buildBaseProgressBar(context, duration, progress);
+        },
+      ),
     );
   }
 

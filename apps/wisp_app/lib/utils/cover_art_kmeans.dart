@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -30,25 +31,91 @@ class CoverArtKMeans {
       if (byteData == null) {
         return null;
       }
-      final samples = _samplePixels(
-        byteData.buffer.asUint8List(),
-        image.width,
-        image.height,
-        maxSamples,
-      );
-      if (samples.isEmpty) {
+      final bytes = byteData.buffer.asUint8List();
+      final width = image.width;
+      final height = image.height;
+
+      final colorValues = await Isolate.run(() => _computePaletteColors(
+            bytes,
+            width,
+            height,
+            maxSamples,
+            clusterCount,
+            maxIterations,
+          ));
+      if (colorValues == null) {
         return null;
       }
-      final clusters = _kmeans(samples, clusterCount, maxIterations);
-      if (clusters.isEmpty) {
-        return null;
-      }
-      return _buildScheme(clusters, samples.length);
+      return _buildSchemeFromValues(colorValues);
     } catch (_) {
       return null;
     } finally {
       image?.dispose();
     }
+  }
+
+  static (int, int?, int?)? _computePaletteColors(
+    Uint8List bytes,
+    int width,
+    int height,
+    int maxSamples,
+    int clusterCount,
+    int maxIterations,
+  ) {
+    final samples = _samplePixels(bytes, width, height, maxSamples);
+    if (samples.isEmpty) return null;
+    final clusters = _kmeans(samples, clusterCount, maxIterations);
+    if (clusters.isEmpty) return null;
+    final scored = _scoreClusters(clusters, samples.length);
+    final primary = _tuneColor(_sanitizeColor(scored.first.color));
+    final secondary = _pickDistinctColor(scored, [primary]);
+    final tertiary = secondary == null
+        ? null
+        : _pickDistinctColor(scored, [primary, secondary]);
+    return (
+      _colorToInt(primary),
+      secondary != null ? _colorToInt(secondary) : null,
+      tertiary != null ? _colorToInt(tertiary) : null,
+    );
+  }
+
+  static int _colorToInt(Color color) {
+    final a = (color.a * 255.0).round().clamp(0, 255);
+    final r = (color.r * 255.0).round().clamp(0, 255);
+    final g = (color.g * 255.0).round().clamp(0, 255);
+    final b = (color.b * 255.0).round().clamp(0, 255);
+    return (a << 24) | (r << 16) | (g << 8) | b;
+  }
+
+  static ColorScheme _buildSchemeFromValues(
+    (int, int?, int?) values,
+  ) {
+    final (primaryValue, secondaryValue, tertiaryValue) = values;
+    final primary = Color(primaryValue);
+    final secondary =
+        secondaryValue != null ? Color(secondaryValue) : null;
+    final tertiary = tertiaryValue != null ? Color(tertiaryValue) : null;
+
+    var scheme = ColorScheme.fromSeed(
+      seedColor: primary,
+      brightness: Brightness.dark,
+    ).copyWith(primary: primary, onPrimary: _bestOnColor(primary));
+
+    if (secondary != null) {
+      scheme = scheme.copyWith(
+        secondary: secondary,
+        onSecondary: _bestOnColor(secondary),
+      );
+    }
+
+    if (tertiary != null) {
+      scheme = scheme.copyWith(
+        tertiary: tertiary,
+        onTertiary: _bestOnColor(tertiary),
+      );
+    }
+
+    return scheme;
   }
 
   static Future<ui.Image> _loadImage(ImageProvider provider) {
@@ -197,38 +264,6 @@ class CoverArtKMeans {
     return clusters;
   }
 
-  static ColorScheme _buildScheme(
-    List<_ColorCluster> clusters,
-    int totalSamples,
-  ) {
-    final scored = _scoreClusters(clusters, totalSamples);
-    final primary = _tuneColor(_sanitizeColor(scored.first.color));
-    final secondary = _pickDistinctColor(scored, [primary]);
-    final tertiary = secondary == null
-        ? null
-        : _pickDistinctColor(scored, [primary, secondary]);
-
-    var scheme = ColorScheme.fromSeed(
-      seedColor: primary,
-      brightness: Brightness.dark,
-    ).copyWith(primary: primary, onPrimary: _bestOnColor(primary));
-
-    if (secondary != null) {
-      scheme = scheme.copyWith(
-        secondary: secondary,
-        onSecondary: _bestOnColor(secondary),
-      );
-    }
-
-    if (tertiary != null) {
-      scheme = scheme.copyWith(
-        tertiary: tertiary,
-        onTertiary: _bestOnColor(tertiary),
-      );
-    }
-
-    return scheme;
-  }
 
   static Color? _pickDistinctColor(
     List<_ScoredCluster> clusters,

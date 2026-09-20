@@ -397,8 +397,10 @@ class HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final preferences = context.watch<PreferencesProvider>();
-    if (!preferences.metadataSpotifyEnabled) {
+    final spotifyEnabled = context.select<PreferencesProvider, bool>(
+      (p) => p.metadataSpotifyEnabled,
+    );
+    if (!spotifyEnabled) {
       return const ProviderDisabledState();
     }
 
@@ -454,7 +456,9 @@ class HomePageState extends State<HomePage> {
       );
     }
 
-    final style = context.watch<PreferencesProvider>().style;
+    final style = context.select<PreferencesProvider, AppStyle>(
+      (p) => p.style,
+    );
     final isApple = style == AppStyle.AppleMusic;
 
     return RefreshIndicator(

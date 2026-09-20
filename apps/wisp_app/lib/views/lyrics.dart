@@ -778,10 +778,13 @@ class _LyricsViewState extends State<LyricsView> {
                                     0.6,
                                   ) ??
                                   Colors.white70;
+                              final baseColor = isActiveLine
+                                  ? Colors.white
+                                  : inactiveColor;
                               final baseTextStyle = TextStyle(
-                                color: isActiveLine
-                                    ? Colors.white
-                                    : inactiveColor,
+                                color: baseColor.withValues(
+                                  alpha: (baseColor.a * opacity).clamp(0.0, 1.0),
+                                ),
                                 fontSize: fontSize,
                                 letterSpacing: _isDesktop ? -1.5 : 0.25,
                                 fontWeight: _isDesktop
@@ -789,12 +792,18 @@ class _LyricsViewState extends State<LyricsView> {
                                     : FontWeight.w900,
                                 height: _isDesktop ? 1.4 : 1,
                                 decoration: underline,
-                                decorationColor: Colors.white70,
+                                decorationColor: Colors.white70.withValues(
+                                  alpha: (Colors.white70.a * opacity).clamp(0.0, 1.0),
+                                ),
                               );
-                              final activeWordColor = Colors.white;
+                              final activeWordColor = Colors.white.withValues(
+                                alpha: opacity,
+                              );
                               final inactiveWordColor = isActiveLine
-                                  ? Colors.white.withValues(alpha: 0.45)
-                                  : inactiveColor;
+                                  ? Colors.white.withValues(alpha: 0.45 * opacity)
+                                  : inactiveColor.withValues(
+                                      alpha: (inactiveColor.a * opacity).clamp(0.0, 1.0),
+                                    );
                               final lineSpan = buildLyricsLineSpan(
                                 line: line,
                                 syncMode: lyrics.syncMode,
@@ -837,17 +846,14 @@ class _LyricsViewState extends State<LyricsView> {
                                               );
                                             }
                                           : null,
-                                      child: Opacity(
-                                        opacity: opacity,
-                                        child: AnimatedDefaultTextStyle(
-                                          duration: const Duration(
-                                            milliseconds: 250,
-                                          ),
-                                          style: baseTextStyle,
-                                          child: Text.rich(
-                                            lineSpan,
-                                            textAlign: TextAlign.left,
-                                          ),
+                                      child: AnimatedDefaultTextStyle(
+                                        duration: const Duration(
+                                          milliseconds: 250,
+                                        ),
+                                        style: baseTextStyle,
+                                        child: Text.rich(
+                                          lineSpan,
+                                          textAlign: TextAlign.left,
                                         ),
                                       ),
                                     ),

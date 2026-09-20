@@ -252,11 +252,17 @@ class _SearchViewState extends State<SearchView> {
 
   @override
   Widget build(BuildContext context) {
-    final preferences = context.watch<PreferencesProvider>();
+    final (spotifyEnabled, ytEnabled) =
+        context.select<PreferencesProvider, (bool, bool)>(
+      (p) => (p.metadataSpotifyEnabled, p.metadataYouTubeEnabled),
+    );
+    final availableSources = <String>[
+      if (spotifyEnabled) 'Spotify',
+      if (ytEnabled) 'YouTube',
+    ];
     final selectedSource = context.select<SearchState, String>(
       (state) => state.selectedSource,
     );
-    final availableSources = _availableSources(preferences);
     if (availableSources.isEmpty) {
       return const ProviderDisabledState();
     }

@@ -1180,9 +1180,14 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<WispAudioHandler, SpotifyInternalProvider>(
-      builder: (context, player, spotifyInternal, child) {
-        final track = player.currentTrack;
+    return Selector2<WispAudioHandler, SpotifyInternalProvider, (GenericSong?, bool)>(
+      selector: (context, player, spotifyInternal) => (
+        player.currentTrack,
+        spotifyInternal.isAuthenticated,
+      ),
+      builder: (context, data, child) {
+        final (track, isAuthenticated) = data;
+        final spotifyInternal = context.read<SpotifyInternalProvider>();
         final artist = track?.artists.isNotEmpty == true
             ? track!.artists.first
             : null;
@@ -1191,7 +1196,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
             artist != null &&
             (artist.id != _artistId ||
                 track?.id != _trackId ||
-                (spotifyInternal.isAuthenticated && !_wasAuthenticated));
+                (isAuthenticated && !_wasAuthenticated));
 
         if (shouldRefetch) {
           _artistId = artist.id;
@@ -1199,7 +1204,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
           _artistFuture = _loadArtist(spotifyInternal, artist, track?.id ?? '');
         }
 
-        _wasAuthenticated = spotifyInternal.isAuthenticated;
+        _wasAuthenticated = isAuthenticated;
 
         if (artist == null) {
           return _SectionCard(
@@ -1502,31 +1507,48 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                             )
                           else
                             Selector<PlaybackCoordinator, int>(
-                              selector: (context, coordinator) => coordinator
-                                  .effectiveThrottledPosition
-                                  .inMilliseconds,
-                              builder: (context, positionMs, child) {
+                              selector: (context, coordinator) {
+                                final posMs = coordinator
+                                    .effectiveThrottledPosition
+                                    .inMilliseconds;
+                                final delaySeconds = lyricsProvider
+                                    .getDelaySecondsCached(track.id);
+                                final delayMs = (delaySeconds * 1000).round();
+                                final effectivePosition =
+                                    posMs - delayMs < 0 ? 0 : posMs - delayMs;
+                                final lines = nonEmptyLyricsLines(lyrics!.lines);
+                                if (lines.isEmpty ||
+                                    lyrics.syncMode != LyricsSyncMode.line) {
+                                  return 0;
+                                }
+                                final timing = resolveSyncedLyricsTiming(
+                                  lines,
+                                  effectivePosition,
+                                );
+                                return timing.activeIndex >= 0
+                                    ? timing.activeIndex
+                                    : (timing.nextIndex ??
+                                        timing.previousIndex ??
+                                        0);
+                              },
+                              builder: (context, startIndex, child) {
                                 // Freeze the scrolling lyrics preview while
                                 // the app/window is unfocused instead of
                                 // rebuilding it on every position tick.
                                 return FocusFreezeBuilder<int>(
-                                  value: positionMs,
-                                  builder: (context, positionMs) {
-                                    final delaySeconds = lyricsProvider
-                                        .getDelaySecondsCached(track.id);
-                                    final delayMs = (delaySeconds * 1000)
-                                        .round();
-                                    final adjustedPosition =
-                                        positionMs - delayMs;
-                                    final effectivePosition =
-                                        adjustedPosition < 0
-                                        ? 0
-                                        : adjustedPosition;
+                                  value: startIndex,
+                                  builder: (context, startIndex) {
+                                    final lines =
+                                        nonEmptyLyricsLines(lyrics!.lines);
+                                    final previewLines =
+                                        lyrics.syncMode != LyricsSyncMode.line
+                                            ? lines.take(3).toList()
+                                            : lines
+                                                .skip(startIndex)
+                                                .take(3)
+                                                .toList();
                                     return AnimatedLyricsPreviewList(
-                                      lines: _getPreviewLines(
-                                        lyrics!,
-                                        effectivePosition,
-                                      ),
+                                      lines: previewLines,
                                       resetKey: track.id,
                                       textStyle: const TextStyle(
                                         color: Colors.white,
@@ -1744,18 +1766,6 @@ class _QueuePreviewCardState extends State<_QueuePreviewCard> {
   }
 }
 
-List<LyricsLine> _getPreviewLines(LyricsResult lyrics, int positionMs) {
-  final lines = nonEmptyLyricsLines(lyrics.lines);
-  if (lines.isEmpty) return const [];
-  if (lyrics.syncMode != LyricsSyncMode.line) {
-    return lines.take(3).toList();
-  }
-  final timing = resolveSyncedLyricsTiming(lines, positionMs);
-  final startIndex = timing.activeIndex >= 0
-      ? timing.activeIndex
-      : (timing.nextIndex ?? timing.previousIndex ?? 0);
-  return lines.skip(startIndex).take(3).toList();
-}
 
 class _NowPlayingData {
   final GenericSong? track;

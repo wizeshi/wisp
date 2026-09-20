@@ -77,9 +77,10 @@ class _QueueViewState extends State<QueueView> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
-          Consumer<WispAudioHandler>(
-            builder: (context, player, child) {
-              if (player.queueTracks.isEmpty) return const SizedBox.shrink();
+          Selector<WispAudioHandler, bool>(
+            selector: (context, player) => player.queueTracks.isNotEmpty,
+            builder: (context, hasTracks, child) {
+              if (!hasTracks) return const SizedBox.shrink();
               return TextButton(
                 onPressed: () {
                   context.read<PlaybackCoordinator>().clearQueue();
@@ -100,11 +101,15 @@ class _QueueViewState extends State<QueueView> {
   }
 
   Widget _buildQueueContent() {
-    return Consumer<WispAudioHandler>(
-      builder: (context, player, child) {
-        final contextName = player.playbackContext?.name ?? '';
-        final queue = player.queueTracks;
-        final currentIndex = player.currentIndex;
+    return Selector<WispAudioHandler, (String, List<GenericSong>, int)>(
+      selector: (context, player) => (
+        player.playbackContext?.name ?? '',
+        player.queueTracks,
+        player.currentIndex,
+      ),
+      builder: (context, data, child) {
+        final (contextName, queue, currentIndex) = data;
+        final player = context.read<WispAudioHandler>();
 
         return Container(
           color: widget.backgroundColor,
@@ -626,9 +631,11 @@ void showMobileQueueSheet(BuildContext context) {
                       ),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    Consumer<WispAudioHandler>(
-                      builder: (context, player, child) {
-                        if (player.queueTracks.isEmpty) {
+                    Selector<WispAudioHandler, bool>(
+                      selector: (context, player) =>
+                          player.queueTracks.isNotEmpty,
+                      builder: (context, hasTracks, child) {
+                        if (!hasTracks) {
                           return const SizedBox.shrink();
                         }
                         return TextButton(

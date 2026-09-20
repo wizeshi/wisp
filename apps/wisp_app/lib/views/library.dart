@@ -423,8 +423,10 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
   @override
   Widget build(BuildContext context) {
-    final preferences = context.watch<PreferencesProvider>();
-    if (!preferences.metadataSpotifyEnabled) {
+    final spotifyEnabled = context.select<PreferencesProvider, bool>(
+      (p) => p.metadataSpotifyEnabled,
+    );
+    if (!spotifyEnabled) {
       return const ProviderDisabledState();
     }
 

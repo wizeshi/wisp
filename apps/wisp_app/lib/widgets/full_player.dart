@@ -1306,22 +1306,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                     )
                   : _CoverGradientContainer(child: content);
 
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned.fill(
-                    child: ClipRect(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                        child: Container(
-                          color: Colors.black.withValues(alpha: 0.16),
-                        ),
-                      ),
-                    ),
-                  ),
-                  foreground,
-                ],
-              );
+              return foreground;
             }
 
             if (!canUseCanvas) {
@@ -1600,47 +1585,44 @@ class _RotatingBlurredCoverBackgroundState
           final maxSide = width > height ? width : height;
           final imageSize = maxSide * 2.4;
 
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fill(
-                child: CachedNetworkImage(
-                  imageUrl: widget.imageUrl,
-                  fit: BoxFit.cover,
+          return ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 48, sigmaY: 48),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  child: CachedNetworkImage(
+                    imageUrl: widget.imageUrl,
+                    fit: BoxFit.cover,
+                  ),
                 ),
-              ),
-              AnimatedBuilder(
-                animation: _rotationController,
-                builder: (context, child) {
-                  final angle = _rotationController.value * 6.283185307179586;
-                  final centerX = width;
-                  final centerY = 0.0;
+                AnimatedBuilder(
+                  animation: _rotationController,
+                  builder: (context, child) {
+                    final angle = _rotationController.value * 6.283185307179586;
+                    final centerX = width;
+                    final centerY = 0.0;
 
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned(
-                        left: centerX - (imageSize / 2),
-                        top: centerY - (imageSize / 2),
-                        width: imageSize,
-                        height: imageSize,
-                        child: Transform.rotate(angle: angle, child: child!),
-                      ),
-                    ],
-                  );
-                },
-                child: CachedNetworkImage(
-                  imageUrl: widget.imageUrl,
-                  fit: BoxFit.cover,
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          left: centerX - (imageSize / 2),
+                          top: centerY - (imageSize / 2),
+                          width: imageSize,
+                          height: imageSize,
+                          child: Transform.rotate(angle: angle, child: child!),
+                        ),
+                      ],
+                    );
+                  },
+                  child: CachedNetworkImage(
+                    imageUrl: widget.imageUrl,
+                    fit: BoxFit.cover,
+                  ),
                 ),
-              ),
-              Positioned.fill(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 48, sigmaY: 48),
-                  child: const SizedBox.expand(),
-                ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
