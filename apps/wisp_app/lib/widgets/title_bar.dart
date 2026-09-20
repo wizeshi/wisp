@@ -1,14 +1,14 @@
-// Copyright © 2026 wizeshi
-
 import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
 import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/providers/preferences/preferences_provider.dart';
+import 'package:wisp/providers/search/search_state.dart';
 import 'package:wisp/services/app_navigation.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import '../services/navigation_history.dart';
 import '../services/desktop_notification_center.dart';
+
 
 class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onSettingsTap;
@@ -193,7 +193,19 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
               // Search field: centered on the *whole* bar width, not just
               // the space between the leading/trailing content, so it stays
               // put even when those two sides are different widths.
-              Center(child: _buildSearchField()),
+              Center(
+                child: _TitleBarSearchHistory(
+                  controller: searchController,
+                  focusNode: searchFocusNode,
+                  onSearchChanged: onSearchChanged,
+                  onSearchSubmitted: onSearchSubmitted,
+                  onSearchCleared: onSearchCleared,
+                  availableSources: availableSources,
+                  selectedSource: selectedSource,
+                  onSourceChanged: onSourceChanged,
+                  sourceIconBuilder: _sourceIcon,
+                ),
+              ),
 
               // Trailing edge.
               Positioned(
@@ -436,54 +448,172 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
       ),
     );
   }
+}
 
-  // Fixed height for the search pill. Comfortably inside the 32px bar with
-  // a couple px of breathing room top and bottom.
-  static const double _searchFieldHeight = 22;
+// ─────────────────────────────────────────────────────────────────────────────
+// Search pill + history dropdown
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // Manual correction for the search field's text sitting low. strutStyle,
-  // a fixed-height SizedBox, and textHeightBehavior were all tried and none
-  // fully fixed it — something about this font stack isn't matching the
-  // usual metrics assumptions. This is a blunt, guaranteed-to-work pixel
-  // shift instead. Negative moves the text up. Tune by eye: try -1 or -3 if
-  // -2 isn't quite right.
+/// Wraps the title-bar search pill and manages a history dropdown overlay that
+/// appears when the field is focused and the query is empty.
+class _TitleBarSearchHistory extends StatefulWidget {
+  final TextEditingController? controller;
+  final FocusNode? focusNode;
+  final ValueChanged<String>? onSearchChanged;
+  final VoidCallback? onSearchSubmitted;
+  final VoidCallback? onSearchCleared;
+  final List<String> availableSources;
+  final String selectedSource;
+  final ValueChanged<String>? onSourceChanged;
+
+  /// Icon resolver forwarded from [WispTitleBar._sourceIcon].
+  final IconData Function(String source) sourceIconBuilder;
+
+  const _TitleBarSearchHistory({
+    required this.sourceIconBuilder,
+    this.controller,
+    this.focusNode,
+    this.onSearchChanged,
+    this.onSearchSubmitted,
+    this.onSearchCleared,
+    this.availableSources = const <String>[],
+    this.selectedSource = 'Spotify',
+    this.onSourceChanged,
+  });
+
+  @override
+  State<_TitleBarSearchHistory> createState() =>
+      _TitleBarSearchHistoryState();
+}
+
+class _TitleBarSearchHistoryState extends State<_TitleBarSearchHistory> {
+  // How many history entries the dropdown shows. The total stored cap is
+  // SearchState.maxHistoryItems; this is just the desktop-visible slice.
+  // Change this constant freely without touching anything else.
+  static const int _dropdownLimit = 8;
+
+  // Pill dimensions — must match the values used in _buildPill().
+  static const double _pillHeight = 22;
+  static const double _pillWidth = 400;
+
   static const double _searchTextVerticalNudge = -4;
 
-  Widget _buildSearchField() {
-    final controller = searchController;
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
 
-    if (controller == null) {
-      return _buildSearchFieldFor(null);
+  FocusNode? get _focusNode => widget.focusNode;
+  TextEditingController? get _controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode?.addListener(_onFocusChange);
+    _controller?.addListener(_onControllerChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode?.removeListener(_onFocusChange);
+    _controller?.removeListener(_onControllerChange);
+    _removeOverlay();
+    super.dispose();
+  }
+
+  // ── Overlay management ────────────────────────────────────────────────────
+
+  void _onFocusChange() {
+    if (_focusNode?.hasFocus == true) {
+      _showOverlayIfNeeded();
+    } else {
+      // Small delay so a tap on a dropdown item registers before we remove it.
+      Future.delayed(
+        const Duration(milliseconds: 150),
+        _removeOverlay,
+      );
+    }
+  }
+
+  void _onControllerChange() {
+    if (_controller?.text.isNotEmpty == true) {
+      // User started typing — hide the history dropdown.
+      _removeOverlay();
+    } else if (_focusNode?.hasFocus == true) {
+      // Field was cleared while focused — show history again.
+      _showOverlayIfNeeded();
+    }
+  }
+
+  void _showOverlayIfNeeded() {
+    // We can only read SearchState here because _TitleBarSearchHistory is
+    // inside the Provider tree (it's built by WispTitleBar.build).
+    final searchState = context.read<SearchState>();
+    if (searchState.history.isEmpty) return;
+
+    if (_overlayEntry != null) {
+      // Already visible — just refresh in case history changed.
+      _overlayEntry!.markNeedsBuild();
+      return;
     }
 
-    return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: controller,
-      builder: (context, value, _) => _buildSearchFieldFor(value),
+    _overlayEntry = _buildOverlayEntry(searchState);
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  OverlayEntry _buildOverlayEntry(SearchState searchState) {
+    return OverlayEntry(
+      builder: (_) => CompositedTransformFollower(
+        link: _layerLink,
+        showWhenUnlinked: false,
+        // Position directly below the pill (pill is _pillHeight tall).
+        offset: const Offset(0, _pillHeight + 4),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: _TitleBarHistoryDropdown(
+            searchState: searchState,
+            dropdownLimit: _dropdownLimit,
+            pillWidth: _pillWidth,
+            onQuerySelected: _runHistoryQuery,
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildSearchFieldFor(TextEditingValue? value) {
-    final controller = searchController;
-    final showClear = controller != null && (value?.text.isNotEmpty ?? false);
-    final showSourcePicker = availableSources.isNotEmpty;
+  void _runHistoryQuery(String query) {
+    _controller?.text = query;
+    _controller?.selection = TextSelection.collapsed(offset: query.length);
+    widget.onSearchSubmitted?.call();
+    _removeOverlay();
+  }
 
+  // ── Pill UI ───────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: _controller == null
+          ? _buildPillNoController()
+          : ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _controller!,
+              builder: (_, value, _) => _buildPill(value),
+            ),
+    );
+  }
+
+  Widget _buildPillNoController() {
     return Container(
-      height: _searchFieldHeight,
-      width: 400,
+      height: _pillHeight,
+      width: _pillWidth,
       decoration: BoxDecoration(
-        color: Color(0xFF242424),
+        color: const Color(0xFF242424),
         borderRadius: BorderRadius.circular(500),
       ),
-      // TextField's default prefixIcon/suffixIcon constraints reserve a
-      // 48px min tap target, and default contentPadding adds another ~16px
-      // of vertical space — either alone is taller than this whole bar.
-      // The search icon is laid out as a plain Row child instead of via
-      // InputDecoration's prefixIcon: prefixIcon has its own internal
-      // vertical-centering math (tied to the decorator's line-height
-      // calculations) that doesn't line up with a small isCollapsed field,
-      // and its constraints control padding, not the icon-to-text gap. A
-      // Row's default cross-axis centering handles alignment reliably, and
-      // the SizedBox below gives an exact, predictable gap.
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -491,16 +621,35 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
           Icon(Icons.search, color: Colors.grey[600], size: 16),
           const SizedBox(width: 6),
           Expanded(
-            // Rather than forcing a hard pixel height (which overflowed
-            // past its box and read as "text sinking toward the bottom"),
-            // textHeightBehavior strips the font's built-in leading, which
-            // is normally distributed unevenly — more space reserved below
-            // the glyphs than above. That asymmetric leading, not box
-            // sizing, was pushing the text down. TextField doesn't expose
-            // textHeightBehavior directly (only Text/EditableText do), so
-            // it's applied via DefaultTextHeightBehavior instead, which
-            // explicitly documents that it also reaches descendant
-            // EditableTexts — i.e. the one TextField builds internally.
+            child: Text(
+              'Search songs, albums, artists...',
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPill(TextEditingValue value) {
+    final controller = _controller!;
+    final showClear = value.text.isNotEmpty;
+    final showSourcePicker = widget.availableSources.isNotEmpty;
+
+    return Container(
+      height: _pillHeight,
+      width: _pillWidth,
+      decoration: BoxDecoration(
+        color: const Color(0xFF242424),
+        borderRadius: BorderRadius.circular(500),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const SizedBox(width: 10),
+          Icon(Icons.search, color: Colors.grey[600], size: 16),
+          const SizedBox(width: 6),
+          Expanded(
             child: DefaultTextHeightBehavior(
               textHeightBehavior: const TextHeightBehavior(
                 applyHeightToFirstAscent: false,
@@ -509,13 +658,13 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
               child: Transform.translate(
                 offset: Offset(
                   0,
-                  value!.text == "" ? _searchTextVerticalNudge : 0,
+                  value.text.isEmpty ? _searchTextVerticalNudge : 0,
                 ),
                 child: TextField(
                   controller: controller,
-                  focusNode: searchFocusNode,
+                  focusNode: _focusNode,
                   textAlignVertical: TextAlignVertical.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
                     height: 1.2,
@@ -533,8 +682,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                         ? Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (showClear)
-                                _buildSearchClearButton(controller),
+                              if (showClear) _buildClearButton(controller),
                               if (showSourcePicker) _buildSourcePicker(),
                               const SizedBox(width: 6),
                             ],
@@ -546,12 +694,8 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                     ),
                     border: InputBorder.none,
                   ),
-                  onChanged: onSearchChanged,
-                  onSubmitted: (_) {
-                    if (onSearchSubmitted != null) {
-                      onSearchSubmitted!();
-                    }
-                  },
+                  onChanged: widget.onSearchChanged,
+                  onSubmitted: (_) => widget.onSearchSubmitted?.call(),
                 ),
               ),
             ),
@@ -561,14 +705,12 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  Widget _buildSearchClearButton(TextEditingController controller) {
+  Widget _buildClearButton(TextEditingController controller) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
         controller.clear();
-        if (onSearchCleared != null) {
-          onSearchCleared!();
-        }
+        widget.onSearchCleared?.call();
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -578,33 +720,182 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget _buildSourcePicker() {
+    final sources = widget.availableSources;
+    final selected = sources.contains(widget.selectedSource)
+        ? widget.selectedSource
+        : sources.first;
     return DropdownButtonHideUnderline(
       child: DropdownButton<String>(
-        value: availableSources.contains(selectedSource)
-            ? selectedSource
-            : availableSources.first,
+        value: selected,
         dropdownColor: const Color(0xFF181818),
         iconEnabledColor: Colors.grey[400],
         iconSize: 16,
         isDense: true,
-        selectedItemBuilder: (_) => availableSources
+        selectedItemBuilder: (_) => sources
             .map(
-              (source) =>
-                  Icon(_sourceIcon(source), size: 15, color: Colors.white),
-            )
-            .toList(),
-        items: availableSources
-            .map(
-              (source) => DropdownMenuItem<String>(
-                value: source,
-                child: Icon(_sourceIcon(source), size: 15, color: Colors.white),
+              (s) => Icon(
+                widget.sourceIconBuilder(s),
+                size: 15,
+                color: Colors.white,
               ),
             )
             .toList(),
-        onChanged: (value) {
-          if (value == null || onSourceChanged == null) return;
-          onSourceChanged!(value);
+        items: sources
+            .map(
+              (s) => DropdownMenuItem<String>(
+                value: s,
+                child: Icon(
+                  widget.sourceIconBuilder(s),
+                  size: 15,
+                  color: Colors.white,
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: (v) {
+          if (v == null) return;
+          widget.onSourceChanged?.call(v);
         },
+      ),
+    );
+  }
+}
+
+/// The dropdown content widget. Declared separately so [ListenableBuilder]
+/// can rebuild just the list without touching the rest of the overlay.
+class _TitleBarHistoryDropdown extends StatelessWidget {
+  final SearchState searchState;
+  final int dropdownLimit;
+  final double pillWidth;
+  final ValueChanged<String> onQuerySelected;
+
+  const _TitleBarHistoryDropdown({
+    required this.searchState,
+    required this.dropdownLimit,
+    required this.pillWidth,
+    required this.onQuerySelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: searchState,
+      builder: (ctx, _) {
+        final history = searchState.history.take(dropdownLimit).toList();
+        if (history.isEmpty) return const SizedBox.shrink();
+
+        return Material(
+          color: Colors.transparent,
+          child: Container(
+            width: pillWidth,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white10),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 6, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Recent searches',
+                          style: TextStyle(
+                            color: Colors.grey[500],
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: searchState.clearHistory,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.grey[500],
+                          textStyle: const TextStyle(fontSize: 11),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                        ),
+                        child: const Text('Clear all'),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: Colors.white12),
+                // History items
+                ...history.map(
+                  (query) => _HistoryDropdownItem(
+                    query: query,
+                    searchState: searchState,
+                    onTap: () => onQuerySelected(query),
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HistoryDropdownItem extends StatelessWidget {
+  final String query;
+  final SearchState searchState;
+  final VoidCallback onTap;
+
+  const _HistoryDropdownItem({
+    required this.query,
+    required this.searchState,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      mouseCursor: SystemMouseCursors.click,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        child: Row(
+          children: [
+            Icon(Icons.history, size: 14, color: Colors.grey[600]),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                query,
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => searchState.removeFromHistory(query),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 4,
+                ),
+                child: Icon(Icons.close, size: 12, color: Colors.grey[600]),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

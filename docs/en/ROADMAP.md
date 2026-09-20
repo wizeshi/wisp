@@ -9,7 +9,6 @@ Here's the TODOs for version v26.08.xx:
 - Future changes: 
   - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
   - [ ] Add special card from the home screen on mobile. 
-  - [ ] Add the animated equalizer icon to the list view when a song is playing: it should show similarly to the play and pause icons. It should be replaced with the normal play/pause icon on hover, though. For apple music, should show it as an overlay on top of the song cover. Spotify's is in the index of the song. 
   - [ ] Make artist name clickable in the full player
   - [ ] Make the playerbar on mobile see-through, so that the user can see the content behind it.
 - Planned features:
@@ -27,7 +26,6 @@ Here's the TODOs for version v26.08.xx:
       - [ ] Setup script
       - [ ] Build app script
       - [ ] Build installer script
-  - [ ] Show search results as the user types (careful to not spam the API). Also show search suggestions based on search history and popular searches (we'll need to get this info from the provider platforms).
   - [ ] Finish Spotify integration
       - [ ] Add following/unfollowing artists
       - [ ] Add saving/removing playlists
@@ -37,6 +35,4 @@ Here's the TODOs for version v26.08.xx:
       - [ ] Add endpoints for state-checking: is song saved, is album saved, is playlist saved, is artist followed, is user followed, is playlist pinned, etc.
   - [ ] Add element pinning to the sidebar/library (client-side)
   - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
-  - [ ] Add detailed statistics tracking (time per day spent listening to music with daily averages, how many times a song has been listened to, what song the user listened to at a certain time, estimation of how much the user has cost the provider platform, etc)
-  - [ ] Store last items selected through the search and display them in the search view when there is nothing being searched
   - [ ] Add translation support (start with English & Portuguese)

@@ -223,6 +223,12 @@ class _SearchViewState extends State<SearchView> {
       _isLoading = false;
     });
 
+    // Record to history only when we got at least some results and no error
+    // blew the whole search away.
+    if (_error == null && (_tracks.isNotEmpty || _artists.isNotEmpty || _albums.isNotEmpty || _playlists.isNotEmpty)) {
+      _searchState.addToHistory(query);
+    }
+
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     }
@@ -307,7 +313,12 @@ class _SearchViewState extends State<SearchView> {
 
   Widget _buildContent(bool isDesktop, String effectiveSource) {
     if (_lastQuery.isEmpty) {
-      return _buildPromptState();
+      // Mobile shows history (or the original placeholder when empty).
+      // Desktop keeps the simple centred prompt — history lives in the
+      // title bar dropdown instead.
+      return isDesktop
+          ? _buildPromptState()
+          : _buildMobileHistoryOrPrompt();
     }
 
     if (_isLoading) {
@@ -879,6 +890,93 @@ class _SearchViewState extends State<SearchView> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Mobile: history or prompt (shown when query is empty)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildMobileHistoryOrPrompt() {
+    return ListenableBuilder(
+      listenable: _searchState,
+      builder: (context, _) {
+        final history = _searchState.history;
+        if (history.isEmpty) return _buildPromptState();
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          children: [
+            // Header row
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Recent searches',
+                    style: TextStyle(
+                      color: Colors.grey[300],
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _searchState.clearHistory,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey[500],
+                    textStyle: const TextStyle(fontSize: 12),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                  ),
+                  child: const Text('Clear all'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ...history.map((query) => _buildMobileHistoryItem(query)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileHistoryItem(String query) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () {
+        _searchController.text = query;
+        _searchController.selection = TextSelection.collapsed(
+          offset: query.length,
+        );
+        _searchState.submit();
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.history, size: 18, color: Colors.grey[600]),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                query,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _searchState.removeFromHistory(query),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Icon(Icons.close, size: 16, color: Colors.grey[600]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPromptState() {
     return Center(
       child: Column(
@@ -894,6 +992,7 @@ class _SearchViewState extends State<SearchView> {
       ),
     );
   }
+
 
   Widget _buildErrorState() {
     return Center(
