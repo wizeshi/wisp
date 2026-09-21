@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:provider/provider.dart';
@@ -86,7 +88,16 @@ const Map<String, List<String>> djTagKeywords = {
     'sleep',
     'cozy',
   ],
-  'hood': ['hood', 'trap', 'drill', 'gangsta', 'gangster', 'street', 'block', '808'],
+  'hood': [
+    'hood',
+    'trap',
+    'drill',
+    'gangsta',
+    'gangster',
+    'street',
+    'block',
+    '808',
+  ],
   'party': [
     'party',
     'dance',
@@ -299,7 +310,7 @@ const List<String> djUntaggedResponses = [
   'My musical radar didn\'t catch a clear tag for that one, but don\'t worry—queueing up some all-around favorites for you now!',
 ];
 
-// Map from our tags to Spotify's genre tags. 
+// Map from our tags to Spotify's genre tags.
 const List<String> djSuggestionTemplates = [
   'I want to listen to some {genre}',
   'Play some {genre}',
@@ -413,6 +424,7 @@ class _DJViewState extends State<DJView> {
   final ScrollController _scrollController = ScrollController();
 
   bool _isBlocked = false;
+  double _lastViewInsetsBottom = 0;
 
   late final Map<String, String> _randomSuggestions;
   late final String _randomTitle;
@@ -522,7 +534,9 @@ class _DJViewState extends State<DJView> {
 
     for (final artist in artists) {
       final pattern = RegExp(
-        r'(?:^|[^a-zA-Z0-9])' + RegExp.escape(artist.toLowerCase()) + r'(?:$|[^a-zA-Z0-9])',
+        r'(?:^|[^a-zA-Z0-9])' +
+            RegExp.escape(artist.toLowerCase()) +
+            r'(?:$|[^a-zA-Z0-9])',
         caseSensitive: false,
       );
       if (pattern.hasMatch(clean)) {
@@ -633,8 +647,9 @@ class _DJViewState extends State<DJView> {
 
     if (detectedArtist != null) {
       if (detectedTag != null) {
-        final artistGenres =
-            ListeningHabitsService.instance.getGenresForArtist(detectedArtist);
+        final artistGenres = ListeningHabitsService.instance.getGenresForArtist(
+          detectedArtist,
+        );
         final (keywords, _, _, _) = _getFilterForTag(detectedTag);
 
         final artistHasGenre = artistGenres.any((ag) {
@@ -668,14 +683,13 @@ class _DJViewState extends State<DJView> {
     return (artist: null, tag: detectedTag);
   }
 
-  String _generateDJResponse({
-    String? detectedArtist,
-    String? detectedTag,
-  }) {
+  String _generateDJResponse({String? detectedArtist, String? detectedTag}) {
     if (detectedArtist != null && detectedTag != null) {
       final genreTitle = detectedTag
           .split(' ')
-          .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+          .map(
+            (w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '',
+          )
           .join(' ');
       final comboResponses = [
         'Dialing into some $genreTitle from $detectedArtist! Pure vibes coming right up.',
@@ -706,7 +720,9 @@ class _DJViewState extends State<DJView> {
       // Contextual response for dynamic genres
       final genreTitle = detectedTag
           .split(' ')
-          .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+          .map(
+            (w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '',
+          )
           .join(' ');
       final dynamicResponses = [
         'Setting the mood with some $genreTitle! Dialing into the best tracks for your vibe.',
@@ -723,8 +739,13 @@ class _DJViewState extends State<DJView> {
   }
 
   /// Resolves filter criteria (keywords, required languages, and release decade) for a detected tag.
-  (List<String> keywords, List<String> requiredLanguages, int? minYear, int? maxYear)
-      _getFilterForTag(String tag) {
+  (
+    List<String> keywords,
+    List<String> requiredLanguages,
+    int? minYear,
+    int? maxYear,
+  )
+  _getFilterForTag(String tag) {
     switch (tag) {
       case 'pt_pt_rap':
         return (
@@ -744,7 +765,12 @@ class _DJViewState extends State<DJView> {
       case 'en_pop':
         return (['pop'], ['en', 'eng'], null, null);
       case 'en_underground':
-        return (['indie', 'alternative', 'underground'], ['en', 'eng'], null, null);
+        return (
+          ['indie', 'alternative', 'underground'],
+          ['en', 'eng'],
+          null,
+          null,
+        );
       case '60s':
         return ([], [], 1960, 1969);
       case '70s':
@@ -837,7 +863,9 @@ class _DJViewState extends State<DJView> {
     } else {
       try {
         final queryTerm = detectedArtist != null
-            ? (detectedTag != null ? '$detectedArtist $detectedTag' : detectedArtist)
+            ? (detectedTag != null
+                  ? '$detectedArtist $detectedTag'
+                  : detectedArtist)
             : (keywords.isNotEmpty ? keywords.first : (detectedTag ?? ''));
         final searchResults = await spotify.search(queryTerm);
         if (searchResults.tracks.isNotEmpty) {
@@ -1023,10 +1051,10 @@ class _DJViewState extends State<DJView> {
 
   @override
   Widget build(BuildContext context) {
-    final (isAvailable, finishedCount) =
-        context.select<ListeningHabitsService, (bool, int)>(
-      (h) => (h.hasEnoughData, h.hasEnoughData ? 15 : h.history.length),
-    );
+    final (isAvailable, finishedCount) = context
+        .select<ListeningHabitsService, (bool, int)>(
+          (h) => (h.hasEnoughData, h.hasEnoughData ? 15 : h.history.length),
+        );
 
     if (!isAvailable) {
       const targetCount = ListeningHabitsService.minRequiredTracksForDJ;
@@ -1077,180 +1105,254 @@ class _DJViewState extends State<DJView> {
       context.read<SpotifyInternalProvider>(),
     );
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ─── Upper "Now Playing" banner ───────────────────────────────
-          Selector<WispAudioHandler, (GenericSong?, bool)>(
-            selector: (context, h) => (h.currentTrack, h.isPlaying),
-            builder: (context, state, _) {
-              final (currentTrack, isPlaying) = state;
-              return _DJNowPlayingBanner(
-                track: currentTrack,
-                isPlaying: isPlaying,
-              );
-            },
-          ),
-          const SizedBox(height: 12.0),
-          Expanded(
-            child: ValueListenableBuilder<List<DJChatMessage>>(
-              valueListenable: _chatMessagesNotifier,
-              builder: (context, messages, child) {
-                if (messages.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return ListView.builder(
-                  controller: _scrollController,
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final item = messages[index];
-                    return DJChatBubble(
-                      message: item.text,
-                      isUserMessage: item.isUser,
-                    );
-                  },
+    final isDesktop =
+        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
+    final viewInsetsBottom =
+        isDesktop ? 0.0 : MediaQuery.viewInsetsOf(context).bottom;
+    final bottomPadding = isDesktop
+        ? 16.0
+        : (viewInsetsBottom > 0 ? viewInsetsBottom + 12.0 : 16.0);
+
+    if (!isDesktop && viewInsetsBottom > _lastViewInsetsBottom) {
+      _scrollToBottom();
+    }
+    _lastViewInsetsBottom = viewInsetsBottom;
+
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, bottomPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ─── Upper "Now Playing" banner ───────────────────────────────
+            Selector<WispAudioHandler, (GenericSong?, bool)>(
+              selector: (context, h) => (h.currentTrack, h.isPlaying),
+              builder: (context, state, _) {
+                final (currentTrack, isPlaying) = state;
+                return _DJNowPlayingBanner(
+                  track: currentTrack,
+                  isPlaying: isPlaying,
                 );
               },
             ),
-          ),
-          const SizedBox(height: 12.0),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                _randomTitle,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8.0),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final buttonWidth =
-                      (constraints.maxWidth - 24) /
-                      5; // 4 buttons with 8px spacing
-                  final buttonHeight = 40.0; // Fixed height for buttons
-
-                  final items = _randomSuggestions.entries.map((entry) {
-                    return SizedBox(
-                      width: buttonWidth,
-                      height: buttonHeight,
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: entry.key != _randomSuggestions.keys.last
-                              ? 8.0
-                              : 0.0,
-                        ),
-                        child: ElevatedButton(
-                          onPressed: _isBlocked
-                              ? null
-                              : () => _handleSubmitted(entry.value),
-                          child: Text(
-                            entry.value,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList();
-
-                  // This isn't the intended use of CardRail, but it'll work here. We just want a horizontal list of buttons.
-                  return CardRail(
-                    title: 'Suggestions',
-                    showTitle: false,
-                    items: items,
-                    itemWidth: buttonWidth,
-                    itemHeight: buttonHeight,
-                    itemBuilder: (context, item) => item,
+            const SizedBox(height: 12.0),
+            Expanded(
+              child: ValueListenableBuilder<List<DJChatMessage>>(
+                valueListenable: _chatMessagesNotifier,
+                builder: (context, messages, child) {
+                  if (messages.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return ListView.builder(
+                    controller: _scrollController,
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final item = messages[index];
+                      return DJChatBubble(
+                        message: item.text,
+                        isUserMessage: item.isUser,
+                      );
+                    },
                   );
                 },
               ),
-              Row(
-                children: [
-                  SizedBox(
-                    height: 48.0,
-                    child: FilledButton.icon(
-                      label: const Text('Pick something for me'),
-                      icon: const Icon(Symbols.shuffle),
-                      onPressed: () {
-                        final randomKey = (_randomSuggestions.keys.toList()..shuffle()).first;
-                        final randomValue = _randomSuggestions[randomKey]!;
-                        _handleSubmitted(randomValue);
-                      },
-                    ),
+            ),
+            const SizedBox(height: 12.0),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  _randomTitle,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(width: 8.0),
-                  Expanded(
-                    child: TextField(
-                      controller: _textSubmissionController,
-                      enabled: !_isBlocked,
-                      decoration: InputDecoration(
-                        hintText: _isBlocked
-                            ? 'DJ is thinking...'
-                            : _randomHint,
-                        border: const OutlineInputBorder(),
-                        suffixIcon: _isBlocked
-                            ? const Padding(
-                                padding: EdgeInsets.all(12.0),
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                ),
+                const SizedBox(height: 8.0),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    const buttonHeight = 40.0;
+
+                    if (!isDesktop) {
+                      return SizedBox(
+                        height: buttonHeight,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: _randomSuggestions.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 8.0),
+                          itemBuilder: (context, index) {
+                            final entry =
+                                _randomSuggestions.entries.elementAt(index);
+                            return ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: constraints.maxWidth * 0.8,
+                              ),
+                              child: ElevatedButton(
+                                onPressed: _isBlocked
+                                    ? null
+                                    : () => _handleSubmitted(entry.value),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14.0,
                                   ),
                                 ),
-                              )
-                            : IconButton(
-                                icon: const Icon(Symbols.send),
-                                onPressed: () {
-                                  _handleSubmitted(
-                                    _textSubmissionController.text,
-                                  );
-                                },
+                                child: Text(
+                                  entry.value,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
+                            );
+                          },
+                        ),
+                      );
+                    }
+
+                    final buttonWidth = (constraints.maxWidth - 24) / 5;
+
+                    final items = _randomSuggestions.entries.map((entry) {
+                      return SizedBox(
+                        width: buttonWidth,
+                        height: buttonHeight,
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            right: entry.key != _randomSuggestions.keys.last
+                                ? 8.0
+                                : 0.0,
+                          ),
+                          child: ElevatedButton(
+                            onPressed: _isBlocked
+                                ? null
+                                : () => _handleSubmitted(entry.value),
+                            child: Text(
+                              entry.value,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList();
+
+                    return CardRail(
+                      title: 'Suggestions',
+                      showTitle: false,
+                      items: items,
+                      itemWidth: buttonWidth,
+                      itemHeight: buttonHeight,
+                      itemBuilder: (context, item) => item,
+                    );
+                  },
+                ),
+                const SizedBox(height: 8.0),
+                Row(
+                  children: [
+                    isDesktop
+                        ? SizedBox(
+                            height: 48.0,
+                            child: FilledButton.icon(
+                              label: const Text('Pick something for me'),
+                              icon: const Icon(Symbols.shuffle),
+                              onPressed: () {
+                                final randomKey =
+                                    (_randomSuggestions.keys.toList()
+                                          ..shuffle())
+                                        .first;
+                                final randomValue =
+                                    _randomSuggestions[randomKey]!;
+                                _handleSubmitted(randomValue);
+                              },
+                            ),
+                          )
+                        : SizedBox(
+                            width: 48.0,
+                            height: 48.0,
+                            child: IconButton.filled(
+                              icon: const Icon(Symbols.shuffle),
+                              tooltip: 'Pick something for me',
+                              onPressed: () {
+                                final randomKey =
+                                    (_randomSuggestions.keys.toList()
+                                          ..shuffle())
+                                        .first;
+                                final randomValue =
+                                    _randomSuggestions[randomKey]!;
+                                _handleSubmitted(randomValue);
+                              },
+                            ),
+                          ),
+                    const SizedBox(width: 8.0),
+                    Expanded(
+                      child: TextField(
+                        controller: _textSubmissionController,
+                        enabled: !_isBlocked,
+                        decoration: InputDecoration(
+                          hintText: _isBlocked
+                              ? 'DJ is thinking...'
+                              : _randomHint,
+                          border: const OutlineInputBorder(),
+                          suffixIcon: _isBlocked
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12.0),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : IconButton(
+                                  icon: const Icon(Symbols.send),
+                                  onPressed: () {
+                                    _handleSubmitted(
+                                      _textSubmissionController.text,
+                                    );
+                                  },
+                                ),
+                        ),
+                        onSubmitted: (query) {
+                          _handleSubmitted(query);
+                        },
                       ),
-                      onSubmitted: (query) {
-                        _handleSubmitted(query);
+                    ),
+                    const SizedBox(width: 8.0),
+                    IconButton.filled(
+                      icon: const Icon(Symbols.info),
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            return AlertDialog(
+                              title: const Text('DJ Feature Info'),
+                              content: const Text(
+                                'The DJ feature generates music suggestions based on your listening habits and preferences.\n'
+                                'You can select from the suggested buttons or enter your own query to discover new music.\n'
+                                'Keep in mind: this feature does not use any type of AI or ML. It\'s based on your listened songs and their tags.\n'
+                                'It also tries to find similar songs from known platforms, so it may take some time to learn your taste.\n'
+                                'So, the more you listen, the better the suggestions will be!',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Close'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
                       },
                     ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  IconButton.filled(
-                    icon: const Icon(Symbols.info),
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) {
-                          return AlertDialog(
-                            title: const Text('DJ Feature Info'),
-                            content: const Text(
-                              'The DJ feature generates music suggestions based on your listening habits and preferences.\n'
-                              'You can select from the suggested buttons or enter your own query to discover new music.\n'
-                              'Keep in mind: this feature does not use any type of AI or ML. It\'s based on your listened songs and their tags.\n'
-                              'It also tries to find similar songs from known platforms, so it may take some time to learn your taste.\n'
-                              'So, the more you listen, the better the suggestions will be!',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Close'),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1344,9 +1446,9 @@ class _DJNowPlayingBannerState extends State<_DJNowPlayingBanner>
                           final badgeBg = theme.colorScheme.primaryContainer;
                           final badgeFg =
                               ThemeData.estimateBrightnessForColor(badgeBg) ==
-                                      Brightness.dark
-                                  ? Colors.white
-                                  : Colors.black;
+                                  Brightness.dark
+                              ? Colors.white
+                              : Colors.black;
 
                           return Container(
                             padding: const EdgeInsets.symmetric(

@@ -5,6 +5,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
@@ -506,6 +507,16 @@ class HomePageState extends State<HomePage> {
 
   List<Widget> _buildMobileHeaderActions({bool useAppleIcon = false}) {
     return [
+      IconButton(
+        icon: const Icon(
+          Symbols.headphones,
+          color: Colors.white,
+          size: 24,
+        ),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        onPressed: () => AppNavigation.instance.navigateToDJView(context),
+      ),
       Selector<PreferencesProvider, bool>(
         selector: (context, prefs) => prefs.debugModeEnabled,
         builder: (context, debugModeEnabled, child) {

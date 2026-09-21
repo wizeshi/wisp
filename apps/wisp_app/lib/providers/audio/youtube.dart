@@ -224,7 +224,6 @@ class YouTubeProvider {
           durationSecs: durationSecs,
         );
         if (score == null) {
-          logger.d('[Audio/YouTube] Excluded: ${video.title} (unwanted terms)');
           continue;
         }
         scoredResults.add(MapEntry(video, score));
@@ -626,21 +625,24 @@ class YouTubeProvider {
     }
   }
 
-  /// Check if text contains excluded terms unless they are in the query.
-  bool _containsExcludedTerms(
+  /// Finds the first excluded term in text unless it is present in the query.
+  String? _findExcludedTerm(
     String text,
     String originalQuery,
     List<String> excludedTerms,
   ) {
     final originalQueryLower = originalQuery.toLowerCase();
 
-    return excludedTerms.any((term) {
+    for (final term in excludedTerms) {
       if (text.contains(term)) {
-        return !originalQueryLower.contains(term);
+        if (!originalQueryLower.contains(term)) {
+          return term;
+        }
       }
-      return false;
-    });
+    }
+    return null;
   }
+
 
   String _extractDescription(Video video) {
     try {
@@ -703,19 +705,27 @@ class YouTubeProvider {
     final artistLower = artist.trim().toLowerCase();
     final titleQueryLower = title.trim().toLowerCase();
 
-    if (_containsExcludedTerms(
+    final excludedTitleTerm = _findExcludedTerm(
       titleLower,
       titleQueryLower,
       _excludedTitleTerms,
-    )) {
+    );
+    if (excludedTitleTerm != null) {
+      logger.d(
+        '[Audio/YouTube] Excluded: ${video.title} (unwanted title term: "$excludedTitleTerm")',
+      );
       return null;
     }
 
-    if (_containsExcludedTerms(
+    final excludedDescTerm = _findExcludedTerm(
       descriptionLower,
       titleQueryLower,
       _excludedDescriptionTerms,
-    )) {
+    );
+    if (excludedDescTerm != null) {
+      logger.d(
+        '[Audio/YouTube] Excluded: ${video.title} (unwanted description term: "$excludedDescTerm")',
+      );
       return null;
     }
 
@@ -750,11 +760,14 @@ class YouTubeProvider {
     if (titleLower.contains(' - ')) score += 3.0;
 
     // Duration match check
-    if (durationSecs != null && video.duration != null) {
+    if (durationSecs != null && durationSecs > 0 && video.duration != null) {
       final videoDurationSecs = video.duration!.inSeconds;
       final diff = (videoDurationSecs - durationSecs).abs();
       final maxAllowedDiff = _maxAllowedDurationDiff(durationSecs);
       if (diff > maxAllowedDiff) {
+        logger.d(
+          '[Audio/YouTube] Excluded: ${video.title} (duration mismatch: video=${videoDurationSecs}s, expected=${durationSecs}s, diff=${diff}s > max=${maxAllowedDiff}s)',
+        );
         return null;
       }
 
