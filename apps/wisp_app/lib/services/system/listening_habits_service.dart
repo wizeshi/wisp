@@ -7,11 +7,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../models/metadata_models.dart';
-import '../providers/metadata/spotify_internal.dart';
-import '../utils/json.dart';
-import '../utils/logger.dart';
-import 'desktop_notification_center.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/core/utils/json.dart';
+import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/services/notifications/desktop_notification_center.dart';
 
 /// Represents a single recorded track playback completion event.
 class TrackListeningRecord {

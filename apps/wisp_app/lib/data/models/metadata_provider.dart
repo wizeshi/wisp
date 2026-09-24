@@ -3,8 +3,8 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:wisp/models/metadata_models.dart';
-import 'package:wisp/services/metadata_cache.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/cache/metadata_cache.dart';
 
 abstract class MetadataProvider extends ChangeNotifier {
   String get name => "base";

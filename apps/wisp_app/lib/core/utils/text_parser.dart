@@ -1,10 +1,10 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/material.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
-import '../services/app_navigation.dart';
-import '../widgets/hover_underline.dart';
+import 'package:wisp/features/shell/navigation/app_navigation.dart';
+import 'package:wisp/shared/widgets/display/hover_underline.dart';
 
 class TextParser {
   static final RegExp _anchorTagRegex = RegExp(

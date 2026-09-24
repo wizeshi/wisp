@@ -6,12 +6,12 @@ import 'dart:io';
 
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:wisp/services/connect/connect_models.dart';
-import 'package:wisp/services/connect/connect_packet_models.dart';
-import 'package:wisp/services/connect/connect_packet_router.dart';
-import 'package:wisp/services/connect/connect_transport.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/features/connect/services/connect_packet_models.dart';
+import 'package:wisp/features/connect/services/connect_packet_router.dart';
+import 'package:wisp/features/connect/services/connect_transport.dart';
 import 'package:flutter_multicast_lock/flutter_multicast_lock.dart';
-import 'package:wisp/utils/logger.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 class LanConnectService implements ConnectTransport {
   static const int _discoveryPort = 47110;

@@ -10,11 +10,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/models/metadata_models.dart';
-import 'package:wisp/providers/metadata/spotify_internal.dart';
-import 'package:wisp/providers/metadata/youtube.dart';
-import 'package:wisp/services/listening_habits_service.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/youtube/youtube_metadata.dart';
+import 'package:wisp/services/system/listening_habits_service.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
 String _formatDuration(int? duration, {bool miliseconds = false}) {
   if (duration == null) return '--:--';

@@ -1,7 +1,7 @@
 // Copyright © 2026 wizeshi
 
-import 'package:wisp/models/metadata_models.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 
 enum ConnectPhase {

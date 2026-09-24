@@ -8,14 +8,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../services/wisp_audio_handler.dart';
-import '../providers/library/library_state.dart';
-import '../widgets/hover_underline.dart';
-import '../models/metadata_models.dart';
-import '../services/app_navigation.dart';
-import '../services/playback/playback_coordinator.dart';
-import 'list_detail.dart';
-import '../widgets/entity_context_menus.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/features/library/state/library_state.dart';
+import 'package:wisp/shared/widgets/display/hover_underline.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/features/shell/navigation/app_navigation.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
+import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 
 class QueueView extends StatefulWidget {
   /// If true, only returns the queue content without scaffold (for mobile bottom sheet)

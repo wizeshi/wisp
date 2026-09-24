@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/models/library_folder.dart';
-import 'package:wisp/providers/library/library_folders.dart';
-import 'package:wisp/providers/library/library_state.dart';
-import 'package:wisp/ui/artwork/artwork_thumbnail.dart';
-import 'package:wisp/ui/rows/generic_row.dart';
-import 'package:wisp/widgets/entity_context_menus.dart';
+import 'package:wisp/data/models/library_folder.dart';
+import 'package:wisp/features/library/state/library_folders.dart';
+import 'package:wisp/features/library/state/library_state.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/rows/generic_row.dart';
+import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 
-import '../../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 class FolderRow extends StatelessWidget {
   final PlaylistFolder folder;

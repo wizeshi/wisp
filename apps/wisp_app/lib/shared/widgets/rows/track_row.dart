@@ -2,19 +2,19 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'package:wisp/providers/preferences/preferences_provider.dart';
-import 'package:wisp/services/cache_manager.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
-import 'package:wisp/theme/app_theme.dart';
-import 'package:wisp/ui/artwork/artwork_thumbnail.dart';
-import 'package:wisp/ui/overlay/cover_play_button.dart';
-import 'package:wisp/ui/overlay/hover.dart';
-import 'package:wisp/ui/overlay/waveform.dart';
-import 'package:wisp/ui/playback/playback_selectors.dart';
-import 'package:wisp/utils/song_source_icon.dart';
-import 'package:wisp/widgets/hover_underline.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/data/cache/cache_manager.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/overlay/cover_play_button.dart';
+import 'package:wisp/shared/widgets/overlay/hover.dart';
+import 'package:wisp/shared/widgets/overlay/waveform.dart';
+import 'package:wisp/shared/widgets/playback/playback_selectors.dart';
+import 'package:wisp/core/utils/song_source_icon.dart';
+import 'package:wisp/shared/widgets/display/hover_underline.dart';
 
-import '../../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 /// Where a [TrackRow]'s play/pause affordance lives. Having both the index
 /// column *and* the cover art independently offer a play button is

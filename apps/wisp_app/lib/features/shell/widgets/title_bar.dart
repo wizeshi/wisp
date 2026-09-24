@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
 import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/providers/preferences/preferences_provider.dart';
-import 'package:wisp/providers/search/search_state.dart';
-import 'package:wisp/services/app_navigation.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/features/search/state/search_state.dart';
+import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp_assets/wisp_assets.dart';
-import '../services/navigation_history.dart';
-import '../services/desktop_notification_center.dart';
+import 'package:wisp/features/shell/navigation/navigation_history.dart';
+import 'package:wisp/services/notifications/desktop_notification_center.dart';
 
 
 class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {

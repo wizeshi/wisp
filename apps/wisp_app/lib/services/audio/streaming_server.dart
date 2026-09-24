@@ -6,7 +6,7 @@ import 'dart:math';
 import 'package:dio/dio.dart' hide Response;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
-import '../utils/logger.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 /// HTTP server that proxies YouTube audio streams with proper headers
 class StreamingServer {

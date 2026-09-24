@@ -4,20 +4,20 @@ import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/ui/rows/album_row.dart';
-import 'package:wisp/ui/rows/artist_row.dart';
-import 'package:wisp/ui/rows/folder_row.dart';
-import 'package:wisp/ui/rows/generic_row.dart';
-import 'package:wisp/ui/rows/playlist_row.dart';
-import '../models/metadata_models.dart';
-import '../models/library_folder.dart';
-import '../providers/library/library_folders.dart';
-import '../providers/library/library_state.dart';
-import '../providers/metadata/spotify_internal.dart';
-import '../services/wisp_audio_handler.dart';
-import '../services/navigation_history.dart';
-import 'playlist_folder_modals.dart';
-import '../utils/liked_songs.dart';
+import 'package:wisp/shared/widgets/rows/album_row.dart';
+import 'package:wisp/shared/widgets/rows/artist_row.dart';
+import 'package:wisp/shared/widgets/rows/folder_row.dart';
+import 'package:wisp/shared/widgets/rows/generic_row.dart';
+import 'package:wisp/shared/widgets/rows/playlist_row.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/models/library_folder.dart';
+import 'package:wisp/features/library/state/library_folders.dart';
+import 'package:wisp/features/library/state/library_state.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/features/shell/navigation/navigation_history.dart';
+import 'package:wisp/shared/widgets/menus/playlist_folder_modals.dart';
+import 'package:wisp/core/utils/liked_songs.dart';
 
 enum LibraryView { all, playlists, albums, artists }
 

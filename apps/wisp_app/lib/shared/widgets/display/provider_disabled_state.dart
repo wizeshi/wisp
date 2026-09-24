@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 
-import '../services/app_navigation.dart';
+import 'package:wisp/features/shell/navigation/app_navigation.dart';
 
 class ProviderDisabledState extends StatelessWidget {
   final String message;

@@ -13,7 +13,7 @@ import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:wisp_ytdlp_manager/wisp_ytdlp_manager.dart';
-import '../../utils/logger.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 enum YouTubeEngine {
   // ignore: constant_identifier_names

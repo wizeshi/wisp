@@ -1,7 +1,7 @@
 // Copyright © 2026 wizeshi
 
-import '../connect/connect_packet_models.dart';
-import '../connect/connect_models.dart';
+import 'package:wisp/features/connect/services/connect_packet_models.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
 
 class AudioPacketRouter {
   const AudioPacketRouter();

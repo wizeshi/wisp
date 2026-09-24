@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
-import '../../services/wisp_audio_handler.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
 /// Narrow, reusable checks for "is this specific entity the one currently
 /// playing," each backed by a single [BuildContext.select] call.

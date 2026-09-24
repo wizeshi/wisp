@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'package:wisp/ui/overlay/hover.dart';
-import 'package:wisp/ui/overlay/waveform.dart';
+import 'package:wisp/shared/widgets/overlay/hover.dart';
+import 'package:wisp/shared/widgets/overlay/waveform.dart';
 
 class PlaybackAffordance extends StatelessWidget {
   final bool visible;

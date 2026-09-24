@@ -2,7 +2,7 @@
 
 import 'package:flutter/widgets.dart';
 
-import '../services/app_focus_service.dart';
+import 'package:wisp/services/system/app_focus_service.dart';
 
 /// Freezes a fast-changing, value-driven part of the UI while the app or
 /// window is unfocused (backgrounded, minimized, or an inactive window).

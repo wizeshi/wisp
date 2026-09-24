@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/providers/metadata/spotify_internal.dart';
-import 'package:wisp/services/app_navigation.dart';
-import 'package:wisp/services/playback/playback_coordinator.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
-import 'package:wisp/ui/rows/generic_row.dart';
-import 'package:wisp/views/list_detail.dart';
-import 'package:wisp/widgets/entity_context_menus.dart';
-import 'package:wisp/widgets/liked_songs_art.dart';
-import 'package:wisp/utils/liked_songs.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/features/shell/navigation/app_navigation.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/shared/widgets/rows/generic_row.dart';
+import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
+import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
+import 'package:wisp/core/utils/liked_songs.dart';
 
-import '../../models/metadata_models.dart';
-import '../artwork/artwork_thumbnail.dart';
-import '../playback/playback_selectors.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/playback/playback_selectors.dart';
 
 String playlistSubtitle(GenericPlaylist playlist) {
   final author = playlist.author.displayName.trim();

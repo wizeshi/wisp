@@ -2,8 +2,8 @@
 
 import 'dart:async';
 
-import 'package:wisp/services/connect/connect_models.dart';
-import 'package:wisp/services/connect/connect_packet_models.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/features/connect/services/connect_packet_models.dart';
 
 abstract class ConnectTransport {
   Stream<ConnectDevice> get discoveredDeviceStream;

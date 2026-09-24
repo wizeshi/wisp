@@ -8,8 +8,8 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
-import 'package:wisp/utils/json.dart' show JsonUtils;
-import 'package:wisp/utils/logger.dart';
+import 'package:wisp/core/utils/json.dart' show JsonUtils;
+import 'package:wisp/core/utils/logger.dart';
 
 const _spotifyWebTokenUrl = 'https://open.spotify.com/api/token';
 const _spotifyClientTokenUrl = 'https://clienttoken.spotify.com/v1/clienttoken';

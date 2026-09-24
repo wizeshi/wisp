@@ -5,7 +5,7 @@ library;
 
 import 'dart:io' show Platform;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import '../utils/logger.dart';
+import 'package:wisp/core/utils/logger.dart';
 import 'desktop_notification_center.dart';
 
 /// Service for showing download progress notifications on mobile

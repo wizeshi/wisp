@@ -4,11 +4,11 @@
 library;
 
 import 'package:http/http.dart' as http;
-import 'package:wisp/providers/common/spotify_tokens.dart';
-import 'package:wisp/utils/json.dart';
-import '../../models/metadata_models.dart';
-import '../../services/credentials.dart';
-import '../../utils/logger.dart';
+import 'package:wisp/data/sources/spotify/spotify_tokens.dart';
+import 'package:wisp/core/utils/json.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/services/system/credentials.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 const _spotifyLyricsBaseUrl =
     'https://spclient.wg.spotify.com/color-lyrics/v2/track';

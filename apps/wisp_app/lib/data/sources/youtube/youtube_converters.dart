@@ -3,8 +3,8 @@
 /// YouTube metadata converters
 library;
 
-import '../providers/audio/youtube.dart';
-import 'metadata_models.dart';
+import 'package:wisp/data/sources/youtube/youtube_audio.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 GenericSong youtubeResultToGenericSong(YouTubeResult result) {
   final artistName = result.channelName.isNotEmpty

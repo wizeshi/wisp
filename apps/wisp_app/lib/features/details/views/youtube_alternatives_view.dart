@@ -4,8 +4,8 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../models/metadata_models.dart';
-import '../providers/audio/youtube.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 
 class YouTubeAlternativesView extends StatefulWidget {
   final GenericSong track;

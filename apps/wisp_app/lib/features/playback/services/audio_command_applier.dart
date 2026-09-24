@@ -1,9 +1,9 @@
 // Copyright © 2026 wizeshi
 
-import '../../models/metadata_models.dart';
-import '../connect/connect_models.dart';
-import '../wisp_audio_handler.dart';
-import 'package:wisp/utils/logger.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 class AudioCommandApplier {
   const AudioCommandApplier();

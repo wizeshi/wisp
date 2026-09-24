@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:wisp/ui/cards/album_card.dart';
+import 'package:wisp/shared/widgets/cards/album_card.dart';
 
-import '../../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 class SpecialCard extends StatelessWidget {
   final GenericAlbum album;

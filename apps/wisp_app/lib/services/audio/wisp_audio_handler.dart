@@ -14,15 +14,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 import 'package:wisp_playback_engine/wisp_playback_engine.dart';
 
-import '../models/metadata_models.dart';
-import '../services/cache_manager.dart';
-import '../services/discord_rpc_service.dart';
-import '../services/listening_habits_service.dart';
-import '../utils/logger.dart';
-import '../providers/audio/youtube.dart';
-import '../providers/metadata/spotify_internal.dart';
-import '../providers/preferences/preferences_provider.dart';
-import '../services/connect/connect_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/cache/cache_manager.dart';
+import 'package:wisp/services/discord/discord_rpc_service.dart';
+import 'package:wisp/services/system/listening_habits_service.dart';
+import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/sources/youtube/youtube_audio.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
 
 enum PlaybackState {
   idle,

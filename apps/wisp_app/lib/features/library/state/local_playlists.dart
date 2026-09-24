@@ -9,9 +9,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../models/local_playlist.dart';
-import '../../models/metadata_models.dart';
-import '../../services/folder_thumbnail_store.dart';
+import 'package:wisp/data/models/local_playlist.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/cache/folder_thumbnail_store.dart';
 
 class LocalPlaylistState extends ChangeNotifier {
   static const String _prefsKey = 'local_playlists';

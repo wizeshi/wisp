@@ -4,12 +4,12 @@
 library;
 
 import 'package:flutter/foundation.dart';
-import '../../models/metadata_models.dart';
-import '../../services/metadata_cache.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/cache/metadata_cache.dart';
 import 'betterlyrics.dart';
-import '../preferences/preferences_provider.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'lrclib.dart';
-import 'spotify.dart';
+import 'spotify_lyrics.dart';
 
 class LyricsFetchState {
   final bool isLoading;

@@ -7,15 +7,15 @@ import 'dart:io' show Platform;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/metadata_models.dart';
-import '../widgets/sliding_track_background.dart';
-import '../services/app_focus_service.dart';
-import '../services/wisp_audio_handler.dart';
-import '../services/playback/playback_coordinator.dart';
-import '../providers/lyrics/provider.dart';
-import '../providers/preferences/preferences_provider.dart';
-import '../utils/logger.dart';
-import '../utils/lyrics_timing.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
+import 'package:wisp/services/system/app_focus_service.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
+import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 
 class LyricsView extends StatefulWidget {
   final bool hideHeader;

@@ -9,17 +9,17 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:wisp/models/metadata_models.dart';
-import 'package:wisp/providers/preferences/preferences_provider.dart';
-import 'package:wisp/services/connect/connect_packet_models.dart';
-import 'package:wisp/services/playback/audio_command_applier.dart';
-import 'package:wisp/services/playback/playback_coordinator.dart';
-import 'package:wisp/services/playback/playback_transport.dart';
-import 'package:wisp/services/connect/connect_models.dart';
-import 'package:wisp/services/connect/lan_connect_service.dart';
-import 'package:wisp/services/connect/connect_transport.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
-import 'package:wisp/utils/logger.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/features/connect/services/connect_packet_models.dart';
+import 'package:wisp/features/playback/services/audio_command_applier.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
+import 'package:wisp/features/playback/services/playback_transport.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/features/connect/services/lan_connect_service.dart';
+import 'package:wisp/features/connect/services/connect_transport.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 
 // Structured error codes so the UI can react without brittle string matching.

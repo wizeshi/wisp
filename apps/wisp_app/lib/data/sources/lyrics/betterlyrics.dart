@@ -3,9 +3,9 @@
 library;
 
 import 'package:http/http.dart' as http;
-import 'package:wisp/models/metadata_models.dart';
-import 'package:wisp/utils/json.dart';
-import 'package:wisp/utils/logger.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/core/utils/json.dart';
+import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import 'package:xml/xml.dart';
 

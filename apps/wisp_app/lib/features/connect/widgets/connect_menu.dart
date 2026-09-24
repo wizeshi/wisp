@@ -5,11 +5,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/services/connect/connect_packet_models.dart';
+import 'package:wisp/features/connect/services/connect_packet_models.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 
-import '../../providers/connect/connect_session_provider.dart';
-import '../../services/connect/connect_models.dart';
+import 'package:wisp/features/connect/state/connect_session_provider.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
 
 class ConnectMenu extends StatelessWidget {
   final VoidCallback onClose;

@@ -1,9 +1,9 @@
 // Copyright © 2026 wizeshi
 
-import 'package:wisp/services/connect/connect_models.dart';
-import 'package:wisp/services/connect/connect_packet_models.dart';
-import 'package:wisp/services/connect/connect_transport.dart';
-import 'package:wisp/services/connect/lan_connect_service.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/features/connect/services/connect_packet_models.dart';
+import 'package:wisp/features/connect/services/connect_transport.dart';
+import 'package:wisp/features/connect/services/lan_connect_service.dart';
 
 /// A simple Wi-Fi backend stub that currently delegates to the LAN backend.
 /// This exists so a second backend can be registered behind the same interface.

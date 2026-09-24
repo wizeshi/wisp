@@ -2,7 +2,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/navigation.dart';
+import 'package:wisp/features/shell/widgets/navigation.dart';
 
 enum RightSidebarContent { library, connect }
 

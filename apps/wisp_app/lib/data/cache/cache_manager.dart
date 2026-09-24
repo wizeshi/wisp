@@ -12,9 +12,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:crypto/crypto.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'notification_service.dart';
-import 'download_foreground_service.dart';
-import '../utils/logger.dart';
+import 'package:wisp/services/notifications/notification_service.dart';
+import 'package:wisp/services/notifications/download_foreground_service.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 /// Metadata for a cached audio file
 String _buildSafeCacheFileName(String trackId, String videoId) {

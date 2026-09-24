@@ -11,16 +11,16 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/metadata_models.dart';
-import '../providers/metadata/spotify_internal.dart';
-import '../services/metadata_cache.dart';
-import '../providers/preferences/preferences_provider.dart';
-import '../providers/theme/cover_art_palette_provider.dart';
-import '../services/app_navigation.dart';
-import '../services/playback/playback_coordinator.dart';
-import '../services/wisp_audio_handler.dart';
-import '../widgets/entity_context_menus.dart';
-import '../widgets/provider_disabled_state.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/cache/metadata_cache.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/core/theme/cover_art_palette_provider.dart';
+import 'package:wisp/features/shell/navigation/app_navigation.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
+import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 
 enum UserPageStyle { spotify, apple }
 

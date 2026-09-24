@@ -6,8 +6,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:wisp/utils/json.dart';
-import 'package:wisp/utils/logger.dart';
+import 'package:wisp/core/utils/json.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 import 'types.dart';
 

@@ -15,18 +15,18 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:flutter/material.dart';
-import 'package:wisp/models/metadata_models.dart';
-import 'package:wisp/models/metadata_provider.dart';
-import 'package:wisp/providers/common/spotify_tokens.dart';
-import 'package:wisp/providers/preferences/preferences_provider.dart';
-import 'package:wisp/services/metadata_cache.dart';
-import 'package:wisp/utils/json.dart';
-import 'package:wisp/widgets/spotify_webview.dart';
-import 'package:wisp/services/credentials.dart';
-import 'package:wisp/utils/logger.dart';
-import 'package:wisp/models/spotify_internal_converters.dart';
-import 'package:wisp/providers/library/library_folders.dart';
-import 'package:wisp/utils/spotify_protobuf.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_provider.dart';
+import 'package:wisp/data/sources/spotify/spotify_tokens.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/data/cache/metadata_cache.dart';
+import 'package:wisp/core/utils/json.dart';
+import 'package:wisp/data/sources/spotify/spotify_webview.dart';
+import 'package:wisp/services/system/credentials.dart';
+import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal_converters.dart';
+import 'package:wisp/features/library/state/library_folders.dart';
+import 'package:wisp/data/sources/spotify/spotify_protobuf.dart';
 
 const _allowInsecureSpotifyTls = bool.fromEnvironment(
   'WISP_ALLOW_INSECURE_SPOTIFY_TLS',

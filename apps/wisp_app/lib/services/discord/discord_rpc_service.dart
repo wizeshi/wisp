@@ -5,10 +5,10 @@ library;
 
 import 'dart:io' show Platform;
 
-import 'package:wisp/services/rpc/discord_rpc_api.dart';
-import 'package:wisp/services/rpc/types.dart';
+import 'package:wisp/services/discord/discord_rpc_api.dart';
+import 'package:wisp/services/discord/types.dart';
 
-import '../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 class DiscordRpcService {
   DiscordRpcService._();

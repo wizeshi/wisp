@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/models/metadata_models.dart';
-import 'package:wisp/providers/metadata/spotify_internal.dart';
-import 'package:wisp/services/listening_habits_service.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
-import 'package:wisp/ui/artwork/artwork_thumbnail.dart';
-import 'package:wisp/ui/rails/card_rail.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/services/system/listening_habits_service.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/rails/card_rail.dart';
 
 const djTextInputTitles = [
   'Hi! What would you like to listen to today?',

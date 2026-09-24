@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:wisp/ui/overlay/cover_play_button.dart';
-import 'package:wisp/ui/overlay/hover.dart';
+import 'package:wisp/shared/widgets/overlay/cover_play_button.dart';
+import 'package:wisp/shared/widgets/overlay/hover.dart';
 
 enum GenericRowPlayPosition { cover, end, none }
 

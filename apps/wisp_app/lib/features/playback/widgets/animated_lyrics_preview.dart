@@ -1,7 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/material.dart';
-import '../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 class AnimatedLyricsPreviewList extends StatefulWidget {
   final List<LyricsLine> lines;

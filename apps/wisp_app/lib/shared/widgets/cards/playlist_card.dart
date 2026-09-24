@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/providers/metadata/spotify_internal.dart';
-import 'package:wisp/services/app_navigation.dart';
-import 'package:wisp/services/playback/playback_coordinator.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
-import 'package:wisp/views/list_detail.dart';
-import 'package:wisp/widgets/entity_context_menus.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/features/shell/navigation/app_navigation.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 
-import '../../models/metadata_models.dart';
-import '../artwork/artwork_thumbnail.dart';
-import '../playback/playback_selectors.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/playback/playback_selectors.dart';
 import 'generic_card.dart';
 
 String playlistSubtitle(GenericPlaylist playlist) {

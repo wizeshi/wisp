@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:wisp/ui/overlay/hover.dart';
-import 'package:wisp/utils/text_parser.dart';
+import 'package:wisp/shared/widgets/overlay/hover.dart';
+import 'package:wisp/core/utils/text_parser.dart';
 
 const double _kSubtitleLineHeight = 18;
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 /// The icon used to represent a [SongSource] anywhere in the UI (row source
 /// badges, context menus, the title bar "now playing" indicator, ...).

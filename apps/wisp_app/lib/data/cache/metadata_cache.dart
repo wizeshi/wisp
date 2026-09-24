@@ -9,9 +9,9 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:wisp/utils/json.dart';
+import 'package:wisp/core/utils/json.dart';
 
-import '../utils/logger.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 enum MetadataFetchPolicy { cacheFirst, refreshIfExpired, refreshAlways }
 

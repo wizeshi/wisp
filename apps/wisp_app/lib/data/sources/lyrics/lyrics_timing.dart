@@ -4,7 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 const int kLyricsWaitingGapThresholdMs = 10000;
 const int kLyricsInitialWaitingGapThresholdMs =

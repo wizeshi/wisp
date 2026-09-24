@@ -9,10 +9,10 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../models/library_folder.dart';
-import '../../models/metadata_models.dart';
-import '../../services/folder_thumbnail_store.dart';
-import '../../utils/liked_songs.dart';
+import 'package:wisp/data/models/library_folder.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/cache/folder_thumbnail_store.dart';
+import 'package:wisp/core/utils/liked_songs.dart';
 
 enum LibrarySortMode { recent, recentlyAdded, alphabetical }
 

@@ -4,7 +4,7 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../services/cache_manager.dart';
+import 'package:wisp/data/cache/cache_manager.dart';
 
 class DownloadsSettingsPage extends StatelessWidget {
   const DownloadsSettingsPage({super.key});

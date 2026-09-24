@@ -4,7 +4,7 @@
 /// Handles conversion from Spotify JSON to generic metadata models
 library;
 
-import 'metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 /// Helper to select the largest image from Spotify's image array
 String _getLargestImage(List<dynamic>? images) {

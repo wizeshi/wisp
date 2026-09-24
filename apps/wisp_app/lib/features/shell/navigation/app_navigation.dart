@@ -3,23 +3,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
-import 'package:wisp/views/debug.dart';
-import 'package:wisp/views/dj.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/features/debug/views/debug_view.dart';
+import 'package:wisp/features/dj/views/dj_view.dart';
 import 'dart:io' show Platform;
 
-import '../models/metadata_models.dart';
-import '../providers/library/library_state.dart';
-import '../providers/navigation_state.dart';
-import '../services/navigation_history.dart';
-import '../services/tab_routes.dart';
-import '../views/lyrics.dart';
-import '../views/queue.dart';
-import '../views/artist_detail.dart';
-import '../views/user_detail.dart';
-import '../views/list_detail.dart';
-import '../views/youtube_alternatives.dart';
-import '../widgets/full_player.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/features/library/state/library_state.dart';
+import 'package:wisp/features/shell/navigation/navigation_state.dart';
+import 'package:wisp/features/shell/navigation/navigation_history.dart';
+import 'package:wisp/features/shell/navigation/tab_routes.dart';
+import 'package:wisp/features/playback/views/lyrics_view.dart';
+import 'package:wisp/features/playback/views/queue_view.dart';
+import 'package:wisp/features/details/views/artist_detail_view.dart';
+import 'package:wisp/features/details/views/user_detail_view.dart';
+import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/features/details/views/youtube_alternatives_view.dart';
+import 'package:wisp/features/playback/widgets/full_player.dart';
 
 enum FullPlayerDesktopMode { artwork, canvas, lyrics, queue }
 

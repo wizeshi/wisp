@@ -14,14 +14,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:http/http.dart' as http;
-import 'package:wisp/models/metadata_provider.dart';
-import 'package:wisp/providers/preferences/preferences_provider.dart';
-import '../../services/credentials.dart';
-import '../../services/metadata_cache.dart';
-import '../../models/metadata_models.dart';
-import '../../models/spotify_converters.dart';
+import 'package:wisp/data/models/metadata_provider.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/services/system/credentials.dart';
+import 'package:wisp/data/cache/metadata_cache.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/spotify/spotify_converters.dart';
 import 'dart:io' show Platform;
-import '../../utils/logger.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 // Custom exceptions
 class SpotifyAuthException implements Exception {

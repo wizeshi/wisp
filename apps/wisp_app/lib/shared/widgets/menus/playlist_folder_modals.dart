@@ -8,15 +8,15 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/models/local_playlist.dart';
+import 'package:wisp/data/models/local_playlist.dart';
 
-import '../models/library_folder.dart';
-import '../models/metadata_models.dart';
-import '../providers/library/library_folders.dart';
-import '../providers/library/local_playlists.dart';
-import '../providers/metadata/spotify_internal.dart';
-import '../providers/preferences/preferences_provider.dart';
-import '../services/navigation_history.dart';
+import 'package:wisp/data/models/library_folder.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/features/library/state/library_folders.dart';
+import 'package:wisp/features/library/state/local_playlists.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/features/shell/navigation/navigation_history.dart';
 
 class PlaylistFolderModals {
   static OverlayEntry? _activeSubmenu;

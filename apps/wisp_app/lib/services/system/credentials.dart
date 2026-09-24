@@ -7,7 +7,7 @@ library;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 
-import 'package:wisp/utils/json.dart';
+import 'package:wisp/core/utils/json.dart';
 
 class SpotifyCredentials {
   final String clientId;

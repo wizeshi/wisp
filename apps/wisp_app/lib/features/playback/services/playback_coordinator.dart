@@ -2,8 +2,8 @@
 
 import 'package:flutter/foundation.dart';
 
-import '../../models/metadata_models.dart';
-import '../wisp_audio_handler.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'playback_transport.dart';
 
 class PlaybackCoordinator extends ChangeNotifier {

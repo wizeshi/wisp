@@ -5,8 +5,8 @@ import 'dart:io' show File;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../../models/metadata_models.dart';
-import '../../utils/cover_art_kmeans.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/core/utils/cover_art_kmeans.dart';
 
 class CoverArtPaletteProvider extends ChangeNotifier {
   ColorScheme? _palette;

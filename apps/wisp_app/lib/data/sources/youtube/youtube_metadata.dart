@@ -5,10 +5,10 @@ library;
 
 import 'package:flutter/foundation.dart';
 
-import '../../models/metadata_models.dart';
-import '../../models/youtube_converters.dart';
-import '../../services/metadata_cache.dart';
-import '../audio/youtube.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/youtube/youtube_converters.dart';
+import 'package:wisp/data/cache/metadata_cache.dart';
+import 'youtube_audio.dart';
 
 class YouTubeMetadataProvider extends ChangeNotifier {
   final MetadataCacheStore _metadataCache = MetadataCacheStore.instance;

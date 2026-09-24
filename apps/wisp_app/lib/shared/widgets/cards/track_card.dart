@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../models/metadata_models.dart';
-import '../artwork/artwork_thumbnail.dart';
-import '../playback/playback_selectors.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/playback/playback_selectors.dart';
 import 'generic_card.dart';
 
 class TrackCard extends StatelessWidget {

@@ -3,7 +3,7 @@
 /// Liked Songs helpers
 library;
 
-import '../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 const String likedSongsPlaylistId = 'liked_songs';
 const String likedSongsTitle = 'Liked Songs';

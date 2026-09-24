@@ -1,9 +1,9 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/foundation.dart';
-import 'package:wisp/services/wisp_audio_handler.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
-import '../../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 abstract class PlaybackTransport implements Listenable {
   bool get isLinked;

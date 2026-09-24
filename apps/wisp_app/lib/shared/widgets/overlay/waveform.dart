@@ -2,8 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/providers/preferences/preferences_provider.dart';
-import 'package:wisp/services/app_focus_service.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/services/system/app_focus_service.dart';
 
 class PlayingWaveform extends StatefulWidget {
   final Color color;

@@ -4,8 +4,8 @@ import 'dart:convert';
 
 import 'connect_models.dart';
 import 'connect_packet_models.dart';
-import '../playback/audio_packet_router.dart';
-import 'package:wisp/utils/logger.dart';
+import 'package:wisp/features/playback/services/audio_packet_router.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 class ConnectPacketEnvelope {
   static const String protocol = 'wisp.connect/1';

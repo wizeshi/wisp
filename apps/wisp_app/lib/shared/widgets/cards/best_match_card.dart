@@ -3,16 +3,16 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/metadata_models.dart';
-import '../../providers/preferences/preferences_provider.dart';
-import '../../services/app_navigation.dart';
-import '../../theme/app_theme.dart';
-import '../../views/list_detail.dart';
-import '../../widgets/entity_context_menus.dart';
-import '../artwork/artwork_thumbnail.dart';
-import '../overlay/cover_play_button.dart';
-import '../overlay/hover.dart';
-import '../playback/playback_selectors.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/features/shell/navigation/app_navigation.dart';
+import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/overlay/cover_play_button.dart';
+import 'package:wisp/shared/widgets/overlay/hover.dart';
+import 'package:wisp/shared/widgets/playback/playback_selectors.dart';
 
 /// A card representing the best match / top result in search.
 ///

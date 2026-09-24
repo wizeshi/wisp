@@ -2,7 +2,7 @@
 
 import 'package:flutter/foundation.dart';
 
-import '../../models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_models.dart';
 
 class LibraryState extends ChangeNotifier {
   List<GenericPlaylist> _remotePlaylists = [];

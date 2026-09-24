@@ -6,9 +6,9 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/metadata_models.dart';
-import '../providers/metadata/spotify_internal.dart';
-import '../ui/overlay/hover.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/shared/widgets/overlay/hover.dart';
 
 class LikeButton extends StatefulWidget {
   final GenericSong? track;

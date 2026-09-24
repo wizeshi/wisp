@@ -4,8 +4,8 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:wisp/services/connect/connect_models.dart';
-import 'package:wisp/theme/app_theme.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 
 enum PausedBackgroundWidget {
   lyricsView,

@@ -3,7 +3,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:wisp/utils/logger.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 class SpotifyWebview extends StatefulWidget {
   final String initialUrl;

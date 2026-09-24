@@ -4,7 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../services/app_focus_service.dart';
+import 'package:wisp/services/system/app_focus_service.dart';
 
 class MarqueeText extends StatefulWidget {
   const MarqueeText({
