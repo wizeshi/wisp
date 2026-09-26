@@ -4,16 +4,15 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:newpipeextractor_dart/newpipeextractor_dart.dart';
 import 'package:wisp_newpipe_manager/services/android_extractor_delegate.dart';
 import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:wisp_ytdlp_manager/wisp_ytdlp_manager.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/cache/youtube/youtube_mapping_store.dart';
 
 enum YouTubeEngine {
   // ignore: constant_identifier_names
@@ -117,79 +116,67 @@ class YouTubeProvider {
     return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
   }
 
-  /// Cache for track ID -> YouTube video ID mapping
-  static Map<String, String> _videoIdCache = {};
-  static bool _cacheLoaded = false;
-
-  /// Load video ID cache from SharedPreferences
+  /// Load video ID cache via YouTubeMappingStore (with automatic legacy migration)
   static Future<void> loadVideoIdCache() async {
-    if (_cacheLoaded) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cacheJson = prefs.getString('youtube_video_id_cache');
-      if (cacheJson != null) {
-        final Map<String, dynamic> cacheMap = json.decode(cacheJson);
-        _videoIdCache = cacheMap.map((k, v) => MapEntry(k, v.toString()));
-        logger.i(
-          '[Audio/YouTube] Loaded ${_videoIdCache.length} cached video IDs',
-        );
-      }
-      _cacheLoaded = true;
-    } catch (e) {
-      logger.e('[Audio/YouTube] Error loading video ID cache', error: e);
-      _cacheLoaded = true;
-    }
-  }
-
-  /// Save video ID cache to SharedPreferences
-  static Future<void> _saveVideoIdCache() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'youtube_video_id_cache',
-        json.encode(_videoIdCache),
-      );
-    } catch (e) {
-      logger.e('[Audio/YouTube] Error saving video ID cache', error: e);
-    }
+    await YouTubeMappingStore.instance.initialize();
   }
 
   /// Get cached video ID for a track
-  static String? getCachedVideoId(String trackId) => _videoIdCache[trackId];
+  static String? getCachedVideoId(String trackId) =>
+      YouTubeMappingStore.instance.getVideoId(trackId);
 
   /// Cache a video ID for a track
-  static Future<void> cacheVideoId(String trackId, String videoId) async {
-    _videoIdCache[trackId] = videoId;
-    await _saveVideoIdCache();
+  static Future<void> cacheVideoId(
+    String trackId,
+    String videoId, {
+    String? title,
+    int? durationSecs,
+    bool isManualOverride = false,
+  }) async {
+    await YouTubeMappingStore.instance.setVideoId(
+      trackId,
+      videoId,
+      title: title,
+      durationSecs: durationSecs,
+      isManualOverride: isManualOverride,
+    );
   }
 
   /// Set a cached video ID for a track (alias for cacheVideoId)
-  static Future<void> setCachedVideoId(String trackId, String videoId) async {
-    await cacheVideoId(trackId, videoId);
+  static Future<void> setCachedVideoId(
+    String trackId,
+    String videoId, {
+    String? title,
+    int? durationSecs,
+    bool isManualOverride = false,
+  }) async {
+    await cacheVideoId(
+      trackId,
+      videoId,
+      title: title,
+      durationSecs: durationSecs,
+      isManualOverride: isManualOverride,
+    );
   }
 
   /// Remove cached video ID for a track
   static Future<void> removeCachedVideoId(String trackId) async {
-    _videoIdCache.remove(trackId);
-    await _saveVideoIdCache();
+    await YouTubeMappingStore.instance.remove(trackId);
   }
 
   /// Clears the entire video ID cache
   static Future<void> clearVideoIdCache() async {
-    _videoIdCache.clear();
-    await _saveVideoIdCache();
+    await YouTubeMappingStore.instance.clear();
   }
 
   /// Returns a copy of the full track -> video ID cache.
   static Map<String, String> getVideoIdCacheSnapshot() {
-    return Map<String, String>.from(_videoIdCache);
+    return YouTubeMappingStore.instance.getSnapshot();
   }
 
   /// Merges provided track -> video ID mappings into the cache.
   static Future<void> mergeVideoIdCache(Map<String, String> map) async {
-    if (map.isEmpty) return;
-    _videoIdCache = {..._videoIdCache, ...map};
-    await _saveVideoIdCache();
+    await YouTubeMappingStore.instance.merge(map);
   }
 
   /// Search YouTube for a track by artist and title

@@ -3,7 +3,6 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:audio_service/audio_service.dart' as audio_service;
@@ -24,6 +23,7 @@ import 'package:wisp/data/sources/spotify/spotify_internal.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
+import 'package:wisp/services/audio/playback_session_store.dart';
 
 enum PlaybackState {
   idle,
@@ -160,6 +160,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool _gaplessPlaybackEnabled = false;
   bool _crossfadeEnabled = false;
   double _crossfadeDurationSeconds = 3.0;
+  bool _keepPositionBetweenRestarts = false;
+  int _savedPositionMs = 0;
+  int _lastSessionSaveMs = 0;
 
   // Playback context
   PlaybackContext? _playbackContext;
@@ -249,6 +252,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool get gaplessPlaybackEnabled => _gaplessPlaybackEnabled;
   bool get crossfadeEnabled => _crossfadeEnabled;
   double get crossfadeDurationSeconds => _crossfadeDurationSeconds;
+  bool get keepPositionBetweenRestarts => _keepPositionBetweenRestarts;
+
+  void setKeepPositionBetweenRestarts(bool enabled) {
+    if (_keepPositionBetweenRestarts == enabled) return;
+    _keepPositionBetweenRestarts = enabled;
+    if (!enabled) {
+      _savedPositionMs = 0;
+    }
+    _saveQueue();
+    notifyListeners();
+  }
   bool get _playlistPlaybackEnabled =>
       _gaplessPlaybackEnabled || _crossfadeEnabled;
   Duration get position => _engine.state.position;
@@ -529,6 +543,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   Future<void> _init() async {
     await _configureAudioSession();
+    _keepPositionBetweenRestarts =
+        await PreferencesProvider.isKeepPositionBetweenRestartsEnabled();
     await _loadQueue();
     await YouTubeProvider.loadVideoIdCache();
     _gaplessPlaybackEnabled =
@@ -709,6 +725,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _lastNotifiedPosition = position;
     _lastPositionNotifyMs = nowMs;
     _lastPositionUpdateMs = nowMs;
+    if (_keepPositionBetweenRestarts && nowMs - _lastSessionSaveMs > 10000) {
+      _lastSessionSaveMs = nowMs;
+      _saveQueue();
+    }
     notifyListeners();
   }
 
@@ -1299,9 +1319,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> _prepareCurrentTrackOnStartup() async {
     if (_currentTrack == null || _engine.state.source != null) return;
     try {
+      final initialPosition =
+          (_keepPositionBetweenRestarts && _savedPositionMs > 0)
+              ? Duration(milliseconds: _savedPositionMs)
+              : Duration.zero;
+
       await _loadTrackAtIndex(
         _currentIndex < 0 ? 0 : _currentIndex,
         play: false,
+        position: initialPosition,
       );
       unawaited(_schedulePlaybackPrefetchWindow(anchorIndex: _currentIndex));
       unawaited(_scheduleNextTrackPreload());
@@ -1940,9 +1966,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     if (_engine.state.source == null && _currentTrack != null) {
       final requestToken = ++_trackChangeToken;
+      final initialPosition =
+          (_keepPositionBetweenRestarts && _savedPositionMs > 0)
+              ? Duration(milliseconds: _savedPositionMs)
+              : Duration.zero;
       await _loadTrackAtIndex(
         _currentIndex < 0 ? 0 : _currentIndex,
         play: true,
+        position: initialPosition,
         token: requestToken,
       );
       return;
@@ -1969,6 +2000,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       await _engine.pause();
     } catch (_) {}
     _setState(PlaybackState.paused);
+    _saveQueue(immediate: true);
   }
 
   Future<void> togglePlayPause() async {
@@ -2424,51 +2456,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   // PERSISTENCE
   Future<void> _loadQueue() async {
     try {
+      final session = await PlaybackSessionStore.instance.loadSession();
+      if (session != null) {
+        _queue = List<GenericSong>.from(session.queue);
+        _originalQueue = List<GenericSong>.from(session.originalQueue);
+        _currentIndex = session.currentIndex;
+        _shuffleEnabled = session.shuffleEnabled;
+        _repeatMode = session.repeatMode;
+        _playbackContext = session.playbackContext;
+        _savedPositionMs = session.positionMs;
+      }
+
       final prefs = await SharedPreferences.getInstance();
-      final queueJson = prefs.getString('audio_queue');
-      if (queueJson != null) {
-        final list = json.decode(queueJson) as List;
-        _queue = list.map((item) => GenericSong.fromJson(item)).toList();
-      }
-      final originalQueueJson = prefs.getString('audio_original_queue');
-      if (originalQueueJson != null) {
-        final list = json.decode(originalQueueJson) as List;
-        _originalQueue = list
-            .map((item) => GenericSong.fromJson(item))
-            .toList();
-      }
-      _currentIndex = prefs.getInt('current_index') ?? -1;
-      _shuffleEnabled = prefs.getBool('shuffle_enabled') ?? false;
-      final repeatStr = prefs.getString('repeat_mode');
-      if (repeatStr != null) {
-        _repeatMode = RepeatMode.values.firstWhere(
-          (e) => e.toString() == repeatStr,
-          orElse: () => RepeatMode.off,
-        );
-      }
-      final contextType = PlaybackContextType.values.firstWhere(
-        (e) => e.toString() == prefs.getString('playback_context_type'),
-        orElse: () => PlaybackContextType.unknown,
-      );
-      final contextName = prefs.getString('playback_context_name');
-      final contextId = prefs.getString('playback_context_id');
-      final contextSource = SongSource.values.firstWhere(
-        (e) => e.toString() == prefs.getString('playback_context_source'),
-        orElse: () => SongSource.spotify,
-      );
-
-      if (contextId != null &&
-          contextId.isNotEmpty &&
-          contextName != null &&
-          contextName.isNotEmpty) {
-        _playbackContext = PlaybackContext(
-          id: contextId,
-          name: contextName,
-          type: contextType,
-          source: contextSource,
-        );
-      }
-
       _savedVolume = prefs.getDouble('player_volume');
       final savedLastVolume = prefs.getDouble('player_last_volume');
       if (savedLastVolume != null) {
@@ -2485,33 +2484,23 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
   }
 
-  Future<void> _saveQueue() async {
+  Future<void> _saveQueue({bool immediate = false}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'audio_queue',
-        json.encode(_queue.map((t) => t.toJson()).toList()),
+      final currentPosMs =
+          (_keepPositionBetweenRestarts && _engine.state.source != null)
+              ? _engine.state.position.inMilliseconds
+              : 0;
+
+      final session = PlaybackSession(
+        queue: _queue,
+        originalQueue: _originalQueue,
+        currentIndex: _currentIndex,
+        positionMs: currentPosMs,
+        shuffleEnabled: _shuffleEnabled,
+        repeatMode: _repeatMode,
+        playbackContext: _playbackContext,
       );
-      await prefs.setString(
-        'audio_original_queue',
-        json.encode(_originalQueue.map((t) => t.toJson()).toList()),
-      );
-      await prefs.setInt('current_index', _currentIndex);
-      await prefs.setBool('shuffle_enabled', _shuffleEnabled);
-      await prefs.setString('repeat_mode', _repeatMode.toString());
-      await prefs.setString(
-        'playback_context_type',
-        _playbackContext?.type.toString() ?? '',
-      );
-      await prefs.setString(
-        'playback_context_name',
-        _playbackContext?.name ?? '',
-      );
-      await prefs.setString('playback_context_id', _playbackContext?.id ?? '');
-      await prefs.setString(
-        'playback_context_source',
-        _playbackContext?.source.toString() ?? '',
-      );
+      PlaybackSessionStore.instance.saveSession(session, immediate: immediate);
     } catch (e) {
       logger.e('[Audio/Player] Save queue error', error: e);
     }
@@ -2613,6 +2602,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   @override
   void dispose() {
     _saveVolumePrefs();
+    _saveQueue(immediate: true);
     _engineStateSubscription?.cancel();
     _engineCompletedSubscription?.cancel();
     _outputDevicesSubscription?.cancel();

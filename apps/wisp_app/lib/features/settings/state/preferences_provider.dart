@@ -55,6 +55,8 @@ class PreferencesProvider extends ChangeNotifier {
   static const _keyDebugModeEnabled = 'debug_mode_enabled';
   static const _keyPausedBackgroundWidgetsEnabled =
       'paused_background_widgets_enabled';
+  static const _keyKeepPositionBetweenRestarts =
+      'keep_position_between_restarts';
 
   static const bool _defaultAllowWriting = true;
   static const bool _defaultMetadataSpotifyEnabled = true;
@@ -63,6 +65,7 @@ class PreferencesProvider extends ChangeNotifier {
   static const bool _defaultGaplessPlaybackEnabled = true;
   static const bool _defaultCrossfadeEnabled = false;
   static const double _defaultCrossfadeDurationSeconds = 3.0;
+  static const bool _defaultKeepPositionBetweenRestarts = false;
   static const bool _defaultLyricsLrclibEnabled = true;
   static const bool _defaultLyricsSpotifyEnabled = true;
   static const HandoffSecurityLevel _defaultHandoffSecurityLevel =
@@ -97,6 +100,9 @@ class PreferencesProvider extends ChangeNotifier {
 
   double _crossfadeDurationSeconds = _defaultCrossfadeDurationSeconds;
   double get crossfadeDurationSeconds => _crossfadeDurationSeconds;
+
+  bool _keepPositionBetweenRestarts = _defaultKeepPositionBetweenRestarts;
+  bool get keepPositionBetweenRestarts => _keepPositionBetweenRestarts;
 
   bool _lyricsLrclibEnabled = _defaultLyricsLrclibEnabled;
   bool get lyricsLrclibEnabled => _lyricsLrclibEnabled;
@@ -153,6 +159,9 @@ class PreferencesProvider extends ChangeNotifier {
       _crossfadeDurationSeconds =
           prefs.getDouble(_keyCrossfadeDurationSeconds) ??
           _defaultCrossfadeDurationSeconds;
+      _keepPositionBetweenRestarts =
+          prefs.getBool(_keyKeepPositionBetweenRestarts) ??
+          _defaultKeepPositionBetweenRestarts;
       _lyricsLrclibEnabled =
           prefs.getBool(_keyLyricsLrclibEnabled) ?? _defaultLyricsLrclibEnabled;
       _lyricsSpotifyEnabled =
@@ -218,6 +227,12 @@ class PreferencesProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getDouble(_keyCrossfadeDurationSeconds) ??
         _defaultCrossfadeDurationSeconds;
+  }
+
+  static Future<bool> isKeepPositionBetweenRestartsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyKeepPositionBetweenRestarts) ??
+        _defaultKeepPositionBetweenRestarts;
   }
 
   static Future<bool> isLyricsLrclibEnabled() async {
@@ -362,6 +377,16 @@ class PreferencesProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble(_keyCrossfadeDurationSeconds, normalized);
+    } catch (_) {}
+  }
+
+  Future<void> setKeepPositionBetweenRestarts(bool enabled) async {
+    if (enabled == _keepPositionBetweenRestarts) return;
+    _keepPositionBetweenRestarts = enabled;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyKeepPositionBetweenRestarts, enabled);
     } catch (_) {}
   }
 

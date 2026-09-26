@@ -860,6 +860,40 @@ class _SettingsPageState extends State<SettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
+                          'Keep position between restarts',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        Text(
+                          'Resume playback from the exact position where you left off',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: prefs.keepPositionBetweenRestarts,
+                    onChanged: (value) async {
+                      await context
+                          .read<PreferencesProvider>()
+                          .setKeepPositionBetweenRestarts(value);
+                      if (context.mounted) {
+                        context
+                            .read<global_audio_player.WispAudioHandler>()
+                            .setKeepPositionBetweenRestarts(value);
+                      }
+                    },
+                    activeThumbColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
                           'Gapless Playback',
                           style: TextStyle(color: Colors.white, fontSize: 14),
                         ),
