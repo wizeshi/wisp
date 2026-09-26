@@ -1,4 +1,4 @@
-﻿// Copyright Â© 2026 wizeshi
+﻿// Copyright © 2026 wizeshi
 
 /// Shared playlist/album detail view
 library;

@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'package:flutter/material.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';

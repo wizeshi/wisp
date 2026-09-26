@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -6,16 +8,14 @@ import 'package:flutter/services.dart';
 
 /// Global scroll behavior for Wisp desktop & mobile.
 ///
-/// Enables elastic [BouncingScrollPhysics] and adds mouse-drag scrolling
+/// Enables smooth [ClampingScrollPhysics] and adds mouse-drag scrolling
 /// so users can click-drag to scroll just like touch or trackpad.
 class DesktopSmoothScrollBehavior extends MaterialScrollBehavior {
   const DesktopSmoothScrollBehavior();
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
-    return const BouncingScrollPhysics(
-      parent: AlwaysScrollableScrollPhysics(),
-    );
+    return const ClampingScrollPhysics();
   }
 
   @override
@@ -313,9 +313,7 @@ class _WispSmoothScrollState extends State<WispSmoothScroll> {
 
   @override
   Widget build(BuildContext context) {
-    const physics = BouncingScrollPhysics(
-      parent: AlwaysScrollableScrollPhysics(),
-    );
+    const physics = ClampingScrollPhysics();
     return widget.builder(context, _smoothController, physics);
   }
 }

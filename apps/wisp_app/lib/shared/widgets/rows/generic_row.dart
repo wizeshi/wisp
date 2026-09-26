@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'package:flutter/material.dart';
 import 'package:wisp/shared/widgets/overlay/cover_play_button.dart';
 import 'package:wisp/shared/widgets/overlay/hover.dart';

@@ -1112,7 +1112,22 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                     )
                   : CoverGradientContainer(child: content);
 
-              return foreground;
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(
+                    child: ClipRect(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                        child: Container(
+                          color: Colors.black.withValues(alpha: 0.16),
+                        ),
+                      ),
+                    ),
+                  ),
+                  foreground,
+                ],
+              );
             }
 
             if (!canUseCanvas) {

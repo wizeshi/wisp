@@ -626,7 +626,30 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _engineIsPlaying = engineState.isPlaying;
 
     if (engineState.duration > Duration.zero) {
+      final durationChanged = _lastKnownDuration != engineState.duration;
       _lastKnownDuration = engineState.duration;
+      if (_currentTrack != null && _currentTrack!.durationSecs == 0) {
+        final updatedTrack = GenericSong(
+          id: _currentTrack!.id,
+          source: _currentTrack!.source,
+          title: _currentTrack!.title,
+          artists: _currentTrack!.artists,
+          thumbnailUrl: _currentTrack!.thumbnailUrl,
+          explicit: _currentTrack!.explicit,
+          album: _currentTrack!.album,
+          durationSecs: engineState.duration.inSeconds,
+          languages: _currentTrack!.languages,
+        );
+        _currentTrack = updatedTrack;
+        if (_currentIndex >= 0 && _currentIndex < _queue.length) {
+          _queue[_currentIndex] = updatedTrack;
+        }
+        _updateMediaItem();
+      } else if (durationChanged &&
+          (mediaItem.value?.duration == null ||
+              mediaItem.value?.duration == Duration.zero)) {
+        _updateMediaItem();
+      }
     }
 
     if (engineState.error != null &&
@@ -1044,6 +1067,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _preloadedNextTrack = null;
     _currentIndex = nextIndex;
     _currentTrack = nextTrack;
+    _lastKnownDuration = nextTrack.durationSecs > 0
+        ? Duration(seconds: nextTrack.durationSecs)
+        : null;
     _errorMessage = null;
     _updateMediaItem();
     _setState(PlaybackState.playing);
@@ -1113,36 +1139,43 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           playing: isPlaying,
           processingState: _mapProcessingState(),
           controls: [
-            _shuffleControl(_shuffleEnabled),
+            if (!isDJMode) _shuffleControl(_shuffleEnabled),
             audio_service.MediaControl.skipToPrevious,
             if (isPlaying)
               audio_service.MediaControl.pause
             else
               audio_service.MediaControl.play,
             audio_service.MediaControl.skipToNext,
-            _repeatControl(
-              _repeatMode == RepeatMode.one
-                  ? audio_service.AudioServiceRepeatMode.one
-                  : _repeatMode == RepeatMode.all
-                  ? audio_service.AudioServiceRepeatMode.all
-                  : audio_service.AudioServiceRepeatMode.none,
-            ),
+            if (!isDJMode)
+              _repeatControl(
+                _repeatMode == RepeatMode.one
+                    ? audio_service.AudioServiceRepeatMode.one
+                    : _repeatMode == RepeatMode.all
+                    ? audio_service.AudioServiceRepeatMode.all
+                    : audio_service.AudioServiceRepeatMode.none,
+              ),
           ],
-          systemActions: const {
+          systemActions: {
             audio_service.MediaAction.seek,
             audio_service.MediaAction.seekForward,
             audio_service.MediaAction.seekBackward,
-            audio_service.MediaAction.setShuffleMode,
-            audio_service.MediaAction.setRepeatMode,
+            if (!isDJMode) ...{
+              audio_service.MediaAction.setShuffleMode,
+              audio_service.MediaAction.setRepeatMode,
+            },
           },
-          shuffleMode: _shuffleEnabled
-              ? audio_service.AudioServiceShuffleMode.all
-              : audio_service.AudioServiceShuffleMode.none,
-          repeatMode: _repeatMode == RepeatMode.one
-              ? audio_service.AudioServiceRepeatMode.one
-              : _repeatMode == RepeatMode.all
-              ? audio_service.AudioServiceRepeatMode.all
-              : audio_service.AudioServiceRepeatMode.none,
+          shuffleMode: isDJMode
+              ? audio_service.AudioServiceShuffleMode.none
+              : (_shuffleEnabled
+                  ? audio_service.AudioServiceShuffleMode.all
+                  : audio_service.AudioServiceShuffleMode.none),
+          repeatMode: isDJMode
+              ? audio_service.AudioServiceRepeatMode.none
+              : (_repeatMode == RepeatMode.one
+                  ? audio_service.AudioServiceRepeatMode.one
+                  : _repeatMode == RepeatMode.all
+                  ? audio_service.AudioServiceRepeatMode.all
+                  : audio_service.AudioServiceRepeatMode.none),
           updatePosition: position,
         ),
       );
@@ -1180,13 +1213,23 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   audio_service.MediaItem _toMediaItem(GenericSong track) {
+    Duration? trackDuration;
+    if (track.durationSecs > 0) {
+      trackDuration = Duration(seconds: track.durationSecs);
+    } else if (_currentTrack?.id == track.id) {
+      if (_lastKnownDuration != null && _lastKnownDuration! > Duration.zero) {
+        trackDuration = _lastKnownDuration;
+      } else if (_engine.state.duration > Duration.zero) {
+        trackDuration = _engine.state.duration;
+      }
+    }
     return audio_service.MediaItem(
       id: track.id,
       title: track.title,
       artist: track.artists.map((a) => a.name).join(', '),
       album: track.album?.title ?? '',
-      artUri: Uri.parse(track.thumbnailUrl),
-      duration: Duration(seconds: track.durationSecs),
+      artUri: Uri.tryParse(track.thumbnailUrl),
+      duration: trackDuration,
     );
   }
 
@@ -1371,6 +1414,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     _currentIndex = safeIndex;
     _currentTrack = track;
+    _lastKnownDuration = track.durationSecs > 0
+        ? Duration(seconds: track.durationSecs)
+        : null;
     _errorMessage = null;
     _clearPreloadBookkeeping();
     unawaited(_engine.clearPreload());
@@ -2017,6 +2063,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   @override
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) async {
+    if (isDJMode) return;
     switch (name) {
       case 'toggleShuffle':
         toggleShuffle();
@@ -2095,6 +2142,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _currentIndex = startIndex.clamp(0, _queue.length - 1);
       _currentTrack = _queue[_currentIndex];
       _updateMediaItem();
+      _broadcastPlaybackState();
       _saveQueue();
       notifyListeners();
     }

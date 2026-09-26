@@ -26,6 +26,7 @@ class TrackListeningRecord {
   final int? releaseYear;
   final List<String> genres;
   final List<String> languages;
+  final int durationSecs;
   final DateTime completedAt;
 
   TrackListeningRecord({
@@ -40,6 +41,7 @@ class TrackListeningRecord {
     this.releaseYear,
     this.genres = const [],
     this.languages = const [],
+    this.durationSecs = 0,
     required this.completedAt,
   });
 
@@ -55,6 +57,7 @@ class TrackListeningRecord {
         'releaseYear': releaseYear,
         'genres': genres,
         'languages': languages,
+        'durationSecs': durationSecs,
         'completedAt': completedAt.toIso8601String(),
       };
 
@@ -82,6 +85,9 @@ class TrackListeningRecord {
       languages:
           (json['languages'] as List?)?.map((e) => e.toString()).toList() ??
               const [],
+      durationSecs: json['durationSecs'] as int? ??
+          json['duration_secs'] as int? ??
+          0,
       completedAt: json['completedAt'] != null
           ? DateTime.tryParse(json['completedAt'] as String) ?? DateTime.now()
           : DateTime.now(),
@@ -280,7 +286,7 @@ class ListeningHabitsService extends ChangeNotifier {
                 )
               : null,
           explicit: false,
-          durationSecs: 0,
+          durationSecs: record.durationSecs,
         ),
       );
     }
@@ -292,8 +298,11 @@ class ListeningHabitsService extends ChangeNotifier {
     required String trackId,
     required String thumbnailUrl,
     String? albumThumbnailUrl,
+    int? durationSecs,
   }) {
-    if (thumbnailUrl.isEmpty) return;
+    if (thumbnailUrl.isEmpty && (durationSecs == null || durationSecs <= 0)) {
+      return;
+    }
     bool changed = false;
     final cleanId = trackId.startsWith('spotify:track:')
         ? trackId.split(':').last
@@ -306,19 +315,25 @@ class ListeningHabitsService extends ChangeNotifier {
           : r.trackId;
 
       if (rCleanId == cleanId) {
-        if (r.thumbnailUrl == null || r.thumbnailUrl!.isEmpty) {
+        final needsThumb =
+            thumbnailUrl.isNotEmpty &&
+            (r.thumbnailUrl == null || r.thumbnailUrl!.isEmpty);
+        final needsDuration =
+            r.durationSecs == 0 && durationSecs != null && durationSecs > 0;
+        if (needsThumb || needsDuration) {
           _history[i] = TrackListeningRecord(
             trackId: r.trackId,
             title: r.title,
             artistNames: r.artistNames,
             artistIds: r.artistIds,
-            thumbnailUrl: thumbnailUrl,
+            thumbnailUrl: needsThumb ? thumbnailUrl : r.thumbnailUrl,
             albumName: r.albumName,
             albumId: r.albumId,
             releaseDate: r.releaseDate,
             releaseYear: r.releaseYear,
             genres: r.genres,
             languages: r.languages,
+            durationSecs: needsDuration ? durationSecs : r.durationSecs,
             completedAt: r.completedAt,
           );
           changed = true;
@@ -330,7 +345,7 @@ class ListeningHabitsService extends ChangeNotifier {
     }
   }
 
-  /// Automatically backfills missing thumbnails for previously listened tracks in the background.
+  /// Automatically backfills missing thumbnails and duration for previously listened tracks in the background.
   Future<void> backfillMissingThumbnails() async {
     final spotify = _spotifyProvider;
     if (spotify == null) return;
@@ -338,34 +353,40 @@ class ListeningHabitsService extends ChangeNotifier {
     bool changed = false;
     for (int i = 0; i < _history.length; i++) {
       final r = _history[i];
-      if (r.thumbnailUrl == null || r.thumbnailUrl!.isEmpty) {
+      final needsThumb = r.thumbnailUrl == null || r.thumbnailUrl!.isEmpty;
+      final needsDuration = r.durationSecs == 0;
+      if (needsThumb || needsDuration) {
         try {
           final cleanId = r.trackId.startsWith('spotify:track:')
               ? r.trackId.split(':').last
               : r.trackId;
           final info = await spotify.getTrackInfo(cleanId);
-          if (info.thumbnailUrl.isNotEmpty) {
-            _history[i] = TrackListeningRecord(
-              trackId: r.trackId,
-              title: r.title,
-              artistNames: r.artistNames,
-              artistIds: r.artistIds,
-              thumbnailUrl: info.thumbnailUrl,
-              albumName: r.albumName ?? info.album?.title,
-              albumId: r.albumId ?? info.album?.id,
-              releaseDate: r.releaseDate ?? info.album?.releaseDate,
-              releaseYear: r.releaseYear ??
-                  (info.album?.releaseDate != null
-                      ? info.album!.releaseDate.year
-                      : null),
-              genres: r.genres,
-              languages: r.languages.isNotEmpty
-                  ? r.languages
-                  : (info.languages ?? const []),
-              completedAt: r.completedAt,
-            );
-            changed = true;
-          }
+          final updatedThumb = info.thumbnailUrl.isNotEmpty
+              ? info.thumbnailUrl
+              : r.thumbnailUrl;
+          final updatedDuration =
+              info.durationSecs > 0 ? info.durationSecs : r.durationSecs;
+          _history[i] = TrackListeningRecord(
+            trackId: r.trackId,
+            title: r.title,
+            artistNames: r.artistNames,
+            artistIds: r.artistIds,
+            thumbnailUrl: updatedThumb,
+            albumName: r.albumName ?? info.album?.title,
+            albumId: r.albumId ?? info.album?.id,
+            releaseDate: r.releaseDate ?? info.album?.releaseDate,
+            releaseYear: r.releaseYear ??
+                (info.album?.releaseDate != null
+                    ? info.album!.releaseDate.year
+                    : null),
+            genres: r.genres,
+            languages: r.languages.isNotEmpty
+                ? r.languages
+                : (info.languages ?? const []),
+            durationSecs: updatedDuration,
+            completedAt: r.completedAt,
+          );
+          changed = true;
         } catch (e) {
           // Ignore individual fetch errors during backfill
         }
@@ -470,6 +491,7 @@ class ListeningHabitsService extends ChangeNotifier {
         releaseYear: releaseYear,
         genres: genres,
         languages: languages,
+        durationSecs: track.durationSecs,
         completedAt: DateTime.now(),
       );
 

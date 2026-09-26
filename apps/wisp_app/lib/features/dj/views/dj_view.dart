@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -401,12 +403,13 @@ class _DJViewState extends State<DJView> {
     }
   }
 
-  /// Resolves full track info (including track & album thumbnails) if missing.
+  /// Resolves full track info (including track & album thumbnails and duration) if missing.
   Future<GenericSong> _ensureTrackThumbnails(
     GenericSong track,
     SpotifyInternalProvider spotify,
   ) async {
-    if (track.thumbnailUrl.isNotEmpty &&
+    if (track.durationSecs > 0 &&
+        track.thumbnailUrl.isNotEmpty &&
         track.album?.thumbnailUrl != null &&
         track.album!.thumbnailUrl.isNotEmpty) {
       return track;
@@ -420,6 +423,7 @@ class _DJViewState extends State<DJView> {
         trackId: track.id,
         thumbnailUrl: info.thumbnailUrl,
         albumThumbnailUrl: info.album?.thumbnailUrl,
+        durationSecs: info.durationSecs,
       );
       return info;
     } catch (_) {
