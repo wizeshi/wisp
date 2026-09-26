@@ -17,12 +17,11 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
             const SizedBox(width: 2),
           ],
           if (isAppleStyle) ...[
-            AnimatedBuilder(
-              animation: AudioCacheManager.instance,
-              builder: (context, _) {
-                final cacheManager = AudioCacheManager.instance;
-                final isCached = cacheManager.isTrackCached(song.id);
-                final isDownloading = cacheManager.isDownloading(song.id);
+            ValueListenableBuilder<TrackDownloadProgress>(
+              valueListenable: AudioCacheManager.instance.watchTrack(song.id),
+              builder: (context, state, _) {
+                final isCached = state.isCached;
+                final isDownloading = state.isDownloading;
                 if (!isCached && !isDownloading) return const SizedBox.shrink();
                 if (isDownloading) {
                   return Padding(
@@ -31,7 +30,7 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
                       width: 12,
                       height: 12,
                       child: CircularProgressIndicator(
-                        value: cacheManager.getDownloadProgress(song.id) ?? 0,
+                        value: state.progress,
                         strokeWidth: 2,
                         color: Theme.of(context).colorScheme.primary,
                         backgroundColor: Colors.grey[800],
@@ -79,12 +78,11 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
           const SizedBox(width: 2),
         ],
         if (!isAppleStyle) ...[
-          AnimatedBuilder(
-            animation: AudioCacheManager.instance,
-            builder: (context, _) {
-              final cacheManager = AudioCacheManager.instance;
-              final isCached = cacheManager.isTrackCached(song.id);
-              final isDownloading = cacheManager.isDownloading(song.id);
+          ValueListenableBuilder<TrackDownloadProgress>(
+            valueListenable: AudioCacheManager.instance.watchTrack(song.id),
+            builder: (context, state, _) {
+              final isCached = state.isCached;
+              final isDownloading = state.isDownloading;
               if (!isCached && !isDownloading) return const SizedBox.shrink();
               if (isDownloading) {
                 return Padding(
@@ -93,7 +91,7 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
                     width: 12,
                     height: 12,
                     child: CircularProgressIndicator(
-                      value: cacheManager.getDownloadProgress(song.id) ?? 0,
+                      value: state.progress,
                       strokeWidth: 2,
                       color: Theme.of(context).colorScheme.primary,
                       backgroundColor: Colors.grey[800],

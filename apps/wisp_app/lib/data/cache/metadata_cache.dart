@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-/// Generic metadata cache store with disk-backed JSON entries
+/// Generic metadata cache store with in-memory L1 cache and disk-backed JSON entries
 library;
 
 import 'dart:convert';
@@ -10,7 +10,6 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:wisp/core/utils/json.dart';
-
 import 'package:wisp/core/utils/logger.dart';
 
 enum MetadataFetchPolicy { cacheFirst, refreshIfExpired, refreshAlways }
@@ -69,7 +68,10 @@ class MetadataCacheStore {
 
   static final MetadataCacheStore instance = MetadataCacheStore._();
 
-  static const Duration _ttl = Duration(days: 7);
+  static const Duration _defaultTtl = Duration(days: 7);
+  static const int _maxL1Entries = 250;
+
+  final Map<String, MetadataCacheEntry> _l1MemoryCache = {};
   Directory? _baseDir;
   bool _initializing = false;
 
@@ -77,18 +79,35 @@ class MetadataCacheStore {
     if (_baseDir != null || _initializing) return;
     _initializing = true;
     try {
-      final supportDir = await getApplicationSupportDirectory();
-      final cacheDir = Directory('${supportDir.path}/metadata_cache');
-      if (!await cacheDir.exists()) {
-        await cacheDir.create(recursive: true);
+      // Use cache directory so files are not backed up to user cloud storage
+      final cacheDir = await getApplicationCacheDirectory();
+      final metadataDir = Directory('${cacheDir.path}/metadata_cache');
+      if (!await metadataDir.exists()) {
+        await metadataDir.create(recursive: true);
       }
-      _baseDir = cacheDir;
-      logger.d('[Services/MetadataCache] Initialized at ${cacheDir.path}');
+      _baseDir = metadataDir;
+
+      // Migrate legacy support directory files if they exist
+      await _migrateLegacySupportDirectory(metadataDir);
+
+      logger.d('[Services/MetadataCache] Initialized at ${metadataDir.path}');
     } catch (e) {
       logger.e('[Services/MetadataCache] Initialization error', error: e);
     } finally {
       _initializing = false;
     }
+  }
+
+  Future<void> _migrateLegacySupportDirectory(Directory targetDir) async {
+    try {
+      final supportDir = await getApplicationSupportDirectory();
+      final legacyDir = Directory('${supportDir.path}/metadata_cache');
+      if (await legacyDir.exists()) {
+        // Clean up legacy files to free up backed-up cloud storage
+        await legacyDir.delete(recursive: true);
+        logger.d('[Services/MetadataCache] Cleaned up legacy support directory');
+      }
+    } catch (_) {}
   }
 
   String buildKey({
@@ -124,20 +143,32 @@ class MetadataCacheStore {
     required String id,
     String? pageKey,
   }) async {
+    final key = buildKey(
+      provider: provider,
+      type: type,
+      id: id,
+      pageKey: pageKey,
+    );
+
+    // 1. Check in-memory L1 cache first
+    final memoryEntry = _l1MemoryCache[key];
+    if (memoryEntry != null) {
+      return memoryEntry;
+    }
+
+    // 2. Fall back to L2 disk cache
     try {
-      final key = buildKey(
-        provider: provider,
-        type: type,
-        id: id,
-        pageKey: pageKey,
-      );
       final file = await _fileForKey(provider: provider, type: type, key: key);
       if (file == null || !await file.exists()) return null;
       final content = await file.readAsString();
       if (content.trim().isEmpty) return null;
       final jsonData =
           (await JsonUtils.decode(content)) as Map<String, dynamic>;
-      return MetadataCacheEntry.fromJson(jsonData);
+      final entry = MetadataCacheEntry.fromJson(jsonData);
+
+      // Populate L1 cache
+      _putInL1Cache(key, entry);
+      return entry;
     } catch (e) {
       logger.w('[Services/MetadataCache] Failed to read entry', error: e);
       return null;
@@ -150,10 +181,11 @@ class MetadataCacheStore {
     required String id,
     required Map<String, dynamic> payload,
     String? pageKey,
+    Duration? ttl,
   }) async {
     try {
       final fetchedAt = DateTime.now();
-      final expiresAt = fetchedAt.add(_ttl);
+      final expiresAt = fetchedAt.add(ttl ?? _defaultTtl);
       final key = buildKey(
         provider: provider,
         type: type,
@@ -171,6 +203,8 @@ class MetadataCacheStore {
         payload: payload,
       );
 
+      _putInL1Cache(key, entry);
+
       final file = await _fileForKey(provider: provider, type: type, key: key);
       if (file == null) return;
 
@@ -180,8 +214,56 @@ class MetadataCacheStore {
     }
   }
 
+  void _putInL1Cache(String key, MetadataCacheEntry entry) {
+    if (_l1MemoryCache.length >= _maxL1Entries) {
+      _l1MemoryCache.remove(_l1MemoryCache.keys.first);
+    }
+    _l1MemoryCache[key] = entry;
+  }
+
+  /// Calculates total size of metadata files on disk in bytes.
+  Future<int> getDiskSizeBytes() async {
+    await _ensureInitialized();
+    final baseDir = _baseDir;
+    if (baseDir == null || !await baseDir.exists()) return 0;
+
+    int totalBytes = 0;
+    try {
+      await for (final entity in baseDir.list(recursive: true, followLinks: false)) {
+        if (entity is File) {
+          totalBytes += await entity.length();
+        }
+      }
+    } catch (_) {}
+    return totalBytes;
+  }
+
+  /// Prune expired entries from disk.
+  Future<void> pruneExpired() async {
+    await _ensureInitialized();
+    final baseDir = _baseDir;
+    if (baseDir == null || !await baseDir.exists()) return;
+
+    final now = DateTime.now();
+    try {
+      await for (final entity in baseDir.list(recursive: true, followLinks: false)) {
+        if (entity is File && entity.path.endsWith('.json')) {
+          try {
+            final content = await entity.readAsString();
+            final json = jsonDecode(content) as Map<String, dynamic>;
+            final expiresAt = DateTime.parse(json['expiresAt'] as String);
+            if (now.isAfter(expiresAt)) {
+              await entity.delete();
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
   @visibleForTesting
   Future<void> clearAll() async {
+    _l1MemoryCache.clear();
     await _ensureInitialized();
     final baseDir = _baseDir;
     if (baseDir == null || !await baseDir.exists()) return;
@@ -190,6 +272,7 @@ class MetadataCacheStore {
   }
 
   Future<void> clearProvider(String provider) async {
+    _l1MemoryCache.removeWhere((key, _) => key.startsWith('$provider:'));
     await _ensureInitialized();
     final baseDir = _baseDir;
     if (baseDir == null || !await baseDir.exists()) return;

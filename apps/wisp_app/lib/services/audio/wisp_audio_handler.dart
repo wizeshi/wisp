@@ -23,6 +23,7 @@ import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 import 'package:wisp/data/sources/spotify/spotify_internal.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/services/audio/streaming_server.dart';
 
 enum PlaybackState {
   idle,
@@ -1684,6 +1685,24 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     final streamUrl = await _getStreamUrlWithCache(videoId);
 
+    // Stream through AudioStreamingProxy to spool audio chunks into cache without double-downloading
+    final proxy = AudioStreamingProxy.instance;
+    if (!proxy.isRunning) {
+      await proxy.start();
+    }
+
+    final playUri = proxy.isRunning
+        ? Uri.parse(
+            proxy.buildProxyUrl(
+              trackId: track.id,
+              videoId: videoId,
+              trackTitle: track.title,
+              artistName: track.artists.map((a) => a.name).join(', '),
+              targetUrl: streamUrl,
+            ),
+          )
+        : Uri.parse(streamUrl);
+
     // Must match YouTubeProvider.userAgentForPlatform() — this is the same
     // client identity used to validate the URL, so playback and validation
     // agree.
@@ -1695,7 +1714,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     // against `expectedDuration` (see PlaybackSource.expectedDuration and
     // the engine's own duration-reporting logic) for every platform.
     return PlaybackSource(
-      uri: Uri.parse(streamUrl),
+      uri: playUri,
       headers: {'User-Agent': userAgent},
       expectedDuration: expectedDuration,
       debugLabel: track.title,
@@ -1706,7 +1725,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final cacheManager = AudioCacheManager.instance;
     if (!cacheManager.autoCacheEnabled) return;
 
-    _queueTrackCache(track);
+    // When AudioStreamingProxy is active, it spools and caches audio chunks
+    // concurrently as they are played, eliminating the duplicate Dio download.
+    // We only trigger background queue caching as a fallback if proxy is inactive.
+    if (!AudioStreamingProxy.instance.isRunning) {
+      _queueTrackCache(track);
+    }
 
     if (_currentIndex + 1 < _queue.length) {
       _preResolveNextTrack(_queue[_currentIndex + 1]);
@@ -1751,6 +1775,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       trackId: track.id,
       trackTitle: track.title,
       artistName: artistNames,
+      isUserDownload: false,
       resolveAndGetStream: () async {
         final audioYouTubeEnabled =
             await PreferencesProvider.isAudioYouTubeEnabled();

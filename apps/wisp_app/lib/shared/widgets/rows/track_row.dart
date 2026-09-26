@@ -631,12 +631,11 @@ class _CacheIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: AudioCacheManager.instance,
-      builder: (context, _) {
-        final cacheManager = AudioCacheManager.instance;
-        final isCached = cacheManager.isTrackCached(trackId);
-        final isDownloading = cacheManager.isDownloading(trackId);
+    return ValueListenableBuilder<TrackDownloadProgress>(
+      valueListenable: AudioCacheManager.instance.watchTrack(trackId),
+      builder: (context, state, _) {
+        final isCached = state.isCached;
+        final isDownloading = state.isDownloading;
         if (!isCached && !isDownloading) return const SizedBox.shrink();
         if (isDownloading) {
           return Padding(
@@ -645,7 +644,7 @@ class _CacheIndicator extends StatelessWidget {
               width: 12 * fontScaling,
               height: 12 * fontScaling,
               child: CircularProgressIndicator(
-                value: cacheManager.getDownloadProgress(trackId) ?? 0,
+                value: state.progress,
                 strokeWidth: 2,
                 color: Theme.of(context).colorScheme.primary,
                 backgroundColor: Colors.grey[800],

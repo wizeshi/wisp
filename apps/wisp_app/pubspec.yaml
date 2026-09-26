@@ -4,7 +4,7 @@ publish_to: 'none'
 
 resolution: workspace
 
-version: 26.9.1+217
+version: 26.9.1+218
 
 environment:
   sdk: ^3.10.7
@@ -28,6 +28,7 @@ dependencies:
 
   # Image caching
   cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
   palette_generator: ^0.3.3
   video_player: ^2.13.0
   video_player_win: ^3.2.2
@@ -107,6 +108,8 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
 
 # The following section is specific to Flutter packages.
 flutter:

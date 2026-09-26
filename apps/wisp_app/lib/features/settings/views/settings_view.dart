@@ -178,6 +178,27 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context, _) {
         final cacheManager = AudioCacheManager.instance;
         final isDesktop = _isDesktop;
+        final userMB = cacheManager.userDownloadsSizeMB;
+        final autoMB = cacheManager.autoCacheSizeMB;
+        final maxMB = cacheManager.maxCacheSizeMB;
+        final freeMB = (maxMB - (userMB + autoMB)).clamp(0, maxMB);
+
+        Color statusColor;
+        String statusLabel;
+        switch (cacheManager.storageStatus) {
+          case StorageStatus.fullPaused:
+            statusColor = Colors.redAccent;
+            statusLabel = 'Cache full (Auto-cache paused)';
+            break;
+          case StorageStatus.warning:
+            statusColor = Colors.amberAccent;
+            statusLabel = 'Near limit';
+            break;
+          case StorageStatus.normal:
+            statusColor = Theme.of(context).colorScheme.primary;
+            statusLabel = 'Operational';
+            break;
+        }
 
         return Container(
           decoration: BoxDecoration(
@@ -192,7 +213,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   Icon(
                     Icons.storage,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: statusColor,
                     size: 28,
                   ),
                   const SizedBox(width: 12),
@@ -200,21 +221,46 @@ class _SettingsPageState extends State<SettingsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Audio Cache',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
+                        Row(
+                          children: [
+                            const Text(
+                              'Storage & Audio Cache',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: statusColor.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${cacheManager.currentCacheSizeMB} MB / '
-                          '${cacheManager.maxCacheSizeMB} MB used '
-                          '• ${cacheManager.cachedTrackCount} tracks',
+                          '${cacheManager.currentCacheSizeMB} MB of $maxMB MB used '
+                          '• ${cacheManager.cachedTrackCount} tracks total',
                           style: TextStyle(
-                            color: Colors.grey[500],
+                            color: Colors.grey[400],
                             fontSize: 12,
                           ),
                         ),
@@ -223,6 +269,119 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ),
+              const SizedBox(height: 16),
+              // Segmented Storage Bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: SizedBox(
+                  height: 8,
+                  child: Row(
+                    children: [
+                      if (userMB > 0)
+                        Expanded(
+                          flex: userMB,
+                          child: Container(
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      if (autoMB > 0)
+                        Expanded(
+                          flex: autoMB,
+                          child: Container(color: Colors.purpleAccent[100]),
+                        ),
+                      if (freeMB > 0)
+                        Expanded(
+                          flex: freeMB,
+                          child: Container(color: const Color(0xFF333333)),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Storage Legend
+              Wrap(
+                spacing: 16,
+                runSpacing: 6,
+                children: [
+                  _buildLegendItem(
+                    color: Theme.of(context).colorScheme.primary,
+                    label: '${cacheManager.userDownloadCount} downloaded ($userMB MB)',
+                  ),
+                  _buildLegendItem(
+                    color: Colors.purpleAccent[100]!,
+                    label: '${cacheManager.autoCacheCount} cached ($autoMB MB)',
+                  ),
+                  _buildLegendItem(
+                    color: Colors.grey[600]!,
+                    label: '$freeMB MB free',
+                  ),
+                ],
+              ),
+              if (cacheManager.isStorageFull)
+                Container(
+                  margin: const EdgeInsets.only(top: 14),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.redAccent.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Storage limit reached. Playback auto-caching is paused to protect your downloaded music. Clear cache or raise limit to resume.',
+                          style: TextStyle(
+                            color: Colors.red[200],
+                            fontSize: 12,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (cacheManager.storageStatus == StorageStatus.warning)
+                Container(
+                  margin: const EdgeInsets.only(top: 14),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.amberAccent.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        color: Colors.amberAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Storage is nearly full. Oldest auto-cached tracks will be pruned when new music is streamed.',
+                          style: TextStyle(
+                            color: Colors.amber[200],
+                            fontSize: 12,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 20),
               _buildSliderSetting(
                 'Maximum Cache Size',
@@ -341,6 +500,27 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLegendItem({required Color color, required String label}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(color: Colors.grey[400], fontSize: 11),
+        ),
+      ],
     );
   }
 

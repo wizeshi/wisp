@@ -320,6 +320,8 @@ class EntityContextMenus {
               'Downloads blocked by your WiFi/Ethernet-only setting',
             QueueDownloadResult.blockedByNetworkOnlyMode =>
               'Downloads blocked because Network-only mode is enabled',
+            QueueDownloadResult.storageLimitReached =>
+              'Download failed: Storage limit reached',
           };
           ScaffoldMessenger.of(
             context,

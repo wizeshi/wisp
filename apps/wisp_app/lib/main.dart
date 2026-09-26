@@ -35,6 +35,7 @@ import 'package:wisp/services/notifications/download_foreground_service.dart';
 import 'package:wisp/services/notifications/desktop_notification_center.dart';
 import 'package:wisp/services/discord/discord_rpc_service.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
+import 'package:wisp/services/audio/streaming_server.dart';
 import 'package:wisp/features/shell/widgets/app_shell.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/core/utils/logger.dart';
@@ -117,6 +118,9 @@ void main() async {
 
   // Initialize audio cache manager
   await AudioCacheManager.instance.initialize();
+
+  // Start audio streaming proxy for loopback streaming and spooling cache
+  await AudioStreamingProxy.instance.start();
 
   // Initialize Discord RPC (desktop only)
   await DiscordRpcService.instance.initialize();
