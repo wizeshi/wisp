@@ -62,6 +62,8 @@ class PreferencesProvider extends ChangeNotifier {
       'paused_background_widgets_enabled';
   static const _keyKeepPositionBetweenRestarts =
       'keep_position_between_restarts';
+  static const _keyProviderPriorityOrderPrefix =
+      'provider_priority_order_';
 
   static const bool _defaultAllowWriting = true;
   static const bool _defaultMetadataSpotifyEnabled = true;
@@ -206,10 +208,44 @@ class PreferencesProvider extends ChangeNotifier {
       _firstBootCompleted = prefs.getBool(_keyFirstBootCompleted) ?? false;
       _disabledProviderIds =
           prefs.getStringList(_keyDisabledProviderIds) ?? <String>[];
+      for (final type in ['metadata', 'lyrics', 'auth']) {
+        final list = prefs.getStringList('$_keyProviderPriorityOrderPrefix$type');
+        if (list != null) {
+          _providerOrders[type] = List.unmodifiable(list);
+        }
+      }
       notifyListeners();
     } catch (_) {
       // Ignore load errors; keep default
     }
+  }
+
+  final Map<String, List<String>> _providerOrders = {};
+
+  List<String> getProviderOrder(String type) {
+    final list = _providerOrders[type.toLowerCase()];
+    if (list != null) return list;
+    return const [];
+  }
+
+  Future<void> setProviderOrder(String type, List<String> order) async {
+    final key = type.toLowerCase();
+    _providerOrders[key] = List.unmodifiable(order);
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('$_keyProviderPriorityOrderPrefix$key', order);
+    } catch (_) {}
+  }
+
+  Future<void> resetProviderOrder(String type) async {
+    final key = type.toLowerCase();
+    _providerOrders.remove(key);
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('$_keyProviderPriorityOrderPrefix$key');
+    } catch (_) {}
   }
 
   static Future<bool> isProviderEnabledStatic(String id) async {

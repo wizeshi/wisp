@@ -10,7 +10,6 @@ import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
 import 'package:wisp/shared/widgets/cards/album_card.dart';
@@ -24,6 +23,7 @@ import 'package:wisp/shared/widgets/rows/playlist_row.dart';
 import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
@@ -55,7 +55,7 @@ class HomePageState extends State<HomePage> {
   List<GenericSimpleArtist> _followedArtists = [];
   Map<String, List<dynamic>> _homeSections = {};
 
-  late final SpotifyInternalProvider _spotifyProvider;
+  late final MetadataManager _metadataManager;
   late final LocalPlaylistState _localPlaylistState;
   bool _wasAuthenticated = false;
   VoidCallback? _localPlaylistListener;
@@ -65,10 +65,10 @@ class HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _spotifyProvider = context.read<SpotifyInternalProvider>();
+    _metadataManager = context.read<MetadataManager>();
     _localPlaylistState = context.read<LocalPlaylistState>();
-    _wasAuthenticated = _spotifyProvider.isAuthenticated;
-    _spotifyProvider.addListener(_handleAuthChange);
+    _wasAuthenticated = _metadataManager.isAuthenticated;
+    _metadataManager.addListener(_handleAuthChange);
 
     _localPlaylistListener = () {
       if (!mounted) return;
@@ -104,7 +104,7 @@ class HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    _spotifyProvider.removeListener(_handleAuthChange);
+    _metadataManager.removeListener(_handleAuthChange);
     if (_refreshListener != null) {
       widget.refreshSignal?.removeListener(_refreshListener!);
     }
@@ -115,7 +115,7 @@ class HomePageState extends State<HomePage> {
   }
 
   void _handleAuthChange() {
-    final isAuthenticated = _spotifyProvider.isAuthenticated;
+    final isAuthenticated = _metadataManager.isAuthenticated;
     if (isAuthenticated && !_wasAuthenticated) {
       _wasAuthenticated = true;
       _loadData();
@@ -142,7 +142,7 @@ class HomePageState extends State<HomePage> {
         return;
       }
 
-      final spotifyInternal = context.read<SpotifyInternalProvider>();
+      final metadataManager = context.read<MetadataManager>();
       final libraryState = context.read<LibraryState>();
 
       if (mounted) {
@@ -150,15 +150,15 @@ class HomePageState extends State<HomePage> {
       }
 
       // Re-check auth state from storage only when currently unauthenticated.
-      if (!spotifyInternal.isAuthenticated) {
-        await spotifyInternal.checkAuthState();
+      if (!metadataManager.isAuthenticated) {
+        await metadataManager.checkAuthState();
       }
 
       logger.d('[Views/Home] Loading home page data...');
       logger.d('[Views/Home] Auth Status: ');
-      logger.d('\t Spotify-Internal: ${spotifyInternal.isAuthenticated}');
+      logger.d('\t Metadata provider: ${metadataManager.isAuthenticated}');
 
-      if (!spotifyInternal.isAuthenticated) {
+      if (!metadataManager.isAuthenticated) {
         logger.d('[Views/Home] Not authenticated, skipping data load');
         libraryState.clear();
         if (mounted) setState(() => _isLoading = false);
@@ -168,36 +168,42 @@ class HomePageState extends State<HomePage> {
       logger.d('[Views/Home] Starting API calls...');
 
       // Fetch user profile first (doesn't need to be in Future.wait)
-      await spotifyInternal.fetchUserProfile();
+      await metadataManager.fetchUserProfile();
 
-      // Use internal provider for liked tracks; avoid full saved-tracks fetch.
+      // Use active provider for liked tracks; avoid full saved-tracks fetch.
       List<PlaylistItem> cachedLiked = const [];
       if (policy == MetadataFetchPolicy.refreshAlways) {
-        cachedLiked = await spotifyInternal.getUserSavedTracks(
+        cachedLiked = await metadataManager.getUserSavedTracks(
           limit: 50,
           offset: 0,
           policy: policy,
         );
-        spotifyInternal.setLikedTracksFromItems(cachedLiked);
+        metadataManager.setLikedTracksFromItems(cachedLiked);
       } else {
-        cachedLiked = await spotifyInternal.getUserSavedTracks(
+        cachedLiked = await metadataManager.getUserSavedTracks(
           limit: 50,
           offset: 0,
           policy: MetadataFetchPolicy.refreshIfExpired,
         );
         if (cachedLiked.isNotEmpty) {
-          spotifyInternal.setLikedTracksFromItems(cachedLiked);
+          metadataManager.setLikedTracksFromItems(cachedLiked);
         }
       }
       final likedPlaylist = buildLikedSongsPlaylist(
-        userDisplayName: _spotifyProvider.userDisplayName,
-        total: spotifyInternal.likedTracksTotalCount ?? cachedLiked.length,
+        userDisplayName: _metadataManager.userDisplayName,
+        total: metadataManager.likedTracksTotalCount ?? cachedLiked.length,
       );
 
-      var userLibrary = await spotifyInternal.getUserLibrary(
+      final userLibrary = await metadataManager.getUserLibrary(
         policy: MetadataFetchPolicy.refreshAlways,
+      ) ?? const GenericLibrary(
+        saved_albums: [],
+        saved_playlists: [],
+        saved_artists: [],
       );
-      final userHome = await spotifyInternal.getUserHome(policy: policy);
+      final userHome = await metadataManager.getUserHome(
+        policy: MetadataFetchPolicy.refreshAlways,
+      ) ?? const GenericHome(sections: {});
 
       // Import remote folders
       try {
@@ -408,8 +414,8 @@ class HomePageState extends State<HomePage> {
 
     final bool isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    final isAuthenticated = context.select<SpotifyInternalProvider, bool>(
-      (spotify) => spotify.isAuthenticated,
+    final isAuthenticated = context.select<MetadataManager, bool>(
+      (metadata) => metadata.isAuthenticated,
     );
     if (!isAuthenticated) {
       return _buildUnauthenticatedView();
@@ -471,8 +477,8 @@ class HomePageState extends State<HomePage> {
     );
   }
 
-  String _getRandomGreeting(SpotifyInternalProvider spotify) {
-    final userName = spotify.userDisplayName ?? 'user';
+  String _getRandomGreeting(MetadataManager metadata) {
+    final userName = metadata.userDisplayName ?? 'user';
     final hour = DateTime.now().hour;
 
     // Determine time of day
@@ -551,8 +557,8 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildMobileHomeContentSpotify() {
-    final spotify = context.read<SpotifyInternalProvider>();
-    final greeting = _getRandomGreeting(spotify);
+    final metadata = context.read<MetadataManager>();
+    final greeting = _getRandomGreeting(metadata);
     final dynamicSections = _buildDynamicHomeSections(skipFirst: true);
     final quickTiles = _buildMobileQuickGridTiles();
     final leftQuickTiles = <Widget>[];
@@ -849,7 +855,7 @@ class HomePageState extends State<HomePage> {
       padding: const EdgeInsets.all(24),
       children: [
         Text(
-          _getRandomGreeting(context.read<SpotifyInternalProvider>()),
+          _getRandomGreeting(context.read<MetadataManager>()),
           style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,

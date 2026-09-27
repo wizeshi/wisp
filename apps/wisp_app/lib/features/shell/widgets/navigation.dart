@@ -10,10 +10,10 @@ import 'package:wisp/shared/widgets/rows/folder_row.dart';
 import 'package:wisp/shared/widgets/rows/generic_row.dart';
 import 'package:wisp/shared/widgets/rows/playlist_row.dart';
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/library_state.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/shared/widgets/menus/playlist_folder_modals.dart';
@@ -651,7 +651,7 @@ class _WispNavigationState extends State<WispNavigation> {
                   onSelected: (mode) {
                     folderState.setSortMode(mode);
                     context
-                        .read<SpotifyInternalProvider>()
+                        .read<MetadataManager>()
                         .fetchUserLibrarySorted(sortMode: mode);
                   },
                   style: const ButtonStyle(
@@ -820,7 +820,7 @@ class _WispNavigationState extends State<WispNavigation> {
         onWillAccept: (data) => data != null,
         onAccept: (data) {
           folderState.movePlaylistIntoFolder(data.playlistId, resolvedItem.id);
-          context.read<SpotifyInternalProvider>().addPlaylistToFolder(
+          context.read<MetadataManager>().addPlaylistToFolder(
             playlistId: data.playlistId,
             folderId: resolvedItem.id,
           );
@@ -862,11 +862,11 @@ class _WispNavigationState extends State<WispNavigation> {
           folderState.assignPlaylistToFolder(data.playlistId, targetFolderId);
           folderState.movePlaylistBefore(data.playlistId, resolvedItem.id);
           if (prevFolderId != null && targetFolderId == null) {
-            context.read<SpotifyInternalProvider>().removePlaylistFromFolder(
+            context.read<MetadataManager>().removePlaylistFromFolder(
               playlistId: data.playlistId,
             );
           } else if (targetFolderId != null && targetFolderId != prevFolderId) {
-            context.read<SpotifyInternalProvider>().addPlaylistToFolder(
+            context.read<MetadataManager>().addPlaylistToFolder(
               playlistId: data.playlistId,
               folderId: targetFolderId,
             );

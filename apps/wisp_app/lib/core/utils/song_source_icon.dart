@@ -11,14 +11,11 @@ import 'package:wisp/data/models/metadata_models.dart';
 /// New code — like [TrackRow]'s `showSource` column — should call this
 /// instead of adding a fifth copy.
 IconData songSourceIcon(SongSource source) {
-  switch (source) {
-    case SongSource.youtube:
-      return Icons.ondemand_video;
-    case SongSource.soundcloud:
-      return Icons.cloud;
-    case SongSource.local:
-    case SongSource.spotify:
-    case SongSource.spotifyInternal:
-      return Icons.music_note;
+  if (source == SongSource.youtube) {
+    return Icons.ondemand_video;
   }
+  if (source == SongSource.soundcloud) {
+    return Icons.cloud;
+  }
+  return Icons.music_note;
 }

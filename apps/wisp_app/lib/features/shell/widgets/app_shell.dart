@@ -22,6 +22,7 @@ import 'package:wisp/features/shell/widgets/navigation.dart';
 import 'package:wisp/features/playback/widgets/player_bar.dart';
 import 'package:wisp/features/shell/widgets/right_sidebar.dart';
 import 'package:wisp/features/shell/widgets/title_bar.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/home/home_view.dart';
 import 'package:wisp/features/library/views/library_view.dart';
@@ -266,7 +267,14 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final navState = context.watch<NavigationState>();
-    final searchState = context.read<SearchState>();
+    final searchState = context.watch<SearchState>();
+    final metadataManager = context.watch<MetadataManager>();
+    final availableSources = metadataManager.availableProviders
+        .map((p) => p.displayName)
+        .toList();
+    final effectiveSource = availableSources.contains(searchState.selectedSource)
+        ? searchState.selectedSource
+        : (availableSources.isNotEmpty ? availableSources.first : 'Spotify');
     final searchController = searchState.controller;
     final isDesktopImmersive = _isDesktop && navState.desktopImmersiveMode;
 
@@ -299,6 +307,12 @@ class _AppShellState extends State<AppShell> {
                 searchState.submit();
               },
               onSearchCleared: searchState.clear,
+              availableSources: availableSources,
+              selectedSource: effectiveSource,
+              onSourceChanged: (source) {
+                searchState.setSelectedSource(source);
+                searchState.submit();
+              },
             ),
           Expanded(
             child: Row(

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/utils/text_parser.dart';
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/details/views/artist_detail_view.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
@@ -35,9 +35,9 @@ class _MobileArtistInfoCardState extends State<MobileArtistInfoCard> {
     if (_artistId != widget.artist.id || _trackId != widget.trackId) {
       _artistId = widget.artist.id;
       _trackId = widget.trackId;
-      final spotifyInternal = context.read<SpotifyInternalProvider>();
+      final metadataManager = context.read<MetadataManager>();
       _artistFuture = _loadArtist(
-        spotifyInternal,
+        metadataManager,
         widget.artist,
         widget.trackId,
       );
@@ -179,15 +179,22 @@ class _MobileArtistInfoCardState extends State<MobileArtistInfoCard> {
   }
 
   Future<GenericArtist?> _loadArtist(
-    SpotifyInternalProvider spotify,
+    MetadataManager metadataManager,
     GenericSimpleArtist artist,
     String? trackId,
   ) async {
     try {
       if (trackId != null && trackId.isNotEmpty) {
-        return await spotify.getNpvArtistInfo(artist.id, trackId);
+        return await metadataManager.getNpvArtistInfo(
+          artist.id,
+          trackId,
+          source: artist.source,
+        );
       }
-      return await spotify.getArtistInfo(artist.id);
+      return await metadataManager.getArtistInfo(
+        artist.id,
+        source: artist.source,
+      );
     } catch (_) {
       return null;
     }

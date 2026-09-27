@@ -7,6 +7,7 @@ class NavigationHistory {
 
   static final NavigationHistory instance = NavigationHistory._();
 
+  final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   late final NavigationHistoryObserver observer = NavigationHistoryObserver(
     this,

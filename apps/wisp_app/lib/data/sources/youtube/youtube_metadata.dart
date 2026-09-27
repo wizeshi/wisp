@@ -3,27 +3,62 @@
 /// YouTube metadata provider (search-only)
 library;
 
-import 'package:flutter/foundation.dart';
-
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/models/metadata_provider.dart';
 import 'package:wisp/data/sources/youtube/youtube_converters.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
 import 'youtube_audio.dart';
 
-class YouTubeMetadataProvider extends ChangeNotifier {
+class YouTubeMetadataProvider extends MetadataProvider {
   final MetadataCacheStore _metadataCache = MetadataCacheStore.instance;
   final YouTubeProvider _youtube = YouTubeProvider();
 
   static const String _metadataProvider = 'youtube';
 
+  @override
+  String get name => 'youtube';
+
+  @override
   String get displayName => 'YouTube';
 
+  @override
+  String get providerId => 'youtube';
+
+  @override
   String get description => 'YouTube metadata provider.';
 
+  @override
   String get logoURL =>
       'https://upload.wikimedia.org/wikipedia/commons/2/20/YouTube_2024.svg';
+
+  @override
   String get iconURL =>
       'https://upload.wikimedia.org/wikipedia/commons/f/fd/YouTube_full-color_icon_%282024%29.svg';
+
+  @override
+  Future<GenericSong> getTrackInfo(
+    String trackId, {
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    throw UnimplementedError('getTrackInfo is not supported by YouTube');
+  }
+
+  @override
+  Future<SearchResults> search(
+    String query, {
+    int limit = 20,
+    int offset = 0,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    final tracks = await searchTracks(query, limit: limit, policy: policy);
+    return SearchResults(
+      tracks: tracks,
+      artists: const [],
+      albums: const [],
+      playlists: const [],
+      bestMatch: tracks.isNotEmpty ? SearchBestMatch.track(tracks.first) : null,
+    );
+  }
 
   Future<MetadataCacheEntry?> _readCacheEntry({
     required String type,

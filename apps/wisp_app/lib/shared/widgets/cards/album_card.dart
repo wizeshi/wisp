@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
@@ -22,35 +22,29 @@ class AlbumCard extends StatelessWidget {
 
   Future<void> _startAlbumPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();
+    final metadataManager = context.read<MetadataManager>();
 
-    switch (album.source) {
-      case SongSource.spotify:
-      case SongSource.spotifyInternal:
-        {
-          final spotify = context.read<SpotifyInternalProvider>();
-          try {
-            final album = await spotify.getAlbumInfo(this.album.id);
-            final tracks = album.songs ?? [];
-            if (tracks.isEmpty) return;
-            if (context.mounted) {
-              await coordinator.setQueue(
-                tracks,
-                startIndex: 0,
-                play: true,
-                playbackContext: PlaybackContext(
-                  type: PlaybackContextType.album,
-                  name: album.title,
-                  id: album.id,
-                  source: album.source,
-                ),
-              );
-            }
-          } catch (_) {}
-        }
-
-      default:
-        break;
-    }
+    try {
+      final fullAlbum = await metadataManager.getAlbumInfo(
+        album.id,
+        source: album.source,
+      );
+      final tracks = fullAlbum.songs ?? [];
+      if (tracks.isEmpty) return;
+      if (context.mounted) {
+        await coordinator.setQueue(
+          tracks,
+          startIndex: 0,
+          play: true,
+          playbackContext: PlaybackContext(
+            type: PlaybackContextType.album,
+            name: fullAlbum.title,
+            id: fullAlbum.id,
+            source: fullAlbum.source,
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _toggleAlbumPlayback(BuildContext context) async {

@@ -20,6 +20,7 @@ class LyricsSourceManager {
   LyricsSourceManager._();
 
   final Map<String, LyricsSource> _sources = {};
+  final Set<String> _explicitlyUninstalled = {};
   final List<VoidCallback> _listeners = [];
 
   bool _initialized = false;
@@ -29,6 +30,19 @@ class LyricsSourceManager {
 
   /// All registered lyrics sources.
   List<LyricsSource> get allSources => _sources.values.toList();
+
+  /// Unregister a provider in memory and mark it as explicitly uninstalled
+  void unregisterSource(String id) {
+    _explicitlyUninstalled.add(id);
+    _sources.remove(id);
+    logger.i('[LyricsSourceManager] Unregistered lyrics provider: $id');
+    _notifyListeners();
+  }
+
+  /// Clear the uninstalled flag (e.g. when reinstalling)
+  void clearUninstalled(String id) {
+    _explicitlyUninstalled.remove(id);
+  }
 
   void addListener(VoidCallback listener) {
     _listeners.add(listener);
@@ -76,11 +90,20 @@ class LyricsSourceManager {
     return matching;
   }
 
-  /// Get all available sources ordered by capability rank (word > line > unsynced),
-  /// tie-broken by manifest priority.
-  List<LyricsSource> getOrderedSourcesForMode(LyricsSyncMode requestedMode) {
+  /// Get all available sources ordered by user priority override (if set),
+  /// otherwise by capability rank (word > line > unsynced), tie-broken by manifest priority.
+  List<LyricsSource> getOrderedSourcesForMode(LyricsSyncMode requestedMode, [PreferencesProvider? prefs]) {
     final list = _sources.values.toList();
+    final customOrder = prefs?.getProviderOrder('lyrics') ?? const [];
     list.sort((a, b) {
+      if (customOrder.isNotEmpty) {
+        final aIdx = customOrder.indexOf(a.id.toLowerCase());
+        final bIdx = customOrder.indexOf(b.id.toLowerCase());
+        if (aIdx != -1 && bIdx != -1) return aIdx.compareTo(bIdx);
+        if (aIdx != -1) return -1;
+        if (bIdx != -1) return 1;
+      }
+
       // 1. Prioritize capability (word = 3 > line = 2 > unsynced = 1)
       final rankDiff = b.capabilityRank.compareTo(a.capabilityRank);
       if (rankDiff != 0) return rankDiff;
@@ -151,6 +174,10 @@ class LyricsSourceManager {
               jsonDecode(await manifestFile.readAsString())
                   as Map<String, dynamic>;
           final id = manifestJson['id'] as String? ?? p.basename(folder.path);
+          if (_explicitlyUninstalled.contains(id)) {
+            logger.d('[LyricsSourceManager] Skipping uninstalled provider: $id');
+            continue;
+          }
           final name = manifestJson['name'] as String? ?? id;
           final description = manifestJson['description'] as String?;
           final entryName = manifestJson['entry'] as String? ?? 'index.js';
@@ -168,6 +195,7 @@ class LyricsSourceManager {
               : const {LyricsSyncMode.line, LyricsSyncMode.unsynced};
 
           final priority = manifestJson['priority'] as int? ?? 0;
+          final service = manifestJson['service'] as String?;
 
           final scriptFile = File(p.join(folder.path, entryName));
           if (!scriptFile.existsSync()) {
@@ -185,6 +213,7 @@ class LyricsSourceManager {
             isBuiltIn: false,
             supportedSyncModes: supportedModes,
             priority: priority,
+            serviceId: service,
             script: script,
           );
 
@@ -239,8 +268,8 @@ class LyricsSourceManager {
   Future<void> reload() async {
     _sources.clear();
     _initialized = false;
-    _initFuture = _doInitialize();
-    await _initFuture;
+    _initFuture = null;
+    await initialize();
     _notifyListeners();
   }
 }

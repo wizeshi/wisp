@@ -5,11 +5,10 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_js/flutter_js.dart';
-import 'package:http/http.dart' as http;
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_source.dart';
-import 'package:wisp/data/sources/spotify/spotify_tokens.dart';
+import 'package:wisp/data/sources/providers/js_provider_bridge.dart';
 
 /// A modular lyrics source powered by a sandboxed JavaScript runtime (QuickJS / JSC).
 class JsLyricsSource extends LyricsSource {
@@ -31,6 +30,7 @@ class JsLyricsSource extends LyricsSource {
   @override
   final int priority;
 
+  final String? serviceId;
   final String script;
   JavascriptRuntime? _runtime;
   bool _isInitialized = false;
@@ -48,6 +48,7 @@ class JsLyricsSource extends LyricsSource {
       LyricsSyncMode.unsynced,
     },
     this.priority = 0,
+    this.serviceId,
     required this.script,
   });
 
@@ -57,127 +58,13 @@ class JsLyricsSource extends LyricsSource {
     try {
       final runtime = getJavascriptRuntime();
 
-      // Setup custom logging channel
-      runtime.onMessage('wisp_log', (dynamic args) {
-        try {
-          final map = args is String
-              ? jsonDecode(args) as Map<String, dynamic>
-              : (args as Map).cast<String, dynamic>();
-          final level = map['level'] as String? ?? 'info';
-          final msg = map['msg'] as String? ?? '';
-          if (level == 'error') {
-            logger.e('[JS/$name] $msg');
-          } else if (level == 'warn') {
-            logger.w('[JS/$name] $msg');
-          } else {
-            logger.i('[JS/$name] $msg');
-          }
-        } catch (_) {}
-        return '';
-      });
-
-      // Setup sandboxed network channel routed through Dart http client
-      runtime.onMessage('wisp_fetch', (dynamic args) {
-        unawaited(() async {
-          int? cbId;
-          try {
-            final map = args is String
-                ? jsonDecode(args) as Map<String, dynamic>
-                : (args is Map
-                    ? args.cast<String, dynamic>()
-                    : const <String, dynamic>{});
-            cbId = map['cbId'] as int?;
-            final url = map['url'] as String?;
-            final method = (map['method'] as String?)?.toUpperCase() ?? 'GET';
-            final headers =
-                (map['headers'] as Map?)?.cast<String, String>() ?? {};
-            final body = map['body'] as String?;
-
-            if (url == null || cbId == null) {
-              throw ArgumentError('url and cbId are required for wisp_fetch');
-            }
-
-            logger.i('[JS/$name HTTP] -> $method $url');
-            final uri = Uri.parse(url);
-            final client = createSpotifyHttpClient();
-            http.Response response;
-            try {
-              final request = http.Request(method, uri);
-              request.headers.addAll(headers);
-              if (body != null) {
-                request.body = body;
-              }
-              final streamedResponse = await client.send(request);
-              response = await http.Response.fromStream(streamedResponse);
-              logger.i(
-                '[JS/$name HTTP] <- $method $url: status=${response.statusCode} (body length=${response.body.length})',
-              );
-            } finally {
-              client.close();
-            }
-
-            _resolveJsCallback(runtime, cbId, {
-              'status': response.statusCode,
-              'body': response.body,
-              'headers': response.headers,
-            });
-          } catch (e) {
-            logger.e('[JS/$name HTTP] Error requesting: $e');
-            if (cbId != null) {
-              _resolveJsCallback(runtime, cbId, {
-                'status': 500,
-                'body': '',
-                'error': e.toString(),
-                'headers': {},
-              });
-            }
-          }
-        }());
-        return '';
-      });
-
-      // Setup Spotify token bridge channel
-      runtime.onMessage('wisp_get_spotify_tokens', (dynamic args) {
-        unawaited(() async {
-          int? cbId;
-          try {
-            final map = args is String
-                ? jsonDecode(args) as Map<String, dynamic>
-                : (args is Map
-                    ? args.cast<String, dynamic>()
-                    : const <String, dynamic>{});
-            cbId = map['cbId'] as int?;
-            final forceRefresh = map['forceRefresh'] as bool? ?? false;
-            logger.i(
-              '[JS/$name] Bridge requesting Spotify tokens (forceRefresh: $forceRefresh)...',
-            );
-            final tokens =
-                await SpotifyTokenManager.getTokens(forceRefresh: forceRefresh);
-            if (cbId != null) {
-              if (tokens == null) {
-                logger.w(
-                  '[JS/$name] Bridge: No Spotify tokens available from SpotifyTokenManager',
-                );
-                _resolveJsCallback(runtime, cbId, {'error': 'No tokens available'});
-              } else {
-                logger.i(
-                  '[JS/$name] Bridge: Handed Spotify tokens to JS runtime (token length: ${tokens.accessToken.length})',
-                );
-                _resolveJsCallback(runtime, cbId, {
-                  'accessToken': tokens.accessToken,
-                  'clientToken': tokens.clientToken,
-                });
-              }
-            }
-          } catch (e) {
-            logger.e('[JS/$name] Bridge: Error in wisp_get_spotify_tokens: $e');
-            if (cbId != null) {
-              _resolveJsCallback(runtime, cbId, {'error': e.toString()});
-            }
-          }
-        }());
-        return '';
-      });
+      // Setup standard wisp host bridge (fetch, service vault, crypto, storage, auth, logging, tokens)
+      JsProviderBridge.setupBridge(
+        runtime,
+        providerId: id,
+        providerName: name,
+        serviceId: serviceId,
+      );
 
       // Setup lyrics result callback channel
       runtime.onMessage('wisp_lyrics_result', (dynamic args) {
@@ -210,80 +97,8 @@ class JsLyricsSource extends LyricsSource {
         return '';
       });
 
-      // Inject standard global primitives
-      const bridgePolyfills = '''
-        globalThis.__wisp_pending_callbacks = {};
-        globalThis.__wisp_callback_counter = 0;
-
-        globalThis.__wisp_resolve_callback = function(cbId, dataStr) {
-          try {
-            var cb = globalThis.__wisp_pending_callbacks[cbId];
-            if (cb) {
-              delete globalThis.__wisp_pending_callbacks[cbId];
-              var data = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
-              cb(data);
-            }
-          } catch (e) {
-            console.error('Error in __wisp_resolve_callback: ' + e);
-          }
-        };
-
-        globalThis.console = {
-          log: function(msg) { sendMessage('wisp_log', JSON.stringify({ level: 'info', msg: String(msg) })); },
-          error: function(msg) { sendMessage('wisp_log', JSON.stringify({ level: 'error', msg: String(msg) })); },
-          warn: function(msg) { sendMessage('wisp_log', JSON.stringify({ level: 'warn', msg: String(msg) })); },
-          debug: function(msg) { sendMessage('wisp_log', JSON.stringify({ level: 'debug', msg: String(msg) })); }
-        };
-
-        globalThis.wisp = {
-          fetch: function(url, options) {
-            return new Promise(function(resolve) {
-              var cbId = ++globalThis.__wisp_callback_counter;
-              globalThis.__wisp_pending_callbacks[cbId] = function(res) {
-                if (!res) res = { status: 500, headers: {}, body: '' };
-                resolve({
-                  status: res.status || 500,
-                  ok: (res.status >= 200 && res.status < 300),
-                  headers: res.headers || {},
-                  text: async function() { return res.body || ''; },
-                  json: async function() { return JSON.parse(res.body || '{}'); }
-                });
-              };
-              options = options || {};
-              sendMessage('wisp_fetch', JSON.stringify({
-                cbId: cbId,
-                url: String(url),
-                method: options.method || 'GET',
-                headers: options.headers || {},
-                body: options.body || null
-              }));
-            });
-          },
-          spotify: {
-            getTokens: function(options) {
-              return new Promise(function(resolve) {
-                var cbId = ++globalThis.__wisp_callback_counter;
-                globalThis.__wisp_pending_callbacks[cbId] = function(res) {
-                  if (!res || res.error) {
-                    resolve(null);
-                  } else {
-                    resolve(res);
-                  }
-                };
-                options = options || {};
-                sendMessage('wisp_get_spotify_tokens', JSON.stringify({
-                  cbId: cbId,
-                  forceRefresh: !!options.forceRefresh
-                }));
-              });
-            }
-          }
-        };
-
-        if (typeof globalThis.fetch === 'undefined') {
-          globalThis.fetch = globalThis.wisp.fetch;
-        }
-
+      // Inject lyrics-specific invocation helper
+      const lyricsPolyfill = '''
         globalThis.__wisp_invoke_getLyrics = function(reqId, id, queryStr) {
           try {
             var query = typeof queryStr === 'string' ? JSON.parse(queryStr) : queryStr;
@@ -314,7 +129,7 @@ class JsLyricsSource extends LyricsSource {
           }
         };
       ''';
-      runtime.evaluate(bridgePolyfills);
+      runtime.evaluate(lyricsPolyfill);
 
       runtime.enableHandlePromises();
 
@@ -336,18 +151,6 @@ class JsLyricsSource extends LyricsSource {
       while (runtime.executePendingJob() > 0) {}
     } catch (e) {
       logger.d('[JsLyricsSource/$id] Microtask drainage exception: $e');
-    }
-  }
-
-  void _resolveJsCallback(JavascriptRuntime runtime, int cbId, dynamic data) {
-    try {
-      final jsonStr = jsonEncode(data);
-      runtime.evaluate(
-        'globalThis.__wisp_resolve_callback($cbId, ${jsonEncode(jsonStr)});',
-      );
-      _drainMicrotasks(runtime);
-    } catch (e) {
-      logger.e('[JsLyricsSource/$id] Error resolving JS callback $cbId: $e');
     }
   }
 
@@ -456,7 +259,7 @@ class JsLyricsSource extends LyricsSource {
     try {
       final providerStr = data['provider'] as String? ?? id;
       final syncModeStr = data['syncMode'] as String? ?? 'line';
-      final syncMode = LyricsSyncMode.values.firstWhere(
+      var syncMode = LyricsSyncMode.values.firstWhere(
         (m) => m.name == syncModeStr,
         orElse: () => LyricsSyncMode.line,
       );
@@ -498,6 +301,14 @@ class JsLyricsSource extends LyricsSource {
       if (lines.isEmpty) {
         logger.w('[JsLyricsSource/$id] Result contained 0 valid lyric lines');
         return null;
+      }
+
+      if (lines.any((l) => l.words.isNotEmpty) &&
+          requestedMode != LyricsSyncMode.unsynced) {
+        syncMode = LyricsSyncMode.word;
+      } else if (syncMode == LyricsSyncMode.word &&
+          lines.every((l) => l.words.isEmpty)) {
+        syncMode = LyricsSyncMode.line;
       }
 
       final matchedType = LyricsProviderType.values.firstWhere(

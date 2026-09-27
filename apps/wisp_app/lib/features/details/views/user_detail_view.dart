@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/theme/cover_art_palette_provider.dart';
@@ -61,10 +61,10 @@ class _UserDetailViewState extends State<UserDetailView> {
       return;
     }
 
-    final spotify = context.read<SpotifyInternalProvider>();
-    if (spotify.userId == null || spotify.userId!.isEmpty) {
+    final metadataManager = context.read<MetadataManager>();
+    if (metadataManager.userId == null || metadataManager.userId!.isEmpty) {
       try {
-        await spotify.fetchUserProfile();
+        await metadataManager.fetchUserProfile();
       } catch (_) {}
     }
 
@@ -76,7 +76,7 @@ class _UserDetailViewState extends State<UserDetailView> {
     }
 
     try {
-      final profile = await spotify.getUserProfile(
+      final profile = await metadataManager.getUserProfile(
         widget.userId,
         policy: MetadataFetchPolicy.refreshAlways,
       );
@@ -86,7 +86,7 @@ class _UserDetailViewState extends State<UserDetailView> {
       String? partialError;
 
       try {
-        followers = await spotify.getUserFollowers(
+        followers = await metadataManager.getUserFollowers(
           widget.userId,
           policy: MetadataFetchPolicy.refreshAlways,
         );
@@ -95,7 +95,7 @@ class _UserDetailViewState extends State<UserDetailView> {
       }
 
       try {
-        following = await spotify.getUserFollowing(
+        following = await metadataManager.getUserFollowing(
           widget.userId,
           policy: MetadataFetchPolicy.refreshAlways,
         );
@@ -105,9 +105,13 @@ class _UserDetailViewState extends State<UserDetailView> {
             : '$partialError\nFollowing could not be loaded: $e';
       }
 
+      if (profile == null) {
+        throw Exception('User profile not found');
+      }
+
       if (!mounted) return;
       setState(() {
-        _currentUserId = spotify.userId;
+        _currentUserId = metadataManager.userId;
         _errorMessage = partialError;
         _user = GenericUser(
           id: profile.id,
@@ -759,8 +763,11 @@ class _UserDetailViewState extends State<UserDetailView> {
 
   Future<void> _playPlaylist(GenericSimplePlaylist playlist) async {
     try {
-      final spotify = context.read<SpotifyInternalProvider>();
-      final info = await spotify.getPlaylistInfo(playlist.id);
+      final metadataManager = context.read<MetadataManager>();
+      final info = await metadataManager.getPlaylistInfo(
+        playlist.id,
+        source: playlist.source,
+      );
       final items = info.songs ?? [];
       if (items.isEmpty) return;
 
@@ -797,8 +804,11 @@ class _UserDetailViewState extends State<UserDetailView> {
 
   Future<void> _playArtist(GenericSimpleArtist artist) async {
     try {
-      final spotify = context.read<SpotifyInternalProvider>();
-      final info = await spotify.getArtistInfo(artist.id);
+      final metadataManager = context.read<MetadataManager>();
+      final info = await metadataManager.getArtistInfo(
+        artist.id,
+        source: artist.source,
+      );
       if (info.topSongs.isEmpty) return;
 
       if (mounted) {

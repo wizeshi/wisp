@@ -30,7 +30,7 @@ class _LyricsViewState extends State<LyricsView> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _listKey = GlobalKey();
   List<GlobalKey> _lineKeys = [];
-  LyricsSyncMode _syncMode = LyricsSyncMode.line;
+  LyricsSyncMode _syncMode = LyricsSyncMode.word;
   bool _autoScrollEnabled = true;
   int _currentLineIndex = -1;
   LyricsTimingState? _timingState;
@@ -543,7 +543,8 @@ class _LyricsViewState extends State<LyricsView> {
 
         if (_trackId != track.id) {
           _trackId = track.id;
-          _currentLineIndex = _syncMode == LyricsSyncMode.line ? -1 : 0;
+          _syncMode = LyricsSyncMode.word;
+          _currentLineIndex = -1;
           _timingState = null;
           _autoScrollEnabled = true;
           _syncedLyricsAvailable = true;
@@ -618,16 +619,27 @@ class _LyricsViewState extends State<LyricsView> {
           _handleSyncedUnavailable();
         }
 
-        final resolvedMode = state.lyrics?.syncMode;
-        if (state.hasFetched &&
-            resolvedMode != null &&
-            resolvedMode != _syncMode) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted || _trackId != track.id) return;
-            if (_syncMode != resolvedMode) {
-              _onSyncModeChanged(resolvedMode);
-            }
-          });
+        final lyricsObj = state.lyrics;
+        if (state.hasFetched && lyricsObj != null) {
+          LyricsSyncMode? fallbackMode;
+          if (_syncMode == LyricsSyncMode.word && !lyricsObj.isWordSynced) {
+            fallbackMode = lyricsObj.isLineSynced
+                ? LyricsSyncMode.line
+                : LyricsSyncMode.unsynced;
+          } else if (_syncMode == LyricsSyncMode.line &&
+              !lyricsObj.isLineSynced &&
+              !lyricsObj.isWordSynced) {
+            fallbackMode = LyricsSyncMode.unsynced;
+          }
+
+          if (fallbackMode != null && fallbackMode != _syncMode) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || _trackId != track.id) return;
+              if (_syncMode != fallbackMode) {
+                _onSyncModeChanged(fallbackMode!);
+              }
+            });
+          }
         }
 
         if (_lineKeys.length != lyrics.lines.length) {
@@ -825,7 +837,7 @@ class _LyricsViewState extends State<LyricsView> {
                                     );
                               final lineSpan = buildLyricsLineSpan(
                                 line: line,
-                                syncMode: lyrics.syncMode,
+                                syncMode: _syncMode,
                                 positionMs: effectivePosition,
                                 baseStyle: baseTextStyle,
                                 activeWordColor: activeWordColor,
@@ -1154,10 +1166,11 @@ class _LyricsViewState extends State<LyricsView> {
     final lineState = lyricsProvider.getState(track, LyricsSyncMode.line);
     final wordAvailable =
         !wordState.hasFetched ||
-        wordState.lyrics?.syncMode == LyricsSyncMode.word;
+        wordState.lyrics?.isWordSynced == true;
     final lineAvailable =
         !lineState.hasFetched ||
-        lineState.lyrics?.syncMode == LyricsSyncMode.line;
+        lineState.lyrics?.isLineSynced == true ||
+        wordState.lyrics?.isWordSynced == true;
     return Material(
       color: Colors.transparent,
       child: Row(

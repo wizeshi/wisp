@@ -1,4 +1,4 @@
-﻿// Copyright © 2026 wizeshi
+// Copyright © 2026 wizeshi
 
 /// Shared playlist/album detail view
 library;
@@ -25,7 +25,7 @@ import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/theme/cover_art_palette_provider.dart';
@@ -107,7 +107,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   final GlobalKey _songListKey = GlobalKey();
   final GlobalKey _mobileActionsKey = GlobalKey();
   VoidCallback? _likedTracksListener;
-  late final SpotifyInternalProvider _spotifyInternal;
+  late final MetadataManager _metadataManager;
   bool _showStickyBar = false;
   Color _stickyBarColor = const Color(0xFF1E1E1E);
   String? _stickyCoverUrl;
@@ -228,8 +228,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   @override
   void initState() {
     super.initState();
-    _spotifyInternal = context.read<SpotifyInternalProvider>();
-    unawaited(_spotifyInternal.ensureLikedTracksLoaded());
+    _metadataManager = context.read<MetadataManager>();
+    unawaited(_metadataManager.ensureLikedTracksLoaded());
     _desktopScrollController.addListener(
       () => _handleScroll(_desktopScrollController),
     );
@@ -242,7 +242,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         if (!mounted) return;
         setState(_rebuildIndices);
       };
-      _spotifyInternal.addListener(_likedTracksListener!);
+      _metadataManager.addListener(_likedTracksListener!);
     }
     _loadListDetails();
   }
@@ -250,12 +250,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   Future<void> _toggleSaveAlbum(bool isSaved) async {
     final album = _album;
     if (album == null) return;
-    final spotifyInternal = context.read<SpotifyInternalProvider>();
-    if (!spotifyInternal.isAuthenticated) {
+    final metadataManager = context.read<MetadataManager>();
+    if (!metadataManager.isAuthenticated) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Spotify (Internal) is not connected.'),
+            content: Text('Provider is not connected.'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -265,10 +265,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
     try {
       if (isSaved) {
-        await spotifyInternal.unsaveAlbum(album.id);
+        await metadataManager.unsaveAlbum(album.id, source: album.source);
         if (mounted) context.read<LibraryState>().removeAlbum(album.id);
       } else {
-        await spotifyInternal.saveAlbum(album.id);
+        await metadataManager.saveAlbum(album.id, source: album.source);
         if (mounted) context.read<LibraryState>().addAlbum(album);
       }
       if (mounted) {
@@ -296,7 +296,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   @override
   void dispose() {
     if (_likedTracksListener != null) {
-      _spotifyInternal.removeListener(_likedTracksListener!);
+      _metadataManager.removeListener(_likedTracksListener!);
     }
     _desktopScrollController.dispose();
     _mobileScrollController.dispose();
@@ -452,7 +452,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       return;
     }
 
-    final spotifyInternal = context.read<SpotifyInternalProvider>();
+    final metadataManager = context.read<MetadataManager>();
     final localPlaylists = context.read<LocalPlaylistState>();
     setState(() => _isLoading = true);
 
@@ -469,11 +469,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
           final localEntry = localPlaylists.getById(widget.id);
           if (localEntry?.isLinked == true &&
-              localEntry?.linkedSource == SongSource.spotifyInternal &&
               localEntry?.linkedId != null) {
-            final providerPlaylist = await _fetchSpotifyPlaylistWithTracks(
-              spotifyInternal,
+            final providerPlaylist = await _fetchPlaylistWithTracks(
+              metadataManager,
               localEntry!.linkedId!,
+              source: localEntry.linkedSource,
             );
             await localPlaylists.syncFromProvider(
               id: widget.id,
@@ -494,7 +494,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           const limit = 50;
           final items = <PlaylistItem>[];
 
-          final freshFirst = await spotifyInternal.getUserSavedTracks(
+          final freshFirst = await metadataManager.getUserSavedTracks(
             limit: limit,
             offset: 0,
             policy: MetadataFetchPolicy.refreshAlways,
@@ -503,7 +503,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
           var offset = items.length;
           while (true) {
-            final page = await spotifyInternal.getUserSavedTracks(
+            final page = await metadataManager.getUserSavedTracks(
               limit: limit,
               offset: offset,
               policy: MetadataFetchPolicy.refreshIfExpired,
@@ -514,19 +514,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             if (page.length < limit) break;
           }
 
-          spotifyInternal.setLikedTracksFromItems(items);
+          metadataManager.setLikedTracksFromItems(items);
           _playlist = _buildLikedSongsPlaylist(
             items,
-            spotifyInternal.userDisplayName,
+            metadataManager.userDisplayName,
           );
           return;
         }
-        _playlist = await _fetchSpotifyPlaylistWithTracks(
-          spotifyInternal,
+        _playlist = await _fetchPlaylistWithTracks(
+          metadataManager,
           widget.id,
         );
       } else {
-        final album = await spotifyInternal.getAlbumInfo(
+        final album = await metadataManager.getAlbumInfo(
           widget.id,
           offset: 0,
           limit: 50,
@@ -536,7 +536,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
         int offset = items.length;
         while (album.hasMore == true && offset < (album.total ?? 0)) {
-          final moreAlbum = await spotifyInternal.getAlbumInfo(
+          final moreAlbum = await metadataManager.getAlbumInfo(
             widget.id,
             offset: offset,
             limit: 50,
@@ -601,24 +601,27 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     unawaited(coordinator.play());
   }
 
-  Future<GenericPlaylist> _fetchSpotifyPlaylistWithTracks(
-    SpotifyInternalProvider spotify,
-    String playlistId,
-  ) async {
-    final playlist = await spotify.getPlaylistInfo(
+  Future<GenericPlaylist> _fetchPlaylistWithTracks(
+    MetadataManager metadataManager,
+    String playlistId, {
+    SongSource? source,
+  }) async {
+    final playlist = await metadataManager.getPlaylistInfo(
       playlistId,
       offset: 0,
       limit: 50,
+      source: source,
       policy: MetadataFetchPolicy.refreshAlways,
     );
     final items = <PlaylistItem>[...?(playlist.songs)];
 
     int offset = items.length;
     while (playlist.hasMore == true && offset < (playlist.total ?? 0)) {
-      final morePlaylist = await spotify.getPlaylistInfo(
+      final morePlaylist = await metadataManager.getPlaylistInfo(
         playlistId,
         offset: offset,
         limit: 50,
+        source: source,
         policy: MetadataFetchPolicy.refreshIfExpired,
       );
       final more = morePlaylist.songs ?? const <PlaylistItem>[];
@@ -671,9 +674,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (widget.type == SharedListType.playlist) {
       if (isLikedSongsPlaylistId(widget.id)) {
         final items = _playlist?.songs ?? [];
-        final spotifyInternal = context.read<SpotifyInternalProvider>();
+        final metadataManager = context.read<MetadataManager>();
         return items
-            .where((item) => spotifyInternal.isTrackLiked(item.id))
+            .where((item) => metadataManager.isTrackLiked(item.id))
             .toList();
       }
       return _playlist?.songs ?? [];
@@ -1211,6 +1214,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       case SongSource.spotify:
       case SongSource.spotifyInternal:
       case SongSource.local:
+      default:
         return Icons.music_note;
     }
   }

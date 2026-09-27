@@ -235,6 +235,7 @@ LyricsResult removeEmptyLyricsLines(LyricsResult lyrics) {
 
   return LyricsResult(
     provider: lyrics.provider,
+    customProviderName: lyrics.customProviderName,
     syncMode: lyrics.syncMode,
     lines: cleanedLines,
   );

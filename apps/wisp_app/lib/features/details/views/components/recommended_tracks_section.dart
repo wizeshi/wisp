@@ -7,7 +7,7 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
     if (widget.type != SharedListType.playlist) return false;
     if (isLikedSongsPlaylistId(widget.id)) return false;
     if (_playlist == null) return false;
-    if (_playlist!.source != SongSource.spotifyInternal) return false;
+    if (_playlist!.source == SongSource.local) return false;
     final localPlaylists = context.read<LocalPlaylistState>();
     if (localPlaylists.isLocalPlaylistId(widget.id)) return false;
     return _playlist!.id.trim().isNotEmpty;
@@ -73,10 +73,11 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
     }
 
     try {
-      final recommendations = await _spotifyInternal.getRecommended(
+      final recommendations = await _metadataManager.getRecommended(
         playlistID,
         _skippedRecommendationTrackIDs,
         numResults: 20,
+        source: _playlist?.source,
       );
       if (!mounted) {
         _recommendedSongs = recommendations.take(10).toList();
@@ -118,7 +119,11 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
     });
 
     try {
-      await _spotifyInternal.addTracksToPlaylist(playlist.id, [item.id]);
+      await _metadataManager.addTracksToPlaylist(
+        playlist.id,
+        [item.id],
+        source: playlist.source,
+      );
       if (!mounted) return;
       _safeSetState(() {
         _addingRecommendationTrackIDs.remove(item.id);
@@ -167,13 +172,13 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
 
     if (widget.type == SharedListType.playlist) {
       libraryFolders.markPlaylistPlayed(widget.id);
-      context.read<SpotifyInternalProvider>().reportItemPlayed(
+      context.read<MetadataManager>().reportItemPlayed(
         itemId: widget.id,
         itemType: 'playlist',
       );
     } else if (widget.type == SharedListType.album) {
       libraryFolders.markItemPlayed(widget.id);
-      context.read<SpotifyInternalProvider>().reportItemPlayed(
+      context.read<MetadataManager>().reportItemPlayed(
         itemId: widget.id,
         itemType: 'album',
       );

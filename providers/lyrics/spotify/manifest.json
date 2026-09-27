@@ -8,5 +8,7 @@
   "description": "Line-synced and unsynced lyrics directly from Spotify Color Lyrics API",
   "supportedSyncModes": ["line", "unsynced"],
   "priority": 60,
+  "service": "spotify",
+  "dependencies": ["auth/spotify"],
   "homepage": "https://spotify.com"
 }

@@ -11,8 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
-import 'package:wisp/data/sources/youtube/youtube_metadata.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
@@ -1532,10 +1531,8 @@ class ProviderStateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spotifyInternalMetadata = context.watch<SpotifyInternalProvider>();
-    final spotifyInternalMetadataDump = spotifyInternalMetadata.dumpJson();
-
-    final metadataYoutube = context.watch<YouTubeMetadataProvider>();
+    final metadataManager = context.watch<MetadataManager>();
+    final providers = metadataManager.allProviders;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1552,295 +1549,80 @@ class ProviderStateView extends StatelessWidget {
                   children: [
                     Row(
                       spacing: 8,
-                      children: [
+                      children: const [
                         Text(
                           "Metadata Providers",
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-
-                        const Expanded(
+                        Expanded(
                           child: Divider(color: Colors.white, thickness: 1),
                         ),
                       ],
                     ),
-
                     Container(
                       padding: const EdgeInsets.only(left: 12),
                       child: Column(
                         spacing: 24,
                         children: [
-                          ProviderStateViewSection(
-                            providerName: spotifyInternalMetadata.displayName,
-                            providerThumbnailUrl:
-                                spotifyInternalMetadata.iconURL,
-                            children: [
-                              Row(
-                                spacing: 8,
-                                children: [
-                                  Expanded(
-                                    flex: 1,
-                                    child: ProviderStateViewRow(
-                                      label: "Is Authenticated?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['isAuthenticated']
-                                            .toString(),
+                          for (final provider in providers)
+                            ProviderStateViewSection(
+                              providerName: provider.displayName,
+                              providerThumbnailUrl: provider.iconURL,
+                              children: [
+                                Row(
+                                  spacing: 8,
+                                  children: [
+                                    Expanded(
+                                      flex: 1,
+                                      child: ProviderStateViewRow(
+                                        label: "Provider ID",
+                                        value: provider.providerId,
                                       ),
-                                      valueStyle:
-                                          spotifyInternalMetadataDump['isAuthenticated']
-                                                  .toString()
-                                                  .toLowerCase() ==
-                                              "true"
-                                          ? const TextStyle(color: Colors.green)
-                                          : const TextStyle(color: Colors.red),
                                     ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: ProviderStateViewRow(
+                                        label: "Is Authenticated?",
+                                        value: _uppercaseFirstLetter(
+                                          provider.isAuthenticated.toString(),
+                                        ),
+                                        valueStyle: provider.isAuthenticated
+                                            ? const TextStyle(color: Colors.green)
+                                            : const TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 1,
+                                      child: ProviderStateViewRow(
+                                        label: "Is Loading?",
+                                        value: _uppercaseFirstLetter(
+                                          provider.isLoading.toString(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (provider.errorMessage != null)
+                                  ProviderStateViewRow(
+                                    label: "Error Message",
+                                    value: provider.errorMessage!,
+                                    valueStyle: const TextStyle(color: Colors.red),
                                   ),
-
-                                  Expanded(
-                                    flex: 1,
-                                    child: ProviderStateViewRow(
-                                      label: "Is Loading?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['isLoading']
-                                            .toString(),
-                                      ),
-                                    ),
+                                if (provider.userId != null)
+                                  ProviderStateViewRow(
+                                    label: "User ID",
+                                    value: provider.userId!,
                                   ),
-                                ],
-                              ),
-
-                              ProviderStateViewRow(
-                                label: "Error Message",
-                                value: _uppercaseFirstLetter(
-                                  spotifyInternalMetadataDump['errorMessage']
-                                      .toString(),
-                                ),
-                              ),
-
-                              ProviderStateViewRow(
-                                label: "User ID",
-                                // Don't uppercase user ID, as it is case sensitive
-                                value: spotifyInternalMetadataDump['userId']
-                                    .toString(),
-                              ),
-
-                              ProviderStateViewRow(
-                                label: "User Display Name",
-                                value:
-                                    spotifyInternalMetadataDump['userDisplayName']
-                                        .toString(),
-                              ),
-
-                              IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  spacing: 6,
-                                  children: [
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Bearer Token Present?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['bearerTokenPresent']
-                                            .toString(),
-                                      ),
-                                      valueStyle:
-                                          spotifyInternalMetadataDump['bearerTokenPresent']
-                                                  .toString()
-                                                  .toLowerCase() ==
-                                              "true"
-                                          ? const TextStyle(color: Colors.green)
-                                          : const TextStyle(color: Colors.red),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Bearer Token Length",
-                                      value:
-                                          spotifyInternalMetadataDump['bearerTokenLength']
-                                              .toString(),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Client Token Present?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['clientTokenPresent']
-                                            .toString(),
-                                      ),
-                                      valueStyle:
-                                          spotifyInternalMetadataDump['clientTokenPresent']
-                                                  .toString()
-                                                  .toLowerCase() ==
-                                              "true"
-                                          ? const TextStyle(color: Colors.green)
-                                          : const TextStyle(color: Colors.red),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Client Token Length",
-                                      value:
-                                          spotifyInternalMetadataDump['clientTokenLength']
-                                              .toString(),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  spacing: 6,
-                                  children: [
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Liked Tracks Loaded?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['likedTracksLoaded']
-                                            .toString(),
-                                      ),
-                                      valueStyle:
-                                          spotifyInternalMetadataDump['likedTracksLoaded']
-                                                  .toString()
-                                                  .toLowerCase() ==
-                                              "true"
-                                          ? const TextStyle(color: Colors.green)
-                                          : const TextStyle(color: Colors.red),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Liked Tracks Total Count",
-                                      value:
-                                          spotifyInternalMetadataDump['likedTracksTotalCount']
-                                              .toString(),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Liked Tracks IDs Count",
-                                      value:
-                                          spotifyInternalMetadataDump['likedTracksIdsCount']
-                                              .toString(),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Is Refreshing Liked Tracks?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['isRefreshingLikedTracks']
-                                            .toString(),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              ProviderStateViewRow(
-                                label: "Canvas URL Cache Size",
-                                value:
-                                    spotifyInternalMetadataDump['canvasUrlCacheSize']
-                                        .toString(),
-                              ),
-
-                              IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  spacing: 6,
-                                  children: [
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Auth Init in Flight?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['authInitInFlight']
-                                            .toString(),
-                                      ),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Last Auth Init Attempt",
-                                      value:
-                                          spotifyInternalMetadataDump['lastAuthInitAttemptAt']
-                                              .toString(),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Last Auth Init Failed?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['lastAuthInitFailed']
-                                            .toString(),
-                                      ),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Startup Auth Retry Scheduled?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['startupAuthRetryScheduled']
-                                            .toString(),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  spacing: 6,
-                                  children: [
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Last Token Refresh",
-                                      value:
-                                          spotifyInternalMetadataDump['lastTokenRefreshAt']
-                                              .toString(),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Token Refresh in Progress?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['tokenRefreshInProgress']
-                                            .toString(),
-                                      ),
-                                    ),
-
-                                    ProviderStateViewElement(
-                                      flex: 1,
-                                      label: "Token Refresh Failed?",
-                                      value: _uppercaseFirstLetter(
-                                        spotifyInternalMetadataDump['tokenRefreshFailed']
-                                            .toString(),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          ProviderStateViewSection(
-                            providerName: metadataYoutube.displayName,
-                            providerThumbnailUrl: metadataYoutube.iconURL,
-                            children: [
-                              ProviderStateViewRow(
-                                label: "Is Authenticated?",
-                                value: "True",
-                                valueStyle: const TextStyle(
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
+                                if (provider.userDisplayName != null)
+                                  ProviderStateViewRow(
+                                    label: "User Display Name",
+                                    value: provider.userDisplayName!,
+                                  ),
+                              ],
+                            ),
                         ],
                       ),
                     ),
@@ -2060,11 +1842,11 @@ class _GenresDebugViewState extends State<GenresDebugView> {
     });
 
     try {
-      final spotify = context.read<SpotifyInternalProvider>();
+      final metadataManager = context.read<MetadataManager>();
       final cleanId = input.startsWith('spotify:track:')
           ? input.split(':').last
           : input;
-      final genres = await spotify.getTrackGenres(cleanId);
+      final genres = await metadataManager.getTrackGenres(cleanId);
       if (mounted) {
         setState(() {
           _liveLookupGenres = genres;

@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_source_manager.dart';
 import 'package:wisp/data/sources/providers/provider_package_model.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/widgets/app_shell.dart';
 
@@ -224,7 +224,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
   Widget _buildSpotifyLoginStep(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
 
-    return Consumer<SpotifyInternalProvider>(
+    return Consumer<MetadataManager>(
       builder: (context, spotify, _) {
         final isConnected = spotify.isAuthenticated;
         final isLoading = spotify.isLoading;

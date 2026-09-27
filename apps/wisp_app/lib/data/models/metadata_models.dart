@@ -5,21 +5,53 @@
 /// Generic metadata models for multi-source music providers
 library;
 
-enum SongSource {
-  local,
-  spotify,
-  youtube,
-  soundcloud,
-  spotifyInternal;
+class SongSource {
+  final String id;
 
-  String toJson() => name;
+  const SongSource(this.id);
 
-  static SongSource fromJson(String json) {
-    return SongSource.values.firstWhere(
-      (e) => e.name == json,
-      orElse: () => SongSource.spotify,
-    );
+  static const SongSource local = SongSource('local');
+  static const SongSource spotify = SongSource('spotify');
+  static const SongSource youtube = SongSource('youtube');
+  static const SongSource soundcloud = SongSource('soundcloud');
+  static const SongSource spotifyInternal = SongSource('spotifyInternal');
+
+  static List<SongSource> get values => const [local, spotify, youtube, soundcloud, spotifyInternal];
+
+  String get name => id;
+  String toJson() => id;
+
+  static SongSource fromJson(dynamic json) {
+    if (json is SongSource) return json;
+    if (json is String && json.isNotEmpty) {
+      final clean = json.trim();
+      if (clean == 'local') return SongSource.local;
+      if (clean == 'spotify') return SongSource.spotify;
+      if (clean == 'youtube') return SongSource.youtube;
+      if (clean == 'soundcloud') return SongSource.soundcloud;
+      if (clean == 'spotifyInternal') return SongSource.spotifyInternal;
+      return SongSource(clean);
+    }
+    return SongSource.spotify;
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is SongSource) {
+      return other.id.toLowerCase() == id.toLowerCase();
+    }
+    if (other is String) {
+      return other.toLowerCase() == id.toLowerCase();
+    }
+    return false;
+  }
+
+  @override
+  int get hashCode => id.toLowerCase().hashCode;
+
+  @override
+  String toString() => id;
 }
 
 enum SearchBestMatchKind {
@@ -316,7 +348,8 @@ class GenericSong {
       album: json['album'] != null
           ? GenericSimpleAlbum.fromJson(json['album'] as Map<String, dynamic>)
           : null,
-      durationSecs: json['duration_secs'] as int,
+      durationSecs: (json['duration_secs'] as num?)?.toInt() ??
+          (((json['duration_ms'] ?? json['durationMs'] ?? json['duration']) as num?)?.toInt() ?? 0) ~/ 1000,
       languages: json['languages'] != null
           ? (json['languages'] as List).map((l) => l as String).toList()
           : null,
@@ -672,9 +705,12 @@ class PlaylistItem {
       album: json['album'] != null
           ? GenericSimpleAlbum.fromJson(json['album'] as Map<String, dynamic>)
           : null,
-      durationSecs: json['duration_secs'] as int,
-      addedAt: DateTime.parse(json['added_at'] as String),
-      trackNumber: json['track_number'] as int,
+      durationSecs: (json['duration_secs'] as num?)?.toInt() ??
+          (((json['duration_ms'] ?? json['durationMs'] ?? json['duration']) as num?)?.toInt() ?? 0) ~/ 1000,
+      addedAt: json['added_at'] != null
+          ? (DateTime.tryParse(json['added_at'] as String) ?? DateTime.now())
+          : DateTime.now(),
+      trackNumber: (json['track_number'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -799,7 +835,18 @@ enum LyricsProviderType {
   lrclib,
   custom;
 
-  String get label => name;
+  String get label {
+    switch (this) {
+      case LyricsProviderType.betterlyrics:
+        return 'BetterLyrics';
+      case LyricsProviderType.spotify:
+        return 'Spotify';
+      case LyricsProviderType.lrclib:
+        return 'LRCLIB';
+      case LyricsProviderType.custom:
+        return 'Custom';
+    }
+  }
 }
 
 enum LyricsSyncMode {
@@ -962,13 +1009,72 @@ class GenericHome {
   const GenericHome({required this.sections});
 
   Map<String, dynamic> toJson() => {
-    'sections': sections.map((key, value) => MapEntry(key, value)),
+    'sections': sections.map(
+      (key, value) => MapEntry(
+        key,
+        value.map((item) {
+          if (item is GenericPlaylist) return {'__wispType': 'GenericPlaylist', 'data': item.toJson()};
+          if (item is GenericAlbum) return {'__wispType': 'GenericAlbum', 'data': item.toJson()};
+          if (item is GenericArtist) return {'__wispType': 'GenericArtist', 'data': item.toJson()};
+          if (item is GenericSimpleArtist) return {'__wispType': 'GenericSimpleArtist', 'data': item.toJson()};
+          if (item is GenericSong) return {'__wispType': 'GenericSong', 'data': item.toJson()};
+          return item;
+        }).toList(),
+      ),
+    ),
   };
 
+  static dynamic _deserializeHomeItem(dynamic item) {
+    if (item is! Map) return item;
+    final map = item is Map<String, dynamic> ? item : item.cast<String, dynamic>();
+    final type = map['__wispType'] as String?;
+    final data = map['data'] as Map<String, dynamic>?;
+    if (type != null && data != null) {
+      switch (type) {
+        case 'GenericAlbum':
+          return GenericAlbum.fromJson(data);
+        case 'GenericPlaylist':
+          return GenericPlaylist.fromJson(data);
+        case 'GenericArtist':
+          return GenericArtist.fromJson(data);
+        case 'GenericSimpleArtist':
+          return GenericSimpleArtist.fromJson(data);
+        case 'GenericSong':
+          return GenericSong.fromJson(data);
+        default:
+          return item;
+      }
+    }
+    final typename = map['__typename'] as String? ?? map['type'] as String?;
+    if (typename != null) {
+      switch (typename) {
+        case 'Playlist':
+        case 'PlaylistResponseWrapper':
+          return GenericPlaylist.fromJson(map);
+        case 'Album':
+        case 'AlbumResponseWrapper':
+          return GenericAlbum.fromJson(map);
+        case 'Artist':
+        case 'ArtistResponseWrapper':
+          return GenericSimpleArtist.fromJson(map);
+        case 'Track':
+        case 'TrackResponseWrapper':
+          return GenericSong.fromJson(map);
+      }
+    }
+    return item;
+  }
+
   factory GenericHome.fromJson(Map<String, dynamic> json) {
+    final rawSections = (json['sections'] as Map?) ?? const {};
     return GenericHome(
-      sections: (json['sections'] as Map<String, dynamic>).map(
-        (key, value) => MapEntry(key, value as List<dynamic>),
+      sections: rawSections.map(
+        (key, value) => MapEntry(
+          key.toString(),
+          (value is List)
+              ? value.map(_deserializeHomeItem).toList()
+              : const <dynamic>[],
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:wisp/data/sources/providers/provider_package_model.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/shared/widgets/display/provider_icon.dart';
 
 class ProvidersMarketplaceView extends StatefulWidget {
   const ProvidersMarketplaceView({super.key});
@@ -64,10 +65,10 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
   }
 
   Future<void> _installOrUpdate(ProviderPackage pkg) async {
-    setState(() => _busyProviderIds.add(pkg.id));
+    setState(() => _busyProviderIds.add(pkg.uniqueKey));
     final success = await _repoService.installOrUpdateProvider(pkg);
     if (!mounted) return;
-    setState(() => _busyProviderIds.remove(pkg.id));
+    setState(() => _busyProviderIds.remove(pkg.uniqueKey));
 
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -88,7 +89,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
     setState(() {
       _isUpdatingAll = true;
       for (final p in updates) {
-        _busyProviderIds.add(p.id);
+        _busyProviderIds.add(p.uniqueKey);
       }
     });
 
@@ -97,7 +98,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
       final ok = await _repoService.installOrUpdateProvider(pkg);
       if (ok) count++;
       if (mounted) {
-        setState(() => _busyProviderIds.remove(pkg.id));
+        setState(() => _busyProviderIds.remove(pkg.uniqueKey));
       }
     }
 
@@ -133,10 +134,10 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
 
     if (confirm != true || !mounted) return;
 
-    setState(() => _busyProviderIds.add(pkg.id));
+    setState(() => _busyProviderIds.add(pkg.uniqueKey));
     final success = await _repoService.uninstallProvider(pkg);
     if (!mounted) return;
-    setState(() => _busyProviderIds.remove(pkg.id));
+    setState(() => _busyProviderIds.remove(pkg.uniqueKey));
 
     if (success) {
       ScaffoldMessenger.of(
@@ -159,7 +160,9 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
 
     final filtered = _packages.where((pkg) {
       if (_selectedFilter.startsWith('Updates') && !pkg.hasUpdate) return false;
+      if (_selectedFilter == 'Metadata' && pkg.type != 'metadata') return false;
       if (_selectedFilter == 'Lyrics' && pkg.type != 'lyrics') return false;
+      if (_selectedFilter == 'Auth' && pkg.type != 'auth') return false;
       if (_selectedFilter == 'Installed' && !pkg.isInstalled) return false;
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
@@ -171,11 +174,13 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
       return true;
     }).toList();
 
+    filtered.sort(ProviderPackage.comparePackages);
+
     final filterTabs = <String>['All'];
     if (updateCount > 0) {
       filterTabs.add('Updates ($updateCount)');
     }
-    filterTabs.addAll(['Lyrics', 'Installed']);
+    filterTabs.addAll(['Metadata', 'Lyrics', 'Auth', 'Installed']);
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -184,6 +189,11 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          IconButton(
+            tooltip: 'Provider Priority Order',
+            icon: const Icon(Icons.low_priority),
+            onPressed: () => _showPriorityOrderDialog(context),
+          ),
           IconButton(
             tooltip: 'Refresh catalog',
             icon: const Icon(Icons.refresh),
@@ -393,7 +403,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
   }
 
   Widget _buildProviderCard(ProviderPackage pkg, Color primaryColor) {
-    final isBusy = _busyProviderIds.contains(pkg.id);
+    final isBusy = _busyProviderIds.contains(pkg.uniqueKey);
     final prefs = context.watch<PreferencesProvider>();
     final isEnabled = prefs.isProviderEnabled(pkg.id);
     final hasUpdate = pkg.hasUpdate;
@@ -427,10 +437,17 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                           .withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(
-                      pkg.type == 'lyrics' ? Icons.mic : Icons.extension,
+                    alignment: Alignment.center,
+                    child: ProviderIcon(
+                      providerId: pkg.id,
+                      type: pkg.type,
+                      size: 24,
+                      fallbackIcon: pkg.type == 'lyrics'
+                          ? Icons.mic
+                          : pkg.type == 'auth'
+                              ? Icons.vpn_key
+                              : Icons.extension,
                       color: hasUpdate ? Colors.amber : primaryColor,
-                      size: 22,
                     ),
                   ),
                   if (hasUpdate)
@@ -604,7 +621,14 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                       value: isEnabled,
                       activeThumbColor: primaryColor,
                       onChanged: (val) async {
-                        await prefs.setProviderEnabled(pkg.id, val);
+                        if (pkg.type == 'metadata' && pkg.id == 'spotify') {
+                          await prefs.setMetadataSpotifyEnabled(val);
+                        } else if (pkg.type == 'lyrics' && pkg.id == 'spotify') {
+                          await prefs.setLyricsSpotifyEnabled(val);
+                        } else {
+                          await prefs.setProviderEnabled(pkg.id, val);
+                        }
+                        _loadCatalog();
                       },
                     ),
                     IconButton(
@@ -671,4 +695,188 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
       ),
     );
   }
+
+  void _showPriorityOrderDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _ProviderPriorityDialog(
+        packages: _packages.where((p) => p.isInstalled).toList(),
+      ),
+    );
+  }
 }
+
+class _ProviderPriorityDialog extends StatefulWidget {
+  final List<ProviderPackage> packages;
+
+  const _ProviderPriorityDialog({required this.packages});
+
+  @override
+  State<_ProviderPriorityDialog> createState() => _ProviderPriorityDialogState();
+}
+
+class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 550),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Provider Priority & Fallbacks',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.grey),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Drag items to set priority order. The top provider is the active one; subsequent providers act as fallbacks.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              TabBar(
+                controller: _tabController,
+                indicatorColor: Theme.of(context).colorScheme.primary,
+                tabs: const [
+                  Tab(text: 'Metadata Providers'),
+                  Tab(text: 'Lyrics Providers'),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildOrderTab('metadata'),
+                    _buildOrderTab('lyrics'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrderTab(String type) {
+    final prefs = context.watch<PreferencesProvider>();
+    final customOrder = prefs.getProviderOrder(type);
+
+    final installedForType = widget.packages.where((p) => p.type == type).toList();
+    if (installedForType.isEmpty) {
+      return Center(
+        child: Text('No installed $type providers found.', style: const TextStyle(color: Colors.grey)),
+      );
+    }
+
+    // Sort according to customOrder, otherwise manifest priority descending
+    installedForType.sort((a, b) {
+      if (customOrder.isNotEmpty) {
+        final aIdx = customOrder.indexOf(a.id.toLowerCase());
+        final bIdx = customOrder.indexOf(b.id.toLowerCase());
+        if (aIdx != -1 && bIdx != -1) return aIdx.compareTo(bIdx);
+        if (aIdx != -1) return -1;
+        if (bIdx != -1) return 1;
+      }
+      return b.priority.compareTo(a.priority);
+    });
+
+    return Column(
+      children: [
+        Expanded(
+          child: ReorderableListView.builder(
+            buildDefaultDragHandles: false,
+            itemCount: installedForType.length,
+            onReorder: (oldIndex, newIndex) {
+              if (newIndex > oldIndex) newIndex -= 1;
+              final list = List<ProviderPackage>.from(installedForType);
+              final moved = list.removeAt(oldIndex);
+              list.insert(newIndex, moved);
+              final newOrder = list.map((p) => p.id.toLowerCase()).toList();
+              prefs.setProviderOrder(type, newOrder);
+            },
+            itemBuilder: (context, index) {
+              final pkg = installedForType[index];
+              final isActive = index == 0;
+              return Container(
+                key: ValueKey(pkg.uniqueKey),
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF282828),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isActive ? Colors.green.withValues(alpha: 0.6) : Colors.white10,
+                  ),
+                ),
+                child: ListTile(
+                  dense: true,
+                  leading: ProviderIcon(
+                    providerId: pkg.id,
+                    type: pkg.type,
+                    size: 22,
+                    fallbackIcon: type == 'lyrics' ? Icons.mic : Icons.extension,
+                  ),
+                  title: Text(pkg.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                    isActive ? 'Active / Primary' : 'Fallback #$index',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isActive ? Colors.greenAccent : Colors.grey,
+                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: ReorderableDragStartListener(
+                    index: index,
+                    child: const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Icon(Icons.drag_handle, color: Colors.grey),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (customOrder.isNotEmpty)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.restore, size: 14),
+              label: const Text('Reset to Defaults', style: TextStyle(fontSize: 12)),
+              onPressed: () => prefs.resetProviderOrder(type),
+            ),
+          ),
+      ],
+    );
+  }
+}
+

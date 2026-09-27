@@ -253,11 +253,11 @@ extension _ListDetailContextMenus on _SharedListDetailViewState {
     Offset? globalPosition,
     BuildContext? anchorContext,
   }) async {
-    unawaited(_spotifyInternal.ensureLikedTracksLoaded());
+    unawaited(_metadataManager.ensureLikedTracksLoaded(source: song.source));
 
-    final hasLikedTracksState = _spotifyInternal.hasLoadedLikedTracks;
+    final hasLikedTracksState = _metadataManager.hasLoadedLikedTracks;
     final isLiked =
-        hasLikedTracksState && _spotifyInternal.isTrackLiked(song.id);
+        hasLikedTracksState && _metadataManager.isTrackLiked(song.id, source: song.source);
     final cacheManager = AudioCacheManager.instance;
     final isCached = cacheManager.isTrackCached(song.id);
     final isDownloading = cacheManager.isDownloading(song.id);
@@ -279,7 +279,7 @@ extension _ListDetailContextMenus on _SharedListDetailViewState {
             ? Icons.favorite
             : Icons.favorite_border,
         iconColor: isLiked ? Theme.of(context).colorScheme.primary : null,
-        onSelected: (_) => _spotifyInternal.toggleTrackLike(song),
+        onSelected: (_) => _metadataManager.toggleTrackLike(song),
       ),
       ContextMenuAction(
         id: 'playlist-add',

@@ -7,7 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/playback/views/lyrics_view.dart';
@@ -220,11 +220,10 @@ class _SpotifyDesktopFullScreenPlayerState
         final useCanvas = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.animatedCanvasEnabled,
         );
-        final spotifyInternal = context.read<SpotifyInternalProvider>();
+        final metadataManager = context.read<MetadataManager>();
         final canUseCanvas =
             useCanvas &&
-            (currentTrack.source == SongSource.spotifyInternal ||
-                currentTrack.source == SongSource.spotify);
+            currentTrack.source != SongSource.local;
 
         return ChangeNotifierProvider<_SpotifyDesktopFullScreenState>.value(
           value: _desktopState,
@@ -236,7 +235,7 @@ class _SpotifyDesktopFullScreenPlayerState
               lyricsProvider: lyricsProvider,
               currentTrack: currentTrack,
               canUseCanvas: canUseCanvas,
-              spotifyInternal: spotifyInternal,
+              metadataManager: metadataManager,
               scrollController: _scrollController,
             ),
           ),
@@ -262,7 +261,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
   final LyricsProvider lyricsProvider;
   final dynamic currentTrack;
   final bool canUseCanvas;
-  final SpotifyInternalProvider spotifyInternal;
+  final MetadataManager metadataManager;
   final ScrollController scrollController;
 
   const _SpotifyDesktopFullScreenBody({
@@ -270,7 +269,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     required this.lyricsProvider,
     required this.currentTrack,
     required this.canUseCanvas,
-    required this.spotifyInternal,
+    required this.metadataManager,
     required this.scrollController,
   });
 
@@ -296,7 +295,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     final song = currentTrack as GenericSong?;
     final trackId = song?.id;
     final canvasUrlFuture = canUseCanvas && trackId != null
-        ? spotifyInternal.getCanvasUrl(trackId)
+        ? metadataManager.getCanvasUrl(trackId, source: song?.source)
         : Future<String?>.value(null);
 
     return Consumer<_SpotifyDesktopFullScreenState>(

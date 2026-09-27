@@ -70,7 +70,13 @@ class LyricsProvider extends ChangeNotifier {
   bool get isInitialized => _sourceManager.isInitialized;
 
   LyricsFetchState getState(GenericSong track, LyricsSyncMode mode) {
-    return _cache[_key(track.id, mode)] ?? const LyricsFetchState.idle();
+    final direct = _cache[_key(track.id, mode)];
+    if (direct != null && direct.lyrics != null) return direct;
+    if (mode == LyricsSyncMode.line) {
+      final word = _cache[_key(track.id, LyricsSyncMode.word)];
+      if (word != null && word.lyrics != null) return word;
+    }
+    return direct ?? const LyricsFetchState.idle();
   }
 
   LyricsResult? getLyrics(GenericSong track, LyricsSyncMode mode) {
@@ -157,8 +163,24 @@ class LyricsProvider extends ChangeNotifier {
             '[LyricsProvider] Successfully resolved lyrics for "${track.title}" via ${result.providerLabel} (${result.lines.length} lines, sync: ${result.syncMode.name})',
           );
           await _writeCachedLyrics(track.id, mode, result);
-          if (result.isWordSynced && mode != LyricsSyncMode.word) {
+          if (result.isWordSynced) {
+            final wordState = LyricsFetchState(
+              isLoading: false,
+              lyrics: result,
+              hasFetched: true,
+            );
+            _cache[_key(track.id, LyricsSyncMode.word)] = wordState;
+            _cache[_key(track.id, LyricsSyncMode.line)] = wordState;
             await _writeCachedLyrics(track.id, LyricsSyncMode.word, result);
+            await _writeCachedLyrics(track.id, LyricsSyncMode.line, result);
+          } else if (result.isLineSynced) {
+            final lineState = LyricsFetchState(
+              isLoading: false,
+              lyrics: result,
+              hasFetched: true,
+            );
+            _cache[_key(track.id, LyricsSyncMode.line)] = lineState;
+            await _writeCachedLyrics(track.id, LyricsSyncMode.line, result);
           }
         } else {
           logger.w(
@@ -350,7 +372,7 @@ class LyricsProvider extends ChangeNotifier {
   LyricsResult _normalizeResult(LyricsResult result, LyricsSyncMode mode) {
     if (result.hasWordTiming &&
         result.syncMode != LyricsSyncMode.word &&
-        mode == LyricsSyncMode.word) {
+        mode != LyricsSyncMode.unsynced) {
       return LyricsResult(
         provider: result.provider,
         customProviderName: result.customProviderName,
@@ -367,23 +389,6 @@ class LyricsProvider extends ChangeNotifier {
         syncMode: LyricsSyncMode.unsynced,
         lines: result.lines
             .map((line) => LyricsLine(content: line.content, startTimeMs: 0))
-            .toList(),
-      );
-    }
-
-    if (mode == LyricsSyncMode.line && result.syncMode == LyricsSyncMode.word) {
-      return LyricsResult(
-        provider: result.provider,
-        customProviderName: result.customProviderName,
-        syncMode: LyricsSyncMode.line,
-        lines: result.lines
-            .map(
-              (line) => LyricsLine(
-                content: line.content,
-                startTimeMs: line.startTimeMs,
-                endTimeMs: line.endTimeMs,
-              ),
-            )
             .toList(),
       );
     }
@@ -499,7 +504,20 @@ class LyricsProvider extends ChangeNotifier {
         (p) => p.name == json['provider'],
         orElse: () => LyricsProviderType.lrclib,
       );
-      final customProviderName = json['customProviderName'] as String?;
+      var customProviderName = json['customProviderName'] as String?;
+      if (customProviderName == null ||
+          customProviderName.isEmpty ||
+          customProviderName.toLowerCase() == provider.name.toLowerCase()) {
+        final registered = LyricsSourceManager.instance.allSources
+            .cast<LyricsSource?>()
+            .firstWhere(
+              (s) =>
+                  s?.id.toLowerCase() ==
+                  (json['provider'] as String?)?.toLowerCase(),
+              orElse: () => null,
+            );
+        customProviderName = registered?.name ?? provider.label;
+      }
       final syncMode = LyricsSyncMode.values.firstWhere(
         (m) => m.name == json['syncMode'],
         orElse: () => LyricsSyncMode.unsynced,

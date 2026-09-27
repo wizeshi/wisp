@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
@@ -50,50 +50,44 @@ class PlaylistRow extends StatelessWidget {
 
   Future<void> _startPlaylistPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();
+    final metadataManager = context.read<MetadataManager>();
 
-    switch (playlist.source) {
-      case SongSource.spotify:
-      case SongSource.spotifyInternal:
-        {
-          final spotify = context.read<SpotifyInternalProvider>();
-          try {
-            final playlist = await spotify.getPlaylistInfo(this.playlist.id);
-            final items = playlist.songs ?? [];
-            if (items.isEmpty) return;
-            final tracks = items
-                .map(
-                  (item) => GenericSong(
-                    id: item.id,
-                    source: item.source,
-                    title: item.title,
-                    artists: item.artists,
-                    thumbnailUrl: item.thumbnailUrl,
-                    explicit: item.explicit,
-                    album: item.album,
-                    durationSecs: item.durationSecs,
-                  ),
-                )
-                .toList();
-            if (tracks.isEmpty) return;
-            if (context.mounted) {
-              await coordinator.setQueue(
-                tracks,
-                startIndex: 0,
-                play: true,
-                playbackContext: PlaybackContext(
-                  type: PlaybackContextType.playlist,
-                  name: playlist.title,
-                  id: playlist.id,
-                  source: playlist.source,
-                ),
-              );
-            }
-          } catch (_) {}
-        }
-
-      default:
-        break;
-    }
+    try {
+      final fullPlaylist = await metadataManager.getPlaylistInfo(
+        playlist.id,
+        source: playlist.source,
+      );
+      final items = fullPlaylist.songs ?? [];
+      if (items.isEmpty) return;
+      final tracks = items
+          .map(
+            (item) => GenericSong(
+              id: item.id,
+              source: item.source,
+              title: item.title,
+              artists: item.artists,
+              thumbnailUrl: item.thumbnailUrl,
+              explicit: item.explicit,
+              album: item.album,
+              durationSecs: item.durationSecs,
+            ),
+          )
+          .toList();
+      if (tracks.isEmpty) return;
+      if (context.mounted) {
+        await coordinator.setQueue(
+          tracks,
+          startIndex: 0,
+          play: true,
+          playbackContext: PlaybackContext(
+            type: PlaybackContextType.playlist,
+            name: fullPlaylist.title,
+            id: fullPlaylist.id,
+            source: fullPlaylist.source,
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _togglePlaylistPlayback(BuildContext context) async {

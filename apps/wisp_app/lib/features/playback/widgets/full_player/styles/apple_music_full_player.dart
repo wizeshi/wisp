@@ -17,7 +17,7 @@ import 'package:wisp/shared/widgets/display/marquee_text.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
@@ -847,11 +847,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       builder: (context, selectedIndex, _) {
         final index = selectedIndex.clamp(0, artists.length - 1);
         final selectedArtist = artists[index];
-        final spotifyInternal = context.read<SpotifyInternalProvider>();
+        final metadataManager = context.read<MetadataManager>();
 
         return FutureBuilder<GenericArtist?>(
           future: _getArtistInfoFuture(
-            spotifyInternal,
+            metadataManager,
             selectedArtist,
             track.id,
           ),
@@ -995,7 +995,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }
 
   Future<GenericArtist?> _loadArtistInfo(
-    SpotifyInternalProvider spotifyInternal,
+    MetadataManager metadataManager,
     GenericSimpleArtist artist,
     String? trackId,
   ) async {
@@ -1005,16 +1005,16 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     }
     try {
       if (trackId != null && trackId.isNotEmpty) {
-        return await spotifyInternal.getNpvArtistInfo(artist.id, trackId);
+        return await metadataManager.getNpvArtistInfo(artist.id, trackId);
       }
-      return await spotifyInternal.getArtistInfo(artist.id);
+      return await metadataManager.getArtistInfo(artist.id);
     } catch (_) {
       return null;
     }
   }
 
   Future<GenericArtist?> _getArtistInfoFuture(
-    SpotifyInternalProvider spotifyInternal,
+    MetadataManager metadataManager,
     GenericSimpleArtist artist,
     String? trackId,
   ) {
@@ -1024,7 +1024,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     final cacheKey = '${artist.source.name}:${artist.id}:$normalizedTrackId';
     return _artistInfoFutureCache.putIfAbsent(
       cacheKey,
-      () => _loadArtistInfo(spotifyInternal, artist, trackId),
+      () => _loadArtistInfo(metadataManager, artist, trackId),
     );
   }
 
@@ -1035,7 +1035,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }
 
   Future<String?>? _getCanvasUrlFuture(
-    SpotifyInternalProvider spotifyInternal,
+    MetadataManager metadataManager,
     GenericSong? currentTrack,
     bool canUseCanvas,
   ) {
@@ -1048,7 +1048,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return cached;
     }
     _pruneFutureCache<String?>(_canvasUrlFutureCache);
-    final future = spotifyInternal.getCanvasUrl(trackId);
+    final future = metadataManager.getCanvasUrl(trackId);
     _canvasUrlFutureCache[trackId] = future;
     return future;
   }
@@ -2441,9 +2441,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             currentTrack != null &&
             (currentTrack.source == SongSource.spotifyInternal ||
                 currentTrack.source == SongSource.spotify);
-        final spotifyInternal = context.read<SpotifyInternalProvider>();
+        final metadataManager = context.read<MetadataManager>();
         final Future<String?>? canvasFuture = _getCanvasUrlFuture(
-          spotifyInternal,
+          metadataManager,
           currentTrack,
           canUseCanvas,
         );

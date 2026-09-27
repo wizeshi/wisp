@@ -14,7 +14,7 @@ import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 
@@ -75,21 +75,15 @@ class PlaylistFolderModals {
     }
     final linkedId = localPlaylist.linkedId;
     if (linkedId == null || linkedId.isEmpty) return;
-    if (localPlaylist.linkedSource != SongSource.spotifyInternal) {
-      _showSyncErrorSnack(
-        context,
-        'Playlist is not linked to Spotify (Internal).',
-      );
-      return;
-    }
     try {
-      await context.read<SpotifyInternalProvider>().renamePlaylist(
+      await context.read<MetadataManager>().renamePlaylist(
         linkedId,
         name,
+        source: localPlaylist.linkedSource,
       );
     } catch (e) {
       if (context.mounted) {
-        _showSyncErrorSnack(context, 'Failed to rename on Spotify: $e');
+        _showSyncErrorSnack(context, 'Failed to rename on provider: $e');
       }
     }
   }
@@ -105,18 +99,14 @@ class PlaylistFolderModals {
     }
     final linkedId = localPlaylist.linkedId;
     if (linkedId == null || linkedId.isEmpty) return;
-    if (localPlaylist.linkedSource != SongSource.spotifyInternal) {
-      _showSyncErrorSnack(
-        context,
-        'Playlist is not linked to Spotify (Internal).',
-      );
-      return;
-    }
     try {
-      await context.read<SpotifyInternalProvider>().deletePlaylist(linkedId);
+      await context.read<MetadataManager>().deletePlaylist(
+        linkedId,
+        source: localPlaylist.linkedSource,
+      );
     } catch (e) {
       if (context.mounted) {
-        _showSyncErrorSnack(context, 'Failed to delete on Spotify: $e');
+        _showSyncErrorSnack(context, 'Failed to delete on provider: $e');
       }
     }
   }
@@ -129,32 +119,35 @@ class PlaylistFolderModals {
       _showWriteBlockedSnack(context);
       return;
     }
-    final spotifyInternal = context.read<SpotifyInternalProvider>();
-    if (!spotifyInternal.isAuthenticated) {
-      _showSyncErrorSnack(context, 'Spotify (Internal) is not connected.');
+    final metadataManager = context.read<MetadataManager>();
+    if (!metadataManager.isAuthenticated) {
+      _showSyncErrorSnack(context, 'Active provider is not connected.');
       return;
     }
     String? linkedId;
+    final activeSource = metadataManager.activeCatalogProvider != null
+        ? SongSource(metadataManager.activeCatalogProvider!.providerId)
+        : SongSource.spotifyInternal;
     try {
-      linkedId = await spotifyInternal.createPlaylist(
+      linkedId = await metadataManager.createPlaylist(
         name: localPlaylist.title,
       );
     } catch (e) {
       if (context.mounted) {
-        _showSyncErrorSnack(context, 'Failed to create on Spotify: $e');
+        _showSyncErrorSnack(context, 'Failed to create playlist: $e');
       }
       return;
     }
     if (linkedId.isEmpty) {
       if (context.mounted) {
-        _showSyncErrorSnack(context, 'Failed to create Spotify playlist.');
+        _showSyncErrorSnack(context, 'Failed to create remote playlist.');
       }
       return;
     }
     if (context.mounted) {
       await context.read<LocalPlaylistState>().linkToProvider(
         id: localPlaylist.id,
-        provider: SongSource.spotifyInternal,
+        provider: activeSource,
         providerId: linkedId,
       );
     }

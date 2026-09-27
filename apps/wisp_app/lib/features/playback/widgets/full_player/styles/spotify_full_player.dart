@@ -11,7 +11,7 @@ import 'package:wisp/features/connect/widgets/connect_menu.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
@@ -996,7 +996,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 currentTrack != null &&
                 (currentTrack.source == SongSource.spotifyInternal ||
                     currentTrack.source == SongSource.spotify);
-            final spotifyInternal = context.read<SpotifyInternalProvider>();
+            final metadataManager = context.read<MetadataManager>();
 
             final maxHeight = MediaQuery.sizeOf(context).height;
 
@@ -1135,7 +1135,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             }
 
             return FutureBuilder<String?>(
-              future: spotifyInternal.getCanvasUrl(currentTrack.id),
+              future: metadataManager.getCanvasUrl(currentTrack.id),
               builder: (context, snapshot) {
                 final canvasUrl = snapshot.data ?? '';
                 return buildPlayerScaffold(context, canvasUrl: canvasUrl);

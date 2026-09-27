@@ -19,9 +19,7 @@ import 'package:wisp/shared/widgets/rows/track_row.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
-import 'package:wisp/data/sources/youtube/youtube_metadata.dart';
-import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/search/state/search_state.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
@@ -134,26 +132,23 @@ class _SearchViewState extends State<SearchView> {
     }
   }
 
-  List<String> _availableSources(PreferencesProvider preferences) {
-    final sources = <String>[];
-    if (preferences.metadataSpotifyEnabled) {
-      sources.add('Spotify');
-    }
-    if (preferences.metadataYouTubeEnabled) {
-      sources.add('YouTube');
-    }
-    return sources;
+  List<String> _availableSources(MetadataManager metadataManager) {
+    return metadataManager.availableProviders
+        .map((p) => p.displayName)
+        .toList();
   }
 
   IconData _sourceIcon(String source) {
-    return source == 'YouTube' ? Icons.ondemand_video : Icons.music_note;
+    return source.toLowerCase().contains('youtube')
+        ? Icons.ondemand_video
+        : Icons.music_note;
   }
 
   Future<void> _performSearch(String query) async {
     if (!mounted) return;
 
-    final preferences = context.read<PreferencesProvider>();
-    final availableSources = _availableSources(preferences);
+    final metadataManager = context.read<MetadataManager>();
+    final availableSources = _availableSources(metadataManager);
     if (availableSources.isEmpty) {
       setState(() {
         _isLoading = false;
@@ -178,55 +173,46 @@ class _SearchViewState extends State<SearchView> {
       _lastQuery = query;
     });
 
-    final spotify = context.read<SpotifyInternalProvider>();
-    final youtube = context.read<YouTubeMetadataProvider>();
-
-    List<GenericSong> spotifyTracks = [];
-    List<GenericSimpleArtist> spotifyArtists = [];
-    List<GenericAlbum> spotifyAlbums = [];
-    List<GenericPlaylist> spotifyPlaylists = [];
-    SearchBestMatch? spotifyBestMatch;
-    List<GenericSong> youtubeTracks = [];
+    SearchResults results = SearchResults(
+      tracks: const [],
+      artists: const [],
+      albums: const [],
+      playlists: const [],
+    );
     String? fetchError;
 
-    if (selectedSource == 'YouTube') {
-      try {
-        youtubeTracks = await youtube.searchTracks(query, limit: 12);
-      } catch (e) {
-        fetchError = e.toString();
-      }
-    } else {
-      try {
-        final results = await spotify.search(query, limit: 20);
-        spotifyTracks = results.tracks;
-        spotifyArtists = results.artists;
-        spotifyAlbums = results.albums;
-        spotifyPlaylists = results.playlists;
-        spotifyBestMatch = results.bestMatch;
-      } catch (e) {
-        fetchError = e.toString();
-      }
+    try {
+      results = await metadataManager.search(
+        query,
+        providerId: selectedSource,
+        limit: 20,
+      );
+    } catch (e) {
+      fetchError = e.toString();
     }
 
     if (!mounted) return;
 
     setState(() {
-      _tracks = selectedSource == 'YouTube' ? youtubeTracks : spotifyTracks;
-      _artists = selectedSource == 'YouTube' ? [] : spotifyArtists;
-      _albums = selectedSource == 'YouTube' ? [] : spotifyAlbums;
-      _playlists = selectedSource == 'YouTube' ? [] : spotifyPlaylists;
-      _bestMatch = selectedSource == 'YouTube'
-          ? (youtubeTracks.isNotEmpty
-                ? SearchBestMatch.track(youtubeTracks.first)
-                : null)
-          : spotifyBestMatch;
+      _tracks = results.tracks;
+      _artists = results.artists;
+      _albums = results.albums;
+      _playlists = results.playlists;
+      _bestMatch = results.bestMatch ??
+          (results.tracks.isNotEmpty
+              ? SearchBestMatch.track(results.tracks.first)
+              : null);
       _error = fetchError != null && _tracks.isEmpty ? fetchError : null;
       _isLoading = false;
     });
 
     // Record to history only when we got at least some results and no error
     // blew the whole search away.
-    if (_error == null && (_tracks.isNotEmpty || _artists.isNotEmpty || _albums.isNotEmpty || _playlists.isNotEmpty)) {
+    if (_error == null &&
+        (_tracks.isNotEmpty ||
+            _artists.isNotEmpty ||
+            _albums.isNotEmpty ||
+            _playlists.isNotEmpty)) {
       _searchState.addToHistory(query);
     }
 
@@ -253,14 +239,8 @@ class _SearchViewState extends State<SearchView> {
 
   @override
   Widget build(BuildContext context) {
-    final (spotifyEnabled, ytEnabled) =
-        context.select<PreferencesProvider, (bool, bool)>(
-      (p) => (p.metadataSpotifyEnabled, p.metadataYouTubeEnabled),
-    );
-    final availableSources = <String>[
-      if (spotifyEnabled) 'Spotify',
-      if (ytEnabled) 'YouTube',
-    ];
+    final metadataManager = context.watch<MetadataManager>();
+    final availableSources = _availableSources(metadataManager);
     final selectedSource = context.select<SearchState, String>(
       (state) => state.selectedSource,
     );
@@ -448,9 +428,12 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildMobileTypePills(String effectiveSource) {
-    final tabs = effectiveSource == 'YouTube'
-        ? const [SearchTab.tracks]
-        : SearchTab.values;
+    final isTrackOnly = effectiveSource.toLowerCase().contains('youtube') ||
+        (_tracks.isNotEmpty &&
+            _artists.isEmpty &&
+            _albums.isEmpty &&
+            _playlists.isEmpty);
+    final tabs = isTrackOnly ? const [SearchTab.tracks] : SearchTab.values;
 
     if (!tabs.contains(_selectedTab)) {
       _selectedTab = tabs.first;
@@ -489,7 +472,12 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildMobileSelectedTypeList(String effectiveSource) {
-    if (effectiveSource == 'YouTube') {
+    final isTrackOnly = effectiveSource.toLowerCase().contains('youtube') ||
+        (_tracks.isNotEmpty &&
+            _artists.isEmpty &&
+            _albums.isEmpty &&
+            _playlists.isEmpty);
+    if (isTrackOnly) {
       return Column(
         children: _tracks
             .map((track) => _buildMobileTrackRow(track))
@@ -501,8 +489,8 @@ class _SearchViewState extends State<SearchView> {
       case SearchTab.tracks:
         return Column(
           children: _tracks
-              .map((track) => _buildMobileTrackRow(track))
-              .toList(growable: false),
+            .map((track) => _buildMobileTrackRow(track))
+            .toList(growable: false),
         );
       case SearchTab.artists:
         return Column(
@@ -530,10 +518,7 @@ class _SearchViewState extends State<SearchView> {
       type: PlaybackContextType.searchResults,
       name: _lastQuery,
       id: '',
-      source: SongSource.values.firstWhere(
-        (source) => source.name == _searchState.selectedSource,
-        orElse: () => SongSource.spotify,
-      ),
+      source: track.source,
     );
 
     return Padding(
@@ -788,14 +773,14 @@ class _SearchViewState extends State<SearchView> {
     }
 
     final visibleSongs = songs.take(maxItems).toList();
+    final searchSource = visibleSongs.isNotEmpty
+        ? visibleSongs.first.source
+        : SongSource.spotify;
     final searchContext = PlaybackContext(
       type: PlaybackContextType.searchResults,
       name: _lastQuery,
       id: '',
-      source: SongSource.values.firstWhere(
-        (source) => source.name == _searchState.selectedSource,
-        orElse: () => SongSource.spotify,
-      ),
+      source: searchSource,
     );
 
     return Column(
@@ -1115,9 +1100,7 @@ class _SearchViewState extends State<SearchView> {
           type: PlaybackContextType.searchResults,
           name: _lastQuery,
           id: '',
-          source: SongSource.values.firstWhere(
-            (source) => source.name == _searchState.selectedSource,
-          ),
+          source: queue[index].source,
         ),
       ),
     );
@@ -1162,11 +1145,14 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Future<void> _playAlbum(BuildContext context, String albumId) async {
-    final spotify = context.read<SpotifyInternalProvider>();
+    final metadataManager = context.read<MetadataManager>();
     final playback = context.read<PlaybackCoordinator>();
 
     try {
-      final album = await spotify.getAlbumInfo(albumId);
+      final album = await metadataManager.getAlbumInfo(
+        albumId,
+        providerId: _searchState.selectedSource,
+      );
       final tracks = album.songs ?? [];
       if (tracks.isEmpty) return;
 
@@ -1189,11 +1175,14 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Future<void> _playPlaylist(BuildContext context, String playlistId) async {
-    final spotify = context.read<SpotifyInternalProvider>();
+    final metadataManager = context.read<MetadataManager>();
     final playback = context.read<PlaybackCoordinator>();
 
     try {
-      final playlist = await spotify.getPlaylistInfo(playlistId);
+      final playlist = await metadataManager.getPlaylistInfo(
+        playlistId,
+        providerId: _searchState.selectedSource,
+      );
       final items = playlist.songs ?? [];
       if (items.isEmpty) return;
 
@@ -1235,11 +1224,14 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Future<void> _playArtist(BuildContext context, String artistId) async {
-    final spotify = context.read<SpotifyInternalProvider>();
+    final metadataManager = context.read<MetadataManager>();
     final playback = context.read<PlaybackCoordinator>();
 
     try {
-      final artist = await spotify.getArtistInfo(artistId);
+      final artist = await metadataManager.getArtistInfo(
+        artistId,
+        providerId: _searchState.selectedSource,
+      );
       final tracks = artist.topSongs;
       if (tracks.isEmpty) return;
 

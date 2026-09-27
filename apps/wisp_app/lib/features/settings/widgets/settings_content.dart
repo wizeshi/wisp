@@ -3,8 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/models/metadata_provider.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/features/settings/views/providers_marketplace_view.dart';
 
@@ -41,22 +41,18 @@ class SettingsContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget Function()> providerConsumers = [
-      () => Consumer<SpotifyInternalProvider>(
-        builder: (context, providerInstance, child) {
-          return buildProviderCard(
+    final metadataManager = context.watch<MetadataManager>();
+    final providerCards = metadataManager.availableProviders
+        .where((providerInstance) => providerInstance.supportsAuth == true)
+        .map(
+          (providerInstance) => buildProviderCard(
             context,
             providerInstance,
-            providerInstance.name,
+            providerInstance.displayName,
             Icons.library_music,
             Theme.of(context).colorScheme.primary,
-          );
-        },
-      ),
-    ];
-
-    final providerCards = providerConsumers
-        .map((builder) => builder())
+          ),
+        )
         .expand((w) => [w, const SizedBox(height: 16)])
         .toList();
 

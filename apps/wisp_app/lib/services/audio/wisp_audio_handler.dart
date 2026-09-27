@@ -18,8 +18,8 @@ import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/services/discord/discord_rpc_service.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
@@ -280,10 +280,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   PlaybackContext? get playbackContext => _playbackContext;
   bool get isDJMode => _playbackContext?.type == PlaybackContextType.dj;
 
-  SpotifyInternalProvider? _spotifyProvider;
+  MetadataManager? _metadataManager;
 
-  void bindSpotifyProvider(SpotifyInternalProvider spotifyProvider) {
-    _spotifyProvider = spotifyProvider;
+  void bindMetadataManager(MetadataManager metadataManager) {
+    _metadataManager = metadataManager;
   }
 
   List<AudioOutputDevice> get outputDevices => _availableOutputDevices;
@@ -1537,9 +1537,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return true;
     }
 
-    final spotify = _spotifyProvider;
-    if (spotify == null) {
-      logger.w('[Audio/DJ] Cannot fetch similar tracks: Spotify provider not bound');
+    final metadata = _metadataManager;
+    if (metadata == null) {
+      logger.w('[Audio/DJ] Cannot fetch similar tracks: MetadataManager not bound');
       return false;
     }
 
@@ -1553,7 +1553,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       logger.i(
         '[Audio/DJ] Fetching similar tracks for end of queue: ${lastTrack.title} ($cleanId)',
       );
-      final similar = await spotify.getSimilarTracks(cleanId);
+      final similar = await metadata.getSimilarTracks(cleanId, source: lastTrack.source);
       if (similar == null || similar.isEmpty) {
         logger.w('[Audio/DJ] getSimilarTracks returned null or empty');
         return false;

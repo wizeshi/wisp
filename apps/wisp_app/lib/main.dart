@@ -12,13 +12,15 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:fvp/fvp.dart' as fvp;
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/services/system/protocol_registrar.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
 import 'package:wisp/data/sources/youtube/youtube_metadata.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
+import 'package:wisp/data/sources/metadata/metadata_source_manager.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_source_manager.dart';
 import 'package:wisp/features/library/state/library_state.dart';
@@ -38,9 +40,10 @@ import 'package:wisp/services/discord/discord_rpc_service.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
 import 'package:wisp/features/onboarding/views/mobile_welcome_view.dart';
-import 'package:wisp/features/shell/widgets/app_shell.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/features/shell/widgets/app_shell.dart';
+import 'package:wisp/features/shell/navigation/navigation_history.dart';
 
 void main() async {
   MediaKit.ensureInitialized();
@@ -130,7 +133,9 @@ void main() async {
   // Initialize listening habits service
   await ListeningHabitsService.instance.initialize();
 
-  // Initialize lyrics source manager early so providers are ready before UI builds
+  // Initialize auth, metadata, and lyrics source managers early so providers are ready before UI builds
+  await AuthSourceManager.instance.initialize();
+  await MetadataSourceManager.instance.initialize();
   await LyricsSourceManager.instance.initialize();
 
   if (Platform.isAndroid) {
@@ -182,25 +187,19 @@ class WispApp extends StatelessWidget {
   final WispAudioHandler audioHandler;
   final PlaybackCoordinator playbackCoordinator;
   final AppLinks appLinks;
-  final SpotifyInternalProvider spotifyProvider;
 
-  WispApp({
+  const WispApp({
     super.key,
     required this.audioHandler,
     required this.playbackCoordinator,
     required this.appLinks,
-    SpotifyInternalProvider? spotifyProvider,
-  }) : spotifyProvider = spotifyProvider ?? SpotifyInternalProvider() {
-    ListeningHabitsService.instance.bindSpotifyProvider(this.spotifyProvider);
-    audioHandler.bindSpotifyProvider(this.spotifyProvider);
-  }
+  });
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         // Providers for various services and state management
-        ChangeNotifierProvider.value(value: spotifyProvider),
         ChangeNotifierProvider(create: (_) => YouTubeMetadataProvider()),
 
         ChangeNotifierProvider(create: (_) => LyricsProvider()),
@@ -208,6 +207,32 @@ class WispApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => LocalPlaylistState()),
 
         ChangeNotifierProvider(create: (_) => PreferencesProvider()),
+        ChangeNotifierProxyProvider2<
+          YouTubeMetadataProvider,
+          PreferencesProvider,
+          MetadataManager
+        >(
+          create: (ctx) {
+            final m = MetadataManager(
+              youtubeProvider: ctx.read<YouTubeMetadataProvider>(),
+              preferences: ctx.read<PreferencesProvider>(),
+            );
+            ListeningHabitsService.instance.bindMetadataManager(m);
+            audioHandler.bindMetadataManager(m);
+            return m;
+          },
+          update: (_, youtube, preferences, manager) {
+            final m = manager ??
+                MetadataManager(
+                  youtubeProvider: youtube,
+                  preferences: preferences,
+                );
+            m.bindPreferences(preferences);
+            ListeningHabitsService.instance.bindMetadataManager(m);
+            audioHandler.bindMetadataManager(m);
+            return m;
+          },
+        ),
 
         ChangeNotifierProxyProvider<LocalPlaylistState, LibraryState>(
           create: (_) => LibraryState(),
@@ -255,6 +280,7 @@ class WispApp extends StatelessWidget {
       child: Consumer2<CoverArtPaletteProvider, PreferencesProvider>(
         builder: (context, palette, preferences, child) {
           return MaterialApp(
+            navigatorKey: NavigationHistory.instance.rootNavigatorKey,
             title: 'Wisp',
             scrollBehavior: const DesktopSmoothScrollBehavior(),
             theme: AppTheme.dark(

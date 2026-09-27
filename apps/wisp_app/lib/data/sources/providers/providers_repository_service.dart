@@ -9,7 +9,9 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_source_manager.dart';
+import 'package:wisp/data/sources/metadata/metadata_source_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import 'provider_package_model.dart';
@@ -35,8 +37,10 @@ class ProvidersRepositoryService {
       ValueNotifier<List<ProviderPackage>>([]);
 
   /// Check whether a specific provider has an update available.
-  bool hasUpdateForProvider(String id) {
-    return packagesWithUpdate.value.any((pkg) => pkg.id == id);
+  bool hasUpdateForProvider(String id, {String? type}) {
+    return packagesWithUpdate.value.any(
+      (pkg) => pkg.id == id && (type == null || pkg.type == type),
+    );
   }
 
   /// Get the local providers root directory for the app.
@@ -115,7 +119,7 @@ class ProvidersRepositoryService {
                   ? siblingFiles
                   : ['manifest.json', 'index.js'];
               final pkg = ProviderPackage.fromJson(json);
-              discovered[pkg.id] = pkg;
+              discovered[pkg.uniqueKey] = pkg;
             }
           } catch (e) {
             logger.d(
@@ -166,16 +170,17 @@ class ProvidersRepositoryService {
                 : ['manifest.json', 'index.js'];
 
             final pkg = ProviderPackage.fromJson(json);
-            if (discovered.containsKey(pkg.id)) {
-              final existing = discovered[pkg.id]!;
+            final key = pkg.uniqueKey;
+            if (discovered.containsKey(key)) {
+              final existing = discovered[key]!;
               if (ProviderPackage.isNewerVersion(pkg.version, existing.version)) {
-                discovered[pkg.id] = pkg;
+                discovered[key] = pkg;
               } else if (!ProviderPackage.isNewerVersion(existing.version, pkg.version)) {
                 // When versions are equal, prefer local workspace definition
-                discovered[pkg.id] = pkg;
+                discovered[key] = pkg;
               }
             } else {
-              discovered[pkg.id] = pkg;
+              discovered[key] = pkg;
             }
           } catch (e) {
             logger.d('[ProvidersRepositoryService] Local manifest error: $e');
@@ -210,16 +215,20 @@ class ProvidersRepositoryService {
         }
       } else {
         // Also check if currently loaded in source manager (e.g. built-in)
-        final loaded = LyricsSourceManager.instance.allSources.any(
-          (s) => s.id == pkg.id,
-        );
+        final loaded = pkg.type == 'metadata'
+            ? MetadataSourceManager.instance.sources.containsKey(pkg.id)
+            : pkg.type == 'auth'
+                ? AuthSourceManager.instance.sources.containsKey(pkg.id)
+                : LyricsSourceManager.instance.allSources.any(
+                    (s) => s.id == pkg.id,
+                  );
         if (loaded) {
           isInstalled = true;
           installedVersion = pkg.version;
         }
       }
 
-      final isEnabled = preferences != null
+      bool isEnabled = preferences != null
           ? preferences.isProviderEnabled(pkg.id)
           : await PreferencesProvider.isProviderEnabledStatic(pkg.id);
 
@@ -274,7 +283,7 @@ class ProvidersRepositoryService {
       }
 
       for (final fileName in pkg.files) {
-        String? content;
+        Uint8List? bytes;
 
         // Try remote download
         try {
@@ -283,12 +292,12 @@ class ProvidersRepositoryService {
               .get(Uri.parse(fileUrl))
               .timeout(const Duration(seconds: 10));
           if (res.statusCode == 200) {
-            content = res.body;
+            bytes = res.bodyBytes;
           }
         } catch (_) {}
 
         // Fallback to local workspace files if available
-        if (content == null) {
+        if (bytes == null) {
           final localPaths = [
             p.join(Directory.current.path, 'providers', pkg.path, fileName),
             p.join(
@@ -311,15 +320,15 @@ class ProvidersRepositoryService {
           for (final lp in localPaths) {
             final f = File(lp);
             if (f.existsSync()) {
-              content = await f.readAsString();
+              bytes = await f.readAsBytes();
               break;
             }
           }
         }
 
-        if (content != null) {
+        if (bytes != null) {
           final targetFile = File(p.join(targetDir.path, fileName));
-          await targetFile.writeAsString(content);
+          await targetFile.writeAsBytes(bytes);
         } else {
           logger.w(
             '[ProvidersRepositoryService] Could not find content for $fileName',
@@ -327,10 +336,40 @@ class ProvidersRepositoryService {
         }
       }
 
-      // Reload source manager so changes are immediately active
+      // Auto-install dependencies if not already installed
+      if (pkg.dependencies.isNotEmpty) {
+        for (final depPath in pkg.dependencies) {
+          final depDir = Directory(p.join(baseDir.path, depPath));
+          if (!depDir.existsSync()) {
+            final catalog = await fetchCatalog();
+            final depPkg = catalog
+                .where((p) => p.path == depPath || p.uniqueKey == depPath)
+                .firstOrNull;
+            if (depPkg != null) {
+              logger.i(
+                '[ProvidersRepositoryService] Installing dependency $depPath for ${pkg.name}...',
+              );
+              await installOrUpdateProvider(depPkg);
+            }
+          }
+        }
+      }
+
+      // Clear uninstalled state in source managers
+      if (pkg.type == 'metadata') {
+        MetadataSourceManager.instance.clearUninstalled(pkg.id);
+      } else if (pkg.type == 'lyrics') {
+        LyricsSourceManager.instance.clearUninstalled(pkg.id);
+      } else if (pkg.type == 'auth') {
+        AuthSourceManager.instance.clearUninstalled(pkg.id);
+      }
+
+      // Reload source managers so changes are immediately active
       await LyricsSourceManager.instance.reload();
+      await MetadataSourceManager.instance.reload();
+      await AuthSourceManager.instance.reload();
       packagesWithUpdate.value = packagesWithUpdate.value
-          .where((p) => p.id != pkg.id)
+          .where((p) => p.uniqueKey != pkg.uniqueKey)
           .toList();
       updatesAvailableCount.value = packagesWithUpdate.value.length;
       logger.i(
@@ -354,9 +393,20 @@ class ProvidersRepositoryService {
         targetDir.deleteSync(recursive: true);
       }
 
+      // Immediately unregister from memory
+      if (pkg.type == 'metadata') {
+        MetadataSourceManager.instance.unregisterSource(pkg.id);
+      } else if (pkg.type == 'lyrics') {
+        LyricsSourceManager.instance.unregisterSource(pkg.id);
+      } else if (pkg.type == 'auth') {
+        AuthSourceManager.instance.unregisterSource(pkg.id);
+      }
+
       await LyricsSourceManager.instance.reload();
+      await MetadataSourceManager.instance.reload();
+      await AuthSourceManager.instance.reload();
       packagesWithUpdate.value = packagesWithUpdate.value
-          .where((p) => p.id != pkg.id)
+          .where((p) => p.uniqueKey != pkg.uniqueKey)
           .toList();
       updatesAvailableCount.value = packagesWithUpdate.value.length;
       logger.i(

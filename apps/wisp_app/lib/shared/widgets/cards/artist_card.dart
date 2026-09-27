@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
@@ -28,35 +28,29 @@ class ArtistCard extends StatelessWidget {
 
   Future<void> _startArtistPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();
+    final metadataManager = context.read<MetadataManager>();
 
-    switch (artist.source) {
-      case SongSource.spotify:
-      case SongSource.spotifyInternal:
-        {
-          final spotify = context.read<SpotifyInternalProvider>();
-          try {
-            final artist = await spotify.getArtistInfo(this.artist.id);
-            final tracks = artist.topSongs;
-            if (tracks.isEmpty) return;
-            if (context.mounted) {
-              await coordinator.setQueue(
-                tracks,
-                startIndex: 0,
-                play: true,
-                playbackContext: PlaybackContext(
-                  type: PlaybackContextType.artist,
-                  name: artist.name,
-                  id: artist.id,
-                  source: artist.source,
-                ),
-              );
-            }
-          } catch (_) {}
-        }
-
-      default:
-        break;
-    }
+    try {
+      final fullArtist = await metadataManager.getArtistInfo(
+        artist.id,
+        source: artist.source,
+      );
+      final tracks = fullArtist.topSongs;
+      if (tracks.isEmpty) return;
+      if (context.mounted) {
+        await coordinator.setQueue(
+          tracks,
+          startIndex: 0,
+          play: true,
+          playbackContext: PlaybackContext(
+            type: PlaybackContextType.artist,
+            name: fullArtist.name,
+            id: fullArtist.id,
+            source: fullArtist.source,
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   Future<void> _toggleArtistPlayback(BuildContext context) async {

@@ -149,9 +149,9 @@ async function getLyrics(query) {
   const hasWords = lines.some(l => l.words.length > 0);
   const syncMode = (mode === 'unsynced')
     ? 'unsynced'
-    : (mode === 'line' || !hasWords)
-      ? 'line'
-      : 'word';
+    : hasWords
+      ? 'word'
+      : 'line';
 
   return {
     provider: 'betterlyrics',

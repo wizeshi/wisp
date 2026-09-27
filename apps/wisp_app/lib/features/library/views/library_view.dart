@@ -9,8 +9,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/shell/widgets/navigation.dart';
@@ -168,8 +168,8 @@ class LibraryTabViewState extends State<LibraryTabView> {
       );
 
       final preferences = context.read<PreferencesProvider>();
-      final spotify = context.read<SpotifyInternalProvider>();
-      if (preferences.metadataSpotifyEnabled && spotify.isAuthenticated) {
+      final metadata = context.read<MetadataManager>();
+      if (preferences.metadataSpotifyEnabled && metadata.isAuthenticated) {
         unawaited(_refreshPlaylists(policy: MetadataFetchPolicy.refreshAlways));
       }
     });
@@ -248,7 +248,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
     }
 
     return buildLikedSongsPlaylist(
-      userDisplayName: context.read<SpotifyInternalProvider>().userDisplayName,
+      userDisplayName: context.read<MetadataManager>().userDisplayName,
     );
   }
 
@@ -267,7 +267,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
     setState(() => _isLoadingPlaylists = true);
 
-    final spotify = context.read<SpotifyInternalProvider>();
+    final spotify = context.read<MetadataManager>();
 
     try {
       final morePlaylists = await spotify.getUserPlaylists(
@@ -310,7 +310,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
     setState(() => _isLoadingAlbums = true);
 
-    final spotify = context.read<SpotifyInternalProvider>();
+    final spotify = context.read<MetadataManager>();
 
     try {
       final moreAlbums = await spotify.getUserAlbums(
@@ -344,7 +344,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
     setState(() => _isLoadingArtists = true);
 
-    final spotify = context.read<SpotifyInternalProvider>();
+    final spotify = context.read<MetadataManager>();
 
     try {
       final moreArtists = await spotify.getUserFollowedArtists(
@@ -518,7 +518,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
         color: const Color(0xFF282828),
         onSelected: (mode) {
           folderState.setSortMode(mode);
-          context.read<SpotifyInternalProvider>().fetchUserLibrarySorted(
+          context.read<MetadataManager>().fetchUserLibrarySorted(
             sortMode: mode,
           );
         },

@@ -23,6 +23,7 @@ import '../widgets/provider_preferences_dialog.dart';
 import '../widgets/cache_deletion_dialog.dart';
 import '../widgets/trusted_devices_dialog.dart';
 import '../widgets/update_widget.dart';
+import 'package:wisp/shared/widgets/display/provider_icon.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -633,7 +634,13 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           Row(
             children: [
-              Icon(icon, color: accentColor, size: 32),
+              ProviderIcon(
+                providerId: provider.providerId,
+                type: 'metadata',
+                size: 32,
+                fallbackIcon: icon,
+                color: accentColor,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

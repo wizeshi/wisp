@@ -11,7 +11,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/core/theme/cover_art_palette_provider.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/core/theme/app_theme.dart';
@@ -84,18 +84,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       return;
     }
 
-    final spotify = context.read<SpotifyInternalProvider>();
+    final metadataManager = context.read<MetadataManager>();
     setState(() => _isLoading = true);
     try {
-      /* final cachedArtist = await spotify.getCachedArtistInfo(widget.artistId);
-      if (cachedArtist != null && mounted) {
-        setState(() {
-          _artist = cachedArtist;
-          _isLoading = false;
-        });
-      } */
-
-      final artist = await spotify.getArtistInfo(
+      final artist = await metadataManager.getArtistInfo(
         widget.artistId,
         policy: MetadataFetchPolicy.refreshAlways,
       );
@@ -1721,12 +1713,12 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Future<void> _toggleFollowArtist(bool isFollowed) async {
-    final spotifyInternal = context.read<SpotifyInternalProvider>();
-    if (!spotifyInternal.isAuthenticated) {
+    final metadataManager = context.read<MetadataManager>();
+    if (!metadataManager.isAuthenticated) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Spotify (Internal) is not connected.'),
+            content: Text('Provider is not connected.'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -1737,17 +1729,18 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     final artistId = widget.artistId;
     final artist = _artist;
     final fallback = widget.initialArtist;
+    final source = artist?.source ?? fallback?.source ?? SongSource.spotifyInternal;
     final simpleArtist = artist != null
         ? GenericSimpleArtist(
             id: artist.id,
-            source: SongSource.spotifyInternal,
+            source: artist.source,
             name: artist.name,
             thumbnailUrl: artist.thumbnailUrl,
           )
         : fallback != null
         ? GenericSimpleArtist(
             id: fallback.id,
-            source: SongSource.spotifyInternal,
+            source: fallback.source,
             name: fallback.name,
             thumbnailUrl: fallback.thumbnailUrl,
           )
@@ -1755,11 +1748,11 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
 
     try {
       if (isFollowed) {
-        await spotifyInternal.unfollowArtist(artistId);
+        await metadataManager.unfollowArtist(artistId, source: source);
         if (!mounted) return;
         context.read<LibraryState>().removeArtist(artistId);
       } else {
-        await spotifyInternal.followArtist(artistId);
+        await metadataManager.followArtist(artistId, source: source);
         if (!mounted) return;
         if (simpleArtist != null) {
           context.read<LibraryState>().addArtist(simpleArtist);

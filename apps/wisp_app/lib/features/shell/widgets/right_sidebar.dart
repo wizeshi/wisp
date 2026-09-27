@@ -8,11 +8,11 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
 import 'package:wisp/core/utils/text_parser.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/shell/navigation/navigation_state.dart';
 import 'package:wisp/services/system/app_focus_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
@@ -535,9 +535,9 @@ class _NowPlayingCard extends StatelessWidget {
               return buildCard();
             }
 
-            final spotifyInternal = context.read<SpotifyInternalProvider>();
+            final metadataManager = context.read<MetadataManager>();
             return FutureBuilder<String?>(
-              future: spotifyInternal.getCanvasUrl(track.id),
+              future: metadataManager.getCanvasUrl(track.id),
               builder: (context, snapshot) {
                 final canvasUrl = snapshot.data ?? '';
                 return buildCard(canvasUrl: canvasUrl);
@@ -1176,14 +1176,14 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
   Widget build(BuildContext context) {
     return Selector2<
       WispAudioHandler,
-      SpotifyInternalProvider,
+      MetadataManager,
       (GenericSong?, bool)
     >(
-      selector: (context, player, spotifyInternal) =>
-          (player.currentTrack, spotifyInternal.isAuthenticated),
+      selector: (context, player, metadata) =>
+          (player.currentTrack, metadata.isAuthenticated),
       builder: (context, data, child) {
         final (track, isAuthenticated) = data;
-        final spotifyInternal = context.read<SpotifyInternalProvider>();
+        final metadata = context.read<MetadataManager>();
         final artist = track?.artists.isNotEmpty == true
             ? track!.artists.first
             : null;
@@ -1197,7 +1197,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
         if (shouldRefetch) {
           _artistId = artist.id;
           _trackId = track?.id;
-          _artistFuture = _loadArtist(spotifyInternal, artist, track?.id ?? '');
+          _artistFuture = _loadArtist(metadata, artist, track?.id ?? '');
         }
 
         _wasAuthenticated = isAuthenticated;
@@ -1353,21 +1353,21 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
   }
 
   Future<GenericArtist?> _loadArtist(
-    SpotifyInternalProvider spotifyInternal,
+    MetadataManager metadata,
     GenericSimpleArtist artist,
     String trackId,
   ) async {
     try {
-      if (!spotifyInternal.isAuthenticated) {
-        await spotifyInternal.checkAuthState();
+      if (!metadata.isAuthenticated) {
+        await metadata.checkAuthState();
       }
-      if (!spotifyInternal.isAuthenticated) {
+      if (!metadata.isAuthenticated) {
         return null;
       }
       if (trackId.isEmpty) {
-        return await spotifyInternal.getArtistInfo(artist.id);
+        return await metadata.getArtistInfo(artist.id);
       }
-      return await spotifyInternal.getNpvArtistInfo(artist.id, trackId);
+      return await metadata.getNpvArtistInfo(artist.id, trackId);
     } catch (_) {
       throw Exception('Failed to load artist info');
     }

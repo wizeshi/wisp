@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/shared/widgets/rails/card_rail.dart';
@@ -99,8 +99,8 @@ class _DJViewState extends State<DJView> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        final spotify = context.read<SpotifyInternalProvider>();
-        ListeningHabitsService.instance.bindSpotifyProvider(spotify);
+        final metadata = context.read<MetadataManager>();
+        ListeningHabitsService.instance.bindMetadataManager(metadata);
         if (_messages.isNotEmpty) {
           _scrollToBottom();
         }
@@ -406,7 +406,7 @@ class _DJViewState extends State<DJView> {
   /// Resolves full track info (including track & album thumbnails and duration) if missing.
   Future<GenericSong> _ensureTrackThumbnails(
     GenericSong track,
-    SpotifyInternalProvider spotify,
+    MetadataManager metadata,
   ) async {
     if (track.durationSecs > 0 &&
         track.thumbnailUrl.isNotEmpty &&
@@ -418,7 +418,7 @@ class _DJViewState extends State<DJView> {
       final cleanId = track.id.startsWith('spotify:track:')
           ? track.id.split(':').last
           : track.id;
-      final info = await spotify.getTrackInfo(cleanId);
+      final info = await metadata.getTrackInfo(cleanId);
       ListeningHabitsService.instance.updateRecordThumbnail(
         trackId: track.id,
         thumbnailUrl: info.thumbnailUrl,
@@ -446,7 +446,7 @@ class _DJViewState extends State<DJView> {
   Future<List<GenericSong>?> _buildQueue({
     String? detectedTag,
     String? detectedArtist,
-    required SpotifyInternalProvider spotify,
+    required MetadataManager metadata,
   }) async {
     final (keywords, requiredLanguages, minYear, maxYear) = detectedTag != null
         ? _getFilterForTag(detectedTag)
@@ -479,7 +479,7 @@ class _DJViewState extends State<DJView> {
                   ? '$detectedArtist $detectedTag'
                   : detectedArtist)
             : (keywords.isNotEmpty ? keywords.first : (detectedTag ?? ''));
-        final searchResults = await spotify.search(queryTerm);
+        final searchResults = await metadata.search(queryTerm);
         if (searchResults.tracks.isNotEmpty) {
           rawSafeTrack = searchResults.tracks.first;
         }
@@ -491,7 +491,7 @@ class _DJViewState extends State<DJView> {
     }
 
     // 1. Grab a safe option that the user's listened to, just one.
-    final safeTrack = await _ensureTrackThumbnails(rawSafeTrack, spotify);
+    final safeTrack = await _ensureTrackThumbnails(rawSafeTrack, metadata);
 
     // 2. Use that safe track in the endpoint to fetch similar ones.
     final similarTracks = <GenericSong>[];
@@ -499,7 +499,7 @@ class _DJViewState extends State<DJView> {
       final cleanId = safeTrack.id.startsWith('spotify:track:')
           ? safeTrack.id.split(':').last
           : safeTrack.id;
-      final similar = await spotify.getSimilarTracks(cleanId);
+      final similar = await metadata.getSimilarTracks(cleanId);
       if (similar != null) {
         for (final item in similar) {
           if (item.id != safeTrack.id) {
@@ -529,7 +529,7 @@ class _DJViewState extends State<DJView> {
 
     // Ensure thumbnails for other history tracks
     final otherHistoryTracks = await Future.wait(
-      otherHistoryRaw.take(20).map((t) => _ensureTrackThumbnails(t, spotify)),
+      otherHistoryRaw.take(20).map((t) => _ensureTrackThumbnails(t, metadata)),
     );
 
     // 4. Combine endpoint similar tracks + rest of listened tracks, deduplicate, and shuffle
@@ -568,14 +568,14 @@ class _DJViewState extends State<DJView> {
     final intent = _detectIntent(query);
     final detectedTag = intent.tag;
     final detectedArtist = intent.artist;
-    final spotify = context.read<SpotifyInternalProvider>();
-    ListeningHabitsService.instance.bindSpotifyProvider(spotify);
+    final metadata = context.read<MetadataManager>();
+    ListeningHabitsService.instance.bindMetadataManager(metadata);
     Future<List<GenericSong>?>? queueFuture;
     if (detectedTag != null || detectedArtist != null) {
       queueFuture = _buildQueue(
         detectedTag: detectedTag,
         detectedArtist: detectedArtist,
-        spotify: spotify,
+        metadata: metadata,
       );
     }
 
@@ -713,8 +713,8 @@ class _DJViewState extends State<DJView> {
       );
     }
 
-    ListeningHabitsService.instance.bindSpotifyProvider(
-      context.read<SpotifyInternalProvider>(),
+    ListeningHabitsService.instance.bindMetadataManager(
+      context.read<MetadataManager>(),
     );
 
     final isDesktop =

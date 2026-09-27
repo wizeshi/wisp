@@ -39,7 +39,9 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   IconData _sourceIcon(String source) {
-    return source == 'YouTube' ? Icons.ondemand_video : Icons.music_note;
+    return source.toLowerCase().contains('youtube')
+        ? Icons.ondemand_video
+        : Icons.music_note;
   }
 
   bool _isDesktop() {
@@ -498,8 +500,6 @@ class _TitleBarSearchHistoryState extends State<_TitleBarSearchHistory> {
   static const double _pillHeight = 22;
   static const double _pillWidth = 400;
 
-  static const double _searchTextVerticalNudge = -4;
-
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
 
@@ -652,56 +652,33 @@ class _TitleBarSearchHistoryState extends State<_TitleBarSearchHistory> {
           Icon(Icons.search, color: Colors.grey[600], size: 16),
           const SizedBox(width: 6),
           Expanded(
-            child: DefaultTextHeightBehavior(
-              textHeightBehavior: const TextHeightBehavior(
-                applyHeightToFirstAscent: false,
-                applyHeightToLastDescent: false,
+            child: TextField(
+              controller: controller,
+              focusNode: _focusNode,
+              textAlignVertical: const TextAlignVertical(y: -0.4),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                height: 1.2,
               ),
-              child: Transform.translate(
-                offset: Offset(
-                  0,
-                  value.text.isEmpty ? _searchTextVerticalNudge : 0,
+              decoration: InputDecoration(
+                isCollapsed: true,
+                contentPadding: const EdgeInsets.only(bottom: 2),
+                hintText: 'Search songs, albums, artists...',
+                hintStyle: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                  height: 1.2,
                 ),
-                child: TextField(
-                  controller: controller,
-                  focusNode: _focusNode,
-                  textAlignVertical: TextAlignVertical.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    height: 1.2,
-                  ),
-                  decoration: InputDecoration(
-                    isCollapsed: true,
-                    contentPadding: EdgeInsets.zero,
-                    hintText: 'Search songs, albums, artists...',
-                    hintStyle: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                      height: 1.2,
-                    ),
-                    suffixIcon: (showClear || showSourcePicker)
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (showClear) _buildClearButton(controller),
-                              if (showSourcePicker) _buildSourcePicker(),
-                              const SizedBox(width: 6),
-                            ],
-                          )
-                        : null,
-                    suffixIconConstraints: const BoxConstraints(
-                      minWidth: 0,
-                      minHeight: 0,
-                    ),
-                    border: InputBorder.none,
-                  ),
-                  onChanged: widget.onSearchChanged,
-                  onSubmitted: (_) => widget.onSearchSubmitted?.call(),
-                ),
+                border: InputBorder.none,
               ),
+              onChanged: widget.onSearchChanged,
+              onSubmitted: (_) => widget.onSearchSubmitted?.call(),
             ),
           ),
+          if (showClear) _buildClearButton(controller),
+          if (showSourcePicker) _buildSourcePicker(),
+          const SizedBox(width: 6),
         ],
       ),
     );
@@ -726,38 +703,44 @@ class _TitleBarSearchHistoryState extends State<_TitleBarSearchHistory> {
     final selected = sources.contains(widget.selectedSource)
         ? widget.selectedSource
         : sources.first;
-    return DropdownButtonHideUnderline(
-      child: DropdownButton<String>(
-        value: selected,
-        dropdownColor: const Color(0xFF181818),
-        iconEnabledColor: Colors.grey[400],
-        iconSize: 16,
-        isDense: true,
-        selectedItemBuilder: (_) => sources
-            .map(
-              (s) => Icon(
-                widget.sourceIconBuilder(s),
-                size: 15,
-                color: Colors.white,
-              ),
-            )
-            .toList(),
-        items: sources
-            .map(
-              (s) => DropdownMenuItem<String>(
-                value: s,
-                child: Icon(
-                  widget.sourceIconBuilder(s),
-                  size: 15,
-                  color: Colors.white,
+    return SizedBox(
+      height: _pillHeight,
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: selected,
+          dropdownColor: const Color(0xFF181818),
+          iconEnabledColor: Colors.grey[400],
+          iconSize: 16,
+          isDense: true,
+          alignment: AlignmentDirectional.center,
+          selectedItemBuilder: (_) => sources
+              .map(
+                (s) => Center(
+                  child: Icon(
+                    widget.sourceIconBuilder(s),
+                    size: 15,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-            )
-            .toList(),
-        onChanged: (v) {
-          if (v == null) return;
-          widget.onSourceChanged?.call(v);
-        },
+              )
+              .toList(),
+          items: sources
+              .map(
+                (s) => DropdownMenuItem<String>(
+                  value: s,
+                  child: Icon(
+                    widget.sourceIconBuilder(s),
+                    size: 15,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: (v) {
+            if (v == null) return;
+            widget.onSourceChanged?.call(v);
+          },
+        ),
       ),
     );
   }

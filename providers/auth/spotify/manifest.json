@@ -1,0 +1,15 @@
+{
+  "id": "spotify",
+  "name": "Spotify Auth",
+  "version": "1.0.1",
+  "type": "auth",
+  "service": "spotify",
+  "description": "Authentication and session management provider for Spotify",
+  "author": "wisp",
+  "path": "auth/spotify",
+  "priority": 100,
+  "files": [
+    "manifest.json",
+    "index.js"
+  ]
+}

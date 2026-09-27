@@ -8,7 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/core/utils/json.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/services/notifications/desktop_notification_center.dart';
@@ -100,7 +100,7 @@ class ListeningHabitsService extends ChangeNotifier {
   static final ListeningHabitsService instance = ListeningHabitsService._();
   ListeningHabitsService._();
 
-  SpotifyInternalProvider? _spotifyProvider;
+  MetadataManager? _metadataManager;
   final List<TrackListeningRecord> _history = [];
   final List<_TasteIngestionBatch> _ingestionQueue = [];
   bool _isProcessingQueue = false;
@@ -347,8 +347,8 @@ class ListeningHabitsService extends ChangeNotifier {
 
   /// Automatically backfills missing thumbnails and duration for previously listened tracks in the background.
   Future<void> backfillMissingThumbnails() async {
-    final spotify = _spotifyProvider;
-    if (spotify == null) return;
+    final metadataManager = _metadataManager;
+    if (metadataManager == null) return;
 
     bool changed = false;
     for (int i = 0; i < _history.length; i++) {
@@ -360,7 +360,7 @@ class ListeningHabitsService extends ChangeNotifier {
           final cleanId = r.trackId.startsWith('spotify:track:')
               ? r.trackId.split(':').last
               : r.trackId;
-          final info = await spotify.getTrackInfo(cleanId);
+          final info = await metadataManager.getTrackInfo(cleanId);
           final updatedThumb = info.thumbnailUrl.isNotEmpty
               ? info.thumbnailUrl
               : r.thumbnailUrl;
@@ -400,8 +400,8 @@ class ListeningHabitsService extends ChangeNotifier {
 
   bool _backfillStarted = false;
 
-  void bindSpotifyProvider(SpotifyInternalProvider provider) {
-    _spotifyProvider = provider;
+  void bindMetadataManager(MetadataManager manager) {
+    _metadataManager = manager;
     if (!_backfillStarted) {
       _backfillStarted = true;
       unawaited(backfillMissingThumbnails());
@@ -447,11 +447,11 @@ class ListeningHabitsService extends ChangeNotifier {
       List<String> languages = track.languages ?? const [];
       DateTime? releaseDate = track.album?.releaseDate;
 
-      final spotify = _spotifyProvider;
-      if (spotify != null) {
+      final metadataManager = _metadataManager;
+      if (metadataManager != null) {
         // 1. Fetch track genres via extended-metadata protobuf
         try {
-          genres = await spotify.getTrackGenres(trackId);
+          genres = await metadataManager.getTrackGenres(trackId);
         } catch (e) {
           logger.w('[ListeningHabits] Failed to get genres for $trackId: $e');
         }
@@ -459,7 +459,7 @@ class ListeningHabitsService extends ChangeNotifier {
         // 2. If language is missing or release date is default/unset, fetch full track info
         if (languages.isEmpty || releaseDate == null || releaseDate.year == 0) {
           try {
-            final info = await spotify.getTrackInfo(trackId);
+            final info = await metadataManager.getTrackInfo(trackId);
             if (info.languages != null && info.languages!.isNotEmpty) {
               languages = info.languages!;
             }
@@ -591,7 +591,7 @@ class ListeningHabitsService extends ChangeNotifier {
     final total = batch.tracks.length;
     var processed = 0;
     var unsavedChanges = 0;
-    final spotify = _spotifyProvider;
+    final metadataManager = _metadataManager;
 
     for (final track in batch.tracks) {
       final cleanTrackId = track.id.startsWith('spotify:track:')
@@ -621,17 +621,17 @@ class ListeningHabitsService extends ChangeNotifier {
       GenericSong? info;
       List<String> genres = const [];
 
-      if (spotify != null) {
+      if (metadataManager != null) {
         // 1. Fetch full track info
         try {
-          info = await spotify.getTrackInfo(cleanTrackId);
+          info = await metadataManager.getTrackInfo(cleanTrackId);
         } catch (e) {
           logger.w('[ListeningHabits] Ingestion getTrackInfo failed for $cleanTrackId: $e');
         }
 
         // 2. Fetch track genres
         try {
-          genres = await spotify.getTrackGenres(cleanTrackId);
+          genres = await metadataManager.getTrackGenres(cleanTrackId);
         } catch (e) {
           logger.w('[ListeningHabits] Ingestion getTrackGenres failed for $cleanTrackId: $e');
         }

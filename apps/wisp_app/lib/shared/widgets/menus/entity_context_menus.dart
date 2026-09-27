@@ -13,7 +13,7 @@ import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/library_state.dart';
-import 'package:wisp/data/sources/spotify/spotify_internal.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
@@ -56,16 +56,12 @@ class EntityContextMenus {
   }
 
   static IconData _sourceIcon(SongSource source) {
-    switch (source) {
-      case SongSource.youtube:
-        return Icons.ondemand_video;
-      case SongSource.soundcloud:
-        return Icons.cloud;
-      case SongSource.spotify:
-      case SongSource.spotifyInternal:
-      case SongSource.local:
-        return Icons.music_note;
+    if (source == SongSource.youtube) {
+      return Icons.ondemand_video;
+    } else if (source == SongSource.soundcloud) {
+      return Icons.cloud;
     }
+    return Icons.music_note;
   }
 
   static Future<List<GenericSong>> _resolveAllPlaylistTracks(
@@ -73,14 +69,15 @@ class EntityContextMenus {
     GenericPlaylist playlist,
   ) async {
     try {
-      final spotify = context.read<SpotifyInternalProvider>();
+      final metadataManager = context.read<MetadataManager>();
       final items = <PlaylistItem>[...?(playlist.songs)];
 
       if (items.isEmpty) {
-        final firstPage = await spotify.getPlaylistInfo(
+        final firstPage = await metadataManager.getPlaylistInfo(
           playlist.id,
           offset: 0,
           limit: 50,
+          source: playlist.source,
         );
         items.addAll(firstPage.songs ?? const []);
       }
@@ -88,10 +85,11 @@ class EntityContextMenus {
       int offset = items.length;
       final total = playlist.total;
       while (total != null && offset < total) {
-        final morePlaylist = await spotify.getPlaylistInfo(
+        final morePlaylist = await metadataManager.getPlaylistInfo(
           playlist.id,
           offset: offset,
           limit: 50,
+          source: playlist.source,
         );
         final more = morePlaylist.songs ?? const <PlaylistItem>[];
         if (more.isEmpty) break;
@@ -155,8 +153,11 @@ class EntityContextMenus {
         const <GenericSong>[];
     if (fromModel.isNotEmpty) return fromModel;
     try {
-      final spotify = context.read<SpotifyInternalProvider>();
-      final full = await spotify.getPlaylistInfo(playlist.id);
+      final metadataManager = context.read<MetadataManager>();
+      final full = await metadataManager.getPlaylistInfo(
+        playlist.id,
+        source: playlist.source,
+      );
       return full.songs
               ?.map(
                 (item) => GenericSong(
@@ -184,8 +185,11 @@ class EntityContextMenus {
     final fromModel = album.songs ?? const <GenericSong>[];
     if (fromModel.isNotEmpty) return fromModel;
     try {
-      final spotify = context.read<SpotifyInternalProvider>();
-      final full = await spotify.getAlbumInfo(album.id);
+      final metadataManager = context.read<MetadataManager>();
+      final full = await metadataManager.getAlbumInfo(
+        album.id,
+        source: album.source,
+      );
       return full.songs ?? const <GenericSong>[];
     } catch (_) {
       return const <GenericSong>[];
@@ -261,13 +265,13 @@ class EntityContextMenus {
     List<ContextMenuAction> additionalActions = const [],
     Future<void> Function()? onBeforeNavigate,
   }) async {
-    final spotifyInternal = context.read<SpotifyInternalProvider>();
-    await spotifyInternal.ensureLikedTracksLoaded();
+    final metadataManager = context.read<MetadataManager>();
+    await metadataManager.ensureLikedTracksLoaded(source: track.source);
     if (!context.mounted) return;
     final activeIconColor = Theme.of(context).colorScheme.primary;
 
     final cacheManager = AudioCacheManager.instance;
-    final isLiked = spotifyInternal.isTrackLiked(track.id);
+    final isLiked = metadataManager.isTrackLiked(track.id, source: track.source);
     final isCached = cacheManager.isTrackCached(track.id);
     final isDownloading = cacheManager.isDownloading(track.id);
     final progress = cacheManager.getDownloadProgress(track.id) ?? 0;
@@ -279,7 +283,7 @@ class EntityContextMenus {
         label: isLiked ? 'Remove from Likes' : 'Add to Likes',
         icon: isLiked ? Icons.favorite : Icons.favorite_border,
         iconColor: isLiked ? activeIconColor : null,
-        onSelected: (_) => spotifyInternal.toggleTrackLike(track),
+        onSelected: (_) => metadataManager.toggleTrackLike(track),
       ),
       ContextMenuAction(
         id: 'playlist-add',
@@ -526,8 +530,9 @@ class EntityContextMenus {
         onSelected: (_) async {
           await folderState.movePlaylistIntoFolder(playlist.id, null);
           if (context.mounted && currentFolderId != null) {
-            context.read<SpotifyInternalProvider>().removePlaylistFromFolder(
+            context.read<MetadataManager>().removePlaylistFromFolder(
               playlistId: playlist.id,
+              source: playlist.source,
             );
           }
         },
@@ -542,9 +547,10 @@ class EntityContextMenus {
           onSelected: (_) async {
             await folderState.movePlaylistIntoFolder(playlist.id, folder.id);
             if (context.mounted) {
-              context.read<SpotifyInternalProvider>().addPlaylistToFolder(
+              context.read<MetadataManager>().addPlaylistToFolder(
                 playlistId: playlist.id,
                 folderId: folder.id,
+                source: playlist.source,
               );
             }
           },
@@ -683,8 +689,9 @@ class EntityContextMenus {
           onSelected: (_) async {
             await folderState.movePlaylistIntoFolder(playlist.id, null);
             if (context.mounted) {
-              context.read<SpotifyInternalProvider>().removePlaylistFromFolder(
+              context.read<MetadataManager>().removePlaylistFromFolder(
                 playlistId: playlist.id,
+                source: playlist.source,
               );
             }
           },
@@ -744,22 +751,22 @@ class EntityContextMenus {
         icon: isSaved ? Icons.bookmark_remove : Icons.bookmark_add,
         iconColor: isSaved ? activeIconColor : null,
         onSelected: (_) async {
-          final spotifyInternal = context.read<SpotifyInternalProvider>();
-          if (!spotifyInternal.isAuthenticated) {
+          final metadataManager = context.read<MetadataManager>();
+          if (!metadataManager.isAuthenticated) {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Spotify (Internal) is not connected.'),
+                content: Text('Provider is not connected.'),
               ),
             );
             return;
           }
           try {
             if (isSaved) {
-              await spotifyInternal.unsaveAlbum(resolvedAlbum.id);
+              await metadataManager.unsaveAlbum(resolvedAlbum.id, source: resolvedAlbum.source);
               libraryState.removeAlbum(resolvedAlbum.id);
             } else {
-              await spotifyInternal.saveAlbum(resolvedAlbum.id);
+              await metadataManager.saveAlbum(resolvedAlbum.id, source: resolvedAlbum.source);
               libraryState.addAlbum(resolvedAlbum);
             }
             if (!context.mounted) return;
@@ -899,22 +906,22 @@ class EntityContextMenus {
         icon: isFollowed ? Icons.person_remove : Icons.person_add,
         iconColor: isFollowed ? activeIconColor : null,
         onSelected: (_) async {
-          final spotifyInternal = context.read<SpotifyInternalProvider>();
-          if (!spotifyInternal.isAuthenticated) {
+          final metadataManager = context.read<MetadataManager>();
+          if (!metadataManager.isAuthenticated) {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Spotify (Internal) is not connected.'),
+                content: Text('Provider is not connected.'),
               ),
             );
             return;
           }
           try {
             if (isFollowed) {
-              await spotifyInternal.unfollowArtist(artist.id);
+              await metadataManager.unfollowArtist(artist.id, source: artist.source);
               libraryState.removeArtist(artist.id);
             } else {
-              await spotifyInternal.followArtist(artist.id);
+              await metadataManager.followArtist(artist.id, source: artist.source);
               libraryState.addArtist(artist);
             }
             if (!context.mounted) return;
@@ -941,8 +948,9 @@ class EntityContextMenus {
         icon: Icons.download_outlined,
         onSelected: (_) async {
           try {
-            await context.read<SpotifyInternalProvider>().getArtistInfo(
+            await context.read<MetadataManager>().getArtistInfo(
               artist.id,
+              source: artist.source,
             );
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
