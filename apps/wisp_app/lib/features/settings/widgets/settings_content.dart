@@ -3,8 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/models/metadata_provider.dart';
+import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import 'package:wisp/data/sources/spotify/spotify_internal.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
+import 'package:wisp/features/settings/views/providers_marketplace_view.dart';
 
 class SettingsContent extends StatelessWidget {
   final Widget Function(BuildContext, MetadataProvider, String, IconData, Color)
@@ -72,6 +74,8 @@ class SettingsContent extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         ...providerCards,
+        _buildMarketplaceRow(context),
+        const SizedBox(height: 16),
         Row(
           children: [
             Text(
@@ -354,4 +358,154 @@ class SettingsContent extends StatelessWidget {
       ],
     );
   }
+
+  Widget _buildMarketplaceRow(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: ProvidersRepositoryService.instance.updatesAvailableCount,
+      builder: (context, updateCount, child) {
+        final hasUpdates = updateCount > 0;
+        final primaryColor = Theme.of(context).colorScheme.primary;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF181818),
+            borderRadius: BorderRadius.circular(8),
+            border: hasUpdates
+                ? Border.all(
+                    color: Colors.amber.withValues(alpha: 0.5),
+                    width: 1.2,
+                  )
+                : null,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: (hasUpdates ? Colors.amber : primaryColor)
+                          .withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      hasUpdates
+                          ? Icons.system_update_alt
+                          : Icons.storefront_outlined,
+                      color: hasUpdates ? Colors.amber : primaryColor,
+                      size: 22,
+                    ),
+                  ),
+                  if (hasUpdates)
+                    Positioned(
+                      top: -3,
+                      right: -3,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF181818),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Marketplace',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (hasUpdates) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.amber.withValues(alpha: 0.6),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.arrow_upward,
+                                  size: 10,
+                                  color: Colors.amber,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '$updateCount ${updateCount == 1 ? "update" : "updates"} available',
+                                  style: const TextStyle(
+                                    color: Colors.amber,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hasUpdates
+                          ? 'New version available for installed providers'
+                          : 'Browse, install, and update custom metadata & lyrics providers',
+                      style: TextStyle(
+                        color: hasUpdates ? Colors.amber[200] : Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.tonalIcon(
+                onPressed: () => ProvidersMarketplaceView.push(context),
+                icon: Icon(
+                  hasUpdates ? Icons.system_update_alt : Icons.arrow_forward,
+                  size: 16,
+                ),
+                label: Text(hasUpdates ? 'Updates ($updateCount)' : 'Browse'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: (hasUpdates ? Colors.amber : primaryColor)
+                      .withValues(alpha: 0.2),
+                  foregroundColor: hasUpdates ? Colors.amber : primaryColor,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
+

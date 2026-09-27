@@ -1,0 +1,12 @@
+{
+  "id": "spotify",
+  "name": "Spotify",
+  "version": "1.0.0",
+  "type": "lyrics",
+  "entry": "index.js",
+  "author": "wizeshi",
+  "description": "Line-synced and unsynced lyrics directly from Spotify Color Lyrics API",
+  "supportedSyncModes": ["line", "unsynced"],
+  "priority": 60,
+  "homepage": "https://spotify.com"
+}

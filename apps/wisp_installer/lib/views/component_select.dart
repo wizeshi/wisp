@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:wisp_installer/navigation/shell.dart';
 
 class ComponentSelectStep extends StatelessWidget {
-  void Function(InstallationComponent, bool?) toggleComponentSelection;
-  bool Function(InstallationComponent) isComponentSelected;
-  Future<void> Function() onStartInstallation;
-  String detectedPlatform;
-  bool isWindows;
+  final void Function(InstallationComponent, bool?) toggleComponentSelection;
+  final bool Function(InstallationComponent) isComponentSelected;
+  final Future<void> Function() onStartInstallation;
+  final String detectedPlatform;
+  final bool isWindows;
   
-  ComponentSelectStep({
+  const ComponentSelectStep({
     super.key, 
     required this.toggleComponentSelection,
     required this.isComponentSelected,

@@ -1,5 +1,6 @@
 // Copyright © 2026 wizeshi
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
@@ -27,12 +28,29 @@ class AudioStorageService extends ChangeNotifier {
   static final AudioStorageService instance = AudioStorageService._();
   AudioStorageService._();
 
-  static const String _prefsKeyCacheEntries = 'cache_entries';
+  @visibleForTesting
+  void resetForTesting() {
+    _saveDebounceTimer?.cancel();
+    _saveDebounceTimer = null;
+    _cacheEntries.clear();
+    _cacheDirectory = null;
+    _indexFile = null;
+    _backupIndexFile = null;
+    _maxCacheSizeBytes = _defaultMaxCacheSize;
+    _userDownloadsSizeBytes = 0;
+    _autoCacheSizeBytes = 0;
+    _initialized = false;
+  }
+
+  static const String _legacyPrefsKeyCacheEntries = 'cache_entries';
   static const String _prefsKeyMaxSize = 'cache_max_size';
   static const int _defaultMaxCacheSize = 750 * 1024 * 1024; // 750MB
 
   final Map<String, AudioCacheEntry> _cacheEntries = {};
   Directory? _cacheDirectory;
+  File? _indexFile;
+  File? _backupIndexFile;
+  Timer? _saveDebounceTimer;
   int _maxCacheSizeBytes = _defaultMaxCacheSize;
   bool _initialized = false;
 
@@ -44,6 +62,15 @@ class AudioStorageService extends ChangeNotifier {
   Directory? get cacheDirectory => _cacheDirectory;
   int get maxCacheSizeBytes => _maxCacheSizeBytes;
   int get maxCacheSizeMB => _maxCacheSizeBytes ~/ (1024 * 1024);
+
+  int get indexSizeBytes {
+    try {
+      if (_indexFile != null && _indexFile!.existsSync()) {
+        return _indexFile!.lengthSync();
+      }
+    } catch (_) {}
+    return 0;
+  }
 
   int get userDownloadsSizeBytes => _userDownloadsSizeBytes;
   int get userDownloadsSizeMB => _userDownloadsSizeBytes ~/ (1024 * 1024);
@@ -107,18 +134,21 @@ class AudioStorageService extends ChangeNotifier {
   }
 
   /// Initialize the storage directory, load entries, and perform orphan reconciliation.
-  Future<void> initialize() async {
+  Future<void> initialize({
+    Directory? supportDirectory,
+    Directory? cacheDirectory,
+  }) async {
     if (_initialized) return;
 
     try {
-      final appDir = await getApplicationCacheDirectory();
+      final appDir = cacheDirectory ?? await getApplicationCacheDirectory();
       _cacheDirectory = Directory('${appDir.path}/audio_cache');
       if (!await _cacheDirectory!.exists()) {
         await _cacheDirectory!.create(recursive: true);
       }
 
       await _loadSettings();
-      await _loadCacheEntries();
+      await _loadCacheEntries(supportDir: supportDirectory);
       await _reconcileDiskAndOrphans();
       _recalculateSizes();
 
@@ -158,7 +188,7 @@ class AudioStorageService extends ChangeNotifier {
       logger.w('[AudioStorageService] Cached file missing from disk: $trackId');
       _cacheEntries.remove(key);
       _recalculateSizes();
-      _saveCacheEntries();
+      _saveCacheEntries(immediate: true);
       notifyListeners();
       return null;
     }
@@ -182,7 +212,7 @@ class AudioStorageService extends ChangeNotifier {
     if (entry != null && !entry.isUserDownload) {
       entry.isUserDownload = true;
       _recalculateSizes();
-      await _saveCacheEntries();
+      await _saveCacheEntries(immediate: true);
       notifyListeners();
       logger.i('[AudioStorageService] Promoted $trackId to user download');
     }
@@ -229,7 +259,7 @@ class AudioStorageService extends ChangeNotifier {
       _recalculateSizes();
     }
 
-    await _saveCacheEntries();
+    await _saveCacheEntries(immediate: true);
     notifyListeners();
 
     final hasSpace = totalCacheSizeBytes + requiredBytes <= _maxCacheSizeBytes;
@@ -292,7 +322,7 @@ class AudioStorageService extends ChangeNotifier {
 
     _cacheEntries[key] = entry;
     _recalculateSizes();
-    await _saveCacheEntries();
+    await _saveCacheEntries(immediate: true);
     notifyListeners();
 
     // Check if we pushed over quota with this download and prune auto-cache if needed
@@ -313,7 +343,7 @@ class AudioStorageService extends ChangeNotifier {
     await _deleteEntryFile(entry);
     _cacheEntries.remove(key);
     _recalculateSizes();
-    await _saveCacheEntries();
+    await _saveCacheEntries(immediate: true);
     notifyListeners();
   }
 
@@ -325,7 +355,7 @@ class AudioStorageService extends ChangeNotifier {
       _cacheEntries.remove(entry.trackId);
     }
     _recalculateSizes();
-    await _saveCacheEntries();
+    await _saveCacheEntries(immediate: true);
     notifyListeners();
     logger.i('[AudioStorageService] Cleared ${autoCached.length} auto-cached files');
   }
@@ -338,7 +368,7 @@ class AudioStorageService extends ChangeNotifier {
       _cacheEntries.remove(entry.trackId);
     }
     _recalculateSizes();
-    await _saveCacheEntries();
+    await _saveCacheEntries(immediate: true);
     notifyListeners();
     logger.i('[AudioStorageService] Cleared ${userList.length} user downloads');
   }
@@ -350,7 +380,7 @@ class AudioStorageService extends ChangeNotifier {
     }
     _cacheEntries.clear();
     _recalculateSizes();
-    await _saveCacheEntries();
+    await _saveCacheEntries(immediate: true);
     notifyListeners();
     logger.i('[AudioStorageService] All audio cache cleared');
   }
@@ -396,29 +426,43 @@ class AudioStorageService extends ChangeNotifier {
     if (dir == null || !await dir.exists()) return;
 
     try {
-      final validFilePaths = _cacheEntries.values.map((e) => e.filePath).toSet();
       final entities = dir.listSync();
 
+      // Clean up temporary/incomplete download files (.part / .tmp)
       for (final entity in entities) {
         if (entity is File) {
           final path = entity.path;
-          // Delete abandoned .part or .tmp files
           if (path.endsWith('.part') || path.endsWith('.tmp')) {
             try {
               entity.deleteSync();
               logger.d('[AudioStorageService] Cleaned up temporary file: $path');
             } catch (_) {}
-          } else if (path.endsWith('.m4a') && !validFilePaths.contains(path)) {
-            // Orphan m4a file not registered in index
-            try {
-              entity.deleteSync();
-              logger.i('[AudioStorageService] Deleted orphan audio file: $path');
-            } catch (_) {}
           }
         }
       }
+
+      // SAFEGUARD: Never delete .m4a audio files on startup!
+      // If the index failed to load or experienced a timing glitch, deleting .m4a files
+      // would wipe the user's entire offline music library.
+      // Instead, we verify that registered entries still exist on disk and prune
+      // any dead index keys.
+      final missingKeys = <String>[];
+      for (final entry in _cacheEntries.entries) {
+        if (!File(entry.value.filePath).existsSync()) {
+          missingKeys.add(entry.key);
+        }
+      }
+      if (missingKeys.isNotEmpty) {
+        logger.w(
+          '[AudioStorageService] Pruned ${missingKeys.length} registered entries whose files no longer exist on disk',
+        );
+        for (final k in missingKeys) {
+          _cacheEntries.remove(k);
+        }
+        await _saveCacheEntries(immediate: true);
+      }
     } catch (e) {
-      logger.w('[AudioStorageService] Error reconciling disk orphans', error: e);
+      logger.w('[AudioStorageService] Error reconciling disk files', error: e);
     }
   }
 
@@ -432,43 +476,167 @@ class AudioStorageService extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadCacheEntries() async {
+  Future<void> _loadCacheEntries({Directory? supportDir}) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final entriesJson = prefs.getString(_prefsKeyCacheEntries);
-      if (entriesJson != null) {
-        final Map<String, dynamic> entriesMap = json.decode(entriesJson);
-        for (final entry in entriesMap.entries) {
-          try {
-            final cacheEntry = AudioCacheEntry.fromJson(
-              entry.value as Map<String, dynamic>,
-            );
-            if (File(cacheEntry.filePath).existsSync()) {
-              _cacheEntries[entry.key] = cacheEntry;
+      final dir = supportDir ?? await getApplicationSupportDirectory();
+      _indexFile = File('${dir.path}/audio_cache_index.json');
+      _backupIndexFile = File('${dir.path}/audio_cache_index.json.bak');
+
+      bool loadedFromFile = false;
+
+      // 1. Try reading primary index file
+      if (await _indexFile!.exists()) {
+        try {
+          final content = await _indexFile!.readAsString();
+          if (content.trim().isNotEmpty) {
+            final parsed = _parseEntriesJson(content);
+            if (parsed) {
+              loadedFromFile = true;
+              logger.i(
+                '[AudioStorageService] Loaded ${_cacheEntries.length} entries from audio_cache_index.json',
+              );
             }
-          } catch (e) {
-            logger.w(
-              '[AudioStorageService] Error loading entry ${entry.key}',
-              error: e,
-            );
           }
+        } catch (e) {
+          logger.e(
+            '[AudioStorageService] Failed reading primary audio_cache_index.json, trying backup',
+            error: e,
+          );
         }
       }
+
+      // 2. If primary failed or was empty, try backup file
+      if (!loadedFromFile && await _backupIndexFile!.exists()) {
+        try {
+          final content = await _backupIndexFile!.readAsString();
+          if (content.trim().isNotEmpty) {
+            final parsed = _parseEntriesJson(content);
+            if (parsed) {
+              loadedFromFile = true;
+              logger.w(
+                '[AudioStorageService] Restored ${_cacheEntries.length} entries from audio_cache_index.json.bak',
+              );
+            }
+          }
+        } catch (e) {
+          logger.e(
+            '[AudioStorageService] Failed reading backup audio_cache_index.json.bak',
+            error: e,
+          );
+        }
+      }
+
+      // 3. One-time migration from legacy SharedPreferences
+      await _migrateFromLegacyPrefs();
     } catch (e) {
       logger.e('[AudioStorageService] Error loading cache entries', error: e);
     }
   }
 
-  Future<void> _saveCacheEntries() async {
+  bool _parseEntriesJson(String jsonString) {
+    try {
+      final decoded = json.decode(jsonString);
+      if (decoded is! Map<String, dynamic>) {
+        return false;
+      }
+      for (final entry in decoded.entries) {
+        try {
+          final cacheEntry = AudioCacheEntry.fromJson(
+            entry.value as Map<String, dynamic>,
+          );
+          if (File(cacheEntry.filePath).existsSync()) {
+            _cacheEntries[entry.key] = cacheEntry;
+          }
+        } catch (e) {
+          logger.w(
+            '[AudioStorageService] Error parsing cache entry ${entry.key}',
+            error: e,
+          );
+        }
+      }
+      return true;
+    } catch (e) {
+      logger.e('[AudioStorageService] Error parsing cache entries JSON', error: e);
+      return false;
+    }
+  }
+
+  Future<void> _migrateFromLegacyPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final legacyJson = prefs.getString(_legacyPrefsKeyCacheEntries);
+      if (legacyJson != null && legacyJson.trim().isNotEmpty) {
+        final Map<String, dynamic> legacyMap = json.decode(legacyJson);
+        var migrated = 0;
+        for (final entry in legacyMap.entries) {
+          if (!_cacheEntries.containsKey(entry.key)) {
+            try {
+              final cacheEntry = AudioCacheEntry.fromJson(
+                entry.value as Map<String, dynamic>,
+              );
+              if (File(cacheEntry.filePath).existsSync()) {
+                _cacheEntries[entry.key] = cacheEntry;
+                migrated++;
+              }
+            } catch (_) {}
+          }
+        }
+
+        // Clean up legacy key so shared_preferences.json stays clean
+        await prefs.remove(_legacyPrefsKeyCacheEntries);
+        if (migrated > 0 || _cacheEntries.isNotEmpty) {
+          await _saveCacheEntries(immediate: true);
+        }
+        logger.i(
+          '[AudioStorageService] Migrated $migrated legacy entries from SharedPreferences and removed key',
+        );
+      }
+    } catch (e) {
+      logger.w(
+        '[AudioStorageService] Legacy cache entries migration skipped',
+        error: e,
+      );
+    }
+  }
+
+  Future<void> _saveCacheEntries({bool immediate = false}) async {
+    if (immediate) {
+      _saveDebounceTimer?.cancel();
+      await _flushEntriesToDisk();
+    } else {
+      _saveDebounceTimer?.cancel();
+      _saveDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+        unawaited(_flushEntriesToDisk());
+      });
+    }
+  }
+
+  Future<void> _flushEntriesToDisk() async {
+    if (_indexFile == null) return;
+
+    try {
       final entriesMap = <String, dynamic>{};
       for (final entry in _cacheEntries.entries) {
         entriesMap[entry.key] = entry.value.toJson();
       }
-      await prefs.setString(_prefsKeyCacheEntries, json.encode(entriesMap));
+      final jsonString = json.encode(entriesMap);
+
+      // 1. If primary index exists and has content, back it up
+      if (await _indexFile!.exists()) {
+        try {
+          if (_backupIndexFile != null) {
+            await _indexFile!.copy(_backupIndexFile!.path);
+          }
+        } catch (_) {}
+      }
+
+      // 2. Write directly with flush: true
+      await _indexFile!.writeAsString(jsonString, flush: true);
     } catch (e) {
-      logger.e('[AudioStorageService] Error saving cache entries', error: e);
+      logger.e(
+        '[AudioStorageService] Error saving cache entries to disk',
+        error: e,
+      );
     }
   }
 }

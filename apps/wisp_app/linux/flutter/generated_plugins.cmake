@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   flutter_inappwebview_linux
+  flutter_js
   flutter_secure_storage_linux
   fvp
   gtk

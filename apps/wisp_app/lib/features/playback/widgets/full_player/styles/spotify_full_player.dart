@@ -546,7 +546,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
               Text(
                 lyrics == null
                     ? ''
-                    : 'Lyrics provided by ${lyrics.provider.label}',
+                    : 'Lyrics provided by ${lyrics.providerLabel}',
                 style: TextStyle(color: Colors.white, fontSize: 12),
               ),
             ],

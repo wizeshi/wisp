@@ -20,6 +20,7 @@ import 'package:wisp/data/sources/youtube/youtube_metadata.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
+import 'package:wisp/data/sources/lyrics/lyrics_source_manager.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
@@ -36,6 +37,7 @@ import 'package:wisp/services/notifications/desktop_notification_center.dart';
 import 'package:wisp/services/discord/discord_rpc_service.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
+import 'package:wisp/features/onboarding/views/mobile_welcome_view.dart';
 import 'package:wisp/features/shell/widgets/app_shell.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/core/utils/logger.dart';
@@ -127,6 +129,9 @@ void main() async {
 
   // Initialize listening habits service
   await ListeningHabitsService.instance.initialize();
+
+  // Initialize lyrics source manager early so providers are ready before UI builds
+  await LyricsSourceManager.instance.initialize();
 
   if (Platform.isAndroid) {
     NewPipeManager.instance.androidDelegate = NativeAndroidNewPipeDelegate();
@@ -261,7 +266,10 @@ class WispApp extends StatelessWidget {
               appStyle: preferences.style,
             ),
             themeMode: ThemeMode.dark,
-            home: AppShell(appLinks: appLinks),
+            home: (Platform.isAndroid || Platform.isIOS) &&
+                    !preferences.isFirstBootCompleted
+                ? MobileWelcomeView(appLinks: appLinks)
+                : AppShell(appLinks: appLinks),
           );
         },
       ),

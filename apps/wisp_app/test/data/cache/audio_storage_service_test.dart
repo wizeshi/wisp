@@ -1,5 +1,6 @@
 // Copyright © 2026 wizeshi
 
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -153,9 +154,167 @@ void main() {
 
     test('storage status calculates normal, warning, and full states', () async {
       final service = AudioStorageService.instance;
+      service.resetForTesting();
       await service.initialize();
       expect(service.isInitialized, isTrue);
       expect(service.storageStatus, StorageStatus.normal);
     });
+
+    test('persists cache index to audio_cache_index.json and reloads', () async {
+      final service = AudioStorageService.instance;
+      service.resetForTesting();
+
+      final supportDir = Directory('${tempDir.path}/support_test1')..createSync(recursive: true);
+      final cacheDir = Directory('${tempDir.path}/cache_test1')..createSync(recursive: true);
+
+      await service.initialize(
+        supportDirectory: supportDir,
+        cacheDirectory: cacheDir,
+      );
+
+      final audioDir = Directory('${cacheDir.path}/audio_cache');
+      final partFile = File('${audioDir.path}/test_track.m4a.part')..writeAsStringSync('dummy audio bytes');
+      final finalPath = '${audioDir.path}/test_track.m4a';
+
+      // Register download
+      await service.registerCompletedDownload(
+        trackId: 'track_123',
+        videoId: 'vid_123',
+        tempPartPath: partFile.path,
+        finalFilePath: finalPath,
+        trackTitle: 'Song One',
+        artistName: 'Artist One',
+        isUserDownload: true,
+      );
+
+      expect(service.isTrackCached('track_123'), isTrue);
+      expect(service.isTrackUserDownload('track_123'), isTrue);
+
+      final indexFile = File('${supportDir.path}/audio_cache_index.json');
+      expect(indexFile.existsSync(), isTrue);
+      final indexContent = json.decode(indexFile.readAsStringSync()) as Map<String, dynamic>;
+      expect(indexContent.containsKey('track_123'), isTrue);
+
+      // Reset and re-initialize from the same directories
+      service.resetForTesting();
+      await service.initialize(
+        supportDirectory: supportDir,
+        cacheDirectory: cacheDir,
+      );
+
+      expect(service.isTrackCached('track_123'), isTrue);
+      expect(service.isTrackUserDownload('track_123'), isTrue);
+    });
+
+    test('migrates legacy SharedPreferences entries and deletes legacy key', () async {
+      final service = AudioStorageService.instance;
+      service.resetForTesting();
+
+      final supportDir = Directory('${tempDir.path}/support_test2')..createSync(recursive: true);
+      final cacheDir = Directory('${tempDir.path}/cache_test2')..createSync(recursive: true);
+      final audioDir = Directory('${cacheDir.path}/audio_cache')..createSync(recursive: true);
+      final legacyFile = File('${audioDir.path}/legacy_song.m4a')..writeAsStringSync('legacy audio');
+
+      final legacyEntry = AudioCacheEntry(
+        trackId: 'legacy_track',
+        videoId: 'legacy_vid',
+        filePath: legacyFile.path,
+        fileSize: legacyFile.lengthSync(),
+        trackTitle: 'Legacy Title',
+        artistName: 'Legacy Artist',
+        downloadDate: DateTime.now(),
+        lastPlayedDate: DateTime.now(),
+        isUserDownload: false,
+      );
+
+      SharedPreferences.setMockInitialValues({
+        'cache_entries': json.encode({'legacy_track': legacyEntry.toJson()}),
+      });
+
+      await service.initialize(
+        supportDirectory: supportDir,
+        cacheDirectory: cacheDir,
+      );
+
+      expect(service.isTrackCached('legacy_track'), isTrue);
+
+      // Verify the legacy key was removed from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey('cache_entries'), isFalse);
+
+      // Verify index file was written
+      final indexFile = File('${supportDir.path}/audio_cache_index.json');
+      expect(indexFile.existsSync(), isTrue);
+    });
+
+    test('safe reconciliation deletes .part and .tmp but NEVER deletes .m4a files', () async {
+      final service = AudioStorageService.instance;
+      service.resetForTesting();
+
+      final supportDir = Directory('${tempDir.path}/support_test3')..createSync(recursive: true);
+      final cacheDir = Directory('${tempDir.path}/cache_test3')..createSync(recursive: true);
+      final audioDir = Directory('${cacheDir.path}/audio_cache')..createSync(recursive: true);
+
+      // Create an unindexed .m4a file (e.g. if index hadn't loaded in time)
+      final unindexedM4a = File('${audioDir.path}/unindexed_song.m4a')..writeAsStringSync('music data');
+      final tempPart = File('${audioDir.path}/download.m4a.part')..writeAsStringSync('partial data');
+      final tempFile = File('${audioDir.path}/temp.tmp')..writeAsStringSync('temporary data');
+
+      expect(unindexedM4a.existsSync(), isTrue);
+      expect(tempPart.existsSync(), isTrue);
+      expect(tempFile.existsSync(), isTrue);
+
+      await service.initialize(
+        supportDirectory: supportDir,
+        cacheDirectory: cacheDir,
+      );
+
+      // Incomplete temp files MUST be deleted
+      expect(tempPart.existsSync(), isFalse);
+      expect(tempFile.existsSync(), isFalse);
+
+      // SAFEGUARD: The .m4a audio file MUST NOT be deleted!
+      expect(unindexedM4a.existsSync(), isTrue);
+    });
+
+    test('recovers from backup file if primary audio_cache_index.json is corrupted', () async {
+      final service = AudioStorageService.instance;
+      service.resetForTesting();
+
+      final supportDir = Directory('${tempDir.path}/support_test4')..createSync(recursive: true);
+      final cacheDir = Directory('${tempDir.path}/cache_test4')..createSync(recursive: true);
+      final audioDir = Directory('${cacheDir.path}/audio_cache')..createSync(recursive: true);
+      final testFile = File('${audioDir.path}/backup_track.m4a')..writeAsStringSync('audio data');
+
+      final validEntry = AudioCacheEntry(
+        trackId: 'backup_track',
+        videoId: 'backup_vid',
+        filePath: testFile.path,
+        fileSize: testFile.lengthSync(),
+        trackTitle: 'Backup Title',
+        artistName: 'Backup Artist',
+        downloadDate: DateTime.now(),
+        lastPlayedDate: DateTime.now(),
+        isUserDownload: true,
+      );
+
+      // Write corrupted primary index and valid backup index
+      final indexFile = File('${supportDir.path}/audio_cache_index.json')
+        ..writeAsStringSync('{ INVALID JSON CONTENT !!!');
+      final backupFile = File('${supportDir.path}/audio_cache_index.json.bak')
+        ..writeAsStringSync(json.encode({'backup_track': validEntry.toJson()}));
+
+      expect(indexFile.existsSync(), isTrue);
+      expect(backupFile.existsSync(), isTrue);
+
+      await service.initialize(
+        supportDirectory: supportDir,
+        cacheDirectory: cacheDir,
+      );
+
+      expect(service.isTrackCached('backup_track'), isTrue);
+      expect(service.isTrackUserDownload('backup_track'), isTrue);
+    });
   });
 }
+

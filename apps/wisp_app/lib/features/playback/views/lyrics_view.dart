@@ -567,6 +567,17 @@ class _LyricsViewState extends State<LyricsView> {
           });
         }
 
+        if (lyricsProvider.isInitialized && !lyricsProvider.hasSources) {
+          _stopPositionTimer();
+          return const Center(
+            child: Text(
+              'No lyrics providers available.\nAdd some in the settings!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, height: 1.4),
+            ),
+          );
+        }
+
         if (state.isLoading && state.lyrics == null) {
           _stopPositionTimer();
           return const Center(child: CircularProgressIndicator());
@@ -575,10 +586,14 @@ class _LyricsViewState extends State<LyricsView> {
         final rawLyrics = state.lyrics;
         if (rawLyrics == null || rawLyrics.lines.isEmpty) {
           _stopPositionTimer();
-          return const Center(
+          final noProviders = !lyricsProvider.hasSources;
+          return Center(
             child: Text(
-              'No lyrics found',
-              style: TextStyle(color: Colors.grey),
+              noProviders
+                  ? 'No lyrics providers available.\nAdd some in the settings!'
+                  : 'No lyrics found',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, height: 1.4),
             ),
           );
         }
@@ -586,10 +601,14 @@ class _LyricsViewState extends State<LyricsView> {
         final lyrics = removeEmptyLyricsLines(rawLyrics);
         if (lyrics.lines.isEmpty) {
           _stopPositionTimer();
-          return const Center(
+          final noProviders = !lyricsProvider.hasSources;
+          return Center(
             child: Text(
-              'No lyrics found',
-              style: TextStyle(color: Colors.grey),
+              noProviders
+                  ? 'No lyrics providers available.\nAdd some in the settings!'
+                  : 'No lyrics found',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, height: 1.4),
             ),
           );
         }
@@ -700,7 +719,7 @@ class _LyricsViewState extends State<LyricsView> {
                                     bottom: 12,
                                   ),
                                   child: Text(
-                                    'Lyrics provided by ${lyrics.provider.label}',
+                                    'Lyrics provided by ${lyrics.providerLabel}',
                                     style: TextStyle(
                                       color: Colors.grey[300],
                                       fontSize: 12,
@@ -892,7 +911,7 @@ class _LyricsViewState extends State<LyricsView> {
                       left: 24,
                       bottom: 12,
                       child: Text(
-                        'Lyrics provided by ${lyrics.provider.label}',
+                        'Lyrics provided by ${lyrics.providerLabel}',
                         style: TextStyle(color: Colors.grey[300], fontSize: 12),
                         textAlign: TextAlign.left,
                       ),

@@ -1,0 +1,12 @@
+{
+  "id": "lrclib",
+  "name": "LRCLIB",
+  "version": "1.0.0",
+  "type": "lyrics",
+  "entry": "index.js",
+  "author": "wizeshi",
+  "description": "Synchronized lyrics provider using LRCLIB API",
+  "supportedSyncModes": ["line", "unsynced"],
+  "priority": 50,
+  "homepage": "https://lrclib.net"
+}

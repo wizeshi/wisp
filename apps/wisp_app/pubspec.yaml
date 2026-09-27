@@ -4,7 +4,7 @@ publish_to: 'none'
 
 resolution: workspace
 
-version: 26.9.1+219
+version: 26.9.1+230
 
 environment:
   sdk: ^3.10.7
@@ -70,6 +70,8 @@ dependencies:
   flutter_inappwebview: ^6.2.0-beta.3
   image: ^4.0.0
   xml: ^6.0.0
+  flutter_js: ^0.8.7
+  path: ^1.9.0
 
   url_launcher: ^6.3.2
 

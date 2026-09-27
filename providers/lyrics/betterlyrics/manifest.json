@@ -1,0 +1,12 @@
+{
+  "id": "betterlyrics",
+  "name": "BetterLyrics",
+  "version": "1.0.0",
+  "type": "lyrics",
+  "entry": "index.js",
+  "author": "wizeshi",
+  "description": "Word-synced and line-synced lyrics using BetterLyrics TTML API",
+  "supportedSyncModes": ["word", "line", "unsynced"],
+  "priority": 70,
+  "homepage": "https://betterlyrics.net"
+}

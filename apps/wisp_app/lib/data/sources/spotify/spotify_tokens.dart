@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:wisp/core/utils/json.dart' show JsonUtils;
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/services/system/credentials.dart';
 
 const _spotifyWebTokenUrl = 'https://open.spotify.com/api/token';
 const _spotifyClientTokenUrl = 'https://clienttoken.spotify.com/v1/clienttoken';
@@ -50,6 +51,74 @@ class SpotifyTokens {
     required this.clientToken,
     this.accessTokenExpiresAtMs = 3600,
   });
+}
+
+/// Centralized manager for Spotify authentication tokens.
+class SpotifyTokenManager {
+  static SpotifyTokens? _cachedTokens;
+  static Future<SpotifyTokens?>? _fetchInFlight;
+
+  /// Cache known active tokens (e.g. from SpotifyInternalProvider).
+  static void setTokens(SpotifyTokens? tokens) {
+    _cachedTokens = tokens;
+  }
+
+  /// Clear token cache on logout.
+  static void clear() {
+    _cachedTokens = null;
+  }
+
+  /// Read current cached tokens if available.
+  static SpotifyTokens? get cachedTokens => _cachedTokens;
+
+  /// Retrieve active Spotify tokens, refreshing if expired or forced.
+  static Future<SpotifyTokens?> getTokens({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedTokens != null) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      if (nowMs < _cachedTokens!.accessTokenExpiresAtMs - 60000) {
+        return _cachedTokens;
+      }
+    }
+
+    if (_fetchInFlight != null) {
+      return await _fetchInFlight;
+    }
+
+    final future = _fetchTokensInternal();
+    _fetchInFlight = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_fetchInFlight, future)) {
+        _fetchInFlight = null;
+      }
+    }
+  }
+
+  static Future<SpotifyTokens?> _fetchTokensInternal() async {
+    try {
+      final credentialsService = CredentialsService();
+      final cookie = await credentialsService.getSpotifyLyricsCookie();
+      if (cookie == null || cookie.trim().isEmpty) {
+        logger.w(
+          '[SpotifyTokenManager] No Spotify cookie found (user not logged into Spotify or sp_dc not saved)',
+        );
+        return null;
+      }
+      logger.i('[SpotifyTokenManager] Fetching fresh Spotify tokens using stored cookie...');
+      final tokens = await fetchSpotifyTokens(cookie, (msg) {
+        logger.i('[SpotifyTokenManager] $msg');
+      });
+      _cachedTokens = tokens;
+      logger.i(
+        '[SpotifyTokenManager] Acquired tokens successfully (valid until ms: ${tokens.accessTokenExpiresAtMs})',
+      );
+      return tokens;
+    } catch (e, stack) {
+      logger.e('[SpotifyTokenManager] Failed to fetch Spotify tokens: $e', error: e, stackTrace: stack);
+      return null;
+    }
+  }
 }
 
 Future<SpotifyTokens> fetchSpotifyTokens(

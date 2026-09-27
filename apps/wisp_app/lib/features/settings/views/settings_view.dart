@@ -14,8 +14,10 @@ import 'package:wisp_assets/wisp_assets.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
+import 'package:wisp/services/audio/wisp_audio_handler.dart'
+    as global_audio_player;
 import 'settings_downloads_view.dart';
+import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import '../widgets/settings_content.dart';
 import '../widgets/provider_preferences_dialog.dart';
 import '../widgets/cache_deletion_dialog.dart';
@@ -31,6 +33,17 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool get _isMobile => Platform.isAndroid || Platform.isIOS;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final prefs = context.read<PreferencesProvider>();
+        ProvidersRepositoryService.instance.checkForUpdates(preferences: prefs);
+      }
+    });
+  }
 
   Future<void> _showProviderPreferencesDialog() =>
       ProviderPreferencesDialog.show(context, showSnackBar: _showSnackBar);
@@ -211,11 +224,7 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.storage,
-                    color: statusColor,
-                    size: 28,
-                  ),
+                  Icon(Icons.storage, color: statusColor, size: 28),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -306,7 +315,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   _buildLegendItem(
                     color: Theme.of(context).colorScheme.primary,
-                    label: '${cacheManager.userDownloadCount} downloaded ($userMB MB)',
+                    label:
+                        '${cacheManager.userDownloadCount} downloaded ($userMB MB)',
                   ),
                   _buildLegendItem(
                     color: Colors.purpleAccent[100]!,
@@ -510,16 +520,10 @@ class _SettingsPageState extends State<SettingsPage> {
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(color: Colors.grey[400], fontSize: 11),
-        ),
+        Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 11)),
       ],
     );
   }
@@ -1404,9 +1408,11 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildDebugSection() {
-    return Selector<PreferencesProvider, bool>(
-      selector: (context, prefs) => prefs.debugModeEnabled,
-      builder: (context, debugModeEnabled, child) {
+    return Selector<PreferencesProvider, (bool, bool)>(
+      selector: (context, prefs) =>
+          (prefs.debugModeEnabled, prefs.autoRegisterLocalProviders),
+      builder: (context, state, child) {
+        final (debugModeEnabled, autoRegisterLocalProviders) = state;
         if (_isDesktop && !debugModeEnabled) {
           return const SizedBox.shrink();
         }
@@ -1431,15 +1437,32 @@ class _SettingsPageState extends State<SettingsPage> {
                 borderRadius: BorderRadius.circular(8),
               ),
               padding: const EdgeInsets.all(12),
-              child: _buildToggleSetting(
-                'Debug Mode',
-                'Enables debug features, such as the menu on the titlebar.\n A certain code is required to enable this feature.',
-                debugModeEnabled,
-                (value) {
-                  context.read<PreferencesProvider>().setDebugModeEnabled(
-                    value,
-                  );
-                },
+              child: Column(
+                children: [
+                  _buildToggleSetting(
+                    'Debug Mode',
+                    'Enables debug features, such as the menu on the titlebar.\n A certain code is required to enable this feature.',
+                    debugModeEnabled,
+                    (value) {
+                      context.read<PreferencesProvider>().setDebugModeEnabled(
+                        value,
+                      );
+                    },
+                  ),
+                  if ((!_isDesktop && debugModeEnabled) || _isDesktop) ...[
+                    const Divider(color: Color(0xFF282828), height: 24),
+                    _buildToggleSetting(
+                      'Enable automatic provider registration',
+                      'Registers all providers found from the local repo. When disabled, they are only shown as available for install.',
+                      autoRegisterLocalProviders,
+                      (value) {
+                        context
+                            .read<PreferencesProvider>()
+                            .setAutoRegisterLocalProviders(value);
+                      },
+                    ),
+                  ],
+                ],
               ),
             ),
           ],

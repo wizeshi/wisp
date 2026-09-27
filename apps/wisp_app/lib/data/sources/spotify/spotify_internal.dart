@@ -236,6 +236,7 @@ class SpotifyInternalProvider extends MetadataProvider {
 
     try {
       await _credentialsService.clearSpotifyCookies();
+      SpotifyTokenManager.clear();
       _isAuthenticated = false;
       _bearerToken = null;
       _clientToken = null;
@@ -400,6 +401,7 @@ class SpotifyInternalProvider extends MetadataProvider {
     }
 
     final tokens = await fetchSpotifyTokens(cookie, log);
+    SpotifyTokenManager.setTokens(tokens);
     _bearerToken = tokens.accessToken;
     _clientToken = tokens.clientToken;
     final expiresAt = DateTime.fromMillisecondsSinceEpoch(

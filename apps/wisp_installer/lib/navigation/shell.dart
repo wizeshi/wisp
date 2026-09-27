@@ -9,6 +9,7 @@ import 'package:wisp_installer/views/component_select.dart';
 import 'package:wisp_installer/views/install_complete.dart';
 import 'package:wisp_installer/views/installation_progress.dart';
 import 'package:wisp_installer/views/license_agreement.dart';
+import 'package:wisp_installer/views/provider_select.dart';
 import 'package:wisp_installer/views/welcome.dart';
 import 'package:wisp_installer/widgets/titlebar.dart';
 
@@ -17,6 +18,7 @@ enum InstallationStep {
   licenseAgreement,
   componentSelection,
   installationProgress,
+  providerSelection,
   completion,
 }
 
@@ -48,6 +50,7 @@ class _AppShellState extends State<AppShell> {
     InstallationComponent.YT_DLP: true,
   };
   bool installationInProgress = false;
+  List<String> installedProviders = [];
   final InstallController installController = InstallController();
 
   @override
@@ -87,7 +90,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       installationInProgress = false;
       if (installController.status == InstallStatus.success) {
-        currentStep = InstallationStep.completion;
+        currentStep = InstallationStep.providerSelection;
       }
     });
   }
@@ -149,6 +152,7 @@ class _AppShellState extends State<AppShell> {
           'NewPipeExtractor + Java',
         if (isComponentSelected(InstallationComponent.YT_DLP))
           'yt-dlp + Node.js',
+        ...installedProviders.map((p) => 'Provider: $p'),
       ],
       onFinish: windowManager.close,
       onOpenApp: _openInstalledApp,
@@ -174,6 +178,17 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Widget buildProviderSelectionStep() {
+    return ProviderSelectStep(
+      onContinue: (providers) {
+        setState(() {
+          installedProviders = providers;
+          currentStep = InstallationStep.completion;
+        });
+      },
+    );
+  }
+
   Widget buildCurrentStep(InstallationStep activeStep) {
     switch (activeStep) {
       case InstallationStep.welcome:
@@ -184,6 +199,8 @@ class _AppShellState extends State<AppShell> {
         return buildComponentSelectionStep();
       case InstallationStep.installationProgress:
         return buildInstallationProgressStep();
+      case InstallationStep.providerSelection:
+        return buildProviderSelectionStep();
       case InstallationStep.completion:
         return buildCompletionStep();
     }
@@ -195,10 +212,13 @@ class _AppShellState extends State<AppShell> {
 
     final canRegress =
         (InstallationStep.values.indexOf(currentStep) > 0) &&
-        !installationInProgress;
+        !installationInProgress &&
+        currentStep != InstallationStep.providerSelection &&
+        currentStep != InstallationStep.completion;
     final canAdvance =
         !installationInProgress &&
         currentStep != InstallationStep.installationProgress &&
+        currentStep != InstallationStep.providerSelection &&
         ((currentStep != InstallationStep.licenseAgreement) ||
             isLicenseAccepted);
 
@@ -214,6 +234,7 @@ class _AppShellState extends State<AppShell> {
               children: [
                 // Backward button
                 if (InstallationStep.values.indexOf(currentStep) > 0 &&
+                    currentStep != InstallationStep.providerSelection &&
                     currentStep != InstallationStep.completion)
                   Positioned.directional(
                     textDirection: Directionality.of(context),
@@ -228,7 +249,9 @@ class _AppShellState extends State<AppShell> {
                   ),
                 // Forward button
                 if (InstallationStep.values.indexOf(currentStep) <
-                    InstallationStep.values.length - 1)
+                    InstallationStep.values.length - 1 &&
+                    currentStep != InstallationStep.installationProgress &&
+                    currentStep != InstallationStep.providerSelection)
                   Positioned.directional(
                     textDirection: Directionality.of(context),
                     top: 12,

@@ -9,6 +9,7 @@ import 'package:wisp/services/discord/discord_rpc_api.dart';
 import 'package:wisp/services/discord/types.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp_assets/wisp_assets.dart';
 
 class DiscordRpcService {
   DiscordRpcService._();
@@ -18,7 +19,7 @@ class DiscordRpcService {
   static const String _clientId = '1467666801369288923';
 
   static const String _fallbackCoverUrl =
-      'https://raw.githubusercontent.com/wizeshi/wisp/refs/heads/master/assets/wisp.png';
+      'https://raw.githubusercontent.com/${WispInfo.author}/wisp/refs/heads/master/assets/wisp.png';
 
   // Discord asset keys for play/pause icons.
   static const String _playIconKey = 'play_arrow';

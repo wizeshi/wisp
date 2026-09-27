@@ -4,8 +4,9 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/data/sources/lyrics/lyrics_source_manager.dart';
+import 'package:wisp/features/connect/services/connect_models.dart';
 
 enum PausedBackgroundWidget {
   lyricsView,
@@ -50,9 +51,13 @@ class PreferencesProvider extends ChangeNotifier {
   static const _keyCrossfadeDurationSeconds = 'crossfade_duration_seconds';
   static const _keyLyricsLrclibEnabled = 'lyrics_lrclib_enabled';
   static const _keyLyricsSpotifyEnabled = 'lyrics_spotify_enabled';
+  static const _keyDisabledProviderIds = 'disabled_provider_ids';
+  static const _keyFirstBootCompleted = 'first_boot_completed';
   static const _keyHandoffSecurityLevel = 'handoff_security_level';
   static const _keyTrustedDevices = 'handoff_trusted_devices';
   static const _keyDebugModeEnabled = 'debug_mode_enabled';
+  static const _keyAutoRegisterLocalProviders =
+      'auto_register_local_providers';
   static const _keyPausedBackgroundWidgetsEnabled =
       'paused_background_widgets_enabled';
   static const _keyKeepPositionBetweenRestarts =
@@ -73,6 +78,7 @@ class PreferencesProvider extends ChangeNotifier {
   static const List<PausedBackgroundWidget>
   _defaultPausedBackgroundWidgetsEnabled = PausedBackgroundWidget.values;
   static const bool _defaultDebugModeEnabled = false;
+  static const bool _defaultAutoRegisterLocalProviders = false;
 
   AppStyle _style = AppStyle.Spotify;
   AppStyle get style => _style;
@@ -124,10 +130,21 @@ class PreferencesProvider extends ChangeNotifier {
   bool _debugModeEnabled = _defaultDebugModeEnabled;
   bool get debugModeEnabled => _debugModeEnabled;
 
+  bool _autoRegisterLocalProviders = _defaultAutoRegisterLocalProviders;
+  bool get autoRegisterLocalProviders => _autoRegisterLocalProviders;
+
+  bool _firstBootCompleted = false;
+  bool get isFirstBootCompleted => _firstBootCompleted;
+
+  List<String> _disabledProviderIds = <String>[];
+  List<String> get disabledProviderIds => List.unmodifiable(_disabledProviderIds);
+
+  bool isProviderEnabled(String id) => !_disabledProviderIds.contains(id);
+
   bool get hasMetadataProviderEnabled =>
       _metadataSpotifyEnabled || _metadataYouTubeEnabled;
   bool get hasLyricsProviderEnabled =>
-      _lyricsLrclibEnabled || _lyricsSpotifyEnabled;
+      _lyricsLrclibEnabled || _lyricsSpotifyEnabled || isProviderEnabled('betterlyrics');
 
   PreferencesProvider() {
     _load();
@@ -172,6 +189,9 @@ class PreferencesProvider extends ChangeNotifier {
       );
       _debugModeEnabled =
           prefs.getBool(_keyDebugModeEnabled) ?? _defaultDebugModeEnabled;
+      _autoRegisterLocalProviders =
+          prefs.getBool(_keyAutoRegisterLocalProviders) ??
+          _defaultAutoRegisterLocalProviders;
       _trustedDevices = _decodeTrustedDevices(
         prefs.getString(_keyTrustedDevices),
       );
@@ -183,10 +203,24 @@ class PreferencesProvider extends ChangeNotifier {
                 ),
               )
               .toList(growable: false);
+      _firstBootCompleted = prefs.getBool(_keyFirstBootCompleted) ?? false;
+      _disabledProviderIds =
+          prefs.getStringList(_keyDisabledProviderIds) ?? <String>[];
       notifyListeners();
     } catch (_) {
       // Ignore load errors; keep default
     }
+  }
+
+  static Future<bool> isProviderEnabledStatic(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final disabled = prefs.getStringList(_keyDisabledProviderIds) ?? <String>[];
+    return !disabled.contains(id);
+  }
+
+  static Future<bool> isFirstBootCompletedStatic() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyFirstBootCompleted) ?? false;
   }
 
   static Future<bool> isWritingAllowed() async {
@@ -259,6 +293,30 @@ class PreferencesProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyDebugModeEnabled, enabled);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> isAutoRegisterLocalProvidersEnabledStatic() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_keyAutoRegisterLocalProviders) ??
+          _defaultAutoRegisterLocalProviders;
+    } catch (_) {
+      return _defaultAutoRegisterLocalProviders;
+    }
+  }
+
+  Future<bool> setAutoRegisterLocalProviders(bool enabled) async {
+    if (enabled == _autoRegisterLocalProviders) return false;
+    _autoRegisterLocalProviders = enabled;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyAutoRegisterLocalProviders, enabled);
+      await LyricsSourceManager.instance.reload();
       return true;
     } catch (_) {
       return false;
@@ -390,14 +448,34 @@ class PreferencesProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> setLyricsLrclibEnabled(bool enabled) async {
-    if (enabled == _lyricsLrclibEnabled) return;
-    _lyricsLrclibEnabled = enabled;
+  Future<void> setFirstBootCompleted(bool value) async {
+    if (value == _firstBootCompleted) return;
+    _firstBootCompleted = value;
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_keyLyricsLrclibEnabled, enabled);
+      await prefs.setBool(_keyFirstBootCompleted, value);
     } catch (_) {}
+  }
+
+  Future<void> setProviderEnabled(String id, bool enabled) async {
+    final updated = List<String>.from(_disabledProviderIds);
+    if (enabled) {
+      updated.remove(id);
+    } else {
+      if (!updated.contains(id)) updated.add(id);
+    }
+    _disabledProviderIds = updated;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_keyDisabledProviderIds, updated);
+    } catch (_) {}
+  }
+
+  Future<void> setLyricsLrclibEnabled(bool enabled) async {
+    await setProviderEnabled('lrclib', enabled);
+    _lyricsLrclibEnabled = enabled;
   }
 
   Future<void> setLyricsSpotifyEnabled(bool enabled) async {

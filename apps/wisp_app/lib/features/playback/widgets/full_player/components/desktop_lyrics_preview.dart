@@ -89,7 +89,7 @@ class DesktopLyricsPreviewWidget extends StatelessWidget {
           ),
         const SizedBox(height: 6),
         Text(
-          lyrics == null ? '' : 'Lyrics provided by ${lyrics.provider.label}',
+          lyrics == null ? '' : 'Lyrics provided by ${lyrics.providerLabel}',
           style: const TextStyle(color: Colors.white, fontSize: 12),
         ),
       ],

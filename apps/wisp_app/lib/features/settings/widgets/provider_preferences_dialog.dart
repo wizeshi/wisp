@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/data/sources/lyrics/lyrics_source_manager.dart';
+import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 
 class ProviderPreferencesDialog extends StatelessWidget {
@@ -123,46 +125,62 @@ class ProviderPreferencesDialog extends StatelessWidget {
                         style: TextStyle(color: Colors.white),
                       ),
                       children: [
-                        SwitchListTile.adaptive(
-                          title: const Text(
-                            'Lrclib',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          value: prefs.lyricsLrclibEnabled,
-                          activeThumbColor: Theme.of(
-                            context,
-                          ).colorScheme.primary,
-                          onChanged: (enabled) async {
-                            final hasAny =
-                                enabled || prefs.lyricsSpotifyEnabled;
-                            await prefs.setLyricsLrclibEnabled(enabled);
-                            if (!hasAny) {
-                              showSnackBar(
-                                'Warning: all Lyrics providers are disabled.',
+                        ...LyricsSourceManager.instance.allSources.map((source) {
+                          final isEnabled = prefs.isProviderEnabled(source.id);
+                          final hasUpdate = ProvidersRepositoryService.instance
+                              .hasUpdateForProvider(source.id);
+                          return SwitchListTile.adaptive(
+                            title: Row(
+                              children: [
+                                Text(
+                                  source.name,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                if (hasUpdate) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 1.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: Colors.amber.withValues(alpha: 0.5),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'UPDATE AVAILABLE',
+                                      style: TextStyle(
+                                        color: Colors.amber,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            subtitle: Text(
+                              'Priority: ${source.priority}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                            value: isEnabled,
+                            activeThumbColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            onChanged: (enabled) async {
+                              await prefs.setProviderEnabled(
+                                source.id,
+                                enabled,
                               );
-                            }
-                          },
-                        ),
-                        SwitchListTile.adaptive(
-                          title: const Text(
-                            'Spotify',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                          value: prefs.lyricsSpotifyEnabled,
-                          activeThumbColor: Theme.of(
-                            context,
-                          ).colorScheme.primary,
-                          onChanged: (enabled) async {
-                            final hasAny =
-                                enabled || prefs.lyricsLrclibEnabled;
-                            await prefs.setLyricsSpotifyEnabled(enabled);
-                            if (!hasAny) {
-                              showSnackBar(
-                                'Warning: all Lyrics providers are disabled.',
-                              );
-                            }
-                          },
-                        ),
+                            },
+                          );
+                        }),
                       ],
                     ),
                   ],

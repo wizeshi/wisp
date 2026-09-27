@@ -352,24 +352,54 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     final isLoading =
         (syncedState.isLoading || unsyncedState.isLoading) && lyrics == null;
 
+    if (lyricsProvider.isInitialized && !lyricsProvider.hasSources) {
+      return Center(
+        child: Text(
+          'No lyrics providers available.\nAdd some in the settings!',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.grey[400],
+            fontSize: 16,
+            height: 1.4,
+          ),
+        ),
+      );
+    }
+
     if (isLoading) {
       return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
     if (lyrics == null || lyrics.lines.isEmpty) {
+      final noProviders = !lyricsProvider.hasSources;
       return Center(
         child: Text(
-          'No lyrics found',
-          style: TextStyle(color: Colors.grey[400], fontSize: 16),
+          noProviders
+              ? 'No lyrics providers available.\nAdd some in the settings!'
+              : 'No lyrics found',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.grey[400],
+            fontSize: 16,
+            height: 1.4,
+          ),
         ),
       );
     }
 
     final normalizedLyrics = removeEmptyLyricsLines(lyrics);
     if (normalizedLyrics.lines.isEmpty) {
+      final noProviders = !lyricsProvider.hasSources;
       return Center(
         child: Text(
-          'No lyrics found',
-          style: TextStyle(color: Colors.grey[400], fontSize: 16),
+          noProviders
+              ? 'No lyrics providers available.\nAdd some in the settings!'
+              : 'No lyrics found',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.grey[400],
+            fontSize: 16,
+            height: 1.4,
+          ),
         ),
       );
     }
