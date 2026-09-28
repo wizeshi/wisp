@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:wisp/features/settings/state/preferences_provider.dart';
-import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
@@ -13,6 +12,7 @@ import 'package:wisp/shared/widgets/overlay/cover_play_button.dart';
 import 'package:wisp/shared/widgets/overlay/hover.dart';
 import 'package:wisp/shared/widgets/overlay/waveform.dart';
 import 'package:wisp/shared/widgets/playback/playback_selectors.dart';
+import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import 'package:wisp/core/utils/song_source_icon.dart';
 import 'package:wisp/shared/widgets/display/hover_underline.dart';
 
@@ -297,11 +297,7 @@ class TrackRow extends StatelessWidget {
 
     return Row(
       children: [
-        if (track.explicit) ...[
-          Icon(Icons.explicit, size: 14 * _fontScaling, color: Colors.grey[500]),
-          const SizedBox(width: 4),
-        ],
-        _CacheIndicator(trackId: track.id, fontScaling: _fontScaling),
+        TrackBadges(track: track, fontScaling: _fontScaling),
         Expanded(child: titleWidget),
       ],
     );
@@ -335,11 +331,7 @@ class TrackRow extends StatelessWidget {
 
     return Row(
       children: [
-        if (track.explicit) ...[
-          Icon(Icons.explicit, size: 14 * _fontScaling, color: Colors.grey[500]),
-          const SizedBox(width: 4),
-        ],
-        _CacheIndicator(trackId: track.id, fontScaling: _fontScaling),
+        TrackBadges(track: track, fontScaling: _fontScaling),
         Expanded(child: artistArea),
       ],
     );
@@ -614,53 +606,6 @@ class TrackRow extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Cache/download state for one track — cached (offline pin), downloading
-/// (progress ring), or neither (nothing). Ported from the per-screen
-/// `AnimatedBuilder(animation: AudioCacheManager.instance, ...)` blocks
-/// that used to be duplicated in `_buildSongTitleWithIcons` and
-/// `_buildArtistWithIcons`.
-class _CacheIndicator extends StatelessWidget {
-  final String trackId;
-  final double fontScaling;
-
-  const _CacheIndicator({required this.trackId, required this.fontScaling});
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<TrackDownloadProgress>(
-      valueListenable: AudioCacheManager.instance.watchTrack(trackId),
-      builder: (context, state, _) {
-        final isCached = state.isCached;
-        final isDownloading = state.isDownloading;
-        if (!isCached && !isDownloading) return const SizedBox.shrink();
-        if (isDownloading) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: SizedBox(
-              width: 12 * fontScaling,
-              height: 12 * fontScaling,
-              child: CircularProgressIndicator(
-                value: state.progress,
-                strokeWidth: 2,
-                color: Theme.of(context).colorScheme.primary,
-                backgroundColor: Colors.grey[800],
-              ),
-            ),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: Icon(
-            Icons.offline_pin,
-            size: 12 * fontScaling,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        );
-      },
     );
   }
 }

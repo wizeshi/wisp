@@ -24,7 +24,8 @@ class CoverArtKMeans {
   }) async {
     ui.Image? image;
     try {
-      image = await _loadImage(provider);
+      final sampleProvider = ResizeImage(provider, width: 100, height: 100);
+      image = await _loadImage(sampleProvider);
       final byteData = await image.toByteData(
         format: ui.ImageByteFormat.rawRgba,
       );

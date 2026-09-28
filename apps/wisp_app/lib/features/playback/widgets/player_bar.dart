@@ -28,6 +28,7 @@ import 'package:wisp/features/connect/state/connect_session_provider.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/features/connect/widgets/connect_menu.dart';
+import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 
 class WispPlayerBar extends StatelessWidget {
   const WispPlayerBar({super.key});
@@ -288,24 +289,26 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   }
 
   Widget _buildMobileTrackInfo(dynamic currentTrack) {
-    if (currentTrack == null) {
+    if (currentTrack == null || currentTrack is! GenericSong) {
       return Text(
         'No track playing',
         style: TextStyle(color: Colors.grey[600], fontSize: 14),
       );
     }
 
+    final GenericSong track = currentTrack;
+
     final output = context.select<ConnectSessionProvider, _MobileOutputInfo>(
       (connect) => _MobileOutputInfo.fromProvider(connect),
     );
 
     if (output.isExternal) {
-      final artists = currentTrack.artists
+      final artists = track.artists
           .map((artist) => artist.name)
           .join(', ');
       final songLine = artists.isEmpty
-          ? currentTrack.title
-          : '${currentTrack.title}  ·  $artists';
+          ? track.title
+          : '${track.title}  ·  $artists';
 
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -324,6 +327,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              TrackBadges(track: track),
               Flexible(
                 child: MarqueeText(
                   text: output.deviceName,
@@ -345,20 +349,27 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         MarqueeText(
-          text: currentTrack.title,
+          text: track.title,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 14,
             fontWeight: FontWeight.bold,
           ),
         ),
-        MarqueeText(
-          text: currentTrack.artists.map((a) => a.name).join(', '),
-          style: TextStyle(
-            color: Colors.grey[250],
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+        Row(
+          children: [
+            TrackBadges(track: track),
+            Expanded(
+              child: MarqueeText(
+                text: track.artists.map((a) => a.name).join(', '),
+                style: TextStyle(
+                  color: Colors.grey[250],
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -617,7 +628,10 @@ class _DesktopPlayerBar extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: Padding(
                         padding: const EdgeInsets.only(right: 24),
-                        child: _DesktopTrackInfo(currentTrack: currentTrack),
+                        child: _DesktopTrackInfo(
+                          currentTrack: currentTrack,
+                          appStyle: appStyle,
+                        ),
                       ),
                     ),
                   ),
@@ -972,8 +986,12 @@ class _DesktopTrackArtists extends StatelessWidget {
 
 class _DesktopTrackInfo extends StatelessWidget {
   final GenericSong? currentTrack;
+  final AppStyle appStyle;
 
-  const _DesktopTrackInfo({required this.currentTrack});
+  const _DesktopTrackInfo({
+    required this.currentTrack,
+    required this.appStyle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1041,8 +1059,17 @@ class _DesktopTrackInfo extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _DesktopTrackName(track: track),
-              SizedBox(height: 2),
-              _DesktopTrackArtists(track: track),
+              const SizedBox(height: 2),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TrackBadges(track: track),
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: _DesktopTrackArtists(track: track),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

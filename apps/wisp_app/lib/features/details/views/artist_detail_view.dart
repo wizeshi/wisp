@@ -64,6 +64,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       MetadataRevalidatorToken();
   GenericArtist? _artist;
   String? _hoveredTrackId;
+  final ScrollController _scrollController = ScrollController();
   final PageController _appleTopSongsPageController = PageController(
     viewportFraction: 0.9,
   );
@@ -78,6 +79,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   void dispose() {
     _revalidationToken.cancel();
     _appleTopSongsPageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -215,33 +217,37 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 actionsRowColor,
               );
 
-        if (_isRefreshing && !showLoadingSpinner) {
-          content = Stack(
-            children: [
-              content,
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: SizedBox(
-                  height: 2,
-                  child: LinearProgressIndicator(
-                    backgroundColor: Colors.transparent,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.7),
+        final wrappedContent = Stack(
+          children: [
+            content,
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _isRefreshing && !showLoadingSpinner ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: SizedBox(
+                    height: 2,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.7),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ],
-          );
-        }
+            ),
+          ],
+        );
 
         if (isDesktop) {
-          return content;
+          return wrappedContent;
         }
 
         return Scaffold(
@@ -257,7 +263,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
             ),
           ),
-          body: content,
+          body: wrappedContent,
         );
       },
     );
@@ -319,6 +325,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       children: [
         Expanded(
           child: CustomScrollView(
+            key: PageStorageKey('artist_mobile_default_${widget.artistId}'),
+            controller: _scrollController,
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
@@ -379,6 +387,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     required int followers,
   }) {
     return CustomScrollView(
+      key: PageStorageKey('artist_mobile_apple_${widget.artistId}'),
+      controller: _scrollController,
       slivers: [
         SliverToBoxAdapter(
           child: _buildMobileAppleHero(
@@ -527,6 +537,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         SafeArea(
           bottom: false,
           child: ListView(
+            key: PageStorageKey('artist_desktop_spotify_${widget.artistId}'),
+            controller: _scrollController,
             padding: EdgeInsets.zero,
             children: [
               Container(
@@ -731,6 +743,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         SafeArea(
           bottom: false,
           child: CustomScrollView(
+            key: PageStorageKey('artist_desktop_apple_${widget.artistId}'),
+            controller: _scrollController,
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(

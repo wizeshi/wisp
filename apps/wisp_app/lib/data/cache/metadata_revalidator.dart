@@ -53,7 +53,7 @@ class MetadataRevalidator {
     if (token?.isCancelled ?? false) return;
 
     // 2. Check network connectivity state
-    final isOnline = await connectivity.checkOnline();
+    final isOnline = connectivity.isOnline;
     if (token?.isCancelled ?? false) return;
 
     if (!isOnline) {

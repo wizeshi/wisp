@@ -447,27 +447,65 @@ function extractDurationMs(t) {
   return extractDurationSecs(t) * 1000;
 }
 
-function trackToGeneric(track) {
+function trackToGeneric(track, albumLookup = null, defaultArtist = null) {
   if (!track) return null;
   const rawUri = track.uri || '';
   const id = rawUri.includes(':') ? rawUri.split(':').pop() : (track.id || '');
-  const artists = extractArtists(track.artists);
-  const isExplicit = !!(track.explicit || (track.contentRating && track.contentRating.label === 'EXPLICIT'));
+  let artists = extractArtists(track.artists);
+  if ((!artists || artists.length === 0) && defaultArtist) {
+    artists = [{
+      id: defaultArtist.id || '',
+      source: 'spotify',
+      name: defaultArtist.name || '',
+      thumbnail_url: defaultArtist.thumbnail_url || ''
+    }];
+  }
+
+  const isExplicit = !!(
+    (track.explicit === true) ||
+    (track.contentRating && track.contentRating.label === 'EXPLICIT') ||
+    (track.consumptionExperienceTrait && Array.isArray(track.consumptionExperienceTrait.contentRatings) &&
+     track.consumptionExperienceTrait.contentRatings.some(r => r === 'CONTENT_RATING_EXPLICIT' || r === 'EXPLICIT')) ||
+    (Array.isArray(track.attributes) && track.attributes.includes('EXPLICIT'))
+  );
   const durationSecs = extractDurationSecs(track);
 
   let album = null;
   const albumData = track.albumOfTrack || track.album;
   if (albumData) {
-    const albumUri = albumData.uri || '';
-    album = {
-      id: albumUri.includes(':') ? albumUri.split(':').pop() : (albumData.id || ''),
-      source: 'spotify',
-      title: albumData.name || '',
-      thumbnail_url: extractImageUrl(albumData.coverArt || albumData.images),
-      artists: extractArtists(albumData.artists),
-      label: albumData.label || '',
-      release_date: extractReleaseDate(albumData.date)
-    };
+    const albumUri = albumData.uri || (albumData.id ? ('spotify:album:' + albumData.id) : '');
+    const albumId = albumUri.includes(':') ? albumUri.split(':').pop() : (albumData.id || '');
+
+    let matchedAlbum = null;
+    if (albumLookup) {
+      matchedAlbum = (albumUri && albumLookup.get(albumUri)) || (albumId && albumLookup.get(albumId));
+    }
+
+    if (matchedAlbum) {
+      album = {
+        id: matchedAlbum.id || albumId,
+        source: 'spotify',
+        title: matchedAlbum.title || matchedAlbum.name || '',
+        thumbnail_url: extractImageUrl(albumData.coverArt || albumData.images) || matchedAlbum.thumbnail_url || '',
+        artists: (matchedAlbum.artists && matchedAlbum.artists.length > 0) ? matchedAlbum.artists : (artists || []),
+        label: matchedAlbum.label || '',
+        release_date: matchedAlbum.release_date || extractReleaseDate(albumData.date)
+      };
+    } else {
+      let albumArtists = extractArtists(albumData.artists);
+      if ((!albumArtists || albumArtists.length === 0) && artists && artists.length > 0) {
+        albumArtists = artists;
+      }
+      album = {
+        id: albumId,
+        source: 'spotify',
+        title: albumData.name || '',
+        thumbnail_url: extractImageUrl(albumData.coverArt || albumData.images),
+        artists: albumArtists || [],
+        label: albumData.label || '',
+        release_date: extractReleaseDate(albumData.date)
+      };
+    }
   }
 
   return {
@@ -586,7 +624,9 @@ function extractPlaylistItems(contents, offset) {
       artists = extractArtists(sourceData.artists);
     }
 
-    const albumData = item.itemV2 && item.itemV2.data && item.itemV2.data.albumOfTrack;
+    const albumData = (item.itemV2 && item.itemV2.data && item.itemV2.data.albumOfTrack) ||
+                      sourceData.albumOfTrack ||
+                      sourceData.album;
     let album = null;
     if (albumData) {
       const aUri = albumData.uri || '';
@@ -598,6 +638,21 @@ function extractPlaylistItems(contents, offset) {
         artists: extractArtists(albumData.artists),
         label: albumData.label || '',
         release_date: extractReleaseDate(albumData.date || null)
+      };
+    } else if (identity && identity.contentHierarchyParent) {
+      const parent = identity.contentHierarchyParent;
+      const pUri = parent.uri || '';
+      const pId = pUri.includes(':') ? pUri.split(':').pop() : (parent.id || '');
+      const pName = (parent.identityTrait && parent.identityTrait.name) || parent.name || '';
+      const pDate = (parent.publishingMetadataTrait && parent.publishingMetadataTrait.firstPublishedAt && parent.publishingMetadataTrait.firstPublishedAt.isoString) || null;
+      album = {
+        id: pId,
+        source: 'spotify',
+        title: pName,
+        thumbnail_url: extractImageUrl(sourceData.coverArt || sourceData.visualIdentityTrait) || '',
+        artists: artists,
+        label: '',
+        release_date: extractReleaseDate(pDate)
       };
     }
 
@@ -616,7 +671,22 @@ function extractPlaylistItems(contents, offset) {
     const addedAtStr = (item.addedAt && item.addedAt.isoString) || item.added_at || new Date().toISOString();
     const trackThumbnail =
       extractImageUrl(sourceData.coverArt || sourceData.images || (identity && identity.coverArt)) ||
-      extractImageUrl(sourceData.visualIdentityTrait) || '';
+      extractImageUrl(sourceData.visualIdentityTrait) ||
+      (album && album.thumbnail_url) || '';
+
+    const isExplicit = !!(
+      (sourceData.explicit === true) ||
+      (item.explicit === true) ||
+      (sourceData.contentRating && sourceData.contentRating.label === 'EXPLICIT') ||
+      (item.itemV2 && item.itemV2.data && item.itemV2.data.contentRating && item.itemV2.data.contentRating.label === 'EXPLICIT') ||
+      (item.track && item.track.contentRating && item.track.contentRating.label === 'EXPLICIT') ||
+      (sourceData.consumptionExperienceTrait && Array.isArray(sourceData.consumptionExperienceTrait.contentRatings) &&
+       sourceData.consumptionExperienceTrait.contentRatings.some(r => r === 'CONTENT_RATING_EXPLICIT' || r === 'EXPLICIT')) ||
+      (item.itemV3 && item.itemV3.data && item.itemV3.data.consumptionExperienceTrait &&
+       Array.isArray(item.itemV3.data.consumptionExperienceTrait.contentRatings) &&
+       item.itemV3.data.consumptionExperienceTrait.contentRatings.some(r => r === 'CONTENT_RATING_EXPLICIT' || r === 'EXPLICIT')) ||
+      (Array.isArray(item.attributes) && item.attributes.includes('EXPLICIT'))
+    );
 
     songs.push({
       id: trackId,
@@ -625,7 +695,7 @@ function extractPlaylistItems(contents, offset) {
       title: title,
       artists: artists,
       thumbnail_url: trackThumbnail,
-      explicit: !!(sourceData.contentRating && sourceData.contentRating.label === 'EXPLICIT'),
+      explicit: isExplicit,
       album: album,
       duration_secs: durationSecs,
       added_at: addedAtStr,
@@ -676,29 +746,122 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
   };
 }
 
-function fullArtistToGeneric(data) {
+async function fullArtistToGeneric(data) {
   const artist = (data.data && data.data.artistUnion) || data.artistUnion || data;
   const uri = artist.uri || '';
   const id = uri.includes(':') ? uri.split(':').pop() : (artist.id || '');
+  const artistName = (artist.profile && artist.profile.name) || artist.name || '';
   const avatarUrl = extractImageUrl(artist.visuals && artist.visuals.avatarImage);
+  const defaultArtist = {
+    id: id,
+    source: 'spotify',
+    name: artistName,
+    thumbnail_url: avatarUrl
+  };
 
-  const discography = (artist.discography && artist.discography.topTracks && artist.discography.topTracks.items) || [];
-  const topSongs = discography.map(item => {
-    const t = item.track || item;
-    return trackToGeneric(t);
-  }).filter(Boolean);
+  const discography = artist.discography || {};
+  const relatedContent = artist.relatedContent || {};
+  const albumLookup = new Map();
 
-  const albumItems = (artist.discography && artist.discography.albums && artist.discography.albums.items) || [];
-
-  const albums = albumItems.map(item => {
+  function registerAlbum(item) {
+    if (!item) return;
     const a = (item.releases && item.releases.items && item.releases.items[0]) || item;
-    const aUri = a.uri || '';
-    return {
-      id: aUri.includes(':') ? aUri.split(':').pop() : (a.id || ''),
+    const aUri = a.uri || (a.id ? ('spotify:album:' + a.id) : '');
+    const aId = aUri.includes(':') ? aUri.split(':').pop() : (a.id || '');
+    if (!aId) return;
+
+    let albArtists = extractArtists(a.artists);
+    if (!albArtists || albArtists.length === 0) {
+      albArtists = [defaultArtist];
+    }
+
+    const albumObj = {
+      id: aId,
       source: 'spotify',
       title: a.name || '',
       thumbnail_url: extractImageUrl(a.coverArt || a.images),
-      artists: extractArtists(a.artists),
+      artists: albArtists,
+      label: a.label || '',
+      release_date: extractReleaseDate(a.date)
+    };
+
+    albumLookup.set(aId, albumObj);
+    if (aUri) albumLookup.set(aUri, albumObj);
+  }
+
+  const collections = [
+    discography.popularReleasesAlbums && discography.popularReleasesAlbums.items,
+    discography.albums && discography.albums.items,
+    discography.singles && discography.singles.items,
+    discography.compilations && discography.compilations.items,
+    discography.latest ? [discography.latest] : null,
+    relatedContent.appearsOn && relatedContent.appearsOn.items
+  ];
+
+  for (const col of collections) {
+    if (Array.isArray(col)) {
+      for (const item of col) {
+        registerAlbum(item);
+      }
+    }
+  }
+
+  const topTracks = (discography.topTracks && discography.topTracks.items) || [];
+  const topSongs = topTracks.map(item => {
+    const t = item.track || item;
+    return trackToGeneric(t, albumLookup, defaultArtist);
+  }).filter(Boolean);
+
+  // If any top songs are still missing album title, fetch the missing album(s)
+  const missingAlbumPromises = [];
+  const missingAlbumIds = new Set();
+  for (const song of topSongs) {
+    if (song.album && (!song.album.title || song.album.title.trim() === '')) {
+      if (song.album.id && !missingAlbumIds.has(song.album.id)) {
+        missingAlbumIds.add(song.album.id);
+        missingAlbumPromises.push(
+          getAlbum(song.album.id).catch(() => null)
+        );
+      }
+    }
+  }
+
+  if (missingAlbumPromises.length > 0) {
+    const fetchedAlbums = await Promise.all(missingAlbumPromises);
+    for (const fetched of fetchedAlbums) {
+      if (fetched && fetched.id) {
+        for (const song of topSongs) {
+          if (song.album && song.album.id === fetched.id) {
+            song.album = {
+              id: fetched.id,
+              source: 'spotify',
+              title: fetched.title,
+              thumbnail_url: song.album.thumbnail_url || fetched.thumbnail_url,
+              artists: (fetched.artists && fetched.artists.length > 0) ? fetched.artists : [defaultArtist],
+              label: fetched.label || song.album.label || '',
+              release_date: fetched.release_date || song.album.release_date
+            };
+          }
+        }
+      }
+    }
+  }
+
+  const albumItems = (discography.albums && discography.albums.items) || [];
+  const albums = albumItems.map(item => {
+    const a = (item.releases && item.releases.items && item.releases.items[0]) || item;
+    const aUri = a.uri || '';
+    const aId = aUri.includes(':') ? aUri.split(':').pop() : (a.id || '');
+    let albArtists = extractArtists(a.artists);
+    if (!albArtists || albArtists.length === 0) {
+      albArtists = [defaultArtist];
+    }
+    return {
+      id: aId,
+      source: 'spotify',
+      title: a.name || '',
+      thumbnail_url: extractImageUrl(a.coverArt || a.images),
+      artists: albArtists,
       label: a.label || '',
       release_date: extractReleaseDate(a.date)
     };
@@ -711,7 +874,7 @@ function fullArtistToGeneric(data) {
   return {
     id: id,
     source: 'spotify',
-    name: (artist.profile && artist.profile.name) || artist.name || '',
+    name: artistName,
     description: biography,
     thumbnail_url: avatarUrl,
     followers: followers,
@@ -919,7 +1082,7 @@ async function getArtist(artistId) {
     }
   );
 
-  return fullArtistToGeneric(data);
+  return await fullArtistToGeneric(data);
 }
 
 async function search(query, options = {}) {
@@ -1300,7 +1463,7 @@ async function getUserLibrary(options = {}) {
       savedAlbums.push(fullAlbumToGeneric(itemData));
       allOrganized.push(simplifiedAlbumToGeneric(itemData));
     } else if (typename === 'Artist' || typename === 'ArtistResponseWrapper') {
-      savedArtists.push(fullArtistToGeneric(itemData));
+      savedArtists.push(await fullArtistToGeneric(itemData));
       allOrganized.push(simplifiedArtistToGeneric(itemData));
     } else if (typename === 'Folder') {
       const uri = itemData.uri || itemData._uri || '';

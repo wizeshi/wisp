@@ -2,10 +2,9 @@ Here's the TODOs for version v26.08.xx:
 
 - Bugs:
   - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
-  - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
+  - [ ] Fix smooth scroll 
 - Future changes: 
-  - [ ] Add explicit and cached icons to the playerbar
-  - [ ] Add inspect element button when devmode is on. Should show the details of the element (e.g. for a track show the name, id, source, etc...)
+  - [ ] Replace elements in the artist view with the reusable ones: Top Songs, Albums
   - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
   - [ ] Add special card from the home screen on mobile. 
   - [ ] Make artist name clickable in the full player
@@ -25,13 +24,6 @@ Here's the TODOs for version v26.08.xx:
       - [ ] Setup script
       - [ ] Build app script
       - [ ] Build installer script
-  - [ ] Finish Spotify integration
-      - [ ] Add following/unfollowing artists
-      - [ ] Add saving/removing playlists
-      - [ ] Add saving/removing albums
-      - [ ] Add following/unfollowing users
-      - [ ] Improve saved songs, notably the way we store them and the long wait times in the Liked Songs view.
-      - [ ] Add endpoints for state-checking: is song saved, is album saved, is playlist saved, is artist followed, is user followed, is playlist pinned, etc.
   - [ ] Add element pinning to the sidebar/library (client-side)
   - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
   - [ ] Add translation support (start with English & Portuguese)

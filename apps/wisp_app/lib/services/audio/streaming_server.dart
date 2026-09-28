@@ -139,7 +139,7 @@ class AudioStreamingProxy {
       }
 
       final isStartOfStream = rangeHeader == null ||
-          rangeHeader.startsWith('bytes=0-') ||
+          rangeHeader == 'bytes=0-' ||
           rangeHeader == 'bytes=0';
       final storage = AudioStorageService.instance;
       final shouldSpool = isStartOfStream &&

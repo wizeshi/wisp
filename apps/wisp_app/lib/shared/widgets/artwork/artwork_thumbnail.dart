@@ -149,6 +149,10 @@ class ArtworkThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (sizeOverride != null) {
+      return _buildContent(context, sizeOverride!);
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final hasBoundedWidth = constraints.hasBoundedWidth &&
@@ -159,9 +163,7 @@ class ArtworkThumbnail extends StatelessWidget {
             constraints.maxHeight > 0;
 
         final double renderSize;
-        if (sizeOverride != null) {
-          renderSize = sizeOverride!;
-        } else if (hasBoundedWidth && hasBoundedHeight) {
+        if (hasBoundedWidth && hasBoundedHeight) {
           renderSize = constraints.maxWidth < constraints.maxHeight
               ? constraints.maxWidth
               : constraints.maxHeight;
@@ -173,46 +175,52 @@ class ArtworkThumbnail extends StatelessWidget {
           renderSize = size.logicalSize;
         }
 
-        final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-        final cacheDimension =
-            (renderSize * devicePixelRatio).round().clamp(1, 4096);
-
-        final borderRadius = shape == ArtworkShape.circle
-            ? BorderRadius.circular(renderSize / 2)
-            : BorderRadius.circular(renderSize * 0.045);
-
-        final Widget image = switch (source) {
-          _NetworkArtwork(:final url) => CachedNetworkImage(
-              imageUrl: url,
-              fit: BoxFit.cover,
-              memCacheWidth: cacheDimension,
-              memCacheHeight: cacheDimension,
-              placeholder: (context, url) => _placeholder(),
-              errorWidget: (context, url, error) => _fallback(renderSize),
-            ),
-          _FileArtwork(:final file) => Image.file(
-              file,
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.high,
-              errorBuilder: (context, error, stackTrace) =>
-                  _fallback(renderSize),
-            ),
-          _NoArtwork() => _fallback(renderSize),
-        };
-
-        return Semantics(
-          image: true,
-          label: semanticLabel,
-          child: ClipRRect(
-            borderRadius: borderRadius,
-            child: SizedBox(
-              width: renderSize,
-              height: renderSize,
-              child: image,
-            ),
-          ),
-        );
+        return _buildContent(context, renderSize);
       },
+    );
+  }
+
+  Widget _buildContent(BuildContext context, double renderSize) {
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final cacheDimension =
+        (renderSize * devicePixelRatio).round().clamp(1, 4096);
+
+    final borderRadius = shape == ArtworkShape.circle
+        ? BorderRadius.circular(renderSize / 2)
+        : BorderRadius.circular(renderSize * 0.045);
+
+    final Widget image = switch (source) {
+      _NetworkArtwork(:final url) => CachedNetworkImage(
+          imageUrl: url,
+          fit: BoxFit.cover,
+          memCacheWidth: cacheDimension,
+          memCacheHeight: cacheDimension,
+          placeholder: (context, url) => _placeholder(),
+          errorWidget: (context, url, error) => _fallback(renderSize),
+        ),
+      _FileArtwork(:final file) => Image.file(
+          file,
+          fit: BoxFit.cover,
+          cacheWidth: cacheDimension,
+          cacheHeight: cacheDimension,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (context, error, stackTrace) =>
+              _fallback(renderSize),
+        ),
+      _NoArtwork() => _fallback(renderSize),
+    };
+
+    return Semantics(
+      image: true,
+      label: semanticLabel,
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: SizedBox(
+          width: renderSize,
+          height: renderSize,
+          child: image,
+        ),
+      ),
     );
   }
 

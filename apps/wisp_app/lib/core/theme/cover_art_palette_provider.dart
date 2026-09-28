@@ -106,14 +106,17 @@ class CoverArtPaletteProvider extends ChangeNotifier {
       return null;
     }
     if (_isLocalImagePath(imageUrl)) {
-      final filePath = imageUrl.replaceFirst('file://', '');
+      final filePath = imageUrl.startsWith('file://')
+          ? Uri.parse(imageUrl).toFilePath()
+          : imageUrl;
       return FileImage(File(filePath));
     }
     return CachedNetworkImageProvider(imageUrl);
   }
 
   bool _isLocalImagePath(String path) {
-    return path.startsWith('/') || path.startsWith('file://');
+    if (path.startsWith('/') || path.startsWith('file://')) return true;
+    return RegExp(r'^[a-zA-Z]:[/\\]').hasMatch(path);
   }
 
   void _pruneCache<T>(Map<String, T> cache) {

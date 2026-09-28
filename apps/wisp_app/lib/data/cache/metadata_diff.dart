@@ -40,19 +40,25 @@ class MetadataDiff {
     for (int i = 0; i < a.length; i++) {
       final s1 = a[i];
       final s2 = b[i];
+      if (identical(s1, s2)) continue;
 
       if (s1.id != s2.id ||
+          s1.uid != s2.uid ||
+          s1.source != s2.source ||
           s1.title != s2.title ||
           s1.durationSecs != s2.durationSecs ||
           s1.thumbnailUrl != s2.thumbnailUrl ||
           s1.explicit != s2.explicit ||
           s1.trackNumber != s2.trackNumber ||
+          s1.addedAt != s2.addedAt ||
+          s1.album?.id != s2.album?.id ||
           s1.album?.title != s2.album?.title) {
         return true;
       }
 
       if (s1.artists.length != s2.artists.length) return true;
       for (int j = 0; j < s1.artists.length; j++) {
+        if (identical(s1.artists[j], s2.artists[j])) continue;
         if (s1.artists[j].id != s2.artists[j].id ||
             s1.artists[j].name != s2.artists[j].name) {
           return true;
@@ -82,6 +88,7 @@ class MetadataDiff {
 
     if (a.artists.length != b.artists.length) return true;
     for (int i = 0; i < a.artists.length; i++) {
+      if (identical(a.artists[i], b.artists[i])) continue;
       if (a.artists[i].id != b.artists[i].id ||
           a.artists[i].name != b.artists[i].name) {
         return true;
@@ -100,18 +107,22 @@ class MetadataDiff {
     for (int i = 0; i < a.length; i++) {
       final s1 = a[i];
       final s2 = b[i];
+      if (identical(s1, s2)) continue;
 
       if (s1.id != s2.id ||
+          s1.source != s2.source ||
           s1.title != s2.title ||
           s1.durationSecs != s2.durationSecs ||
           s1.thumbnailUrl != s2.thumbnailUrl ||
           s1.explicit != s2.explicit ||
+          s1.album?.id != s2.album?.id ||
           s1.album?.title != s2.album?.title) {
         return true;
       }
 
       if (s1.artists.length != s2.artists.length) return true;
       for (int j = 0; j < s1.artists.length; j++) {
+        if (identical(s1.artists[j], s2.artists[j])) continue;
         if (s1.artists[j].id != s2.artists[j].id ||
             s1.artists[j].name != s2.artists[j].name) {
           return true;
@@ -140,6 +151,7 @@ class MetadataDiff {
 
     if (a.albums.length != b.albums.length) return true;
     for (int i = 0; i < a.albums.length; i++) {
+      if (identical(a.albums[i], b.albums[i])) continue;
       if (a.albums[i].id != b.albums[i].id ||
           a.albums[i].title != b.albums[i].title ||
           a.albums[i].thumbnailUrl != b.albums[i].thumbnailUrl) {
@@ -165,6 +177,7 @@ class MetadataDiff {
     }
 
     for (int i = 0; i < a.publicPlaylists.length; i++) {
+      if (identical(a.publicPlaylists[i], b.publicPlaylists[i])) continue;
       if (a.publicPlaylists[i].id != b.publicPlaylists[i].id ||
           a.publicPlaylists[i].title != b.publicPlaylists[i].title) {
         return true;

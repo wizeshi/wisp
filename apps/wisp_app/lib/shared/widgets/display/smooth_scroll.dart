@@ -351,6 +351,7 @@ class WispCustomScrollView extends StatelessWidget {
       scrollSpeed: scrollSpeed,
       smoothingRate: smoothingRate,
       builder: (context, ctrl, phys) => CustomScrollView(
+        key: key,
         controller: ctrl,
         scrollDirection: scrollDirection,
         reverse: reverse,
@@ -394,6 +395,7 @@ class WispListView extends StatelessWidget {
       scrollSpeed: scrollSpeed,
       smoothingRate: smoothingRate,
       builder: (context, ctrl, phys) => ListView(
+        key: key,
         controller: ctrl,
         padding: padding,
         shrinkWrap: shrinkWrap,

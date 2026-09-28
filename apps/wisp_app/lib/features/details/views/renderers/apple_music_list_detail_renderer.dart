@@ -95,6 +95,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
         WispSmoothScroll(
           controller: view._mobileScrollController,
           builder: (context, controller, physics) => CustomScrollView(
+            key: PageStorageKey('apple_mobile_${view.widget.type}_${view.widget.id}'),
             controller: controller,
             physics: physics,
             slivers: [
@@ -233,6 +234,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
           child: WispSmoothScroll(
             controller: view._desktopScrollController,
             builder: (context, controller, physics) => CustomScrollView(
+              key: PageStorageKey('apple_desktop_${view.widget.type}_${view.widget.id}'),
               controller: controller,
               physics: physics,
               slivers: [

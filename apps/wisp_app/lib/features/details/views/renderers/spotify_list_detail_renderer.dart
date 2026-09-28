@@ -40,6 +40,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                 WispSmoothScroll(
                   controller: view._mobileScrollController,
                   builder: (context, controller, physics) => CustomScrollView(
+                    key: PageStorageKey('spotify_mobile_${view.widget.type}_${view.widget.id}'),
                     controller: controller,
                     physics: physics,
                     slivers: [
@@ -140,6 +141,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                 child: WispSmoothScroll(
                   controller: view._desktopScrollController,
                   builder: (context, controller, physics) => CustomScrollView(
+                    key: PageStorageKey('spotify_desktop_${view.widget.type}_${view.widget.id}'),
                     controller: controller,
                     physics: physics,
                     slivers: [

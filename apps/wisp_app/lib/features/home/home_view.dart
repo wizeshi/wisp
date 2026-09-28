@@ -49,7 +49,9 @@ class HomePage extends StatefulWidget {
 
 class HomePageState extends State<HomePage> {
   bool _isLoading = true;
+  bool _isRefreshing = false;
   bool _isFetchingData = false;
+  final ScrollController _scrollController = ScrollController();
   List<GenericAlbum> _savedAlbums = [];
   List<GenericPlaylist> _savedPlaylists = [];
   List<GenericPlaylist> _remotePlaylists = [];
@@ -112,6 +114,7 @@ class HomePageState extends State<HomePage> {
     if (_localPlaylistListener != null) {
       _localPlaylistState.removeListener(_localPlaylistListener!);
     }
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -149,9 +152,16 @@ class HomePageState extends State<HomePage> {
         return;
       }
       final libraryState = context.read<LibraryState>();
+      final hasData = _savedAlbums.isNotEmpty ||
+          _savedPlaylists.isNotEmpty ||
+          _homeSections.isNotEmpty;
 
       if (mounted) {
-        setState(() => _isLoading = true);
+        if (!hasData) {
+          setState(() => _isLoading = true);
+        } else {
+          setState(() => _isRefreshing = true);
+        }
       }
 
       // Re-check auth state from storage only when currently unauthenticated.
@@ -196,14 +206,14 @@ class HomePageState extends State<HomePage> {
               initialLikedPlaylist,
               ...intPlaylists.where((p) => p.id != likedSongsPlaylistId),
             ];
+            if (!mounted) return;
             final localState = context.read<LocalPlaylistState>();
             final merged = _mergeLocalPlaylists(
               plWithLiked,
               localState.genericPlaylists,
               localState.hiddenProviderPlaylistIds,
             );
-            if (mounted) {
-              setState(() {
+            setState(() {
                 _savedAlbums = lib.saved_albums;
                 _savedPlaylists = merged;
                 _followedArtists = lib.saved_artists
@@ -219,7 +229,6 @@ class HomePageState extends State<HomePage> {
                 _homeSections = _sanitizeHomeSections(home.sections);
                 _isLoading = false;
               });
-            }
           }
         } catch (_) {}
       }
@@ -228,7 +237,12 @@ class HomePageState extends State<HomePage> {
       final isOnline = await ConnectivityService.instance.checkOnline();
       if (!isOnline) {
         logger.d('[Views/Home] Offline: keeping cached home data');
-        if (mounted) setState(() => _isLoading = false);
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _isRefreshing = false;
+          });
+        }
         return;
       }
 
@@ -353,6 +367,7 @@ class HomePageState extends State<HomePage> {
               .toList();
           _homeSections = _sanitizeHomeSections(userHome.sections);
           _isLoading = false;
+          _isRefreshing = false;
         });
       }
 
@@ -372,7 +387,10 @@ class HomePageState extends State<HomePage> {
     } catch (e) {
       logger.e('[Views/Home] Failed to load data', error: e);
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _isRefreshing = false;
+        });
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to load data: $e')));
@@ -495,11 +513,41 @@ class HomePageState extends State<HomePage> {
       return _buildUnauthenticatedView();
     }
 
-    if (_isLoading) {
+    final hasData = _savedAlbums.isNotEmpty ||
+        _savedPlaylists.isNotEmpty ||
+        _homeSections.isNotEmpty;
+
+    if (_isLoading && !hasData) {
       return _buildLoadingView();
     }
 
-    return _buildMainContent(isDesktop);
+    final content = _buildMainContent(isDesktop);
+
+    return Stack(
+      children: [
+        content,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: _isRefreshing ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: SizedBox(
+                height: 2,
+                child: LinearProgressIndicator(
+                  backgroundColor: Colors.transparent,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildUnsupportedHomeView() {
@@ -673,7 +721,7 @@ class HomePageState extends State<HomePage> {
       IconButton(
         icon: Icon(
           useAppleIcon
-              ? CupertinoIcons.person_crop_circle
+              ? CupertinoIcons.settings
               : Icons.settings_outlined,
           color: Colors.white,
           size: useAppleIcon ? 26 : 24,
@@ -704,6 +752,8 @@ class HomePageState extends State<HomePage> {
     return SafeArea(
       bottom: false,
       child: CustomScrollView(
+        key: const PageStorageKey('home_mobile_standard'),
+        controller: _scrollController,
         slivers: [
           // Header with settings icon
           SliverToBoxAdapter(
@@ -768,6 +818,8 @@ class HomePageState extends State<HomePage> {
     return SafeArea(
       bottom: false,
       child: CustomScrollView(
+        key: const PageStorageKey('home_mobile_apple'),
+        controller: _scrollController,
         slivers: [
           // iOS-style Large Title Header
           SliverToBoxAdapter(
@@ -981,6 +1033,8 @@ class HomePageState extends State<HomePage> {
       allowSpecialCardStyle: canShowSpecialCard,
     );
     return WispListView(
+      key: const PageStorageKey('home_desktop_list'),
+      controller: _scrollController,
       padding: const EdgeInsets.all(24),
       children: [
         Text(

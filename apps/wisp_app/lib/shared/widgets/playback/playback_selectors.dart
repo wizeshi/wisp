@@ -71,11 +71,13 @@ extension PlaybackSelectors on BuildContext {
     required String trackId,
     required PlaybackContext? viewContext,
   }) {
-    return watchIsCurrentTrackHere(
-          trackId: trackId,
-          viewContext: viewContext,
-        ) &&
-        select<WispAudioHandler, bool>((player) => player.isPlaying);
+    if (viewContext == null) return false;
+    return select<WispAudioHandler, bool>((player) {
+      if (!player.isPlaying) return false;
+      if (player.currentTrack?.id != trackId) return false;
+      final playerContext = player.playbackContext;
+      return playerContext != null && playerContext.matches(viewContext);
+    });
   }
 
   /// Whether the current playback context is the album [albumId] (or,

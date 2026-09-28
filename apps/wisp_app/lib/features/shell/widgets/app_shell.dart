@@ -267,15 +267,16 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final navState = context.watch<NavigationState>();
-    final searchState = context.watch<SearchState>();
-    final metadataManager = context.watch<MetadataManager>();
-    final availableSources = metadataManager.availableProviders
-        .map((p) => p.displayName)
-        .toList();
-    final effectiveSource = availableSources.contains(searchState.selectedSource)
-        ? searchState.selectedSource
+    final selectedSource = context.select<SearchState, String>(
+      (s) => s.selectedSource,
+    );
+    final searchController = context.read<SearchState>().controller;
+    final availableSources = context.select<MetadataManager, List<String>>(
+      (m) => m.availableProviders.map((p) => p.displayName).toList(),
+    );
+    final effectiveSource = availableSources.contains(selectedSource)
+        ? selectedSource
         : (availableSources.isNotEmpty ? availableSources.first : 'Spotify');
-    final searchController = searchState.controller;
     final isDesktopImmersive = _isDesktop && navState.desktopImmersiveMode;
 
     final enableExitPrompt = !_isDesktop;
@@ -304,14 +305,15 @@ class _AppShellState extends State<AppShell> {
               onSearchChanged: _scheduleSearchAutoSwitch,
               onSearchSubmitted: () {
                 _pushTab(1);
-                searchState.submit();
+                context.read<SearchState>().submit();
               },
-              onSearchCleared: searchState.clear,
+              onSearchCleared: () => context.read<SearchState>().clear(),
               availableSources: availableSources,
               selectedSource: effectiveSource,
               onSourceChanged: (source) {
-                searchState.setSelectedSource(source);
-                searchState.submit();
+                final search = context.read<SearchState>();
+                search.setSelectedSource(source);
+                search.submit();
               },
             ),
           Expanded(

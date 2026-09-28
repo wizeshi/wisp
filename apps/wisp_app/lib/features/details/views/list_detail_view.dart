@@ -1234,30 +1234,34 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             description: description,
           );
 
-    if (_isRefreshing && !showLoadingSpinner) {
-      content = Stack(
-        children: [
-          content,
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SizedBox(
-              height: 2,
-              child: LinearProgressIndicator(
-                backgroundColor: Colors.transparent,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+    final wrappedContent = Stack(
+      children: [
+        content,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: _isRefreshing && !showLoadingSpinner ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: SizedBox(
+                height: 2,
+                child: LinearProgressIndicator(
+                  backgroundColor: Colors.transparent,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                  ),
                 ),
               ),
             ),
           ),
-        ],
-      );
-    }
+        ),
+      ],
+    );
 
     if (isDesktop) {
-      return Scaffold(backgroundColor: Colors.transparent, body: content);
+      return Scaffold(backgroundColor: Colors.transparent, body: wrappedContent);
     }
 
     if (style == AppStyle.AppleMusic) {
@@ -1265,7 +1269,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       return Scaffold(
         backgroundColor: contentSurfaceColor,
         extendBodyBehindAppBar: true,
-        appBar: _isLoading
+        appBar: showLoadingSpinner
             ? AppBar(
                 backgroundColor: contentSurfaceColor,
                 elevation: 0,
@@ -1275,7 +1279,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 ),
               )
             : null,
-        body: content,
+        body: wrappedContent,
       );
     }
 
@@ -1313,7 +1317,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           if (!_showStickyBar) _buildSortButton(),
         ],
       ),
-      body: content,
+      body: wrappedContent,
     );
   }
 

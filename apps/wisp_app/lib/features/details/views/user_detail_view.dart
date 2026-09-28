@@ -49,6 +49,7 @@ class _UserDetailViewState extends State<UserDetailView> {
   String? _currentUserId;
   GenericUser? _user;
   String? _errorMessage;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -60,6 +61,7 @@ class _UserDetailViewState extends State<UserDetailView> {
   @override
   void dispose() {
     _revalidationToken.cancel();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -198,33 +200,37 @@ class _UserDetailViewState extends State<UserDetailView> {
           ? const Center(child: CircularProgressIndicator())
           : _buildContent(user);
 
-      if (_isRefreshing && user != null) {
-        content = Stack(
-          children: [
-            content,
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: SizedBox(
-                height: 2,
-                child: LinearProgressIndicator(
-                  backgroundColor: Colors.transparent,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.7),
+      final wrappedContent = Stack(
+        children: [
+          content,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: _isRefreshing && user != null ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: SizedBox(
+                  height: 2,
+                  child: LinearProgressIndicator(
+                    backgroundColor: Colors.transparent,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.7),
+                    ),
                   ),
                 ),
               ),
             ),
-          ],
-        );
-      }
+          ),
+        ],
+      );
 
       if (_isDesktop) {
-        return content;
+        return wrappedContent;
       }
 
       return Scaffold(
@@ -238,7 +244,7 @@ class _UserDetailViewState extends State<UserDetailView> {
           ),
         ),
         extendBodyBehindAppBar: false,
-        body: content,
+        body: wrappedContent,
       );
     }();
 
@@ -312,7 +318,8 @@ class _UserDetailViewState extends State<UserDetailView> {
     }
 
     return ListView(
-      shrinkWrap: true,
+      key: PageStorageKey('user_spotify_${widget.userId}'),
+      controller: _scrollController,
       children: [
         _buildHeroCard(user, useAppleChrome: false),
         Padding(
@@ -378,7 +385,12 @@ class _UserDetailViewState extends State<UserDetailView> {
       );
     }
 
-    return ListView(padding: const EdgeInsets.all(24), children: children);
+    return ListView(
+      key: PageStorageKey('user_apple_${widget.userId}'),
+      controller: _scrollController,
+      padding: const EdgeInsets.all(24),
+      children: children,
+    );
   }
 
   Widget _buildHeroCard(GenericUser user, {required bool useAppleChrome}) {
