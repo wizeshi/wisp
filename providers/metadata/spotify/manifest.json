@@ -1,7 +1,7 @@
 {
   "id": "spotify",
   "name": "Spotify",
-  "version": "1.0.3",
+  "version": "1.0.10",
   "type": "metadata",
   "entry": "index.js",
   "author": "wizeshi",

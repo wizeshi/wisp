@@ -141,7 +141,12 @@ class PreferencesProvider extends ChangeNotifier {
   List<String> _disabledProviderIds = <String>[];
   List<String> get disabledProviderIds => List.unmodifiable(_disabledProviderIds);
 
-  bool isProviderEnabled(String id) => !_disabledProviderIds.contains(id);
+  bool isProviderEnabled(String id) {
+    final lower = id.toLowerCase();
+    if (lower == 'spotify' && !_metadataSpotifyEnabled) return false;
+    if (lower == 'youtube' && !_metadataYouTubeEnabled) return false;
+    return !_disabledProviderIds.contains(id);
+  }
 
   bool get hasMetadataProviderEnabled =>
       _metadataSpotifyEnabled || _metadataYouTubeEnabled;
@@ -250,6 +255,17 @@ class PreferencesProvider extends ChangeNotifier {
 
   static Future<bool> isProviderEnabledStatic(String id) async {
     final prefs = await SharedPreferences.getInstance();
+    final lower = id.toLowerCase();
+    if (lower == 'spotify' &&
+        !(prefs.getBool(_keyMetadataSpotifyEnabled) ??
+            _defaultMetadataSpotifyEnabled)) {
+      return false;
+    }
+    if (lower == 'youtube' &&
+        !(prefs.getBool(_keyMetadataYouTubeEnabled) ??
+            _defaultMetadataYouTubeEnabled)) {
+      return false;
+    }
     final disabled = prefs.getStringList(_keyDisabledProviderIds) ?? <String>[];
     return !disabled.contains(id);
   }

@@ -22,7 +22,8 @@ import 'package:wisp/core/utils/text_parser.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
+import 'package:wisp/services/audio/wisp_audio_handler.dart'
+    as global_audio_player;
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
@@ -468,8 +469,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           }
 
           final localEntry = localPlaylists.getById(widget.id);
-          if (localEntry?.isLinked == true &&
-              localEntry?.linkedId != null) {
+          if (localEntry?.isLinked == true && localEntry?.linkedId != null) {
             final providerPlaylist = await _fetchPlaylistWithTracks(
               metadataManager,
               localEntry!.linkedId!,
@@ -521,10 +521,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           );
           return;
         }
-        _playlist = await _fetchPlaylistWithTracks(
-          metadataManager,
-          widget.id,
-        );
+        _playlist = await _fetchPlaylistWithTracks(metadataManager, widget.id);
       } else {
         final album = await metadataManager.getAlbumInfo(
           widget.id,
@@ -606,10 +603,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     String playlistId, {
     SongSource? source,
   }) async {
+    const fetchLimit = 200;
     final playlist = await metadataManager.getPlaylistInfo(
       playlistId,
       offset: 0,
-      limit: 50,
+      limit: fetchLimit,
       source: source,
       policy: MetadataFetchPolicy.refreshAlways,
     );
@@ -620,7 +618,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       final morePlaylist = await metadataManager.getPlaylistInfo(
         playlistId,
         offset: offset,
-        limit: 50,
+        limit: fetchLimit,
         source: source,
         policy: MetadataFetchPolicy.refreshIfExpired,
       );
@@ -628,7 +626,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       if (more.isEmpty) break;
       items.addAll(more);
       offset = items.length;
-      if (more.length < 50) break;
+      if (more.length < fetchLimit) break;
     }
 
     return GenericPlaylist(

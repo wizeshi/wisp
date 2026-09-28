@@ -3,10 +3,9 @@ Here's the TODOs for version v26.08.xx:
 - Bugs:
   - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
   - [ ] Hover effect doesn't work in the album elements in the artist view (mobile).
-  - [ ] Fix performance issues. Right now, app has two major performance issues I've seen:
-    - [ ] Unnecessary redraws on player state updates. A lot of components use/watch the player handler as a whole, when they just use a specific element of it (e.g. the current track).
-    - [ ] Downloads performance. For some reason, downloads, besides taking a long time, increase app CPU usage by 5-7%. Need to find out the root of the issue (be it dio's download parameters, or just like in the above, irrelevant UI updates due to downloading)
 - Future changes: 
+  - [ ] Add explicit and cached icons to the playerbar
+  - [ ] Add inspect element button when devmode is on. Should show the details of the element (e.g. for a track show the name, id, source, etc...)
   - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
   - [ ] Add special card from the home screen on mobile. 
   - [ ] Make artist name clickable in the full player

@@ -427,12 +427,51 @@ function extractImageUrl(obj) {
     return 'https://i.scdn.co/image/' + obj;
   }
   if (obj.url) return obj.url;
+  // Handle Spotify's { image: { data: { sources } } } wrapper (visualIdentityTrait images)
+  if (obj.image && obj.image.data) {
+    const r = extractImageUrl(obj.image.data);
+    if (r) return r;
+  }
+  if (obj.image && obj.image.sources) {
+    const r = extractImageUrl(obj.image.sources);
+    if (r) return r;
+  }
+  // Handle Spotify's visualIdentityTrait { squareCoverImage, sixteenByNineCoverImage }
+  const visualCover = obj.squareCoverImage || obj.sixteenByNineCoverImage;
+  if (visualCover) {
+    const r = extractImageUrl(visualCover);
+    if (r) return r;
+  }
+  // Handle avatarImage wrapper (e.g. artist visuals.avatarImage in albums)
+  if (obj.avatarImage) {
+    const r = extractImageUrl(obj.avatarImage);
+    if (r) return r;
+  }
+  // Handle visuals wrapper (e.g. artist.visuals)
+  if (obj.visuals) {
+    const r = extractImageUrl(obj.visuals);
+    if (r) return r;
+  }
   const sources = obj.sources || 
                   obj.images || 
+                  (obj.avatarImage && (obj.avatarImage.sources || obj.avatarImage)) ||
+                  (obj.visuals && (obj.visuals.avatarImage?.sources || obj.visuals.avatarImage || obj.visuals)) ||
                   (obj.items && (obj.items[0]?.sources || obj.items[0]?.url ? obj.items : obj.items[0])) || 
-                  (obj.coverArt && obj.coverArt.sources) ||
+                  (obj.coverArt && (obj.coverArt.sources || obj.coverArt)) ||
                   (obj.avatar && (obj.avatar.sources || obj.avatar));
   if (Array.isArray(sources) && sources.length > 0) {
+    // Pick the highest resolution source if dimensions are available
+    const valid = sources.filter(s => s && (typeof s === 'string' || s.url));
+    if (valid.length > 0) {
+      const sorted = [...valid].sort((a, b) => {
+        const wA = (typeof a === 'object' && a.width) || 0;
+        const wB = (typeof b === 'object' && b.width) || 0;
+        return wB - wA;
+      });
+      const best = sorted[0];
+      if (typeof best === 'string') return best;
+      if (best && best.url) return best.url;
+    }
     const first = sources[0];
     if (typeof first === 'string') return first;
     if (first && first.url) return first.url;
@@ -475,7 +514,14 @@ function extractArtists(artistsData) {
       id: id,
       source: 'spotifyInternal',
       name: a.name || (a.profile && a.profile.name) || 'Unknown Artist',
-      thumbnail_url: extractImageUrl(a.avatar || a.visuals || a.images)
+      thumbnail_url: extractImageUrl(
+        (a.visuals && a.visuals.avatarImage) ||
+        a.avatarImage ||
+        a.avatar ||
+        a.visuals ||
+        a.images ||
+        a
+      )
     };
   });
 }
@@ -483,9 +529,13 @@ function extractArtists(artistsData) {
 function extractDurationSecs(t) {
   if (!t) return 0;
 
-  // Direct itemV3 check
-  if (t.itemV3 && t.itemV3.duration && typeof t.itemV3.duration.seconds === 'number' && t.itemV3.duration.seconds > 0) {
-    return t.itemV3.duration.seconds;
+  // Direct itemV3 check (duration lives at itemV3.data.consumptionExperienceTrait.duration, not itemV3.duration)
+  const _v3d = t.itemV3 && t.itemV3.data && t.itemV3.data.consumptionExperienceTrait && t.itemV3.data.consumptionExperienceTrait.duration;
+  if (_v3d && typeof _v3d.seconds === 'number' && _v3d.seconds > 0) {
+    return _v3d.seconds;
+  }
+  if (_v3d && typeof _v3d.totalMilliseconds === 'number' && _v3d.totalMilliseconds > 0) {
+    return Math.round(_v3d.totalMilliseconds / 1000);
   }
   // Direct itemV2 check
   if (t.itemV2 && t.itemV2.data && t.itemV2.data.trackDuration && typeof t.itemV2.data.trackDuration.totalMilliseconds === 'number' && t.itemV2.data.trackDuration.totalMilliseconds > 0) {
@@ -591,7 +641,8 @@ function trackToGeneric(track) {
     source: 'spotifyInternal',
     title: track.name || '',
     artists: artists,
-    thumbnail_url: extractImageUrl(track.coverArt || track.images),
+    thumbnail_url: extractImageUrl(track.coverArt || track.images) ||
+                   extractImageUrl(track.visualIdentityTrait) || '',
     explicit: isExplicit,
     album: album,
     duration_secs: durationSecs
@@ -609,7 +660,10 @@ function fullAlbumToGeneric(data, offset = 0, limit = 50) {
   const trackItems = (tracksData && tracksData.items) || [];
   const songs = trackItems.map(item => {
     let durationSecs = 0;
-    if (item.itemV3 && item.itemV3.duration && typeof item.itemV3.duration.seconds === 'number' && item.itemV3.duration.seconds > 0) {
+    const _albV3dur = item.itemV3 && item.itemV3.data && item.itemV3.data.consumptionExperienceTrait && item.itemV3.data.consumptionExperienceTrait.duration;
+    if (_albV3dur && typeof _albV3dur.seconds === 'number' && _albV3dur.seconds > 0) {
+      durationSecs = _albV3dur.seconds;
+    } else if (item.itemV3 && item.itemV3.duration && typeof item.itemV3.duration.seconds === 'number' && item.itemV3.duration.seconds > 0) {
       durationSecs = item.itemV3.duration.seconds;
     } else if (item.itemV2 && item.itemV2.data && item.itemV2.data.trackDuration && typeof item.itemV2.data.trackDuration.totalMilliseconds === 'number' && item.itemV2.data.trackDuration.totalMilliseconds > 0) {
       durationSecs = Math.round(item.itemV2.data.trackDuration.totalMilliseconds / 1000);
@@ -617,7 +671,7 @@ function fullAlbumToGeneric(data, offset = 0, limit = 50) {
       durationSecs = extractDurationSecs(item);
     }
 
-    const t = (item.track && item.track.data) || item.track || item.data || item;
+    const t = (item.track && item.track.data) || item.track || (item.itemV2 && item.itemV2.data) || item.data || item;
     const song = trackToGeneric(t);
     if (song) {
       if (durationSecs > 0) {
@@ -634,6 +688,7 @@ function fullAlbumToGeneric(data, offset = 0, limit = 50) {
           release_date: extractReleaseDate(album.date)
         };
       }
+      song.thumbnail_url = coverUrl;
     }
     return song;
   }).filter(Boolean);
@@ -657,27 +712,11 @@ function fullAlbumToGeneric(data, offset = 0, limit = 50) {
   };
 }
 
-function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
-  let pl = (data.data && data.data.playlistV2) || data.playlistV2 || (data.data && data.data.playlist) || data;
-  const uri = pl.uri || '';
-  const id = uri.includes(':') ? uri.split(':').pop() : (pl.id || '');
-  const coverUrl = extractImageUrl(pl.images || pl.coverArt);
-
-  const owner = pl.ownerV2 || pl.owner || {};
-  const ownerData = owner.data || owner;
-  const ownerAvatar = ownerData.avatar || 
-                      ownerData.images || 
-                      (ownerData.visualIdentity && ownerData.visualIdentity.image) ||
-                      owner.avatar || 
-                      owner.images;
-  const author = {
-    id: ownerData.username || ownerData.id || owner.username || owner.id || '',
-    source: 'spotifyInternal',
-    display_name: ownerData.name || ownerData.displayName || owner.name || owner.displayName || 'Spotify User',
-    avatar_url: extractImageUrl(ownerAvatar)
-  };
-
-  const contents = (pl.content && pl.content.items) || (pl.tracks && pl.tracks.items) || [];
+// ---------------------------------------------------------------------------
+// Shared playlist-item extractor (used by both fetchPlaylist and
+// fetchPlaylistContents response parsers so the logic lives in one place).
+// ---------------------------------------------------------------------------
+function extractPlaylistItems(contents, offset) {
   const songs = [];
   let trackNum = offset;
 
@@ -694,11 +733,10 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
     trackNum++;
     const trackUri = sourceData.uri || (item.itemV2 && item.itemV2.data && item.itemV2.data.uri) || (item.itemV3 && item.itemV3.data && item.itemV3.data.uri) || '';
     const trackId = trackUri.includes(':') ? trackUri.split(':').pop() : (sourceData.id || '');
-    
+
     const identity = sourceData.identityTrait;
     const title = (identity && identity.name) || sourceData.name || 'Unknown Track';
-    
-    // Artists
+
     let artists = [];
     if (identity && identity.contributors && identity.contributors.items) {
       artists = identity.contributors.items.map(c => {
@@ -730,7 +768,10 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
     }
 
     let durationSecs = 0;
-    if (item.itemV3 && item.itemV3.duration && typeof item.itemV3.duration.seconds === 'number' && item.itemV3.duration.seconds > 0) {
+    const _plV3dur = item.itemV3 && item.itemV3.data && item.itemV3.data.consumptionExperienceTrait && item.itemV3.data.consumptionExperienceTrait.duration;
+    if (_plV3dur && typeof _plV3dur.seconds === 'number' && _plV3dur.seconds > 0) {
+      durationSecs = _plV3dur.seconds;
+    } else if (item.itemV3 && item.itemV3.duration && typeof item.itemV3.duration.seconds === 'number' && item.itemV3.duration.seconds > 0) {
       durationSecs = item.itemV3.duration.seconds;
     } else if (item.itemV2 && item.itemV2.data && item.itemV2.data.trackDuration && typeof item.itemV2.data.trackDuration.totalMilliseconds === 'number' && item.itemV2.data.trackDuration.totalMilliseconds > 0) {
       durationSecs = Math.round(item.itemV2.data.trackDuration.totalMilliseconds / 1000);
@@ -739,7 +780,9 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
     }
 
     const addedAtStr = (item.addedAt && item.addedAt.isoString) || item.added_at || new Date().toISOString();
-    const trackThumbnail = extractImageUrl(sourceData.coverArt || sourceData.images || (identity && identity.coverArt));
+    const trackThumbnail =
+      extractImageUrl(sourceData.coverArt || sourceData.images || (identity && identity.coverArt)) ||
+      extractImageUrl(sourceData.visualIdentityTrait) || '';
 
     songs.push({
       id: trackId,
@@ -755,6 +798,32 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
       track_number: trackNum
     });
   }
+
+  return songs;
+}
+
+function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
+  let pl = (data.data && data.data.playlistV2) || data.playlistV2 || (data.data && data.data.playlist) || data;
+  const uri = pl.uri || '';
+  const id = uri.includes(':') ? uri.split(':').pop() : (pl.id || '');
+  const coverUrl = extractImageUrl(pl.images || pl.coverArt);
+
+  const owner = pl.ownerV2 || pl.owner || {};
+  const ownerData = owner.data || owner;
+  const ownerAvatar = ownerData.avatar ||
+                      ownerData.images ||
+                      (ownerData.visualIdentity && ownerData.visualIdentity.image) ||
+                      owner.avatar ||
+                      owner.images;
+  const author = {
+    id: ownerData.username || ownerData.id || owner.username || owner.id || '',
+    source: 'spotifyInternal',
+    display_name: ownerData.name || ownerData.displayName || owner.name || owner.displayName || 'Spotify User',
+    avatar_url: extractImageUrl(ownerAvatar)
+  };
+
+  const contents = (pl.content && pl.content.items) || (pl.tracks && pl.tracks.items) || [];
+  const songs = extractPlaylistItems(contents, offset);
 
   const totalCount = (pl.content && pl.content.totalCount) || (pl.tracks && pl.tracks.total) || songs.length;
   const hasMore = (offset + limit) < totalCount;
@@ -944,14 +1013,40 @@ async function getMoreAlbumTracks(albumId, options = {}) {
 async function getPlaylist(playlistId, options = {}) {
   const cleanId = playlistId.includes(':') ? playlistId.split(':').pop() : playlistId;
   const offset = options.offset || 0;
-  const limit = options.limit || 50;
+  const limit = options.limit || 200;
+
+  // fetchPlaylist only reliably returns ~82 tracks. For paginated requests
+  // (offset > 0) we use fetchPlaylistContents which supports proper offsets.
+  if (offset > 0) {
+    const data = await queryGraphQL(
+      'fetchPlaylistContents',
+      '243c0ba2736f16da721e3a227004bbcdb8df6c846f198bd478172e00aa1faf42',
+      { uri: 'spotify:playlist:' + cleanId, offset: offset, limit: limit }
+    );
+    const pl = (data.data && data.data.playlistV2) || data.playlistV2 || data;
+    const contents = (pl.content && pl.content.items) || [];
+    const totalCount = (pl.content && pl.content.totalCount) || 0;
+    const songs = extractPlaylistItems(contents, offset);
+    return {
+      id: cleanId,
+      source: 'spotifyInternal',
+      title: '',
+      description: '',
+      thumbnail_url: '',
+      author: { id: '', source: 'spotifyInternal', display_name: '', avatar_url: '' },
+      songs: songs,
+      duration_secs: songs.reduce((acc, s) => acc + (s.duration_secs || 0), 0),
+      total: totalCount,
+      has_more: (offset + limit) < totalCount
+    };
+  }
 
   const data = await queryGraphQL(
     'fetchPlaylist',
     '346811f856fb0b7e4f6c59f8ebea78dd081c6e2fb01b77c954b26259d5fc6763',
     {
       uri: 'spotify:playlist:' + cleanId,
-      offset: offset,
+      offset: 0,
       limit: limit,
       enableWatchFeedEntrypoint: true
     }
@@ -961,8 +1056,19 @@ async function getPlaylist(playlistId, options = {}) {
 }
 
 async function getMorePlaylistTracks(playlistId, options = {}) {
-  const playlist = await getPlaylist(playlistId, options);
-  return playlist.songs || [];
+  const cleanId = playlistId.includes(':') ? playlistId.split(':').pop() : playlistId;
+  const offset = options.offset || 0;
+  const limit = options.limit || 50;
+
+  const data = await queryGraphQL(
+    'fetchPlaylistContents',
+    '243c0ba2736f16da721e3a227004bbcdb8df6c846f198bd478172e00aa1faf42',
+    { uri: 'spotify:playlist:' + cleanId, offset: offset, limit: limit }
+  );
+
+  const pl = (data.data && data.data.playlistV2) || data.playlistV2 || data;
+  const contents = (pl.content && pl.content.items) || [];
+  return extractPlaylistItems(contents, offset);
 }
 
 async function getArtist(artistId) {
@@ -1811,7 +1917,7 @@ async function getRecommended(playlistId, skippedTrackIds = [], numResults = 20)
         name: a.name || a.artistName || 'Unknown Artist',
         thumbnail_url: ''
       })),
-      thumbnail_url: '',
+      thumbnail_url: albumCover,
       explicit: !!t.explicit,
       album: {
         id: (albumData.id ? (albumData.id.includes(':') ? albumData.id.split(':').pop() : albumData.id) : (albumData.uri ? albumData.uri.split(':').pop() : '')),

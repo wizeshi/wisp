@@ -104,7 +104,8 @@ class JsMetadataSource extends MetadataProvider {
 
   @override
   bool isTrackLiked(String trackId) =>
-      _likedTrackIds.contains(trackId) || _likedTrackIds.contains(_cleanId(trackId));
+      _likedTrackIds.contains(trackId) ||
+      _likedTrackIds.contains(_cleanId(trackId));
 
   @override
   void setLikedTracksFromItems(List<PlaylistItem> items) {
@@ -129,13 +130,14 @@ class JsMetadataSource extends MetadataProvider {
     bool? supportsAuth,
     this.customScript,
     this.scriptPath,
-  })  : serviceId = serviceId ?? providerId,
-        _name = name ?? providerId,
-        _displayName = displayName ?? name ?? providerId,
-        _description = description ?? 'Modular metadata provider powered by QuickJS.',
-        _logoURL = logoURL ?? '',
-        _iconURL = iconURL ?? '',
-        _supportsAuth = supportsAuth ?? true {
+  }) : serviceId = serviceId ?? providerId,
+       _name = name ?? providerId,
+       _displayName = displayName ?? name ?? providerId,
+       _description =
+           description ?? 'Modular metadata provider powered by QuickJS.',
+       _logoURL = logoURL ?? '',
+       _iconURL = iconURL ?? '',
+       _supportsAuth = supportsAuth ?? true {
     _sessionManager.addListener(this.serviceId, (newSession) {
       _updateStateFromSession(newSession);
     });
@@ -156,13 +158,20 @@ class JsMetadataSource extends MetadataProvider {
       _cachedUserDisplayName = null;
     } else {
       final isAuthFlag = session['isAuthenticated'] as bool?;
-      final hasCookies = session['cookies'] is Map && (session['cookies'] as Map).isNotEmpty;
-      final hasCookie = session['cookie'] is String && (session['cookie'] as String).isNotEmpty;
-      final hasToken = session['token'] != null || session['accessToken'] != null;
-      _auth = isAuthFlag ?? (hasCookies || hasCookie || hasToken || session['userId'] != null);
+      final hasCookies =
+          session['cookies'] is Map && (session['cookies'] as Map).isNotEmpty;
+      final hasCookie =
+          session['cookie'] is String &&
+          (session['cookie'] as String).isNotEmpty;
+      final hasToken =
+          session['token'] != null || session['accessToken'] != null;
+      _auth =
+          isAuthFlag ??
+          (hasCookies || hasCookie || hasToken || session['userId'] != null);
       if (_auth) {
         _cachedUserId = session['userId'] as String? ?? _cachedUserId;
-        _cachedUserDisplayName = session['displayName'] as String? ?? _cachedUserDisplayName;
+        _cachedUserDisplayName =
+            session['displayName'] as String? ?? _cachedUserDisplayName;
       } else {
         _cachedUserId = null;
         _cachedUserDisplayName = null;
@@ -219,7 +228,9 @@ class JsMetadataSource extends MetadataProvider {
             }
           }
         } catch (e) {
-          logger.e('[JsMetadataSource/$providerId] Error in wisp_metadata_result: $e');
+          logger.e(
+            '[JsMetadataSource/$providerId] Error in wisp_metadata_result: $e',
+          );
         }
         return '';
       });
@@ -266,7 +277,8 @@ class JsMetadataSource extends MetadataProvider {
       runtime.enableHandlePromises();
 
       // Wrap and evaluate provider script
-      final wrapped = '''
+      final wrapped =
+          '''
         var exports = {};
         var module = { exports: exports };
         (function(exports, module) {
@@ -283,7 +295,9 @@ class JsMetadataSource extends MetadataProvider {
       ''';
       final evalRes = runtime.evaluate(wrapped);
       if (evalRes.isError) {
-        logger.e('[JsMetadataSource/$providerId] Script eval error: \${evalRes.stringResult}');
+        logger.e(
+          '[JsMetadataSource/$providerId] Script eval error: ${evalRes.stringResult}',
+        );
         _failedInit = true;
         return;
       }
@@ -291,7 +305,9 @@ class JsMetadataSource extends MetadataProvider {
       _drainMicrotasks(runtime);
       _runtime = runtime;
       _isInitialized = true;
-      logger.i('[JsMetadataSource/$providerId] Successfully initialized JS metadata provider');
+      logger.i(
+        '[JsMetadataSource/$providerId] Successfully initialized JS metadata provider',
+      );
     } catch (e) {
       _failedInit = true;
       logger.e('[JsMetadataSource/$providerId] Initialization error: $e');
@@ -314,9 +330,30 @@ class JsMetadataSource extends MetadataProvider {
 
     // 1. Check local repository development paths
     final devPaths = [
-      p.join(Directory.current.path, 'providers', 'metadata', providerId, 'index.js'),
-      p.join(Directory.current.path, '..', '..', 'providers', 'metadata', providerId, 'index.js'),
-      p.join(Directory.current.path, '..', 'providers', 'metadata', providerId, 'index.js'),
+      p.join(
+        Directory.current.path,
+        'providers',
+        'metadata',
+        providerId,
+        'index.js',
+      ),
+      p.join(
+        Directory.current.path,
+        '..',
+        '..',
+        'providers',
+        'metadata',
+        providerId,
+        'index.js',
+      ),
+      p.join(
+        Directory.current.path,
+        '..',
+        'providers',
+        'metadata',
+        providerId,
+        'index.js',
+      ),
     ];
     for (final path in devPaths) {
       final f = File(path);
@@ -328,7 +365,15 @@ class JsMetadataSource extends MetadataProvider {
     // 2. Check application support directory
     try {
       final supportDir = await getApplicationSupportDirectory();
-      final userFile = File(p.join(supportDir.path, 'providers', 'metadata', providerId, 'index.js'));
+      final userFile = File(
+        p.join(
+          supportDir.path,
+          'providers',
+          'metadata',
+          providerId,
+          'index.js',
+        ),
+      );
       if (userFile.existsSync()) {
         return await userFile.readAsString();
       }
@@ -337,7 +382,10 @@ class JsMetadataSource extends MetadataProvider {
     return null;
   }
 
-  Future<dynamic> _invoke(String method, [List<dynamic> args = const []]) async {
+  Future<dynamic> _invoke(
+    String method, [
+    List<dynamic> args = const [],
+  ]) async {
     if (!_isInitialized && !_failedInit) {
       await initialize();
     }
@@ -351,7 +399,8 @@ class JsMetadataSource extends MetadataProvider {
     _pendingRequests[reqId] = completer;
 
     final argsJson = jsonEncode(args);
-    final call = 'globalThis.__wisp_invoke_metadata($reqId, ${jsonEncode(method)}, ${jsonEncode(argsJson)});';
+    final call =
+        'globalThis.__wisp_invoke_metadata($reqId, ${jsonEncode(method)}, ${jsonEncode(argsJson)});';
     final res = runtime.evaluate(call);
     if (res.isError) {
       _pendingRequests.remove(reqId);
@@ -395,7 +444,9 @@ class JsMetadataSource extends MetadataProvider {
       if (raw == null) {
         throw Exception('Provider returned null for $type $id');
       }
-      final map = raw is Map<String, dynamic> ? raw : (raw as Map).cast<String, dynamic>();
+      final map = raw is Map<String, dynamic>
+          ? raw
+          : (raw as Map).cast<String, dynamic>();
       final item = fromJson(map);
 
       await _cache.writeEntry(
@@ -416,7 +467,9 @@ class JsMetadataSource extends MetadataProvider {
         pageKey: pageKey,
       );
       if (cached != null) {
-        logger.w('[JsMetadataSource/$providerId] Fetch failed ($e), serving cached $type $id');
+        logger.w(
+          '[JsMetadataSource/$providerId] Fetch failed ($e), serving cached $type $id',
+        );
         return fromJson(cached.payload);
       }
       rethrow;
@@ -444,7 +497,10 @@ class JsMetadataSource extends MetadataProvider {
         if (policy == MetadataFetchPolicy.cacheFirst || !cached.isExpired) {
           final items = cached.payload['items'] as List?;
           if (items != null) {
-            return items.whereType<Map<String, dynamic>>().map(fromJson).toList();
+            return items
+                .whereType<Map<String, dynamic>>()
+                .map(fromJson)
+                .toList();
           }
         }
       }
@@ -453,7 +509,9 @@ class JsMetadataSource extends MetadataProvider {
     try {
       final raw = await fetcher();
       final list = (raw as List?) ?? const [];
-      final items = list.map((m) => fromJson((m as Map).cast<String, dynamic>())).toList();
+      final items = list
+          .map((m) => fromJson((m as Map).cast<String, dynamic>()))
+          .toList();
 
       await _cache.writeEntry(
         provider: providerId,
@@ -474,7 +532,9 @@ class JsMetadataSource extends MetadataProvider {
       if (cached != null) {
         final items = cached.payload['items'] as List?;
         if (items != null) {
-          logger.w('[JsMetadataSource/$providerId] List fetch failed ($e), serving cached $type');
+          logger.w(
+            '[JsMetadataSource/$providerId] List fetch failed ($e), serving cached $type',
+          );
           return items.whereType<Map<String, dynamic>>().map(fromJson).toList();
         }
       }
@@ -540,7 +600,11 @@ class JsMetadataSource extends MetadataProvider {
   @override
   Future<GenericSong?> getCachedTrackInfo(String trackId) async {
     final cleanId = _cleanId(trackId);
-    final cached = await _cache.readEntry(provider: providerId, type: 'track', id: cleanId);
+    final cached = await _cache.readEntry(
+      provider: providerId,
+      type: 'track',
+      id: cleanId,
+    );
     return cached != null ? GenericSong.fromJson(cached.payload) : null;
   }
 
@@ -558,17 +622,29 @@ class JsMetadataSource extends MetadataProvider {
       id: cleanId,
       pageKey: pageKey,
       policy: policy,
-      fetcher: () => _invoke('getAlbum', [cleanId, {'offset': offset, 'limit': limit}]),
+      fetcher: () => _invoke('getAlbum', [
+        cleanId,
+        {'offset': offset, 'limit': limit},
+      ]),
       toJson: (a) => a.toJson(),
       fromJson: GenericAlbum.fromJson,
     );
   }
 
   @override
-  Future<GenericAlbum?> getCachedAlbumInfo(String albumId, {int offset = 0, int limit = 50}) async {
+  Future<GenericAlbum?> getCachedAlbumInfo(
+    String albumId, {
+    int offset = 0,
+    int limit = 50,
+  }) async {
     final cleanId = _cleanId(albumId);
     final pageKey = 'offset_${offset}_limit_$limit';
-    final cached = await _cache.readEntry(provider: providerId, type: 'album', id: cleanId, pageKey: pageKey);
+    final cached = await _cache.readEntry(
+      provider: providerId,
+      type: 'album',
+      id: cleanId,
+      pageKey: pageKey,
+    );
     return cached != null ? GenericAlbum.fromJson(cached.payload) : null;
   }
 
@@ -580,9 +656,14 @@ class JsMetadataSource extends MetadataProvider {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final cleanId = _cleanId(albumId);
-    final res = await _invoke('getMoreAlbumTracks', [cleanId, {'offset': offset, 'limit': limit}]);
+    final res = await _invoke('getMoreAlbumTracks', [
+      cleanId,
+      {'offset': offset, 'limit': limit},
+    ]);
     final list = (res as List?) ?? const [];
-    return list.map((m) => GenericSong.fromJson((m as Map).cast<String, dynamic>())).toList();
+    return list
+        .map((m) => GenericSong.fromJson((m as Map).cast<String, dynamic>()))
+        .toList();
   }
 
   @override
@@ -599,17 +680,29 @@ class JsMetadataSource extends MetadataProvider {
       id: cleanId,
       pageKey: pageKey,
       policy: policy,
-      fetcher: () => _invoke('getPlaylist', [cleanId, {'offset': offset, 'limit': limit}]),
+      fetcher: () => _invoke('getPlaylist', [
+        cleanId,
+        {'offset': offset, 'limit': limit},
+      ]),
       toJson: (p) => p.toJson(),
       fromJson: GenericPlaylist.fromJson,
     );
   }
 
   @override
-  Future<GenericPlaylist?> getCachedPlaylistInfo(String playlistId, {int offset = 0, int limit = 50}) async {
+  Future<GenericPlaylist?> getCachedPlaylistInfo(
+    String playlistId, {
+    int offset = 0,
+    int limit = 50,
+  }) async {
     final cleanId = _cleanId(playlistId);
     final pageKey = 'offset_${offset}_limit_$limit';
-    final cached = await _cache.readEntry(provider: providerId, type: 'playlist', id: cleanId, pageKey: pageKey);
+    final cached = await _cache.readEntry(
+      provider: providerId,
+      type: 'playlist',
+      id: cleanId,
+      pageKey: pageKey,
+    );
     return cached != null ? GenericPlaylist.fromJson(cached.payload) : null;
   }
 
@@ -621,9 +714,14 @@ class JsMetadataSource extends MetadataProvider {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final cleanId = _cleanId(playlistId);
-    final res = await _invoke('getMorePlaylistTracks', [cleanId, {'offset': offset, 'limit': limit}]);
+    final res = await _invoke('getMorePlaylistTracks', [
+      cleanId,
+      {'offset': offset, 'limit': limit},
+    ]);
     final list = (res as List?) ?? const [];
-    return list.map((m) => PlaylistItem.fromJson((m as Map).cast<String, dynamic>())).toList();
+    return list
+        .map((m) => PlaylistItem.fromJson((m as Map).cast<String, dynamic>()))
+        .toList();
   }
 
   @override
@@ -645,7 +743,11 @@ class JsMetadataSource extends MetadataProvider {
   @override
   Future<GenericArtist?> getCachedArtistInfo(String artistId) async {
     final cleanId = _cleanId(artistId);
-    final cached = await _cache.readEntry(provider: providerId, type: 'artist', id: cleanId);
+    final cached = await _cache.readEntry(
+      provider: providerId,
+      type: 'artist',
+      id: cleanId,
+    );
     return cached != null ? GenericArtist.fromJson(cached.payload) : null;
   }
 
@@ -662,15 +764,23 @@ class JsMetadataSource extends MetadataProvider {
       id: cacheId,
       policy: policy,
       ttl: const Duration(hours: 2),
-      fetcher: () => _invoke('search', [query, {'limit': limit, 'offset': offset}]),
+      fetcher: () => _invoke('search', [
+        query,
+        {'limit': limit, 'offset': offset},
+      ]),
       toJson: (s) => s.toJson(),
       fromJson: SearchResults.fromJson,
     );
   }
 
+  @override
   Future<String?> getCanvasUrl(String trackId) async {
     final cleanId = _cleanId(trackId);
-    final cached = await _cache.readEntry(provider: providerId, type: 'canvas', id: cleanId);
+    final cached = await _cache.readEntry(
+      provider: providerId,
+      type: 'canvas',
+      id: cleanId,
+    );
     if (cached != null && !cached.isExpired) {
       return cached.payload['url'] as String?;
     }
@@ -695,6 +805,7 @@ class JsMetadataSource extends MetadataProvider {
 
   Future<String?> getTrackCanvasUrl(String trackId) => getCanvasUrl(trackId);
 
+  @override
   Future<GenericHome> getUserHome({
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
@@ -771,7 +882,9 @@ class JsMetadataSource extends MetadataProvider {
       pageKey: pageKey,
       policy: policy,
       ttl: const Duration(days: 1),
-      fetcher: () => _invoke('getUserSavedTracks', [{'offset': offset, 'limit': limit}]),
+      fetcher: () => _invoke('getUserSavedTracks', [
+        {'offset': offset, 'limit': limit},
+      ]),
       toJson: (p) => p.toJson(),
       fromJson: PlaylistItem.fromJson,
     );
@@ -794,11 +907,18 @@ class JsMetadataSource extends MetadataProvider {
 
   @override
   Future<List<PlaylistItem>?> getCachedSavedTracksAll() async {
-    final cached = await _cache.readEntry(provider: providerId, type: 'saved_tracks_all', id: 'all');
+    final cached = await _cache.readEntry(
+      provider: providerId,
+      type: 'saved_tracks_all',
+      id: 'all',
+    );
     if (cached != null) {
       final items = cached.payload['items'] as List?;
       if (items != null) {
-        return items.whereType<Map<String, dynamic>>().map(PlaylistItem.fromJson).toList();
+        return items
+            .whereType<Map<String, dynamic>>()
+            .map(PlaylistItem.fromJson)
+            .toList();
       }
     }
     return null;
@@ -831,7 +951,9 @@ class JsMetadataSource extends MetadataProvider {
       id: 'user_library_$modeStr',
       policy: policy,
       ttl: const Duration(hours: 6),
-      fetcher: () => _invoke('getUserLibrary', [{'sortMode': modeStr}]),
+      fetcher: () => _invoke('getUserLibrary', [
+        {'sortMode': modeStr},
+      ]),
       toJson: (l) => l.toJson(),
       fromJson: GenericLibrary.fromJson,
     );
@@ -924,7 +1046,11 @@ class JsMetadataSource extends MetadataProvider {
   Future<void> ensureLikedTracksLoaded() async {
     if (_likedTracksLoaded) return;
     try {
-      final cached = await getUserSavedTracks(limit: 50, offset: 0, policy: MetadataFetchPolicy.cacheFirst);
+      final cached = await getUserSavedTracks(
+        limit: 50,
+        offset: 0,
+        policy: MetadataFetchPolicy.cacheFirst,
+      );
       setLikedTracksFromItems(cached);
     } catch (_) {
       _likedTracksLoaded = true;
@@ -938,11 +1064,9 @@ class JsMetadataSource extends MetadataProvider {
     String? description,
     bool isPublic = false,
   }) async {
-    final id = await _invoke('createPlaylist', [{
-      'name': name,
-      'description': description ?? '',
-      'isPublic': isPublic,
-    }]);
+    final id = await _invoke('createPlaylist', [
+      {'name': name, 'description': description ?? '', 'isPublic': isPublic},
+    ]);
     return id.toString();
   }
 
@@ -957,14 +1081,21 @@ class JsMetadataSource extends MetadataProvider {
   }
 
   @override
-  Future<void> addTracksToPlaylist(String playlistId, List<String> trackIds) async {
+  Future<void> addTracksToPlaylist(
+    String playlistId,
+    List<String> trackIds,
+  ) async {
     await _invoke('addTracksToPlaylist', [playlistId, trackIds]);
   }
 
-  Future<void> removeTracksFromPlaylist(String playlistId, List<String> trackIds) async {
+  Future<void> removeTracksFromPlaylist(
+    String playlistId,
+    List<String> trackIds,
+  ) async {
     await _invoke('removeTracksFromPlaylist', [playlistId, trackIds]);
   }
 
+  @override
   Future<List<PlaylistItem>?> getSimilarTracks(String trackId) async {
     try {
       final res = await _invoke('getSimilarTracks', [trackId]);
@@ -976,11 +1107,15 @@ class JsMetadataSource extends MetadataProvider {
       }
       return null;
     } catch (e) {
-      logger.w('[JsMetadataSource/$providerId] getSimilarTracks failed for $trackId', error: e);
+      logger.w(
+        '[JsMetadataSource/$providerId] getSimilarTracks failed for $trackId',
+        error: e,
+      );
       return null;
     }
   }
 
+  @override
   Future<void> addPlaylistToFolder({
     required String playlistId,
     required String folderId,
@@ -988,6 +1123,7 @@ class JsMetadataSource extends MetadataProvider {
     await _invoke('addPlaylistToFolder', [playlistId, folderId]);
   }
 
+  @override
   Future<void> removePlaylistFromFolder({required String playlistId}) async {
     await _invoke('removePlaylistFromFolder', [playlistId]);
   }
@@ -1007,11 +1143,13 @@ class JsMetadataSource extends MetadataProvider {
     }
   }
 
+  @override
   Future<void> saveAlbum(String albumId) async {
     final cleanId = _cleanId(albumId);
     await _invoke('saveAlbum', [cleanId]);
   }
 
+  @override
   Future<void> unsaveAlbum(String albumId) async {
     final cleanId = _cleanId(albumId);
     await _invoke('unsaveAlbum', [cleanId]);
@@ -1055,11 +1193,14 @@ class JsMetadataSource extends MetadataProvider {
       id: cleanId,
       policy: policy,
       ttl: const Duration(hours: 4),
-      fetcher: () => _invoke('getUserProfileView', [cleanId, {
-        'playlistLimit': playlistLimit,
-        'artistLimit': artistLimit,
-        'episodeLimit': episodeLimit,
-      }]),
+      fetcher: () => _invoke('getUserProfileView', [
+        cleanId,
+        {
+          'playlistLimit': playlistLimit,
+          'artistLimit': artistLimit,
+          'episodeLimit': episodeLimit,
+        },
+      ]),
       toJson: (u) => u.toJson(),
       fromJson: GenericUser.fromJson,
     );
@@ -1106,7 +1247,11 @@ class JsMetadataSource extends MetadataProvider {
     int numResults = 20,
   }) async {
     final cleanId = _cleanId(playlistId);
-    final res = await _invoke('getRecommended', [cleanId, skippedTrackIDs, numResults]);
+    final res = await _invoke('getRecommended', [
+      cleanId,
+      skippedTrackIDs,
+      numResults,
+    ]);
     if (res is List) {
       return res
           .whereType<Map>()

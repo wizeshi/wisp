@@ -25,14 +25,18 @@ class MetadataSourceManager extends ChangeNotifier {
 
   Map<String, JsMetadataSource> get sources => Map.unmodifiable(_sources);
 
-  JsMetadataSource? get defaultSource => _sources['spotify'] ?? (_sources.isNotEmpty ? _sources.values.first : null);
+  JsMetadataSource? get defaultSource =>
+      _sources['spotify'] ??
+      (_sources.isNotEmpty ? _sources.values.first : null);
 
   /// Unregister and dispose a provider in memory and mark it as explicitly uninstalled
   void unregisterSource(String id) {
     _explicitlyUninstalled.add(id);
     final source = _sources.remove(id);
     source?.dispose();
-    logger.i('[MetadataSourceManager] Unregistered and disposed metadata provider: $id');
+    logger.i(
+      '[MetadataSourceManager] Unregistered and disposed metadata provider: $id',
+    );
     notifyListeners();
   }
 
@@ -86,10 +90,14 @@ class MetadataSourceManager extends ChangeNotifier {
           if (!manifestFile.existsSync()) continue;
 
           try {
-            final manifestJson = jsonDecode(await manifestFile.readAsString()) as Map<String, dynamic>;
+            final manifestJson =
+                jsonDecode(await manifestFile.readAsString())
+                    as Map<String, dynamic>;
             final id = manifestJson['id'] as String? ?? p.basename(folder.path);
             if (_explicitlyUninstalled.contains(id)) {
-              logger.d('[MetadataSourceManager] Skipping uninstalled provider: $id');
+              logger.d(
+                '[MetadataSourceManager] Skipping uninstalled provider: $id',
+              );
               continue;
             }
             final entryName = manifestJson['entry'] as String? ?? 'index.js';
@@ -103,9 +111,24 @@ class MetadataSourceManager extends ChangeNotifier {
             final scriptFile = File(p.join(folder.path, entryName));
             if (!scriptFile.existsSync()) continue;
             final script = await scriptFile.readAsString();
-            final deps = (manifestJson['dependencies'] as List?)?.cast<String>() ?? [];
-            final hasAuthDep = deps.any((d) => d.startsWith('auth/') || d == 'auth');
-            final supportsAuth = manifestJson['auth'] as bool? ?? hasAuthDep || (manifestJson['service'] != null);
+            final deps =
+                (manifestJson['dependencies'] as List?)?.cast<String>() ?? [];
+            final hasAuthDep = deps.any(
+              (d) => d.startsWith('auth/') || d == 'auth',
+            );
+            final supportsAuth =
+                manifestJson['auth'] as bool? ??
+                hasAuthDep || (manifestJson['service'] != null);
+
+            // Installed providers (user support dir) are added first in searchDirs.
+            // Don't let a dev-workspace dir override an already-registered source,
+            // so that a freshly installed update isn't silently rolled back.
+            if (_sources.containsKey(id)) {
+              logger.d(
+                '[MetadataSourceManager] Provider $id already registered from higher-priority directory, skipping',
+              );
+              continue;
+            }
 
             final source = JsMetadataSource(
               providerId: id,
@@ -121,14 +144,22 @@ class MetadataSourceManager extends ChangeNotifier {
             );
             await source.initialize();
             _sources[id] = source;
-            logger.i('[MetadataSourceManager] Registered metadata provider: $id');
+            logger.i(
+              '[MetadataSourceManager] Registered metadata provider: $id',
+            );
           } catch (e) {
-            logger.w('[MetadataSourceManager] Failed loading provider in ${folder.path}: $e');
+            logger.w(
+              '[MetadataSourceManager] Failed loading provider in ${folder.path}: $e',
+            );
           }
         }
       }
     } catch (e, stack) {
-      logger.e('[MetadataSourceManager] Error scanning metadata providers: $e', error: e, stackTrace: stack);
+      logger.e(
+        '[MetadataSourceManager] Error scanning metadata providers: $e',
+        error: e,
+        stackTrace: stack,
+      );
     }
     _initialized = true;
     notifyListeners();

@@ -34,7 +34,6 @@ class _ProviderIconState extends State<ProviderIcon> {
   static final Map<String, String?> _iconPathCache = {};
   String? _resolvedPath;
   bool _isSvg = false;
-  bool _checked = false;
 
   @override
   void initState() {
@@ -58,7 +57,6 @@ class _ProviderIconState extends State<ProviderIcon> {
         setState(() {
           _resolvedPath = cached;
           _isSvg = cached != null && cached.toLowerCase().endsWith('.svg');
-          _checked = true;
         });
       }
       return;
@@ -71,7 +69,6 @@ class _ProviderIconState extends State<ProviderIcon> {
       setState(() {
         _resolvedPath = path;
         _isSvg = path != null && path.toLowerCase().endsWith('.svg');
-        _checked = true;
       });
     }
   }

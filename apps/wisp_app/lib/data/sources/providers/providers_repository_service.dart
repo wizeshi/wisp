@@ -173,9 +173,15 @@ class ProvidersRepositoryService {
             final key = pkg.uniqueKey;
             if (discovered.containsKey(key)) {
               final existing = discovered[key]!;
-              if (ProviderPackage.isNewerVersion(pkg.version, existing.version)) {
+              if (ProviderPackage.isNewerVersion(
+                pkg.version,
+                existing.version,
+              )) {
                 discovered[key] = pkg;
-              } else if (!ProviderPackage.isNewerVersion(existing.version, pkg.version)) {
+              } else if (!ProviderPackage.isNewerVersion(
+                existing.version,
+                pkg.version,
+              )) {
                 // When versions are equal, prefer local workspace definition
                 discovered[key] = pkg;
               }
@@ -218,10 +224,10 @@ class ProvidersRepositoryService {
         final loaded = pkg.type == 'metadata'
             ? MetadataSourceManager.instance.sources.containsKey(pkg.id)
             : pkg.type == 'auth'
-                ? AuthSourceManager.instance.sources.containsKey(pkg.id)
-                : LyricsSourceManager.instance.allSources.any(
-                    (s) => s.id == pkg.id,
-                  );
+            ? AuthSourceManager.instance.sources.containsKey(pkg.id)
+            : LyricsSourceManager.instance.allSources.any(
+                (s) => s.id == pkg.id,
+              );
         if (loaded) {
           isInstalled = true;
           installedVersion = pkg.version;
@@ -282,58 +288,68 @@ class ProvidersRepositoryService {
         targetDir.createSync(recursive: true);
       }
 
+      // Critical files that must be written for the install to be considered valid.
+      // manifest.json is always required; index.js is the conventional entry point.
+      const criticalFiles = {'manifest.json', 'index.js'};
+      final Set<String> writtenFiles = {};
+
       for (final fileName in pkg.files) {
         Uint8List? bytes;
 
-        // Try remote download
-        try {
-          final fileUrl = '$repoRawBaseUrl/${pkg.path}/$fileName';
-          final res = await http
-              .get(Uri.parse(fileUrl))
-              .timeout(const Duration(seconds: 10));
-          if (res.statusCode == 200) {
-            bytes = res.bodyBytes;
-          }
-        } catch (_) {}
+        // Try local workspace first — guarantees that a locally-bumped version
+        // is installed rather than the potentially stale remote copy. In
+        // production (no workspace) these paths simply don't exist.
+        final localPaths = [
+          p.join(Directory.current.path, 'providers', pkg.path, fileName),
+          p.join(
+            Directory.current.path,
+            '..',
+            '..',
+            'providers',
+            pkg.path,
+            fileName,
+          ),
+          p.join(Directory.current.path, '..', 'providers', pkg.path, fileName),
+        ];
 
-        // Fallback to local workspace files if available
+        for (final lp in localPaths) {
+          final f = File(lp);
+          if (f.existsSync()) {
+            bytes = await f.readAsBytes();
+            break;
+          }
+        }
+
+        // Fall back to remote download
         if (bytes == null) {
-          final localPaths = [
-            p.join(Directory.current.path, 'providers', pkg.path, fileName),
-            p.join(
-              Directory.current.path,
-              '..',
-              '..',
-              'providers',
-              pkg.path,
-              fileName,
-            ),
-            p.join(
-              Directory.current.path,
-              '..',
-              'providers',
-              pkg.path,
-              fileName,
-            ),
-          ];
-
-          for (final lp in localPaths) {
-            final f = File(lp);
-            if (f.existsSync()) {
-              bytes = await f.readAsBytes();
-              break;
+          try {
+            final fileUrl = '$repoRawBaseUrl/${pkg.path}/$fileName';
+            final res = await http
+                .get(Uri.parse(fileUrl))
+                .timeout(const Duration(seconds: 10));
+            if (res.statusCode == 200) {
+              bytes = res.bodyBytes;
             }
-          }
+          } catch (_) {}
         }
 
         if (bytes != null) {
           final targetFile = File(p.join(targetDir.path, fileName));
           await targetFile.writeAsBytes(bytes);
+          writtenFiles.add(fileName);
         } else {
           logger.w(
             '[ProvidersRepositoryService] Could not find content for $fileName',
           );
         }
+      }
+
+      // Fail if none of the critical files were written.
+      if (!writtenFiles.any(criticalFiles.contains)) {
+        logger.e(
+          '[ProvidersRepositoryService] No critical files written for ${pkg.name} — aborting',
+        );
+        return false;
       }
 
       // Auto-install dependencies if not already installed
