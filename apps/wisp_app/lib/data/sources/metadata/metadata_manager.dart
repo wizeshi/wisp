@@ -327,6 +327,357 @@ class MetadataManager extends ChangeNotifier {
     return provider.getPlaylistInfo(playlistId, offset: offset, limit: limit, policy: policy);
   }
 
+  /// Get cached full playlist (all tracks) if present in store.
+  Future<GenericPlaylist?> getCachedFullPlaylist(
+    String playlistId, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    final entry = await MetadataCacheStore.instance.readEntry(
+      provider: provider.providerId,
+      type: 'full_playlist',
+      id: playlistId,
+    );
+    if (entry != null) {
+      try {
+        return GenericPlaylist.fromJson(entry.payload);
+      } catch (e) {
+        logger.w('[MetadataManager] Failed to decode cached full playlist: $e');
+      }
+    }
+    return provider.getCachedPlaylistInfo(playlistId);
+  }
+
+  /// Write full playlist to cache store.
+  Future<void> cacheFullPlaylist(
+    GenericPlaylist playlist, {
+    String? providerId,
+  }) async {
+    final pid = providerId ?? playlist.source;
+    await MetadataCacheStore.instance.writeEntry(
+      provider: pid,
+      type: 'full_playlist',
+      id: playlist.id,
+      payload: playlist.toJson(),
+      ttl: const Duration(days: 7),
+    );
+  }
+
+  /// Fetch full playlist across all track pages and cache the assembled result.
+  Future<GenericPlaylist> fetchFullPlaylistWithTracks(
+    String playlistId, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    const fetchLimit = 200;
+    final playlist = await provider.getPlaylistInfo(
+      playlistId,
+      offset: 0,
+      limit: fetchLimit,
+      policy: MetadataFetchPolicy.refreshAlways,
+    );
+    final items = <PlaylistItem>[...?(playlist.songs)];
+
+    int offset = items.length;
+    while (playlist.hasMore == true && offset < (playlist.total ?? 0)) {
+      final morePlaylist = await provider.getPlaylistInfo(
+        playlistId,
+        offset: offset,
+        limit: fetchLimit,
+        policy: MetadataFetchPolicy.refreshIfExpired,
+      );
+      final more = morePlaylist.songs ?? const <PlaylistItem>[];
+      if (more.isEmpty) break;
+      items.addAll(more);
+      offset = items.length;
+      if (more.length < fetchLimit) break;
+    }
+
+    final full = GenericPlaylist(
+      id: playlist.id,
+      source: playlist.source,
+      title: playlist.title,
+      description: playlist.description,
+      thumbnailUrl: playlist.thumbnailUrl,
+      author: playlist.author,
+      songs: items,
+      durationSecs: playlist.durationSecs,
+      total: playlist.total ?? items.length,
+      hasMore: false,
+    );
+
+    await cacheFullPlaylist(full, providerId: provider.providerId);
+    return full;
+  }
+
+  /// Get cached full album (all tracks) if present in store.
+  Future<GenericAlbum?> getCachedFullAlbum(
+    String albumId, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    final entry = await MetadataCacheStore.instance.readEntry(
+      provider: provider.providerId,
+      type: 'full_album',
+      id: albumId,
+    );
+    if (entry != null) {
+      try {
+        return GenericAlbum.fromJson(entry.payload);
+      } catch (e) {
+        logger.w('[MetadataManager] Failed to decode cached full album: $e');
+      }
+    }
+    return provider.getCachedAlbumInfo(albumId);
+  }
+
+  /// Write full album to cache store.
+  Future<void> cacheFullAlbum(
+    GenericAlbum album, {
+    String? providerId,
+  }) async {
+    final pid = providerId ?? album.source;
+    await MetadataCacheStore.instance.writeEntry(
+      provider: pid,
+      type: 'full_album',
+      id: album.id,
+      payload: album.toJson(),
+      ttl: const Duration(days: 7),
+    );
+  }
+
+  /// Fetch full album across all track pages and cache the assembled result.
+  Future<GenericAlbum> fetchFullAlbumWithTracks(
+    String albumId, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    final album = await provider.getAlbumInfo(
+      albumId,
+      offset: 0,
+      limit: 50,
+      policy: MetadataFetchPolicy.refreshAlways,
+    );
+    final items = <GenericSong>[...?(album.songs)];
+
+    int offset = items.length;
+    while (album.hasMore == true && offset < (album.total ?? 0)) {
+      final moreAlbum = await provider.getAlbumInfo(
+        albumId,
+        offset: offset,
+        limit: 50,
+        policy: MetadataFetchPolicy.refreshIfExpired,
+      );
+      final more = moreAlbum.songs ?? const <GenericSong>[];
+      if (more.isEmpty) break;
+      items.addAll(more);
+      offset = items.length;
+      if (more.length < 50) break;
+    }
+
+    final full = GenericAlbum(
+      id: album.id,
+      source: album.source,
+      title: album.title,
+      thumbnailUrl: album.thumbnailUrl,
+      artists: album.artists,
+      label: album.label,
+      releaseDate: album.releaseDate,
+      explicit: album.explicit,
+      songs: items,
+      durationSecs: album.durationSecs,
+      total: album.total ?? items.length,
+      hasMore: false,
+    );
+
+    await cacheFullAlbum(full, providerId: provider.providerId);
+    return full;
+  }
+
+  /// Get cached liked songs if present in store.
+  Future<List<PlaylistItem>?> getCachedLikedSongs({
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    final entry = await MetadataCacheStore.instance.readEntry(
+      provider: provider.providerId,
+      type: 'saved_tracks_all',
+      id: 'all',
+    );
+    if (entry != null) {
+      final items = entry.payload['items'] as List?;
+      if (items != null) {
+        return items
+            .whereType<Map<String, dynamic>>()
+            .map(PlaylistItem.fromJson)
+            .toList();
+      }
+    }
+    return provider.getCachedSavedTracksAll();
+  }
+
+  /// Write liked songs to cache store.
+  Future<void> cacheLikedSongs(
+    List<PlaylistItem> songs, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    await MetadataCacheStore.instance.writeEntry(
+      provider: provider.providerId,
+      type: 'saved_tracks_all',
+      id: 'all',
+      payload: {'items': songs.map((s) => s.toJson()).toList()},
+      ttl: const Duration(days: 7),
+    );
+  }
+
+  /// Fetch all user saved tracks and update local liked songs cache.
+  Future<List<PlaylistItem>> fetchLikedSongs({
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    const limit = 50;
+    final items = <PlaylistItem>[];
+
+    final freshFirst = await provider.getUserSavedTracks(
+      limit: limit,
+      offset: 0,
+      policy: MetadataFetchPolicy.refreshAlways,
+    );
+    items.addAll(freshFirst);
+
+    var offset = items.length;
+    while (true) {
+      final page = await provider.getUserSavedTracks(
+        limit: limit,
+        offset: offset,
+        policy: MetadataFetchPolicy.refreshIfExpired,
+      );
+      if (page.isEmpty) break;
+      items.addAll(page);
+      offset = items.length;
+      if (page.length < limit) break;
+    }
+
+    setLikedTracksFromItems(items);
+    await cacheLikedSongs(items, providerId: provider.providerId);
+    return items;
+  }
+
+  /// Get cached artist details if present.
+  Future<GenericArtist?> getCachedArtist(
+    String artistId, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    final entry = await MetadataCacheStore.instance.readEntry(
+      provider: provider.providerId,
+      type: 'artist',
+      id: artistId,
+    );
+    if (entry != null) {
+      try {
+        return GenericArtist.fromJson(entry.payload);
+      } catch (e) {
+        logger.w('[MetadataManager] Failed to decode cached artist: $e');
+      }
+    }
+    return provider.getCachedArtistInfo(artistId);
+  }
+
+  /// Write artist to cache store.
+  Future<void> cacheArtist(
+    GenericArtist artist, {
+    String? providerId,
+  }) async {
+    final pid = providerId ?? artist.source;
+    await MetadataCacheStore.instance.writeEntry(
+      provider: pid,
+      type: 'artist',
+      id: artist.id,
+      payload: artist.toJson(),
+      ttl: const Duration(days: 7),
+    );
+  }
+
+  /// Fetch artist and cache result.
+  Future<GenericArtist> fetchArtist(
+    String artistId, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    final artist = await provider.getArtistInfo(
+      artistId,
+      policy: MetadataFetchPolicy.refreshAlways,
+    );
+    await cacheArtist(artist, providerId: provider.providerId);
+    return artist;
+  }
+
+  /// Get cached user profile if present.
+  Future<GenericUser?> getCachedUserProfile(
+    String userId, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    final entry = await MetadataCacheStore.instance.readEntry(
+      provider: provider.providerId,
+      type: 'user_profile',
+      id: userId,
+    );
+    if (entry != null) {
+      try {
+        return GenericUser.fromJson(entry.payload);
+      } catch (e) {
+        logger.w('[MetadataManager] Failed to decode cached user profile: $e');
+      }
+    }
+    return null;
+  }
+
+  /// Write user profile to cache store.
+  Future<void> cacheUserProfile(
+    GenericUser user, {
+    String? providerId,
+  }) async {
+    final pid = providerId ?? user.source;
+    await MetadataCacheStore.instance.writeEntry(
+      provider: pid,
+      type: 'user_profile',
+      id: user.id,
+      payload: user.toJson(),
+      ttl: const Duration(days: 7),
+    );
+  }
+
+  /// Fetch full user profile and cache result.
+  Future<GenericUser> fetchUserProfileDetails(
+    String userId, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    final user = await provider.getUserProfile(
+      userId,
+      policy: MetadataFetchPolicy.refreshAlways,
+    );
+    if (user != null) {
+      await cacheUserProfile(user, providerId: provider.providerId);
+      return user;
+    }
+    throw Exception('Failed to fetch user profile for $userId');
+  }
+
   /// Get artist info by ID.
   Future<GenericArtist> getArtistInfo(
     String artistId, {

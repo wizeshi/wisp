@@ -137,6 +137,22 @@ class MetadataCacheStore {
     return File('${dir.path}/$hashed.json');
   }
 
+  /// Synchronous in-memory L1 cache lookup.
+  MetadataCacheEntry? readL1Entry({
+    required String provider,
+    required String type,
+    required String id,
+    String? pageKey,
+  }) {
+    final key = buildKey(
+      provider: provider,
+      type: type,
+      id: id,
+      pageKey: pageKey,
+    );
+    return _l1MemoryCache[key];
+  }
+
   Future<MetadataCacheEntry?> readEntry({
     required String provider,
     required String type,
@@ -172,6 +188,77 @@ class MetadataCacheStore {
     } catch (e) {
       logger.w('[Services/MetadataCache] Failed to read entry', error: e);
       return null;
+    }
+  }
+
+  /// Refreshes expiration date for an existing cache entry when revalidated
+  /// and confirmed unchanged.
+  Future<void> touchEntry({
+    required String provider,
+    required String type,
+    required String id,
+    String? pageKey,
+    Duration? ttl,
+  }) async {
+    final key = buildKey(
+      provider: provider,
+      type: type,
+      id: id,
+      pageKey: pageKey,
+    );
+    final existing = _l1MemoryCache[key] ??
+        await readEntry(
+          provider: provider,
+          type: type,
+          id: id,
+          pageKey: pageKey,
+        );
+    if (existing == null) return;
+
+    final now = DateTime.now();
+    final updated = MetadataCacheEntry(
+      key: existing.key,
+      provider: existing.provider,
+      type: existing.type,
+      id: existing.id,
+      pageKey: existing.pageKey,
+      fetchedAt: now,
+      expiresAt: now.add(ttl ?? _defaultTtl),
+      payload: existing.payload,
+    );
+
+    _putInL1Cache(key, updated);
+    final file = await _fileForKey(provider: provider, type: type, key: key);
+    if (file != null && await file.exists()) {
+      try {
+        await file.writeAsString(jsonEncode(updated.toJson()));
+      } catch (e) {
+        logger.w('[Services/MetadataCache] Failed to touch entry', error: e);
+      }
+    }
+  }
+
+  /// Remove a specific cache entry from memory and disk.
+  Future<void> invalidateEntry({
+    required String provider,
+    required String type,
+    required String id,
+    String? pageKey,
+  }) async {
+    final key = buildKey(
+      provider: provider,
+      type: type,
+      id: id,
+      pageKey: pageKey,
+    );
+    _l1MemoryCache.remove(key);
+    try {
+      final file = await _fileForKey(provider: provider, type: type, key: key);
+      if (file != null && await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      logger.w('[Services/MetadataCache] Failed to invalidate entry', error: e);
     }
   }
 

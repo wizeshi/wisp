@@ -17,6 +17,7 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/rows/track_row.dart';
 import 'package:wisp/core/utils/text_parser.dart';
+import 'package:wisp/core/utils/logger.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
@@ -37,7 +38,8 @@ import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
-import 'package:wisp/data/cache/metadata_cache.dart';
+import 'package:wisp/data/cache/metadata_diff.dart';
+import 'package:wisp/data/cache/metadata_revalidator.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
@@ -87,6 +89,9 @@ class SharedListDetailView extends StatefulWidget {
 
 class _SharedListDetailViewState extends State<SharedListDetailView> {
   bool _isLoading = true;
+  bool _isRefreshing = false;
+  final MetadataRevalidatorToken _revalidationToken =
+      MetadataRevalidatorToken();
   GenericPlaylist? _playlist;
   GenericAlbum? _album;
   List<int> _sortedIndices = [];
@@ -290,6 +295,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   @override
   void dispose() {
+    _revalidationToken.cancel();
     if (_likedTracksListener != null) {
       _metadataManager.removeListener(_likedTracksListener!);
     }
@@ -423,23 +429,21 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (widget.type == SharedListType.playlist) {
+      if (!isLikedSongsPlaylistId(widget.id) &&
+          localPlaylists.isLocalPlaylistId(widget.id)) {
+        final localPlaylist = localPlaylists.getGenericPlaylist(widget.id);
+        if (localPlaylist != null) {
+          _playlist = localPlaylist;
+          _rebuildIndices();
+          setState(() => _isLoading = false);
+        }
 
-    try {
-      if (widget.type == SharedListType.playlist) {
-        if (!isLikedSongsPlaylistId(widget.id) &&
-            localPlaylists.isLocalPlaylistId(widget.id)) {
-          final localPlaylist = localPlaylists.getGenericPlaylist(widget.id);
-          if (localPlaylist != null) {
-            _playlist = localPlaylist;
-            _rebuildIndices();
-            setState(() => _isLoading = false);
-          }
-
-          final localEntry = localPlaylists.getById(widget.id);
-          if (localEntry?.isLinked == true && localEntry?.linkedId != null) {
-            final providerPlaylist = await _fetchPlaylistWithTracks(
-              metadataManager,
+        final localEntry = localPlaylists.getById(widget.id);
+        if (localEntry?.isLinked == true && localEntry?.linkedId != null) {
+          try {
+            final providerPlaylist =
+                await metadataManager.fetchFullPlaylistWithTracks(
               localEntry!.linkedId!,
               source: localEntry.linkedSource,
             );
@@ -455,92 +459,105 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 setState(() => _isLoading = false);
               }
             }
+          } catch (e) {
+            logger.w('[ListDetailView] Failed to sync linked playlist: $e');
           }
-          return;
         }
-        if (isLikedSongsPlaylistId(widget.id)) {
-          const limit = 50;
-          final items = <PlaylistItem>[];
+        return;
+      }
 
-          final freshFirst = await metadataManager.getUserSavedTracks(
-            limit: limit,
-            offset: 0,
-            policy: MetadataFetchPolicy.refreshAlways,
-          );
-          items.addAll(freshFirst);
-
-          var offset = items.length;
-          while (true) {
-            final page = await metadataManager.getUserSavedTracks(
-              limit: limit,
-              offset: offset,
-              policy: MetadataFetchPolicy.refreshIfExpired,
+      if (isLikedSongsPlaylistId(widget.id)) {
+        await MetadataRevalidator.revalidate<List<PlaylistItem>>(
+          token: _revalidationToken,
+          loadCache: () => metadataManager.getCachedLikedSongs(),
+          fetchRemote: () => metadataManager.fetchLikedSongs(),
+          hasChanged: (curr, fresh) =>
+              MetadataDiff.hasPlaylistItemListChanged(curr, fresh),
+          onData: (items, {required fromCache}) {
+            if (!mounted) return;
+            metadataManager.setLikedTracksFromItems(items);
+            _playlist = _buildLikedSongsPlaylist(
+              items,
+              metadataManager.userDisplayName,
             );
-            if (page.isEmpty) break;
-            items.addAll(page);
-            offset = items.length;
-            if (page.length < limit) break;
+            _rebuildIndices();
+            setState(() => _isLoading = false);
+          },
+          onRefreshing: (refreshing) {
+            if (mounted && _isRefreshing != refreshing) {
+              setState(() => _isRefreshing = refreshing);
+            }
+          },
+          onError: (e) {
+            if (mounted && _playlist == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to load liked songs: $e')),
+              );
+            }
+          },
+        );
+        if (mounted) {
+          unawaited(_loadRecommendationsIfEligible(forceRefresh: true));
+        }
+        return;
+      }
+
+      // Standard remote playlist
+      await MetadataRevalidator.revalidate<GenericPlaylist>(
+        token: _revalidationToken,
+        loadCache: () => metadataManager.getCachedFullPlaylist(widget.id),
+        fetchRemote: () =>
+            metadataManager.fetchFullPlaylistWithTracks(widget.id),
+        hasChanged: (curr, fresh) =>
+            MetadataDiff.hasPlaylistChanged(curr, fresh),
+        onData: (playlist, {required fromCache}) {
+          if (!mounted) return;
+          _playlist = playlist;
+          _rebuildIndices();
+          setState(() => _isLoading = false);
+        },
+        onRefreshing: (refreshing) {
+          if (mounted && _isRefreshing != refreshing) {
+            setState(() => _isRefreshing = refreshing);
           }
-
-          metadataManager.setLikedTracksFromItems(items);
-          _playlist = _buildLikedSongsPlaylist(
-            items,
-            metadataManager.userDisplayName,
-          );
-          return;
-        }
-        _playlist = await _fetchPlaylistWithTracks(metadataManager, widget.id);
-      } else {
-        final album = await metadataManager.getAlbumInfo(
-          widget.id,
-          offset: 0,
-          limit: 50,
-          policy: MetadataFetchPolicy.refreshAlways,
-        );
-        final items = <GenericSong>[...?(album.songs)];
-
-        int offset = items.length;
-        while (album.hasMore == true && offset < (album.total ?? 0)) {
-          final moreAlbum = await metadataManager.getAlbumInfo(
-            widget.id,
-            offset: offset,
-            limit: 50,
-            policy: MetadataFetchPolicy.refreshIfExpired,
-          );
-          final more = moreAlbum.songs ?? const <GenericSong>[];
-          if (more.isEmpty) break;
-          items.addAll(more);
-          offset = items.length;
-          if (more.length < 50) break;
-        }
-
-        _album = GenericAlbum(
-          id: album.id,
-          source: album.source,
-          title: album.title,
-          thumbnailUrl: album.thumbnailUrl,
-          artists: album.artists,
-          label: album.label,
-          releaseDate: album.releaseDate,
-          explicit: album.explicit,
-          songs: items,
-          durationSecs: album.durationSecs,
-          total: album.total ?? items.length,
-          hasMore: false,
-        );
-      }
-    } catch (e) {
+        },
+        onError: (e) {
+          if (mounted && _playlist == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to load playlist: $e')),
+            );
+          }
+        },
+      );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to load list: $e')));
+        unawaited(_loadRecommendationsIfEligible(forceRefresh: true));
       }
-    } finally {
-      _rebuildIndices();
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-      unawaited(_loadRecommendationsIfEligible(forceRefresh: true));
+    } else {
+      // Album
+      await MetadataRevalidator.revalidate<GenericAlbum>(
+        token: _revalidationToken,
+        loadCache: () => metadataManager.getCachedFullAlbum(widget.id),
+        fetchRemote: () => metadataManager.fetchFullAlbumWithTracks(widget.id),
+        hasChanged: (curr, fresh) => MetadataDiff.hasAlbumChanged(curr, fresh),
+        onData: (album, {required fromCache}) {
+          if (!mounted) return;
+          _album = album;
+          _rebuildIndices();
+          setState(() => _isLoading = false);
+        },
+        onRefreshing: (refreshing) {
+          if (mounted && _isRefreshing != refreshing) {
+            setState(() => _isRefreshing = refreshing);
+          }
+        },
+        onError: (e) {
+          if (mounted && _album == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to load album: $e')),
+            );
+          }
+        },
+      );
     }
   }
 
@@ -564,51 +581,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
 
     unawaited(coordinator.play());
-  }
-
-  Future<GenericPlaylist> _fetchPlaylistWithTracks(
-    MetadataManager metadataManager,
-    String playlistId, {
-    String? source,
-  }) async {
-    const fetchLimit = 200;
-    final playlist = await metadataManager.getPlaylistInfo(
-      playlistId,
-      offset: 0,
-      limit: fetchLimit,
-      source: source,
-      policy: MetadataFetchPolicy.refreshAlways,
-    );
-    final items = <PlaylistItem>[...?(playlist.songs)];
-
-    int offset = items.length;
-    while (playlist.hasMore == true && offset < (playlist.total ?? 0)) {
-      final morePlaylist = await metadataManager.getPlaylistInfo(
-        playlistId,
-        offset: offset,
-        limit: fetchLimit,
-        source: source,
-        policy: MetadataFetchPolicy.refreshIfExpired,
-      );
-      final more = morePlaylist.songs ?? const <PlaylistItem>[];
-      if (more.isEmpty) break;
-      items.addAll(more);
-      offset = items.length;
-      if (more.length < fetchLimit) break;
-    }
-
-    return GenericPlaylist(
-      id: playlist.id,
-      source: playlist.source,
-      title: playlist.title,
-      description: playlist.description,
-      thumbnailUrl: playlist.thumbnailUrl,
-      author: playlist.author,
-      songs: items,
-      durationSecs: playlist.durationSecs,
-      total: playlist.total ?? items.length,
-      hasMore: false,
-    );
   }
 
   GenericPlaylist _buildLikedSongsPlaylist(
@@ -1246,7 +1218,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
     _updateStickyBarColor(imageUrl);
 
-    final content = _isLoading
+    final showLoadingSpinner =
+        _isLoading && _playlist == null && _album == null;
+    Widget content = showLoadingSpinner
         ? const Center(child: CircularProgressIndicator())
         : _buildListContentByStyle(
             style: style,
@@ -1259,6 +1233,28 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             isDesktop: isDesktop,
             description: description,
           );
+
+    if (_isRefreshing && !showLoadingSpinner) {
+      content = Stack(
+        children: [
+          content,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SizedBox(
+              height: 2,
+              child: LinearProgressIndicator(
+                backgroundColor: Colors.transparent,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     if (isDesktop) {
       return Scaffold(backgroundColor: Colors.transparent, body: content);

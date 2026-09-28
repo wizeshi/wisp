@@ -42,6 +42,7 @@ import 'package:wisp/services/audio/streaming_server.dart';
 import 'package:wisp/features/onboarding/views/mobile_welcome_view.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/services/system/connectivity_service.dart';
 import 'package:wisp/features/shell/widgets/app_shell.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 
@@ -114,6 +115,9 @@ void main() async {
       logger.d('[Main] window_manager init failed: $e');
     }
   }
+
+  // Initialize network connectivity monitoring service
+  await ConnectivityService.instance.initialize();
 
   // Initialize notification service for download progress (mobile only)
   await NotificationService.instance.initialize();

@@ -22,7 +22,8 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_pla
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
-import 'package:wisp/data/cache/metadata_cache.dart';
+import 'package:wisp/data/cache/metadata_diff.dart';
+import 'package:wisp/data/cache/metadata_revalidator.dart';
 import 'package:wisp/shared/widgets/display/hover_underline.dart';
 import 'package:wisp/features/shell/widgets/navigation.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
@@ -58,6 +59,9 @@ class ArtistDetailView extends StatefulWidget {
 
 class _ArtistDetailViewState extends State<ArtistDetailView> {
   bool _isLoading = true;
+  bool _isRefreshing = false;
+  final MetadataRevalidatorToken _revalidationToken =
+      MetadataRevalidatorToken();
   GenericArtist? _artist;
   String? _hoveredTrackId;
   final PageController _appleTopSongsPageController = PageController(
@@ -72,6 +76,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
 
   @override
   void dispose() {
+    _revalidationToken.cancel();
     _appleTopSongsPageController.dispose();
     super.dispose();
   }
@@ -85,26 +90,31 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       return;
     }
 
-    setState(() => _isLoading = true);
-    try {
-      final artist = await metadataManager.getArtistInfo(
-        widget.artistId,
-        policy: MetadataFetchPolicy.refreshAlways,
-      );
-      if (mounted) {
-        setState(() => _artist = artist);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to load artist: $e')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+    await MetadataRevalidator.revalidate<GenericArtist>(
+      token: _revalidationToken,
+      loadCache: () => metadataManager.getCachedArtist(widget.artistId),
+      fetchRemote: () => metadataManager.fetchArtist(widget.artistId),
+      hasChanged: (curr, fresh) => MetadataDiff.hasArtistChanged(curr, fresh),
+      onData: (artist, {required fromCache}) {
+        if (!mounted) return;
+        setState(() {
+          _artist = artist;
+          _isLoading = false;
+        });
+      },
+      onRefreshing: (refreshing) {
+        if (mounted && _isRefreshing != refreshing) {
+          setState(() => _isRefreshing = refreshing);
+        }
+      },
+      onError: (e) {
+        if (mounted && _artist == null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to load artist: $e')));
+        }
+      },
+    );
   }
 
   String _formatDuration(int seconds) {
@@ -191,7 +201,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         final headerColor = snapshot.data?[0] ?? const Color(0xFF1E1E1E);
         final actionsRowColor = snapshot.data?[1] ?? const Color(0xFF1E1E1E);
 
-        final content = _isLoading
+        final showLoadingSpinner = _isLoading && _artist == null;
+        Widget content = showLoadingSpinner
             ? const Center(child: CircularProgressIndicator())
             : _buildArtistContent(
                 imageUrl,
@@ -203,6 +214,31 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 headerColor,
                 actionsRowColor,
               );
+
+        if (_isRefreshing && !showLoadingSpinner) {
+          content = Stack(
+            children: [
+              content,
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SizedBox(
+                  height: 2,
+                  child: LinearProgressIndicator(
+                    backgroundColor: Colors.transparent,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
 
         if (isDesktop) {
           return content;

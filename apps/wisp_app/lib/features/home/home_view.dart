@@ -25,6 +25,7 @@ import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
+import 'package:wisp/services/system/connectivity_service.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
@@ -165,6 +166,68 @@ class HomePageState extends State<HomePage> {
       if (!metadataManager.isAuthenticated) {
         logger.d('[Views/Home] Not authenticated, skipping data load');
         libraryState.clear();
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      // 1. Immediately display cached library and home feed if current state is empty
+      if (_savedAlbums.isEmpty && _savedPlaylists.isEmpty && _homeSections.isEmpty) {
+        try {
+          final cachedLib = await metadataManager.getUserLibrary(
+            policy: MetadataFetchPolicy.cacheFirst,
+          );
+          final cachedHome = await metadataManager.getUserHome(
+            policy: MetadataFetchPolicy.cacheFirst,
+          );
+          if (cachedLib != null || cachedHome != null) {
+            final lib = cachedLib ??
+                const GenericLibrary(
+                  saved_albums: [],
+                  saved_playlists: [],
+                  saved_artists: [],
+                );
+            final home = cachedHome ?? const GenericHome(sections: {});
+            final initialLikedPlaylist = buildLikedSongsPlaylist(
+              userDisplayName: metadataManager.userDisplayName,
+              total: metadataManager.likedTracksTotalCount,
+            );
+            final intPlaylists = lib.saved_playlists;
+            final plWithLiked = [
+              initialLikedPlaylist,
+              ...intPlaylists.where((p) => p.id != likedSongsPlaylistId),
+            ];
+            final localState = context.read<LocalPlaylistState>();
+            final merged = _mergeLocalPlaylists(
+              plWithLiked,
+              localState.genericPlaylists,
+              localState.hiddenProviderPlaylistIds,
+            );
+            if (mounted) {
+              setState(() {
+                _savedAlbums = lib.saved_albums;
+                _savedPlaylists = merged;
+                _followedArtists = lib.saved_artists
+                    .map(
+                      (a) => GenericSimpleArtist(
+                        id: a.id,
+                        source: a.source,
+                        name: a.name,
+                        thumbnailUrl: a.thumbnailUrl,
+                      ),
+                    )
+                    .toList();
+                _homeSections = _sanitizeHomeSections(home.sections);
+                _isLoading = false;
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Check network connectivity before starting remote network calls
+      final isOnline = await ConnectivityService.instance.checkOnline();
+      if (!isOnline) {
+        logger.d('[Views/Home] Offline: keeping cached home data');
         if (mounted) setState(() => _isLoading = false);
         return;
       }

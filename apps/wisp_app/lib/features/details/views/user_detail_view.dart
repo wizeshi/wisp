@@ -14,6 +14,8 @@ import 'package:provider/provider.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
+import 'package:wisp/data/cache/metadata_diff.dart';
+import 'package:wisp/data/cache/metadata_revalidator.dart';
 import 'package:wisp/core/theme/cover_art_palette_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
@@ -41,6 +43,9 @@ class UserDetailView extends StatefulWidget {
 
 class _UserDetailViewState extends State<UserDetailView> {
   bool _isLoading = true;
+  bool _isRefreshing = false;
+  final MetadataRevalidatorToken _revalidationToken =
+      MetadataRevalidatorToken();
   String? _currentUserId;
   GenericUser? _user;
   String? _errorMessage;
@@ -50,6 +55,12 @@ class _UserDetailViewState extends State<UserDetailView> {
     super.initState();
     _user = widget.initialUser;
     _loadUser();
+  }
+
+  @override
+  void dispose() {
+    _revalidationToken.cancel();
+    super.dispose();
   }
 
   Future<void> _loadUser() async {
@@ -66,52 +77,32 @@ class _UserDetailViewState extends State<UserDetailView> {
       } catch (_) {}
     }
 
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-    }
-
-    try {
-      final profile = await metadataManager.getUserProfile(
-        widget.userId,
-        policy: MetadataFetchPolicy.refreshAlways,
-      );
-
-      List<GenericSimpleUser> followers = const [];
-      List<GenericSimpleUser> following = const [];
-      String? partialError;
-
-      try {
-        followers = await metadataManager.getUserFollowers(
+    await MetadataRevalidator.revalidate<GenericUser>(
+      token: _revalidationToken,
+      loadCache: () => metadataManager.getCachedUserProfile(widget.userId),
+      fetchRemote: () async {
+        final profile = await metadataManager.getUserProfile(
           widget.userId,
           policy: MetadataFetchPolicy.refreshAlways,
         );
-      } catch (e) {
-        partialError = 'Followers could not be loaded: $e';
-      }
+        if (profile == null) throw Exception('User profile not found');
 
-      try {
-        following = await metadataManager.getUserFollowing(
-          widget.userId,
-          policy: MetadataFetchPolicy.refreshAlways,
-        );
-      } catch (e) {
-        partialError = partialError == null
-            ? 'Following could not be loaded: $e'
-            : '$partialError\nFollowing could not be loaded: $e';
-      }
+        List<GenericSimpleUser> followers = const [];
+        List<GenericSimpleUser> following = const [];
+        try {
+          followers = await metadataManager.getUserFollowers(
+            widget.userId,
+            policy: MetadataFetchPolicy.refreshAlways,
+          );
+        } catch (_) {}
+        try {
+          following = await metadataManager.getUserFollowing(
+            widget.userId,
+            policy: MetadataFetchPolicy.refreshAlways,
+          );
+        } catch (_) {}
 
-      if (profile == null) {
-        throw Exception('User profile not found');
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _currentUserId = metadataManager.userId;
-        _errorMessage = partialError;
-        _user = GenericUser(
+        final fullUser = GenericUser(
           id: profile.id,
           source: profile.source,
           displayName: profile.displayName,
@@ -123,18 +114,31 @@ class _UserDetailViewState extends State<UserDetailView> {
           followers: followers,
           following: following,
         );
-      });
-    } catch (e) {
-      if (mounted) {
+        await metadataManager.cacheUserProfile(fullUser);
+        return fullUser;
+      },
+      hasChanged: (curr, fresh) => MetadataDiff.hasUserChanged(curr, fresh),
+      onData: (user, {required fromCache}) {
+        if (!mounted) return;
         setState(() {
-          _errorMessage = 'Failed to load user: $e';
+          _currentUserId = metadataManager.userId;
+          _user = user;
+          _isLoading = false;
         });
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+      },
+      onRefreshing: (refreshing) {
+        if (mounted && _isRefreshing != refreshing) {
+          setState(() => _isRefreshing = refreshing);
+        }
+      },
+      onError: (e) {
+        if (mounted && _user == null) {
+          setState(() {
+            _errorMessage = 'Failed to load user: $e';
+          });
+        }
+      },
+    );
   }
 
   bool get _isDesktop =>
@@ -190,9 +194,34 @@ class _UserDetailViewState extends State<UserDetailView> {
     final title = user?.displayName ?? 'User';
 
     Widget body = () {
-      final content = _isLoading && user == null
+      Widget content = _isLoading && user == null
           ? const Center(child: CircularProgressIndicator())
           : _buildContent(user);
+
+      if (_isRefreshing && user != null) {
+        content = Stack(
+          children: [
+            content,
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                height: 2,
+                child: LinearProgressIndicator(
+                  backgroundColor: Colors.transparent,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      }
 
       if (_isDesktop) {
         return content;
