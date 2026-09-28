@@ -361,7 +361,7 @@ class _ProviderSelectStepState extends State<ProviderSelectStep> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Wisp supports modular community extensions for lyrics and metadata.\n'
+                  'wisp supports modular community extensions for lyrics and metadata.\n'
                   'Select the providers you want to install. You can manage or update them later in Settings.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Colors.grey[400]),

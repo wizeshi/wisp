@@ -207,7 +207,7 @@ class _AppShellState extends State<AppShell> {
       return 'wisp';
     }
     final artistName = track.artists.isNotEmpty
-        ? track.artists.first.name.trim()
+        ? track.artists.map((a) => a.name.trim()).join(', ')
         : '';
     if (artistName.isEmpty) {
       return track.title.trim();

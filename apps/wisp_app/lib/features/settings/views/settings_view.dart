@@ -885,6 +885,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Switch(
                     value: prefs.keepPositionBetweenRestarts,
                     onChanged: (value) async {

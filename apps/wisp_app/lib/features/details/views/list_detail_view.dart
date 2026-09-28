@@ -15,7 +15,6 @@ import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/core/theme/app_theme.dart';
-import 'package:wisp/shared/widgets/playback/playback_selectors.dart';
 import 'package:wisp/shared/widgets/rows/track_row.dart';
 import 'package:wisp/core/utils/text_parser.dart';
 
@@ -39,7 +38,6 @@ import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
-import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
@@ -98,13 +96,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   String _searchQuery = '';
   static const double _rowHeightDesktop = 64;
   static const double _rowHeightMobile = 64;
-  static const int _windowBuffer = 6;
-  final ValueNotifier<double> _songListTopOffsetNotifier =
-      ValueNotifier<double>(0);
   final GlobalKey _headerKey = GlobalKey();
   final ScrollController _desktopScrollController = ScrollController();
   final ScrollController _mobileScrollController = ScrollController();
-  final GlobalKey _songListKey = GlobalKey();
   final GlobalKey _mobileActionsKey = GlobalKey();
   VoidCallback? _likedTracksListener;
   late final MetadataManager _metadataManager;
@@ -112,6 +106,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   Color _stickyBarColor = const Color(0xFF1E1E1E);
   String? _stickyCoverUrl;
   double? _mobileHeaderExtent;
+  double? _mobileActionsExtent;
 
   // Column visibility breakpoints (in pixels)
   static const double _breakpointFullColumns =
@@ -300,7 +295,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
     _desktopScrollController.dispose();
     _mobileScrollController.dispose();
-    _songListTopOffsetNotifier.dispose();
     super.dispose();
   }
 
@@ -324,6 +318,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           _setDesktopHeaderExtent(headerBox.size.height);
         }
       }
+      final actionsContext = _mobileActionsKey.currentContext;
+      final actionsBox = actionsContext?.findRenderObject() as RenderBox?;
+      if (actionsBox != null) {
+        _mobileActionsExtent = actionsBox.size.height;
+      }
       _updateStickyBarVisibility(controller);
     });
   }
@@ -331,24 +330,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   void _updateStickyBarVisibility(ScrollController controller) {
     if (!controller.hasClients) return;
     if (controller == _mobileScrollController && _mobileHeaderExtent != null) {
-      final actionsContext = _mobileActionsKey.currentContext;
-      final scrollable = actionsContext != null
-          ? Scrollable.of(actionsContext)
-          : null;
-      final actionsBox = actionsContext?.findRenderObject() as RenderBox?;
-      final scrollBox = scrollable?.context.findRenderObject() as RenderBox?;
-      if (actionsBox != null && scrollBox != null) {
-        final offset = actionsBox
-            .localToGlobal(Offset.zero, ancestor: scrollBox)
-            .dy;
-        final shouldShow = offset + actionsBox.size.height <= 0 && mounted;
-        if (shouldShow != _showStickyBar && mounted) {
-          setState(() => _showStickyBar = shouldShow);
-        }
-        return;
-      }
-
-      final threshold = (_mobileHeaderExtent! - kToolbarHeight).clamp(
+      final actionsHeight = _mobileActionsExtent ?? 48.0;
+      final threshold = (_mobileHeaderExtent! + actionsHeight - kToolbarHeight).clamp(
         0.0,
         double.infinity,
       );
@@ -424,24 +407,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (nextColor != _stickyBarColor) {
       setState(() => _stickyBarColor = nextColor);
     }
-  }
-
-  void _scheduleSongListOffsetUpdate(ScrollController controller) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final listContext = _songListKey.currentContext;
-      if (listContext == null) return;
-      final scrollable = Scrollable.of(listContext);
-      final listBox = listContext.findRenderObject() as RenderBox?;
-      final scrollBox = scrollable.context.findRenderObject() as RenderBox?;
-      if (listBox == null || scrollBox == null) return;
-      final listTop = listBox
-          .localToGlobal(Offset.zero, ancestor: scrollBox)
-          .dy;
-      final listStartOffset = controller.offset + listTop;
-      if ((listStartOffset - _songListTopOffsetNotifier.value).abs() > 1) {
-        _songListTopOffsetNotifier.value = listStartOffset;
-      }
-    });
   }
 
   Future<void> _loadListDetails() async {
@@ -825,26 +790,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     return null;
   }
 
-  String _formatAddedAt(DateTime? date) {
-    if (date == null) return '';
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final month = months[(date.month - 1).clamp(0, 11)];
-    return '$month ${date.day}, ${date.year}';
-  }
-
   String _getSource(_ListItem item) {
     if (item is GenericSong) return item.source;
     if (item is PlaylistItem) return item.source;
@@ -1206,18 +1151,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
-  IconData _sourceIcon(String source) {
-    switch (source.toLowerCase()) {
-      case 'youtube':
-        return Icons.ondemand_video;
-      case 'soundcloud':
-        return Icons.cloud;
-      case 'spotify':
-      case 'local':
-      default:
-        return Icons.music_note;
-    }
-  }
+
 
   int _totalDurationSecs() {
     return _items.fold<int>(0, (sum, item) => sum + _getDuration(item));

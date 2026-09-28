@@ -67,18 +67,14 @@ class _LikeButtonState extends State<LikeButton> {
       return const SizedBox.shrink();
     }
 
-    final isLiked = context.select<MetadataManager, bool>(
-      (manager) => manager.isTrackLiked(track.id, source: track.source),
-    );
-
-    if (!widget.showIfUnliked && !isLiked) {
-      return const SizedBox.shrink();
-    }
-
     return Selector<MetadataManager, bool>(
       selector: (context, manager) =>
           manager.isTrackLiked(track.id, source: track.source),
       builder: (context, isLiked, child) {
+        if (!widget.showIfUnliked && !isLiked) {
+          return const SizedBox.shrink();
+        }
+
         final icon = isLiked ? widget.likedIcon : widget.notLikedIcon;
         final color = isLiked ? widget.color : Colors.white;
 

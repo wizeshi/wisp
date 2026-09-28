@@ -57,12 +57,12 @@ void main() {
       await sessionManager.setSession('spotify', {
         'cookies': {'sp_dc': 'test_cookie_123'},
         'userId': 'spotify_user_xyz',
-        'displayName': 'Wisp Tester',
+        'displayName': 'wisp Tester',
       });
 
       expect(provider.isAuthenticated, isTrue);
       expect(provider.userId, equals('spotify_user_xyz'));
-      expect(provider.userDisplayName, equals('Wisp Tester'));
+      expect(provider.userDisplayName, equals('wisp Tester'));
       expect(notified, isTrue);
 
       await sessionManager.clearSession('spotify');

@@ -377,10 +377,12 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (useCoverArt) ...[
+        if (useCoverArt && currentTrack != null) ...[
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 56, maxWidth: 56),
-            child: CachedNetworkImage(imageUrl: currentTrack.thumbnailUrl),
+            child: CachedNetworkImage(
+              imageUrl: currentTrack.thumbnailUrl as String? ?? '',
+            ),
           ),
           const SizedBox(width: 12),
         ],
@@ -1066,9 +1068,7 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                                             _buildTrackInfo(
                                               currentTrack,
                                               btnColor,
-                                              (currentTrack!
-                                                      .thumbnailUrl
-                                                      .isNotEmpty &&
+                                              (currentTrack?.thumbnailUrl.isNotEmpty == true &&
                                                   hasCanvas &&
                                                   useCanvas),
                                             ),

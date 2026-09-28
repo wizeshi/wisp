@@ -1,4 +1,4 @@
-// LRCLIB Provider for Wisp
+// LRCLIB Provider for wisp
 // Extracts synchronized and plain lyrics from the LRCLIB open database.
 
 async function getLyrics(query) {
@@ -22,7 +22,7 @@ async function getLyrics(query) {
   const res = await wisp.fetch(url, {
     headers: {
       'Accept': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Wisp'
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) wisp'
     }
   });
 

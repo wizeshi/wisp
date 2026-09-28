@@ -849,8 +849,11 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            const SizedBox(width: 44),
+            const SizedBox(width: 2),
+            if (visualStyle != _ListVisualStyle.apple) ...[
+              const SizedBox(width: 6),
+              const SizedBox(width: 44),
+            ],
             const SizedBox(width: 12),
             Expanded(
               flex: 3,

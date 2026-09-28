@@ -283,7 +283,7 @@ class WispApp extends StatelessWidget {
         builder: (context, palette, preferences, child) {
           return MaterialApp(
             navigatorKey: NavigationHistory.instance.rootNavigatorKey,
-            title: 'Wisp',
+            title: 'wisp',
             scrollBehavior: const DesktopSmoothScrollBehavior(),
             theme: AppTheme.dark(
               paletteOverride: palette.palette,

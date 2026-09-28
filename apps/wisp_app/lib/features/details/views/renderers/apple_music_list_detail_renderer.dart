@@ -193,22 +193,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   ),
                 ),
               ),
-            SliverToBoxAdapter(
-              child: LayoutBuilder(
-                builder: (layoutContext, constraints) {
-                  return AnimatedBuilder(
-                    animation: Listenable.merge([
-                      view._mobileScrollController,
-                      view._songListTopOffsetNotifier,
-                    ]),
-                    builder: (context, _) => view._buildSongList(
-                      isMobile: true,
-                      visualStyle: _ListVisualStyle.apple,
-                      availableWidth: constraints.maxWidth,
-                    ),
-                  );
-                },
-              ),
+            SliverLayoutBuilder(
+              builder: (sliverContext, sliverConstraints) {
+                return view._buildSongsSliver(
+                  availableWidth: sliverConstraints.crossAxisExtent,
+                  isMobile: true,
+                  visualStyle: _ListVisualStyle.apple,
+                );
+              },
             ),
             SliverToBoxAdapter(
               child: Padding(
@@ -240,12 +232,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
           bottom: false,
           child: WispSmoothScroll(
             controller: view._desktopScrollController,
-            builder: (context, controller, physics) => ListView(
+            builder: (context, controller, physics) => CustomScrollView(
               controller: controller,
               physics: physics,
-              padding: const EdgeInsets.fromLTRB(30, 30, 30, 18),
-              children: [
-              LayoutBuilder(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(30, 30, 30, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: LayoutBuilder(
                 builder: (headerContext, headerConstraints) {
                   final availableWidth = headerConstraints.maxWidth;
                   return Container(
@@ -409,7 +403,12 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   );
                 },
               ),
-              LayoutBuilder(
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 30),
+            sliver: SliverToBoxAdapter(
+              child: LayoutBuilder(
                 builder: (layoutContext, constraints) {
                   final availableWidth = constraints.maxWidth;
                   return Column(
@@ -420,39 +419,37 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                         availableWidth: availableWidth,
                       ),
                       const SizedBox(height: 8),
-                      ScrollConfiguration(
-                        behavior: ScrollConfiguration.of(
-                          layoutContext,
-                        ).copyWith(scrollbars: false),
-                        child: AnimatedBuilder(
-                          animation: Listenable.merge([
-                            view._desktopScrollController,
-                            view._songListTopOffsetNotifier,
-                          ]),
-                          builder: (context, _) => view._buildSongList(
-                            isMobile: false,
-                            visualStyle: _ListVisualStyle.apple,
-                            availableWidth: availableWidth,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ScrollConfiguration(
-                        behavior: ScrollConfiguration.of(
-                          layoutContext,
-                        ).copyWith(scrollbars: false),
-                        child: view._buildRecommendedSection(
-                          isMobile: false,
-                          visualStyle: _ListVisualStyle.apple,
-                        ),
-                      ),
                     ],
                   );
                 },
               ),
-            ],
+            ),
           ),
-        ),
+          SliverLayoutBuilder(
+            builder: (sliverContext, sliverConstraints) {
+              final availableWidth = sliverConstraints.crossAxisExtent - 60;
+              return SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 30),
+                sliver: view._buildSongsSliver(
+                  availableWidth: availableWidth,
+                  isMobile: false,
+                  visualStyle: _ListVisualStyle.apple,
+                ),
+              );
+            },
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(30, 12, 30, 18),
+            sliver: SliverToBoxAdapter(
+              child: view._buildRecommendedSection(
+                isMobile: false,
+                visualStyle: _ListVisualStyle.apple,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
       ),
         Positioned(
           left: 0,

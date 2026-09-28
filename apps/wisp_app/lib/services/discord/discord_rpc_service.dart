@@ -41,7 +41,7 @@ class DiscordRpcService {
     }
   }
 
-  // Uses a JSON object to generate a Wisp URL for the given element.
+  // Uses a JSON object to generate a wisp URL for the given element.
   // Type can be "track", "album", "playlist" or "artist".
   String getWispUrlForElement(String type, Map<String, dynamic> element) {
     // check if element has source and id properties
@@ -137,7 +137,7 @@ class DiscordRpcService {
     final wispTrackUrl = getWispUrlForElement("track", track.toJson());
 
     final listenAppButton = RPCButton(
-      label: 'Listen on Wisp',
+      label: 'Listen on wisp',
       url: wispTrackUrl,
     );
 

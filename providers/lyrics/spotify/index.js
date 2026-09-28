@@ -1,4 +1,4 @@
-// Spotify Lyrics Provider for Wisp
+// Spotify Lyrics Provider for wisp
 // Line-synced and unsynced lyrics directly from Spotify Color Lyrics API.
 // Powered by Service Realm Vault (wisp.service) for independent authentication & token caching.
 

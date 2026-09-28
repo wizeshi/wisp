@@ -1,4 +1,4 @@
-// Spotify Auth Provider for Wisp
+// Spotify Auth Provider for wisp
 // Provides authentication, cookie capture, TOTP token exchanges, and token refresh
 // for Spotify-dependent providers (metadata, lyrics, etc.) via wisp.service vault.
 

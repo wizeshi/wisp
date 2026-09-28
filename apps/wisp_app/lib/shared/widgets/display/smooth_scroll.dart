@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-/// Global scroll behavior for Wisp desktop & mobile.
+/// Global scroll behavior for wisp desktop & mobile.
 ///
 /// Enables smooth [ClampingScrollPhysics] and adds mouse-drag scrolling
 /// so users can click-drag to scroll just like touch or trackpad.

@@ -1,7 +1,7 @@
 import 'dart:collection';
 
 /// A resolved item which the playback engine can play without knowing about
-/// Wisp's metadata providers, cache, or queue model.
+/// wisp's metadata providers, cache, or queue model.
 class PlaybackSource {
   final Uri uri;
   final Map<String, String> headers;

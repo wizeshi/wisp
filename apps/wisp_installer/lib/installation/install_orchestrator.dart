@@ -379,7 +379,7 @@ class InstallOrchestrator {
     await desktopFile.writeAsString('''
 [Desktop Entry]
 Type=Application
-Name=Wisp
+Name=wisp
 Exec=${executable.path}
 Icon=wisp
 Terminal=false
@@ -483,7 +483,7 @@ Categories=AudioVideo;Audio;Player;
   /// macOS: the app bundle is copied into this installer's own
   /// Contents/Resources/ at packaging time (see
   /// scripts/macos/build_installer.sh). The installer executable itself
-  /// lives at Wisp Installer.app/Contents/MacOS/wisp_installer, so
+  /// lives at wisp Installer.app/Contents/MacOS/wisp_installer, so
   /// Resources is one level up and over.
   Directory resolveMacOSAppBundle() {
     final exeDir = p.dirname(Platform.resolvedExecutable);

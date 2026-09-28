@@ -14,6 +14,7 @@ import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
@@ -22,6 +23,7 @@ import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/core/utils/song_source_icon.dart';
 import 'adaptive_context_menu.dart';
 import 'playlist_folder_modals.dart';
+import 'track_inspect_dialog.dart';
 
 class EntityContextMenus {
   static String _idWithoutPrefix(String id) {
@@ -282,6 +284,8 @@ class EntityContextMenus {
     await metadataManager.ensureLikedTracksLoaded(source: track.source);
     if (!context.mounted) return;
     final activeIconColor = Theme.of(context).colorScheme.primary;
+    final isDebugMode =
+        context.read<PreferencesProvider>().debugModeEnabled;
 
     final cacheManager = AudioCacheManager.instance;
     final isLiked = metadataManager.isTrackLiked(track.id, source: track.source);
@@ -462,7 +466,15 @@ class EntityContextMenus {
               ),
           ],
         ),
+      if (isDebugMode)
+        ContextMenuAction(
+          id: 'inspect-element',
+          label: 'Inspect Element',
+          icon: Icons.code,
+          onSelected: (_) => TrackInspectDialog.show(context, track),
+        ),
     ];
+
 
     await showAdaptiveContextMenu(
       context: context,

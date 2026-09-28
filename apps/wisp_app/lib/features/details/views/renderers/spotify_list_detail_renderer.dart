@@ -83,8 +83,10 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                         // resident, and dispose as the user scrolls. We no
                         // longer track scroll offsets by hand or rebuild a
                         // manually-sliced window on every scroll tick.
-                        return view._buildMobileSpotifySongsSliver(
+                        return view._buildSongsSliver(
                           availableWidth: sliverConstraints.crossAxisExtent,
+                          isMobile: true,
+                          visualStyle: _ListVisualStyle.spotify,
                         );
                       },
                     ),
@@ -137,92 +139,93 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
               Expanded(
                 child: WispSmoothScroll(
                   controller: view._desktopScrollController,
-                  builder: (context, controller, physics) => ListView(
+                  builder: (context, controller, physics) => CustomScrollView(
                     controller: controller,
                     physics: physics,
-                    padding: EdgeInsets.fromLTRB(0, 0, 0, 0),
-                    children: [
-                    Container(
-                      key: view._headerKey,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: stickyHeaderColor,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: Container(
+                          key: view._headerKey,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: stickyHeaderColor,
+                            borderRadius: BorderRadius.zero,
                           ),
-                        ],
-                        borderRadius: BorderRadius.zero,
-                      ),
-                      child: Column(
-                        children: [
-                          view._buildHeader(
-                            title,
-                            subtitle,
-                            subtitleUser,
-                            subtitleImageUrl,
-                            imageUrl,
-                            total,
-                            description,
+                          child: Column(
+                            children: [
+                              view._buildHeader(
+                                title,
+                                subtitle,
+                                subtitleUser,
+                                subtitleImageUrl,
+                                imageUrl,
+                                total,
+                                description,
+                              ),
+                              const SizedBox(height: 12),
+                              view._buildActionsRow(
+                                isDesktop,
+                                backgroundGradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  stops: const [0, 1],
+                                  colors: [actionsRowColor, contentSurfaceColor],
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
-                          view._buildActionsRow(
-                            isDesktop,
-                            backgroundGradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              stops: [0, 1],
-                              colors: [actionsRowColor, contentSurfaceColor],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: contentSurfaceColor,
-                        borderRadius: BorderRadius.zero,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-                        child: LayoutBuilder(
-                          builder: (layoutContext, constraints) {
-                            final availableWidth = constraints.maxWidth;
-                            return Column(
-                              children: [
-                                view._buildListHeaderContent(
-                                  availableWidth: availableWidth,
-                                ),
-                                const SizedBox(height: 2),
-                                const Divider(),
-                                AnimatedBuilder(
-                                  animation: Listenable.merge([
-                                    view._desktopScrollController,
-                                    view._songListTopOffsetNotifier,
-                                  ]),
-                                  builder: (context, _) => view._buildSongList(
-                                    isMobile: false,
-                                    availableWidth: availableWidth,
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: view._buildRecommendedSection(
-                                    isMobile: false,
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
                         ),
                       ),
-                    ),
-                  ],
+                      SliverToBoxAdapter(
+                        child: ColoredBox(
+                          color: contentSurfaceColor,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                            child: LayoutBuilder(
+                              builder: (layoutContext, constraints) {
+                                return Column(
+                                  children: [
+                                    view._buildListHeaderContent(
+                                      availableWidth: constraints.maxWidth,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Divider(),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      SliverLayoutBuilder(
+                        builder: (sliverContext, sliverConstraints) {
+                          return DecoratedSliver(
+                            decoration: BoxDecoration(color: contentSurfaceColor),
+                            sliver: SliverPadding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              sliver: view._buildSongsSliver(
+                                availableWidth: sliverConstraints.crossAxisExtent - 24,
+                                isMobile: false,
+                                visualStyle: _ListVisualStyle.spotify,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      SliverToBoxAdapter(
+                        child: ColoredBox(
+                          color: contentSurfaceColor,
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                            child: view._buildRecommendedSection(
+                              isMobile: false,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ),
             ],
           ),

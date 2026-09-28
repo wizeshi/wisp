@@ -1,5 +1,7 @@
 // Copyright © 2026 wizeshi
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';
@@ -93,8 +95,10 @@ class SettingsContent extends StatelessWidget {
         buildAnimatedCanvasRow(),
         const SizedBox(height: 16),
         buildAllowWritingRow(),
-        const SizedBox(height: 16),
-        buildPausedBackgroundWidgetsRow(context),
+        if (!(Platform.isAndroid || Platform.isIOS)) ...[
+          const SizedBox(height: 16),
+          buildPausedBackgroundWidgetsRow(context),
+        ],
         const SizedBox(height: 16),
         Text(
           'AUDIO',

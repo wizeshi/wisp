@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// Resolves the support directory owned by the installed Wisp application.
+/// Resolves the support directory owned by the installed wisp application.
 ///
 /// `getApplicationSupportDirectory` resolves the installer bundle's directory,
 /// so its parent is used to target the main application's bundle identifier.

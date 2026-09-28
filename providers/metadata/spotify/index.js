@@ -1,4 +1,4 @@
-// Spotify Metadata Provider for Wisp
+// Spotify Metadata Provider for wisp
 // Powered by Service Realm Vault (wisp.service) for independent authentication & token caching.
 // Provides catalog search, tracks, albums, artists, playlists, user library, canvas, and mutations.
 
@@ -346,7 +346,7 @@ function extractArtists(artistsData) {
     const id = rawUri.includes(':') ? rawUri.split(':').pop() : (a.id || '');
     return {
       id: id,
-      source: 'spotifyInternal',
+      source: 'spotify',
       name: a.name || (a.profile && a.profile.name) || 'Unknown Artist',
       thumbnail_url: extractImageUrl(
         (a.visuals && a.visuals.avatarImage) ||
@@ -456,12 +456,12 @@ function trackToGeneric(track) {
   const durationSecs = extractDurationSecs(track);
 
   let album = null;
-  const albumData = track.album || track.albumOfTrack;
+  const albumData = track.albumOfTrack || track.album;
   if (albumData) {
     const albumUri = albumData.uri || '';
     album = {
       id: albumUri.includes(':') ? albumUri.split(':').pop() : (albumData.id || ''),
-      source: 'spotifyInternal',
+      source: 'spotify',
       title: albumData.name || '',
       thumbnail_url: extractImageUrl(albumData.coverArt || albumData.images),
       artists: extractArtists(albumData.artists),
@@ -472,10 +472,10 @@ function trackToGeneric(track) {
 
   return {
     id: id,
-    source: 'spotifyInternal',
+    source: 'spotify',
     title: track.name || '',
     artists: artists,
-    thumbnail_url: extractImageUrl(track.coverArt || track.images) ||
+    thumbnail_url: extractImageUrl(track.coverArt || track.images || (album && album.thumbnail_url)) ||
                    extractImageUrl(track.visualIdentityTrait) || '',
     explicit: isExplicit,
     album: album,
@@ -514,7 +514,7 @@ function fullAlbumToGeneric(data, offset = 0, limit = 50) {
       if (!song.album) {
         song.album = {
           id: albumId,
-          source: 'spotifyInternal',
+          source: 'spotify',
           title: album.name || '',
           thumbnail_url: coverUrl,
           artists: artists,
@@ -532,7 +532,7 @@ function fullAlbumToGeneric(data, offset = 0, limit = 50) {
 
   return {
     id: albumId,
-    source: 'spotifyInternal',
+    source: 'spotify',
     title: album.name || '',
     thumbnail_url: coverUrl,
     artists: artists,
@@ -577,7 +577,7 @@ function extractPlaylistItems(contents, offset) {
         const cUri = c.uri || '';
         return {
           id: cUri.includes(':') ? cUri.split(':').pop() : (c.id || ''),
-          source: 'spotifyInternal',
+          source: 'spotify',
           name: c.name || '',
           thumbnail_url: ''
         };
@@ -586,18 +586,18 @@ function extractPlaylistItems(contents, offset) {
       artists = extractArtists(sourceData.artists);
     }
 
-    const albumData = sourceData.albumOfTrack || sourceData.album;
+    const albumData = item.itemV2 && item.itemV2.data && item.itemV2.data.albumOfTrack;
     let album = null;
     if (albumData) {
       const aUri = albumData.uri || '';
       album = {
         id: aUri.includes(':') ? aUri.split(':').pop() : (albumData.id || ''),
-        source: 'spotifyInternal',
+        source: 'spotify',
         title: albumData.name || '',
         thumbnail_url: extractImageUrl(albumData.coverArt || albumData.images),
         artists: extractArtists(albumData.artists),
         label: albumData.label || '',
-        release_date: extractReleaseDate(albumData.date)
+        release_date: extractReleaseDate(albumData.date || null)
       };
     }
 
@@ -621,7 +621,7 @@ function extractPlaylistItems(contents, offset) {
     songs.push({
       id: trackId,
       uid: item.uid || (item.itemV2 && item.itemV2.uid) || (item.itemV3 && item.itemV3.uid) || ('item_' + trackNum),
-      source: 'spotifyInternal',
+      source: 'spotify',
       title: title,
       artists: artists,
       thumbnail_url: trackThumbnail,
@@ -651,7 +651,7 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
                       owner.images;
   const author = {
     id: ownerData.username || ownerData.id || owner.username || owner.id || '',
-    source: 'spotifyInternal',
+    source: 'spotify',
     display_name: ownerData.name || ownerData.displayName || owner.name || owner.displayName || 'Spotify User',
     avatar_url: extractImageUrl(ownerAvatar)
   };
@@ -664,7 +664,7 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
 
   return {
     id: id,
-    source: 'spotifyInternal',
+    source: 'spotify',
     title: pl.name || '',
     description: pl.description || (pl.details && pl.details.description) || '',
     thumbnail_url: coverUrl,
@@ -689,12 +689,13 @@ function fullArtistToGeneric(data) {
   }).filter(Boolean);
 
   const albumItems = (artist.discography && artist.discography.albums && artist.discography.albums.items) || [];
+
   const albums = albumItems.map(item => {
     const a = (item.releases && item.releases.items && item.releases.items[0]) || item;
     const aUri = a.uri || '';
     return {
       id: aUri.includes(':') ? aUri.split(':').pop() : (a.id || ''),
-      source: 'spotifyInternal',
+      source: 'spotify',
       title: a.name || '',
       thumbnail_url: extractImageUrl(a.coverArt || a.images),
       artists: extractArtists(a.artists),
@@ -709,7 +710,7 @@ function fullArtistToGeneric(data) {
 
   return {
     id: id,
-    source: 'spotifyInternal',
+    source: 'spotify',
     name: (artist.profile && artist.profile.name) || artist.name || '',
     description: biography,
     thumbnail_url: avatarUrl,
@@ -726,12 +727,12 @@ function simplifiedAlbumToGeneric(data) {
   const artistNames = artists.map(a => a.profile && a.profile.name || a.name || '').filter(Boolean);
   return {
     id: cleanId,
-    source: 'spotifyInternal',
+    source: 'spotify',
     title: data.name || '',
     artist: artistNames.join(', '),
     artists: artists.map(a => ({
       id: a.uri ? a.uri.split(':').pop() : (a.id || ''),
-      source: 'spotifyInternal',
+      source: 'spotify',
       name: a.profile && a.profile.name || a.name || '',
       thumbnail_url: ''
     })),
@@ -747,7 +748,7 @@ function simplifiedArtistToGeneric(data) {
   const profile = data.profile || {};
   return {
     id: cleanId,
-    source: 'spotifyInternal',
+    source: 'spotify',
     name: profile.name || data.name || '',
     thumbnail_url: extractImageUrl(data.visuals)
   };
@@ -784,7 +785,7 @@ async function getTrack(trackId) {
   const artists = (response.artist || []).map(a => ({
     id: hexGidToSpotifyId(a.gid || ''),
     name: a.name || '',
-    source: 'spotifyInternal',
+    source: 'spotify',
     thumbnail_url: ''
   }));
 
@@ -794,12 +795,12 @@ async function getTrack(trackId) {
     album = {
       id: hexGidToSpotifyId(albumMap.gid || ''),
       title: albumMap.name || '',
-      source: 'spotifyInternal',
+      source: 'spotify',
       thumbnail_url: aCoverFileId ? ('https://i.scdn.co/image/' + aCoverFileId) : trackCoverUrl,
       artists: (albumMap.artist || []).map(a => ({
         id: hexGidToSpotifyId(a.gid || ''),
         name: a.name || '',
-        source: 'spotifyInternal',
+        source: 'spotify',
         thumbnail_url: ''
       })),
       label: albumMap.label || '',
@@ -810,7 +811,7 @@ async function getTrack(trackId) {
   const durationSecs = extractDurationSecs(response);
   return {
     id: standardId,
-    source: 'spotifyInternal',
+    source: 'spotify',
     title: response.name || '',
     artists: artists,
     thumbnail_url: trackCoverUrl,
@@ -863,11 +864,11 @@ async function getPlaylist(playlistId, options = {}) {
     const songs = extractPlaylistItems(contents, offset);
     return {
       id: cleanId,
-      source: 'spotifyInternal',
+      source: 'spotify',
       title: '',
       description: '',
       thumbnail_url: '',
-      author: { id: '', source: 'spotifyInternal', display_name: '', avatar_url: '' },
+      author: { id: '', source: 'spotify', display_name: '', avatar_url: '' },
       songs: songs,
       duration_secs: songs.reduce((acc, s) => acc + (s.duration_secs || 0), 0),
       total: totalCount,
@@ -953,7 +954,7 @@ async function search(query, options = {}) {
     const uri = itemData.uri || '';
     return {
       id: uri.includes(':') ? uri.split(':').pop() : (itemData.id || ''),
-      source: 'spotifyInternal',
+      source: 'spotify',
       name: (itemData.profile && itemData.profile.name) || itemData.name || '',
       thumbnail_url: extractImageUrl(itemData.visuals && itemData.visuals.avatarImage)
     };
@@ -965,7 +966,7 @@ async function search(query, options = {}) {
     const uri = itemData.uri || '';
     return {
       id: uri.includes(':') ? uri.split(':').pop() : (itemData.id || ''),
-      source: 'spotifyInternal',
+      source: 'spotify',
       title: itemData.name || '',
       thumbnail_url: extractImageUrl(itemData.coverArt),
       artists: extractArtists(itemData.artists),
@@ -983,13 +984,13 @@ async function search(query, options = {}) {
     const owner = itemData.ownerV2 || {};
     return {
       id: uri.includes(':') ? uri.split(':').pop() : (itemData.id || ''),
-      source: 'spotifyInternal',
+      source: 'spotify',
       title: itemData.name || '',
       description: itemData.description || '',
       thumbnail_url: extractImageUrl(itemData.images),
       author: {
         id: (owner.data && owner.data.username) || '',
-        source: 'spotifyInternal',
+        source: 'spotify',
         display_name: (owner.data && owner.data.name) || 'Spotify User',
         avatar_url: ''
       },
@@ -1011,7 +1012,7 @@ async function search(query, options = {}) {
         kind: 'artist',
         artist: {
           id: aUri.includes(':') ? aUri.split(':').pop() : (topData.id || ''),
-          source: 'spotifyInternal',
+          source: 'spotify',
           name: (topData.profile && topData.profile.name) || topData.name || '',
           thumbnail_url: extractImageUrl(topData.visuals && topData.visuals.avatarImage)
         }
@@ -1139,7 +1140,7 @@ async function getUserHome(options = {}) {
           __wispType: 'GenericSimpleArtist',
           data: {
             id: (itemData.uri && itemData.uri.split(':').pop()) || itemData.id || '',
-            source: 'spotifyInternal',
+            source: 'spotify',
             name: (itemData.profile && itemData.profile.name) || itemData.name || '',
             thumbnail_url: extractImageUrl(itemData.visuals && itemData.visuals.avatarImage)
           }
@@ -1195,7 +1196,7 @@ async function getUserSavedTracks(options = {}) {
     songs.push({
       id: t.id,
       uid: item.uid || ('item_' + trackNum),
-      source: 'spotifyInternal',
+      source: 'spotify',
       title: t.title,
       artists: t.artists,
       thumbnail_url: t.thumbnail_url,
@@ -1344,7 +1345,7 @@ async function getUserFollowedArtists(options = {}) {
   const limit = options.limit || 20;
   return items.slice(offset, offset + limit).map(a => ({
     id: a.id,
-    source: 'spotifyInternal',
+    source: 'spotify',
     name: a.name,
     thumbnail_url: a.thumbnail_url
   }));
@@ -1659,14 +1660,14 @@ async function getUserProfileView(userId, options = {}) {
 
   const recentArtists = (data.recently_played_artists || []).map(a => ({
     id: a.uri ? a.uri.split(':').pop() : (a.id || ''),
-    source: 'spotifyInternal',
+    source: 'spotify',
     name: a.name || '',
     thumbnail_url: a.image_url || extractImageUrl(a.images) || ''
   }));
 
   const publicPlaylists = (data.public_playlists || []).map(p => ({
     id: p.uri ? p.uri.split(':').pop() : (p.id || ''),
-    source: 'spotifyInternal',
+    source: 'spotify',
     title: p.name || '',
     thumbnail_url: p.image_url || extractImageUrl(p.images) || '',
     total_tracks: 0
@@ -1674,7 +1675,7 @@ async function getUserProfileView(userId, options = {}) {
 
   return {
     id: cleanUriId,
-    source: 'spotifyInternal',
+    source: 'spotify',
     display_name: data.name || data.display_name || 'Unknown User',
     avatar_url: data.image_url || extractImageUrl(data.images) || '',
     follower_count: data.followers_count || 0,
@@ -1697,7 +1698,7 @@ async function getUserFollowers(userId) {
     id: u.uri ? u.uri.split(':').pop() : (u.id || ''),
     name: u.name || u.display_name || '',
     thumbnail_url: u.image_url || extractImageUrl(u.images) || '',
-    source: 'spotifyInternal'
+    source: 'spotify'
   }));
 }
 
@@ -1712,7 +1713,7 @@ async function getUserFollowing(userId) {
     id: u.uri ? u.uri.split(':').pop() : (u.id || ''),
     name: u.name || u.display_name || '',
     thumbnail_url: u.image_url || extractImageUrl(u.images) || '',
-    source: 'spotifyInternal'
+    source: 'spotify'
   }));
 }
 
@@ -1743,11 +1744,11 @@ async function getRecommended(playlistId, skippedTrackIds = [], numResults = 20)
     return {
       id: cleanTrackId,
       uid: t.uid || ('rec_' + (idx + 1)),
-      source: 'spotifyInternal',
+      source: 'spotify',
       title: t.name || t.trackName || '',
       artists: (t.artists || []).map(a => ({
         id: (a.id ? (a.id.includes(':') ? a.id.split(':').pop() : a.id) : (a.uri ? a.uri.split(':').pop() : '')),
-        source: 'spotifyInternal',
+        source: 'spotify',
         name: a.name || a.artistName || 'Unknown Artist',
         thumbnail_url: ''
       })),
@@ -1756,7 +1757,7 @@ async function getRecommended(playlistId, skippedTrackIds = [], numResults = 20)
       album: {
         id: (albumData.id ? (albumData.id.includes(':') ? albumData.id.split(':').pop() : albumData.id) : (albumData.uri ? albumData.uri.split(':').pop() : '')),
         title: albumData.name || albumData.albumName || 'Unknown Album',
-        source: 'spotifyInternal',
+        source: 'spotify',
         thumbnail_url: albumCover,
         artists: [],
         label: '',
