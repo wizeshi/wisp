@@ -3,6 +3,8 @@ Here's the TODOs for version v26.08.xx:
 - Bugs:
   - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
   - [ ] Fix smooth scroll 
+  - [ ] Update installer with new marketplace features
+  - [ ] Create proper provider docs
 - Future changes: 
   - [ ] Replace elements in the artist view with the reusable ones: Top Songs, Albums
   - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
