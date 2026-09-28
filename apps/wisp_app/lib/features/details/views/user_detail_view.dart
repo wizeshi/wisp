@@ -14,7 +14,6 @@ import 'package:provider/provider.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
-import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/theme/cover_art_palette_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
@@ -54,14 +53,13 @@ class _UserDetailViewState extends State<UserDetailView> {
   }
 
   Future<void> _loadUser() async {
-    if (!context.read<PreferencesProvider>().metadataSpotifyEnabled) {
+    final metadataManager = context.read<MetadataManager>();
+    if (!metadataManager.hasEnabledProviders) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
       return;
     }
-
-    final metadataManager = context.read<MetadataManager>();
     if (metadataManager.userId == null || metadataManager.userId!.isEmpty) {
       try {
         await metadataManager.fetchUserProfile();
@@ -183,9 +181,9 @@ class _UserDetailViewState extends State<UserDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final preferences = context.watch<PreferencesProvider>();
-    if (!preferences.metadataSpotifyEnabled) {
-      return const ProviderDisabledState();
+    final metadataManager = context.watch<MetadataManager>();
+    if (!metadataManager.hasEnabledProviders) {
+      return const ProviderDisabledState(message: 'No metadata provider is enabled.');
     }
 
     final user = _user;

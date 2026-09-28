@@ -446,15 +446,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Future<void> _loadListDetails() async {
-    if (!context.read<PreferencesProvider>().metadataSpotifyEnabled) {
+    final localPlaylists = context.read<LocalPlaylistState>();
+    final isLocal = widget.type == SharedListType.playlist &&
+        !isLikedSongsPlaylistId(widget.id) &&
+        localPlaylists.isLocalPlaylistId(widget.id);
+
+    final metadataManager = context.read<MetadataManager>();
+    if (!isLocal && !metadataManager.hasEnabledProviders) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
       return;
     }
 
-    final metadataManager = context.read<MetadataManager>();
-    final localPlaylists = context.read<LocalPlaylistState>();
     setState(() => _isLoading = true);
 
     try {
@@ -1265,10 +1269,16 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final preferences = context.watch<PreferencesProvider>();
-    if (!preferences.metadataSpotifyEnabled) {
-      return const ProviderDisabledState();
+    final localPlaylists = context.watch<LocalPlaylistState>();
+    final isLocal = widget.type == SharedListType.playlist &&
+        !isLikedSongsPlaylistId(widget.id) &&
+        localPlaylists.isLocalPlaylistId(widget.id);
+
+    final metadataManager = context.watch<MetadataManager>();
+    if (!isLocal && !metadataManager.hasEnabledProviders) {
+      return const ProviderDisabledState(message: 'No metadata provider is enabled.');
     }
+    final preferences = context.watch<PreferencesProvider>();
     final style = preferences.style;
 
     final isDesktop =

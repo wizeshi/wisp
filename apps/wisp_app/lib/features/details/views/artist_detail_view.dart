@@ -77,14 +77,14 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Future<void> _loadArtist() async {
-    if (!context.read<PreferencesProvider>().metadataSpotifyEnabled) {
+    final metadataManager = context.read<MetadataManager>();
+    if (!metadataManager.hasEnabledProviders) {
       if (mounted) {
         setState(() => _isLoading = false);
       }
       return;
     }
 
-    final metadataManager = context.read<MetadataManager>();
     setState(() => _isLoading = true);
     try {
       final artist = await metadataManager.getArtistInfo(
@@ -168,10 +168,11 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
 
   @override
   Widget build(BuildContext context) {
-    final preferences = context.watch<PreferencesProvider>();
-    if (!preferences.metadataSpotifyEnabled) {
-      return const ProviderDisabledState();
+    final metadataManager = context.watch<MetadataManager>();
+    if (!metadataManager.hasEnabledProviders) {
+      return const ProviderDisabledState(message: 'No metadata provider is enabled.');
     }
+    final preferences = context.watch<PreferencesProvider>();
 
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;

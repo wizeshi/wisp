@@ -405,7 +405,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
   Widget _buildProviderCard(ProviderPackage pkg, Color primaryColor) {
     final isBusy = _busyProviderIds.contains(pkg.uniqueKey);
     final prefs = context.watch<PreferencesProvider>();
-    final isEnabled = prefs.isProviderEnabled(pkg.id);
+    final isEnabled = prefs.isProviderEnabled(pkg.id, type: pkg.type);
     final hasUpdate = pkg.hasUpdate;
 
     return Container(
@@ -621,13 +621,11 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                       value: isEnabled,
                       activeThumbColor: primaryColor,
                       onChanged: (val) async {
-                        if (pkg.type == 'metadata' && pkg.id == 'spotify') {
-                          await prefs.setMetadataSpotifyEnabled(val);
-                        } else if (pkg.type == 'lyrics' && pkg.id == 'spotify') {
-                          await prefs.setLyricsSpotifyEnabled(val);
-                        } else {
-                          await prefs.setProviderEnabled(pkg.id, val);
-                        }
+                        await prefs.setProviderEnabled(
+                          pkg.id,
+                          val,
+                          type: pkg.type,
+                        );
                         _loadCatalog();
                       },
                     ),

@@ -17,7 +17,6 @@ import 'package:wisp/features/shell/widgets/navigation.dart';
 import 'package:wisp/shared/widgets/menus/playlist_folder_modals.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
-import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
@@ -167,9 +166,8 @@ class LibraryTabViewState extends State<LibraryTabView> {
         context.read<LibraryState>().playlists,
       );
 
-      final preferences = context.read<PreferencesProvider>();
       final metadata = context.read<MetadataManager>();
-      if (preferences.metadataSpotifyEnabled && metadata.isAuthenticated) {
+      if (metadata.hasEnabledProviders && metadata.isAuthenticated) {
         unawaited(_refreshPlaylists(policy: MetadataFetchPolicy.refreshAlways));
       }
     });
@@ -424,11 +422,11 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
   @override
   Widget build(BuildContext context) {
-    final spotifyEnabled = context.select<PreferencesProvider, bool>(
-      (p) => p.metadataSpotifyEnabled,
+    final hasEnabledProviders = context.select<MetadataManager, bool>(
+      (m) => m.hasEnabledProviders,
     );
-    if (!spotifyEnabled) {
-      return const ProviderDisabledState();
+    if (!hasEnabledProviders) {
+      return const ProviderDisabledState(message: 'No metadata provider is enabled.');
     }
 
     final isMobile = Platform.isAndroid || Platform.isIOS;

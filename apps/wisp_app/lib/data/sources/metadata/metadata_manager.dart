@@ -100,7 +100,7 @@ class MetadataManager extends ChangeNotifier {
     final prefs = _preferences;
     final enabled = _providers.values.where((p) {
       if (prefs == null) return true;
-      return prefs.isProviderEnabled(p.providerId);
+      return prefs.isProviderEnabled(p.providerId, type: 'metadata');
     }).toList();
 
     final customOrder = prefs?.getProviderOrder('metadata') ?? const [];
@@ -122,6 +122,9 @@ class MetadataManager extends ChangeNotifier {
 
     return List.unmodifiable(enabled);
   }
+
+  /// Whether any metadata provider is currently enabled.
+  bool get hasEnabledProviders => availableProviders.isNotEmpty;
 
   /// Checks if a provider is enabled.
   bool isProviderEnabled(String providerId) {

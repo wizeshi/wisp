@@ -134,15 +134,13 @@ class HomePageState extends State<HomePage> {
     _isFetchingData = true;
 
     try {
-      final preferences = context.read<PreferencesProvider>();
-      if (!preferences.metadataSpotifyEnabled) {
+      final metadataManager = context.read<MetadataManager>();
+      if (!metadataManager.hasEnabledProviders) {
         if (mounted) {
           setState(() => _isLoading = false);
         }
         return;
       }
-
-      final metadataManager = context.read<MetadataManager>();
       final libraryState = context.read<LibraryState>();
 
       if (mounted) {
@@ -405,11 +403,11 @@ class HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final spotifyEnabled = context.select<PreferencesProvider, bool>(
-      (p) => p.metadataSpotifyEnabled,
+    final hasEnabledProviders = context.select<MetadataManager, bool>(
+      (m) => m.hasEnabledProviders,
     );
-    if (!spotifyEnabled) {
-      return const ProviderDisabledState();
+    if (!hasEnabledProviders) {
+      return const ProviderDisabledState(message: 'No metadata provider is enabled.');
     }
 
     final bool isDesktop =

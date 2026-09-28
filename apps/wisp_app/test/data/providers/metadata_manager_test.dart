@@ -158,8 +158,7 @@ void main() {
 
     test('filters availableProviders based on PreferencesProvider', () async {
       SharedPreferences.setMockInitialValues({
-        'metadata_spotify_enabled': true,
-        'metadata_youtube_enabled': false,
+        'disabled_provider_ids': ['metadata:youtube'],
       });
 
       final prefs = PreferencesProvider();
@@ -179,8 +178,11 @@ void main() {
       expect(manager.isProviderEnabled('spotify'), isTrue);
       expect(manager.isProviderEnabled('youtube'), isFalse);
 
-      // Enable YouTube
-      await prefs.setMetadataYouTubeEnabled(true);
+      // Verify type-scoping: disabling metadata:youtube does not disable lyrics:youtube
+      expect(prefs.isProviderEnabled('youtube', type: 'lyrics'), isTrue);
+
+      // Enable YouTube metadata
+      await prefs.setProviderEnabled('youtube', true, type: 'metadata');
       expect(manager.availableProviders.length, equals(2));
       expect(manager.isProviderEnabled('youtube'), isTrue);
     });

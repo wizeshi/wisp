@@ -43,8 +43,6 @@ class PreferencesProvider extends ChangeNotifier {
   static const _keyStyle = 'preferred_style';
   static const _keyAnimatedCanvas = 'animated_canvas_enabled';
   static const _keyAllowWriting = 'allow_writing';
-  static const _keyMetadataSpotifyEnabled = 'metadata_spotify_enabled';
-  static const _keyMetadataYouTubeEnabled = 'metadata_youtube_enabled';
   static const _keyAudioYouTubeEnabled = 'audio_youtube_enabled';
   static const _keyGaplessPlaybackEnabled = 'gapless_playback_enabled';
   static const _keyCrossfadeEnabled = 'crossfade_enabled';
@@ -66,8 +64,6 @@ class PreferencesProvider extends ChangeNotifier {
       'provider_priority_order_';
 
   static const bool _defaultAllowWriting = true;
-  static const bool _defaultMetadataSpotifyEnabled = true;
-  static const bool _defaultMetadataYouTubeEnabled = true;
   static const bool _defaultAudioYouTubeEnabled = true;
   static const bool _defaultGaplessPlaybackEnabled = true;
   static const bool _defaultCrossfadeEnabled = false;
@@ -90,12 +86,6 @@ class PreferencesProvider extends ChangeNotifier {
 
   bool _allowWriting = _defaultAllowWriting;
   bool get allowWriting => _allowWriting;
-
-  bool _metadataSpotifyEnabled = _defaultMetadataSpotifyEnabled;
-  bool get metadataSpotifyEnabled => _metadataSpotifyEnabled;
-
-  bool _metadataYouTubeEnabled = _defaultMetadataYouTubeEnabled;
-  bool get metadataYouTubeEnabled => _metadataYouTubeEnabled;
 
   bool _audioYouTubeEnabled = _defaultAudioYouTubeEnabled;
   bool get audioYouTubeEnabled => _audioYouTubeEnabled;
@@ -141,17 +131,20 @@ class PreferencesProvider extends ChangeNotifier {
   List<String> _disabledProviderIds = <String>[];
   List<String> get disabledProviderIds => List.unmodifiable(_disabledProviderIds);
 
-  bool isProviderEnabled(String id) {
+  bool isProviderEnabled(String id, {String? type}) {
     final lower = id.toLowerCase();
-    if (lower == 'spotify' && !_metadataSpotifyEnabled) return false;
-    if (lower == 'youtube' && !_metadataYouTubeEnabled) return false;
-    return !_disabledProviderIds.contains(id);
+    if (type != null) {
+      final scopedKey = '${type.toLowerCase()}:$lower';
+      if (_disabledProviderIds.contains(scopedKey)) return false;
+    }
+    return !_disabledProviderIds.contains(lower);
   }
 
   bool get hasMetadataProviderEnabled =>
-      _metadataSpotifyEnabled || _metadataYouTubeEnabled;
+      isProviderEnabled('spotify', type: 'metadata') ||
+      isProviderEnabled('youtube', type: 'metadata');
   bool get hasLyricsProviderEnabled =>
-      _lyricsLrclibEnabled || _lyricsSpotifyEnabled || isProviderEnabled('betterlyrics');
+      _lyricsLrclibEnabled || _lyricsSpotifyEnabled || isProviderEnabled('betterlyrics', type: 'lyrics');
 
   PreferencesProvider() {
     _load();
@@ -167,12 +160,6 @@ class PreferencesProvider extends ChangeNotifier {
       _animatedCanvasEnabled =
           prefs.getBool(_keyAnimatedCanvas) ?? _animatedCanvasEnabled;
       _allowWriting = prefs.getBool(_keyAllowWriting) ?? _defaultAllowWriting;
-      _metadataSpotifyEnabled =
-          prefs.getBool(_keyMetadataSpotifyEnabled) ??
-          _defaultMetadataSpotifyEnabled;
-      _metadataYouTubeEnabled =
-          prefs.getBool(_keyMetadataYouTubeEnabled) ??
-          _defaultMetadataYouTubeEnabled;
       _audioYouTubeEnabled =
           prefs.getBool(_keyAudioYouTubeEnabled) ?? _defaultAudioYouTubeEnabled;
       _gaplessPlaybackEnabled =
@@ -212,7 +199,30 @@ class PreferencesProvider extends ChangeNotifier {
               .toList(growable: false);
       _firstBootCompleted = prefs.getBool(_keyFirstBootCompleted) ?? false;
       _disabledProviderIds =
-          prefs.getStringList(_keyDisabledProviderIds) ?? <String>[];
+          List<String>.from(prefs.getStringList(_keyDisabledProviderIds) ?? <String>[]);
+
+      bool needsSave = false;
+      if (prefs.containsKey('metadata_spotify_enabled')) {
+        if (prefs.getBool('metadata_spotify_enabled') == false) {
+          if (!_disabledProviderIds.contains('metadata:spotify')) {
+            _disabledProviderIds.add('metadata:spotify');
+          }
+        }
+        await prefs.remove('metadata_spotify_enabled');
+        needsSave = true;
+      }
+      if (prefs.containsKey('metadata_youtube_enabled')) {
+        if (prefs.getBool('metadata_youtube_enabled') == false) {
+          if (!_disabledProviderIds.contains('metadata:youtube')) {
+            _disabledProviderIds.add('metadata:youtube');
+          }
+        }
+        await prefs.remove('metadata_youtube_enabled');
+        needsSave = true;
+      }
+      if (needsSave) {
+        await prefs.setStringList(_keyDisabledProviderIds, _disabledProviderIds);
+      }
       for (final type in ['metadata', 'lyrics', 'auth']) {
         final list = prefs.getStringList('$_keyProviderPriorityOrderPrefix$type');
         if (list != null) {
@@ -253,21 +263,15 @@ class PreferencesProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  static Future<bool> isProviderEnabledStatic(String id) async {
+  static Future<bool> isProviderEnabledStatic(String id, {String? type}) async {
     final prefs = await SharedPreferences.getInstance();
-    final lower = id.toLowerCase();
-    if (lower == 'spotify' &&
-        !(prefs.getBool(_keyMetadataSpotifyEnabled) ??
-            _defaultMetadataSpotifyEnabled)) {
-      return false;
-    }
-    if (lower == 'youtube' &&
-        !(prefs.getBool(_keyMetadataYouTubeEnabled) ??
-            _defaultMetadataYouTubeEnabled)) {
-      return false;
-    }
     final disabled = prefs.getStringList(_keyDisabledProviderIds) ?? <String>[];
-    return !disabled.contains(id);
+    final lower = id.toLowerCase();
+    if (type != null) {
+      final scopedKey = '${type.toLowerCase()}:$lower';
+      if (disabled.contains(scopedKey)) return false;
+    }
+    return !disabled.contains(lower);
   }
 
   static Future<bool> isFirstBootCompletedStatic() async {
@@ -278,18 +282,6 @@ class PreferencesProvider extends ChangeNotifier {
   static Future<bool> isWritingAllowed() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_keyAllowWriting) ?? _defaultAllowWriting;
-  }
-
-  static Future<bool> isMetadataSpotifyEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyMetadataSpotifyEnabled) ??
-        _defaultMetadataSpotifyEnabled;
-  }
-
-  static Future<bool> isMetadataYouTubeEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyMetadataYouTubeEnabled) ??
-        _defaultMetadataYouTubeEnabled;
   }
 
   static Future<bool> isAudioYouTubeEnabled() async {
@@ -429,25 +421,6 @@ class PreferencesProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> setMetadataSpotifyEnabled(bool enabled) async {
-    if (enabled == _metadataSpotifyEnabled) return;
-    _metadataSpotifyEnabled = enabled;
-    notifyListeners();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_keyMetadataSpotifyEnabled, enabled);
-    } catch (_) {}
-  }
-
-  Future<void> setMetadataYouTubeEnabled(bool enabled) async {
-    if (enabled == _metadataYouTubeEnabled) return;
-    _metadataYouTubeEnabled = enabled;
-    notifyListeners();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_keyMetadataYouTubeEnabled, enabled);
-    } catch (_) {}
-  }
 
   Future<void> setAudioYouTubeEnabled(bool enabled) async {
     if (enabled == _audioYouTubeEnabled) return;
@@ -510,12 +483,20 @@ class PreferencesProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<void> setProviderEnabled(String id, bool enabled) async {
+  Future<void> setProviderEnabled(String id, bool enabled, {String? type}) async {
+    final lower = id.toLowerCase();
+    final scopedKey = type != null ? '${type.toLowerCase()}:$lower' : null;
     final updated = List<String>.from(_disabledProviderIds);
     if (enabled) {
-      updated.remove(id);
+      if (scopedKey != null) {
+        updated.remove(scopedKey);
+      }
+      updated.remove(lower);
     } else {
-      if (!updated.contains(id)) updated.add(id);
+      final keyToAdd = scopedKey ?? lower;
+      if (!updated.contains(keyToAdd)) {
+        updated.add(keyToAdd);
+      }
     }
     _disabledProviderIds = updated;
     notifyListeners();
