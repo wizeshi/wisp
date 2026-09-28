@@ -141,6 +141,12 @@ class HomePageState extends State<HomePage> {
         }
         return;
       }
+      if (!metadataManager.hasCapability(MetadataCapability.home)) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
       final libraryState = context.read<LibraryState>();
 
       if (mounted) {
@@ -410,6 +416,13 @@ class HomePageState extends State<HomePage> {
       return const ProviderDisabledState(message: 'No metadata provider is enabled.');
     }
 
+    final supportsHome = context.select<MetadataManager, bool>(
+      (m) => m.hasCapability(MetadataCapability.home),
+    );
+    if (!supportsHome) {
+      return _buildUnsupportedHomeView();
+    }
+
     final bool isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final isAuthenticated = context.select<MetadataManager, bool>(
@@ -426,6 +439,61 @@ class HomePageState extends State<HomePage> {
     return _buildMainContent(isDesktop);
   }
 
+  Widget _buildUnsupportedHomeView() {
+    final activeProvider = context.read<MetadataManager>().activeCatalogProvider;
+    final providerName = activeProvider?.displayName ?? 'The active provider';
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Symbols.music_note_rounded,
+              size: 64,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Home feed not supported',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$providerName does not support a personalized home feed. You can still search for and play tracks, or switch your primary metadata provider in Settings.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => AppNavigation.instance.pushTab(1),
+                  icon: const Icon(Symbols.search_rounded),
+                  label: const Text('Go to Search'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => AppNavigation.instance.openSettings(),
+                  icon: const Icon(Symbols.settings_rounded),
+                  label: const Text('Open Settings'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildUnauthenticatedView() {
     return Center(
       child: Column(
@@ -433,9 +501,9 @@ class HomePageState extends State<HomePage> {
         children: [
           const Icon(Icons.music_note, size: 64, color: Colors.grey),
           const SizedBox(height: 16),
-          const Text(
-            'Not connected to Spotify',
-            style: TextStyle(fontSize: 18, color: Colors.grey),
+          Text(
+            'Not connected to ${context.read<MetadataManager>().activeCatalogProvider?.displayName ?? 'music service'}',
+            style: const TextStyle(fontSize: 18, color: Colors.grey),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
@@ -471,7 +539,7 @@ class HomePageState extends State<HomePage> {
       onRefresh: () => _loadData(policy: MetadataFetchPolicy.refreshAlways),
       child: isApple
           ? _buildMobileHomeContentApple()
-          : _buildMobileHomeContentSpotify(),
+          : _buildMobileHomeContentStandard(),
     );
   }
 
@@ -554,7 +622,7 @@ class HomePageState extends State<HomePage> {
     ];
   }
 
-  Widget _buildMobileHomeContentSpotify() {
+  Widget _buildMobileHomeContentStandard() {
     final metadata = context.read<MetadataManager>();
     final greeting = _getRandomGreeting(metadata);
     final dynamicSections = _buildDynamicHomeSections(skipFirst: true);

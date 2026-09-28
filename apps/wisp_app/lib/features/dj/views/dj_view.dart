@@ -495,31 +495,39 @@ class _DJViewState extends State<DJView> {
 
     // 2. Use that safe track in the endpoint to fetch similar ones.
     final similarTracks = <GenericSong>[];
-    try {
-      final cleanId = safeTrack.id.startsWith('spotify:track:')
-          ? safeTrack.id.split(':').last
-          : safeTrack.id;
-      final similar = await metadata.getSimilarTracks(cleanId);
-      if (similar != null) {
-        for (final item in similar) {
-          if (item.id != safeTrack.id) {
-            similarTracks.add(
-              GenericSong(
-                id: item.id,
-                source: item.source,
-                title: item.title,
-                artists: item.artists,
-                thumbnailUrl: item.thumbnailUrl,
-                explicit: item.explicit,
-                durationSecs: item.durationSecs,
-                album: item.album,
-              ),
-            );
+    if (metadata.hasCapability(
+      MetadataCapability.recommendations,
+      source: safeTrack.source,
+    )) {
+      try {
+        final cleanId = safeTrack.id.startsWith('spotify:track:')
+            ? safeTrack.id.split(':').last
+            : safeTrack.id;
+        final similar = await metadata.getSimilarTracks(
+          cleanId,
+          source: safeTrack.source,
+        );
+        if (similar != null) {
+          for (final item in similar) {
+            if (item.id != safeTrack.id) {
+              similarTracks.add(
+                GenericSong(
+                  id: item.id,
+                  source: item.source,
+                  title: item.title,
+                  artists: item.artists,
+                  thumbnailUrl: item.thumbnailUrl,
+                  explicit: item.explicit,
+                  durationSecs: item.durationSecs,
+                  album: item.album,
+                ),
+              );
+            }
           }
         }
+      } catch (_) {
+        // Silently proceed if similar tracks fetch fails
       }
-    } catch (_) {
-      // Silently proceed if similar tracks fetch fails
     }
 
     // 3. Get the rest of the user's similar listened tracks.
@@ -649,7 +657,7 @@ class _DJViewState extends State<DJView> {
             type: PlaybackContextType.dj,
             id: contextId,
             name: 'DJ',
-            source: SongSource.spotify,
+            source: 'spotify',
           ),
         );
       } else {

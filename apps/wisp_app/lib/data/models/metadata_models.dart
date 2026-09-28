@@ -5,53 +5,14 @@
 /// Generic metadata models for multi-source music providers
 library;
 
-class SongSource {
-  final String id;
+export 'package:wisp/data/models/metadata_capability.dart';
 
-  const SongSource(this.id);
-
-  static const SongSource local = SongSource('local');
-  static const SongSource spotify = SongSource('spotify');
-  static const SongSource youtube = SongSource('youtube');
-  static const SongSource soundcloud = SongSource('soundcloud');
-  static const SongSource spotifyInternal = SongSource('spotifyInternal');
-
-  static List<SongSource> get values => const [local, spotify, youtube, soundcloud, spotifyInternal];
-
-  String get name => id;
-  String toJson() => id;
-
-  static SongSource fromJson(dynamic json) {
-    if (json is SongSource) return json;
-    if (json is String && json.isNotEmpty) {
-      final clean = json.trim();
-      if (clean == 'local') return SongSource.local;
-      if (clean == 'spotify') return SongSource.spotify;
-      if (clean == 'youtube') return SongSource.youtube;
-      if (clean == 'soundcloud') return SongSource.soundcloud;
-      if (clean == 'spotifyInternal') return SongSource.spotifyInternal;
-      return SongSource(clean);
-    }
-    return SongSource.spotify;
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    if (other is SongSource) {
-      return other.id.toLowerCase() == id.toLowerCase();
-    }
-    if (other is String) {
-      return other.toLowerCase() == id.toLowerCase();
-    }
-    return false;
-  }
-
-  @override
-  int get hashCode => id.toLowerCase().hashCode;
-
-  @override
-  String toString() => id;
+String normalizeSource(dynamic source) {
+  if (source == null) return 'spotify';
+  final str = source.toString().trim();
+  if (str.isEmpty) return 'spotify';
+  if (str.toLowerCase() == 'spotifyinternal') return 'spotify';
+  return str;
 }
 
 enum SearchBestMatchKind {
@@ -189,7 +150,7 @@ class SearchResults {
 
 class GenericSimpleArtist {
   final String id;
-  final SongSource source;
+  final String source;
   final String name;
   final String thumbnailUrl;
 
@@ -202,7 +163,7 @@ class GenericSimpleArtist {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'source': source.toJson(),
+    'source': source,
     'name': name,
     'thumbnail_url': thumbnailUrl,
   };
@@ -210,7 +171,7 @@ class GenericSimpleArtist {
   factory GenericSimpleArtist.fromJson(Map<String, dynamic> json) {
     return GenericSimpleArtist(
       id: json['id'] as String,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       name: json['name'] as String,
       thumbnailUrl: json['thumbnail_url'] as String,
     );
@@ -233,7 +194,7 @@ class GenericSimpleArtist {
 
 class GenericSimpleAlbum {
   final String id;
-  final SongSource source;
+  final String source;
   final String title;
   final String thumbnailUrl;
   final List<GenericSimpleArtist> artists;
@@ -252,7 +213,7 @@ class GenericSimpleAlbum {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'source': source.toJson(),
+    'source': source,
     'title': title,
     'thumbnail_url': thumbnailUrl,
     'artists': artists.map((a) => a.toJson()).toList(),
@@ -263,7 +224,7 @@ class GenericSimpleAlbum {
   factory GenericSimpleAlbum.fromJson(Map<String, dynamic> json) {
     return GenericSimpleAlbum(
       id: json['id'] as String,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       title: json['title'] as String,
       thumbnailUrl: json['thumbnail_url'] as String,
       artists: (json['artists'] as List)
@@ -302,7 +263,7 @@ class GenericSimpleAlbum {
 
 class GenericSong {
   final String id;
-  final SongSource source;
+  final String source;
   final String title;
   final List<GenericSimpleArtist> artists;
   final String thumbnailUrl;
@@ -325,7 +286,7 @@ class GenericSong {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'source': source.toJson(),
+    'source': source,
     'title': title,
     'artists': artists.map((a) => a.toJson()).toList(),
     'thumbnail_url': thumbnailUrl,
@@ -338,7 +299,7 @@ class GenericSong {
   factory GenericSong.fromJson(Map<String, dynamic> json) {
     return GenericSong(
       id: json['id'] as String,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       title: json['title'] as String,
       artists: (json['artists'] as List)
           .map((a) => GenericSimpleArtist.fromJson(a as Map<String, dynamic>))
@@ -370,7 +331,7 @@ class GenericSong {
 
 class GenericAlbum {
   final String id;
-  final SongSource source;
+  final String source;
   final String title;
   final String thumbnailUrl;
   final List<GenericSimpleArtist> artists;
@@ -399,7 +360,7 @@ class GenericAlbum {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'source': source.toJson(),
+    'source': source,
     'title': title,
     'thumbnail_url': thumbnailUrl,
     'artists': artists.map((a) => a.toJson()).toList(),
@@ -415,7 +376,7 @@ class GenericAlbum {
   factory GenericAlbum.fromJson(Map<String, dynamic> json) {
     return GenericAlbum(
       id: json['id'] as String,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       title: json['title'] as String,
       thumbnailUrl: json['thumbnail_url'] as String,
       artists: (json['artists'] as List)
@@ -438,7 +399,7 @@ class GenericAlbum {
 
 class GenericSimpleUser {
   final String id;
-  final SongSource source;
+  final String source;
   final String displayName;
   final String? avatarUrl;
   final int? followerCount;
@@ -461,7 +422,7 @@ class GenericSimpleUser {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'source': source.toJson(),
+    'source': source,
     'display_name': displayName,
     'avatar_url': avatarUrl,
     'follower_count': followerCount,
@@ -474,7 +435,7 @@ class GenericSimpleUser {
   factory GenericSimpleUser.fromJson(Map<String, dynamic> json) {
     return GenericSimpleUser(
       id: json['id'] as String,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       displayName: json['display_name'] as String,
       avatarUrl: json['avatar_url'] as String?,
       followerCount: json['follower_count'] as int?,
@@ -488,7 +449,7 @@ class GenericSimpleUser {
 
 class GenericSimplePlaylist {
   final String id;
-  final SongSource source;
+  final String source;
   final String title;
   final String? thumbnailUrl;
   final GenericSimpleUser? owner;
@@ -507,7 +468,7 @@ class GenericSimplePlaylist {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'source': source.toJson(),
+    'source': source,
     'title': title,
     'thumbnail_url': thumbnailUrl,
     'owner': owner?.toJson(),
@@ -518,7 +479,7 @@ class GenericSimplePlaylist {
   factory GenericSimplePlaylist.fromJson(Map<String, dynamic> json) {
     return GenericSimplePlaylist(
       id: json['id'] as String,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       title: json['title'] as String,
       thumbnailUrl: json['thumbnail_url'] as String?,
       owner: json['owner'] != null
@@ -555,7 +516,7 @@ class GenericSimplePlaylist {
 
 class GenericUser {
   final String id;
-  final SongSource source;
+  final String source;
   final String displayName;
   final String? avatarUrl;
   final int? followerCount;
@@ -580,7 +541,7 @@ class GenericUser {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'source': source.toJson(),
+    'source': source,
     'display_name': displayName,
     'avatar_url': avatarUrl,
     'follower_count': followerCount,
@@ -596,7 +557,7 @@ class GenericUser {
   factory GenericUser.fromJson(Map<String, dynamic> json) {
     return GenericUser(
       id: json['id'] as String,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       displayName: json['display_name'] as String,
       avatarUrl: json['avatar_url'] as String?,
       followerCount: json['follower_count'] as int?,
@@ -653,7 +614,7 @@ class GenericUser {
 class PlaylistItem {
   final String id;
   final String? uid;
-  final SongSource source;
+  final String source;
   final String title;
   final List<GenericSimpleArtist> artists;
   final String thumbnailUrl;
@@ -680,7 +641,7 @@ class PlaylistItem {
   Map<String, dynamic> toJson() => {
     'id': id,
     'uid': uid,
-    'source': source.toJson(),
+    'source': source,
     'title': title,
     'artists': artists.map((a) => a.toJson()).toList(),
     'thumbnail_url': thumbnailUrl,
@@ -695,7 +656,7 @@ class PlaylistItem {
     return PlaylistItem(
       id: json['id'] as String,
       uid: json['uid'] as String?,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       title: json['title'] as String,
       artists: (json['artists'] as List)
           .map((a) => GenericSimpleArtist.fromJson(a as Map<String, dynamic>))
@@ -717,7 +678,7 @@ class PlaylistItem {
 
 class GenericPlaylist {
   final String id;
-  final SongSource source;
+  final String source;
   final String title;
   final String? description;
   final String thumbnailUrl;
@@ -742,7 +703,7 @@ class GenericPlaylist {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'source': source.toJson(),
+    'source': source,
     'title': title,
     'description': description,
     'thumbnail_url': thumbnailUrl,
@@ -756,7 +717,7 @@ class GenericPlaylist {
   factory GenericPlaylist.fromJson(Map<String, dynamic> json) {
     return GenericPlaylist(
       id: json['id'] as String,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       title: json['title'] as String,
       description: json['description'] as String?,
       thumbnailUrl: json['thumbnail_url'] as String,
@@ -777,7 +738,7 @@ class GenericPlaylist {
 
 class GenericArtist {
   final String id;
-  final SongSource source;
+  final String source;
   final String name;
   final String? description;
   final String thumbnailUrl;
@@ -800,7 +761,7 @@ class GenericArtist {
 
   Map<String, dynamic> toJson() => {
     'id': id,
-    'source': source.toJson(),
+    'source': source,
     'name': name,
     'thumbnail_url': thumbnailUrl,
     'monthly_listeners': monthlyListeners,
@@ -813,7 +774,7 @@ class GenericArtist {
   factory GenericArtist.fromJson(Map<String, dynamic> json) {
     return GenericArtist(
       id: json['id'] as String,
-      source: SongSource.fromJson(json['source'] as String),
+      source: normalizeSource(json['source']),
       name: json['name'] as String,
       thumbnailUrl: json['thumbnail_url'] as String,
       monthlyListeners: json['monthly_listeners'] as int?,

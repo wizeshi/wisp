@@ -204,6 +204,8 @@ class WispApp extends StatelessWidget {
 
         ChangeNotifierProvider(create: (_) => LyricsProvider()),
 
+        ChangeNotifierProvider.value(value: AuthSourceManager.instance),
+
         ChangeNotifierProvider(create: (_) => LocalPlaylistState()),
 
         ChangeNotifierProvider(create: (_) => PreferencesProvider()),

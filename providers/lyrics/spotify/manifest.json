@@ -1,7 +1,7 @@
 {
   "id": "spotify",
   "name": "Spotify",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "type": "lyrics",
   "entry": "index.js",
   "author": "wizeshi",

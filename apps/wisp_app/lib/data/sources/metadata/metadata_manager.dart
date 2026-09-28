@@ -136,32 +136,54 @@ class MetadataManager extends ChangeNotifier {
   /// Resolve provider by ID, name, or display name (case-insensitive).
   MetadataProvider? getProvider(String idOrName) {
     final key = idOrName.trim().toLowerCase();
-    if (_providers.containsKey(key)) {
-      return _providers[key];
-    }
-    // Also check alias
-    if (key == 'spotifyinternal' && _providers.containsKey('spotify')) {
-      return _providers['spotify'];
+    final normalizedKey = key == 'spotifyinternal' ? 'spotify' : key;
+    if (_providers.containsKey(normalizedKey)) {
+      return _providers[normalizedKey];
     }
     for (final p in _providers.values) {
-      if (p.providerId.toLowerCase() == key ||
-          p.name.toLowerCase() == key ||
-          p.displayName.toLowerCase() == key) {
+      if (p.providerId.toLowerCase() == normalizedKey ||
+          p.name.toLowerCase() == normalizedKey ||
+          p.displayName.toLowerCase() == normalizedKey) {
         return p;
       }
     }
     return null;
   }
 
-  /// Resolve provider for a specific [SongSource].
-  MetadataProvider? getProviderForSource(SongSource source) {
-    return getProvider(source.id);
+  /// Resolve provider for a specific source string.
+  MetadataProvider? getProviderForSource(String source) {
+    return getProvider(source);
   }
 
   /// Active default catalog provider (top of priority order).
   MetadataProvider? get activeCatalogProvider {
     final available = availableProviders;
     return available.isNotEmpty ? available.first : null;
+  }
+
+  /// Whether the specified or active catalog provider supports a capability.
+  bool hasCapability(
+    MetadataCapability capability, {
+    String? providerId,
+    String? source,
+  }) {
+    MetadataProvider? provider;
+    if (providerId != null || source != null) {
+      if (providerId != null) {
+        provider = getProvider(providerId);
+      }
+      if (provider == null && source != null) {
+        provider = getProviderForSource(source);
+      }
+    } else {
+      provider = activeCatalogProvider;
+    }
+    return provider?.supports(capability) ?? false;
+  }
+
+  /// All enabled providers that support a specific capability.
+  List<MetadataProvider> getProvidersWithCapability(MetadataCapability capability) {
+    return availableProviders.where((p) => p.supports(capability)).toList();
   }
 
   /// Authentication & state proxies for the active provider
@@ -176,7 +198,7 @@ class MetadataManager extends ChangeNotifier {
     activeCatalogProvider?.setLikedTracksFromItems(items);
   }
 
-  Future<void> ensureLikedTracksLoaded({String? providerId, SongSource? source}) async {
+  Future<void> ensureLikedTracksLoaded({String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     await provider.ensureLikedTracksLoaded();
   }
@@ -196,7 +218,7 @@ class MetadataManager extends ChangeNotifier {
   }
 
   /// Internal helper to resolve the targeted or default provider.
-  MetadataProvider _resolveProvider({String? providerId, SongSource? source}) {
+  MetadataProvider _resolveProvider({String? providerId, String? source}) {
     if (providerId != null) {
       final p = getProvider(providerId);
       if (p != null) return p;
@@ -262,7 +284,7 @@ class MetadataManager extends ChangeNotifier {
   Future<GenericSong> getTrackInfo(
     String trackId, {
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
@@ -273,7 +295,7 @@ class MetadataManager extends ChangeNotifier {
   Future<GenericSong?> getCachedTrackInfo(
     String trackId, {
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.getCachedTrackInfo(trackId);
@@ -283,7 +305,7 @@ class MetadataManager extends ChangeNotifier {
   Future<GenericAlbum> getAlbumInfo(
     String albumId, {
     String? providerId,
-    SongSource? source,
+    String? source,
     int offset = 0,
     int limit = 50,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
@@ -296,7 +318,7 @@ class MetadataManager extends ChangeNotifier {
   Future<GenericPlaylist> getPlaylistInfo(
     String playlistId, {
     String? providerId,
-    SongSource? source,
+    String? source,
     int offset = 0,
     int limit = 50,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
@@ -309,24 +331,36 @@ class MetadataManager extends ChangeNotifier {
   Future<GenericArtist> getArtistInfo(
     String artistId, {
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.getArtistInfo(artistId, policy: policy);
   }
 
+  final Map<String, Future<String?>> _canvasFutureCache = {};
+
   /// Get canvas background video URL for track.
-  Future<String?> getCanvasUrl(String trackId, {String? providerId, SongSource? source}) async {
+  Future<String?> getCanvasUrl(String trackId, {String? providerId, String? source}) {
     final provider = _resolveProvider(providerId: providerId, source: source);
-    return provider.getCanvasUrl(trackId);
+    final cacheKey = '${provider.providerId}:$trackId';
+    final existing = _canvasFutureCache[cacheKey];
+    if (existing != null) {
+      return existing;
+    }
+    if (_canvasFutureCache.length > 200) {
+      _canvasFutureCache.remove(_canvasFutureCache.keys.first);
+    }
+    final future = provider.getCanvasUrl(trackId);
+    _canvasFutureCache[cacheKey] = future;
+    return future;
   }
 
   /// Get similar tracks (track radio / autoplay).
   Future<List<PlaylistItem>?> getSimilarTracks(
     String trackId, {
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.getSimilarTracks(trackId);
@@ -347,53 +381,53 @@ class MetadataManager extends ChangeNotifier {
     List<String> skippedTrackIDs, {
     int numResults = 20,
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.getRecommended(playlistId, skippedTrackIDs, numResults: numResults);
   }
 
   /// Save / unsave album in user library.
-  Future<void> saveAlbum(String albumId, {String? providerId, SongSource? source}) async {
+  Future<void> saveAlbum(String albumId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.saveAlbum(albumId);
   }
 
-  Future<void> unsaveAlbum(String albumId, {String? providerId, SongSource? source}) async {
+  Future<void> unsaveAlbum(String albumId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.unsaveAlbum(albumId);
   }
 
   /// Follow / unfollow artist in user library.
-  Future<void> followArtist(String artistId, {String? providerId, SongSource? source}) async {
+  Future<void> followArtist(String artistId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.followArtist(artistId);
   }
 
-  Future<void> unfollowArtist(String artistId, {String? providerId, SongSource? source}) async {
+  Future<void> unfollowArtist(String artistId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.unfollowArtist(artistId);
   }
 
   /// Like status and mutations.
-  bool isTrackLiked(String trackId, {String? providerId, SongSource? source}) {
+  bool isTrackLiked(String trackId, {String? providerId, String? source}) {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.isTrackLiked(trackId);
   }
 
-  Future<void> toggleTrackLike(GenericSong track, {String? providerId, SongSource? source}) async {
+  Future<void> toggleTrackLike(GenericSong track, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source ?? track.source);
     await provider.toggleTrackLike(track);
     notifyListeners();
   }
 
-  Future<void> likeTrack(GenericSong track, {String? providerId, SongSource? source}) async {
+  Future<void> likeTrack(GenericSong track, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source ?? track.source);
     await provider.likeTrack(track);
     notifyListeners();
   }
 
-  Future<void> unlikeTrack(GenericSong track, {String? providerId, SongSource? source}) async {
+  Future<void> unlikeTrack(GenericSong track, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source ?? track.source);
     await provider.unlikeTrack(track);
     notifyListeners();
@@ -404,7 +438,7 @@ class MetadataManager extends ChangeNotifier {
     int limit = 50,
     int offset = 0,
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
@@ -413,14 +447,14 @@ class MetadataManager extends ChangeNotifier {
 
   Future<List<PlaylistItem>> getUserSavedTracksAll({
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.getUserSavedTracksAll(policy: policy);
   }
 
-  Future<void> refreshSavedTracksAll({String? providerId, SongSource? source}) async {
+  Future<void> refreshSavedTracksAll({String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.refreshSavedTracksAll();
   }
@@ -430,7 +464,7 @@ class MetadataManager extends ChangeNotifier {
     int limit = 20,
     int offset = 0,
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
@@ -439,7 +473,7 @@ class MetadataManager extends ChangeNotifier {
 
   Future<GenericLibrary?> getUserLibrary({
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
@@ -470,7 +504,7 @@ class MetadataManager extends ChangeNotifier {
     int limit = 20,
     int offset = 0,
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
@@ -481,14 +515,14 @@ class MetadataManager extends ChangeNotifier {
     int limit = 20,
     String? after,
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.getUserFollowedArtists(limit: limit, after: after, policy: policy);
   }
 
-  Future<void> fetchUserProfile({String? providerId, SongSource? source}) async {
+  Future<void> fetchUserProfile({String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.fetchUserProfile();
   }
@@ -499,7 +533,7 @@ class MetadataManager extends ChangeNotifier {
     int artistLimit = 10,
     int episodeLimit = 10,
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
@@ -515,7 +549,7 @@ class MetadataManager extends ChangeNotifier {
   Future<List<GenericSimpleUser>> getUserFollowers(
     String userId, {
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
@@ -525,7 +559,7 @@ class MetadataManager extends ChangeNotifier {
   Future<List<GenericSimpleUser>> getUserFollowing(
     String userId, {
     String? providerId,
-    SongSource? source,
+    String? source,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
@@ -537,7 +571,7 @@ class MetadataManager extends ChangeNotifier {
     String? description,
     bool isPublic = false,
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.createPlaylist(name: name, description: description, isPublic: isPublic);
@@ -547,7 +581,7 @@ class MetadataManager extends ChangeNotifier {
     String playlistId,
     List<String> trackIds, {
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.addTracksToPlaylist(playlistId, trackIds);
@@ -557,7 +591,7 @@ class MetadataManager extends ChangeNotifier {
     required String playlistId,
     required String folderId,
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.addPlaylistToFolder(playlistId: playlistId, folderId: folderId);
@@ -566,18 +600,18 @@ class MetadataManager extends ChangeNotifier {
   Future<void> removePlaylistFromFolder({
     required String playlistId,
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.removePlaylistFromFolder(playlistId: playlistId);
   }
 
-  Future<List<String>> getTrackGenres(String trackId, {String? providerId, SongSource? source}) async {
+  Future<List<String>> getTrackGenres(String trackId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.getTrackGenres(trackId);
   }
 
-  Future<dynamic> getNpvArtistInfo(String artistId, String trackId, {String? providerId, SongSource? source}) async {
+  Future<dynamic> getNpvArtistInfo(String artistId, String trackId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     if (provider is JsMetadataSource) {
       return provider.getNpvArtistInfo(artistId, trackId);
@@ -585,12 +619,12 @@ class MetadataManager extends ChangeNotifier {
     return provider.getArtistInfo(artistId);
   }
 
-  Future<void> renamePlaylist(String playlistId, String name, {String? providerId, SongSource? source}) async {
+  Future<void> renamePlaylist(String playlistId, String name, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     await provider.renamePlaylist(playlistId, name);
   }
 
-  Future<void> deletePlaylist(String playlistId, {String? providerId, SongSource? source}) async {
+  Future<void> deletePlaylist(String playlistId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     await provider.deletePlaylist(playlistId);
   }
@@ -599,7 +633,7 @@ class MetadataManager extends ChangeNotifier {
     String playlistId,
     List<String> trackIds, {
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     if (provider is JsMetadataSource) {
@@ -612,7 +646,7 @@ class MetadataManager extends ChangeNotifier {
     required LibrarySortMode sortMode,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     if (provider is JsMetadataSource) {
@@ -625,7 +659,7 @@ class MetadataManager extends ChangeNotifier {
     required String itemId,
     required String itemType,
     String? providerId,
-    SongSource? source,
+    String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     if (provider is JsMetadataSource) {

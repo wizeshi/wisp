@@ -63,7 +63,7 @@ function hexGidToSpotifyId(hex) {
 }
 
 // ---------------------------------------------------------------------------
-// Authentication & Session Vault Manager
+// Authentication & Session Vault Manager (delegates to auth/spotify provider)
 // ---------------------------------------------------------------------------
 class SpotifyAuthManager {
   constructor(serviceId = 'spotify') {
@@ -83,195 +83,27 @@ class SpotifyAuthManager {
   }
 
   async getTokens(forceRefresh = false) {
-    const session = await this.getSession();
-    const now = Date.now();
-
-    if (!forceRefresh && session && session.accessToken && (now < (session.expiresAtMs - 60000))) {
-      return session;
+    if (wisp.auth && typeof wisp.auth.getTokens === 'function') {
+      const tokens = await wisp.auth.getTokens({ serviceId: this.serviceId, forceRefresh: forceRefresh });
+      if (tokens) return tokens;
     }
-
-    if (!wisp.service || typeof wisp.service.withRefreshLock !== 'function') {
-      if (wisp.spotify && typeof wisp.spotify.getTokens === 'function') {
-        return await wisp.spotify.getTokens({ forceRefresh: forceRefresh });
-      }
-      return null;
+    if (wisp.spotify && typeof wisp.spotify.getTokens === 'function') {
+      return await wisp.spotify.getTokens({ forceRefresh: forceRefresh });
     }
-
-    return await wisp.service.withRefreshLock(this.serviceId, async () => {
-      const current = await this.getSession();
-      if (!forceRefresh && current && current.accessToken && (Date.now() < (current.expiresAtMs - 60000))) {
-        return current;
-      }
-
-      let spDc = (current && current.cookies && current.cookies.sp_dc) || (current && current.cookie) || null;
-
-      if (!spDc) {
-        if (wisp.spotify && typeof wisp.spotify.getTokens === 'function') {
-          const legacy = await wisp.spotify.getTokens({ forceRefresh: true });
-          if (legacy && legacy.accessToken) return legacy;
-        }
-        console.warn('[Spotify/Metadata] NOT_AUTHENTICATED: sp_dc cookie missing in vault.');
-        return null;
-      }
-
-      console.log('[Spotify/Metadata] Refreshing Spotify tokens via TOTP web authentication...');
-
-      const secretUrls = [
-        'https://git.gay/thereallo/totp-secrets/raw/branch/main/secrets/secrets.json',
-        'https://raw.githubusercontent.com/spotandfly/spotify-secrets/main/secrets.json'
-      ];
-
-      let latestSecret = null;
-      for (let i = 0; i < secretUrls.length; i++) {
-        try {
-          const secretsRes = await wisp.fetch(secretUrls[i]);
-          if (secretsRes.status === 200) {
-            const secrets = await secretsRes.json();
-            if (Array.isArray(secrets) && secrets.length > 0) {
-              latestSecret = secrets[secrets.length - 1];
-              break;
-            }
-          }
-        } catch (e) {
-          console.warn('[Spotify/Metadata] Secrets fetch failed from ' + secretUrls[i] + ': ' + e);
-        }
-      }
-
-      if (!latestSecret || !latestSecret.secret) {
-        console.error('[Spotify/Metadata] Could not retrieve TOTP secret');
-        return null;
-      }
-
-      const otp = await this._generateOtp(latestSecret.secret);
-      const cleanCookie = spDc.startsWith('sp_dc=') ? spDc : ('sp_dc=' + spDc);
-      const accessUrl = 'https://open.spotify.com/api/token?reason=transport&productType=web-player' +
-        '&totp=' + encodeURIComponent(otp) +
-        '&totpServer=' + encodeURIComponent(otp) +
-        '&totpVer=' + encodeURIComponent(String(latestSecret.version));
-
-      const accessRes = await wisp.fetch(accessUrl, {
-        headers: {
-          'Cookie': cleanCookie,
-          'User-Agent': USER_AGENT,
-          'Accept': 'application/json',
-          'Origin': 'https://open.spotify.com',
-          'Referer': 'https://open.spotify.com/'
-        }
-      });
-
-      if (accessRes.status !== 200) {
-        console.error('[Spotify/Metadata] Access token request failed: ' + accessRes.status);
-        return null;
-      }
-
-      const accessData = await accessRes.json();
-      if (!accessData || !accessData.accessToken) {
-        console.error('[Spotify/Metadata] No accessToken in response');
-        return null;
-      }
-
-      let clientToken = null;
-      try {
-        const deviceId = await wisp.crypto.randomHex(32);
-        const clientTokenRes = await wisp.fetch('https://clienttoken.spotify.com/v1/clienttoken', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            client_data: {
-              client_id: accessData.clientId,
-              client_version: APP_VERSION,
-              js_sdk_data: {
-                device_brand: 'unknown',
-                device_id: deviceId,
-                device_model: 'unknown',
-                device_type: 'computer',
-                os: 'windows',
-                os_version: 'NT 10.0'
-              }
-            }
-          })
-        });
-
-        if (clientTokenRes.status === 200) {
-          const clientData = await clientTokenRes.json();
-          if (clientData && clientData.response_type === 'RESPONSE_GRANTED_TOKEN_RESPONSE') {
-            clientToken = clientData.granted_token && clientData.granted_token.token;
-          }
-        }
-      } catch (e) {
-        console.warn('[Spotify/Metadata] Client token acquisition warning: ' + e);
-      }
-
-      const cleanSpDc = cleanCookie.replace(/^sp_dc=/, '');
-      const newSession = {
-        accessToken: accessData.accessToken,
-        clientToken: clientToken || '',
-        cookies: { sp_dc: cleanSpDc },
-        expiresAtMs: accessData.accessTokenExpirationTimestampMs || (Date.now() + 3600000),
-        clientId: accessData.clientId
-      };
-
-      await wisp.service.setSession(this.serviceId, newSession);
-      console.log('[Spotify/Metadata] Tokens successfully refreshed in vault (expires in: ' +
-        Math.round((newSession.expiresAtMs - Date.now()) / 1000) + 's)');
-
-      return newSession;
-    });
-  }
-
-  async _generateOtp(secretValue) {
-    const secretCipherBytes = [];
-    for (let i = 0; i < secretValue.length; i++) {
-      secretCipherBytes.push(secretValue.charCodeAt(i) ^ ((i % 33) + 9));
-    }
-    const cipherString = secretCipherBytes.join('');
-    const cipherBytes = [];
-    for (let i = 0; i < cipherString.length; i++) {
-      cipherBytes.push(cipherString.charCodeAt(i));
-    }
-
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-    let t = 0;
-    let n = 0;
-    let base32Secret = '';
-    for (let i = 0; i < cipherBytes.length; i++) {
-      n = (n << 8) | cipherBytes[i];
-      t += 8;
-      while (t >= 5) {
-        base32Secret += alphabet[(n >> (t - 5)) & 31];
-        t -= 5;
-      }
-    }
-    if (t > 0) {
-      base32Secret += alphabet[(n << (5 - t)) & 31];
-    }
-
-    return await wisp.crypto.totp(base32Secret);
+    return await this.getSession();
   }
 
   async login() {
-    if (!wisp.auth || typeof wisp.auth.openLogin !== 'function') {
-      console.warn('[Spotify/Metadata] wisp.auth.openLogin not available');
-      return null;
-    }
-    const res = await wisp.auth.openLogin({
-      url: 'https://accounts.spotify.com/en/login',
-      title: 'Log in to Spotify',
-      targetCookies: ['sp_dc']
-    });
-    if (res && res.cookies && res.cookies.sp_dc) {
-      await wisp.service.setSession(this.serviceId, {
-        cookies: { sp_dc: res.cookies.sp_dc }
-      });
-      return await this.getTokens(true);
+    if (wisp.auth && typeof wisp.auth.login === 'function') {
+      return await wisp.auth.login(this.serviceId);
     }
     return null;
   }
 
   async logout() {
+    if (wisp.auth && typeof wisp.auth.logout === 'function') {
+      return await wisp.auth.logout(this.serviceId);
+    }
     if (wisp.service && typeof wisp.service.clearSession === 'function') {
       await wisp.service.clearSession(this.serviceId);
     }
@@ -317,7 +149,8 @@ async function queryGraphQL(operationName, sha256Hash, variables = {}) {
   let res = await wisp.fetch(url, {
     method: 'POST',
     headers: buildHeaders(tokens),
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    label: operationName
   });
 
   if (res.status === 401) {
@@ -329,7 +162,8 @@ async function queryGraphQL(operationName, sha256Hash, variables = {}) {
     res = await wisp.fetch(url, {
       method: 'POST',
       headers: buildHeaders(tokens),
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      label: operationName
     });
   }
 

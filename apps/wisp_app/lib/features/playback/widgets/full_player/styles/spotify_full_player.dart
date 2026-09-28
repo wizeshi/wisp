@@ -991,12 +991,14 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
               (prefs) => prefs.animatedCanvasEnabled,
             );
             final allowCanvas = useCanvas && !animatedCanvasDisabled;
+            final metadataManager = context.read<MetadataManager>();
             final canUseCanvas =
                 allowCanvas &&
                 currentTrack != null &&
-                (currentTrack.source == SongSource.spotifyInternal ||
-                    currentTrack.source == SongSource.spotify);
-            final metadataManager = context.read<MetadataManager>();
+                metadataManager.hasCapability(
+                  MetadataCapability.canvas,
+                  source: currentTrack.source,
+                );
 
             final maxHeight = MediaQuery.sizeOf(context).height;
 
@@ -1135,7 +1137,10 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             }
 
             return FutureBuilder<String?>(
-              future: metadataManager.getCanvasUrl(currentTrack.id),
+              future: metadataManager.getCanvasUrl(
+                currentTrack.id,
+                source: currentTrack.source,
+              ),
               builder: (context, snapshot) {
                 final canvasUrl = snapshot.data ?? '';
                 return buildPlayerScaffold(context, canvasUrl: canvasUrl);

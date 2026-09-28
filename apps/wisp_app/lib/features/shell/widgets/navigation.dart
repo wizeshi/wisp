@@ -258,12 +258,12 @@ class _WispNavigationState extends State<WispNavigation> {
                 uri.contains('playlist')) {
               final p = GenericPlaylist(
                 id: id,
-                source: SongSource.spotifyInternal,
+                source: 'spotify',
                 title: raw['name'] as String? ?? '',
                 thumbnailUrl: raw['image']?['url'] as String? ?? '',
                 author: GenericSimpleUser(
                   id: '',
-                  source: SongSource.spotifyInternal,
+                  source: 'spotify',
                   displayName: '',
                   avatarUrl: null,
                   followerCount: null,
@@ -279,7 +279,7 @@ class _WispNavigationState extends State<WispNavigation> {
             if (t == 'Album' || t == 'album' || uri.contains('album')) {
               final album = GenericSimpleAlbum(
                 id: id,
-                source: SongSource.spotifyInternal,
+                source: 'spotify',
                 title: raw['name'] as String? ?? '',
                 artists: const [],
                 thumbnailUrl: raw['image']?['url'] as String? ?? '',
@@ -293,7 +293,7 @@ class _WispNavigationState extends State<WispNavigation> {
             if (t == 'Artist' || t == 'artist' || uri.contains('artist')) {
               final artist = GenericSimpleArtist(
                 id: id,
-                source: SongSource.spotifyInternal,
+                source: 'spotify',
                 name: raw['name'] as String? ?? '',
                 thumbnailUrl: raw['image']?['url'] as String? ?? '',
               );

@@ -43,11 +43,11 @@ void main() {
         GenericSimpleArtist(
           id: '1',
           name: 'Rick Astley',
-          source: SongSource.spotify,
+          source: 'spotify',
           thumbnailUrl: '',
         ),
       ],
-      source: SongSource.spotify,
+      source: 'spotify',
       thumbnailUrl: '',
       durationSecs: 213,
       explicit: false,

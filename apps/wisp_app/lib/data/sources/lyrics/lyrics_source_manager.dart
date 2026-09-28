@@ -11,6 +11,7 @@ import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/lyrics/js_lyrics_source.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_source.dart';
+import 'package:wisp/data/sources/providers/provider_dependency_validator.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 
 /// Central manager that discovers, loads, and coordinates modular lyrics sources.
@@ -27,6 +28,9 @@ class LyricsSourceManager {
   Future<void>? _initFuture;
 
   bool get isInitialized => _initialized;
+
+  /// All registered lyrics sources mapped by id.
+  Map<String, LyricsSource> get sources => Map.unmodifiable(_sources);
 
   /// All registered lyrics sources.
   List<LyricsSource> get allSources => _sources.values.toList();
@@ -196,6 +200,20 @@ class LyricsSourceManager {
 
           final priority = manifestJson['priority'] as int? ?? 0;
           final service = manifestJson['service'] as String?;
+
+          final deps =
+              (manifestJson['dependencies'] as List?)?.cast<String>() ?? [];
+          if (deps.isNotEmpty) {
+            final unsatisfied =
+                await ProviderDependencyValidator.checkDependenciesAsync(deps);
+            if (unsatisfied.isNotEmpty) {
+              logger.w(
+                '[LyricsSourceManager] Skipping lyrics provider "$id" due to unsatisfied dependencies: '
+                '${unsatisfied.map((u) => u.message).join('; ')}',
+              );
+              continue;
+            }
+          }
 
           final scriptFile = File(p.join(folder.path, entryName));
           if (!scriptFile.existsSync()) {

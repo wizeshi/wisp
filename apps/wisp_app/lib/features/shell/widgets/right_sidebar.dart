@@ -249,10 +249,22 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-class _NowPlayingCard extends StatelessWidget {
+class _NowPlayingCard extends StatefulWidget {
   final bool showHoverControls;
 
   const _NowPlayingCard({required this.showHoverControls});
+
+  @override
+  State<_NowPlayingCard> createState() => _NowPlayingCardState();
+}
+
+class _NowPlayingCardState extends State<_NowPlayingCard> {
+  bool get showHoverControls => widget.showHoverControls;
+
+  String? _cachedTrackId;
+  String? _cachedSource;
+  bool? _cachedCanUseCanvas;
+  Future<String?>? _canvasFuture;
 
   @override
   Widget build(BuildContext context) {
@@ -272,6 +284,7 @@ class _NowPlayingCard extends StatelessWidget {
               (prefs) => prefs.animatedCanvasEnabled,
             );
             final libraryState = context.read<LibraryState>();
+            final metadataManager = context.read<MetadataManager>();
             final track = data.track;
             final resolvedContextName = _resolvePlaybackContextName(
               data,
@@ -284,11 +297,29 @@ class _NowPlayingCard extends StatelessWidget {
                 (data.playbackContextType == PlaybackContextType.playlist ||
                     data.playbackContextType == PlaybackContextType.album ||
                     data.playbackContextType == PlaybackContextType.artist);
+            final trackSource = track?.source ?? 'spotify';
+            final provider = metadataManager.getProviderForSource(trackSource);
             final canUseCanvas =
                 !animatedCanvasDisabled &&
                 useCanvas &&
-                (track?.source == SongSource.spotifyInternal ||
-                    track?.source == SongSource.spotify);
+                provider != null &&
+                provider.supports(MetadataCapability.canvas);
+
+            if (track?.id != _cachedTrackId ||
+                trackSource != _cachedSource ||
+                canUseCanvas != _cachedCanUseCanvas) {
+              _cachedTrackId = track?.id;
+              _cachedSource = trackSource;
+              _cachedCanUseCanvas = canUseCanvas;
+              if (track != null && canUseCanvas) {
+                _canvasFuture = metadataManager.getCanvasUrl(
+                  track.id,
+                  source: trackSource,
+                );
+              } else {
+                _canvasFuture = null;
+              }
+            }
 
             Widget buildCard({String? canvasUrl}) {
               final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
@@ -498,7 +529,7 @@ class _NowPlayingCard extends StatelessWidget {
                                               minHeight: 28,
                                             ),
                                             onPressed: () async {
-                                              await EntityContextMenus.copySpotifyShareUrl(
+                                              await EntityContextMenus.copyShareUrl(
                                                 context,
                                                 source: track.source,
                                                 type: 'track',
@@ -531,13 +562,12 @@ class _NowPlayingCard extends StatelessWidget {
               );
             }
 
-            if (track == null || !canUseCanvas) {
+            if (_canvasFuture == null) {
               return buildCard();
             }
 
-            final metadataManager = context.read<MetadataManager>();
             return FutureBuilder<String?>(
-              future: metadataManager.getCanvasUrl(track.id),
+              future: _canvasFuture,
               builder: (context, snapshot) {
                 final canvasUrl = snapshot.data ?? '';
                 return buildCard(canvasUrl: canvasUrl);

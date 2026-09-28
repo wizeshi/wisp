@@ -381,9 +381,9 @@ class ProvidersRepositoryService {
       }
 
       // Reload source managers so changes are immediately active
-      await LyricsSourceManager.instance.reload();
-      await MetadataSourceManager.instance.reload();
       await AuthSourceManager.instance.reload();
+      await MetadataSourceManager.instance.reload();
+      await LyricsSourceManager.instance.reload();
       packagesWithUpdate.value = packagesWithUpdate.value
           .where((p) => p.uniqueKey != pkg.uniqueKey)
           .toList();
@@ -418,9 +418,9 @@ class ProvidersRepositoryService {
         AuthSourceManager.instance.unregisterSource(pkg.id);
       }
 
-      await LyricsSourceManager.instance.reload();
-      await MetadataSourceManager.instance.reload();
       await AuthSourceManager.instance.reload();
+      await MetadataSourceManager.instance.reload();
+      await LyricsSourceManager.instance.reload();
       packagesWithUpdate.value = packagesWithUpdate.value
           .where((p) => p.uniqueKey != pkg.uniqueKey)
           .toList();

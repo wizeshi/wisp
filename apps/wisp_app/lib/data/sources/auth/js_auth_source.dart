@@ -4,17 +4,23 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_js/flutter_js.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/sources/providers/js_provider_bridge.dart';
 import 'package:wisp/data/sources/providers/service_session_manager.dart';
 
 /// Modular authentication provider powered by a JavaScript runtime.
-class JsAuthSource {
+class JsAuthSource extends ChangeNotifier {
   final String id;
   final String name;
   final String serviceId;
   final String script;
+  bool _isAuthenticated = false;
+
+  bool get isAuthenticated => _isAuthenticated;
+  String get displayName =>
+      name.replaceAll(RegExp(r'\s+Auth$', caseSensitive: false), '');
 
   JavascriptRuntime? _runtime;
   bool _isInitialized = false;
@@ -27,7 +33,27 @@ class JsAuthSource {
     required this.name,
     required this.serviceId,
     required this.script,
-  });
+  }) {
+    ServiceSessionManager.instance.addListener(serviceId, _onSessionChanged);
+    _checkInitialSession();
+  }
+
+  void _onSessionChanged(Map<String, dynamic>? session) {
+    final authed = session != null &&
+        (session['accessToken'] != null ||
+            (session['cookies'] is Map &&
+                (session['cookies'] as Map).isNotEmpty) ||
+            session['cookie'] != null);
+    if (_isAuthenticated != authed) {
+      _isAuthenticated = authed;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _checkInitialSession() async {
+    final session = await ServiceSessionManager.instance.getSession(serviceId);
+    _onSessionChanged(session);
+  }
 
   Future<void> initialize() async {
     if (_isInitialized || _failedInit) return;
@@ -125,6 +151,7 @@ class JsAuthSource {
       await _invoke('login');
     } catch (e) {
       logger.e('[JsAuthSource/$id] Login failed: $e');
+      rethrow;
     }
   }
 
@@ -134,23 +161,45 @@ class JsAuthSource {
       await ServiceSessionManager.instance.clearSession(serviceId);
     } catch (e) {
       logger.e('[JsAuthSource/$id] Logout failed: $e');
+      rethrow;
     }
   }
 
-  Future<bool> isAuthenticated() async {
+  Future<bool> checkAuthenticated() async {
     try {
       final res = await _invoke('isAuthenticated');
-      return res == true;
+      final authed = res == true;
+      if (_isAuthenticated != authed) {
+        _isAuthenticated = authed;
+        notifyListeners();
+      }
+      return authed;
     } catch (_) {
       return false;
     }
   }
 
+  Future<Map<String, dynamic>?> getTokens({bool forceRefresh = false}) async {
+    try {
+      final res = await _invoke('getTokens', [forceRefresh]);
+      if (res is Map) {
+        return res.cast<String, dynamic>();
+      }
+      return null;
+    } catch (e) {
+      logger.e('[JsAuthSource/$id] getTokens failed: $e');
+      return null;
+    }
+  }
+
+  @override
   void dispose() {
+    ServiceSessionManager.instance.removeListener(serviceId, _onSessionChanged);
     try {
       _runtime?.dispose();
     } catch (_) {}
     _runtime = null;
     _isInitialized = false;
+    super.dispose();
   }
 }

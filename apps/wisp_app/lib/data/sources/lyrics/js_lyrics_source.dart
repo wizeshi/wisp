@@ -215,7 +215,7 @@ class JsLyricsSource extends LyricsSource {
 
     final query = jsonEncode({
       'id': song.id,
-      'source': song.source.name,
+      'source': song.source,
       'title': song.title,
       'artist': song.artists.map((a) => a.name).join(', '),
       'album': song.album?.title ?? '',

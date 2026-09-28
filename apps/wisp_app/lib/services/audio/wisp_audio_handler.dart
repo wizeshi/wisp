@@ -79,7 +79,7 @@ class PlaybackContext {
   final PlaybackContextType type;
   final String id;
   final String name;
-  final SongSource source;
+  final String source;
 
   bool get isDJ => type == PlaybackContextType.dj;
 
@@ -95,7 +95,7 @@ class PlaybackContext {
       'type': type.toJson(),
       'id': id,
       'name': name,
-      'source': source.toJson(),
+      'source': source,
     };
   }
 
@@ -107,9 +107,7 @@ class PlaybackContext {
       ),
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      source: SongSource.fromJson(
-        json['source'] as String? ?? SongSource.spotify.toJson(),
-      ),
+      source: normalizeSource(json['source']),
     );
   }
 
@@ -1544,6 +1542,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     final lastTrack = _queue.last;
+    if (!metadata.hasCapability(
+      MetadataCapability.recommendations,
+      source: lastTrack.source,
+    )) {
+      logger.d(
+        '[Audio/DJ] Provider for ${lastTrack.source} does not support recommendations, skipping similar tracks',
+      );
+      return false;
+    }
+
     final cleanId = lastTrack.id.startsWith('spotify:track:')
         ? lastTrack.id.split(':').last
         : lastTrack.id;

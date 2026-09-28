@@ -12,12 +12,12 @@ GenericSong youtubeResultToGenericSong(YouTubeResult result) {
       : 'YouTube';
   return GenericSong(
     id: result.videoId,
-    source: SongSource.youtube,
+    source: 'youtube',
     title: result.title,
     artists: [
       GenericSimpleArtist(
         id: 'yt_channel_${result.videoId}',
-        source: SongSource.youtube,
+        source: 'youtube',
         name: artistName,
         thumbnailUrl: result.thumbnailUrl,
       ),

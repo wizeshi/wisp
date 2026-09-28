@@ -7,7 +7,7 @@ import 'dart:io' show Directory, Platform, Process;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/data/models/metadata_provider.dart';
+import 'package:wisp/data/sources/auth/js_auth_source.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp_assets/wisp_assets.dart';
@@ -19,7 +19,6 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart'
 import 'settings_downloads_view.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import '../widgets/settings_content.dart';
-import '../widgets/provider_preferences_dialog.dart';
 import '../widgets/cache_deletion_dialog.dart';
 import '../widgets/trusted_devices_dialog.dart';
 import '../widgets/update_widget.dart';
@@ -46,27 +45,28 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  Future<void> _showProviderPreferencesDialog() =>
-      ProviderPreferencesDialog.show(context, showSnackBar: _showSnackBar);
-
   Future<void> _showCacheDeleteDialog() =>
       CacheDeletionDialog.show(context, showSnackBar: _showSnackBar);
 
-  Future<void> _handleProviderLogin(MetadataProvider provider) async {
+  Future<void> _handleAuthLogin(JsAuthSource auth) async {
     try {
-      await provider.login(context);
+      await auth.login();
       if (mounted) {
-        _showSnackBar('Successfully authenticated with ${provider.name}!');
+        _showSnackBar('Successfully authenticated with ${auth.displayName}!');
       }
     } catch (e) {
       _showSnackBar('Login failed: $e');
     }
   }
 
-  Future<void> _handleProviderLogout(MetadataProvider provider) async {
-    await provider.logout();
-    if (mounted) {
-      _showSnackBar('Logged out successfully');
+  Future<void> _handleAuthLogout(JsAuthSource auth) async {
+    try {
+      await auth.logout();
+      if (mounted) {
+        _showSnackBar('Logged out successfully');
+      }
+    } catch (e) {
+      _showSnackBar('Logout failed: $e');
     }
   }
 
@@ -169,7 +169,6 @@ class _SettingsPageState extends State<SettingsPage> {
       buildCreditsSection: _buildCreditsSection,
       buildDebugSection: _buildDebugSection,
       showSnackBar: _showSnackBar,
-      onEditProviderPreferences: _showProviderPreferencesDialog,
     );
 
     if (isDesktop) {
@@ -616,88 +615,93 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildProviderCard(
     BuildContext context,
-    MetadataProvider provider,
+    JsAuthSource auth,
     String name,
     IconData icon,
     Color accentColor,
   ) {
-    final isConnected = provider.isAuthenticated;
+    return ListenableBuilder(
+      listenable: auth,
+      builder: (context, _) {
+        final isConnected = auth.isAuthenticated;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF181818),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF181818),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ProviderIcon(
-                providerId: provider.providerId,
-                type: 'metadata',
-                size: 32,
-                fallbackIcon: icon,
-                color: accentColor,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              Row(
+                children: [
+                  ProviderIcon(
+                    providerId: auth.id,
+                    type: 'auth',
+                    size: 32,
+                    fallbackIcon: icon,
+                    color: accentColor,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              name,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            if (isConnected) ...[
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                                size: 16,
+                              ),
+                            ],
+                          ],
                         ),
-                        if (isConnected) ...[
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: 16,
-                          ),
-                        ],
                       ],
                     ),
-                  ],
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (isConnected) ...[
-                    IconButton(
-                      icon: Icon(Icons.logout, color: Colors.grey[400]),
-                      onPressed: () => _handleProviderLogout(provider),
-                      tooltip: 'Logout',
-                    ),
-                  ] else ...[
-                    IconButton(
-                      icon: Icon(Icons.login, color: accentColor),
-                      onPressed: () => _handleProviderLogin(provider),
-                      tooltip: 'Login',
-                    ),
-                  ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isConnected) ...[
+                        IconButton(
+                          icon: Icon(Icons.logout, color: Colors.grey[400]),
+                          onPressed: () => _handleAuthLogout(auth),
+                          tooltip: 'Logout',
+                        ),
+                      ] else ...[
+                        IconButton(
+                          icon: Icon(Icons.login, color: accentColor),
+                          onPressed: () => _handleAuthLogin(auth),
+                          tooltip: 'Login',
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
+              if (!isConnected) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Log in to sync your library and lyrics',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                ),
+              ],
             ],
           ),
-          if (!isConnected) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Log in to sync your library and lyrics',
-              style: TextStyle(color: Colors.grey[500], fontSize: 13),
-            ),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
 

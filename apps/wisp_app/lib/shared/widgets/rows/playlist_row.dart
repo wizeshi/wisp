@@ -136,7 +136,7 @@ class PlaylistRow extends StatelessWidget {
             ),
       isPlaying: isPlaying,
       onTap: () {
-        if (playlist.source == SongSource.spotifyInternal && playlist.title == "DJ" && playlist.author.displayName == "Spotify") {
+        if (playlist.source.toLowerCase() == 'spotify' && playlist.title == "DJ" && playlist.author.displayName == "Spotify") {
           AppNavigation.instance.navigateToDJView(context);
         } else {
           AppNavigation.instance.openSharedList(

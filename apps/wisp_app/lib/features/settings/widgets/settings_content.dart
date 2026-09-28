@@ -2,14 +2,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/data/models/metadata_provider.dart';
-import 'package:wisp/data/sources/metadata/metadata_manager.dart';
+import 'package:wisp/data/sources/auth/auth_source_manager.dart';
+import 'package:wisp/data/sources/auth/js_auth_source.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/settings/views/providers_marketplace_view.dart';
 
 class SettingsContent extends StatelessWidget {
-  final Widget Function(BuildContext, MetadataProvider, String, IconData, Color)
+  final Widget Function(BuildContext, JsAuthSource, String, IconData, Color)
   buildProviderCard;
   final Widget Function(BuildContext) buildCacheSettingsCard;
   final Widget Function() buildStylePreferenceRow;
@@ -21,7 +22,6 @@ class SettingsContent extends StatelessWidget {
   final Widget Function() buildDebugSection;
   final Widget Function(BuildContext) buildPausedBackgroundWidgetsRow;
   final void Function(String) showSnackBar;
-  final VoidCallback onEditProviderPreferences;
 
   const SettingsContent({
     super.key,
@@ -36,46 +36,37 @@ class SettingsContent extends StatelessWidget {
     required this.buildCreditsSection,
     required this.buildDebugSection,
     required this.showSnackBar,
-    required this.onEditProviderPreferences,
   });
 
   @override
   Widget build(BuildContext context) {
-    final metadataManager = context.watch<MetadataManager>();
-    final providerCards = metadataManager.availableProviders
-        .where((providerInstance) => providerInstance.supportsAuth == true)
-        .map(
-          (providerInstance) => buildProviderCard(
-            context,
-            providerInstance,
-            providerInstance.displayName,
-            Icons.library_music,
-            Theme.of(context).colorScheme.primary,
-          ),
-        )
-        .expand((w) => [w, const SizedBox(height: 16)])
-        .toList();
+    final prefs = context.watch<PreferencesProvider>();
 
-    return ListView(
-      padding: const EdgeInsets.all(24.0),
-      children: [
-        Text(
-          'PROVIDERS',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[600],
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ...providerCards,
-        _buildMarketplaceRow(context),
-        const SizedBox(height: 16),
-        Row(
+    return ListenableBuilder(
+      listenable: AuthSourceManager.instance,
+      builder: (context, _) {
+        final authSources = AuthSourceManager.instance.sources.values.where((auth) {
+          return prefs.isProviderEnabled(auth.id, type: 'auth');
+        }).toList();
+
+        final providerCards = authSources
+            .map(
+              (auth) => buildProviderCard(
+                context,
+                auth,
+                auth.displayName,
+                Icons.library_music,
+                Theme.of(context).colorScheme.primary,
+              ),
+            )
+            .expand((w) => [w, const SizedBox(height: 16)])
+            .toList();
+
+        return ListView(
+          padding: const EdgeInsets.all(24.0),
           children: [
             Text(
-              'PREFERENCES',
+              'ACCOUNTS',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -83,17 +74,18 @@ class SettingsContent extends StatelessWidget {
                 letterSpacing: 1.5,
               ),
             ),
-            const Spacer(),
-            IconButton(
-              tooltip: 'Edit providers',
-              onPressed: onEditProviderPreferences,
-              icon: Icon(
-                Icons.edit_outlined,
-                size: 18,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
+            const SizedBox(height: 16),
+            ...providerCards,
+            _buildMarketplaceRow(context),
+        const SizedBox(height: 16),
+        Text(
+          'PREFERENCES',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[600],
+            letterSpacing: 1.5,
+          ),
         ),
         const SizedBox(height: 16),
         buildStylePreferenceRow(),
@@ -352,6 +344,8 @@ class SettingsContent extends StatelessWidget {
 
         buildCreditsSection(),
       ],
+    );
+      },
     );
   }
 

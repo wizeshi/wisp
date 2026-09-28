@@ -182,12 +182,10 @@ class PlaybackSessionStore {
         (e) => e.toString() == prefs.getString('playback_context_type'),
         orElse: () => PlaybackContextType.unknown,
       );
-      final contextName = prefs.getString('playback_context_name');
       final contextId = prefs.getString('playback_context_id');
-      final contextSource = SongSource.values.firstWhere(
-        (e) => e.toString() == prefs.getString('playback_context_source'),
-        orElse: () => SongSource.spotify,
-      );
+      final contextName = prefs.getString('playback_context_name');
+      final rawSource = prefs.getString('playback_context_source');
+      final contextSource = normalizeSource(rawSource);
 
       PlaybackContext? context;
       if (contextId != null &&

@@ -257,7 +257,7 @@ class ListeningHabitsService extends ChangeNotifier {
       result.add(
         GenericSong(
           id: record.trackId,
-          source: SongSource.spotify,
+          source: 'spotify',
           title: record.title,
           artists: record.artistNames
               .asMap()
@@ -267,7 +267,7 @@ class ListeningHabitsService extends ChangeNotifier {
                   id: record.artistIds.length > e.key
                       ? record.artistIds[e.key]
                       : '',
-                  source: SongSource.spotify,
+                  source: 'spotify',
                   name: e.value,
                   thumbnailUrl: '',
                 ),
@@ -277,7 +277,7 @@ class ListeningHabitsService extends ChangeNotifier {
           album: record.albumName != null
               ? GenericSimpleAlbum(
                   id: record.albumId ?? '',
-                  source: SongSource.spotify,
+                  source: 'spotify',
                   title: record.albumName!,
                   thumbnailUrl: record.thumbnailUrl ?? '',
                   artists: const [],

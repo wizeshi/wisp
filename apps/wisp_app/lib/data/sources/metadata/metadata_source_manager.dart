@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/models/metadata_capability.dart';
+import 'package:wisp/data/sources/providers/provider_dependency_validator.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'js_metadata_source.dart';
 
@@ -113,12 +115,32 @@ class MetadataSourceManager extends ChangeNotifier {
             final script = await scriptFile.readAsString();
             final deps =
                 (manifestJson['dependencies'] as List?)?.cast<String>() ?? [];
+            if (deps.isNotEmpty) {
+              final unsatisfied =
+                  await ProviderDependencyValidator.checkDependenciesAsync(deps);
+              if (unsatisfied.isNotEmpty) {
+                logger.w(
+                  '[MetadataSourceManager] Skipping provider "$id" due to unsatisfied dependencies: '
+                  '${unsatisfied.map((u) => u.message).join('; ')}',
+                );
+                continue;
+              }
+            }
             final hasAuthDep = deps.any(
               (d) => d.startsWith('auth/') || d == 'auth',
             );
             final supportsAuth =
                 manifestJson['auth'] as bool? ??
                 hasAuthDep || (manifestJson['service'] != null);
+
+            final rawCaps =
+                (manifestJson['capabilities'] as List?)?.cast<String>() ?? [];
+            final Set<MetadataCapability>? parsedCaps = rawCaps.isNotEmpty
+                ? rawCaps
+                    .map((c) => MetadataCapability.fromString(c))
+                    .whereType<MetadataCapability>()
+                    .toSet()
+                : null;
 
             // Installed providers (user support dir) are added first in searchDirs.
             // Don't let a dev-workspace dir override an already-registered source,
@@ -139,6 +161,7 @@ class MetadataSourceManager extends ChangeNotifier {
               iconURL: iconURL,
               logoURL: logoURL,
               supportsAuth: supportsAuth,
+              capabilities: parsedCaps,
               customScript: script,
               scriptPath: scriptFile.path,
             );

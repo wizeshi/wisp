@@ -374,7 +374,7 @@ extension _ListDetailContextMenus on _SharedListDetailViewState {
         label: 'Share',
         icon: Icons.share,
         onSelected: (_) async {
-          await EntityContextMenus.copySpotifyShareUrl(
+          await EntityContextMenus.copyShareUrl(
             context,
             source: song.source,
             type: 'track',
@@ -484,34 +484,16 @@ extension _ListDetailContextMenus on _SharedListDetailViewState {
   }
 
   void _showShareDialog() {
-    final isSpotify =
-        _playlist?.source == SongSource.spotify ||
-        _playlist?.source == SongSource.spotifyInternal ||
-        _album?.source == SongSource.spotify ||
-        _album?.source == SongSource.spotifyInternal ||
-        widget.id.startsWith('spotify:');
-
-    if (isSpotify) {
-      final typePath = widget.type == SharedListType.playlist
-          ? 'playlist'
-          : 'album';
-      final id = widget.id.split(':').last;
-      final url = 'https://open.spotify.com/$typePath/$id';
-
-      Clipboard.setData(ClipboardData(text: url)).then((_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Link copied to clipboard')),
-          );
-        }
-      });
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Share not implemented for this source yet'),
-      ),
+    final effectiveSource =
+        _playlist?.source ?? _album?.source ?? 'spotify';
+    final typePath = widget.type == SharedListType.playlist
+        ? 'playlist'
+        : 'album';
+    EntityContextMenus.copyShareUrl(
+      context,
+      source: effectiveSource,
+      type: typePath,
+      id: widget.id,
     );
   }
 

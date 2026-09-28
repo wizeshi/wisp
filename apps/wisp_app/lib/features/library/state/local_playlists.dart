@@ -109,12 +109,12 @@ class LocalPlaylistState extends ChangeNotifier {
         : '';
     return GenericPlaylist(
       id: playlist.id,
-      source: playlist.linkedSource ?? SongSource.local,
+      source: playlist.linkedSource ?? 'local',
       title: playlist.title,
       thumbnailUrl: playlist.thumbnailPath ?? thumbnailUrl,
       author: GenericSimpleUser(
         id: playlist.authorName.toLowerCase().replaceAll(' ', '_'),
-        source: playlist.linkedSource ?? SongSource.local,
+        source: playlist.linkedSource ?? 'local',
         displayName: playlist.authorName,
       ),
       songs: playlist.tracks,
@@ -263,7 +263,7 @@ class LocalPlaylistState extends ChangeNotifier {
 
   Future<void> linkToProvider({
     required String id,
-    required SongSource provider,
+    required String provider,
     required String providerId,
   }) async {
     final index = _playlists.indexWhere((p) => p.id == id);
@@ -346,11 +346,11 @@ class LocalPlaylistState extends ChangeNotifier {
     if (index < 0) return;
     final playlist = _playlists[index];
     final existingKeys = playlist.tracks
-        .map((item) => '${item.source.name}:${item.id}')
+        .map((item) => '${item.source}:${item.id}')
         .toSet();
     final newTracks = <PlaylistItem>[];
     for (final item in providerTracks) {
-      final key = '${item.source.name}:${item.id}';
+      final key = '${item.source}:${item.id}';
       if (!existingKeys.contains(key)) {
         newTracks.add(item);
       }

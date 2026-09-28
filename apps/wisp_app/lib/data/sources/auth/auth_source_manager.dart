@@ -62,6 +62,17 @@ class AuthSourceManager extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>?> getTokens(
+    String serviceOrId, {
+    bool forceRefresh = false,
+  }) async {
+    final auth = getAuthSource(serviceOrId);
+    if (auth != null) {
+      return await auth.getTokens(forceRefresh: forceRefresh);
+    }
+    return null;
+  }
+
   Future<void> initialize() {
     return _initFuture ??= _doInitialize();
   }

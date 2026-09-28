@@ -775,7 +775,7 @@ class _SearchViewState extends State<SearchView> {
     final visibleSongs = songs.take(maxItems).toList();
     final searchSource = visibleSongs.isNotEmpty
         ? visibleSongs.first.source
-        : SongSource.spotify;
+        : 'spotify';
     final searchContext = PlaybackContext(
       type: PlaybackContextType.searchResults,
       name: _lastQuery,

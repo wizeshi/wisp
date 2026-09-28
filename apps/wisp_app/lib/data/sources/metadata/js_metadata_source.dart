@@ -32,6 +32,7 @@ class JsMetadataSource extends MetadataProvider {
   final String _logoURL;
   final String _iconURL;
   final bool? _supportsAuth;
+  final Set<MetadataCapability> _capabilities;
 
   final MetadataCacheStore _cache = MetadataCacheStore.instance;
   final ServiceSessionManager _sessionManager = ServiceSessionManager.instance;
@@ -67,6 +68,9 @@ class JsMetadataSource extends MetadataProvider {
 
   @override
   bool get supportsAuth => _supportsAuth ?? true;
+
+  @override
+  Set<MetadataCapability> get capabilities => _capabilities;
 
   @override
   bool get isAuthenticated => _auth;
@@ -128,6 +132,7 @@ class JsMetadataSource extends MetadataProvider {
     String? logoURL,
     String? iconURL,
     bool? supportsAuth,
+    Set<MetadataCapability>? capabilities,
     this.customScript,
     this.scriptPath,
   }) : serviceId = serviceId ?? providerId,
@@ -137,7 +142,11 @@ class JsMetadataSource extends MetadataProvider {
            description ?? 'Modular metadata provider powered by QuickJS.',
        _logoURL = logoURL ?? '',
        _iconURL = iconURL ?? '',
-       _supportsAuth = supportsAuth ?? true {
+       _supportsAuth = supportsAuth ?? true,
+       _capabilities = capabilities ??
+           (providerId == 'spotify'
+               ? MetadataCapability.values.toSet()
+               : const {MetadataCapability.search}) {
     _sessionManager.addListener(this.serviceId, (newSession) {
       _updateStateFromSession(newSession);
     });
@@ -243,9 +252,6 @@ class JsMetadataSource extends MetadataProvider {
             var fn = globalThis[method];
             if (!fn && globalThis.__wisp_metadata_provider) {
               fn = globalThis.__wisp_metadata_provider[method];
-            }
-            if (!fn && globalThis.SpotifyMetadataProvider) {
-              fn = globalThis.SpotifyMetadataProvider[method];
             }
             if (typeof fn !== 'function') {
               sendMessage('wisp_metadata_result', JSON.stringify({
@@ -773,31 +779,43 @@ class JsMetadataSource extends MetadataProvider {
     );
   }
 
+  final Map<String, String?> _canvasMemoryCache = {};
+
   @override
   Future<String?> getCanvasUrl(String trackId) async {
     final cleanId = _cleanId(trackId);
+    if (_canvasMemoryCache.containsKey(cleanId)) {
+      return _canvasMemoryCache[cleanId];
+    }
+
     final cached = await _cache.readEntry(
       provider: providerId,
       type: 'canvas',
       id: cleanId,
     );
     if (cached != null && !cached.isExpired) {
-      return cached.payload['url'] as String?;
+      final raw = cached.payload['url'] as String?;
+      final url = (raw != null && raw.isNotEmpty) ? raw : null;
+      _canvasMemoryCache[cleanId] = url;
+      return url;
     }
 
     try {
       final res = await _invoke('getCanvasUrl', [cleanId]);
       final url = res as String?;
-      if (url != null && url.isNotEmpty) {
-        await _cache.writeEntry(
-          provider: providerId,
-          type: 'canvas',
-          id: cleanId,
-          payload: {'url': url},
-          ttl: const Duration(days: 7),
-        );
+      final resolved = (url != null && url.isNotEmpty) ? url : null;
+      _canvasMemoryCache[cleanId] = resolved;
+      if (_canvasMemoryCache.length > 200) {
+        _canvasMemoryCache.remove(_canvasMemoryCache.keys.first);
       }
-      return url;
+      await _cache.writeEntry(
+        provider: providerId,
+        type: 'canvas',
+        id: cleanId,
+        payload: {'url': resolved ?? ''},
+        ttl: const Duration(days: 7),
+      );
+      return resolved;
     } catch (_) {
       return null;
     }

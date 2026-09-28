@@ -125,9 +125,7 @@ class PlaylistFolderModals {
       return;
     }
     String? linkedId;
-    final activeSource = metadataManager.activeCatalogProvider != null
-        ? SongSource(metadataManager.activeCatalogProvider!.providerId)
-        : SongSource.spotifyInternal;
+    final activeSource = metadataManager.activeCatalogProvider?.providerId ?? 'spotify';
     try {
       linkedId = await metadataManager.createPlaylist(
         name: localPlaylist.title,

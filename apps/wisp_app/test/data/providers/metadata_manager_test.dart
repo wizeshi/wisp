@@ -37,7 +37,7 @@ class MockMetadataProvider extends MetadataProvider {
       tracks: [
         GenericSong(
           id: '$_id:track:1',
-          source: SongSource.spotify,
+          source: 'spotify',
           title: 'Track from $_id for "$query"',
           artists: const [],
           thumbnailUrl: '',
@@ -59,7 +59,7 @@ class MockMetadataProvider extends MetadataProvider {
   }) async {
     return GenericSong(
       id: trackId,
-      source: SongSource.spotify,
+      source: 'spotify',
       title: 'Info from $_id for $trackId',
       artists: const [],
       thumbnailUrl: '',

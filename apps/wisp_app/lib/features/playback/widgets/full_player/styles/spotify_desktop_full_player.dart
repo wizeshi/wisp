@@ -223,7 +223,10 @@ class _SpotifyDesktopFullScreenPlayerState
         final metadataManager = context.read<MetadataManager>();
         final canUseCanvas =
             useCanvas &&
-            currentTrack.source != SongSource.local;
+            metadataManager.hasCapability(
+              MetadataCapability.canvas,
+              source: currentTrack.source,
+            );
 
         return ChangeNotifierProvider<_SpotifyDesktopFullScreenState>.value(
           value: _desktopState,

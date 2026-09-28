@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'auth_webview_dialog.dart';
 import 'crypto_bridge_utils.dart';
@@ -66,23 +67,62 @@ class JsProviderBridge {
     runtime.onMessage('wisp_fetch', (dynamic args) {
       unawaited(() async {
         int? cbId;
+        String? url;
+        String descriptor = '';
         try {
           final map = args is String
               ? jsonDecode(args) as Map<String, dynamic>
               : (args as Map).cast<String, dynamic>();
           cbId = map['cbId'] as int?;
-          final url = map['url'] as String?;
+          url = map['url'] as String?;
           final method = (map['method'] as String?)?.toUpperCase() ?? 'GET';
           final headers =
               (map['headers'] as Map?)?.cast<String, String>() ?? {};
           final body = map['body'] as String?;
           final bodyBase64 = map['bodyBase64'] as String?;
+          final label = map['label'] as String?;
 
           if (url == null || cbId == null) {
             throw ArgumentError('url and cbId are required for wisp_fetch');
           }
 
-          logger.d('[JS/$providerName HTTP] -> $method $url');
+          String? operationName;
+          if (body != null && body.isNotEmpty) {
+            try {
+              final trimmed = body.trimLeft();
+              if (trimmed.startsWith('{')) {
+                final decoded = jsonDecode(body);
+                if (decoded is Map) {
+                  if (decoded['operationName'] != null) {
+                    operationName = decoded['operationName'].toString();
+                  } else if (decoded['query'] is String) {
+                    final q = (decoded['query'] as String).trim();
+                    final match = RegExp(
+                      r'^(query|mutation|subscription)\s+([A-Za-z0-9_]+)',
+                    ).firstMatch(q);
+                    if (match != null) {
+                      operationName = '${match.group(1)} ${match.group(2)}';
+                    }
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+          if (operationName == null) {
+            final uri = Uri.tryParse(url);
+            final opParam = uri?.queryParameters['operationName'];
+            if (opParam != null && opParam.isNotEmpty) {
+              operationName = opParam;
+            }
+          }
+
+          if (operationName != null && operationName.isNotEmpty) {
+            descriptor = ' [$operationName]';
+          } else if (label != null && label.isNotEmpty) {
+            descriptor = ' [$label]';
+          }
+
+          logger.d('[JS/$providerName HTTP] -> $method $url$descriptor');
           final uri = Uri.parse(url);
           final client = IOClient(CryptoBridgeUtils.createBridgeHttpClient() as dynamic);
           http.Response response;
@@ -97,7 +137,7 @@ class JsProviderBridge {
             final streamedResponse = await client.send(request);
             response = await http.Response.fromStream(streamedResponse);
             logger.d(
-              '[JS/$providerName HTTP] <- $method $url: status=${response.statusCode}',
+              '[JS/$providerName HTTP] <- $method $url$descriptor: status=${response.statusCode}',
             );
           } finally {
             client.close();
@@ -110,7 +150,7 @@ class JsProviderBridge {
             'headers': response.headers,
           });
         } catch (e) {
-          logger.e('[JS/$providerName HTTP] Error requesting: $e');
+          logger.e('[JS/$providerName HTTP] Error requesting $url$descriptor: $e');
           if (cbId != null) {
             resolveJsCallback(runtime, cbId, {
               'status': 500,
@@ -482,6 +522,104 @@ class JsProviderBridge {
       return '';
     });
 
+    // 7. Auth Delegation Bridges
+    runtime.onMessage('wisp_auth_get_tokens', (dynamic args) {
+      unawaited(() async {
+        int? cbId;
+        try {
+          final map = args is String
+              ? jsonDecode(args) as Map<String, dynamic>
+              : (args as Map).cast<String, dynamic>();
+          cbId = map['cbId'] as int?;
+          final sId = map['serviceId'] as String? ?? effectiveServiceId;
+          final forceRefresh = map['forceRefresh'] == true;
+
+          final tokens = await AuthSourceManager.instance.getTokens(
+            sId,
+            forceRefresh: forceRefresh,
+          );
+          if (cbId != null) {
+            if (tokens != null) {
+              resolveJsCallback(runtime, cbId, {'tokens': tokens});
+            } else {
+              final session =
+                  await ServiceSessionManager.instance.getSession(sId);
+              if (session != null && session['accessToken'] != null) {
+                resolveJsCallback(runtime, cbId, {'tokens': session});
+              } else {
+                resolveJsCallback(runtime, cbId, {
+                  'tokens': null,
+                  'error': 'Failed to obtain tokens for $sId',
+                });
+              }
+            }
+          }
+        } catch (e) {
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {
+              'tokens': null,
+              'error': e.toString(),
+            });
+          }
+        }
+      }());
+      return '';
+    });
+
+    runtime.onMessage('wisp_auth_login', (dynamic args) {
+      unawaited(() async {
+        int? cbId;
+        try {
+          final map = args is String
+              ? jsonDecode(args) as Map<String, dynamic>
+              : (args as Map).cast<String, dynamic>();
+          cbId = map['cbId'] as int?;
+          final sId = map['serviceId'] as String? ?? effectiveServiceId;
+          await AuthSourceManager.instance.login(sId);
+          final session = await ServiceSessionManager.instance.getSession(sId);
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {
+              'success': session != null,
+              'session': session,
+            });
+          }
+        } catch (e) {
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {
+              'success': false,
+              'error': e.toString(),
+            });
+          }
+        }
+      }());
+      return '';
+    });
+
+    runtime.onMessage('wisp_auth_logout', (dynamic args) {
+      unawaited(() async {
+        int? cbId;
+        try {
+          final map = args is String
+              ? jsonDecode(args) as Map<String, dynamic>
+              : (args as Map).cast<String, dynamic>();
+          cbId = map['cbId'] as int?;
+          final sId = map['serviceId'] as String? ?? effectiveServiceId;
+          await AuthSourceManager.instance.logout(sId);
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {'success': true});
+          }
+        } catch (e) {
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {
+              'success': false,
+              'error': e.toString(),
+            });
+          }
+        }
+      }());
+      return '';
+    });
+
     // 8. Legacy Spotify Token Bridge (for backwards compatibility)
     runtime.onMessage('wisp_get_spotify_tokens', (dynamic args) {
       unawaited(() async {
@@ -491,17 +629,32 @@ class JsProviderBridge {
               ? jsonDecode(args) as Map<String, dynamic>
               : (args as Map).cast<String, dynamic>();
           cbId = map['cbId'] as int?;
-          final session = await ServiceSessionManager.instance.getSession('spotify');
+          final forceRefresh = map['forceRefresh'] == true;
+          final tokens = await AuthSourceManager.instance.getTokens(
+            'spotify',
+            forceRefresh: forceRefresh,
+          );
           if (cbId != null) {
-            final access = session?['accessToken'] as String?;
-            final client = session?['clientToken'] as String?;
-            if (access != null && access.isNotEmpty) {
+            if (tokens != null && tokens['accessToken'] != null) {
               resolveJsCallback(runtime, cbId, {
-                'accessToken': access,
-                'clientToken': client ?? '',
+                'accessToken': tokens['accessToken'],
+                'clientToken': tokens['clientToken'] ?? '',
               });
             } else {
-              resolveJsCallback(runtime, cbId, {'error': 'No tokens available'});
+              final session =
+                  await ServiceSessionManager.instance.getSession('spotify');
+              final access = session?['accessToken'] as String?;
+              final client = session?['clientToken'] as String?;
+              if (access != null && access.isNotEmpty) {
+                resolveJsCallback(runtime, cbId, {
+                  'accessToken': access,
+                  'clientToken': client ?? '',
+                });
+              } else {
+                resolveJsCallback(runtime, cbId, {
+                  'error': 'No tokens available',
+                });
+              }
             }
           }
         } catch (e) {
@@ -633,7 +786,8 @@ class JsProviderBridge {
               method: (options && options.method) || 'GET',
               headers: (options && options.headers) || {},
               body: body,
-              bodyBase64: bodyBase64
+              bodyBase64: bodyBase64,
+              label: (options && options.label) || null
             };
             sendMessage('wisp_fetch', JSON.stringify(payload));
           });
@@ -689,6 +843,12 @@ class JsProviderBridge {
               };
               sendMessage('wisp_service_refresh_lock', JSON.stringify({ serviceId: targetService, cbId: cbId }));
             });
+          },
+
+          getTokens: function(serviceId, options) {
+            var targetService = (typeof serviceId === 'string' && options !== undefined) ? serviceId : '$effectiveServiceId';
+            var opts = (typeof serviceId === 'object' && options === undefined) ? serviceId : (options || {});
+            return globalThis.wisp.auth.getTokens(Object.assign({ serviceId: targetService }, opts));
           }
         },
 
@@ -791,6 +951,44 @@ class JsProviderBridge {
                 title: options.title || 'Login',
                 targetCookies: options.captureCookies || options.targetCookies || [],
                 redirectUrlPrefix: options.redirectUrlPrefix || null
+              }));
+            });
+          },
+          getTokens: function(options) {
+            return new Promise(function(resolve) {
+              var cbId = ++globalThis.__wisp_callback_counter;
+              globalThis.__wisp_pending_callbacks[cbId] = function(res) {
+                if (res && res.tokens) resolve(res.tokens);
+                else resolve(null);
+              };
+              sendMessage('wisp_auth_get_tokens', JSON.stringify({
+                serviceId: (options && options.serviceId) || '$effectiveServiceId',
+                forceRefresh: Boolean(options && options.forceRefresh),
+                cbId: cbId
+              }));
+            });
+          },
+          login: function(serviceId) {
+            return new Promise(function(resolve) {
+              var cbId = ++globalThis.__wisp_callback_counter;
+              globalThis.__wisp_pending_callbacks[cbId] = function(res) {
+                resolve(res || null);
+              };
+              sendMessage('wisp_auth_login', JSON.stringify({
+                serviceId: serviceId || '$effectiveServiceId',
+                cbId: cbId
+              }));
+            });
+          },
+          logout: function(serviceId) {
+            return new Promise(function(resolve) {
+              var cbId = ++globalThis.__wisp_callback_counter;
+              globalThis.__wisp_pending_callbacks[cbId] = function(res) {
+                resolve(res || null);
+              };
+              sendMessage('wisp_auth_logout', JSON.stringify({
+                serviceId: serviceId || '$effectiveServiceId',
+                cbId: cbId
               }));
             });
           }

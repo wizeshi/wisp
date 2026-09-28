@@ -11,7 +11,6 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
@@ -605,7 +604,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   Future<GenericPlaylist> _fetchPlaylistWithTracks(
     MetadataManager metadataManager,
     String playlistId, {
-    SongSource? source,
+    String? source,
   }) async {
     const fetchLimit = 200;
     final playlist = await metadataManager.getPlaylistInfo(
@@ -657,12 +656,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
     return GenericPlaylist(
       id: likedSongsPlaylistId,
-      source: SongSource.spotifyInternal,
+      source: 'spotify',
       title: likedSongsTitle,
       thumbnailUrl: '',
       author: GenericSimpleUser(
         id: 'liked_songs_user',
-        source: SongSource.spotifyInternal,
+        source: 'spotify',
         displayName: displayName ?? 'You',
       ),
       songs: items,
@@ -847,8 +846,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   String _getSource(_ListItem item) {
-    if (item is GenericSong) return item.source.name;
-    if (item is PlaylistItem) return item.source.name;
+    if (item is GenericSong) return item.source;
+    if (item is PlaylistItem) return item.source;
     return '';
   }
 
@@ -874,7 +873,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
     return GenericSong(
       id: '',
-      source: SongSource.spotify,
+      source: 'spotify',
       title: '',
       artists: [],
       thumbnailUrl: '',
@@ -925,7 +924,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             : PlaybackContextType.album,
         id: contextID,
         name: contextName,
-        source: contextSource ?? SongSource.spotifyInternal,
+        source: contextSource ?? 'spotify',
       ),
       shuffleEnabled: player.shuffleEnabled,
       originalQueue: player.shuffleEnabled ? originalQueue : null,
@@ -977,7 +976,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             : PlaybackContextType.album,
         id: contextID,
         name: contextName,
-        source: contextSource ?? SongSource.spotifyInternal,
+        source: contextSource ?? 'spotify',
       ),
       shuffleEnabled: _preShuffleEnabled || shouldShuffle,
       originalQueue: (_preShuffleEnabled || shouldShuffle)
@@ -998,7 +997,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   /// The [PlaybackContext] this view's own queue is (or would be) built
-  /// with â€” "this playlist" / "this album". Passed to every [TrackRow] so
+  /// with — "this playlist" / "this album". Passed to every [TrackRow] so
   /// a row only shows itself as current/playing when the queue actually
   /// loaded in the player is *this* one, not some other list that happens
   /// to contain the same song. Mirrors the context built in
@@ -1017,7 +1016,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           : PlaybackContextType.album,
       id: widget.id,
       name: contextName,
-      source: contextSource ?? SongSource.spotifyInternal,
+      source: contextSource ?? 'spotify',
     );
   }
 
@@ -1142,19 +1141,19 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     List<GenericSong> tracks, {
     required String contextType,
     required String contextName,
-    SongSource? contextSource,
+    String? contextSource,
   }) async {
     if (tracks.isEmpty) return;
 
     final player = context.read<global_audio_player.WispAudioHandler>();
     final mergedQueue = List<GenericSong>.from(player.queueTracks);
     final seen = mergedQueue
-        .map((track) => '${track.source.name}:${track.id}')
+        .map((track) => '${track.source}:${track.id}')
         .toSet();
 
     var addedCount = 0;
     for (final track in tracks) {
-      final key = '${track.source.name}:${track.id}';
+      final key = '${track.source}:${track.id}';
       if (seen.add(key)) {
         mergedQueue.add(track);
         addedCount += 1;
@@ -1189,7 +1188,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             : PlaybackContextType.album,
         id: widget.id,
         name: contextName,
-        source: contextSource ?? SongSource.spotifyInternal,
+        source: contextSource ?? 'spotify',
       ),
       shuffleEnabled: player.shuffleEnabled,
       originalQueue: player.shuffleEnabled
@@ -1207,15 +1206,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
-  IconData _sourceIcon(SongSource source) {
-    switch (source) {
-      case SongSource.youtube:
+  IconData _sourceIcon(String source) {
+    switch (source.toLowerCase()) {
+      case 'youtube':
         return Icons.ondemand_video;
-      case SongSource.soundcloud:
+      case 'soundcloud':
         return Icons.cloud;
-      case SongSource.spotify:
-      case SongSource.spotifyInternal:
-      case SongSource.local:
+      case 'spotify':
+      case 'local':
       default:
         return Icons.music_note;
     }

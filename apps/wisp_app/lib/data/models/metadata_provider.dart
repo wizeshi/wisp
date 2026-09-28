@@ -14,6 +14,12 @@ abstract class MetadataProvider extends ChangeNotifier {
   String get iconURL => 'about:blank';
   String get providerId => name.toLowerCase();
 
+  /// Set of capabilities supported by this metadata provider.
+  Set<MetadataCapability> get capabilities => const {MetadataCapability.search};
+
+  /// Check whether this metadata provider supports a given capability.
+  bool supports(MetadataCapability capability) => capabilities.contains(capability);
+
   // State
   final _isAuthenticated = false;
   final _isLoading = false;

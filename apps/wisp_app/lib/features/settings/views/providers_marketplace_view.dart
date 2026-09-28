@@ -4,9 +4,11 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/sources/providers/provider_package_model.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/data/sources/providers/provider_dependency_validator.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
 
 class ProvidersMarketplaceView extends StatefulWidget {
@@ -112,12 +114,28 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
   }
 
   Future<void> _uninstall(ProviderPackage pkg) async {
+    final prefs = context.read<PreferencesProvider>();
+    final activeDependents =
+        await ProviderDependencyValidator.getActiveDependentsOf(
+      type: pkg.type,
+      id: pkg.id,
+      preferences: prefs,
+    );
+
+    if (!mounted) return;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF242424),
         title: Text('Uninstall ${pkg.name}?'),
-        content: Text('Are you sure you want to remove ${pkg.name}?.'),
+        content: Text(
+          activeDependents.isNotEmpty
+              ? 'Warning: The following active providers depend on ${pkg.name} and will stop functioning:\n\n'
+                  '${activeDependents.map((d) => '• ${d.name} (${d.type})').join('\n')}\n\n'
+                  'Are you sure you want to remove ${pkg.name}?'
+              : 'Are you sure you want to remove ${pkg.name}?',
+        ),
         actions: [
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red[700]),
@@ -621,6 +639,52 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                       value: isEnabled,
                       activeThumbColor: primaryColor,
                       onChanged: (val) async {
+                        if (!val) {
+                          final activeDependents =
+                              await ProviderDependencyValidator
+                                  .getActiveDependentsOf(
+                            type: pkg.type,
+                            id: pkg.id,
+                            preferences: prefs,
+                          );
+                          if (activeDependents.isNotEmpty && mounted) {
+                            final proceed = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: const Color(0xFF242424),
+                                title: Text('Disable ${pkg.name}?'),
+                                content: Text(
+                                  'The following active providers depend on ${pkg.name} and will also be disabled:\n\n'
+                                  '${activeDependents.map((d) => '• ${d.name} (${d.type})').join('\n')}\n\n'
+                                  'Do you want to proceed?',
+                                ),
+                                actions: [
+                                  FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Colors.red[700],
+                                    ),
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(true),
+                                    child: const Text('Disable All'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (proceed != true) return;
+                            for (final dep in activeDependents) {
+                              await prefs.setProviderEnabled(
+                                dep.id,
+                                false,
+                                type: dep.type,
+                              );
+                            }
+                          }
+                        }
                         await prefs.setProviderEnabled(
                           pkg.id,
                           val,
@@ -789,15 +853,64 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
     final prefs = context.watch<PreferencesProvider>();
     final customOrder = prefs.getProviderOrder(type);
 
-    final installedForType = widget.packages.where((p) => p.type == type).toList();
-    if (installedForType.isEmpty) {
+    final List<_ProviderPriorityItem> items = [];
+    final seenIds = <String>{};
+
+    for (final p in widget.packages.where((p) => p.type == type)) {
+      final id = p.id.toLowerCase();
+      seenIds.add(id);
+      items.add(_ProviderPriorityItem(
+        id: id,
+        name: p.name,
+        type: p.type,
+        priority: p.priority,
+        uniqueKey: p.uniqueKey,
+      ));
+    }
+
+    if (type == 'metadata') {
+      try {
+        final metaManager = context.watch<MetadataManager>();
+        for (final provider in metaManager.allProviders) {
+          final id = provider.providerId.toLowerCase();
+          if (!seenIds.contains(id)) {
+            seenIds.add(id);
+            items.add(_ProviderPriorityItem(
+              id: id,
+              name: provider.displayName.isNotEmpty
+                  ? provider.displayName
+                  : provider.name,
+              type: 'metadata',
+              priority: 50,
+              uniqueKey: 'metadata/$id',
+            ));
+          }
+        }
+      } catch (_) {}
+
+      if (!seenIds.contains('youtube')) {
+        seenIds.add('youtube');
+        items.add(const _ProviderPriorityItem(
+          id: 'youtube',
+          name: 'YouTube',
+          type: 'metadata',
+          priority: 50,
+          uniqueKey: 'metadata/youtube',
+        ));
+      }
+    }
+
+    if (items.isEmpty) {
       return Center(
-        child: Text('No installed $type providers found.', style: const TextStyle(color: Colors.grey)),
+        child: Text(
+          'No installed $type providers found.',
+          style: const TextStyle(color: Colors.grey),
+        ),
       );
     }
 
     // Sort according to customOrder, otherwise manifest priority descending
-    installedForType.sort((a, b) {
+    items.sort((a, b) {
       if (customOrder.isNotEmpty) {
         final aIdx = customOrder.indexOf(a.id.toLowerCase());
         final bIdx = customOrder.indexOf(b.id.toLowerCase());
@@ -813,43 +926,53 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
         Expanded(
           child: ReorderableListView.builder(
             buildDefaultDragHandles: false,
-            itemCount: installedForType.length,
+            itemCount: items.length,
             onReorder: (oldIndex, newIndex) {
               if (newIndex > oldIndex) newIndex -= 1;
-              final list = List<ProviderPackage>.from(installedForType);
+              final list = List<_ProviderPriorityItem>.from(items);
               final moved = list.removeAt(oldIndex);
               list.insert(newIndex, moved);
               final newOrder = list.map((p) => p.id.toLowerCase()).toList();
               prefs.setProviderOrder(type, newOrder);
             },
             itemBuilder: (context, index) {
-              final pkg = installedForType[index];
+              final item = items[index];
               final isActive = index == 0;
               return Container(
-                key: ValueKey(pkg.uniqueKey),
+                key: ValueKey(item.uniqueKey),
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFF282828),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isActive ? Colors.green.withValues(alpha: 0.6) : Colors.white10,
+                    color: isActive
+                        ? Colors.green.withValues(alpha: 0.6)
+                        : Colors.white10,
                   ),
                 ),
                 child: ListTile(
                   dense: true,
                   leading: ProviderIcon(
-                    providerId: pkg.id,
-                    type: pkg.type,
+                    providerId: item.id,
+                    type: item.type,
                     size: 22,
-                    fallbackIcon: type == 'lyrics' ? Icons.mic : Icons.extension,
+                    fallbackIcon:
+                        type == 'lyrics' ? Icons.mic : Icons.extension,
                   ),
-                  title: Text(pkg.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  title: Text(
+                    item.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   subtitle: Text(
                     isActive ? 'Active / Primary' : 'Fallback #$index',
                     style: TextStyle(
                       fontSize: 11,
                       color: isActive ? Colors.greenAccent : Colors.grey,
-                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                      fontWeight:
+                          isActive ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                   trailing: ReorderableDragStartListener(
@@ -869,12 +992,31 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               icon: const Icon(Icons.restore, size: 14),
-              label: const Text('Reset to Defaults', style: TextStyle(fontSize: 12)),
+              label: const Text(
+                'Reset to Defaults',
+                style: TextStyle(fontSize: 12),
+              ),
               onPressed: () => prefs.resetProviderOrder(type),
             ),
           ),
       ],
     );
   }
+}
+
+class _ProviderPriorityItem {
+  final String id;
+  final String name;
+  final String type;
+  final int priority;
+  final String uniqueKey;
+
+  const _ProviderPriorityItem({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.priority,
+    required this.uniqueKey,
+  });
 }
 

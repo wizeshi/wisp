@@ -7,9 +7,14 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
     if (widget.type != SharedListType.playlist) return false;
     if (isLikedSongsPlaylistId(widget.id)) return false;
     if (_playlist == null) return false;
-    if (_playlist!.source == SongSource.local) return false;
+    if (_playlist!.source == 'local') return false;
     final localPlaylists = context.read<LocalPlaylistState>();
     if (localPlaylists.isLocalPlaylistId(widget.id)) return false;
+    final supportsRecs = _metadataManager.hasCapability(
+      MetadataCapability.recommendations,
+      source: _playlist!.source,
+    );
+    if (!supportsRecs) return false;
     return _playlist!.id.trim().isNotEmpty;
   }
 
@@ -164,7 +169,7 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
         type: PlaybackContextType.playlist,
         id: playlist?.id ?? widget.id,
         name: playlist?.title ?? '',
-        source: playlist?.source ?? SongSource.spotifyInternal,
+        source: playlist?.source ?? 'spotify',
       ),
       shuffleEnabled: false,
     );

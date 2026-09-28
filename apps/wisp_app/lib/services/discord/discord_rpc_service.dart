@@ -46,21 +46,20 @@ class DiscordRpcService {
   String getWispUrlForElement(String type, Map<String, dynamic> element) {
     // check if element has source and id properties
     if (element.containsKey('source') && element.containsKey('id')) {
-      final parsedSource = SongSource.fromJson(element['source']);
+      final parsedSource = normalizeSource(element['source']);
       final parsedID = element['id'] as String;
 
       String source = '';
 
-      switch (parsedSource) {
-        case SongSource.spotify:
-        case SongSource.spotifyInternal:
+      switch (parsedSource.toLowerCase()) {
+        case 'spotify':
           source = 'spotify';
           break;
-        case SongSource.youtube:
+        case 'youtube':
           source = 'youtube';
           break;
         default:
-          throw ArgumentError('Unsupported source: $parsedSource');
+          source = parsedSource;
       }
 
       final id = parsedID.startsWith("spotify:")
@@ -106,12 +105,11 @@ class DiscordRpcService {
 
     String trackURL = '';
 
-    switch (track.source) {
-      case SongSource.spotify:
-      case SongSource.spotifyInternal:
+    switch (track.source.toLowerCase()) {
+      case 'spotify':
         trackURL = 'https://open.spotify.com/track/$trackID';
         break;
-      case SongSource.youtube:
+      case 'youtube':
         trackURL = 'https://www.youtube.com/watch?v=$trackID';
         break;
       case _:
@@ -119,12 +117,11 @@ class DiscordRpcService {
     }
 
     String trackSource = "";
-    switch (track.source) {
-      case SongSource.spotify:
-      case SongSource.spotifyInternal:
+    switch (track.source.toLowerCase()) {
+      case 'spotify':
         trackSource = "Spotify";
         break;
-      case SongSource.youtube:
+      case 'youtube':
         trackSource = "YouTube";
         break;
       case _:
@@ -154,7 +151,7 @@ class DiscordRpcService {
       } else {
         // It's a playlist
         final playlistURL = getWispUrlForElement("playlist", {
-          'source': track.source.toJson(),
+          'source': track.source,
           'id': contextId,
         });
         playlistButton = RPCButton(label: 'View Playlist', url: playlistURL);

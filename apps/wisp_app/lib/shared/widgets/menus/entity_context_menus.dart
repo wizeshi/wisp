@@ -17,37 +17,50 @@ import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
-import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
+import 'package:wisp/core/utils/song_source_icon.dart';
 import 'adaptive_context_menu.dart';
 import 'playlist_folder_modals.dart';
 
 class EntityContextMenus {
-  static bool _isSpotifySource(SongSource source) {
-    return source == SongSource.spotify || source == SongSource.spotifyInternal;
-  }
-
   static String _idWithoutPrefix(String id) {
     if (!id.contains(':')) return id;
     return id.split(':').last;
   }
 
-  static Future<void> copySpotifyShareUrl(
+  static String? getShareUrl({
+    required String source,
+    required String type,
+    required String id,
+  }) {
+    final cleanId = _idWithoutPrefix(id);
+    final src = source.toLowerCase();
+    if (src == 'spotify') {
+      return 'https://open.spotify.com/$type/$cleanId';
+    } else if (src == 'youtube') {
+      if (type == 'track') return 'https://www.youtube.com/watch?v=$cleanId';
+      if (type == 'playlist') return 'https://www.youtube.com/playlist?list=$cleanId';
+    }
+    return null;
+  }
+
+  static Future<void> copyShareUrl(
     BuildContext context, {
-    required SongSource source,
+    required String source,
     required String type,
     required String id,
   }) async {
-    if (!_isSpotifySource(source)) {
+    final url = getShareUrl(source: source, type: type, id: id);
+    if (url == null) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Share is only available for Spotify sources'),
+          content: Text('Share is only available for supported sources'),
         ),
       );
       return;
     }
-    final url = 'https://open.spotify.com/$type/${_idWithoutPrefix(id)}';
     await Clipboard.setData(ClipboardData(text: url));
     if (!context.mounted) return;
     ScaffoldMessenger.of(
@@ -55,14 +68,14 @@ class EntityContextMenus {
     ).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
   }
 
-  static IconData _sourceIcon(SongSource source) {
-    if (source == SongSource.youtube) {
-      return Icons.ondemand_video;
-    } else if (source == SongSource.soundcloud) {
-      return Icons.cloud;
-    }
-    return Icons.music_note;
-  }
+  static Future<void> copySpotifyShareUrl(
+    BuildContext context, {
+    required String source,
+    required String type,
+    required String id,
+  }) => copyShareUrl(context, source: source, type: type, id: id);
+
+  static IconData _sourceIcon(String source) => songSourceIcon(source);
 
   static Future<List<GenericSong>> _resolveAllPlaylistTracks(
     BuildContext context,
@@ -210,12 +223,12 @@ class EntityContextMenus {
 
     final mergedQueue = List<GenericSong>.from(player.queueTracks);
     final seen = mergedQueue
-        .map((track) => '${track.source.name}:${track.id}')
+        .map((track) => '${track.source}:${track.id}')
         .toSet();
 
     var added = 0;
     for (final track in tracks) {
-      final key = '${track.source.name}:${track.id}';
+      final key = '${track.source}:${track.id}';
       if (seen.add(key)) {
         mergedQueue.add(track);
         added += 1;

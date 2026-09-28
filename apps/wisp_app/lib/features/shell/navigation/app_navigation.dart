@@ -244,7 +244,7 @@ class AppNavigation {
                   initialArtist ??
                   GenericSimpleArtist(
                     id: artistId,
-                    source: SongSource.spotifyInternal,
+                    source: 'spotify',
                     name: fallbackName ?? 'Artist',
                     thumbnailUrl: '',
                   ),

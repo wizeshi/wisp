@@ -1,7 +1,7 @@
 {
   "id": "spotify",
   "name": "Spotify Auth",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "auth",
   "service": "spotify",
   "description": "Authentication and session management provider for Spotify",

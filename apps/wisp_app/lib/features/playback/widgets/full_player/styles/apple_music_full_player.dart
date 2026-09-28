@@ -66,6 +66,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }) async {
     final animatedCanvasDisabled =
         _animatedCanvasTemporarilyDisabledNotifier.value;
+    final supportsCanvas = context.read<MetadataManager>().hasCapability(
+      MetadataCapability.canvas,
+      source: track.source,
+    );
     await EntityContextMenus.showTrackMenu(
       context,
       track: track,
@@ -74,19 +78,20 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       onBeforeNavigate: () =>
           AppNavigation.instance.disableFullPlayerDesktopMode(),
       additionalActions: [
-        ContextMenuAction(
-          id: 'toggle-animated-canvas-temp',
-          label: animatedCanvasDisabled
-              ? 'Enable Animated Canvas'
-              : 'Disable Animated Canvas',
-          icon: animatedCanvasDisabled
-              ? Icons.motion_photos_on
-              : Icons.motion_photos_off,
-          onSelected: (_) {
-            _animatedCanvasTemporarilyDisabledNotifier.value =
-                !animatedCanvasDisabled;
-          },
-        ),
+        if (supportsCanvas)
+          ContextMenuAction(
+            id: 'toggle-animated-canvas-temp',
+            label: animatedCanvasDisabled
+                ? 'Enable Animated Canvas'
+                : 'Disable Animated Canvas',
+            icon: animatedCanvasDisabled
+                ? Icons.motion_photos_on
+                : Icons.motion_photos_off,
+            onSelected: (_) {
+              _animatedCanvasTemporarilyDisabledNotifier.value =
+                  !animatedCanvasDisabled;
+            },
+          ),
       ],
     );
   }
@@ -999,8 +1004,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     GenericSimpleArtist artist,
     String? trackId,
   ) async {
-    if (artist.source != SongSource.spotifyInternal &&
-        artist.source != SongSource.spotify) {
+    if (artist.source == 'local' ||
+        metadataManager.getProviderForSource(artist.source) == null) {
       return null;
     }
     try {
@@ -1021,7 +1026,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     final normalizedTrackId = (trackId == null || trackId.isEmpty)
         ? 'none'
         : trackId;
-    final cacheKey = '${artist.source.name}:${artist.id}:$normalizedTrackId';
+    final cacheKey = '${artist.source}:${artist.id}:$normalizedTrackId';
     return _artistInfoFutureCache.putIfAbsent(
       cacheKey,
       () => _loadArtistInfo(metadataManager, artist, trackId),
@@ -1048,7 +1053,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return cached;
     }
     _pruneFutureCache<String?>(_canvasUrlFutureCache);
-    final future = metadataManager.getCanvasUrl(trackId);
+    final future = metadataManager.getCanvasUrl(
+      trackId,
+      source: currentTrack.source,
+    );
     _canvasUrlFutureCache[trackId] = future;
     return future;
   }
@@ -2436,12 +2444,14 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         final useCanvas = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.animatedCanvasEnabled,
         );
+        final metadataManager = context.read<MetadataManager>();
         final canUseCanvas =
             useCanvas &&
             currentTrack != null &&
-            (currentTrack.source == SongSource.spotifyInternal ||
-                currentTrack.source == SongSource.spotify);
-        final metadataManager = context.read<MetadataManager>();
+            metadataManager.hasCapability(
+              MetadataCapability.canvas,
+              source: currentTrack.source,
+            );
         final Future<String?>? canvasFuture = _getCanvasUrlFuture(
           metadataManager,
           currentTrack,

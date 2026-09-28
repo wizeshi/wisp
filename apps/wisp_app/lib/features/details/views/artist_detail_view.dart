@@ -134,7 +134,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         type: PlaybackContextType.artist,
         name: _artist?.name ?? '',
         id: _artist?.id ?? '',
-        source: _artist?.source ?? SongSource.spotify,
+        source: _artist?.source ?? 'spotify',
       ),
     );
   }
@@ -1468,13 +1468,13 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     context,
                     album: GenericAlbum(
                       id: album.id,
-                      source: SongSource.spotifyInternal,
+                      source: album.source,
                       title: album.title,
                       thumbnailUrl: album.thumbnailUrl,
                       artists: [
                         GenericSimpleArtist(
                           id: widget.artistId,
-                          source: SongSource.spotifyInternal,
+                          source: _artist?.source ?? 'spotify',
                           name:
                               _artist?.name ??
                               widget.initialArtist?.name ??
@@ -1700,8 +1700,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             final source =
                 _artist?.source ??
                 widget.initialArtist?.source ??
-                SongSource.spotifyInternal;
-            await EntityContextMenus.copySpotifyShareUrl(
+                'spotify';
+            await EntityContextMenus.copyShareUrl(
               context,
               source: source,
               type: 'artist',
@@ -1730,7 +1730,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     final artistId = widget.artistId;
     final artist = _artist;
     final fallback = widget.initialArtist;
-    final source = artist?.source ?? fallback?.source ?? SongSource.spotifyInternal;
+    final source = artist?.source ?? fallback?.source ?? 'spotify';
     final simpleArtist = artist != null
         ? GenericSimpleArtist(
             id: artist.id,
@@ -2067,13 +2067,13 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                           context,
                           album: GenericAlbum(
                             id: album.id,
-                            source: SongSource.spotifyInternal,
+                            source: album.source,
                             title: album.title,
                             thumbnailUrl: album.thumbnailUrl,
                             artists: [
                               GenericSimpleArtist(
                                 id: widget.artistId,
-                                source: SongSource.spotifyInternal,
+                                source: _artist?.source ?? 'spotify',
                                 name:
                                     _artist?.name ??
                                     widget.initialArtist?.name ??

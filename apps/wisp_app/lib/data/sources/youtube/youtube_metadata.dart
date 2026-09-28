@@ -36,6 +36,11 @@ class YouTubeMetadataProvider extends MetadataProvider {
       'https://upload.wikimedia.org/wikipedia/commons/f/fd/YouTube_full-color_icon_%282024%29.svg';
 
   @override
+  Set<MetadataCapability> get capabilities => const {
+    MetadataCapability.search,
+  };
+
+  @override
   Future<GenericSong> getTrackInfo(
     String trackId, {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,

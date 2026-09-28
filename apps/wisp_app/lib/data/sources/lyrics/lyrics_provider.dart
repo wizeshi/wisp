@@ -110,7 +110,7 @@ class LyricsProvider extends ChangeNotifier {
     }
 
     logger.i(
-      '[LyricsProvider] ensureLyrics for "${track.title}" (id: ${track.id}, source: ${track.source.name}, mode: ${mode.name})',
+      '[LyricsProvider] ensureLyrics for "${track.title}" (id: ${track.id}, source: ${track.source}, mode: ${mode.name})',
     );
 
     _lyricsInFlight.add(key);

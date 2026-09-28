@@ -13,12 +13,12 @@ bool isLikedSongsPlaylistId(String? id) => id == likedSongsPlaylistId;
 GenericPlaylist buildLikedSongsPlaylist({String? userDisplayName, int? total}) {
   return GenericPlaylist(
     id: likedSongsPlaylistId,
-    source: SongSource.spotifyInternal,
+    source: 'spotify',
     title: likedSongsTitle,
     thumbnailUrl: '',
     author: GenericSimpleUser(
       id: 'liked_songs_user',
-      source: SongSource.spotifyInternal,
+      source: 'spotify',
       displayName: userDisplayName ?? 'You',
     ),
     songs: null,

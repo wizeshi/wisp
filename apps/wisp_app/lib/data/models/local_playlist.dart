@@ -10,7 +10,7 @@ class LocalPlaylist {
   final String title;
   final String? thumbnailPath;
   final String? linkedId;
-  final SongSource? linkedSource;
+  final String? linkedSource;
   final String authorName;
   final List<PlaylistItem> tracks;
   final DateTime createdAt;
@@ -34,7 +34,7 @@ class LocalPlaylist {
     String? title,
     String? thumbnailPath,
     String? linkedId,
-    SongSource? linkedSource,
+    String? linkedSource,
     String? authorName,
     List<PlaylistItem>? tracks,
     DateTime? createdAt,
@@ -58,7 +58,7 @@ class LocalPlaylist {
     'title': title,
     'thumbnail_path': thumbnailPath,
     'linked_id': linkedId,
-    'linked_source': linkedSource?.toJson(),
+    'linked_source': linkedSource,
     'author_name': authorName,
     'tracks': tracks.map((t) => t.toJson()).toList(),
     'created_at': createdAt.toIso8601String(),
@@ -72,7 +72,7 @@ class LocalPlaylist {
       thumbnailPath: json['thumbnail_path'] as String?,
       linkedId: json['linked_id'] as String?,
       linkedSource: json['linked_source'] != null
-          ? SongSource.fromJson(json['linked_source'] as String)
+          ? normalizeSource(json['linked_source'])
           : null,
       authorName: json['author_name'] as String? ?? 'You',
       tracks:

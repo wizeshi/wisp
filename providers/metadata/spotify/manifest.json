@@ -1,13 +1,23 @@
 {
   "id": "spotify",
   "name": "Spotify",
-  "version": "1.0.10",
+  "version": "1.0.13",
   "type": "metadata",
   "entry": "index.js",
   "author": "wizeshi",
   "description": "Spotify catalog, search, albums, artists, playlists, user library, and canvas metadata provider.",
   "service": "spotify",
   "dependencies": ["auth/spotify"],
+  "capabilities": [
+    "search",
+    "home",
+    "canvas",
+    "npv",
+    "library",
+    "playlist_management",
+    "recommendations",
+    "user_profile"
+  ],
   "priority": 100,
   "homepage": "https://spotify.com"
 }

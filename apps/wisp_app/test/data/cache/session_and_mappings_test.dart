@@ -116,12 +116,12 @@ void main() {
     test('migrates legacy SharedPreferences queue, saves and loads session with positionMs', () async {
       final legacySong = GenericSong(
         id: 'spotify:track:abc',
-        source: SongSource.spotify,
+        source: 'spotify',
         title: 'Song A',
         artists: [
           GenericSimpleArtist(
             id: 'art1',
-            source: SongSource.spotify,
+            source: 'spotify',
             name: 'Artist A',
             thumbnailUrl: '',
           ),
