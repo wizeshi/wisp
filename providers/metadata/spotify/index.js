@@ -254,6 +254,11 @@ function extractImageUrl(obj) {
   if (!obj) return '';
   if (typeof obj === 'string') {
     if (obj.startsWith('http')) return obj;
+    if (obj.startsWith('spotify:mosaic:')) {
+      const parts = obj.split(':');
+      const hash = parts[2] || parts[parts.length - 1];
+      return hash ? ('https://i.scdn.co/image/' + hash) : '';
+    }
     if (obj.startsWith('spotify:')) {
       const parts = obj.split(':');
       return 'https://i.scdn.co/image/' + parts[parts.length - 1];
@@ -1805,6 +1810,461 @@ async function removePlaylistFromFolder(playlistId) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Protobuf Writer, Reader & User Profile View Parsers
+// ---------------------------------------------------------------------------
+class SimpleProtoWriter {
+  constructor() {
+    this.buffer = [];
+  }
+  writeVarint(value) {
+    let v = value >>> 0;
+    while (v >= 0x80) {
+      this.buffer.push((v & 0x7F) | 0x80);
+      v = v >>> 7;
+    }
+    this.buffer.push(v & 0x7F);
+  }
+  writeTag(fieldNumber, wireType) {
+    this.writeVarint((fieldNumber << 3) | wireType);
+  }
+  writeString(fieldNumber, str) {
+    if (!str) return;
+    const bytes = [];
+    for (let i = 0; i < str.length; i++) {
+      let code = str.charCodeAt(i);
+      if (code < 0x80) bytes.push(code);
+      else if (code < 0x800) {
+        bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+      } else {
+        bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+      }
+    }
+    this.writeBytes(fieldNumber, bytes);
+  }
+  writeBytes(fieldNumber, bytes) {
+    this.writeTag(fieldNumber, 2);
+    this.writeVarint(bytes.length);
+    for (let i = 0; i < bytes.length; i++) this.buffer.push(bytes[i]);
+  }
+  writeInt32(fieldNumber, val) {
+    if (val === undefined || val === null) return;
+    this.writeTag(fieldNumber, 0);
+    this.writeVarint(val);
+  }
+  writeMessage(fieldNumber, writer) {
+    this.writeBytes(fieldNumber, writer.toBytes());
+  }
+  toBytes() {
+    return new Uint8Array(this.buffer);
+  }
+}
+
+class SimpleProtoReader {
+  constructor(uint8Array) {
+    this.bytes = uint8Array;
+    this.offset = 0;
+  }
+  hasMore() {
+    return this.offset < this.bytes.length;
+  }
+  readVarint() {
+    let result = 0;
+    let shift = 0;
+    while (this.offset < this.bytes.length) {
+      const b = this.bytes[this.offset++];
+      result |= (b & 0x7F) << shift;
+      shift += 7;
+      if ((b & 0x80) === 0) break;
+    }
+    return result >>> 0;
+  }
+  readTag() {
+    if (!this.hasMore()) return null;
+    const tag = this.readVarint();
+    const field = tag >> 3;
+    const wire = tag & 0x07;
+    if (wire !== 0 && wire !== 1 && wire !== 2 && wire !== 5) {
+      throw new Error('Unknown protobuf wire type: ' + wire);
+    }
+    return { field: field, wire: wire };
+  }
+  readLengthDelimited() {
+    const len = this.readVarint();
+    if (this.offset + len > this.bytes.length) {
+      throw new Error('Protobuf length-delimited out of bounds: ' + len);
+    }
+    const slice = this.bytes.subarray(this.offset, this.offset + len);
+    this.offset += len;
+    return slice;
+  }
+  readString() {
+    const slice = this.readLengthDelimited();
+    if (typeof TextDecoder !== 'undefined') {
+      try {
+        return new TextDecoder('utf-8').decode(slice);
+      } catch (_) {}
+    }
+    let str = '';
+    for (let i = 0; i < slice.length; i++) {
+      str += String.fromCharCode(slice[i]);
+    }
+    try {
+      return decodeURIComponent(escape(str));
+    } catch (_) {
+      return str;
+    }
+  }
+  skipField(wireType) {
+    if (wireType === 0) this.readVarint();
+    else if (wireType === 1) this.offset += 8;
+    else if (wireType === 2) {
+      const len = this.readVarint();
+      if (this.offset + len > this.bytes.length) throw new Error('Protobuf skip out of bounds');
+      this.offset += len;
+    } else if (wireType === 5) this.offset += 4;
+    else throw new Error('Unknown protobuf wire type: ' + wireType);
+  }
+}
+
+function parseUserProfileProto(bytes) {
+  if (!bytes) return null;
+  let u8;
+  if (bytes instanceof Uint8Array) {
+    u8 = bytes;
+  } else if (typeof bytes === 'string') {
+    u8 = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) u8[i] = bytes.charCodeAt(i) & 0xff;
+  } else if (Array.isArray(bytes)) {
+    u8 = new Uint8Array(bytes);
+  } else {
+    return null;
+  }
+
+  if (u8.length === 0) return null;
+
+  // In case leading 0x0a was stripped from text dumps
+  if (u8[0] === 0x26 && u8[1] === 0x73 && u8[2] === 0x70) {
+    const fixed = new Uint8Array(u8.length + 1);
+    fixed[0] = 0x0a;
+    fixed.set(u8, 1);
+    u8 = fixed;
+  }
+
+  const result = {
+    uri: '',
+    name: '',
+    image_url: '',
+    followers_count: 0,
+    following_count: 0,
+    recently_played_artists: [],
+    public_playlists: [],
+    total_public_playlists_count: 0
+  };
+
+  try {
+    const reader = new SimpleProtoReader(u8);
+    while (reader.hasMore()) {
+      const tag = reader.readTag();
+      if (!tag) break;
+      if (tag.field === 1 && tag.wire === 2) {
+        const u = reader.readString();
+        if (!result.uri && u.startsWith('spotify:user:')) result.uri = u;
+      } else if (tag.field === 2 && tag.wire === 2) {
+        if (!result.name) result.name = reader.readString();
+        else reader.skipField(2);
+      } else if (tag.field === 3 && tag.wire === 2) {
+        if (!result.image_url) result.image_url = reader.readString();
+        else reader.skipField(2);
+      } else if (tag.field === 4 && tag.wire === 0) {
+        result.followers_count = reader.readVarint();
+      } else if (tag.field === 5 && tag.wire === 0) {
+        result.following_count = reader.readVarint();
+      } else if (tag.field === 7 && tag.wire === 2) {
+        const artistBytes = reader.readLengthDelimited();
+        const aReader = new SimpleProtoReader(artistBytes);
+        const artist = { uri: '', name: '', image_url: '', followers_count: 0 };
+        while (aReader.hasMore()) {
+          const aTag = aReader.readTag();
+          if (!aTag) break;
+          if (aTag.field === 1 && aTag.wire === 2) {
+            artist.uri = aReader.readString();
+          } else if (aTag.field === 2 && aTag.wire === 2) {
+            artist.name = aReader.readString();
+          } else if (aTag.field === 3 && aTag.wire === 2) {
+            artist.image_url = aReader.readString();
+          } else if (aTag.field === 4 && aTag.wire === 0) {
+            artist.followers_count = aReader.readVarint();
+          } else {
+            aReader.skipField(aTag.wire);
+          }
+        }
+        if (artist.uri || artist.name) {
+          result.recently_played_artists.push(artist);
+        }
+      } else if (tag.field === 8 && tag.wire === 2) {
+        const plBytes = reader.readLengthDelimited();
+        const pReader = new SimpleProtoReader(plBytes);
+        const playlist = { uri: '', name: '', image_url: '', followers_count: 0, owner_name: '', owner_uri: '' };
+        while (pReader.hasMore()) {
+          const pTag = pReader.readTag();
+          if (!pTag) break;
+          if (pTag.field === 1 && pTag.wire === 2) {
+            playlist.uri = pReader.readString();
+          } else if (pTag.field === 2 && pTag.wire === 2) {
+            playlist.name = pReader.readString();
+          } else if (pTag.field === 3 && pTag.wire === 2) {
+            playlist.image_url = pReader.readString();
+          } else if (pTag.field === 4 && pTag.wire === 0) {
+            playlist.followers_count = pReader.readVarint();
+          } else if (pTag.field === 5 && pTag.wire === 2) {
+            playlist.owner_name = pReader.readString();
+          } else if (pTag.field === 6 && pTag.wire === 2) {
+            playlist.owner_uri = pReader.readString();
+          } else {
+            pReader.skipField(pTag.wire);
+          }
+        }
+        if (playlist.uri || playlist.name) {
+          result.public_playlists.push(playlist);
+        }
+      } else if (tag.field === 9 && tag.wire === 0) {
+        result.total_public_playlists_count = reader.readVarint();
+      } else {
+        reader.skipField(tag.wire);
+      }
+    }
+  } catch (_) {
+    return null;
+  }
+
+  return (result.uri && (result.public_playlists.length > 0 || result.recently_played_artists.length > 0)) ? result : null;
+}
+
+function parseUserProfileFromText(text) {
+  if (!text || typeof text !== 'string') return null;
+  const result = {
+    uri: '',
+    name: '',
+    image_url: '',
+    followers_count: 0,
+    following_count: 0,
+    recently_played_artists: [],
+    public_playlists: [],
+    total_public_playlists_count: 0
+  };
+
+  const userMatch = text.match(/spotify:user:([a-zA-Z0-9_-]+)/);
+  if (userMatch) {
+    result.uri = 'spotify:user:' + userMatch[1];
+    const afterUser = text.slice(userMatch.index + userMatch[0].length);
+    const imgIdx = afterUser.indexOf('https://');
+    if (imgIdx !== -1) {
+      result.name = afterUser.slice(0, imgIdx).replace(/^[\x00-\x1f\s]+/, '').replace(/[\x00-\x1f].*$/, '').trim();
+      const afterImg = afterUser.slice(imgIdx);
+      const endImg = afterImg.search(/[\x00-\x20]/);
+      result.image_url = endImg !== -1 ? afterImg.slice(0, endImg) : afterImg;
+    }
+  }
+
+  const artistRegex = /spotify:artist:([a-zA-Z0-9]+)/g;
+  let aMatch;
+  const artistIndices = [];
+  while ((aMatch = artistRegex.exec(text)) !== null) {
+    artistIndices.push({ id: aMatch[1], start: aMatch.index, end: aMatch.index + aMatch[0].length });
+  }
+
+  const plRegex = /spotify:playlist:([a-zA-Z0-9]+)/g;
+  let pMatch;
+  const plIndices = [];
+  while ((pMatch = plRegex.exec(text)) !== null) {
+    plIndices.push({ id: pMatch[1], start: pMatch.index, end: pMatch.index + pMatch[0].length });
+  }
+
+  for (let i = 0; i < artistIndices.length; i++) {
+    const cur = artistIndices[i];
+    const nextLimit = (i + 1 < artistIndices.length) ? artistIndices[i + 1].start : (plIndices.length > 0 ? plIndices[0].start : text.length);
+    const chunk = text.slice(cur.end, nextLimit);
+    const imgIdx = chunk.indexOf('https://');
+    let name = '';
+    let img = '';
+    if (imgIdx !== -1) {
+      name = chunk.slice(0, imgIdx).replace(/^[\x00-\x1f\s]+/, '').replace(/[\x00-\x1f].*$/, '').trim();
+      const afterImg = chunk.slice(imgIdx);
+      const endImg = afterImg.search(/[\x00-\x20]/);
+      img = endImg !== -1 ? afterImg.slice(0, endImg) : afterImg;
+    }
+    result.recently_played_artists.push({
+      uri: 'spotify:artist:' + cur.id,
+      name: name,
+      image_url: img,
+      followers_count: 0
+    });
+  }
+
+  for (let i = 0; i < plIndices.length; i++) {
+    const cur = plIndices[i];
+    const nextLimit = (i + 1 < plIndices.length) ? plIndices[i + 1].start : text.length;
+    const chunk = text.slice(cur.end, nextLimit);
+    let imgIdx = chunk.indexOf('https://');
+    if (imgIdx === -1) imgIdx = chunk.indexOf('spotify:mosaic:');
+    let title = '';
+    let img = '';
+    let ownerName = '';
+    let ownerUri = '';
+    if (imgIdx !== -1) {
+      title = chunk.slice(0, imgIdx).replace(/^[\x00-\x1f\s]+/, '').replace(/[\x00-\x1f].*$/, '').trim();
+      const afterImg = chunk.slice(imgIdx);
+      const ownerIdx = afterImg.indexOf('spotify:user:');
+      if (ownerIdx !== -1) {
+        const ownerMatch = afterImg.slice(ownerIdx).match(/^spotify:user:([a-zA-Z0-9_-]+)/);
+        if (ownerMatch) ownerUri = ownerMatch[0];
+        const midPart = afterImg.slice(0, ownerIdx);
+        const parts = midPart.split('*');
+        if (parts.length > 1) {
+          ownerName = parts[parts.length - 1].replace(/^[\x00-\x1f\s]+/, '').replace(/[\x00-\x1f].*$/, '').replace(/[\s0-9&]+$/g, '').trim();
+        }
+        const imgPart = parts[0].trim();
+        const endImg = imgPart.search(/[\x00-\x20]/);
+        img = endImg !== -1 ? imgPart.slice(0, endImg) : imgPart;
+      } else {
+        const endImg = afterImg.search(/[\x00-\x20]/);
+        img = endImg !== -1 ? afterImg.slice(0, endImg) : afterImg;
+      }
+    }
+    result.public_playlists.push({
+      uri: 'spotify:playlist:' + cur.id,
+      name: title,
+      image_url: img,
+      followers_count: 0,
+      owner_name: ownerName,
+      owner_uri: ownerUri
+    });
+  }
+
+  return (result.uri || result.name || result.public_playlists.length > 0) ? result : null;
+}
+
+function parseUserListProto(bytes) {
+  if (!bytes) return [];
+  let u8;
+  if (bytes instanceof Uint8Array) {
+    u8 = bytes;
+  } else if (typeof bytes === 'string') {
+    u8 = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) u8[i] = bytes.charCodeAt(i) & 0xff;
+  } else if (Array.isArray(bytes)) {
+    u8 = new Uint8Array(bytes);
+  } else {
+    return [];
+  }
+
+  if (u8.length === 0) return [];
+  const reader = new SimpleProtoReader(u8);
+  const profiles = [];
+  try {
+    while (reader.hasMore()) {
+      const tag = reader.readTag();
+      if (!tag) break;
+      if (tag.wire === 2) {
+        const itemBytes = reader.readLengthDelimited();
+        try {
+          const iReader = new SimpleProtoReader(itemBytes);
+          const item = { id: '', uri: '', name: '', image_url: '', followers_count: 0 };
+          while (iReader.hasMore()) {
+            const iTag = iReader.readTag();
+            if (!iTag) break;
+            if (iTag.field === 1 && iTag.wire === 2) {
+              item.uri = iReader.readString();
+            } else if (iTag.field === 2 && iTag.wire === 2) {
+              item.name = iReader.readString();
+            } else if (iTag.field === 3 && iTag.wire === 2) {
+              item.image_url = iReader.readString();
+            } else if (iTag.field === 4 && iTag.wire === 0) {
+              item.followers_count = iReader.readVarint();
+            } else {
+              iReader.skipField(iTag.wire);
+            }
+          }
+          if (item.uri && (item.uri.startsWith('spotify:user:') || item.uri.startsWith('spotify:artist:'))) {
+            item.id = item.uri.split(':').pop();
+            profiles.push(item);
+          }
+        } catch (_) {}
+      } else {
+        reader.skipField(tag.wire);
+      }
+    }
+  } catch (_) {
+    return profiles.length > 0 ? profiles : [];
+  }
+  return profiles;
+}
+
+function parseUserListFromText(text) {
+  if (!text || typeof text !== 'string') return [];
+  const results = [];
+  const regex = /spotify:(user|artist):([a-zA-Z0-9_-]+)/g;
+  let match;
+  const matches = [];
+  while ((match = regex.exec(text)) !== null) {
+    matches.push({
+      type: match[1],
+      id: match[2],
+      fullUri: match[0],
+      start: match.index,
+      end: match.index + match[0].length
+    });
+  }
+
+  for (let i = 0; i < matches.length; i++) {
+    const cur = matches[i];
+    const nextLimit = (i + 1 < matches.length) ? matches[i + 1].start : text.length;
+    const chunk = text.slice(cur.end, nextLimit);
+
+    const imgIdx = chunk.indexOf('https://');
+    let name = '';
+    let img = '';
+    let afterNameChunk = '';
+    if (imgIdx !== -1) {
+      const rawName = chunk.slice(0, imgIdx).replace(/^[\x00-\x1f\s]+/, '');
+      name = rawName.split(/[\x00-\x1f]/)[0].trim();
+      const afterImg = chunk.slice(imgIdx);
+      const endImg = afterImg.search(/[\x00-\x20]/);
+      img = endImg !== -1 ? afterImg.slice(0, endImg) : afterImg;
+      afterNameChunk = endImg !== -1 ? afterImg.slice(endImg) : '';
+    } else {
+      const rawName = chunk.replace(/^[\x00-\x1f\s]+/, '');
+      name = rawName.split(/[\x00-\x1f]/)[0].trim();
+      const namePos = chunk.indexOf(name);
+      if (namePos !== -1) {
+        afterNameChunk = chunk.slice(namePos + name.length);
+      }
+    }
+
+    let followersCount = 0;
+    if (afterNameChunk) {
+      const tag4 = afterNameChunk.indexOf(' ');
+      if (tag4 !== -1 && tag4 < 10) {
+        const val = afterNameChunk.charCodeAt(tag4 + 1);
+        if (!isNaN(val) && val < 128) {
+          followersCount = val;
+        }
+      }
+    }
+
+    results.push({
+      id: cur.id,
+      uri: cur.fullUri,
+      name: name,
+      image_url: img,
+      followers_count: followersCount,
+      source: 'spotify'
+    });
+  }
+  return results;
+}
+
 async function getUserProfileView(userId, options = {}) {
   const cleanId = userId.includes(':') ? userId.split(':').pop() : userId;
   const pLimit = options.playlistLimit || 10;
@@ -1813,11 +2273,60 @@ async function getUserProfileView(userId, options = {}) {
   const url = '/user-profile-view/v3/profile/' + encodeURIComponent(cleanId) +
     '?playlist_limit=' + pLimit + '&artist_limit=' + aLimit + '&episode_limit=' + eLimit + '&market=from_token';
 
-  const res = await fetchSpClient(url);
+  const res = await fetchSpClient(url, {
+    headers: {
+      'Accept': 'application/x-protobuf, application/protobuf, application/json, */*'
+    }
+  });
   if (res.status !== 200) {
     throw new Error('getUserProfileView failed: ' + res.status);
   }
-  const data = await res.json();
+
+  let data = null;
+  // 1. Try parsing JSON first
+  try {
+    data = await res.json();
+  } catch (_) {}
+
+  // 2. If not JSON, try parsing protobuf bytes
+  if (!data || !data.uri) {
+    try {
+      if (typeof res.bytes === 'function') {
+        const bytes = await res.bytes();
+        if (bytes && bytes.length > 0) {
+          data = parseUserProfileProto(bytes);
+        }
+      }
+    } catch (e) {
+      console.warn('[Spotify] Failed parsing user profile protobuf bytes: ' + e);
+    }
+  }
+
+  // 3. Fallback: try parsing from response text
+  if (!data || !data.uri || ((!data.public_playlists || data.public_playlists.length === 0) && (!data.recently_played_artists || data.recently_played_artists.length === 0))) {
+    try {
+      const text = await res.text();
+      if (text) {
+        if (text.trim().startsWith('{')) {
+          try {
+            data = JSON.parse(text);
+          } catch (_) {
+            data = null;
+          }
+        }
+        if (!data || !data.uri) {
+          data = parseUserProfileProto(text) || parseUserProfileFromText(text);
+        }
+      }
+    } catch (e) {
+      console.warn('[Spotify] Failed parsing user profile text fallback: ' + e);
+    }
+  }
+
+  if (!data) {
+    throw new Error('getUserProfileView failed: unable to parse user profile response');
+  }
+
   const uri = data.uri || data.id || '';
   const cleanUriId = uri.includes(':') ? uri.split(':').pop() : (uri || cleanId);
 
@@ -1825,24 +2334,41 @@ async function getUserProfileView(userId, options = {}) {
     id: a.uri ? a.uri.split(':').pop() : (a.id || ''),
     source: 'spotify',
     name: a.name || '',
-    thumbnail_url: a.image_url || extractImageUrl(a.images) || ''
+    thumbnail_url: extractImageUrl(a.image_url || a.images || a.image) || ''
   }));
 
-  const publicPlaylists = (data.public_playlists || []).map(p => ({
-    id: p.uri ? p.uri.split(':').pop() : (p.id || ''),
-    source: 'spotify',
-    title: p.name || '',
-    thumbnail_url: p.image_url || extractImageUrl(p.images) || '',
-    total_tracks: 0
-  }));
+  const publicPlaylists = (data.public_playlists || []).map(p => {
+    let pOwner = null;
+    if (p.owner_name || p.owner_uri) {
+      let ownerId = p.owner_uri ? (p.owner_uri.includes(':') ? p.owner_uri.split(':').pop() : p.owner_uri) : '';
+      if (ownerId && cleanId && ownerId.startsWith(cleanId)) {
+        ownerId = cleanId;
+      }
+      pOwner = {
+        id: ownerId || cleanId,
+        source: 'spotify',
+        display_name: p.owner_name || data.name || '',
+        avatar_url: ''
+      };
+    }
+    return {
+      id: p.uri ? p.uri.split(':').pop() : (p.id || ''),
+      source: 'spotify',
+      title: p.name || '',
+      thumbnail_url: extractImageUrl(p.image_url || p.images || p.image) || '',
+      total_tracks: p.total_tracks || 0,
+      follower_count: p.followers_count !== undefined ? p.followers_count : (p.follower_count || 0),
+      owner: pOwner
+    };
+  });
 
   return {
     id: cleanUriId,
     source: 'spotify',
     display_name: data.name || data.display_name || 'Unknown User',
-    avatar_url: data.image_url || extractImageUrl(data.images) || '',
-    follower_count: data.followers_count || 0,
-    following_count: data.following_count || 0,
+    avatar_url: extractImageUrl(data.image_url || data.images || data.avatar_url || data.avatar) || '',
+    follower_count: data.followers_count !== undefined ? data.followers_count : (data.follower_count || 0),
+    following_count: data.following_count !== undefined ? data.following_count : 0,
     recent_artists: recentArtists,
     public_playlists: publicPlaylists,
     followers: [],
@@ -1853,31 +2379,149 @@ async function getUserProfileView(userId, options = {}) {
 async function getUserFollowers(userId) {
   const cleanId = userId.includes(':') ? userId.split(':').pop() : userId;
   const url = '/user-profile-view/v3/profile/' + encodeURIComponent(cleanId) + '/followers?market=from_token';
-  const res = await fetchSpClient(url);
+  const res = await fetchSpClient(url, {
+    headers: {
+      'Accept': 'application/x-protobuf, application/protobuf, application/json, */*'
+    }
+  });
   if (res.status !== 200) return [];
-  const data = await res.json();
-  const items = data.profiles || data.followers || data.items || [];
-  return items.map(u => ({
-    id: u.uri ? u.uri.split(':').pop() : (u.id || ''),
-    name: u.name || u.display_name || '',
-    thumbnail_url: u.image_url || extractImageUrl(u.images) || '',
-    source: 'spotify'
-  }));
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (_) {}
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    try {
+      const bytes = typeof res.bytes === 'function' ? await res.bytes() : null;
+      if (bytes && bytes.length > 0) {
+        const parsed = parseUserListProto(bytes);
+        if (parsed && parsed.length > 0) {
+          data = parsed;
+        }
+      }
+    } catch (_) {}
+  }
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    try {
+      const text = typeof res.text === 'function' ? await res.text() : null;
+      if (text) {
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          try {
+            data = JSON.parse(text);
+          } catch (_) {
+            data = null;
+          }
+        }
+        if (!data || (Array.isArray(data) && data.length === 0)) {
+          const parsed = parseUserListProto(text);
+          if (parsed && parsed.length > 0) {
+            data = parsed;
+          } else {
+            data = parseUserListFromText(text);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  if (!data) return [];
+  let items = [];
+  if (Array.isArray(data)) {
+    items = data;
+  } else if (data && typeof data === 'object') {
+    items = data.profiles || data.followers || data.items || data.values || [];
+  }
+  return items.map(u => {
+    const rawUri = u.uri || u.profile_url || (u.id ? (u.id.startsWith('spotify:') ? u.id : '') : '');
+    const cleanUserId = rawUri ? rawUri.split(':').pop() : (u.id || '');
+    const name = u.display_name || u.name || '';
+    const avatar = extractImageUrl(u.image_url || u.images || u.image || u.avatar_url || u.avatar || u.thumbnail_url) || '';
+    const profileUri = rawUri || (cleanUserId ? ('spotify:user:' + cleanUserId) : '');
+    const followerCount = u.followers_count !== undefined ? u.followers_count : (u.follower_count !== undefined ? u.follower_count : 0);
+
+    return {
+      id: cleanUserId,
+      source: 'spotify',
+      name: name,
+      display_name: name,
+      avatar_url: avatar || null,
+      thumbnail_url: avatar || '',
+      profile_url: profileUri || null,
+      follower_count: followerCount
+    };
+  });
 }
 
 async function getUserFollowing(userId) {
   const cleanId = userId.includes(':') ? userId.split(':').pop() : userId;
   const url = '/user-profile-view/v3/profile/' + encodeURIComponent(cleanId) + '/following?market=from_token';
-  const res = await fetchSpClient(url);
+  const res = await fetchSpClient(url, {
+    headers: {
+      'Accept': 'application/x-protobuf, application/protobuf, application/json, */*'
+    }
+  });
   if (res.status !== 200) return [];
-  const data = await res.json();
-  const items = data.profiles || data.following || data.items || [];
-  return items.map(u => ({
-    id: u.uri ? u.uri.split(':').pop() : (u.id || ''),
-    name: u.name || u.display_name || '',
-    thumbnail_url: u.image_url || extractImageUrl(u.images) || '',
-    source: 'spotify'
-  }));
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (_) {}
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    try {
+      const bytes = typeof res.bytes === 'function' ? await res.bytes() : null;
+      if (bytes && bytes.length > 0) {
+        const parsed = parseUserListProto(bytes);
+        if (parsed && parsed.length > 0) {
+          data = parsed;
+        }
+      }
+    } catch (_) {}
+  }
+  if (!data || (Array.isArray(data) && data.length === 0)) {
+    try {
+      const text = typeof res.text === 'function' ? await res.text() : null;
+      if (text) {
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          try {
+            data = JSON.parse(text);
+          } catch (_) {
+            data = null;
+          }
+        }
+        if (!data || (Array.isArray(data) && data.length === 0)) {
+          const parsed = parseUserListProto(text);
+          if (parsed && parsed.length > 0) {
+            data = parsed;
+          } else {
+            data = parseUserListFromText(text);
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  if (!data) return [];
+  let items = [];
+  if (Array.isArray(data)) {
+    items = data;
+  } else if (data && typeof data === 'object') {
+    items = data.profiles || data.following || data.items || data.values || [];
+  }
+  return items.map(u => {
+    const rawUri = u.uri || u.profile_url || (u.id ? (u.id.startsWith('spotify:') ? u.id : '') : '');
+    const cleanEntityId = rawUri ? rawUri.split(':').pop() : (u.id || '');
+    const name = u.display_name || u.name || '';
+    const avatar = extractImageUrl(u.image_url || u.images || u.image || u.avatar_url || u.avatar || u.thumbnail_url) || '';
+    const profileUri = rawUri || (cleanEntityId ? ('spotify:user:' + cleanEntityId) : '');
+    const followerCount = u.followers_count !== undefined ? u.followers_count : (u.follower_count !== undefined ? u.follower_count : 0);
+
+    return {
+      id: cleanEntityId,
+      source: 'spotify',
+      name: name,
+      display_name: name,
+      avatar_url: avatar || null,
+      thumbnail_url: avatar || '',
+      profile_url: profileUri || null,
+      follower_count: followerCount
+    };
+  });
 }
 
 async function getRecommended(playlistId, skippedTrackIds = [], numResults = 20) {
@@ -1939,104 +2583,8 @@ async function isAuthenticated() {
 }
 
 // ---------------------------------------------------------------------------
-// Protobuf Writer & Reader for Track Descriptors (Genres)
+// Track Descriptors (Genres)
 // ---------------------------------------------------------------------------
-class SimpleProtoWriter {
-  constructor() {
-    this.buffer = [];
-  }
-  writeVarint(value) {
-    let v = value >>> 0;
-    while (v >= 0x80) {
-      this.buffer.push((v & 0x7F) | 0x80);
-      v = v >>> 7;
-    }
-    this.buffer.push(v & 0x7F);
-  }
-  writeTag(fieldNumber, wireType) {
-    this.writeVarint((fieldNumber << 3) | wireType);
-  }
-  writeString(fieldNumber, str) {
-    const bytes = [];
-    for (let i = 0; i < str.length; i++) {
-      let code = str.charCodeAt(i);
-      if (code < 0x80) bytes.push(code);
-      else if (code < 0x800) {
-        bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
-      } else {
-        bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
-      }
-    }
-    this.writeBytes(fieldNumber, bytes);
-  }
-  writeBytes(fieldNumber, bytes) {
-    this.writeTag(fieldNumber, 2);
-    this.writeVarint(bytes.length);
-    for (let i = 0; i < bytes.length; i++) this.buffer.push(bytes[i]);
-  }
-  writeInt32(fieldNumber, val) {
-    this.writeTag(fieldNumber, 0);
-    this.writeVarint(val);
-  }
-  writeMessage(fieldNumber, writer) {
-    this.writeBytes(fieldNumber, writer.toBytes());
-  }
-  toBytes() {
-    return new Uint8Array(this.buffer);
-  }
-}
-
-class SimpleProtoReader {
-  constructor(uint8Array) {
-    this.bytes = uint8Array;
-    this.offset = 0;
-  }
-  hasMore() {
-    return this.offset < this.bytes.length;
-  }
-  readVarint() {
-    let result = 0;
-    let shift = 0;
-    while (this.offset < this.bytes.length) {
-      const b = this.bytes[this.offset++];
-      result |= (b & 0x7F) << shift;
-      shift += 7;
-      if ((b & 0x80) === 0) break;
-    }
-    return result >>> 0;
-  }
-  readTag() {
-    if (!this.hasMore()) return null;
-    const tag = this.readVarint();
-    return { field: tag >> 3, wire: tag & 0x07 };
-  }
-  readLengthDelimited() {
-    const len = this.readVarint();
-    const slice = this.bytes.subarray(this.offset, this.offset + len);
-    this.offset += len;
-    return slice;
-  }
-  readString() {
-    const slice = this.readLengthDelimited();
-    let str = '';
-    for (let i = 0; i < slice.length; i++) {
-      str += String.fromCharCode(slice[i]);
-    }
-    try {
-      return decodeURIComponent(escape(str));
-    } catch (_) {
-      return str;
-    }
-  }
-  skipField(wireType) {
-    if (wireType === 0) this.readVarint();
-    else if (wireType === 1) this.offset += 8;
-    else if (wireType === 2) {
-      const len = this.readVarint();
-      this.offset += len;
-    } else if (wireType === 5) this.offset += 4;
-  }
-}
 
 function parseTrackDescriptorsResponse(bytes) {
   const genres = [];

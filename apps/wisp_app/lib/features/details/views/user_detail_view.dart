@@ -17,10 +17,10 @@ import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/data/cache/metadata_diff.dart';
 import 'package:wisp/data/cache/metadata_revalidator.dart';
 import 'package:wisp/core/theme/cover_art_palette_provider.dart';
-import 'package:wisp/features/shell/navigation/app_navigation.dart';
-import 'package:wisp/features/playback/services/playback_coordinator.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart';
-import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
+import 'package:wisp/shared/widgets/cards/artist_card.dart';
+import 'package:wisp/shared/widgets/cards/playlist_card.dart';
+import 'package:wisp/shared/widgets/cards/user_card.dart';
+import 'package:wisp/shared/widgets/rails/card_rail.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
@@ -89,6 +89,7 @@ class _UserDetailViewState extends State<UserDetailView> {
           widget.userId,
           policy: MetadataFetchPolicy.refreshAlways,
         );
+
         if (profile == null) throw Exception('User profile not found');
 
         List<GenericSimpleUser> followers = const [];
@@ -276,45 +277,56 @@ class _UserDetailViewState extends State<UserDetailView> {
     final children = <Widget>[];
 
     if (user.publicPlaylists.isNotEmpty) {
-      children.add(const SizedBox(height: 20));
       children.add(
-        _buildHorizontalSection(
+        CardRail<GenericSimplePlaylist>(
           title: 'Public Playlists',
-          children: user.publicPlaylists
-              .map(_buildPlaylistCard)
-              .toList(growable: false),
+          items: user.publicPlaylists,
+          itemWidth: 180,
+          itemBuilder: (context, playlist) => PlaylistCard(
+            playlist: playlist.toPlaylist(),
+            subtitle: _playlistSubtitle(playlist),
+          ),
         ),
       );
     }
 
     if (user.recentArtists.isNotEmpty) {
-      children.add(const SizedBox(height: 20));
       children.add(
-        _buildHorizontalSection(
+        CardRail<GenericSimpleArtist>(
           title: 'Recently Played Artists',
-          children: user.recentArtists
-              .map(_buildArtistCard)
-              .toList(growable: false),
+          items: user.recentArtists,
+          itemWidth: 180,
+          itemBuilder: (context, artist) => ArtistCard(
+            artist: artist,
+          ),
         ),
       );
     }
 
     if (user.followers.isNotEmpty) {
-      children.add(const SizedBox(height: 20));
       children.add(
-        _buildHorizontalSection(
+        CardRail<GenericSimpleUser>(
           title: 'Followers',
-          children: user.followers.map(_buildUserCard).toList(growable: false),
+          items: user.followers,
+          itemWidth: 180,
+          itemBuilder: (context, follower) => UserCard(
+            user: follower,
+            style: widget.style,
+          ),
         ),
       );
     }
 
     if (user.following.isNotEmpty) {
-      children.add(const SizedBox(height: 20));
       children.add(
-        _buildHorizontalSection(
+        CardRail<GenericSimpleUser>(
           title: 'Following',
-          children: user.following.map(_buildUserCard).toList(growable: false),
+          items: user.following,
+          itemWidth: 180,
+          itemBuilder: (context, following) => UserCard(
+            user: following,
+            style: widget.style,
+          ),
         ),
       );
     }
@@ -331,7 +343,7 @@ class _UserDetailViewState extends State<UserDetailView> {
       children: [
         _buildHeroCard(user, useAppleChrome: false),
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: children,
@@ -346,49 +358,56 @@ class _UserDetailViewState extends State<UserDetailView> {
     children.add(_buildHeroCard(user, useAppleChrome: true));
 
     if (user.publicPlaylists.isNotEmpty) {
-      children.add(const SizedBox(height: 18));
       children.add(
-        _buildHorizontalSection(
+        CardRail<GenericSimplePlaylist>(
           title: 'Public Playlists',
-          useAppleTitleStyle: true,
-          children: user.publicPlaylists
-              .map(_buildPlaylistCard)
-              .toList(growable: false),
+          items: user.publicPlaylists,
+          itemWidth: 180,
+          itemBuilder: (context, playlist) => PlaylistCard(
+            playlist: playlist.toPlaylist(),
+            subtitle: _playlistSubtitle(playlist),
+          ),
         ),
       );
     }
 
     if (user.recentArtists.isNotEmpty) {
-      children.add(const SizedBox(height: 18));
       children.add(
-        _buildHorizontalSection(
+        CardRail<GenericSimpleArtist>(
           title: 'Recently Played Artists',
-          useAppleTitleStyle: true,
-          children: user.recentArtists
-              .map(_buildArtistCard)
-              .toList(growable: false),
+          items: user.recentArtists,
+          itemWidth: 180,
+          itemBuilder: (context, artist) => ArtistCard(
+            artist: artist,
+          ),
         ),
       );
     }
 
     if (user.followers.isNotEmpty) {
-      children.add(const SizedBox(height: 18));
       children.add(
-        _buildHorizontalSection(
+        CardRail<GenericSimpleUser>(
           title: 'Followers',
-          useAppleTitleStyle: true,
-          children: user.followers.map(_buildUserCard).toList(growable: false),
+          items: user.followers,
+          itemWidth: 180,
+          itemBuilder: (context, follower) => UserCard(
+            user: follower,
+            style: widget.style,
+          ),
         ),
       );
     }
 
     if (user.following.isNotEmpty) {
-      children.add(const SizedBox(height: 18));
       children.add(
-        _buildHorizontalSection(
+        CardRail<GenericSimpleUser>(
           title: 'Following',
-          useAppleTitleStyle: true,
-          children: user.following.map(_buildUserCard).toList(growable: false),
+          items: user.following,
+          itemWidth: 180,
+          itemBuilder: (context, following) => UserCard(
+            user: following,
+            style: widget.style,
+          ),
         ),
       );
     }
@@ -412,7 +431,7 @@ class _UserDetailViewState extends State<UserDetailView> {
 
     if (!_isDesktop) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
         child: Column(
           children: [
             Center(
@@ -571,239 +590,6 @@ class _UserDetailViewState extends State<UserDetailView> {
     );
   }
 
-  Widget _buildHorizontalSection({
-    required String title,
-    required List<Widget> children,
-    bool useAppleTitleStyle = false,
-  }) {
-    if (children.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return _HorizontalScrollableSection(
-      title: title,
-      useAppleTitleStyle: useAppleTitleStyle,
-      children: children,
-    );
-  }
-
-  Widget _buildPlaylistCard(GenericSimplePlaylist playlist) {
-    final (isActive, isPlaying) =
-        context.select<WispAudioHandler, (bool, bool)>((player) {
-      final active =
-          player.playbackContext?.type == PlaybackContextType.playlist &&
-          player.playbackContext?.id == playlist.id;
-      return (active, active && player.isPlaying);
-    });
-
-    return _buildCard(
-      width: 180,
-      imageUrl: playlist.thumbnailUrl ?? '',
-      title: playlist.title,
-      subtitle: _playlistSubtitle(playlist),
-      isDesktop: _isDesktop,
-      onTap: playlist.owner == null
-          ? null
-          : () => AppNavigation.instance.openUser(
-              context,
-              userId: playlist.owner!.id,
-              initialUser: GenericUser(
-                id: playlist.owner!.id,
-                source: playlist.owner!.source,
-                displayName: playlist.owner!.displayName,
-                avatarUrl: playlist.owner!.avatarUrl,
-                followerCount: playlist.owner!.followerCount,
-                followingCount: null,
-                recentArtists: const [],
-                publicPlaylists: const [],
-                followers: const [],
-                following: const [],
-              ),
-              style: widget.style,
-            ),
-      onPlay: () => _playPlaylist(playlist),
-      onSecondaryTapDown: (details) => EntityContextMenus.showPlaylistMenu(
-        context,
-        playlist: GenericPlaylist(
-          id: playlist.id,
-          source: playlist.source,
-          title: playlist.title,
-          thumbnailUrl: playlist.thumbnailUrl ?? '',
-          author:
-              playlist.owner ??
-              GenericSimpleUser(
-                id: '',
-                source: playlist.source,
-                displayName: '',
-              ),
-          songs: null,
-          durationSecs: 0,
-        ),
-        globalPosition: details.globalPosition,
-      ),
-      isActive: isActive,
-      isPlaying: isPlaying,
-    );
-  }
-
-  Widget _buildArtistCard(GenericSimpleArtist artist) {
-    final (isActive, isPlaying) =
-        context.select<WispAudioHandler, (bool, bool)>((player) {
-      final active =
-          player.playbackContext?.type == PlaybackContextType.artist &&
-          player.playbackContext?.id == artist.id;
-      return (active, active && player.isPlaying);
-    });
-
-    return _buildCard(
-      width: 180,
-      imageUrl: artist.thumbnailUrl,
-      title: artist.name,
-      subtitle: 'Artist',
-      isDesktop: _isDesktop,
-      onTap: () => AppNavigation.instance.openArtist(
-        context,
-        artistId: artist.id,
-        fallbackName: artist.name,
-      ),
-      onPlay: () => _playArtist(artist),
-      onSecondaryTapDown: (details) => EntityContextMenus.showArtistMenu(
-        context,
-        artist: artist,
-        globalPosition: details.globalPosition,
-      ),
-      isActive: isActive,
-      isPlaying: isPlaying,
-    );
-  }
-
-  Widget _buildUserCard(GenericSimpleUser user) {
-    final uri = user.profileUrl ?? '';
-    final isArtist = uri.startsWith('spotify:artist:');
-    final subtitle = isArtist
-        ? 'Artist'
-        : user.isFollowed == true
-        ? 'Follows you'
-        : '${_formatNumber(user.followerCount)} followers';
-
-    return _buildCard(
-      width: 180,
-      imageUrl: user.avatarUrl ?? '',
-      title: user.displayName,
-      subtitle: subtitle,
-      isDesktop: _isDesktop,
-      onTap: isArtist
-          ? () => AppNavigation.instance.openArtist(
-              context,
-              artistId: user.id,
-              fallbackName: user.displayName,
-            )
-          : () => AppNavigation.instance.openUser(
-              context,
-              userId: user.id,
-              initialUser: GenericUser(
-                id: user.id,
-                source: user.source,
-                displayName: user.displayName,
-                avatarUrl: user.avatarUrl,
-                followerCount: user.followerCount,
-                followingCount: null,
-                recentArtists: const [],
-                publicPlaylists: const [],
-                followers: const [],
-                following: const [],
-              ),
-              style: widget.style,
-            ),
-      onPlay: null,
-      onSecondaryTapDown: isArtist
-          ? (details) => EntityContextMenus.showArtistMenu(
-              context,
-              artist: GenericSimpleArtist(
-                id: user.id,
-                source: user.source,
-                name: user.displayName,
-                thumbnailUrl: user.avatarUrl ?? '',
-              ),
-              globalPosition: details.globalPosition,
-            )
-          : null,
-      isActive: false,
-      isPlaying: false,
-    );
-  }
-
-  Widget _buildCard({
-    required double width,
-    required String imageUrl,
-    required String title,
-    required String subtitle,
-    required bool isDesktop,
-    required VoidCallback? onTap,
-    required VoidCallback? onPlay,
-    GestureTapDownCallback? onSecondaryTapDown,
-    VoidCallback? onLongPress,
-    bool isActive = false,
-    bool isPlaying = false,
-  }) {
-    return SizedBox(
-      width: width,
-      child: ClipRect(
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(2),
-          child: _HoverCard(
-            width: width,
-            // height omitted entirely -> sizes to content
-            onTap: onTap,
-            onSecondaryTapDown: onSecondaryTapDown,
-            onLongPress: onLongPress,
-            builder: (context, hovering) => Padding(
-              padding: EdgeInsets.all(isDesktop ? 8.0 : 4.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min, // <-- key change
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: SizedBox(
-                      width: width - 20,
-                      height: width - 20,
-                      child: _HoverCardArtwork(
-                        imageUrl: imageUrl,
-                        showPlayButton: hovering && onPlay != null,
-                        onPlayPressed: onPlay,
-                        isActive: isActive,
-                        isPlaying: isPlaying,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   String _playlistSubtitle(GenericSimplePlaylist playlist) {
     final followerCount = playlist.followerCount ?? 0;
     if (followerCount > 0) {
@@ -811,72 +597,6 @@ class _UserDetailViewState extends State<UserDetailView> {
     }
     final ownerName = playlist.owner?.displayName;
     return ownerName == null ? 'By Spotify' : 'By $ownerName';
-  }
-
-  Future<void> _playPlaylist(GenericSimplePlaylist playlist) async {
-    try {
-      final metadataManager = context.read<MetadataManager>();
-      final info = await metadataManager.getPlaylistInfo(
-        playlist.id,
-        source: playlist.source,
-      );
-      final items = info.songs ?? [];
-      if (items.isEmpty) return;
-
-      final tracks = items
-          .map(
-            (item) => GenericSong(
-              id: item.id,
-              source: item.source,
-              title: item.title,
-              artists: item.artists,
-              thumbnailUrl: item.thumbnailUrl,
-              explicit: item.explicit,
-              album: item.album,
-              durationSecs: item.durationSecs,
-            ),
-          )
-          .toList();
-
-      if (mounted) {
-        await context.read<PlaybackCoordinator>().setQueue(
-          tracks,
-          startIndex: 0,
-          play: true,
-          playbackContext: PlaybackContext(
-            type: PlaybackContextType.playlist,
-            name: info.title,
-            id: info.id,
-            source: info.source,
-          ),
-        );
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _playArtist(GenericSimpleArtist artist) async {
-    try {
-      final metadataManager = context.read<MetadataManager>();
-      final info = await metadataManager.getArtistInfo(
-        artist.id,
-        source: artist.source,
-      );
-      if (info.topSongs.isEmpty) return;
-
-      if (mounted) {
-        await context.read<PlaybackCoordinator>().setQueue(
-          info.topSongs,
-          startIndex: 0,
-          play: true,
-          playbackContext: PlaybackContext(
-            type: PlaybackContextType.artist,
-            name: info.name,
-            id: info.id,
-            source: info.source,
-          ),
-        );
-      }
-    } catch (_) {}
   }
 
   Widget _buildAvatar(String? imageUrl, {required double size}) {
@@ -930,322 +650,3 @@ class _UserDetailViewState extends State<UserDetailView> {
   }
 }
 
-class _HorizontalScrollableSection extends StatefulWidget {
-  final String title;
-  final List<Widget> children;
-  final bool useAppleTitleStyle;
-
-  const _HorizontalScrollableSection({
-    required this.title,
-    required this.children,
-    required this.useAppleTitleStyle,
-  });
-
-  @override
-  State<_HorizontalScrollableSection> createState() =>
-      _HorizontalScrollableSectionState();
-}
-
-class _HorizontalScrollableSectionState
-    extends State<_HorizontalScrollableSection> {
-  final ScrollController _controller = ScrollController();
-  bool _canScrollLeft = false;
-  bool _canScrollRight = false;
-  bool _isHovered = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_updateScrollState);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateScrollState());
-  }
-
-  @override
-  void dispose() {
-    _controller.removeListener(_updateScrollState);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _updateScrollState() {
-    if (!_controller.hasClients) return;
-    final maxExtent = _controller.position.maxScrollExtent;
-    final offset = _controller.offset;
-    final canLeft = offset > 4;
-    final canRight = offset < (maxExtent - 4);
-    if (canLeft == _canScrollLeft && canRight == _canScrollRight) return;
-    setState(() {
-      _canScrollLeft = canLeft;
-      _canScrollRight = canRight;
-    });
-  }
-
-  void _scrollBy(double delta) {
-    if (!_controller.hasClients) return;
-    final target = (_controller.offset + delta).clamp(
-      0.0,
-      _controller.position.maxScrollExtent,
-    );
-    _controller.animateTo(
-      target,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    final showArrows = isDesktop && _isHovered;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.only(left: 4.0),
-          child: Text(
-            widget.title,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: widget.useAppleTitleStyle ? 20 : 20,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        MouseRegion(
-          cursor: SystemMouseCursors.basic,
-          onEnter: isDesktop ? (_) => setState(() => _isHovered = true) : null,
-          onExit: isDesktop ? (_) => setState(() => _isHovered = false) : null,
-          child: Stack(
-            children: [
-              SingleChildScrollView(
-                controller: _controller,
-                scrollDirection: Axis.horizontal,
-                child: IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (int i = 0; i < widget.children.length; i++) ...[
-                        if (i != 0) const SizedBox(width: 12),
-                        widget.children[i],
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              if (_canScrollRight)
-                Positioned(
-                  top: 0,
-                  bottom: 0,
-                  right: 0,
-                  child: IgnorePointer(
-                    child: Container(
-                      width: 52,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                          colors: [
-                            Colors.transparent,
-                            const Color(0xFF121212).withValues(alpha: 0.78),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              if (showArrows && _canScrollLeft)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Material(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.chevron_left,
-                          color: Colors.white,
-                        ),
-                        onPressed: () => _scrollBy(-240),
-                        splashRadius: 18,
-                      ),
-                    ),
-                  ),
-                ),
-              if (showArrows && _canScrollRight)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: Material(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.chevron_right,
-                          color: Colors.white,
-                        ),
-                        onPressed: () => _scrollBy(240),
-                        splashRadius: 18,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HoverCard extends StatefulWidget {
-  final double width;
-  final Widget Function(BuildContext context, bool hovering) builder;
-  final VoidCallback? onTap;
-  final GestureTapDownCallback? onSecondaryTapDown;
-  final VoidCallback? onLongPress;
-
-  const _HoverCard({
-    required this.width,
-    required this.builder,
-    required this.onTap,
-    this.onSecondaryTapDown,
-    this.onLongPress,
-  });
-
-  @override
-  State<_HoverCard> createState() => _HoverCardState();
-}
-
-class _HoverCardState extends State<_HoverCard> {
-  bool _hovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: widget.onTap == null
-          ? MouseCursor.defer
-          : SystemMouseCursors.click,
-      onEnter: (_) {
-        if (_isDesktop) setState(() => _hovering = true);
-      },
-      onExit: (_) {
-        if (_hovering) setState(() => _hovering = false);
-      },
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          mouseCursor: widget.onTap == null ? null : SystemMouseCursors.click,
-          borderRadius: BorderRadius.circular(12),
-          onSecondaryTapDown: widget.onSecondaryTapDown,
-          onLongPress: widget.onLongPress,
-          onTap: widget.onTap,
-          child: SizedBox(
-            width: widget.width,
-            height: null,
-            child: widget.builder(context, _hovering),
-          ),
-        ),
-      ),
-    );
-  }
-
-  bool get _isDesktop =>
-      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-}
-
-class _HoverCardArtwork extends StatelessWidget {
-  final String imageUrl;
-  final bool showPlayButton;
-  final VoidCallback? onPlayPressed;
-  final bool isActive;
-  final bool isPlaying;
-
-  const _HoverCardArtwork({
-    required this.imageUrl,
-    required this.showPlayButton,
-    required this.onPlayPressed,
-    this.isActive = false,
-    this.isPlaying = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final placeholder = Container(
-      color: Colors.white.withValues(alpha: 0.08),
-      child: Icon(
-        CupertinoIcons.person_crop_circle,
-        color: Colors.white.withValues(alpha: 0.55),
-        size: 42,
-      ),
-    );
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Positioned.fill(
-          child: imageUrl.isEmpty
-              ? placeholder
-              : CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.cover,
-                  errorWidget: (context, url, error) => placeholder,
-                ),
-        ),
-        Builder(
-          builder: (context) {
-            if (onPlayPressed == null) return const SizedBox.shrink();
-            final isDesktop =
-                Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-            final icon = isActive && isPlaying ? Icons.pause : Icons.play_arrow;
-            final visible = isDesktop && (showPlayButton || isActive);
-            return Positioned(
-              right: 10,
-              bottom: 10,
-              child: AnimatedOpacity(
-                opacity: visible ? 1 : 0,
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeInOut,
-                child: IgnorePointer(
-                  ignoring: !visible,
-                  child: Material(
-                    color: Theme.of(context).colorScheme.primary,
-                    shape: const CircleBorder(),
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      iconSize: 22,
-                      icon: Icon(
-                        icon,
-                        color: Theme.of(context).colorScheme.onPrimary,
-                      ),
-                      onPressed: () {
-                        final player = context.read<WispAudioHandler>();
-                        final coordinator = context.read<PlaybackCoordinator>();
-                        if (isActive) {
-                          if (player.isPlaying) {
-                            unawaited(coordinator.pause());
-                          } else if (!player.isLoading && !player.isBuffering) {
-                            unawaited(coordinator.play());
-                          }
-                          return;
-                        }
-                        onPlayPressed!();
-                      },
-                      splashRadius: 22,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}

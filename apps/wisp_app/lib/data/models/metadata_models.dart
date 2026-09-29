@@ -490,6 +490,18 @@ class GenericSimplePlaylist {
     );
   }
 
+  GenericPlaylist toPlaylist() {
+    return GenericPlaylist(
+      id: id,
+      source: source,
+      title: title,
+      thumbnailUrl: thumbnailUrl ?? '',
+      author: owner ?? GenericSimpleUser(id: '', source: source, displayName: ''),
+      songs: null,
+      durationSecs: 0,
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

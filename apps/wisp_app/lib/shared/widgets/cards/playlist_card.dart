@@ -28,9 +28,29 @@ String playlistSubtitle(GenericPlaylist playlist) {
 
 class PlaylistCard extends StatelessWidget {
   final GenericPlaylist playlist;
+  final String? subtitle;
   final double? width;
 
-  const PlaylistCard({super.key, required this.playlist, this.width});
+  const PlaylistCard({
+    super.key,
+    required this.playlist,
+    this.subtitle,
+    this.width,
+  });
+
+  factory PlaylistCard.fromSimplePlaylist({
+    Key? key,
+    required GenericSimplePlaylist playlist,
+    String? subtitle,
+    double? width,
+  }) {
+    return PlaylistCard(
+      key: key,
+      playlist: playlist.toPlaylist(),
+      subtitle: subtitle,
+      width: width,
+    );
+  }
 
   Future<void> _startPlaylistPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();
@@ -100,7 +120,7 @@ class PlaylistCard extends StatelessWidget {
     );
     return GenericCard(
       title: playlist.title,
-      subtitle: playlistSubtitle(playlist),
+      subtitle: subtitle ?? playlistSubtitle(playlist),
       artwork: ArtworkThumbnail(
         source: ArtworkSource.fromUrl(playlist.thumbnailUrl),
         size: ArtworkSize.large,
