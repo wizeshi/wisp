@@ -751,7 +751,7 @@ class HomePageState extends State<HomePage> {
 
     return SafeArea(
       bottom: false,
-      child: CustomScrollView(
+      child: WispCustomScrollView(
         key: const PageStorageKey('home_mobile_standard'),
         controller: _scrollController,
         slivers: [
@@ -817,7 +817,7 @@ class HomePageState extends State<HomePage> {
 
     return SafeArea(
       bottom: false,
-      child: CustomScrollView(
+      child: WispCustomScrollView(
         key: const PageStorageKey('home_mobile_apple'),
         controller: _scrollController,
         slivers: [

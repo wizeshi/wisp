@@ -363,7 +363,7 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildMobileContent(String effectiveSource) {
-    return ListView(
+    return WispListView(
       controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       children: [
@@ -897,7 +897,7 @@ class _SearchViewState extends State<SearchView> {
         final history = _searchState.history;
         if (history.isEmpty) return _buildPromptState();
 
-        return ListView(
+        return WispListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
             // Header row

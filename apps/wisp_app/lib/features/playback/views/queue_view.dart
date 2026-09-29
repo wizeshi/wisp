@@ -16,6 +16,7 @@ import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/details/views/list_detail_view.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
+import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 
 class QueueView extends StatefulWidget {
   /// If true, only returns the queue content without scaffold (for mobile bottom sheet)
@@ -229,7 +230,7 @@ class _QueueViewState extends State<QueueView> {
       currentIndex,
     );
 
-    return ReorderableListView.builder(
+    return WispReorderableListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       itemCount: visibleQueueIndices.length,
       buildDefaultDragHandles: false,

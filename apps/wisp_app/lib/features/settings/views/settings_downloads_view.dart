@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 
 import 'package:wisp/data/cache/cache_manager.dart';
+import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 
 class DownloadsSettingsPage extends StatelessWidget {
   const DownloadsSettingsPage({super.key});
@@ -34,7 +35,7 @@ class DownloadsSettingsPage extends StatelessWidget {
             );
           }
 
-          return ListView(
+          return WispListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
               if (activeDownloads.isNotEmpty) ...[

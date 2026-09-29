@@ -31,6 +31,7 @@ import 'package:wisp/features/connect/widgets/connect_menu.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/display/hover_underline.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
+import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 
 class RightSidebar extends StatefulWidget {
   final double width;
@@ -115,7 +116,7 @@ class _RightSidebarState extends State<RightSidebar> {
                                     .showLibrarySidebar();
                               },
                             )
-                          : SingleChildScrollView(
+                          : WispSingleChildScrollView(
                               key: const ValueKey('library-sidebar-content'),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -18,6 +18,7 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/shared/widgets/menus/playlist_folder_modals.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
+import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 
 enum LibraryView { all, playlists, albums, artists }
 
@@ -455,7 +456,7 @@ class _WispNavigationState extends State<WispNavigation> {
             child: ValueListenableBuilder<Route<dynamic>?>(
               valueListenable: NavigationHistory.instance.currentRoute,
               builder: (context, route, child) {
-                return ListView.builder(
+                return WispListView.builder(
                   itemCount: libraryItems.length,
                   itemBuilder: (context, index) {
                     final item = libraryItems[index];

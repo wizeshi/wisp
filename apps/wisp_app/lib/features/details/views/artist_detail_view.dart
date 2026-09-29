@@ -31,6 +31,7 @@ import 'package:wisp/shared/widgets/menus/adaptive_context_menu.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
+import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'list_detail_view.dart';
 
 class ArtistDetailView extends StatefulWidget {
@@ -324,7 +325,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     return Column(
       children: [
         Expanded(
-          child: CustomScrollView(
+          child: WispCustomScrollView(
             key: PageStorageKey('artist_mobile_default_${widget.artistId}'),
             controller: _scrollController,
             slivers: [
@@ -386,7 +387,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     required String name,
     required int followers,
   }) {
-    return CustomScrollView(
+    return WispCustomScrollView(
       key: PageStorageKey('artist_mobile_apple_${widget.artistId}'),
       controller: _scrollController,
       slivers: [
@@ -536,7 +537,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         Positioned.fill(child: Container(color: contentSurfaceColor)),
         SafeArea(
           bottom: false,
-          child: ListView(
+          child: WispListView(
             key: PageStorageKey('artist_desktop_spotify_${widget.artistId}'),
             controller: _scrollController,
             padding: EdgeInsets.zero,
@@ -742,7 +743,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         ),
         SafeArea(
           bottom: false,
-          child: CustomScrollView(
+          child: WispCustomScrollView(
             key: PageStorageKey('artist_desktop_apple_${widget.artistId}'),
             controller: _scrollController,
             slivers: [
@@ -1496,7 +1497,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         const SizedBox(height: 12),
         SizedBox(
           height: 214,
-          child: ListView.separated(
+          child: WispListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: albums.length,

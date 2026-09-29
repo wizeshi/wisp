@@ -10,6 +10,7 @@ import 'package:wisp_audio_output_info/models/types.dart';
 
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 
 class ConnectMenu extends StatelessWidget {
   final VoidCallback onClose;
@@ -147,7 +148,7 @@ class ConnectMenu extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Expanded(
-                child: ListView(
+                child: WispListView(
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
                   children: [

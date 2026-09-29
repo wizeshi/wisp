@@ -10,6 +10,7 @@ import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/settings/views/providers_marketplace_view.dart';
+import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 
 class SettingsContent extends StatelessWidget {
   final Widget Function(BuildContext, JsAuthSource, String, IconData, Color)
@@ -64,7 +65,7 @@ class SettingsContent extends StatelessWidget {
             .expand((w) => [w, const SizedBox(height: 16)])
             .toList();
 
-        return ListView(
+        return WispListView(
           padding: const EdgeInsets.all(24.0),
           children: [
             Text(

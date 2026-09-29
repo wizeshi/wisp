@@ -1,8 +1,10 @@
 // Copyright © 2026 wizeshi
+// ignore_for_file: deprecated_member_use
 
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
@@ -75,7 +77,8 @@ class SmoothScrollActivity extends ScrollActivity {
     final double current = pos.pixels;
 
     // Keep target clamped in case extents updated dynamically during content layout
-    _targetPixels = _targetPixels.clamp(pos.minScrollExtent, pos.maxScrollExtent);
+    _targetPixels =
+        _targetPixels.clamp(pos.minScrollExtent, pos.maxScrollExtent);
     final double diff = _targetPixels - current;
 
     if (diff.abs() < 0.5) {
@@ -149,9 +152,14 @@ class SmoothScrollPosition extends ScrollPositionWithSingleContext {
       return;
     }
 
+    if (!hasContentDimensions) return;
     final double min = minScrollExtent;
     final double max = maxScrollExtent;
     if (max <= min) return;
+
+    updateUserScrollDirection(
+      -delta > 0.0 ? ScrollDirection.forward : ScrollDirection.reverse,
+    );
 
     if (activity is SmoothScrollActivity) {
       (activity as SmoothScrollActivity).addDelta(
@@ -161,7 +169,7 @@ class SmoothScrollPosition extends ScrollPositionWithSingleContext {
       );
     } else {
       final double target = (pixels + delta * scrollSpeed).clamp(min, max);
-      if ((target - pixels).abs() < 0.5) return;
+      if (target == pixels) return;
       beginActivity(
         SmoothScrollActivity(
           this,
@@ -318,6 +326,279 @@ class _WispSmoothScrollState extends State<WispSmoothScroll> {
   }
 }
 
+/// Drop-in replacement for [SingleChildScrollView] with silky smooth desktop scrolling.
+class WispSingleChildScrollView extends StatelessWidget {
+  final ScrollController? controller;
+  final Widget? child;
+  final Axis scrollDirection;
+  final bool reverse;
+  final EdgeInsetsGeometry? padding;
+  final bool? primary;
+  final ScrollPhysics? physics;
+  final DragStartBehavior dragStartBehavior;
+  final Clip clipBehavior;
+  final HitTestBehavior hitTestBehavior;
+  final String? restorationId;
+  final ScrollViewKeyboardDismissBehavior keyboardDismissBehavior;
+  final double scrollSpeed;
+  final double smoothingRate;
+
+  const WispSingleChildScrollView({
+    super.key,
+    this.controller,
+    this.child,
+    this.scrollDirection = Axis.vertical,
+    this.reverse = false,
+    this.padding,
+    this.primary,
+    this.physics,
+    this.dragStartBehavior = DragStartBehavior.start,
+    this.clipBehavior = Clip.hardEdge,
+    this.hitTestBehavior = HitTestBehavior.opaque,
+    this.restorationId,
+    this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
+    this.scrollSpeed = 1.0,
+    this.smoothingRate = 22.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return WispSmoothScroll(
+      controller: controller,
+      scrollDirection: scrollDirection,
+      scrollSpeed: scrollSpeed,
+      smoothingRate: smoothingRate,
+      builder: (context, ctrl, phys) => SingleChildScrollView(
+        key: key,
+        controller: ctrl,
+        scrollDirection: scrollDirection,
+        reverse: reverse,
+        padding: padding,
+        primary: primary,
+        physics: physics ?? phys,
+        dragStartBehavior: dragStartBehavior,
+        clipBehavior: clipBehavior,
+        hitTestBehavior: hitTestBehavior,
+        restorationId: restorationId,
+        keyboardDismissBehavior: keyboardDismissBehavior,
+        child: child,
+      ),
+    );
+  }
+}
+
+typedef _WispListViewChildBuilder = Widget Function(
+  BuildContext context,
+  ScrollController controller,
+  ScrollPhysics physics,
+);
+
+/// Drop-in replacement for [ListView] with silky smooth desktop scrolling.
+class WispListView extends StatelessWidget {
+  final ScrollController? controller;
+  final Axis scrollDirection;
+  final double scrollSpeed;
+  final double smoothingRate;
+  final _WispListViewChildBuilder _builder;
+
+  WispListView({
+    super.key,
+    this.controller,
+    List<Widget> children = const <Widget>[],
+    EdgeInsetsGeometry? padding,
+    bool shrinkWrap = false,
+    ScrollPhysics? physics,
+    this.scrollDirection = Axis.vertical,
+    bool reverse = false,
+    bool? primary,
+    double? itemExtent,
+    Widget? prototypeItem,
+    bool addAutomaticKeepAlives = true,
+    bool addRepaintBoundaries = true,
+    bool addSemanticIndexes = true,
+    double? cacheExtent,
+    int? semanticChildCount,
+    DragStartBehavior dragStartBehavior = DragStartBehavior.start,
+    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior =
+        ScrollViewKeyboardDismissBehavior.manual,
+    String? restorationId,
+    Clip clipBehavior = Clip.hardEdge,
+    this.scrollSpeed = 1.0,
+    this.smoothingRate = 22.0,
+  }) : _builder = ((context, ctrl, phys) => ListView(
+              key: key,
+              controller: ctrl,
+              scrollDirection: scrollDirection,
+              reverse: reverse,
+              primary: primary,
+              physics: physics ?? phys,
+              shrinkWrap: shrinkWrap,
+              padding: padding,
+              itemExtent: itemExtent,
+              prototypeItem: prototypeItem,
+              addAutomaticKeepAlives: addAutomaticKeepAlives,
+              addRepaintBoundaries: addRepaintBoundaries,
+              addSemanticIndexes: addSemanticIndexes,
+              cacheExtent: cacheExtent,
+              semanticChildCount: semanticChildCount,
+              dragStartBehavior: dragStartBehavior,
+              keyboardDismissBehavior: keyboardDismissBehavior,
+              restorationId: restorationId,
+              clipBehavior: clipBehavior,
+              children: children,
+            ));
+
+  WispListView.builder({
+    super.key,
+    this.controller,
+    required NullableIndexedWidgetBuilder itemBuilder,
+    int? itemCount,
+    EdgeInsetsGeometry? padding,
+    bool shrinkWrap = false,
+    ScrollPhysics? physics,
+    this.scrollDirection = Axis.vertical,
+    bool reverse = false,
+    bool? primary,
+    double? itemExtent,
+    Widget? prototypeItem,
+    int? Function(Key)? findChildIndexCallback,
+    bool addAutomaticKeepAlives = true,
+    bool addRepaintBoundaries = true,
+    bool addSemanticIndexes = true,
+    double? cacheExtent,
+    int? semanticChildCount,
+    DragStartBehavior dragStartBehavior = DragStartBehavior.start,
+    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior =
+        ScrollViewKeyboardDismissBehavior.manual,
+    String? restorationId,
+    Clip clipBehavior = Clip.hardEdge,
+    this.scrollSpeed = 1.0,
+    this.smoothingRate = 22.0,
+  }) : _builder = ((context, ctrl, phys) => ListView.builder(
+              key: key,
+              controller: ctrl,
+              scrollDirection: scrollDirection,
+              reverse: reverse,
+              primary: primary,
+              physics: physics ?? phys,
+              shrinkWrap: shrinkWrap,
+              padding: padding,
+              itemExtent: itemExtent,
+              prototypeItem: prototypeItem,
+              itemBuilder: itemBuilder,
+              findChildIndexCallback: findChildIndexCallback,
+              itemCount: itemCount,
+              addAutomaticKeepAlives: addAutomaticKeepAlives,
+              addRepaintBoundaries: addRepaintBoundaries,
+              addSemanticIndexes: addSemanticIndexes,
+              cacheExtent: cacheExtent,
+              semanticChildCount: semanticChildCount,
+              dragStartBehavior: dragStartBehavior,
+              keyboardDismissBehavior: keyboardDismissBehavior,
+              restorationId: restorationId,
+              clipBehavior: clipBehavior,
+            ));
+
+  WispListView.separated({
+    super.key,
+    this.controller,
+    required NullableIndexedWidgetBuilder itemBuilder,
+    required IndexedWidgetBuilder separatorBuilder,
+    required int itemCount,
+    EdgeInsetsGeometry? padding,
+    bool shrinkWrap = false,
+    ScrollPhysics? physics,
+    this.scrollDirection = Axis.vertical,
+    bool reverse = false,
+    bool? primary,
+    int? Function(Key)? findChildIndexCallback,
+    bool addAutomaticKeepAlives = true,
+    bool addRepaintBoundaries = true,
+    bool addSemanticIndexes = true,
+    double? cacheExtent,
+    DragStartBehavior dragStartBehavior = DragStartBehavior.start,
+    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior =
+        ScrollViewKeyboardDismissBehavior.manual,
+    String? restorationId,
+    Clip clipBehavior = Clip.hardEdge,
+    this.scrollSpeed = 1.0,
+    this.smoothingRate = 22.0,
+  }) : _builder = ((context, ctrl, phys) => ListView.separated(
+              key: key,
+              controller: ctrl,
+              scrollDirection: scrollDirection,
+              reverse: reverse,
+              primary: primary,
+              physics: physics ?? phys,
+              shrinkWrap: shrinkWrap,
+              padding: padding,
+              itemBuilder: itemBuilder,
+              separatorBuilder: separatorBuilder,
+              itemCount: itemCount,
+              findChildIndexCallback: findChildIndexCallback,
+              addAutomaticKeepAlives: addAutomaticKeepAlives,
+              addRepaintBoundaries: addRepaintBoundaries,
+              addSemanticIndexes: addSemanticIndexes,
+              cacheExtent: cacheExtent,
+              dragStartBehavior: dragStartBehavior,
+              keyboardDismissBehavior: keyboardDismissBehavior,
+              restorationId: restorationId,
+              clipBehavior: clipBehavior,
+            ));
+
+  WispListView.custom({
+    super.key,
+    this.controller,
+    required SliverChildDelegate childrenDelegate,
+    EdgeInsetsGeometry? padding,
+    bool shrinkWrap = false,
+    ScrollPhysics? physics,
+    this.scrollDirection = Axis.vertical,
+    bool reverse = false,
+    bool? primary,
+    double? itemExtent,
+    Widget? prototypeItem,
+    double? cacheExtent,
+    int? semanticChildCount,
+    DragStartBehavior dragStartBehavior = DragStartBehavior.start,
+    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior =
+        ScrollViewKeyboardDismissBehavior.manual,
+    String? restorationId,
+    Clip clipBehavior = Clip.hardEdge,
+    this.scrollSpeed = 1.0,
+    this.smoothingRate = 22.0,
+  }) : _builder = ((context, ctrl, phys) => ListView.custom(
+              key: key,
+              controller: ctrl,
+              scrollDirection: scrollDirection,
+              reverse: reverse,
+              primary: primary,
+              physics: physics ?? phys,
+              shrinkWrap: shrinkWrap,
+              padding: padding,
+              itemExtent: itemExtent,
+              prototypeItem: prototypeItem,
+              childrenDelegate: childrenDelegate,
+              cacheExtent: cacheExtent,
+              semanticChildCount: semanticChildCount,
+              dragStartBehavior: dragStartBehavior,
+              keyboardDismissBehavior: keyboardDismissBehavior,
+              restorationId: restorationId,
+              clipBehavior: clipBehavior,
+            ));
+
+  @override
+  Widget build(BuildContext context) {
+    return WispSmoothScroll(
+      controller: controller,
+      scrollDirection: scrollDirection,
+      scrollSpeed: scrollSpeed,
+      smoothingRate: smoothingRate,
+      builder: (context, ctrl, phys) => _builder(context, ctrl, phys),
+    );
+  }
+}
+
 /// Drop-in replacement for [CustomScrollView] with silky smooth desktop scrolling.
 class WispCustomScrollView extends StatelessWidget {
   final ScrollController? controller;
@@ -327,6 +608,12 @@ class WispCustomScrollView extends StatelessWidget {
   final bool shrinkWrap;
   final ScrollPhysics? physics;
   final Clip clipBehavior;
+  final double anchor;
+  final double? cacheExtent;
+  final int? semanticChildCount;
+  final DragStartBehavior dragStartBehavior;
+  final ScrollViewKeyboardDismissBehavior keyboardDismissBehavior;
+  final String? restorationId;
   final double scrollSpeed;
   final double smoothingRate;
 
@@ -339,6 +626,12 @@ class WispCustomScrollView extends StatelessWidget {
     this.shrinkWrap = false,
     this.physics,
     this.clipBehavior = Clip.hardEdge,
+    this.anchor = 0.0,
+    this.cacheExtent,
+    this.semanticChildCount,
+    this.dragStartBehavior = DragStartBehavior.start,
+    this.keyboardDismissBehavior = ScrollViewKeyboardDismissBehavior.manual,
+    this.restorationId,
     this.scrollSpeed = 1.0,
     this.smoothingRate = 22.0,
   });
@@ -358,34 +651,176 @@ class WispCustomScrollView extends StatelessWidget {
         shrinkWrap: shrinkWrap,
         physics: physics ?? phys,
         clipBehavior: clipBehavior,
+        anchor: anchor,
+        cacheExtent: cacheExtent,
+        semanticChildCount: semanticChildCount,
+        dragStartBehavior: dragStartBehavior,
+        keyboardDismissBehavior: keyboardDismissBehavior,
+        restorationId: restorationId,
         slivers: slivers,
       ),
     );
   }
 }
 
-/// Drop-in replacement for [ListView] with silky smooth desktop scrolling.
-class WispListView extends StatelessWidget {
+typedef _WispGridViewChildBuilder = Widget Function(
+  BuildContext context,
+  ScrollController controller,
+  ScrollPhysics physics,
+);
+
+/// Drop-in replacement for [GridView] with silky smooth desktop scrolling.
+class WispGridView extends StatelessWidget {
   final ScrollController? controller;
-  final List<Widget> children;
-  final EdgeInsetsGeometry? padding;
-  final bool shrinkWrap;
-  final ScrollPhysics? physics;
   final Axis scrollDirection;
   final double scrollSpeed;
   final double smoothingRate;
+  final _WispGridViewChildBuilder _builder;
 
-  const WispListView({
+  WispGridView({
     super.key,
     this.controller,
-    this.children = const <Widget>[],
-    this.padding,
-    this.shrinkWrap = false,
-    this.physics,
+    required SliverGridDelegate gridDelegate,
+    List<Widget> children = const <Widget>[],
+    EdgeInsetsGeometry? padding,
+    bool shrinkWrap = false,
+    ScrollPhysics? physics,
     this.scrollDirection = Axis.vertical,
+    bool reverse = false,
+    bool? primary,
+    bool addAutomaticKeepAlives = true,
+    bool addRepaintBoundaries = true,
+    bool addSemanticIndexes = true,
+    double? cacheExtent,
+    int? semanticChildCount,
+    DragStartBehavior dragStartBehavior = DragStartBehavior.start,
+    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior =
+        ScrollViewKeyboardDismissBehavior.manual,
+    String? restorationId,
+    Clip clipBehavior = Clip.hardEdge,
     this.scrollSpeed = 1.0,
     this.smoothingRate = 22.0,
-  });
+  }) : _builder = ((context, ctrl, phys) => GridView(
+              key: key,
+              controller: ctrl,
+              gridDelegate: gridDelegate,
+              scrollDirection: scrollDirection,
+              reverse: reverse,
+              primary: primary,
+              physics: physics ?? phys,
+              shrinkWrap: shrinkWrap,
+              padding: padding,
+              addAutomaticKeepAlives: addAutomaticKeepAlives,
+              addRepaintBoundaries: addRepaintBoundaries,
+              addSemanticIndexes: addSemanticIndexes,
+              cacheExtent: cacheExtent,
+              semanticChildCount: semanticChildCount,
+              dragStartBehavior: dragStartBehavior,
+              keyboardDismissBehavior: keyboardDismissBehavior,
+              restorationId: restorationId,
+              clipBehavior: clipBehavior,
+              children: children,
+            ));
+
+  WispGridView.builder({
+    super.key,
+    this.controller,
+    required SliverGridDelegate gridDelegate,
+    required NullableIndexedWidgetBuilder itemBuilder,
+    int? itemCount,
+    EdgeInsetsGeometry? padding,
+    bool shrinkWrap = false,
+    ScrollPhysics? physics,
+    this.scrollDirection = Axis.vertical,
+    bool reverse = false,
+    bool? primary,
+    int? Function(Key)? findChildIndexCallback,
+    bool addAutomaticKeepAlives = true,
+    bool addRepaintBoundaries = true,
+    bool addSemanticIndexes = true,
+    double? cacheExtent,
+    int? semanticChildCount,
+    DragStartBehavior dragStartBehavior = DragStartBehavior.start,
+    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior =
+        ScrollViewKeyboardDismissBehavior.manual,
+    String? restorationId,
+    Clip clipBehavior = Clip.hardEdge,
+    this.scrollSpeed = 1.0,
+    this.smoothingRate = 22.0,
+  }) : _builder = ((context, ctrl, phys) => GridView.builder(
+              key: key,
+              controller: ctrl,
+              gridDelegate: gridDelegate,
+              itemBuilder: itemBuilder,
+              itemCount: itemCount,
+              scrollDirection: scrollDirection,
+              reverse: reverse,
+              primary: primary,
+              physics: physics ?? phys,
+              shrinkWrap: shrinkWrap,
+              padding: padding,
+              findChildIndexCallback: findChildIndexCallback,
+              addAutomaticKeepAlives: addAutomaticKeepAlives,
+              addRepaintBoundaries: addRepaintBoundaries,
+              addSemanticIndexes: addSemanticIndexes,
+              cacheExtent: cacheExtent,
+              semanticChildCount: semanticChildCount,
+              dragStartBehavior: dragStartBehavior,
+              keyboardDismissBehavior: keyboardDismissBehavior,
+              restorationId: restorationId,
+              clipBehavior: clipBehavior,
+            ));
+
+  WispGridView.count({
+    super.key,
+    this.controller,
+    required int crossAxisCount,
+    List<Widget> children = const <Widget>[],
+    double mainAxisSpacing = 0.0,
+    double crossAxisSpacing = 0.0,
+    double childAspectRatio = 1.0,
+    EdgeInsetsGeometry? padding,
+    bool shrinkWrap = false,
+    ScrollPhysics? physics,
+    this.scrollDirection = Axis.vertical,
+    bool reverse = false,
+    bool? primary,
+    bool addAutomaticKeepAlives = true,
+    bool addRepaintBoundaries = true,
+    bool addSemanticIndexes = true,
+    double? cacheExtent,
+    int? semanticChildCount,
+    DragStartBehavior dragStartBehavior = DragStartBehavior.start,
+    ScrollViewKeyboardDismissBehavior keyboardDismissBehavior =
+        ScrollViewKeyboardDismissBehavior.manual,
+    String? restorationId,
+    Clip clipBehavior = Clip.hardEdge,
+    this.scrollSpeed = 1.0,
+    this.smoothingRate = 22.0,
+  }) : _builder = ((context, ctrl, phys) => GridView.count(
+              key: key,
+              controller: ctrl,
+              crossAxisCount: crossAxisCount,
+              mainAxisSpacing: mainAxisSpacing,
+              crossAxisSpacing: crossAxisSpacing,
+              childAspectRatio: childAspectRatio,
+              scrollDirection: scrollDirection,
+              reverse: reverse,
+              primary: primary,
+              physics: physics ?? phys,
+              shrinkWrap: shrinkWrap,
+              padding: padding,
+              addAutomaticKeepAlives: addAutomaticKeepAlives,
+              addRepaintBoundaries: addRepaintBoundaries,
+              addSemanticIndexes: addSemanticIndexes,
+              cacheExtent: cacheExtent,
+              semanticChildCount: semanticChildCount,
+              dragStartBehavior: dragStartBehavior,
+              keyboardDismissBehavior: keyboardDismissBehavior,
+              restorationId: restorationId,
+              clipBehavior: clipBehavior,
+              children: children,
+            ));
 
   @override
   Widget build(BuildContext context) {
@@ -394,15 +829,73 @@ class WispListView extends StatelessWidget {
       scrollDirection: scrollDirection,
       scrollSpeed: scrollSpeed,
       smoothingRate: smoothingRate,
-      builder: (context, ctrl, phys) => ListView(
-        key: key,
-        controller: ctrl,
-        padding: padding,
-        shrinkWrap: shrinkWrap,
-        physics: physics ?? phys,
-        scrollDirection: scrollDirection,
-        children: children,
-      ),
+      builder: (context, ctrl, phys) => _builder(context, ctrl, phys),
+    );
+  }
+}
+
+/// Drop-in replacement for [ReorderableListView] with silky smooth desktop scrolling.
+class WispReorderableListView extends StatelessWidget {
+  final ScrollController? scrollController;
+  final Axis scrollDirection;
+  final double scrollSpeed;
+  final double smoothingRate;
+  final Widget Function(BuildContext, ScrollController, ScrollPhysics) _builder;
+
+  WispReorderableListView.builder({
+    super.key,
+    this.scrollController,
+    required IndexedWidgetBuilder itemBuilder,
+    required int itemCount,
+    required ReorderCallback onReorder,
+    void Function(int)? onReorderStart,
+    void Function(int)? onReorderEnd,
+    double? itemExtent,
+    Widget? prototypeItem,
+    ReorderItemProxyDecorator? proxyDecorator,
+    bool buildDefaultDragHandles = true,
+    EdgeInsets? padding,
+    Widget? header,
+    Widget? footer,
+    bool? primary,
+    ScrollPhysics? physics,
+    this.scrollDirection = Axis.vertical,
+    bool reverse = false,
+    DragStartBehavior dragStartBehavior = DragStartBehavior.start,
+    Clip clipBehavior = Clip.hardEdge,
+    this.scrollSpeed = 1.0,
+    this.smoothingRate = 22.0,
+  }) : _builder = ((context, ctrl, phys) => ReorderableListView.builder(
+              key: key,
+              scrollController: ctrl,
+              itemBuilder: itemBuilder,
+              itemCount: itemCount,
+              onReorder: onReorder,
+              onReorderStart: onReorderStart,
+              onReorderEnd: onReorderEnd,
+              itemExtent: itemExtent,
+              prototypeItem: prototypeItem,
+              proxyDecorator: proxyDecorator,
+              buildDefaultDragHandles: buildDefaultDragHandles,
+              padding: padding,
+              header: header,
+              footer: footer,
+              primary: primary,
+              physics: physics ?? phys,
+              scrollDirection: scrollDirection,
+              reverse: reverse,
+              dragStartBehavior: dragStartBehavior,
+              clipBehavior: clipBehavior,
+            ));
+
+  @override
+  Widget build(BuildContext context) {
+    return WispSmoothScroll(
+      controller: scrollController,
+      scrollDirection: scrollDirection,
+      scrollSpeed: scrollSpeed,
+      smoothingRate: smoothingRate,
+      builder: (context, ctrl, phys) => _builder(context, ctrl, phys),
     );
   }
 }

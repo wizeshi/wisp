@@ -2,7 +2,7 @@ Here's the TODOs for version v26.08.xx:
 
 - Bugs:
   - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
-  - [ ] Fix smooth scroll 
+  - [x] Fix smooth scroll 
   - [ ] Update installer with new marketplace features
   - [ ] Create proper provider docs
 - Future changes: 

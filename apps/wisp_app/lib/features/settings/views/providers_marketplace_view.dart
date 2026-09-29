@@ -10,6 +10,7 @@ import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/data/sources/providers/provider_dependency_validator.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
+import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 
 class ProvidersMarketplaceView extends StatefulWidget {
   const ProvidersMarketplaceView({super.key});
@@ -316,7 +317,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                       style: TextStyle(color: Colors.grey[500]),
                     ),
                   )
-                : ListView.separated(
+                : WispListView.separated(
                     padding: const EdgeInsets.all(20),
                     itemCount:
                         filtered.length +
