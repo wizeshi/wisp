@@ -32,6 +32,7 @@ import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 import 'list_detail_view.dart';
 
 class ArtistDetailView extends StatefulWidget {
@@ -375,6 +376,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   child: _buildAboutSection(isMobile: true),
                 ),
               ),
+              const MobileBottomPaddingSliver(extra: 0),
             ],
           ),
         ),
@@ -441,6 +443,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             ),
           ),
         ),
+        const MobileBottomPaddingSliver(extra: 0),
       ],
     );
   }

@@ -23,6 +23,7 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 
 enum UserPageStyle { spotify, apple }
 
@@ -321,6 +322,12 @@ class _UserDetailViewState extends State<UserDetailView> {
     return WispListView(
       key: PageStorageKey('user_spotify_${widget.userId}'),
       controller: _scrollController,
+      padding: EdgeInsets.fromLTRB(
+        0,
+        0,
+        0,
+        mobileBottomBarPadding(context, extra: 24),
+      ),
       children: [
         _buildHeroCard(user, useAppleChrome: false),
         Padding(
@@ -389,7 +396,12 @@ class _UserDetailViewState extends State<UserDetailView> {
     return WispListView(
       key: PageStorageKey('user_apple_${widget.userId}'),
       controller: _scrollController,
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        mobileBottomBarPadding(context, extra: 24),
+      ),
       children: children,
     );
   }

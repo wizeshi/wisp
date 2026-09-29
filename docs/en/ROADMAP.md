@@ -1,8 +1,7 @@
-Here's the TODOs for version v26.08.xx:
+Here's the TODOs for version v26.09:
 
 - Bugs:
   - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
-  - [x] Fix smooth scroll 
   - [ ] Update installer with new marketplace features
   - [ ] Create proper provider docs
 - Future changes: 
@@ -10,7 +9,6 @@ Here's the TODOs for version v26.08.xx:
   - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
   - [ ] Add special card from the home screen on mobile. 
   - [ ] Make artist name clickable in the full player
-  - [ ] Make the playerbar on mobile see-through, so that the user can see the content behind it.
 - Planned features:
   - [ ] Add CI/CD pipeline
     - [x] Replace installer remote download with local extraction

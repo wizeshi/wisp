@@ -29,6 +29,7 @@ import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/features/shell/widgets/navigation.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 
 enum SearchTab { tracks, artists, albums, playlists }
 
@@ -365,7 +366,12 @@ class _SearchViewState extends State<SearchView> {
   Widget _buildMobileContent(String effectiveSource) {
     return WispListView(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        4,
+        16,
+        mobileBottomBarPadding(context, extra: 16),
+      ),
       children: [
         Text(
           'Best Match',
@@ -898,7 +904,12 @@ class _SearchViewState extends State<SearchView> {
         if (history.isEmpty) return _buildPromptState();
 
         return WispListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            mobileBottomBarPadding(context, extra: 16),
+          ),
           children: [
             // Header row
             Row(

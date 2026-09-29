@@ -910,20 +910,38 @@ class _WispNavigationState extends State<WispNavigation> {
     final safeIndex = widget.selectedIndex.clamp(0, destinations.length - 1);
     return MediaQuery(
       data: MediaQuery.of(context).removePadding(removeTop: true),
-      child: NavigationBar(
-        maintainBottomViewPadding: true,
-        selectedIndex: safeIndex,
-        onDestinationSelected: widget.onDestinationSelected,
-        backgroundColor: Colors.black,
-        indicatorColor: colorScheme.primary.withOpacity(0.2),
-        destinations: destinations,
-        height: 56,
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [
+              Colors.black.withValues(alpha: 0.95),
+              Colors.black.withValues(alpha: 0.75),
+              Colors.black.withValues(alpha: 0.4),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.45, 0.8, 1.0],
+          ),
         ),
-        labelPadding: EdgeInsets.all(0),
-        labelTextStyle: WidgetStateProperty.all(
-          TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        child: NavigationBar(
+          maintainBottomViewPadding: true,
+          selectedIndex: safeIndex,
+          onDestinationSelected: widget.onDestinationSelected,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          indicatorColor: colorScheme.primary.withValues(alpha: 0.2),
+          destinations: destinations,
+          height: 56,
+          indicatorShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          labelPadding: EdgeInsets.all(0),
+          labelTextStyle: WidgetStateProperty.all(
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          ),
         ),
       ),
     );

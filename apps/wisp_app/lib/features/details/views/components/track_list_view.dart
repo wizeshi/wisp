@@ -151,16 +151,18 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
       itemExtent: rowHeight,
       delegate: SliverChildBuilderDelegate(
         (context, rowIndex) {
-          return Builder(
-            builder: (itemContext) {
-              return _buildTrackRow(
-                itemContext,
-                rowIndex,
-                availableWidth: availableWidth,
-                isMobile: isMobile,
-                visualStyle: visualStyle,
-              );
-            },
+          return RepaintBoundary(
+            child: Builder(
+              builder: (itemContext) {
+                return _buildTrackRow(
+                  itemContext,
+                  rowIndex,
+                  availableWidth: availableWidth,
+                  isMobile: isMobile,
+                  visualStyle: visualStyle,
+                );
+              },
+            ),
           );
         },
         childCount: _sortedIndices.length,

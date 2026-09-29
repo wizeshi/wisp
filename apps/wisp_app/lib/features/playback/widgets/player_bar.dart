@@ -5,6 +5,7 @@ library;
 
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -155,94 +156,101 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           child: GestureDetector(
             onHorizontalDragUpdate: _onHorizontalDragUpdate,
             onHorizontalDragEnd: _onHorizontalDragEnd,
-            child: InkWell(
-              onTap: () => FullScreenPlayer.show(context),
-              child: Container(
-                width:
-                    MediaQuery.of(context).size.width -
-                    32, // 16px padding each side
-                height: 56,
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  border: Border.all(
-                    color: Colors.grey[900]!,
-                    width: 1,
-                  ).add(Border(bottom: BorderSide())),
-                  borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(8),
-                    bottom: Radius.zero,
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 3, 8, 0),
-                      child: Row(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => FullScreenPlayer.show(context),
+                    child: Container(
+                      width:
+                          MediaQuery.of(context).size.width -
+                          32, // 16px padding each side
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: bgColor.withValues(alpha: 0.78),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          width: 0.8,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildMobileAlbumArt(widget.currentTrack),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ClipRect(
-                              clipBehavior: Clip.hardEdge,
-                              child: Stack(
-                                children: [
-                                  AnimatedSlide(
-                                    offset: offset,
-                                    duration: Duration.zero,
-                                    child: Opacity(
-                                      opacity: (1.0 - dragProgress).clamp(
-                                        0.3,
-                                        1.0,
-                                      ),
-                                      child: _buildMobileTrackInfo(
-                                        widget.currentTrack,
-                                      ),
-                                    ),
-                                  ),
-                                  if (previewTrack != null && dragProgress > 0)
-                                    Positioned.fill(
-                                      child: IgnorePointer(
-                                        child: Opacity(
-                                          opacity: (dragProgress * 0.95).clamp(
-                                            0.0,
-                                            0.95,
-                                          ),
-                                          child: Transform.translate(
-                                            offset: Offset(
-                                              isSwipingLeft
-                                                  ? (1 - dragProgress) * 24
-                                                  : -(1 - dragProgress) * 24,
-                                              0,
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 3, 8, 0),
+                            child: Row(
+                              children: [
+                                _buildMobileAlbumArt(widget.currentTrack),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ClipRect(
+                                    clipBehavior: Clip.hardEdge,
+                                    child: Stack(
+                                      children: [
+                                        AnimatedSlide(
+                                          offset: offset,
+                                          duration: Duration.zero,
+                                          child: Opacity(
+                                            opacity: (1.0 - dragProgress).clamp(
+                                              0.3,
+                                              1.0,
                                             ),
                                             child: _buildMobileTrackInfo(
-                                              previewTrack,
+                                              widget.currentTrack,
                                             ),
                                           ),
                                         ),
-                                      ),
+                                        if (previewTrack != null && dragProgress > 0)
+                                          Positioned.fill(
+                                            child: IgnorePointer(
+                                              child: Opacity(
+                                                opacity: (dragProgress * 0.95).clamp(
+                                                  0.0,
+                                                  0.95,
+                                                ),
+                                                child: Transform.translate(
+                                                  offset: Offset(
+                                                    isSwipingLeft
+                                                        ? (1 - dragProgress) * 24
+                                                        : -(1 - dragProgress) * 24,
+                                                    0,
+                                                  ),
+                                                  child: _buildMobileTrackInfo(
+                                                    previewTrack,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
-                                ],
-                              ),
+                                  ),
+                                ),
+                                _buildMobileConnectButton(widget.appStyle),
+                                LikeButton(
+                                  track: widget.currentTrack as GenericSong?,
+                                  iconSize: 24,
+                                  padding: const EdgeInsets.all(2),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 28,
+                                    minHeight: 28,
+                                  ),
+                                  color: btnColor,
+                                ),
+                                _buildMobilePlayPauseButton(widget.appStyle),
+                              ],
                             ),
                           ),
-                          _buildMobileConnectButton(widget.appStyle),
-                          LikeButton(
-                            track: widget.currentTrack as GenericSong?,
-                            iconSize: 24,
-                            padding: const EdgeInsets.all(2),
-                            constraints: const BoxConstraints(
-                              minWidth: 28,
-                              minHeight: 28,
-                            ),
-                            color: btnColor,
-                          ),
-                          _buildMobilePlayPauseButton(widget.appStyle),
+                          _buildMiniProgressBar(),
                         ],
                       ),
                     ),
-                    _buildMiniProgressBar(),
-                  ],
+                  ),
                 ),
               ),
             ),

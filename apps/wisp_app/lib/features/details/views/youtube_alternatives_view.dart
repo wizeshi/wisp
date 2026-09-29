@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
+import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 
 class YouTubeAlternativesView extends StatefulWidget {
   final GenericSong track;
@@ -160,6 +161,9 @@ class _YouTubeAlternativesViewState extends State<YouTubeAlternativesView> {
     }
 
     return ListView.separated(
+      padding: EdgeInsets.only(
+        bottom: mobileBottomBarPadding(context, extra: 16),
+      ),
       itemCount: _results.length + 1,
       separatorBuilder: (ctx, index) =>
           Divider(height: 1, color: Colors.grey[900]),

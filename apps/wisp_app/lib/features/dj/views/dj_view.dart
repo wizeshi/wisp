@@ -10,6 +10,7 @@ import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/shared/widgets/rails/card_rail.dart';
+import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 
 import '../data/dj_constants.dart';
 import '../models/dj_chat_message.dart';
@@ -732,7 +733,9 @@ class _DJViewState extends State<DJView> {
         isDesktop ? 0.0 : MediaQuery.viewInsetsOf(context).bottom;
     final bottomPadding = isDesktop
         ? 16.0
-        : (viewInsetsBottom > 0 ? viewInsetsBottom + 12.0 : 16.0);
+        : (viewInsetsBottom > 0
+            ? viewInsetsBottom + 12.0
+            : mobileBottomBarPadding(context, extra: 16.0));
 
     if (!isDesktop && viewInsetsBottom > _lastViewInsetsBottom) {
       _scrollToBottom();

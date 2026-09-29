@@ -20,6 +20,7 @@ import 'package:wisp/shared/widgets/rows/album_row.dart';
 import 'package:wisp/shared/widgets/rows/artist_row.dart';
 import 'package:wisp/shared/widgets/rows/generic_row.dart';
 import 'package:wisp/shared/widgets/rows/playlist_row.dart';
+import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/models/metadata_models.dart';
@@ -806,7 +807,7 @@ class HomePageState extends State<HomePage> {
           ),
 
           // Bottom padding
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          const MobileBottomPaddingSliver(extra: 0),
         ],
       ),
     );
@@ -863,7 +864,7 @@ class HomePageState extends State<HomePage> {
           ),
 
           // Bottom padding
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          const MobileBottomPaddingSliver(extra: 0),
         ],
       ),
     );

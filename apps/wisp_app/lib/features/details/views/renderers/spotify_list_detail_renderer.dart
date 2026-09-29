@@ -32,78 +32,71 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
 
     if (isMobile) {
       view._scheduleStickyBarUpdate(view._mobileScrollController);
-      return Column(
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                WispSmoothScroll(
-                  controller: view._mobileScrollController,
-                  builder: (context, controller, physics) => CustomScrollView(
-                    key: PageStorageKey('spotify_mobile_${view.widget.type}_${view.widget.id}'),
-                    controller: controller,
-                    physics: physics,
-                    slivers: [
-                    SliverToBoxAdapter(
-                      child: Container(
-                        key: view._headerKey,
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            padding,
-                            padding,
-                            padding,
-                            0,
-                          ),
-                          child: view._buildMobileHeader(
-                            title,
-                            subtitle,
-                            subtitleUser,
-                            imageUrl,
-                            total,
-                            description,
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+          return Column(
+            children: [
+              Expanded(
+                child: Stack(
+                  children: [
+                    CustomScrollView(
+                      key: PageStorageKey('spotify_mobile_${view.widget.type}_${view.widget.id}'),
+                      controller: view._mobileScrollController,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: Container(
+                            key: view._headerKey,
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                padding,
+                                padding,
+                                padding,
+                                0,
+                              ),
+                              child: view._buildMobileHeader(
+                                title,
+                                subtitle,
+                                subtitleUser,
+                                imageUrl,
+                                total,
+                                description,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: Container(
-                        key: view._mobileActionsKey,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: padding / 2,
-                          vertical: 4,
+                        SliverToBoxAdapter(
+                          child: Container(
+                            key: view._mobileActionsKey,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: padding / 2,
+                              vertical: 4,
+                            ),
+                            color: const Color(0xFF121212),
+                            child: view._buildMobileActionsRow(),
+                          ),
                         ),
-                        color: const Color(0xFF121212),
-                        child: view._buildMobileActionsRow(),
-                      ),
-                    ),
-                    SliverLayoutBuilder(
-                      builder: (sliverContext, sliverConstraints) {
-                        // Real sliver, placed directly in this
-                        // CustomScrollView's `slivers` list: Flutter's own
-                        // viewport decides which rows to build, keep
-                        // resident, and dispose as the user scrolls. We no
-                        // longer track scroll offsets by hand or rebuild a
-                        // manually-sliced window on every scroll tick.
-                        return view._buildSongsSliver(
-                          availableWidth: sliverConstraints.crossAxisExtent,
+                        view._buildSongsSliver(
+                          availableWidth: availableWidth,
                           isMobile: true,
                           visualStyle: _ListVisualStyle.spotify,
-                        );
-                      },
-                    ),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
-                        child: view._buildRecommendedSection(isMobile: true),
-                      ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
+                            child: view._buildRecommendedSection(isMobile: true),
+                          ),
+                        ),
+                        const MobileBottomPaddingSliver(extra: 0),
+                      ],
                     ),
                   ],
                 ),
               ),
             ],
-            ),
-          ),
-        ],
+          );
+        },
       );
     }
 

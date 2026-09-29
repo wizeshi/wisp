@@ -44,6 +44,7 @@ import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 part 'renderers/spotify_list_detail_renderer.dart';
 part 'renderers/apple_music_list_detail_renderer.dart';
 part 'menus/list_detail_context_menus.dart';
@@ -316,18 +317,18 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final headerContext = _headerKey.currentContext;
-      final headerBox = headerContext?.findRenderObject() as RenderBox?;
-      if (headerBox != null) {
+      final headerRenderObject = headerContext?.findRenderObject();
+      if (headerRenderObject is RenderBox) {
         if (controller == _mobileScrollController) {
-          _setMobileHeaderExtent(headerBox.size.height);
+          _setMobileHeaderExtent(headerRenderObject.size.height);
         } else if (controller == _desktopScrollController) {
-          _setDesktopHeaderExtent(headerBox.size.height);
+          _setDesktopHeaderExtent(headerRenderObject.size.height);
         }
       }
       final actionsContext = _mobileActionsKey.currentContext;
-      final actionsBox = actionsContext?.findRenderObject() as RenderBox?;
-      if (actionsBox != null) {
-        _mobileActionsExtent = actionsBox.size.height;
+      final actionsRenderObject = actionsContext?.findRenderObject();
+      if (actionsRenderObject is RenderBox) {
+        _mobileActionsExtent = actionsRenderObject.size.height;
       }
       _updateStickyBarVisibility(controller);
     });
@@ -359,11 +360,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final headerContext = _headerKey.currentContext;
     if (headerContext == null) return;
     final scrollable = Scrollable.of(headerContext);
-    final headerBox = headerContext.findRenderObject() as RenderBox?;
-    final scrollBox = scrollable.context.findRenderObject() as RenderBox?;
-    if (headerBox == null || scrollBox == null) return;
-    final offset = headerBox.localToGlobal(Offset.zero, ancestor: scrollBox).dy;
-    final shouldShow = offset + headerBox.size.height <= 0 && mounted;
+    final headerRenderObject = headerContext.findRenderObject();
+    final scrollRenderObject = scrollable.context.findRenderObject();
+    if (headerRenderObject is! RenderBox || scrollRenderObject is! RenderBox) return;
+    final offset = headerRenderObject.localToGlobal(Offset.zero, ancestor: scrollRenderObject).dy;
+    final shouldShow = offset + headerRenderObject.size.height <= 0 && mounted;
     if (shouldShow != _showStickyBar && mounted) {
       setState(() => _showStickyBar = shouldShow);
     }

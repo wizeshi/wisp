@@ -25,6 +25,7 @@ import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/features/details/views/list_detail_view.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 
 bool _isLocalThumbnailPath(String path) {
   return path.startsWith('/') || path.startsWith('file://');
@@ -717,7 +718,9 @@ class LibraryTabViewState extends State<LibraryTabView> {
           key: const ValueKey('playlists'),
           controller: controller,
           physics: physics,
-          padding: EdgeInsets.zero,
+          padding: EdgeInsets.only(
+            bottom: mobileBottomBarPadding(context, extra: 16),
+          ),
         itemCount:
             entries.length + (_hasMorePlaylists || _isLoadingPlaylists ? 1 : 0),
         itemBuilder: (context, index) {
@@ -818,7 +821,9 @@ class LibraryTabViewState extends State<LibraryTabView> {
           key: const ValueKey('albums'),
           controller: controller,
           physics: physics,
-          padding: EdgeInsets.zero,
+          padding: EdgeInsets.only(
+            bottom: mobileBottomBarPadding(context, extra: 16),
+          ),
           itemCount:
               _albums.length + (_hasMoreAlbums || _isLoadingAlbums ? 1 : 0),
           itemBuilder: (context, index) {
@@ -863,7 +868,9 @@ class LibraryTabViewState extends State<LibraryTabView> {
           key: const ValueKey('artists'),
           controller: controller,
           physics: physics,
-          padding: EdgeInsets.zero,
+          padding: EdgeInsets.only(
+            bottom: mobileBottomBarPadding(context, extra: 16),
+          ),
           itemCount:
               _artists.length + (_hasMoreArtists || _isLoadingArtists ? 1 : 0),
           itemBuilder: (context, index) {

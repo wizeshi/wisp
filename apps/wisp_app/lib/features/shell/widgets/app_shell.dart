@@ -291,12 +291,26 @@ class _AppShellState extends State<AppShell> {
     final keyboardVisible =
         !_isDesktop && MediaQuery.viewInsetsOf(context).bottom > 0;
 
-    final shell = Material(
-      color: const Color(0xFF121212),
-      child: Column(
+    final contentNavigator = ScaffoldMessenger(
+      key: _contentMessengerKey,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        resizeToAvoidBottomInset: false,
+        body: Navigator(
+          key: NavigationHistory.instance.navigatorKey,
+          observers: [NavigationHistory.instance.observer],
+          initialRoute: TabRoutes.home,
+          onGenerateRoute: _onGenerateRoute,
+        ),
+      ),
+    );
+
+    final Widget shellBody;
+    if (_isDesktop) {
+      shellBody = Column(
         children: [
           _buildWindowTitleSync(),
-          if (_isDesktop && !isDesktopImmersive)
+          if (!isDesktopImmersive)
             WispTitleBar(
               onHomeTap: () => _pushTab(0),
               onSettingsTap: () => _pushTab(3),
@@ -320,7 +334,7 @@ class _AppShellState extends State<AppShell> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_isDesktop && !isDesktopImmersive)
+                if (!isDesktopImmersive)
                   WispNavigation(
                     selectedView: navState.selectedLibraryView,
                     onViewChanged: navState.setLibraryView,
@@ -332,33 +346,10 @@ class _AppShellState extends State<AppShell> {
                     onLibraryItemSelected: _handleLibraryItemSelected,
                     expandedWidth: navState.leftSidebarWidth,
                   ),
-                if (_isDesktop && !isDesktopImmersive)
+                if (!isDesktopImmersive)
                   _LeftResizeHandle(onResize: navState.adjustLeftSidebarWidth),
-                Expanded(
-                  child: ScaffoldMessenger(
-                    key: _contentMessengerKey,
-                    child: Scaffold(
-                      backgroundColor: Colors.transparent,
-                      // The player bar and nav bar sit outside this Scaffold in
-                      // the parent Column. If we allow the Scaffold to resize
-                      // for the keyboard, it over-shrinks the body by an extra
-                      // (playerBar + navBar) height, pushing content up and
-                      // creating a gap at the top. Each individual view that
-                      // needs keyboard avoidance (e.g. search) handles it
-                      // itself via MediaQuery.viewInsetsOf(context).bottom.
-                      resizeToAvoidBottomInset: false,
-                      body: Navigator(
-                        key: NavigationHistory.instance.navigatorKey,
-                        observers: [NavigationHistory.instance.observer],
-                        initialRoute: TabRoutes.home,
-                        onGenerateRoute: _onGenerateRoute,
-                      ),
-                    ),
-                  ),
-                ),
-                if (_isDesktop &&
-                    !isDesktopImmersive &&
-                    navState.rightSidebarVisible)
+                Expanded(child: contentNavigator),
+                if (!isDesktopImmersive && navState.rightSidebarVisible)
                   RightSidebar(
                     width: navState.rightSidebarWidth,
                     onResize: navState.adjustRightSidebarWidth,
@@ -366,22 +357,45 @@ class _AppShellState extends State<AppShell> {
               ],
             ),
           ),
-          if (navState.selectedNavIndex != 3 && !_isDesktop && !keyboardVisible)
-            const WispPlayerBar(),
-          if (_isDesktop && !isDesktopImmersive) const WispPlayerBar(),
-          if (!_isDesktop && navState.selectedNavIndex != 3 && !keyboardVisible)
-            WispNavigation(
-              selectedView: navState.selectedLibraryView,
-              onViewChanged: navState.setLibraryView,
-              selectedIndex: navState.selectedNavIndex,
-              onDestinationSelected: (index) {
-                navState.setNavIndex(index);
-                _pushTab(index);
-              },
-              onLibraryItemSelected: _handleLibraryItemSelected,
+          if (!isDesktopImmersive) const WispPlayerBar(),
+        ],
+      );
+    } else {
+      shellBody = Stack(
+        children: [
+          Positioned.fill(child: contentNavigator),
+          if (navState.selectedNavIndex != 3 && !keyboardVisible)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: const WispPlayerBar(),
+                  ),
+                  WispNavigation(
+                    selectedView: navState.selectedLibraryView,
+                    onViewChanged: navState.setLibraryView,
+                    selectedIndex: navState.selectedNavIndex,
+                    onDestinationSelected: (index) {
+                      navState.setNavIndex(index);
+                      _pushTab(index);
+                    },
+                    onLibraryItemSelected: _handleLibraryItemSelected,
+                  ),
+                ],
+              ),
             ),
         ],
-      ),
+      );
+    }
+
+    final shell = Material(
+      color: const Color(0xFF121212),
+      child: shellBody,
     );
 
     if (!enableExitPrompt) {

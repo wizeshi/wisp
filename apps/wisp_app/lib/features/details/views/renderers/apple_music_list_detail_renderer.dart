@@ -89,134 +89,132 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
     view._setMobileHeaderExtent(expandedHeight);
     view._scheduleStickyBarUpdate(view._mobileScrollController);
 
-    return Stack(
-      children: [
-        Positioned.fill(child: Container(color: contentSurfaceColor)),
-        WispSmoothScroll(
-          controller: view._mobileScrollController,
-          builder: (context, controller, physics) => CustomScrollView(
-            key: PageStorageKey('apple_mobile_${view.widget.type}_${view.widget.id}'),
-            controller: controller,
-            physics: physics,
-            slivers: [
-            SliverAppBar(
-              key: view._headerKey,
-              backgroundColor: contentSurfaceColor,
-              clipBehavior: Clip.none,
-              pinned: true,
-              expandedHeight: expandedHeight,
-              leading: IconButton(
-                icon: const Icon(CupertinoIcons.back),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-              title: AnimatedOpacity(
-                opacity: view._showStickyBar ? 1 : 0,
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                child: view._showStickyBar
-                    ? Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 18,
-                        ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        return Stack(
+          children: [
+            Positioned.fill(child: Container(color: contentSurfaceColor)),
+            CustomScrollView(
+              key: PageStorageKey('apple_mobile_${view.widget.type}_${view.widget.id}'),
+              controller: view._mobileScrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverAppBar(
+                  backgroundColor: contentSurfaceColor,
+                  clipBehavior: Clip.none,
+                  pinned: true,
+                  expandedHeight: expandedHeight,
+                  leading: IconButton(
+                    icon: const Icon(CupertinoIcons.back),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  title: AnimatedOpacity(
+                    opacity: view._showStickyBar ? 1 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    child: view._showStickyBar
+                        ? Text(
+                            title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 18,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  actions: [
+                    if (view._showStickyBar)
+                      view._buildStickyPlayAction(
+                        useAppleStyle: true,
+                        protrude: true,
                       )
-                    : const SizedBox.shrink(),
-              ),
-              actions: [
-                if (view._showStickyBar)
-                  view._buildStickyPlayAction(
-                    useAppleStyle: true,
-                    protrude: true,
-                  )
-                else ...[
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.arrow_down_to_line),
-                    onPressed: view._isLoading ? null : view._downloadAll,
-                  ),
-                  IconButton(
-                    icon: const Icon(CupertinoIcons.ellipsis_vertical),
-                    onPressed: view._showListContextMenu,
-                  ),
-                ],
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Transform.scale(
-                      scale: backgroundScale,
-                      child: _buildHeaderArtwork(context),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.4),
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.6),
-                            Colors.black,
-                          ],
-                          stops: const [0.0, 0.25, 0.75, 1.0],
+                    else ...[
+                      IconButton(
+                        icon: const Icon(CupertinoIcons.arrow_down_to_line),
+                        onPressed: view._isLoading ? null : view._downloadAll,
+                      ),
+                      IconButton(
+                        icon: const Icon(CupertinoIcons.ellipsis_vertical),
+                        onPressed: view._showListContextMenu,
+                      ),
+                    ],
+                  ],
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Transform.scale(
+                          scale: backgroundScale,
+                          child: _buildHeaderArtwork(context),
                         ),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.4),
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.6),
+                                Colors.black,
+                              ],
+                              stops: const [0.0, 0.25, 0.75, 1.0],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 24,
+                          right: 24,
+                          bottom: 12,
+                          child: _buildMobileMeta(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                    child: Container(
+                      key: view._mobileActionsKey,
+                      child: _buildMobilePlaybackRow(),
+                    ),
+                  ),
+                ),
+                if (hasDescription)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 6),
+                      child: buildParsedText(
+                        context,
+                        descriptionText,
+                        style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                        linkStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                       ),
                     ),
-                    Positioned(
-                      left: 24,
-                      right: 24,
-                      bottom: 12,
-                      child: _buildMobileMeta(),
+                  ),
+                view._buildSongsSliver(
+                  availableWidth: availableWidth,
+                  isMobile: true,
+                  visualStyle: _ListVisualStyle.apple,
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
+                    child: view._buildRecommendedSection(
+                      isMobile: true,
+                      visualStyle: _ListVisualStyle.apple,
                     ),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                child: Container(
-                  key: view._mobileActionsKey,
-                  child: _buildMobilePlaybackRow(),
-                ),
-              ),
-            ),
-            if (hasDescription)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 6),
-                  child: buildParsedText(
-                    context,
-                    descriptionText,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                    linkStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                   ),
                 ),
-              ),
-            SliverLayoutBuilder(
-              builder: (sliverContext, sliverConstraints) {
-                return view._buildSongsSliver(
-                  availableWidth: sliverConstraints.crossAxisExtent,
-                  isMobile: true,
-                  visualStyle: _ListVisualStyle.apple,
-                );
-              },
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
-                child: view._buildRecommendedSection(
-                  isMobile: true,
-                  visualStyle: _ListVisualStyle.apple,
-                ),
-              ),
+                const MobileBottomPaddingSliver(extra: 0),
+              ],
             ),
           ],
-        ),
-      ),
-    ],
-  );
+        );
+      },
+    );
   }
 
   Widget _buildDesktop(BuildContext context) {
