@@ -2,7 +2,7 @@
 
 import 'dart:io' show Platform;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 
 /// A horizontally scrolling row of cards, with a title header, edge fade,

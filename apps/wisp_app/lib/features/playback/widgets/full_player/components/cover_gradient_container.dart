@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 Color tintedDominantColor(Color color, {double blend = 0.4}) {
   final hsl = HSLColor.fromColor(color);

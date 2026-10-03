@@ -3,7 +3,7 @@
 library;
 
 import 'package:app_links/app_links.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';

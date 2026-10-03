@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
 

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The icon used to represent a song source anywhere in the UI (row source
 /// badges, context menus, the title bar "now playing" indicator, ...).

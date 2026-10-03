@@ -2,7 +2,7 @@
 
 import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';

@@ -2,7 +2,7 @@
 
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';

@@ -4,13 +4,13 @@
 library;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math';
-import 'package:flutter/cupertino.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
 import 'package:wisp/shared/widgets/cards/album_card.dart';
 import 'package:wisp/shared/widgets/cards/artist_card.dart';

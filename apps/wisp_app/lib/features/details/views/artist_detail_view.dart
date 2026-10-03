@@ -8,8 +8,8 @@ import 'dart:ui';
 import 'dart:io' show Platform;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/core/theme/cover_art_palette_provider.dart';

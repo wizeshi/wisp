@@ -3,7 +3,7 @@
 /// Liked Songs thumbnail widget
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class LikedSongsArt extends StatelessWidget {
   final double? size;

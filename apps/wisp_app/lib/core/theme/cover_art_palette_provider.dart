@@ -3,7 +3,7 @@
 import 'dart:io' show File;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/core/utils/cover_art_kmeans.dart';

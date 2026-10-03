@@ -99,6 +99,8 @@ dependencies:
   protobuf: ^6.1.0
 
 
+  cupertino_ui: any
+  material_ui: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

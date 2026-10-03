@@ -6,7 +6,7 @@ library;
 import 'dart:io' show Platform, File;
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/data/models/metadata_models.dart';

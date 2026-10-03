@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SlidingTrackBackground extends StatefulWidget {
   final int transitionToken;

@@ -3,7 +3,7 @@
 /// Shared Like button widget
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';

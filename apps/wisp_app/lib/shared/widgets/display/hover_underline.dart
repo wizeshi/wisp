@@ -3,7 +3,7 @@
 /// Hover underline helper for clickable text
 library;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class HoverUnderline extends StatefulWidget {
   final Widget Function(bool isHovering) builder;

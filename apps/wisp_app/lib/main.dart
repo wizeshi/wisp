@@ -4,7 +4,7 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';

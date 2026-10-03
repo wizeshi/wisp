@@ -5,7 +5,7 @@ library;
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/shared/widgets/display/sliding_track_background.dart';

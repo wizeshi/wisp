@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/overlay/hover.dart';
 import 'package:wisp/core/utils/text_parser.dart';

@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/utils/logger.dart';

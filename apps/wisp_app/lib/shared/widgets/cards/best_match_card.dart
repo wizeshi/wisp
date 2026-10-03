@@ -2,7 +2,7 @@
 
 import 'dart:io' show Platform;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';

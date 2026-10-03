@@ -1,7 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'dart:io' show Platform;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Calculates the bottom padding required on mobile so that scrollable content
 /// can scroll underneath the floating player bar and bottom navigation bar,

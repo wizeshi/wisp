@@ -6,7 +6,7 @@ library;
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui' show ImageFilter;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';

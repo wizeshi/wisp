@@ -5,7 +5,7 @@ library;
 
 import 'dart:io' show Platform;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';

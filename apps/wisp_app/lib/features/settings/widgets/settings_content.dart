@@ -2,7 +2,7 @@
 
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/data/sources/auth/js_auth_source.dart';

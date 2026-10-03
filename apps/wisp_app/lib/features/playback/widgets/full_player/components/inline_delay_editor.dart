@@ -1,7 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'dart:async' show Timer, unawaited;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
 
 class InlineDelayEditor extends StatefulWidget {
