@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-part of '../list_detail_view.dart';
+part of '../../list_detail_view.dart';
 
 extension _ListDetailTrackList on _SharedListDetailViewState {
   Widget _buildTrackRow(
@@ -8,7 +8,7 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
     int rowIndex, {
     required double availableWidth,
     required bool isMobile,
-    _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+    AppStyle visualStyle = AppStyle.Spotify,
   }) {
     final player = context.read<global_audio_player.WispAudioHandler>();
     final index = _sortedIndices[rowIndex];
@@ -18,7 +18,7 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
     final visibleColumns = _getVisibleColumns(availableWidth);
     final isPlaylist = widget.type == SharedListType.playlist;
     final viewContext = _viewContext;
-    final isApple = visualStyle == _ListVisualStyle.apple;
+    final isApple = WispStyleTokens.fromStyle(visualStyle).isApple;
 
     final isCurrentHere = player.currentTrack?.id == song.id &&
         player.playbackContext?.matches(viewContext) == true;
@@ -33,7 +33,7 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
 
     return TrackRow(
       track: song,
-      style: isApple ? AppStyle.AppleMusic : AppStyle.Spotify,
+      style: visualStyle,
       viewContext: viewContext,
       index: (isApple || isMobile) ? null : rowIndex,
       playIconLocation: (isApple || isMobile) ? PlayIconLocation.art : null,
@@ -118,7 +118,7 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
   Widget _buildSongsSliver({
     required double availableWidth,
     bool isMobile = false,
-    _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+    AppStyle visualStyle = AppStyle.Spotify,
   }) {
     if (_isLoading) {
       return const SliverToBoxAdapter(

@@ -3,6 +3,7 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 
 /// Whether the current platform supports mouse hover.
 ///
@@ -205,6 +206,7 @@ class _PlayPauseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tokens = context.tokens;
     return SizedBox(
       width: size,
       height: size,
@@ -215,7 +217,7 @@ class _PlayPauseButton extends StatelessWidget {
           padding: EdgeInsets.zero,
           iconSize: iconSize,
           icon: Icon(
-            isPlaying ? Icons.pause : Icons.play_arrow,
+            isPlaying ? tokens.pauseIcon : tokens.playIcon,
             color: colorScheme.onPrimary,
           ),
           onPressed: onPressed,

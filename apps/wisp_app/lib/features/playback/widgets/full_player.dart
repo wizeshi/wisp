@@ -45,8 +45,9 @@ class FullScreenPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = context.watch<PreferencesProvider>().style;
 
-    // Use new desktop fullscreen for Spotify on desktop
-    if (_isDesktop && style == AppStyle.Spotify) {
+    // Use new desktop fullscreen for Spotify and Original on desktop
+    if (_isDesktop &&
+        (style == AppStyle.Spotify || style == AppStyle.Original)) {
       return PopScope(
         onPopInvoked: (didPop) {
           if (!didPop) return;

@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-part of '../list_detail_view.dart';
+part of '../../list_detail_view.dart';
 
 class _AppleMusicListDetailRenderer extends StatelessWidget {
   final _SharedListDetailViewState view;
@@ -197,14 +197,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                 view._buildSongsSliver(
                   availableWidth: availableWidth,
                   isMobile: true,
-                  visualStyle: _ListVisualStyle.apple,
+                  visualStyle: AppStyle.AppleMusic,
                 ),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(0, 0, 0, 12),
                     child: view._buildRecommendedSection(
                       isMobile: true,
-                      visualStyle: _ListVisualStyle.apple,
+                      visualStyle: AppStyle.AppleMusic,
                     ),
                   ),
                 ),
@@ -415,7 +415,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                     children: [
                       const SizedBox(height: 26),
                       view._buildListHeaderContent(
-                        visualStyle: _ListVisualStyle.apple,
+                        visualStyle: AppStyle.AppleMusic,
                         availableWidth: availableWidth,
                       ),
                       const SizedBox(height: 8),
@@ -433,7 +433,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                 sliver: view._buildSongsSliver(
                   availableWidth: availableWidth,
                   isMobile: false,
-                  visualStyle: _ListVisualStyle.apple,
+                  visualStyle: AppStyle.AppleMusic,
                 ),
               );
             },
@@ -443,7 +443,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
             sliver: SliverToBoxAdapter(
               child: view._buildRecommendedSection(
                 isMobile: false,
-                visualStyle: _ListVisualStyle.apple,
+                visualStyle: AppStyle.AppleMusic,
               ),
             ),
           ),

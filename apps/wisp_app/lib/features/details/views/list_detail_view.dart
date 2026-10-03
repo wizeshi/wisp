@@ -45,18 +45,17 @@ import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
-part 'renderers/spotify_list_detail_renderer.dart';
-part 'renderers/apple_music_list_detail_renderer.dart';
-part 'menus/list_detail_context_menus.dart';
-part 'components/recommended_tracks_section.dart';
-part 'headers/list_detail_headers.dart';
-part 'components/track_list_view.dart';
+part 'list_detail/styles/spotify_style.dart';
+part 'list_detail/styles/apple_music_style.dart';
+part 'list_detail/styles/original_style.dart';
+part 'list_detail/menus/list_detail_context_menus.dart';
+part 'list_detail/components/recommended_tracks_section.dart';
+part 'list_detail/headers/list_detail_headers.dart';
+part 'list_detail/components/track_list_view.dart';
 
 enum SharedListType { playlist, album }
 
 enum _SortMethod { position, title, author, album, addedAt, duration, source }
-
-enum _ListVisualStyle { spotify, apple }
 
 typedef _ListItem = Object;
 
@@ -1265,7 +1264,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       return Scaffold(backgroundColor: Colors.transparent, body: wrappedContent);
     }
 
-    if (style == AppStyle.AppleMusic) {
+    final tokens = WispStyleTokens.fromStyle(style);
+    if (tokens.isApple) {
       final contentSurfaceColor = Theme.of(context).colorScheme.surface;
       return Scaffold(
         backgroundColor: contentSurfaceColor,
@@ -1438,7 +1438,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           description: description,
         );
       case AppStyle.Original:
-        return _SpotifyListDetailRenderer(
+        return _OriginalListDetailRenderer(
           view: this,
           title: title,
           subtitle: subtitle,

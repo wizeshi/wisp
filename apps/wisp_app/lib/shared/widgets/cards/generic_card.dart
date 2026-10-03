@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/material.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/overlay/hover.dart';
 import 'package:wisp/core/utils/text_parser.dart';
 
@@ -42,7 +43,7 @@ class GenericCard extends StatelessWidget {
       onTap: onTap,
       onLongPress: isDesktopPlatform ? null : onLongPress,
       onSecondaryTapDown: onSecondaryTapDown,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: context.tokens.cardRadius,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(

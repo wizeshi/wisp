@@ -153,10 +153,7 @@ class PreferencesProvider extends ChangeNotifier {
   Future<void> _load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _style = AppStyle.values.firstWhere(
-        (e) => e.name == prefs.getString(_keyStyle),
-        orElse: () => _style,
-      );
+      _style = AppStyle.fromStorage(prefs.getString(_keyStyle));
       _animatedCanvasEnabled =
           prefs.getBool(_keyAnimatedCanvas) ?? _animatedCanvasEnabled;
       _allowWriting = prefs.getBool(_keyAllowWriting) ?? _defaultAllowWriting;
@@ -373,7 +370,7 @@ class PreferencesProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyStyle, style.toString());
+      await prefs.setString(_keyStyle, style.toStorageString());
     } catch (_) {
       // Ignore save errors
     }

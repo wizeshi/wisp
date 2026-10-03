@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/debug/views/debug_view.dart';
-import 'package:wisp/features/dj/views/dj_view.dart';
 import 'dart:io' show Platform;
+import 'package:wisp/features/dj/views/dj_view.dart';
+import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/library/state/library_state.dart';
@@ -262,8 +264,9 @@ class AppNavigation {
     BuildContext context, {
     required String userId,
     GenericUser? initialUser,
-    UserPageStyle style = UserPageStyle.spotify,
+    AppStyle? style,
   }) {
+    final effectiveStyle = style ?? context.read<PreferencesProvider>().style;
     _shellNavigator?.push(
       PageRouteBuilder(
         transitionDuration: Duration.zero,
@@ -272,7 +275,7 @@ class AppNavigation {
         pageBuilder: (context, animation, secondaryAnimation) => UserDetailView(
           userId: userId,
           initialUser: initialUser,
-          style: style,
+          style: effectiveStyle,
         ),
       ),
     );

@@ -39,6 +39,13 @@ import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 
+part 'desktop/spotify_style.dart';
+part 'desktop/apple_music_style.dart';
+part 'desktop/original_style.dart';
+part 'mobile/spotify_style.dart';
+part 'mobile/apple_music_style.dart';
+part 'mobile/original_style.dart';
+
 class HomePage extends StatefulWidget {
   final ValueListenable<int>? refreshSignal;
 
@@ -635,23 +642,28 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildMainContent(bool isDesktop) {
-    if (isDesktop) {
-      return RefreshIndicator(
-        onRefresh: () => _loadData(policy: MetadataFetchPolicy.refreshAlways),
-        child: _buildContentArea(),
-      );
-    }
-
     final style = context.select<PreferencesProvider, AppStyle>(
       (p) => p.style,
     );
-    final isApple = style == AppStyle.AppleMusic;
+
+    if (isDesktop) {
+      return RefreshIndicator(
+        onRefresh: () => _loadData(policy: MetadataFetchPolicy.refreshAlways),
+        child: switch (style) {
+          AppStyle.AppleMusic => _buildDesktopHomeContentApple(),
+          AppStyle.Original => _buildDesktopHomeContentOriginal(),
+          AppStyle.Spotify => _buildDesktopHomeContentSpotify(),
+        },
+      );
+    }
 
     return RefreshIndicator(
       onRefresh: () => _loadData(policy: MetadataFetchPolicy.refreshAlways),
-      child: isApple
-          ? _buildMobileHomeContentApple()
-          : _buildMobileHomeContentStandard(),
+      child: switch (style) {
+        AppStyle.AppleMusic => _buildMobileHomeContentApple(),
+        AppStyle.Original => _buildMobileHomeContentOriginal(),
+        AppStyle.Spotify => _buildMobileHomeContentSpotify(),
+      },
     );
   }
 
@@ -732,142 +744,6 @@ class HomePageState extends State<HomePage> {
         onPressed: () => AppNavigation.instance.openSettings(),
       ),
     ];
-  }
-
-  Widget _buildMobileHomeContentStandard() {
-    final metadata = context.read<MetadataManager>();
-    final greeting = _getRandomGreeting(metadata);
-    final dynamicSections = _buildDynamicHomeSections(skipFirst: true);
-    final quickTiles = _buildMobileQuickGridTiles();
-    final leftQuickTiles = <Widget>[];
-    final rightQuickTiles = <Widget>[];
-
-    for (var i = 0; i < quickTiles.length; i++) {
-      if (i.isEven) {
-        leftQuickTiles.add(quickTiles[i]);
-      } else {
-        rightQuickTiles.add(quickTiles[i]);
-      }
-    }
-
-    return SafeArea(
-      bottom: false,
-      child: WispCustomScrollView(
-        key: const PageStorageKey('home_mobile_standard'),
-        controller: _scrollController,
-        slivers: [
-          // Header with settings icon
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      greeting,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  ..._buildMobileHeaderActions(useAppleIcon: false),
-                ],
-              ),
-            ),
-          ),
-
-          // 2-column grid for playlists and albums
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Left column - mixed quick tiles
-                  Expanded(child: Column(children: leftQuickTiles)),
-                  const SizedBox(width: 12),
-                  // Right column - mixed quick tiles
-                  Expanded(child: Column(children: rightQuickTiles)),
-                ],
-              ),
-            ),
-          ),
-
-          SliverToBoxAdapter(child: const SizedBox(height: 4)),
-
-          ...dynamicSections.map(
-            (section) => SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: section,
-              ),
-            ),
-          ),
-
-          // Bottom padding
-          const MobileBottomPaddingSliver(extra: 0),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMobileHomeContentApple() {
-    final dynamicSections = _buildDynamicHomeSections(skipFirst: false);
-
-    return SafeArea(
-      bottom: false,
-      child: WispCustomScrollView(
-        key: const PageStorageKey('home_mobile_apple'),
-        controller: _scrollController,
-        slivers: [
-          // iOS-style Large Title Header
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Home',
-                          style: TextStyle(
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ),
-                      ..._buildMobileHeaderActions(useAppleIcon: true),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Divider(color: Colors.white12, height: 1),
-                ],
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-          ...dynamicSections.map(
-            (section) => SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: section,
-              ),
-            ),
-          ),
-
-          // Bottom padding
-          const MobileBottomPaddingSliver(extra: 0),
-        ],
-      ),
-    );
   }
 
   List<Widget> _buildMobileQuickGridTiles() {
@@ -973,105 +849,6 @@ class HomePageState extends State<HomePage> {
       ),
       _ => null,
     };
-  }
-
-  Widget _buildContentArea() {
-    final viewWidth = MediaQuery.sizeOf(context).width;
-    const minWidthForSpecialCard = 1600.0;
-    final canShowSpecialCard = viewWidth >= minWidthForSpecialCard;
-
-    final quickRows = _buildDesktopQuickRows();
-    final dynamicEntries =
-        ((quickRows != null)
-                ? _homeSections.entries.skip(1)
-                : _homeSections.entries)
-            .toList(growable: false);
-
-    final newMusicIndex = dynamicEntries.indexWhere(
-      (entry) => entry.key.trim().toLowerCase() == 'new music',
-    );
-    final shouldShowNewMusicSpecialCard =
-        canShowSpecialCard &&
-        newMusicIndex >= 0 &&
-        dynamicEntries[newMusicIndex].value.isNotEmpty;
-    final rightSectionIndex = (newMusicIndex == 0 && dynamicEntries.length > 1)
-        ? 1
-        : 0;
-
-    final firstDynamicSectionItems =
-        (dynamicEntries.isNotEmpty && rightSectionIndex < dynamicEntries.length)
-        ? dynamicEntries[rightSectionIndex].value
-        : const <dynamic>[];
-    final firstDynamicSectionWidget =
-        dynamicEntries.isNotEmpty && firstDynamicSectionItems.isNotEmpty
-        ? _buildSection(
-            dynamicEntries[rightSectionIndex].key,
-            firstDynamicSectionItems,
-            showTitle: !shouldShowNewMusicSpecialCard,
-          )
-        : null;
-
-    final newMusicSpecialCard = shouldShowNewMusicSpecialCard
-        ? _buildHomeCard(
-            dynamicEntries[newMusicIndex].value.first,
-            useSpecialCardStyle: true,
-          )
-        : null;
-
-    final skipDynamicIndexes = <int>{};
-    if (firstDynamicSectionWidget != null &&
-        dynamicEntries.isNotEmpty &&
-        rightSectionIndex < dynamicEntries.length) {
-      skipDynamicIndexes.add(rightSectionIndex);
-    }
-    if (newMusicSpecialCard != null && newMusicIndex >= 0) {
-      skipDynamicIndexes.add(newMusicIndex);
-    }
-
-    final dynamicSections = _buildDynamicHomeSections(
-      skipFirst: quickRows != null,
-      skipEntryIndexes: skipDynamicIndexes,
-      allowSpecialCardStyle: canShowSpecialCard,
-    );
-    return WispListView(
-      key: const PageStorageKey('home_desktop_list'),
-      controller: _scrollController,
-      padding: const EdgeInsets.all(24),
-      children: [
-        Text(
-          _getRandomGreeting(context.read<MetadataManager>()),
-          style: const TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ?quickRows,
-        if (newMusicSpecialCard != null && firstDynamicSectionWidget != null)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: SizedBox(height: 230, child: newMusicSpecialCard),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(child: firstDynamicSectionWidget),
-            ],
-          )
-        else if (newMusicSpecialCard != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 24),
-            child: newMusicSpecialCard,
-          )
-        else
-          ?firstDynamicSectionWidget,
-        ...dynamicSections,
-      ],
-    );
   }
 
   Widget? _buildDesktopQuickRows() {

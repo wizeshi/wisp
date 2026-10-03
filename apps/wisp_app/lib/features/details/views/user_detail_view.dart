@@ -11,6 +11,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
@@ -25,18 +26,20 @@ import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 
-enum UserPageStyle { spotify, apple }
+part 'user_detail/styles/spotify_style.dart';
+part 'user_detail/styles/apple_music_style.dart';
+part 'user_detail/styles/original_style.dart';
 
 class UserDetailView extends StatefulWidget {
   final String userId;
   final GenericUser? initialUser;
-  final UserPageStyle style;
+  final AppStyle style;
 
   const UserDetailView({
     super.key,
     required this.userId,
     this.initialUser,
-    this.style = UserPageStyle.spotify,
+    this.style = AppStyle.Spotify,
   });
 
   @override
@@ -267,163 +270,17 @@ class _UserDetailViewState extends State<UserDetailView> {
       return const SizedBox.shrink();
     }
 
-    if (widget.style == UserPageStyle.apple) {
-      return _buildAppleContent(effectiveUser);
+    switch (widget.style) {
+      case AppStyle.AppleMusic:
+        return _buildAppleMusicUserContent(this, effectiveUser);
+      case AppStyle.Original:
+        return _buildOriginalUserContent(this, effectiveUser);
+      case AppStyle.Spotify:
+        return _buildSpotifyUserContent(this, effectiveUser);
     }
-    return _buildSpotifyContent(effectiveUser);
   }
 
-  Widget _buildSpotifyContent(GenericUser user) {
-    final children = <Widget>[];
 
-    if (user.publicPlaylists.isNotEmpty) {
-      children.add(
-        CardRail<GenericSimplePlaylist>(
-          title: 'Public Playlists',
-          items: user.publicPlaylists,
-          itemWidth: 180,
-          itemBuilder: (context, playlist) => PlaylistCard(
-            playlist: playlist.toPlaylist(),
-            subtitle: _playlistSubtitle(playlist),
-          ),
-        ),
-      );
-    }
-
-    if (user.recentArtists.isNotEmpty) {
-      children.add(
-        CardRail<GenericSimpleArtist>(
-          title: 'Recently Played Artists',
-          items: user.recentArtists,
-          itemWidth: 180,
-          itemBuilder: (context, artist) => ArtistCard(
-            artist: artist,
-          ),
-        ),
-      );
-    }
-
-    if (user.followers.isNotEmpty) {
-      children.add(
-        CardRail<GenericSimpleUser>(
-          title: 'Followers',
-          items: user.followers,
-          itemWidth: 180,
-          itemBuilder: (context, follower) => UserCard(
-            user: follower,
-            style: widget.style,
-          ),
-        ),
-      );
-    }
-
-    if (user.following.isNotEmpty) {
-      children.add(
-        CardRail<GenericSimpleUser>(
-          title: 'Following',
-          items: user.following,
-          itemWidth: 180,
-          itemBuilder: (context, following) => UserCard(
-            user: following,
-            style: widget.style,
-          ),
-        ),
-      );
-    }
-
-    return WispListView(
-      key: PageStorageKey('user_spotify_${widget.userId}'),
-      controller: _scrollController,
-      padding: EdgeInsets.fromLTRB(
-        0,
-        0,
-        0,
-        mobileBottomBarPadding(context, extra: 24),
-      ),
-      children: [
-        _buildHeroCard(user, useAppleChrome: false),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: children,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAppleContent(GenericUser user) {
-    final children = <Widget>[];
-    children.add(_buildHeroCard(user, useAppleChrome: true));
-
-    if (user.publicPlaylists.isNotEmpty) {
-      children.add(
-        CardRail<GenericSimplePlaylist>(
-          title: 'Public Playlists',
-          items: user.publicPlaylists,
-          itemWidth: 180,
-          itemBuilder: (context, playlist) => PlaylistCard(
-            playlist: playlist.toPlaylist(),
-            subtitle: _playlistSubtitle(playlist),
-          ),
-        ),
-      );
-    }
-
-    if (user.recentArtists.isNotEmpty) {
-      children.add(
-        CardRail<GenericSimpleArtist>(
-          title: 'Recently Played Artists',
-          items: user.recentArtists,
-          itemWidth: 180,
-          itemBuilder: (context, artist) => ArtistCard(
-            artist: artist,
-          ),
-        ),
-      );
-    }
-
-    if (user.followers.isNotEmpty) {
-      children.add(
-        CardRail<GenericSimpleUser>(
-          title: 'Followers',
-          items: user.followers,
-          itemWidth: 180,
-          itemBuilder: (context, follower) => UserCard(
-            user: follower,
-            style: widget.style,
-          ),
-        ),
-      );
-    }
-
-    if (user.following.isNotEmpty) {
-      children.add(
-        CardRail<GenericSimpleUser>(
-          title: 'Following',
-          items: user.following,
-          itemWidth: 180,
-          itemBuilder: (context, following) => UserCard(
-            user: following,
-            style: widget.style,
-          ),
-        ),
-      );
-    }
-
-    return WispListView(
-      key: PageStorageKey('user_apple_${widget.userId}'),
-      controller: _scrollController,
-      padding: EdgeInsets.fromLTRB(
-        24,
-        24,
-        24,
-        mobileBottomBarPadding(context, extra: 24),
-      ),
-      children: children,
-    );
-  }
 
   Widget _buildHeroCard(GenericUser user, {required bool useAppleChrome}) {
     final followerLabel = '${_formatNumber(user.followerCount)} followers';
@@ -571,11 +428,10 @@ class _UserDetailViewState extends State<UserDetailView> {
   }
 
   Widget _buildFollowButton() {
+    final tokens = WispStyleTokens.fromStyle(widget.style);
     final isFollowing = _isFollowedByCurrentUser;
     final label = isFollowing ? 'Following' : 'Follow';
-    final icon = widget.style == UserPageStyle.apple
-        ? (isFollowing ? CupertinoIcons.person_fill : CupertinoIcons.person_add)
-        : (isFollowing ? Icons.person : Icons.person_add_alt_1);
+    final icon = isFollowing ? tokens.personIcon : tokens.personAddIcon;
 
     return OutlinedButton.icon(
       onPressed: null,

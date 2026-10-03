@@ -3,10 +3,8 @@
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/details/views/list_detail_view.dart';
@@ -131,9 +129,9 @@ class BestMatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveStyle =
-        style ?? context.select<PreferencesProvider, AppStyle>((p) => p.style);
-    final isApple = effectiveStyle == AppStyle.AppleMusic;
+    final tokens =
+        style != null ? WispStyleTokens.fromStyle(style!) : context.tokens;
+    final isApple = tokens.isApple;
 
     final String title;
     final String subtitle;

@@ -26,6 +26,12 @@ import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/features/details/views/list_detail_view.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
+
+part 'styles/spotify_style.dart';
+part 'styles/apple_music_style.dart';
+part 'styles/original_style.dart';
 
 bool _isLocalThumbnailPath(String path) {
   return path.startsWith('/') || path.startsWith('file://');
@@ -645,16 +651,15 @@ class LibraryTabViewState extends State<LibraryTabView> {
   }
 
   Widget _buildTabContent(double padding) {
-    switch (_selectedTab) {
-      case LibraryView.playlists:
-        return _buildPlaylistsContent(padding);
-      case LibraryView.all:
-        return _buildPlaylistsContent(padding);
-      case LibraryView.albums:
-        return _buildAlbumsContent(padding);
-      case LibraryView.artists:
-        return _buildArtistsContent(padding);
-    }
+    final style = context.select<PreferencesProvider, AppStyle>(
+      (p) => p.style,
+    );
+
+    return switch (style) {
+      AppStyle.AppleMusic => _buildAppleMusicLibraryContent(padding),
+      AppStyle.Original => _buildOriginalLibraryContent(padding),
+      AppStyle.Spotify => _buildSpotifyLibraryContent(padding),
+    };
   }
 
   Widget _buildPlaylistsContent(double padding) {

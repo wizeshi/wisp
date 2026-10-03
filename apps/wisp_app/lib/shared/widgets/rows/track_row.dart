@@ -1,10 +1,7 @@
 // Copyright © 2026 wizeshi
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
@@ -411,9 +408,8 @@ class TrackRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveStyle = style ??
-        context.select<PreferencesProvider, AppStyle>((p) => p.style);
-    final isApple = effectiveStyle == AppStyle.AppleMusic;
+    final tokens = style != null ? WispStyleTokens.fromStyle(style!) : context.tokens;
+    final isApple = tokens.isApple;
 
     final effectivePlayIconLocation = playIconLocation ??
         (isApple
@@ -423,7 +419,7 @@ class TrackRow extends StatelessWidget {
                 : PlayIconLocation.art));
 
     final effectiveDurationColumnWidth =
-        durationColumnWidth ?? (isApple ? 70.0 : 80.0);
+        durationColumnWidth ?? tokens.trackRowDurationWidth;
 
     final isCurrentHere = context.watchIsCurrentTrackHere(
       trackId: track.id,
@@ -582,9 +578,7 @@ class TrackRow extends StatelessWidget {
                                 minHeight: 24,
                               ),
                               icon: Icon(
-                                isApple
-                                    ? CupertinoIcons.ellipsis
-                                    : Icons.more_horiz,
+                                tokens.moreIcon,
                                 color: isApple
                                     ? Theme.of(context).colorScheme.primary
                                     : Colors.grey[400],

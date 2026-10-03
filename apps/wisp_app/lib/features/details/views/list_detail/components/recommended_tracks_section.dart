@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-part of '../list_detail_view.dart';
+part of '../../list_detail_view.dart';
 
 extension _ListDetailRecommendations on _SharedListDetailViewState {
   bool _shouldShowRecommendations() {
@@ -206,13 +206,13 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
 
   Widget _buildRecommendedSection({
     required bool isMobile,
-    _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+    AppStyle visualStyle = AppStyle.Spotify,
   }) {
     if (!_shouldShowRecommendations()) {
       return const SizedBox.shrink();
     }
 
-    final isAppleStyle = visualStyle == _ListVisualStyle.apple;
+    final isAppleStyle = WispStyleTokens.fromStyle(visualStyle).isApple;
     final songs = _recommendedSongs;
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;

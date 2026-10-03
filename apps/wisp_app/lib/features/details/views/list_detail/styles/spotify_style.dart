@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-part of '../list_detail_view.dart';
+part of '../../list_detail_view.dart';
 
 class _SpotifyListDetailRenderer extends StatelessWidget {
   final _SharedListDetailViewState view;
@@ -80,7 +80,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                         view._buildSongsSliver(
                           availableWidth: availableWidth,
                           isMobile: true,
-                          visualStyle: _ListVisualStyle.spotify,
+                          visualStyle: AppStyle.Spotify,
                         ),
                         SliverToBoxAdapter(
                           child: Padding(
@@ -201,7 +201,7 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                               sliver: view._buildSongsSliver(
                                 availableWidth: sliverConstraints.crossAxisExtent - 24,
                                 isMobile: false,
-                                visualStyle: _ListVisualStyle.spotify,
+                                visualStyle: AppStyle.Spotify,
                               ),
                             ),
                           );

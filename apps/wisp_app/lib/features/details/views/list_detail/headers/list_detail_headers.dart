@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-part of '../list_detail_view.dart';
+part of '../../list_detail_view.dart';
 
 extension _ListDetailHeaders on _SharedListDetailViewState {
   Widget _buildMobileHeader(
@@ -827,12 +827,13 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
   }
 
   Widget _buildListHeaderContent({
-    _ListVisualStyle visualStyle = _ListVisualStyle.spotify,
+    AppStyle visualStyle = AppStyle.Spotify,
     required double availableWidth,
   }) {
     final visibleColumns = _getVisibleColumns(availableWidth);
+    final tokens = WispStyleTokens.fromStyle(visualStyle);
 
-    if (visualStyle == _ListVisualStyle.apple) {
+    if (tokens.isApple) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
@@ -850,10 +851,6 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
               ),
             ),
             const SizedBox(width: 2),
-            if (visualStyle != _ListVisualStyle.apple) ...[
-              const SizedBox(width: 6),
-              const SizedBox(width: 44),
-            ],
             const SizedBox(width: 12),
             Expanded(
               flex: 3,
@@ -896,7 +893,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
             if (visibleColumns.showTime) ...[
               const SizedBox(width: 8),
               SizedBox(
-                width: 70,
+                width: tokens.trackRowDurationWidth,
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: _buildSortableHeader(
@@ -980,7 +977,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
           const SizedBox(width: 28),
           const SizedBox(width: 8),
           SizedBox(
-            width: 80,
+            width: tokens.trackRowDurationWidth,
             child: Align(
               alignment: Alignment.centerRight,
               child: _buildSortableHeader(

@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-part of '../list_detail_view.dart';
+part of '../../list_detail_view.dart';
 
 extension _ListDetailContextMenus on _SharedListDetailViewState {
   Rect? _anchorRectFromContext(BuildContext? anchorContext) {

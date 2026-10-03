@@ -1,8 +1,8 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/material.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/features/details/views/user_detail_view.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
@@ -39,14 +39,14 @@ class UserCard extends StatelessWidget {
   final GenericSimpleUser user;
   final double? width;
   final String? subtitle;
-  final UserPageStyle style;
+  final AppStyle? style;
 
   const UserCard({
     super.key,
     required this.user,
     this.width,
     this.subtitle,
-    this.style = UserPageStyle.spotify,
+    this.style,
   });
 
   factory UserCard.fromUser({
@@ -54,7 +54,7 @@ class UserCard extends StatelessWidget {
     required GenericUser user,
     double? width,
     String? subtitle,
-    UserPageStyle style = UserPageStyle.spotify,
+    AppStyle? style,
   }) {
     return UserCard(
       key: key,

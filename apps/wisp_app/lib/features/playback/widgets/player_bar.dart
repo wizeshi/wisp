@@ -6,7 +6,6 @@ library;
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui' show ImageFilter;
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
@@ -439,16 +438,8 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             data.currentTrackId != null &&
             !data.currentTrackCached;
         final IconData icon = effectiveIsPlaying
-            ? (switch (appStyle) {
-                AppStyle.Spotify => Icons.pause,
-                AppStyle.AppleMusic => CupertinoIcons.pause_solid,
-                _ => Icons.pause,
-              })
-            : (switch (appStyle) {
-                AppStyle.Spotify => Icons.play_arrow,
-                AppStyle.AppleMusic => CupertinoIcons.play_arrow_solid,
-                _ => Icons.pause,
-              });
+            ? context.tokens.pauseIcon
+            : context.tokens.playIcon;
         VoidCallback? onPressed;
         if (!isOfflineBlocked) {
           if (effectiveIsPlaying) {
@@ -1353,8 +1344,8 @@ class _DesktopPlaybackControls extends StatelessWidget {
         );
       },
       builder: (context, data, child) {
-        final isAppleStyle = appStyle == AppStyle.AppleMusic;
-        final controlSpacing = isAppleStyle ? 8.0 : 4.0;
+        final tokens = context.tokens;
+        final controlSpacing = tokens.playerControlSpacing;
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
@@ -1365,7 +1356,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               constraints: BoxConstraints(),
               tooltip: data.isDJMode ? 'Unavailable in DJ mode' : 'Shuffle',
               icon: Icon(
-                isAppleStyle ? CupertinoIcons.shuffle : Icons.shuffle,
+                tokens.shuffleIcon,
                 color: data.isDJMode
                     ? Colors.grey[600]
                     : (data.shuffleEnabled
@@ -1387,9 +1378,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               padding: EdgeInsets.all(4),
               constraints: BoxConstraints(),
               icon: Icon(
-                isAppleStyle
-                    ? CupertinoIcons.backward_end_fill
-                    : Icons.skip_previous,
+                tokens.playPrevIcon,
                 color: Colors.white,
                 size: 24,
               ),
@@ -1412,9 +1401,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               padding: EdgeInsets.all(4),
               constraints: BoxConstraints(),
               icon: Icon(
-                isAppleStyle
-                    ? CupertinoIcons.forward_end_fill
-                    : Icons.skip_next,
+                tokens.playNextIcon,
                 color: Colors.white,
                 size: 24,
               ),
@@ -1434,10 +1421,8 @@ class _DesktopPlaybackControls extends StatelessWidget {
               tooltip: data.isDJMode ? 'Unavailable in DJ mode' : 'Repeat',
               icon: Icon(
                 data.repeatMode == global_audio_player.RepeatMode.one
-                    ? (isAppleStyle
-                          ? CupertinoIcons.repeat_1
-                          : Icons.repeat_one)
-                    : (isAppleStyle ? CupertinoIcons.repeat : Icons.repeat),
+                    ? tokens.repeatOneIcon
+                    : tokens.repeatIcon,
                 color: data.isDJMode
                     ? Colors.grey[600]
                     : (data.repeatMode != global_audio_player.RepeatMode.off
@@ -1494,13 +1479,13 @@ class _DesktopPlayPauseButton extends StatelessWidget {
         !data.isOnline &&
         data.currentTrackId != null &&
         !data.currentTrackCached;
-    final isAppleStyle = appStyle == AppStyle.AppleMusic;
+    final tokens = context.tokens;
     IconData icon = effectiveIsPlaying
-        ? (isAppleStyle
-              ? CupertinoIcons.pause_solid
+        ? (tokens.isApple
+              ? tokens.pauseIcon
               : Icons.pause_circle_filled)
-        : (isAppleStyle
-              ? CupertinoIcons.play_arrow_solid
+        : (tokens.isApple
+              ? tokens.playIcon
               : Icons.play_circle_filled);
     VoidCallback? onPressed;
 
@@ -1548,7 +1533,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       constraints: BoxConstraints(),
       icon: Icon(
         icon,
-        color: isAppleStyle
+        color: tokens.isApple
             ? Colors.white
             : Theme.of(context).colorScheme.primary,
         size: 40,
@@ -1574,9 +1559,9 @@ class _DesktopRightControls extends StatelessWidget {
       valueListenable: NavigationHistory.instance.currentRoute,
       builder: (context, route, child) {
         final routeName = route?.settings.name;
-        final isAppleStyle = appStyle == AppStyle.AppleMusic;
-        final controlSpacing = isAppleStyle ? 12.0 : 8.0;
-        final volumeSpacing = isAppleStyle ? 6.0 : 4.0;
+        final tokens = context.tokens;
+        final controlSpacing = tokens.playerControlSpacing;
+        final volumeSpacing = tokens.playerVolumeSpacing;
         final isLyricsRouteOpen = routeName == '/lyrics';
         final isQueueOpen = routeName == '/queue';
         final isFullScreenOpen = routeName == '/fullplayer';
@@ -1625,9 +1610,7 @@ class _DesktopRightControls extends StatelessWidget {
                 if (!isFullScreenOpen) ...[
                   IconButton(
                     icon: Icon(
-                      isAppleStyle
-                          ? CupertinoIcons.sidebar_right
-                          : Symbols.view_sidebar,
+                      tokens.sidebarIcon,
                       color: isSidebarOpen ? activeColor : inactiveColor,
                       size: 20,
                     ),
@@ -1644,9 +1627,7 @@ class _DesktopRightControls extends StatelessWidget {
                         if (showLyricsButton) ...[
                           IconButton(
                             icon: Icon(
-                              isAppleStyle
-                                  ? CupertinoIcons.quote_bubble
-                                  : Icons.music_note,
+                              tokens.lyricsIcon,
                               color: isFullScreenOpen
                                   ? fullPlayerMode ==
                                             FullPlayerDesktopMode.lyrics
@@ -1692,9 +1673,7 @@ class _DesktopRightControls extends StatelessWidget {
                         if (showQueueButton) ...[
                           IconButton(
                             icon: Icon(
-                              isAppleStyle
-                                  ? CupertinoIcons.list_bullet
-                                  : Icons.queue_music,
+                              tokens.queueIcon,
                               color: isFullScreenOpen
                                   ? fullPlayerMode ==
                                             FullPlayerDesktopMode.queue
@@ -1767,16 +1746,10 @@ class _DesktopRightControls extends StatelessWidget {
                           onPressed: player.toggleMute,
                           icon: Icon(
                             volume == 0
-                                ? (isAppleStyle
-                                      ? CupertinoIcons.speaker_slash
-                                      : Icons.volume_off)
+                                ? tokens.volumeOffIcon
                                 : volume < 0.5
-                                ? (isAppleStyle
-                                      ? CupertinoIcons.speaker_1
-                                      : Icons.volume_down)
-                                : (isAppleStyle
-                                      ? CupertinoIcons.speaker_3
-                                      : Icons.volume_up),
+                                ? tokens.volumeDownIcon
+                                : tokens.volumeUpIcon,
                             color: Colors.grey[400],
                             size: 20,
                           ),
@@ -1798,9 +1771,7 @@ class _DesktopRightControls extends StatelessWidget {
                   SizedBox(width: controlSpacing),
                   IconButton(
                     icon: Icon(
-                      isAppleStyle
-                          ? CupertinoIcons.arrow_up_left_arrow_down_right
-                          : Icons.fullscreen,
+                      tokens.fullscreenIcon,
                       color: inactiveColor,
                       size: 20,
                     ),
@@ -2332,16 +2303,11 @@ class _ConnectMenuButton extends StatelessWidget {
     this.activeColorOverride,
   });
 
-  IconData get icon => switch (appStyle) {
-    AppStyle.Spotify => Icons.cast_connected,
-    AppStyle.AppleMusic => CupertinoIcons.antenna_radiowaves_left_right,
-    _ => Icons.cast_connected,
-  };
-
   @override
   Widget build(BuildContext context) {
     final activeColor =
         activeColorOverride ?? Theme.of(context).colorScheme.primary;
+    final icon = context.tokens.connectIcon;
 
     Widget buildIconButton(bool isActive) {
       return IconButton(

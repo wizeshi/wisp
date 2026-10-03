@@ -35,6 +35,13 @@ import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 import 'list_detail_view.dart';
 
+part 'artist_detail/desktop/spotify_style.dart';
+part 'artist_detail/desktop/apple_music_style.dart';
+part 'artist_detail/desktop/original_style.dart';
+part 'artist_detail/mobile/spotify_style.dart';
+part 'artist_detail/mobile/apple_music_style.dart';
+part 'artist_detail/mobile/original_style.dart';
+
 class ArtistDetailView extends StatefulWidget {
   final String artistId;
   final GenericSimpleArtist? initialArtist;
@@ -284,580 +291,54 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     final isMobile = !isDesktop;
 
     if (isMobile) {
-      if (style == AppStyle.AppleMusic) {
-        return _buildMobileArtistContentApple(
+      switch (style) {
+        case AppStyle.AppleMusic:
+          return _buildMobileArtistContentApple(
+            imageUrl: imageUrl,
+            name: name,
+            followers: followers,
+          );
+        case AppStyle.Original:
+          return _buildMobileArtistContentOriginal(
+            imageUrl: imageUrl,
+            name: name,
+            followers: followers,
+          );
+        case AppStyle.Spotify:
+          return _buildMobileArtistContentSpotify(
+            imageUrl: imageUrl,
+            name: name,
+            followers: followers,
+          );
+      }
+    }
+
+    switch (style) {
+      case AppStyle.AppleMusic:
+        return _buildDesktopArtistContentApple(
           imageUrl: imageUrl,
           name: name,
           followers: followers,
         );
-      }
-
-      return _buildMobileArtistContentDefault(
-        imageUrl: imageUrl,
-        name: name,
-        followers: followers,
-      );
+      case AppStyle.Original:
+        return _buildDesktopArtistContentOriginal(
+          imageUrl: imageUrl,
+          name: name,
+          followers: followers,
+          description: description,
+          headerColor: headerColor,
+          actionsRowColor: actionsRowColor,
+        );
+      case AppStyle.Spotify:
+        return _buildDesktopArtistContentSpotify(
+          imageUrl: imageUrl,
+          name: name,
+          followers: followers,
+          description: description,
+          actionsRowColor: actionsRowColor,
+          headerColor: headerColor,
+        );
     }
-
-    if (style == AppStyle.AppleMusic) {
-      return _buildDesktopArtistContentApple(
-        imageUrl: imageUrl,
-        name: name,
-        followers: followers,
-      );
-    }
-
-    return _buildDesktopArtistContentSpotify(
-      imageUrl: imageUrl,
-      name: name,
-      followers: followers,
-      description: description,
-      actionsRowColor: actionsRowColor,
-      headerColor: headerColor,
-    );
-  }
-
-  Widget _buildMobileArtistContentDefault({
-    required String imageUrl,
-    required String name,
-    required int followers,
-  }) {
-    const padding = 20.0;
-    return Column(
-      children: [
-        Expanded(
-          child: WispCustomScrollView(
-            key: PageStorageKey('artist_mobile_default_${widget.artistId}'),
-            controller: _scrollController,
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(padding),
-                  child: _buildMobileHeader(
-                    name,
-                    imageUrl,
-                    followers,
-                    _artist?.monthlyListeners,
-                  ),
-                ),
-              ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _StickyActionBarDelegate(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: padding,
-                      vertical: padding / 2,
-                    ),
-                    color: const Color(0xFF121212),
-                    child: _buildMobileActionsRow(useAppleIcons: false),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    _buildTopTracksSection(),
-                    const SizedBox(height: 24),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: padding),
-                      child: SizedBox.shrink(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: padding),
-                      child: _buildAlbumsGrid(false),
-                    ),
-                  ],
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: padding),
-                  child: _buildAboutSection(isMobile: true),
-                ),
-              ),
-              const MobileBottomPaddingSliver(extra: 0),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMobileArtistContentApple({
-    required String imageUrl,
-    required String name,
-    required int followers,
-  }) {
-    return WispCustomScrollView(
-      key: PageStorageKey('artist_mobile_apple_${widget.artistId}'),
-      controller: _scrollController,
-      slivers: [
-        SliverToBoxAdapter(
-          child: _buildMobileAppleHero(
-            imageUrl: imageUrl,
-            name: name,
-            followers: followers,
-            monthlyListeners: _artist?.monthlyListeners,
-          ),
-        ),
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _StickyActionBarDelegate(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              color: const Color(0xFF121212),
-              child: _buildMobileActionsRow(useAppleIcons: true),
-            ),
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(0, 12, 0, 26),
-            child: Column(
-              children: [
-                _buildMobileAppleTopSongsGrid(),
-                const SizedBox(height: 20),
-                _buildMobileAppleAlbumsRow(),
-                const SizedBox(height: 24),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Information',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildMobileAboutSection(),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const MobileBottomPaddingSliver(extra: 0),
-      ],
-    );
-  }
-
-  Widget _buildMobileAppleHero({
-    required String imageUrl,
-    required String name,
-    required int followers,
-    required int? monthlyListeners,
-  }) {
-    final subtitle = (monthlyListeners != null && monthlyListeners > 0)
-        ? '${_formatNumber(monthlyListeners)} monthly listeners'
-        : '${_formatNumber(followers)} followers';
-
-    return SizedBox(
-      height: 430,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (imageUrl.isNotEmpty)
-            CachedNetworkImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.cover,
-              errorWidget: (context, url, error) =>
-                  Container(color: Colors.grey[900]),
-            )
-          else
-            Container(color: Colors.grey[900]),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.08),
-                  Colors.black.withValues(alpha: 0.72),
-                  Colors.black,
-                ],
-                stops: const [0, 0.72, 1],
-              ),
-            ),
-          ),
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Spacer(),
-                  Text(
-                    name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 48,
-                      height: 1.04,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    subtitle,
-                    style: TextStyle(color: Colors.grey[300], fontSize: 15),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDesktopArtistContentSpotify({
-    required String imageUrl,
-    required String name,
-    required int followers,
-    required String description,
-    required Color headerColor,
-    required Color actionsRowColor,
-  }) {
-    final theme = Theme.of(context);
-    final contentSurfaceColor = theme.colorScheme.surface;
-    final monthlyListeners = _artist?.monthlyListeners;
-    final displayDescription = description.isEmpty
-        ? 'No description available for this artist yet.'
-        : description;
-    final hasAlbums = (_artist?.albums ?? []).isNotEmpty;
-
-    return Stack(
-      children: [
-        Positioned.fill(child: Container(color: contentSurfaceColor)),
-        SafeArea(
-          bottom: false,
-          child: WispListView(
-            key: PageStorageKey('artist_desktop_spotify_${widget.artistId}'),
-            controller: _scrollController,
-            padding: EdgeInsets.zero,
-            children: [
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(color: headerColor),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      ClipOval(
-                        child: Container(
-                          width: 180,
-                          height: 180,
-                          color: Colors.black.withValues(alpha: 0.18),
-                          child: imageUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (context, url, error) => Icon(
-                                    CupertinoIcons.person_fill,
-                                    color: Colors.grey[700],
-                                    size: 54,
-                                  ),
-                                )
-                              : Icon(
-                                  CupertinoIcons.person_fill,
-                                  color: Colors.grey[700],
-                                  size: 54,
-                                ),
-                        ),
-                      ),
-                      const SizedBox(width: 28),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 58,
-                              height: 0.95,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            monthlyListeners != null && monthlyListeners > 0
-                                ? '${_formatNumber(monthlyListeners)} monthly listeners'
-                                : '${_formatNumber(followers)} followers',
-                            style: TextStyle(
-                              color: Colors.grey[200],
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              _buildActionsRow(
-                useAppleIcons: false,
-                backgroundGradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: [0, 1],
-                  colors: [actionsRowColor, contentSurfaceColor],
-                ),
-              ),
-              Container(
-                width: double.infinity,
-                color: contentSurfaceColor,
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTopTracksSection(
-                      title: 'Popular',
-                      spotifyStyle: true,
-                    ),
-                    const SizedBox(height: 28),
-                    if (hasAlbums) ...[
-                      _buildAlbumsGrid(true),
-                      const SizedBox(height: 28),
-                    ],
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.22),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'About $name',
-                            style: const TextStyle(
-                              fontSize: 31,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: buildParsedText(
-                                  context,
-                                  displayDescription,
-                                  style: TextStyle(
-                                    color: Colors.grey[300],
-                                    fontSize: 15,
-                                    height: 1.45,
-                                  ),
-                                  softWrap: true,
-                                ),
-                              ),
-                              const SizedBox(width: 24),
-                              Expanded(
-                                flex: 2,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (monthlyListeners != null &&
-                                        monthlyListeners > 0)
-                                      _buildAboutStat(
-                                        'MONTHLY LISTENERS',
-                                        _formatNumber(monthlyListeners),
-                                      ),
-                                    _buildAboutStat(
-                                      'FOLLOWERS',
-                                      _formatNumber(followers),
-                                    ),
-                                    _buildAboutStat(
-                                      'ALBUMS',
-                                      '${_artist?.albums.length ?? 0}',
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDesktopArtistContentApple({
-    required String imageUrl,
-    required String name,
-    required int followers,
-  }) {
-    final hasTopSongs = (_artist?.topSongs ?? []).isNotEmpty;
-    final hasAlbums = (_artist?.albums ?? []).isNotEmpty;
-
-    return Stack(
-      children: [
-        if (imageUrl.isNotEmpty)
-          Positioned.fill(
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Opacity(
-                opacity: 0.35,
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.cover,
-                  errorWidget: (context, url, error) =>
-                      Container(color: Colors.grey[900]),
-                ),
-              ),
-            ),
-          ),
-        Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.5),
-                  Colors.black.withValues(alpha: 0.9),
-                ],
-              ),
-            ),
-          ),
-        ),
-        SafeArea(
-          bottom: false,
-          child: WispCustomScrollView(
-            key: PageStorageKey('artist_desktop_apple_${widget.artistId}'),
-            controller: _scrollController,
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                  child: _buildDesktopHero(
-                    name,
-                    imageUrl,
-                    followers,
-                    _artist?.monthlyListeners,
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 48),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (hasTopSongs) ...[
-                        _buildDesktopTopSongsSection(),
-                        const SizedBox(height: 36),
-                      ],
-                      if (hasAlbums) ...[
-                        _buildAlbumsGrid(true),
-                        const SizedBox(height: 36),
-                      ],
-                      _buildAboutSection(),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDesktopHero(
-    String name,
-    String imageUrl,
-    int followers,
-    int? monthlyListeners,
-  ) {
-    final subtitle = (monthlyListeners != null && monthlyListeners > 0)
-        ? '${_formatNumber(monthlyListeners)} monthly listeners'
-        : '${_formatNumber(followers)} followers';
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        height: 360,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (imageUrl.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                errorWidget: (context, url, error) =>
-                    Container(color: Colors.grey[900]),
-              )
-            else
-              Container(color: Colors.grey[900]),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.05),
-                    Colors.black.withValues(alpha: 0.65),
-                    Colors.black.withValues(alpha: 0.92),
-                  ],
-                  stops: const [0, 0.62, 1],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 48,
-                      height: 1.05,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    subtitle,
-                    style: TextStyle(color: Colors.grey[300], fontSize: 14),
-                  ),
-                  const SizedBox(height: 18),
-                  _buildActionsRow(useAppleIcons: true),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildDesktopTopSongsSection() {
