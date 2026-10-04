@@ -4,16 +4,16 @@ import 'package:material_ui/material_ui.dart';
 import 'spotify_full_player.dart';
 
 /// Original variant — currently reuses the Spotify layout.
-class OriginalFullScreenPlayer extends StatelessWidget {
+class OriginalMobileFullScreenPlayer extends StatelessWidget {
   final ScrollController scrollController;
 
-  const OriginalFullScreenPlayer({
+  const OriginalMobileFullScreenPlayer({
     required this.scrollController,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SpotifyFullScreenPlayer(scrollController: scrollController);
+    return SpotifyMobileFullScreenPlayer(scrollController: scrollController);
   }
 }

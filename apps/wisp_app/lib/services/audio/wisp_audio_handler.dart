@@ -775,9 +775,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (!_rawPositionStopwatch.isRunning) return _lastRawPosition;
 
     final elapsed = _rawPositionStopwatch.elapsed;
-    // Guard against drift if engine updates stall for more than 1.5 seconds
-    if (elapsed.inMilliseconds > 1500) {
-      return _lastRawPosition + const Duration(milliseconds: 1500);
+    // Guard against excessive drift if engine updates stall for more than 5 seconds
+    if (elapsed.inMilliseconds > 5000) {
+      return _lastRawPosition + const Duration(milliseconds: 5000);
     }
 
     var predicted = _lastRawPosition + elapsed;

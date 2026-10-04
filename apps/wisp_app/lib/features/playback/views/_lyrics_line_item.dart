@@ -61,7 +61,7 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
       builder: (context, frame, child) {
         final timing = frame.timing;
         final isSynced = widget.syncMode != LyricsSyncMode.unsynced;
-        final isLineActive = isSynced &&
+        final isLineActive = !isSynced ||
             (frame.activeIndices.contains(widget.index) ||
                 frame.activeIndex == widget.index);
 
@@ -108,10 +108,10 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
           color: baseColor.withValues(
             alpha: (baseColor.a * opacity).clamp(0.0, 1.0),
           ),
-          fontSize: widget.isDesktop ? 42 : 30,
-          letterSpacing: widget.isDesktop ? -1.5 : 0.25,
-          fontWeight: widget.isDesktop ? FontWeight.w700 : FontWeight.w900,
-          height: widget.isDesktop ? 1.4 : 1,
+          fontSize: widget.isDesktop ? 42.0 : 26.0,
+          letterSpacing: widget.isDesktop ? -1.5 : -0.3,
+          fontWeight: widget.isDesktop ? FontWeight.w700 : FontWeight.w800,
+          height: widget.isDesktop ? 1.4 : 1.1,
           decoration: _hovered ? TextDecoration.underline : TextDecoration.none,
           decorationColor: Colors.white70.withValues(
             alpha: (Colors.white70.a * opacity).clamp(0.0, 1.0),
@@ -124,39 +124,53 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
                 alpha: (inactiveColor.a * opacity).clamp(0.0, 1.0),
               );
 
+        final defaultTextStyle = DefaultTextStyle.of(context).style;
+        final effectiveBaseStyle = defaultTextStyle.merge(baseStyle);
+        final textScaler = MediaQuery.textScalerOf(context);
+
         final Widget textContent;
         if (isLineActive &&
             widget.syncMode == LyricsSyncMode.word &&
             widget.line.hasWordTiming) {
-          textContent = Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              Text(
-                widget.line.content,
-                style: baseStyle.copyWith(color: inactiveWordColor),
-                textAlign: TextAlign.left,
-              ),
-              ClipPath(
-                clipper: LyricsLineFillClipper(
-                  lineContent: widget.line.content,
-                  words: widget.line.words,
-                  wordRanges: _wordRanges,
-                  lineEndTimeMs: widget.line.endTimeMs,
-                  style: baseStyle,
-                  positionMs: frame.positionMs,
-                ),
-                child: Text(
-                  widget.line.content,
-                  style: baseStyle.copyWith(color: activeWordColor),
-                  textAlign: TextAlign.left,
-                ),
-              ),
-            ],
+          textContent = LayoutBuilder(
+            builder: (context, constraints) {
+              final layoutWidth = constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : MediaQuery.sizeOf(context).width;
+
+              return Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  Text(
+                    widget.line.content,
+                    style: effectiveBaseStyle.copyWith(color: inactiveWordColor),
+                    textAlign: TextAlign.left,
+                  ),
+                  ClipPath(
+                    clipper: LyricsLineFillClipper(
+                      lineContent: widget.line.content,
+                      words: widget.line.words,
+                      wordRanges: _wordRanges,
+                      lineEndTimeMs: widget.line.endTimeMs,
+                      style: effectiveBaseStyle,
+                      textScaler: textScaler,
+                      layoutWidth: layoutWidth,
+                      positionMs: frame.positionMs,
+                    ),
+                    child: Text(
+                      widget.line.content,
+                      style: effectiveBaseStyle.copyWith(color: activeWordColor),
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         } else {
           textContent = Text(
             widget.line.content,
-            style: baseStyle,
+            style: effectiveBaseStyle,
             textAlign: TextAlign.left,
           );
         }
@@ -164,18 +178,17 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
         final canSeek = widget.line.startTimeMs > 0;
 
         final lineWidget = Padding(
-          padding: EdgeInsets.symmetric(vertical: widget.isDesktop ? 8 : 10),
+          padding: EdgeInsets.symmetric(vertical: widget.isDesktop ? 8 : 12),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: MouseRegion(
-              cursor: canSeek ? SystemMouseCursors.click : MouseCursor.defer,
-              onEnter: widget.isDesktop
-                  ? (_) => setState(() => _hovered = true)
-                  : null,
-              onExit: widget.isDesktop
-                  ? (_) => setState(() => _hovered = false)
-                  : null,
-              child: GestureDetector(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                mouseCursor: canSeek ? SystemMouseCursors.click : MouseCursor.defer,
+                onHover: widget.isDesktop
+                    ? (hovering) => setState(() => _hovered = hovering)
+                    : null,
                 onTap: canSeek
                     ? () => widget.onSeek(
                         Duration(
@@ -183,7 +196,10 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
                         ),
                       )
                     : null,
-                child: textContent,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: textContent,
+                ),
               ),
             ),
           ),

@@ -38,18 +38,35 @@ class _InlineDelayEditorState extends State<InlineDelayEditor> {
   }
 
   @override
+  void didUpdateWidget(InlineDelayEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.trackId != widget.trackId) {
+      if (_debounceTimer?.isActive ?? false) {
+        _debounceTimer?.cancel();
+        unawaited(_commit(trackId: oldWidget.trackId));
+      }
+      final updated = widget.lyricsProvider.getDelaySecondsCached(widget.trackId);
+      _controller.text = updated.toStringAsFixed(2);
+    }
+  }
+
+  @override
   void dispose() {
-    _debounceTimer?.cancel();
+    if (_debounceTimer?.isActive ?? false) {
+      _debounceTimer?.cancel();
+      unawaited(_commit());
+    }
     _focusNode.removeListener(_handleFocusChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
-  Future<void> _commit({bool formatText = false}) async {
+  Future<void> _commit({bool formatText = false, String? trackId}) async {
+    final targetTrackId = trackId ?? widget.trackId;
     final parsed = double.tryParse(_controller.text.trim());
     if (parsed == null) return;
-    await widget.lyricsProvider.setDelaySeconds(widget.trackId, parsed);
+    await widget.lyricsProvider.setDelaySeconds(targetTrackId, parsed);
     if (!mounted) return;
     if (formatText) {
       setState(() {

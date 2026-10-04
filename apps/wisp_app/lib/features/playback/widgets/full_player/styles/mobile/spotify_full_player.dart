@@ -28,10 +28,10 @@ import '../../components/cover_gradient_container.dart';
 import '../../components/mobile_artist_info_card.dart';
 import 'apple_music_full_player.dart';
 
-class SpotifyFullScreenPlayer extends StatelessWidget {
+class SpotifyMobileFullScreenPlayer extends StatelessWidget {
   final ScrollController scrollController;
 
-  const SpotifyFullScreenPlayer({required this.scrollController, super.key});
+  const SpotifyMobileFullScreenPlayer({required this.scrollController, super.key});
 
   Widget _buildArtistInfoSection(dynamic currentTrack) {
     final artist = currentTrack?.artists?.isNotEmpty == true

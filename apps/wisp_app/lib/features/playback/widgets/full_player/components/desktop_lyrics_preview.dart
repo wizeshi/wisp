@@ -30,8 +30,9 @@ class DesktopLyricsPreviewWidget extends StatelessWidget {
     final currentTrack = player.currentTrack;
     if (currentTrack == null) return const SizedBox.shrink();
 
-    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.word);
-    if (!state.isLoading && state.lyrics == null && state.error == null) {
+    final wordState = lyricsProvider.getState(currentTrack, LyricsSyncMode.word);
+    final lineState = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
+    if (!wordState.isLoading && wordState.lyrics == null && wordState.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.word);
       });
@@ -39,12 +40,27 @@ class DesktopLyricsPreviewWidget extends StatelessWidget {
 
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
 
-    final lyrics = state.lyrics;
+    final wordLyrics = wordState.lyrics;
+    final lyrics = wordLyrics?.isWordSynced == true
+        ? wordLyrics
+        : wordState.hasFetched && !wordState.isLoading
+        ? lineState.lyrics ?? wordLyrics
+        : null;
+
+    if ((wordLyrics == null || !wordLyrics.isWordSynced) &&
+        !lineState.isLoading &&
+        lineState.lyrics == null &&
+        lineState.error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
+      });
+    }
+
     final delaySeconds = context.select<LyricsProvider, double>(
       (provider) => provider.getDelaySecondsCached(currentTrack.id),
     );
     final basePosition = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveThrottledPosition,
+      (coordinator) => coordinator.effectiveInterpolatedPosition,
     );
     final delayMs = (delaySeconds * 1000).round();
     final adjustedPosition = basePosition.inMilliseconds - delayMs;
@@ -55,7 +71,7 @@ class DesktopLyricsPreviewWidget extends StatelessWidget {
         : (() {
             final lines = nonEmptyLyricsLines(lyrics.lines);
             if (lines.isEmpty) return const <LyricsLine>[];
-            if (lyrics.syncMode != LyricsSyncMode.line) {
+            if (lyrics.syncMode == LyricsSyncMode.unsynced) {
               return lines.take(5).toList();
             }
             final timing = resolveSyncedLyricsTiming(lines, effectivePosition);
@@ -65,14 +81,15 @@ class DesktopLyricsPreviewWidget extends StatelessWidget {
             return lines.skip(startIndex).take(5).toList();
           })();
 
-    if (!state.isLoading && (lyrics == null || previewLines.isEmpty)) {
+    final isLoading = wordState.isLoading || (wordState.lyrics == null && lineState.isLoading);
+    if (!isLoading && (lyrics == null || previewLines.isEmpty)) {
       return const SizedBox.shrink();
     }
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (state.isLoading && lyrics == null)
+        if (isLoading && lyrics == null)
           const Text(
             'Loading lyrics…',
             style: TextStyle(color: Colors.white, fontSize: 13),

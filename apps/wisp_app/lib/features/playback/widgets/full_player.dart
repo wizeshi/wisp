@@ -5,17 +5,18 @@ import 'dart:io' show Platform;
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/features/playback/widgets/full_player/styles/desktop/original_full_player.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'full_player/styles/mobile/apple_music_full_player.dart';
 import 'full_player/styles/mobile/original_full_player.dart';
-import 'full_player/styles/desktop/spotify_desktop_full_player.dart';
+import 'full_player/styles/desktop/spotify_full_player.dart';
 import 'full_player/styles/mobile/spotify_full_player.dart';
 
 // Re-export styles and components for external callers
 export 'full_player/styles/mobile/apple_music_full_player.dart';
 export 'full_player/styles/mobile/original_full_player.dart';
-export 'full_player/styles/desktop/spotify_desktop_full_player.dart';
+export 'full_player/styles/desktop/spotify_full_player.dart';
 export 'full_player/styles/mobile/spotify_full_player.dart';
 export 'full_player/components/canvas_video.dart';
 export 'full_player/components/cover_gradient_container.dart';
@@ -91,9 +92,13 @@ class FullScreenPlayer extends StatelessWidget {
               )
             : AppleMusicFullScreenPlayer(scrollController: scrollController);
       case AppStyle.Original:
-        return OriginalFullScreenPlayer(scrollController: scrollController);
+        return _isDesktop
+            ? OriginalDesktopFullScreenPlayer()
+            : OriginalMobileFullScreenPlayer(scrollController: scrollController);
       case AppStyle.Spotify:
-        return SpotifyFullScreenPlayer(scrollController: scrollController);
+        return _isDesktop
+            ? SpotifyDesktopFullScreenPlayer()
+            : SpotifyMobileFullScreenPlayer(scrollController: scrollController);
     }
   }
 }

@@ -15,6 +15,7 @@ import 'package:wisp/features/playback/views/queue_view.dart';
 import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
 import 'package:wisp/shared/widgets/buttons/generic_button.dart';
 import 'package:wisp/features/playback/widgets/player_bar.dart';
+import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import '../../components/canvas_video.dart';
 import '../../components/cover_gradient_container.dart';
 import '../../components/desktop_lyrics_preview.dart';
@@ -413,13 +414,18 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            Text(
-                              song.artists.map((a) => a.name).join(', '),
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
+                            Row(
+                              children: [
+                                TrackBadges(track: song),
+                                Text(
+                                  song.artists.map((a) => a.name).join(', '),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ]
+                            )
                           ],
                         ),
                       ),

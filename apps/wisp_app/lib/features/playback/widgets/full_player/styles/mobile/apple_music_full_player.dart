@@ -34,6 +34,7 @@ import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 import '../../components/canvas_video.dart';
 import '../../components/rotating_blurred_cover_background.dart';
 import '../../components/inline_delay_editor.dart';
+import 'package:wisp/services/system/app_focus_service.dart';
 
 part '../desktop/apple_music_full_player.dart';
 
@@ -894,22 +895,46 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
-    if (!state.isLoading && state.lyrics == null && state.error == null) {
+    final wordState = lyricsProvider.getState(
+      currentTrack,
+      LyricsSyncMode.word,
+    );
+    final lineState = lyricsProvider.getState(
+      currentTrack,
+      LyricsSyncMode.line,
+    );
+    if (!wordState.isLoading &&
+        wordState.lyrics == null &&
+        wordState.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.word);
       });
     }
 
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
 
-    final lyrics = state.lyrics;
+    final wordLyrics = wordState.lyrics;
+    final lyrics = wordLyrics?.isWordSynced == true
+        ? wordLyrics
+        : wordState.hasFetched && !wordState.isLoading
+        ? lineState.lyrics ?? wordLyrics
+        : null;
+
+    if ((wordLyrics == null || !wordLyrics.isWordSynced) &&
+        !lineState.isLoading &&
+        lineState.lyrics == null &&
+        lineState.error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
+      });
+    }
+
     if (lyrics == null || lyrics.lines.isEmpty) {
       return const SizedBox.shrink();
     }
 
     final basePosition = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveThrottledPosition,
+      (coordinator) => coordinator.effectiveInterpolatedPosition,
     );
     final delayMs =
         (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
@@ -1070,7 +1095,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   LyricsLine? _getSingleLine(LyricsResult lyrics, int positionMs) {
     final lines = nonEmptyLyricsLines(lyrics.lines);
     if (lines.isEmpty) return null;
-    if (lyrics.syncMode != LyricsSyncMode.line) {
+    if (lyrics.syncMode == LyricsSyncMode.unsynced) {
       return lines.first;
     }
     final timing = resolveSyncedLyricsTiming(lines, positionMs);
@@ -2009,6 +2034,8 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
   late List<GlobalKey> _lineKeys;
   late List<ValueNotifier<LyricsFrame>> _lineTimingNotifiers;
   Ticker? _positionTicker;
+  VoidCallback? _focusListener;
+  bool _freezeWhenUnfocused = false;
   int _currentLineIndex = -1;
   Set<int> _currentActiveIndices = {};
   int? _previousWaitingDotsIndex;
@@ -2020,13 +2047,33 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
   void initState() {
     super.initState();
     _initLines();
+    _setupFocusListener();
     _startTicker();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _updateCurrentLine();
-      final focusIndex = _currentLineIndex >= 0 ? _currentLineIndex : 0;
+      final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
       _scrollToLine(focusIndex, instant: true);
     });
+  }
+
+  void _setupFocusListener() {
+    _focusListener = () {
+      if (!mounted) return;
+      final isFocused = AppFocusService.instance.isFocused.value;
+      if (isFocused) {
+        if (_positionTicker != null && !_positionTicker!.isActive) {
+          _positionTicker!.start();
+        }
+        _updateCurrentLine();
+        if (!_userInteracting && _lastFocusIndex >= 0) {
+          _scrollToLine(_lastFocusIndex);
+        }
+      } else if (_freezeWhenUnfocused) {
+        _positionTicker?.stop();
+      }
+    };
+    AppFocusService.instance.isFocused.addListener(_focusListener!);
   }
 
   void _initLines() {
@@ -2076,6 +2123,10 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
 
   @override
   void dispose() {
+    if (_focusListener != null) {
+      AppFocusService.instance.isFocused.removeListener(_focusListener!);
+      _focusListener = null;
+    }
     _resumeAutoScrollTimer?.cancel();
     _positionTicker?.dispose();
     _disposeLines();
@@ -2087,9 +2138,14 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
     _positionTicker?.dispose();
     _positionTicker = createTicker((_) {
       if (!mounted) return;
+      if (_freezeWhenUnfocused && !AppFocusService.instance.isFocused.value) {
+        return;
+      }
       _updateCurrentLine();
     });
-    _positionTicker!.start();
+    if (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value) {
+      _positionTicker!.start();
+    }
   }
 
   int _effectivePositionMs(int delayMs) {
@@ -2152,17 +2208,27 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
     );
   }
 
-  void _scrollToLine(int focusIndex, {bool instant = false}) {
+  void _scrollToLine(int focusIndex, {bool instant = false, int retries = 3}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
       if (focusIndex < 0 || focusIndex >= _lineKeys.length) return;
       final lineContext = _lineKeys[focusIndex].currentContext;
       final listContext = _listKey.currentContext;
-      if (lineContext == null || listContext == null) return;
+      if (lineContext == null || listContext == null) {
+        if (retries > 0) {
+          _scrollToLine(focusIndex, instant: instant, retries: retries - 1);
+        }
+        return;
+      }
 
       final lineBox = lineContext.findRenderObject() as RenderBox?;
       final listBox = listContext.findRenderObject() as RenderBox?;
-      if (lineBox == null || listBox == null || !lineBox.hasSize || !listBox.hasSize) return;
+      if (lineBox == null || listBox == null || !lineBox.hasSize || !listBox.hasSize) {
+        if (retries > 0) {
+          _scrollToLine(focusIndex, instant: instant, retries: retries - 1);
+        }
+        return;
+      }
 
       final lineGlobalTop = lineBox.localToGlobal(Offset.zero).dy;
       final viewportGlobalTop = listBox.localToGlobal(Offset.zero).dy;
@@ -2213,6 +2279,13 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
 
   @override
   Widget build(BuildContext context) {
+    final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
+      (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+        PausedBackgroundWidget.lyricsFullscreen,
+      ),
+    );
+    _freezeWhenUnfocused = freezeWhenUnfocused;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final bottomPadding = constraints.maxHeight * 0.75;
@@ -2224,13 +2297,19 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
               _userInteracting = true;
               _resumeAutoScrollTimer?.cancel();
             } else if (notification is ScrollEndNotification) {
-              _resumeAutoScrollTimer?.cancel();
-              _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
-                if (!mounted) return;
-                setState(() => _userInteracting = false);
-                final focusIndex = _currentLineIndex >= 0 ? _currentLineIndex : 0;
-                _scrollToLine(focusIndex);
-              });
+              if (_userInteracting) {
+                _resumeAutoScrollTimer?.cancel();
+                _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
+                  if (!mounted) return;
+                  _userInteracting = false;
+                  final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
+                  _scrollToLine(focusIndex);
+                });
+              }
+            } else if (notification is UserScrollNotification &&
+                notification.direction == ScrollDirection.idle &&
+                !_userInteracting) {
+              // Idle notification when not user interacting
             }
             return false;
           },
@@ -2314,15 +2393,16 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
             ? frame.activeIndex
             : (timing?.nextIndex ?? timing?.previousIndex ?? 0);
         final distance = (widget.index - anchorIndex).abs();
-        final isLineActive = frame.activeIndices.contains(widget.index) ||
+        final isLineActive = !isSynced ||
+            frame.activeIndices.contains(widget.index) ||
             frame.activeIndex == widget.index;
 
-        var opacity = isLineActive
+        var opacity = (!isSynced || isLineActive)
             ? 1.0
             : (1.0 - (distance * 0.22)).clamp(0.16, 0.72);
-        var fontSize = isLineActive ? 34.0 : 30.0;
-        var fontWeight = isLineActive ? FontWeight.w700 : FontWeight.w600;
-        var color = isLineActive ? Colors.white : Colors.grey[500]!;
+        var fontSize = (!isSynced || isLineActive) ? 34.0 : 30.0;
+        var fontWeight = (!isSynced || isLineActive) ? FontWeight.w700 : FontWeight.w600;
+        var color = (!isSynced || isLineActive) ? Colors.white : Colors.grey[500]!;
 
         if (isSynced &&
             timing != null &&
@@ -2347,6 +2427,9 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
           fontWeight: fontWeight,
           height: 1.1,
         );
+        final defaultTextStyle = DefaultTextStyle.of(context).style;
+        final effectiveBaseStyle = defaultTextStyle.merge(baseStyle);
+        final textScaler = MediaQuery.textScalerOf(context);
 
         final Widget textContent;
         if (isLineActive &&
@@ -2356,35 +2439,45 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
           final inactiveWordColor =
               Colors.white.withValues(alpha: 0.45 * opacity);
 
-          textContent = Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              Text(
-                widget.line.content,
-                style: baseStyle.copyWith(color: inactiveWordColor),
-                textAlign: TextAlign.left,
-              ),
-              ClipPath(
-                clipper: LyricsLineFillClipper(
-                  lineContent: widget.line.content,
-                  words: widget.line.words,
-                  wordRanges: _wordRanges,
-                  lineEndTimeMs: widget.line.endTimeMs,
-                  style: baseStyle,
-                  positionMs: frame.positionMs,
-                ),
-                child: Text(
-                  widget.line.content,
-                  style: baseStyle.copyWith(color: activeWordColor),
-                  textAlign: TextAlign.left,
-                ),
-              ),
-            ],
+          textContent = LayoutBuilder(
+            builder: (context, constraints) {
+              final layoutWidth = constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : MediaQuery.sizeOf(context).width;
+
+              return Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  Text(
+                    widget.line.content,
+                    style: effectiveBaseStyle.copyWith(color: inactiveWordColor),
+                    textAlign: TextAlign.left,
+                  ),
+                  ClipPath(
+                    clipper: LyricsLineFillClipper(
+                      lineContent: widget.line.content,
+                      words: widget.line.words,
+                      wordRanges: _wordRanges,
+                      lineEndTimeMs: widget.line.endTimeMs,
+                      style: effectiveBaseStyle,
+                      textScaler: textScaler,
+                      layoutWidth: layoutWidth,
+                      positionMs: frame.positionMs,
+                    ),
+                    child: Text(
+                      widget.line.content,
+                      style: effectiveBaseStyle.copyWith(color: activeWordColor),
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         } else {
           textContent = Text(
             widget.line.content,
-            style: baseStyle,
+            style: effectiveBaseStyle,
             textAlign: TextAlign.left,
           );
         }

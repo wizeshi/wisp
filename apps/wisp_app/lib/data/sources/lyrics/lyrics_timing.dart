@@ -199,22 +199,44 @@ List<TextSelection> resolveWordRanges(
   final ranges = <TextSelection>[];
   var pos = 0;
 
-  for (final word in words) {
-    if (word.content.isEmpty) {
+  for (var i = 0; i < words.length; i++) {
+    final word = words[i];
+    final rawWord = word.content;
+    if (rawWord.isEmpty) {
       ranges.add(TextSelection(baseOffset: pos, extentOffset: pos));
       continue;
     }
 
-    final idx = lineContent.indexOf(word.content, pos);
-    if (idx >= 0) {
-      final end = idx + word.content.length;
-      ranges.add(TextSelection(baseOffset: idx, extentOffset: end));
-      pos = end;
-    } else {
-      final nextEnd = (pos + word.content.length).clamp(0, lineContent.length);
-      ranges.add(TextSelection(baseOffset: pos, extentOffset: nextEnd));
-      pos = nextEnd;
+    // First try exact match from current pos
+    var idx = lineContent.indexOf(rawWord, pos);
+
+    // If not found, try stripped punctuation match (e.g. word is "happen" but line is "happen,")
+    if (idx < 0) {
+      final stripped = rawWord.replaceAll(RegExp(r'^[^\w]+|[^\w]+$'), '');
+      if (stripped.isNotEmpty) {
+        idx = lineContent.indexOf(stripped, pos);
+      }
     }
+
+    if (idx < 0) {
+      idx = pos;
+    }
+
+    var end = (idx + rawWord.length).clamp(0, lineContent.length);
+
+    // Expand end to include trailing punctuation before whitespace or next word
+    if (i == words.length - 1) {
+      end = lineContent.length;
+    } else {
+      while (end < lineContent.length &&
+          lineContent[end] != ' ' &&
+          !RegExp(r'[\w]').hasMatch(lineContent[end])) {
+        end++;
+      }
+    }
+
+    ranges.add(TextSelection(baseOffset: idx, extentOffset: end));
+    pos = end;
   }
 
   return ranges;
@@ -257,6 +279,8 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
   final List<TextSelection> wordRanges;
   final int? lineEndTimeMs;
   final TextStyle style;
+  final TextScaler? textScaler;
+  final double? layoutWidth;
   final int positionMs;
 
   const LyricsLineFillClipper({
@@ -265,6 +289,8 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
     required this.wordRanges,
     this.lineEndTimeMs,
     required this.style,
+    this.textScaler,
+    this.layoutWidth,
     required this.positionMs,
   });
 
@@ -272,10 +298,15 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     if (words.isEmpty) return Path();
 
+    final maxW = (layoutWidth != null && layoutWidth!.isFinite && layoutWidth! > 0)
+        ? math.max(layoutWidth!, size.width)
+        : (size.width > 0 ? size.width * 2 : double.infinity);
+
     final tp = TextPainter(
       text: TextSpan(text: lineContent, style: style),
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: size.width);
+      textScaler: textScaler ?? TextScaler.noScaling,
+    )..layout(maxWidth: maxW);
 
     final lineEnd = lineEndTimeMs ??
         (words.last.endTimeMs ?? (words.last.startTimeMs + 800));
@@ -289,70 +320,127 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
     final wordTiming = resolveWordLyricsTiming(words, positionMs);
     final activeIndex = wordTiming.activeIndex;
 
-    final path = Path();
     if (activeIndex < 0 && positionMs < words.first.startTimeMs) {
-      return path;
+      return Path();
     }
 
-    for (var i = 0; i < words.length; i++) {
-      if (i > activeIndex && activeIndex >= 0) break;
-      if (i >= wordRanges.length) break;
-      final range = wordRanges[i];
-      if (range.start >= range.end) continue;
+    // Determine line metrics to bound vertical coverage to actual line heights
+    final lineMetrics = tp.computeLineMetrics();
+    final lineCount = lineMetrics.isEmpty ? 1 : lineMetrics.length;
+    final lineTops = List<double>.filled(lineCount, 0.0);
+    final lineBottoms = List<double>.filled(lineCount, size.height);
 
-      final word = words[i];
-      final wordStartMs = word.startTimeMs;
-      final int wordEndMs;
-      if (word.endTimeMs != null && word.endTimeMs! > wordStartMs) {
-        wordEndMs = word.endTimeMs!;
-      } else if (i + 1 < words.length) {
-        wordEndMs = words[i + 1].startTimeMs;
-      } else if (lineEndTimeMs != null && lineEndTimeMs! > wordStartMs) {
-        wordEndMs = lineEndTimeMs!;
-      } else {
-        wordEndMs = wordStartMs + 800;
+    if (lineMetrics.length > 1) {
+      var currentTop = 0.0;
+      for (var l = 0; l < lineMetrics.length; l++) {
+        final lm = lineMetrics[l];
+        lineTops[l] = currentTop;
+        currentTop += lm.height;
+        lineBottoms[l] = currentTop;
       }
+      lineTops[0] = 0.0;
+      lineBottoms[lineMetrics.length - 1] = size.height;
+    }
 
-      final double fillProgress;
-      if (i < activeIndex) {
-        fillProgress = 1.0;
-      } else if (i == activeIndex) {
-        if (positionMs <= wordStartMs) {
-          fillProgress = 0.0;
-        } else if (positionMs >= wordEndMs || wordEndMs <= wordStartMs) {
-          fillProgress = 1.0;
+    final safeActiveIndex = activeIndex.clamp(0, words.length - 1);
+    final activeWord = words[safeActiveIndex];
+    final activeStartMs = activeWord.startTimeMs;
+    final int activeEndMs;
+    if (activeWord.endTimeMs != null && activeWord.endTimeMs! > activeStartMs) {
+      activeEndMs = activeWord.endTimeMs!;
+    } else if (safeActiveIndex + 1 < words.length) {
+      activeEndMs = words[safeActiveIndex + 1].startTimeMs;
+    } else if (lineEndTimeMs != null && lineEndTimeMs! > activeStartMs) {
+      activeEndMs = lineEndTimeMs!;
+    } else {
+      activeEndMs = activeStartMs + 800;
+    }
+
+    final double activeWordProgress;
+    if (positionMs <= activeStartMs) {
+      activeWordProgress = 0.0;
+    } else if (positionMs >= activeEndMs || activeEndMs <= activeStartMs) {
+      activeWordProgress = 1.0;
+    } else {
+      activeWordProgress =
+          ((positionMs - activeStartMs) / (activeEndMs - activeStartMs)).clamp(0.0, 1.0);
+    }
+
+    // If last word finished, fully reveal entire line
+    if (safeActiveIndex >= words.length - 1 && activeWordProgress >= 1.0) {
+      return Path()
+        ..addRect(Rect.fromLTWH(0, 0, size.width + 10, size.height + 10));
+    }
+
+    var activeLineIdx = 0;
+    var currentFillX = 0.0;
+
+    if (safeActiveIndex < wordRanges.length) {
+      final activeRange = wordRanges[safeActiveIndex];
+      final activeBoxes = tp.getBoxesForSelection(activeRange);
+
+      if (activeBoxes.isNotEmpty) {
+        if (activeBoxes.length == 1) {
+          final box = activeBoxes.first;
+          final midY = (box.top + box.bottom) / 2;
+          for (var l = 0; l < lineCount; l++) {
+            if (midY >= lineTops[l] && midY <= lineBottoms[l]) {
+              activeLineIdx = l;
+              break;
+            }
+          }
+          currentFillX = box.left + (box.right - box.left) * activeWordProgress;
+          if (activeWordProgress >= 1.0) {
+            if (safeActiveIndex == words.length - 1) {
+              currentFillX = size.width + 10.0;
+            } else {
+              currentFillX = box.right;
+            }
+          }
         } else {
-          fillProgress =
-              ((positionMs - wordStartMs) / (wordEndMs - wordStartMs)).clamp(0.0, 1.0);
+          final totalWidth = activeBoxes.fold<double>(
+            0.0,
+            (sum, b) => sum + (b.right - b.left).clamp(0.0, double.infinity),
+          );
+          var remainingProgressWidth = totalWidth * activeWordProgress;
+
+          for (var b = 0; b < activeBoxes.length; b++) {
+            final box = activeBoxes[b];
+            final boxWidth = box.right - box.left;
+            final midY = (box.top + box.bottom) / 2;
+            var boxLine = 0;
+            for (var l = 0; l < lineCount; l++) {
+              if (midY >= lineTops[l] && midY <= lineBottoms[l]) {
+                boxLine = l;
+                break;
+              }
+            }
+
+            if (remainingProgressWidth <= boxWidth || b == activeBoxes.length - 1) {
+              activeLineIdx = boxLine;
+              currentFillX = box.left + remainingProgressWidth.clamp(0.0, boxWidth);
+              if (activeWordProgress >= 1.0 && safeActiveIndex == words.length - 1) {
+                currentFillX = size.width + 10.0;
+              }
+              break;
+            } else {
+              remainingProgressWidth -= boxWidth;
+            }
+          }
         }
-      } else {
-        fillProgress = 0.0;
       }
+    }
 
-      if (fillProgress <= 0.0) continue;
+    final path = Path();
 
-      final int extentEnd;
-      if (i < activeIndex && i + 1 < wordRanges.length) {
-        extentEnd = wordRanges[i + 1].start;
-      } else if (i == words.length - 1 && fillProgress >= 1.0) {
-        extentEnd = lineContent.length;
-      } else {
-        extentEnd = range.end;
-      }
+    // 1. All lines prior to activeLineIdx are 100% revealed
+    for (var l = 0; l < activeLineIdx; l++) {
+      path.addRect(Rect.fromLTRB(0, lineTops[l], size.width + 10.0, lineBottoms[l]));
+    }
 
-      final boxes = tp.getBoxesForSelection(
-        TextSelection(baseOffset: range.start, extentOffset: extentEnd),
-      );
-
-      for (final box in boxes) {
-        final rect = box.toRect();
-        if (fillProgress >= 1.0) {
-          path.addRect(Rect.fromLTRB(rect.left, rect.top, rect.right + 0.5, rect.bottom));
-        } else {
-          final partialWidth = rect.width * fillProgress;
-          path.addRect(Rect.fromLTRB(rect.left, rect.top, rect.left + partialWidth, rect.bottom));
-        }
-      }
+    // 2. Active line is revealed from x = 0 up to currentFillX
+    if (currentFillX > 0) {
+      path.addRect(Rect.fromLTRB(0, lineTops[activeLineIdx], currentFillX, lineBottoms[activeLineIdx]));
     }
 
     return path;
@@ -362,6 +450,8 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
   bool shouldReclip(LyricsLineFillClipper oldClipper) {
     return oldClipper.positionMs != positionMs ||
         oldClipper.style != style ||
+        oldClipper.textScaler != textScaler ||
+        oldClipper.layoutWidth != layoutWidth ||
         oldClipper.lineContent != lineContent ||
         oldClipper.lineEndTimeMs != lineEndTimeMs;
   }

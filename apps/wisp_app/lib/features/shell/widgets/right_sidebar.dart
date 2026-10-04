@@ -1491,17 +1491,34 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
 
     return Consumer<LyricsProvider>(
       builder: (context, lyricsProvider, child) {
-        final state = lyricsProvider.getState(track, LyricsSyncMode.line);
-        if (!state.isLoading && state.lyrics == null && state.error == null) {
+        final wordState = lyricsProvider.getState(track, LyricsSyncMode.word);
+        final lineState = lyricsProvider.getState(track, LyricsSyncMode.line);
+        if (!wordState.isLoading && wordState.lyrics == null && wordState.error == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            lyricsProvider.ensureLyrics(track, LyricsSyncMode.line);
+            lyricsProvider.ensureLyrics(track, LyricsSyncMode.word);
           });
         }
 
         lyricsProvider.ensureDelayLoaded(track.id);
 
-        final lyrics = state.lyrics;
-        if (!state.isLoading && (lyrics == null || lyrics.lines.isEmpty)) {
+        final wordLyrics = wordState.lyrics;
+        final lyrics = wordLyrics?.isWordSynced == true
+            ? wordLyrics
+            : wordState.hasFetched && !wordState.isLoading
+            ? lineState.lyrics ?? wordLyrics
+            : null;
+
+        if ((wordLyrics == null || !wordLyrics.isWordSynced) &&
+            !lineState.isLoading &&
+            lineState.lyrics == null &&
+            lineState.error == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            lyricsProvider.ensureLyrics(track, LyricsSyncMode.line);
+          });
+        }
+
+        final isLoading = wordState.isLoading || (wordState.lyrics == null && lineState.isLoading);
+        if (!isLoading && (lyrics == null || lyrics.lines.isEmpty)) {
           return const SizedBox.shrink();
         }
 
@@ -1531,7 +1548,7 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-                              if (state.isLoading && lyrics == null)
+                              if (isLoading && lyrics == null)
                                 const Text(
                                   'Loading lyrics…',
                                   style: TextStyle(
@@ -1543,7 +1560,7 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                 Selector<PlaybackCoordinator, int>(
                                   selector: (context, coordinator) {
                                     final posMs = coordinator
-                                        .effectiveThrottledPosition
+                                        .effectiveInterpolatedPosition
                                         .inMilliseconds;
                                     final delaySeconds = lyricsProvider
                                         .getDelaySecondsCached(track.id);
@@ -1557,8 +1574,8 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                       lyrics!.lines,
                                     );
                                     if (lines.isEmpty ||
-                                        lyrics.syncMode !=
-                                            LyricsSyncMode.line) {
+                                        lyrics.syncMode ==
+                                            LyricsSyncMode.unsynced) {
                                       return 0;
                                     }
                                     final timing = resolveSyncedLyricsTiming(
@@ -1582,8 +1599,8 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                           lyrics!.lines,
                                         );
                                         final previewLines =
-                                            lyrics.syncMode !=
-                                                LyricsSyncMode.line
+                                            lyrics.syncMode ==
+                                                LyricsSyncMode.unsynced
                                             ? lines.take(3).toList()
                                             : lines
                                                   .skip(startIndex)

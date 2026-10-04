@@ -2,19 +2,23 @@
 
 library;
 
+import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:material_ui/material_ui.dart';
+import 'dart:ui' show ImageFilter;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
-import 'package:wisp/services/system/app_focus_service.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart';
-import 'package:wisp/features/playback/services/playback_coordinator.dart';
-import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
-import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/services/system/app_focus_service.dart';
+import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
+import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import '_lyrics_line_item.dart';
 
 class LyricsView extends StatefulWidget {
@@ -29,34 +33,42 @@ class LyricsView extends StatefulWidget {
 class _LyricsViewState extends State<LyricsView>
     with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
-  List<ValueNotifier<LyricsFrame>> _lineTimingNotifiers = [];
   final GlobalKey _listKey = GlobalKey();
+  final TextEditingController _delayController = TextEditingController(
+    text: '0.0',
+  );
+
   List<GlobalKey> _lineKeys = [];
+  List<ValueNotifier<LyricsFrame>> _lineTimingNotifiers = [];
+
   LyricsSyncMode _syncMode = LyricsSyncMode.word;
   bool _autoScrollEnabled = true;
+  bool _wasAutoScrollEnabledBeforeUnfocus = true;
   int _currentLineIndex = -1;
+  int _lastAutoScrollIndex = -1;
   Set<int> _currentActiveIndices = {};
   LyricsTimingState? _timingState;
   int? _previousWaitingDotsIndex;
+  bool _userInteracting = false;
+  Timer? _resumeAutoScrollTimer;
+
   String? _trackId;
-  final TextEditingController _delayController = TextEditingController(
-    text: '0',
-  );
-  double _lyricsDelaySeconds = 0;
+  double _lyricsDelaySeconds = 0.0;
   Ticker? _positionTicker;
   LyricsResult? _activeLyrics;
   WispAudioHandler? _playerRef;
+
   bool _syncedLyricsAvailable = true;
   bool _didInitialCenter = false;
   bool _initialCenterScheduled = false;
   int _pendingInitialCenterIndex = -1;
+  double _lastViewportWidth = 0.0;
+  double _lastViewportHeight = 0.0;
+  double _lastHorizontalPadding = 0.0;
+  double _lastEdgeCenterPadding = 0.0;
   String? _delaySyncTrackId;
   double? _delaySyncValue;
 
-  // Whether the "freeze while unfocused" behavior is turned on for this
-  // widget, per the user's preference. Kept in sync from build(). Which
-  // preference key applies depends on whether this is the standalone
-  // lyrics route or the version embedded (hideHeader) in the full player.
   bool _freezeWhenUnfocused = false;
 
   static const Duration _lineScrollDuration = Duration(milliseconds: 620);
@@ -69,10 +81,13 @@ class _LyricsViewState extends State<LyricsView>
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
+    AppFocusService.instance.isFocused.addListener(_handleFocusChanged);
   }
 
   @override
   void dispose() {
+    _resumeAutoScrollTimer?.cancel();
+    AppFocusService.instance.isFocused.removeListener(_handleFocusChanged);
     _positionTicker?.dispose();
     _scrollController.dispose();
     for (final notifier in _lineTimingNotifiers) {
@@ -82,7 +97,32 @@ class _LyricsViewState extends State<LyricsView>
     super.dispose();
   }
 
+  void _handleFocusChanged() {
+    final isFocused = AppFocusService.instance.isFocused.value;
+    if (isFocused) {
+      if (_freezeWhenUnfocused && _positionTicker != null && !_positionTicker!.isActive) {
+        _positionTicker!.start();
+      }
+      if (_wasAutoScrollEnabledBeforeUnfocus && _currentLineIndex >= 0) {
+        _autoScrollEnabled = true;
+        _userInteracting = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _autoScrollEnabled) {
+            _scrollToLine(_currentLineIndex);
+          }
+        });
+      }
+    } else {
+      _resumeAutoScrollTimer?.cancel();
+      _wasAutoScrollEnabledBeforeUnfocus = _autoScrollEnabled;
+      if (_freezeWhenUnfocused && _positionTicker != null && _positionTicker!.isActive) {
+        _positionTicker!.stop();
+      }
+    }
+  }
+
   void _handleScroll() {
+    if (_userInteracting) return;
     final visible = _isCurrentLineVisible();
     if (!visible && _autoScrollEnabled) {
       setState(() => _autoScrollEnabled = false);
@@ -114,6 +154,7 @@ class _LyricsViewState extends State<LyricsView>
     final delayMs = (_lyricsDelaySeconds * 1000).round();
     final adjustedPosition = positionMs - delayMs;
     final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
+
     if (lyrics.syncMode == LyricsSyncMode.unsynced) {
       final newIndex = lyrics.lines.isEmpty ? -1 : 0;
       if (newIndex != _currentLineIndex || _timingState != null) {
@@ -127,12 +168,11 @@ class _LyricsViewState extends State<LyricsView>
     }
 
     final timing = resolveSyncedLyricsTiming(lyrics.lines, effectivePosition);
-    final scrollIndex = _scrollTargetIndex(timing);
+    final focusIndex = _scrollTargetIndex(timing);
     final shouldScroll =
         _autoScrollEnabled &&
-        scrollIndex != null &&
-        scrollIndex != _currentLineIndex;
-    final targetScrollIndex = scrollIndex ?? timing.activeIndex;
+        focusIndex != null &&
+        focusIndex != _lastAutoScrollIndex;
 
     final waitingDotsIndex =
         (timing.showWaitingDots && timing.nextIndex != null)
@@ -153,6 +193,7 @@ class _LyricsViewState extends State<LyricsView>
     _currentLineIndex = timing.activeIndex;
     _currentActiveIndices = timing.activeIndices;
     _timingState = timing;
+
     _notifyTimingLines(
       frame,
       previousActiveIndices: previousActiveIndices,
@@ -161,7 +202,8 @@ class _LyricsViewState extends State<LyricsView>
     );
 
     if (shouldScroll) {
-      _scrollToLine(targetScrollIndex);
+      _lastAutoScrollIndex = focusIndex;
+      _scrollToLine(focusIndex);
     }
   }
 
@@ -171,6 +213,9 @@ class _LyricsViewState extends State<LyricsView>
     }
     if (timing.activeIndex >= 0) {
       return timing.activeIndex;
+    }
+    if (timing.showWaitingDots) {
+      return null;
     }
     return timing.nextIndex ?? timing.previousIndex;
   }
@@ -191,6 +236,7 @@ class _LyricsViewState extends State<LyricsView>
           frame.timing?.nextIndex != null)
         frame.timing!.nextIndex!,
     };
+
     for (final index in indices) {
       if (index >= 0 && index < _lineTimingNotifiers.length) {
         _lineTimingNotifiers[index].value = frame;
@@ -201,8 +247,6 @@ class _LyricsViewState extends State<LyricsView>
   void _ensurePositionTimer() {
     _positionTicker ??= createTicker((_) {
       if (!mounted) return;
-      // Freeze line-highlighting/auto-scroll while the app/window is
-      // unfocused, if the user has enabled that behavior for this widget.
       if (_freezeWhenUnfocused && !AppFocusService.instance.isFocused.value) {
         return;
       }
@@ -212,8 +256,11 @@ class _LyricsViewState extends State<LyricsView>
       final positionMs = _effectivePositionMs();
       _updateCurrentLine(lyrics, positionMs);
     });
+
     if (!_positionTicker!.isActive) {
-      _positionTicker!.start();
+      if (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value) {
+        _positionTicker!.start();
+      }
     }
   }
 
@@ -236,21 +283,38 @@ class _LyricsViewState extends State<LyricsView>
 
     final lineContext = _lineKeys[index].currentContext;
     final listContext = _listKey.currentContext;
-    if (lineContext == null || listContext == null) return;
 
-    final lineBox = lineContext.findRenderObject() as RenderBox?;
-    final listBox = listContext.findRenderObject() as RenderBox?;
-    if (lineBox == null || listBox == null) return;
+    double? targetOffset;
 
-    final lineGlobalTop = lineBox.localToGlobal(Offset.zero).dy;
-    final viewportGlobalTop = listBox.localToGlobal(Offset.zero).dy;
-    final lineTopInViewport = lineGlobalTop - viewportGlobalTop;
+    if (lineContext != null && listContext != null) {
+      final lineBox = lineContext.findRenderObject() as RenderBox?;
+      final listBox = listContext.findRenderObject() as RenderBox?;
+      if (lineBox != null && listBox != null) {
+        final lineGlobalTop = lineBox.localToGlobal(Offset.zero).dy;
+        final viewportGlobalTop = listBox.localToGlobal(Offset.zero).dy;
+        final lineTopInViewport = lineGlobalTop - viewportGlobalTop;
 
-    final currentOffset = _scrollController.offset;
-    final targetOffset =
-        (lineTopInViewport + currentOffset) -
-        ((_scrollController.position.viewportDimension - lineBox.size.height) /
-            2);
+        final currentOffset = _scrollController.offset;
+        targetOffset = (lineTopInViewport + currentOffset) -
+            ((_scrollController.position.viewportDimension - lineBox.size.height) /
+                2);
+      }
+    }
+
+    if (targetOffset == null && _activeLyrics != null && _lastViewportHeight > 0) {
+      targetOffset = _estimateInitialScrollOffset(
+        lyrics: _activeLyrics!,
+        index: index,
+        viewportWidth: _lastViewportWidth > 0
+            ? _lastViewportWidth
+            : MediaQuery.sizeOf(context).width,
+        viewportHeight: _lastViewportHeight,
+        horizontalPadding: _lastHorizontalPadding,
+        edgeCenterPadding: _lastEdgeCenterPadding,
+      );
+    }
+
+    if (targetOffset == null) return;
 
     final clampedOffset = targetOffset.clamp(
       _scrollController.position.minScrollExtent,
@@ -331,11 +395,11 @@ class _LyricsViewState extends State<LyricsView>
     required double horizontalPadding,
     required double edgeCenterPadding,
   }) {
-    final fontSize = _isDesktop ? 42.0 : 30.0;
+    final fontSize = _isDesktop ? 42.0 : 26.0;
     final lineStyle = TextStyle(
-      letterSpacing: _isDesktop ? -1.5 : 0.25,
-      fontWeight: _isDesktop ? FontWeight.w700 : FontWeight.w900,
-      height: _isDesktop ? 1.4 : 1,
+      letterSpacing: _isDesktop ? -1.5 : -0.3,
+      fontWeight: _isDesktop ? FontWeight.w700 : FontWeight.w800,
+      height: _isDesktop ? 1.4 : 1.1,
       fontSize: fontSize,
     );
     final textMaxWidth = (viewportWidth - (horizontalPadding * 2)).clamp(
@@ -372,7 +436,7 @@ class _LyricsViewState extends State<LyricsView>
       maxLines: null,
     )..layout(maxWidth: maxWidth);
 
-    return painter.height + 16.0;
+    return painter.height + (_isDesktop ? 16.0 : 24.0);
   }
 
   void _onSyncModeChanged(LyricsSyncMode mode) {
@@ -381,10 +445,10 @@ class _LyricsViewState extends State<LyricsView>
       _syncMode = mode;
       _currentLineIndex = mode == LyricsSyncMode.unsynced ? 0 : -1;
       _timingState = null;
-      _previousWaitingDotsIndex = null;
       _autoScrollEnabled = true;
       _didInitialCenter = false;
     });
+
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     } else {
@@ -394,6 +458,7 @@ class _LyricsViewState extends State<LyricsView>
         }
       });
     }
+
     if (mode != LyricsSyncMode.unsynced) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -453,13 +518,12 @@ class _LyricsViewState extends State<LyricsView>
 
   void _resetDelay() {
     setState(() {
-      _lyricsDelaySeconds = 0;
-      _delayController.text = '0';
+      _lyricsDelaySeconds = 0.0;
+      _delayController.text = '0.0';
     });
     _saveLyricsDelay();
   }
 
-  /// Load lyrics delay for current track from persistence
   Future<void> _loadLyricsDelay(
     LyricsProvider lyricsProvider,
     String trackId,
@@ -495,7 +559,6 @@ class _LyricsViewState extends State<LyricsView>
     });
   }
 
-  /// Save lyrics delay for current track to persistence
   Future<void> _saveLyricsDelay() async {
     final trackId = _trackId;
     if (trackId == null) return;
@@ -524,7 +587,6 @@ class _LyricsViewState extends State<LyricsView>
       selector: (context, player) => player.currentTrack,
       builder: (context, track, child) {
         final player = context.read<WispAudioHandler>();
-        final lyricsProvider = context.watch<LyricsProvider>();
         if (track == null) {
           _stopPositionTimer();
           return const Center(
@@ -549,14 +611,28 @@ class _LyricsViewState extends State<LyricsView>
                 appBar: widget.hideHeader
                     ? null
                     : AppBar(
-                        title: _buildDelayInput(),
+                        elevation: 0,
+                        scrolledUnderElevation: 0,
+                        title: const Text(
+                          'Lyrics',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
                         actions: [
                           if (!widget.hideHeader)
                             Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: _buildLyricsControls(
-                                lyricsProvider,
-                                track,
+                              padding: const EdgeInsets.only(right: 12),
+                              child: Consumer<LyricsProvider>(
+                                builder: (context, lyricsProvider, _) =>
+                                    _buildLyricsControls(
+                                  lyricsProvider,
+                                  track,
+                                  isCompact: true,
+                                ),
                               ),
                             ),
                         ],
@@ -566,6 +642,7 @@ class _LyricsViewState extends State<LyricsView>
                         ),
                       ),
                 body: content,
+                bottomNavigationBar: _buildMobilePlaybackBar(player, track, dominantColor),
               );
 
         return Stack(
@@ -728,12 +805,13 @@ class _LyricsViewState extends State<LyricsView>
         _playerRef = player;
         _ensurePositionTimer();
         _centerCurrentLineOnOpen(player, lyrics);
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_isDesktop && !widget.hideHeader)
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                padding: const EdgeInsets.fromLTRB(28, 20, 28, 0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -743,6 +821,7 @@ class _LyricsViewState extends State<LyricsView>
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
+                        letterSpacing: -0.3,
                       ),
                     ),
                     _buildLyricsControls(lyricsProvider, track),
@@ -754,19 +833,25 @@ class _LyricsViewState extends State<LyricsView>
                 children: [
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final edgeCenterPadding = _isMobile
-                          ? 0.0
+                      final isCompact = constraints.maxWidth < 600 || _isMobile;
+                      final edgeCenterPadding = isCompact
+                          ? ((constraints.maxHeight - 56.0) * 0.38)
+                                .clamp(32.0, double.infinity)
+                                .toDouble()
                           : ((constraints.maxHeight - 56.0) / 4)
                                 .clamp(16.0, double.infinity)
                                 .toDouble();
 
                       final widgetWidth = constraints.maxWidth;
+                      final horizontalPadding = isCompact
+                          ? (widgetWidth * 0.06).clamp(16.0, 32.0)
+                          : (widgetWidth * 0.2).clamp(24.0, double.infinity);
+                      final topPadding = edgeCenterPadding;
 
-                      final horizontalPadding = _isDesktop
-                          ? (widgetWidth * 0.2).clamp(24.0, double.infinity)
-                          : (widgetWidth * 0.08).clamp(12.0, 40.0);
-                      final topPadding =
-                          edgeCenterPadding + (_isMobile ? 32.0 : 0.0);
+                      _lastViewportWidth = constraints.maxWidth;
+                      _lastViewportHeight = constraints.maxHeight;
+                      _lastHorizontalPadding = horizontalPadding;
+                      _lastEdgeCenterPadding = edgeCenterPadding;
 
                       _scheduleInitialCenterIfNeeded(
                         lyrics,
@@ -782,287 +867,220 @@ class _LyricsViewState extends State<LyricsView>
                           behavior: ScrollConfiguration.of(
                             context,
                           ).copyWith(scrollbars: false),
-                          child: RepaintBoundary(
-                            child: ListView.builder(
-                              key: _listKey,
-                              controller: _scrollController,
-                              padding: EdgeInsets.fromLTRB(
-                                horizontalPadding,
-                                topPadding,
-                                horizontalPadding,
-                                edgeCenterPadding,
-                              ),
-                              itemCount:
-                                  lyrics.lines.length + (_isMobile ? 1 : 0),
-                              itemBuilder: (context, index) {
-                                if (_isMobile && index == lyrics.lines.length) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(
-                                      top: 12,
-                                      bottom: 12,
-                                    ),
-                                    child: Text(
-                                      'Lyrics provided by ${lyrics.providerLabel}',
-                                      style: TextStyle(
-                                        color: Colors.grey[300],
-                                        fontSize: 12,
-                                      ),
-                                      textAlign: TextAlign.left,
-                                    ),
+                          child: NotificationListener<ScrollNotification>(
+                            onNotification: (notification) {
+                              if (notification is ScrollStartNotification) {
+                                if (notification.dragDetails != null) {
+                                  _userInteracting = true;
+                                  _resumeAutoScrollTimer?.cancel();
+                                  if (_autoScrollEnabled) {
+                                    setState(() => _autoScrollEnabled = false);
+                                  }
+                                }
+                              } else if (notification is UserScrollNotification) {
+                                if (notification.direction != ScrollDirection.idle) {
+                                  _userInteracting = true;
+                                  _resumeAutoScrollTimer?.cancel();
+                                  if (_autoScrollEnabled) {
+                                    setState(() => _autoScrollEnabled = false);
+                                  }
+                                } else {
+                                  _userInteracting = false;
+                                  _resumeAutoScrollTimer?.cancel();
+                                  _resumeAutoScrollTimer = Timer(
+                                    const Duration(seconds: 4),
+                                    () {
+                                      if (!mounted) return;
+                                      setState(() => _autoScrollEnabled = true);
+                                      if (_currentLineIndex >= 0) {
+                                        _scrollToLine(_currentLineIndex);
+                                      }
+                                    },
                                   );
                                 }
-                                final line = lyrics.lines[index];
-                                return LyricsLineItem(
-                                  key: _lineKeys[index],
-                                  line: line,
-                                  index: index,
-                                  isDesktop: _isDesktop,
-                                  syncMode: _syncMode,
-                                  backgroundColor: backgroundColor,
-                                  player: player,
-                                  frameListenable: _lineTimingNotifiers[index],
-                                  onSeek: (position) => player.seek(position),
-                                );
-                              },
+                              } else if (notification is ScrollEndNotification) {
+                                if (_userInteracting) {
+                                  _userInteracting = false;
+                                  _resumeAutoScrollTimer?.cancel();
+                                  _resumeAutoScrollTimer = Timer(
+                                    const Duration(seconds: 4),
+                                    () {
+                                      if (!mounted) return;
+                                      setState(() => _autoScrollEnabled = true);
+                                      if (_currentLineIndex >= 0) {
+                                        _scrollToLine(_currentLineIndex);
+                                      }
+                                    },
+                                  );
+                                }
+                              }
+                              return false;
+                            },
+                            child: RepaintBoundary(
+                              child: WispSmoothScroll(
+                                controller: _scrollController,
+                                builder: (context, smoothController, smoothPhysics) =>
+                                    ListView.builder(
+                                  key: _listKey,
+                                  controller: smoothController,
+                                  physics: smoothPhysics,
+                                  padding: EdgeInsets.fromLTRB(
+                                    horizontalPadding,
+                                    topPadding,
+                                    horizontalPadding,
+                                    edgeCenterPadding,
+                                  ),
+                                  itemCount:
+                                      lyrics.lines.length + (_isMobile ? 1 : 0),
+                                  itemBuilder: (context, index) {
+                                    if (_isMobile && index == lyrics.lines.length) {
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 12,
+                                          bottom: 12,
+                                        ),
+                                        child: Text(
+                                          'Lyrics provided by ${lyrics.providerLabel}',
+                                          style: TextStyle(
+                                            color: Colors.grey[300],
+                                            fontSize: 12,
+                                          ),
+                                          textAlign: TextAlign.left,
+                                        ),
+                                      );
+                                    }
+                                    final line = lyrics.lines[index];
+                                    return LyricsLineItem(
+                                      key: _lineKeys[index],
+                                      line: line,
+                                      index: index,
+                                      isDesktop: _isDesktop,
+                                      syncMode: _syncMode,
+                                      backgroundColor: backgroundColor,
+                                      player: player,
+                                      frameListenable: _lineTimingNotifiers[index],
+                                      onSeek: (position) => player.seek(position),
+                                    );
+                                  },
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       );
                     },
                   ),
+                  if (!_autoScrollEnabled &&
+                      _currentLineIndex >= 0 &&
+                      _syncMode != LyricsSyncMode.unsynced)
+                    Positioned(
+                      bottom: _isMobile ? 24 : 32,
+                      right: _isMobile ? 20 : 32,
+                      child: Material(
+                        elevation: 4,
+                        borderRadius: BorderRadius.circular(20),
+                        color: Colors.white.withValues(alpha: 0.2),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () {
+                            _resumeAutoScrollTimer?.cancel();
+                            setState(() => _autoScrollEnabled = true);
+                            if (_currentLineIndex >= 0) {
+                              _scrollToLine(_currentLineIndex);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.25),
+                                width: 1,
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.keyboard_arrow_down,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Sync',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_isDesktop)
                     Positioned(
-                      left: 24,
-                      bottom: 12,
+                      left: 32,
+                      bottom: 16,
                       child: Text(
                         'Lyrics provided by ${lyrics.providerLabel}',
-                        style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: 11,
+                        ),
                         textAlign: TextAlign.left,
                       ),
                     ),
                 ],
               ),
             ),
-            if (_isMobile) _buildMobileLyricsPlayer(backgroundColor),
           ],
         );
       },
     );
   }
 
-  Widget _buildMobileLyricsPlayer(Color backgroundColor) {
-    final surfaceColor =
-        Color.lerp(backgroundColor, Colors.black, 0.25) ?? backgroundColor;
+  Widget _buildDelayInput({bool isCompact = false}) {
+    final width = isCompact ? 68.0 : 72.0;
+    final height = isCompact ? 32.0 : 28.0;
+    final fontSize = isCompact ? 13.0 : 12.0;
 
     return Container(
+      width: width,
+      height: height,
       decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border(
-          top: BorderSide(color: Colors.black.withValues(alpha: 0.2)),
+        color: Colors.black.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(isCompact ? 6 : 5),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.16),
+          width: 1,
         ),
       ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildMobileSeekBar(),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.skip_previous, size: 28),
-                    color: Colors.white,
-                    onPressed: () {
-                      context.read<PlaybackCoordinator>().skipPrevious();
-                    },
-                  ),
-                  _buildMobilePlayPauseButton(),
-                  IconButton(
-                    icon: const Icon(Icons.skip_next, size: 28),
-                    color: Colors.white,
-                    onPressed: () {
-                      context.read<PlaybackCoordinator>().skipNext();
-                    },
-                  ),
-                ],
-              ),
-            ],
+      child: Center(
+        child: TextField(
+          controller: _delayController,
+          textAlign: TextAlign.center,
+          keyboardType: const TextInputType.numberWithOptions(
+            signed: true,
+            decimal: true,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMobileSeekBar() {
-    return Consumer2<PlaybackCoordinator, WispAudioHandler>(
-      builder: (context, coordinator, player, child) {
-        final useHandoffState = coordinator.useLinkedPlaybackState;
-        final effectivePosition = coordinator.effectiveThrottledPosition;
-
-        final data = _LyricsMobilePositionData(
-          position: effectivePosition,
-          duration: player.duration,
-          isLoading:
-              !useHandoffState && (player.isLoading || player.isBuffering),
-        );
-
-        if (data.duration.inMilliseconds <= 0) {
-          return const SizedBox(height: 4);
-        }
-
-        if (data.isLoading) {
-          return const SizedBox(
-            height: 4,
-            child: LinearProgressIndicator(
-              backgroundColor: Colors.transparent,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          );
-        }
-
-        final progress = data.duration.inMilliseconds > 0
-            ? data.position.inMilliseconds / data.duration.inMilliseconds
-            : 0.0;
-
-        final positionText = _formatDuration(data.position);
-        final durationText = _formatDuration(data.duration);
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 3,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                activeTrackColor: Colors.white,
-                inactiveTrackColor: Colors.white24,
-                thumbColor: Colors.white,
-                overlayColor: Colors.white10,
-              ),
-              child: Slider(
-                value: progress.clamp(0.0, 1.0),
-                onChanged: (value) {
-                  final newPosition = Duration(
-                    milliseconds: (value * data.duration.inMilliseconds)
-                        .round(),
-                  );
-                  context.read<PlaybackCoordinator>().seek(newPosition);
-                },
-              ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  positionText,
-                  style: TextStyle(color: Colors.white70, fontSize: 11),
-                ),
-                Text(
-                  durationText,
-                  style: TextStyle(color: Colors.white70, fontSize: 11),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildMobilePlayPauseButton() {
-    return Consumer2<PlaybackCoordinator, WispAudioHandler>(
-      builder: (context, coordinator, player, child) {
-        final useHandoffState = coordinator.useLinkedPlaybackState;
-        final effectiveIsPlaying = coordinator.effectiveIsPlaying;
-
-        final track = player.currentTrack;
-        final data = _LyricsMobilePlaybackData(
-          isPlaying: player.isPlaying,
-          isLoading: player.isLoading,
-          isBuffering: player.isBuffering,
-          isOnline: player.isOnline,
-          currentTrackId: track?.id,
-          currentTrackCached: track == null
-              ? true
-              : player.isTrackCached(track.id),
-          queueNotEmpty: player.queueTracks.isNotEmpty,
-        );
-
-        if (data.isLoading || data.isBuffering) {
-          return const SizedBox(
-            width: 48,
-            height: 48,
-            child: Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-          );
-        }
-
-        final isOfflineBlocked =
-            !useHandoffState &&
-            !data.isOnline &&
-            data.currentTrackId != null &&
-            !data.currentTrackCached;
-
-        VoidCallback? onPressed;
-        if (!isOfflineBlocked) {
-          if (effectiveIsPlaying) {
-            onPressed = () => context.read<PlaybackCoordinator>().pause();
-          } else if (data.currentTrackId != null || data.queueNotEmpty) {
-            onPressed = () => context.read<PlaybackCoordinator>().play();
-          }
-        }
-
-        return IconButton(
-          icon: Icon(
-            effectiveIsPlaying ? Icons.pause : Icons.play_arrow,
-            size: 32,
+          onChanged: _handleDelayChanged,
+          style: TextStyle(
             color: Colors.white,
+            fontSize: fontSize,
+            fontWeight: FontWeight.w500,
           ),
-          onPressed: onPressed,
-        );
-      },
-    );
-  }
-
-  Widget _buildDelayInput() {
-    return SizedBox(
-      width: 96,
-      child: TextField(
-        controller: _delayController,
-        keyboardType: const TextInputType.numberWithOptions(
-          signed: true,
-          decimal: true,
-        ),
-        onChanged: _handleDelayChanged,
-        style: const TextStyle(color: Colors.white, fontSize: 12),
-        decoration: InputDecoration(
-          hintText: 'Delay (s)',
-          hintStyle: TextStyle(color: Colors.grey[500], fontSize: 12),
-          isDense: true,
-          filled: true,
-          fillColor: Colors.black.withValues(alpha: 0.35),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 8,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(color: Colors.grey[700]!),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide(
-              color: Theme.of(context).colorScheme.primary,
-            ),
+          decoration: const InputDecoration(
+            isDense: true,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
           ),
         ),
       ),
@@ -1071,8 +1089,9 @@ class _LyricsViewState extends State<LyricsView>
 
   Widget _buildLyricsControls(
     LyricsProvider lyricsProvider,
-    GenericSong track,
-  ) {
+    GenericSong track, {
+    bool isCompact = false,
+  }) {
     if (widget.hideHeader) return const SizedBox.shrink();
     final wordState = lyricsProvider.getState(track, LyricsSyncMode.word);
     final lineState = lyricsProvider.getState(track, LyricsSyncMode.line);
@@ -1082,97 +1101,38 @@ class _LyricsViewState extends State<LyricsView>
         !lineState.hasFetched ||
         lineState.lyrics?.isLineSynced == true ||
         wordState.lyrics?.isWordSynced == true;
+
+    final btnMinSize = isCompact ? 34.0 : 28.0;
+    final iconSize = isCompact ? 18.0 : 16.0;
+
     return Material(
       color: Colors.transparent,
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _isDesktop ? _buildDelayInput() : const SizedBox.shrink(),
+          _buildDelayInput(isCompact: isCompact),
+          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.refresh, size: 18),
-            color: Colors.white,
+            icon: Icon(Icons.refresh, size: iconSize),
+            color: Colors.white.withValues(alpha: 0.85),
             tooltip: 'Reset Delay',
+            splashRadius: isCompact ? 18 : 16,
+            mouseCursor: SystemMouseCursors.click,
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints(
+              minWidth: btnMinSize,
+              minHeight: btnMinSize,
+            ),
             onPressed: _resetDelay,
           ),
-          const SizedBox(width: 4),
-          _isMobile
-              ? _buildMobileSyncSelector(
-                  wordAvailable: wordAvailable,
-                  lineAvailable: lineAvailable,
-                )
-              : _buildDesktopSyncSelector(
-                  wordAvailable: wordAvailable,
-                  lineAvailable: lineAvailable,
-                ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMobileSyncSelector({
-    required bool wordAvailable,
-    required bool lineAvailable,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
-      child: DropdownButtonHideUnderline(
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: DropdownButton<LyricsSyncMode>(
-            value: _syncMode,
-            mouseCursor: SystemMouseCursors.click,
-            dropdownColor: const Color(0xFF181818),
-            iconEnabledColor: Colors.white,
-            items: LyricsSyncMode.values
-                .map(
-                  (mode) => DropdownMenuItem(
-                    value: mode,
-                    enabled: mode == LyricsSyncMode.word
-                        ? wordAvailable
-                        : mode == LyricsSyncMode.line
-                        ? lineAvailable
-                        : true,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          mode == LyricsSyncMode.word
-                              ? Icons.mic
-                              : mode == LyricsSyncMode.line
-                              ? Icons.sync
-                              : Icons.sync_disabled,
-                          size: 16,
-                          color:
-                              (mode == LyricsSyncMode.word && !wordAvailable) ||
-                                  (mode == LyricsSyncMode.line &&
-                                      !lineAvailable)
-                              ? Colors.grey[600]
-                              : Colors.white,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          mode.label,
-                          style: TextStyle(
-                            color:
-                                (mode == LyricsSyncMode.word &&
-                                        !wordAvailable) ||
-                                    (mode == LyricsSyncMode.line &&
-                                        !lineAvailable)
-                                ? Colors.grey[600]
-                                : Colors.white,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-                .toList(),
-            onChanged: (mode) {
-              if (mode != null) _onSyncModeChanged(mode);
-            },
+          SizedBox(width: isCompact ? 6 : 8),
+          _buildDesktopSyncSelector(
+            wordAvailable: wordAvailable,
+            lineAvailable: lineAvailable,
+            isCompact: isCompact,
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1180,132 +1140,238 @@ class _LyricsViewState extends State<LyricsView>
   Widget _buildDesktopSyncSelector({
     required bool wordAvailable,
     required bool lineAvailable,
+    bool isCompact = false,
   }) {
-    return ToggleButtons(
-      isSelected: [
-        _syncMode == LyricsSyncMode.word,
-        _syncMode == LyricsSyncMode.line,
-        _syncMode == LyricsSyncMode.unsynced,
-      ],
-      onPressed: (index) {
-        final requestedMode = index == 0
-            ? LyricsSyncMode.word
-            : index == 1
-            ? LyricsSyncMode.line
-            : LyricsSyncMode.unsynced;
-
-        if (requestedMode == LyricsSyncMode.word && !wordAvailable) {
-          _onSyncModeChanged(
-            lineAvailable ? LyricsSyncMode.line : LyricsSyncMode.unsynced,
-          );
-          return;
-        }
-
-        if (requestedMode == LyricsSyncMode.line && !lineAvailable) {
-          _onSyncModeChanged(LyricsSyncMode.unsynced);
-          return;
-        }
-
-        _onSyncModeChanged(requestedMode);
-      },
-      borderRadius: BorderRadius.circular(8),
-      color: Colors.white,
-      disabledColor: Colors.grey[600],
-      disabledBorderColor: Colors.grey[700],
-      selectedColor: Colors.white,
-      fillColor: Colors.black.withValues(alpha: 0.1),
-      constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
-      children: [
-        Icon(
-          Icons.mic,
-          size: 16,
-          color: wordAvailable ? null : Colors.grey[600],
-        ),
-        Icon(
-          Icons.sync,
-          size: 16,
-          color: lineAvailable ? null : Colors.grey[600],
-        ),
-        const Icon(Icons.sync_disabled, size: 16),
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(isCompact ? 8 : 6),
+      ),
+      padding: EdgeInsets.all(isCompact ? 3 : 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildSyncButton(
+            icon: Icons.mic,
+            mode: LyricsSyncMode.word,
+            enabled: wordAvailable,
+            tooltip: 'Word/Syllable synced',
+            isCompact: isCompact,
+          ),
+          SizedBox(width: isCompact ? 3 : 2),
+          _buildSyncButton(
+            icon: Icons.sync,
+            mode: LyricsSyncMode.line,
+            enabled: lineAvailable,
+            tooltip: 'Line synced',
+            isCompact: isCompact,
+          ),
+          SizedBox(width: isCompact ? 3 : 2),
+          _buildSyncButton(
+            icon: Icons.sync_disabled,
+            mode: LyricsSyncMode.unsynced,
+            enabled: true,
+            tooltip: 'Unsynced',
+            isCompact: isCompact,
+          ),
+        ],
+      ),
     );
   }
-}
 
-class _LyricsMobilePositionData {
-  final Duration position;
-  final Duration duration;
-  final bool isLoading;
+  Widget _buildSyncButton({
+    required IconData icon,
+    required LyricsSyncMode mode,
+    required bool enabled,
+    required String tooltip,
+    bool isCompact = false,
+  }) {
+    final isSelected = _syncMode == mode;
+    final buttonColor = isSelected
+        ? Colors.white.withValues(alpha: 0.22)
+        : Colors.transparent;
+    final iconColor = !enabled
+        ? Colors.white.withValues(alpha: 0.25)
+        : isSelected
+            ? Colors.white
+            : Colors.white.withValues(alpha: 0.65);
 
-  const _LyricsMobilePositionData({
-    required this.position,
-    required this.duration,
-    required this.isLoading,
-  });
+    final size = isCompact ? 30.0 : 26.0;
+    final iconSize = isCompact ? 16.0 : 15.0;
 
-  @override
-  bool operator ==(Object other) {
-    return other is _LyricsMobilePositionData &&
-        other.position == position &&
-        other.duration == duration &&
-        other.isLoading == isLoading;
+    return Tooltip(
+      message: tooltip,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(isCompact ? 6 : 4),
+          mouseCursor:
+              enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          onTap: enabled ? () => _onSyncModeChanged(mode) : null,
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              color: buttonColor,
+              borderRadius: BorderRadius.circular(isCompact ? 6 : 4),
+            ),
+            child: Icon(icon, size: iconSize, color: iconColor),
+          ),
+        ),
+      ),
+    );
   }
 
-  @override
-  int get hashCode => Object.hash(position, duration, isLoading);
-}
+  Widget _buildMobilePlaybackBar(
+    WispAudioHandler player,
+    GenericSong track,
+    Color dominantColor,
+  ) {
+    return Consumer<PlaybackCoordinator>(
+      builder: (context, coordinator, _) {
+        final position = coordinator.effectiveInterpolatedPosition;
+        final durationSecs = track.durationSecs;
+        final duration = durationSecs > 0
+            ? Duration(seconds: durationSecs)
+            : (position > Duration.zero ? position : const Duration(seconds: 1));
 
-class _LyricsMobilePlaybackData {
-  final bool isPlaying;
-  final bool isLoading;
-  final bool isBuffering;
-  final bool isOnline;
-  final String? currentTrackId;
-  final bool currentTrackCached;
-  final bool queueNotEmpty;
+        final maxMs = duration.inMilliseconds;
+        final curMs = position.inMilliseconds.clamp(0, maxMs);
+        final progress = maxMs > 0 ? (curMs / maxMs).clamp(0.0, 1.0) : 0.0;
+        final isPlaying = coordinator.effectiveIsPlaying;
 
-  const _LyricsMobilePlaybackData({
-    required this.isPlaying,
-    required this.isLoading,
-    required this.isBuffering,
-    required this.isOnline,
-    required this.currentTrackId,
-    required this.currentTrackCached,
-    required this.queueNotEmpty,
-  });
+        final barBackground = _tintedDominantColor(dominantColor, blend: 0.7)
+            .withValues(alpha: 0.94);
 
-  @override
-  bool operator ==(Object other) {
-    return other is _LyricsMobilePlaybackData &&
-        other.isPlaying == isPlaying &&
-        other.isLoading == isLoading &&
-        other.isBuffering == isBuffering &&
-        other.isOnline == isOnline &&
-        other.currentTrackId == currentTrackId &&
-        other.currentTrackCached == currentTrackCached &&
-        other.queueNotEmpty == queueNotEmpty;
+        return ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+            child: Container(
+              decoration: BoxDecoration(
+                color: barBackground,
+                border: Border(
+                  top: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    width: 0.5,
+                  ),
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Progress Bar & Durations
+                      SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 3,
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 5,
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 10,
+                          ),
+                          activeTrackColor: Colors.white,
+                          inactiveTrackColor: Colors.white.withValues(alpha: 0.22),
+                          thumbColor: Colors.white,
+                          overlayColor: Colors.white.withValues(alpha: 0.15),
+                        ),
+                        child: Slider(
+                          value: progress,
+                          onChanged: (value) {
+                            final targetMs = (value * maxMs).round();
+                            coordinator.seek(Duration(milliseconds: targetMs));
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _formatMobileDuration(position),
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.6),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              _formatMobileDuration(duration),
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.6),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      // Controls: Skip Backward, Play/Pause, Skip Forward
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.skip_previous_rounded, size: 28),
+                            color: Colors.white,
+                            splashRadius: 22,
+                            onPressed: () => coordinator.skipPrevious(),
+                          ),
+                          const SizedBox(width: 20),
+                          Material(
+                            color: Colors.white,
+                            shape: const CircleBorder(),
+                            elevation: 2,
+                            child: InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: () {
+                                if (isPlaying) {
+                                  coordinator.pause();
+                                } else {
+                                  coordinator.play();
+                                }
+                              },
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  size: 26,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 20),
+                          IconButton(
+                            icon: const Icon(Icons.skip_next_rounded, size: 28),
+                            color: Colors.white,
+                            splashRadius: 22,
+                            onPressed: () => coordinator.skipNext(),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  @override
-  int get hashCode => Object.hash(
-    isPlaying,
-    isLoading,
-    isBuffering,
-    isOnline,
-    currentTrackId,
-    currentTrackCached,
-    queueNotEmpty,
-  );
-}
-
-String _formatDuration(Duration duration) {
-  String twoDigits(int n) => n.toString().padLeft(2, '0');
-  final hours = duration.inHours;
-  final minutes = duration.inMinutes.remainder(60);
-  final seconds = duration.inSeconds.remainder(60);
-
-  if (hours > 0) {
-    return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
+  String _formatMobileDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
-  return '$minutes:${twoDigits(seconds)}';
 }

@@ -5,6 +5,7 @@ import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 
 void main() {
   group('Lyrics Fill & Word Wipe Tests', () {
+
     test('resolveWordRanges accurately maps words to character selections', () {
       const content = "Hello world from Flutter";
       final words = [
@@ -167,6 +168,102 @@ void main() {
       expect(breakTiming.showWaitingDots, isTrue);
       expect(breakTiming.nextIndex, equals(1));
       expect(breakTiming.progressToNext, closeTo((25000 - 15000) / (35000 - 15000), 0.05));
+    });
+
+    test('Must be morning does not wrap and fills completely through end of line', () {
+      const content = 'Must be morning';
+      final words = [
+        LyricsWord(content: 'Must', startTimeMs: 1000, endTimeMs: 1400),
+        LyricsWord(content: 'be', startTimeMs: 1400, endTimeMs: 1700),
+        LyricsWord(content: 'morning', startTimeMs: 1700, endTimeMs: 2300),
+      ];
+      final ranges = resolveWordRanges(content, words);
+      const style = TextStyle(fontSize: 42, letterSpacing: -1.5, fontWeight: FontWeight.w700);
+
+      final tp = TextPainter(
+        text: const TextSpan(text: content, style: style),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 800);
+
+      // During active singing of "morning" (at 2000ms):
+      final clipperMid = LyricsLineFillClipper(
+        lineContent: content,
+        words: words,
+        wordRanges: ranges,
+        lineEndTimeMs: 2500,
+        style: style,
+        layoutWidth: 800,
+        positionMs: 2000,
+      );
+
+      final clipMid = clipperMid.getClip(Size(tp.width, tp.height));
+      final boundsMid = clipMid.getBounds();
+
+      // Bounds must stay within line height (no lower line artifact)
+      expect(boundsMid.top, equals(0.0));
+      expect(boundsMid.bottom, closeTo(tp.height, 1.0));
+      // Must cover more than half of the total width
+      expect(boundsMid.width, greaterThan(tp.width * 0.5));
+      expect(boundsMid.width, lessThan(tp.width));
+
+      // Upon completion of the line (at 2350ms):
+      final clipperEnd = LyricsLineFillClipper(
+        lineContent: content,
+        words: words,
+        wordRanges: ranges,
+        lineEndTimeMs: 2500,
+        style: style,
+        layoutWidth: 800,
+        positionMs: 2350,
+      );
+
+      final clipEnd = clipperEnd.getClip(Size(tp.width, tp.height));
+      final boundsEnd = clipEnd.getBounds();
+      // Entire line must be fully revealed
+      expect(boundsEnd.width, greaterThanOrEqualTo(tp.width));
+    });
+
+    test('LyricsLineFillClipper distributes fill across wrapped lines sequentially without leaking into lower line', () {
+      const content = 'So let it happen, let it happen';
+      final words = [
+        LyricsWord(content: 'So', startTimeMs: 0, endTimeMs: 300),
+        LyricsWord(content: 'let', startTimeMs: 300, endTimeMs: 600),
+        LyricsWord(content: 'it', startTimeMs: 600, endTimeMs: 900),
+        LyricsWord(content: 'happen,', startTimeMs: 900, endTimeMs: 1500),
+        LyricsWord(content: 'let', startTimeMs: 1500, endTimeMs: 1800),
+        LyricsWord(content: 'it', startTimeMs: 1800, endTimeMs: 2100),
+        LyricsWord(content: 'happen', startTimeMs: 2100, endTimeMs: 2700),
+      ];
+      final ranges = resolveWordRanges(content, words);
+      const style = TextStyle(fontSize: 30);
+
+      // Layout constrained to 220px to force wrapping
+      final tp = TextPainter(
+        text: const TextSpan(text: content, style: style),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 220);
+
+      final lineMetrics = tp.computeLineMetrics();
+      expect(lineMetrics.length, greaterThanOrEqualTo(2));
+      final firstLineHeight = lineMetrics.first.height;
+
+      // At position 450ms (halfway through word 1 'let' on the first line):
+      final clipperLine1 = LyricsLineFillClipper(
+        lineContent: content,
+        words: words,
+        wordRanges: ranges,
+        lineEndTimeMs: 2700,
+        style: style,
+        layoutWidth: 220,
+        positionMs: 450,
+      );
+
+      final clip1 = clipperLine1.getClip(Size(220, tp.height));
+      final bounds1 = clip1.getBounds();
+
+      // Ensure no clipping occurred below the first line
+      expect(bounds1.bottom, closeTo(firstLineHeight, 1.0));
+      expect(bounds1.width, greaterThan(0));
     });
   });
 }
