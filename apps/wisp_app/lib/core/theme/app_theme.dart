@@ -1,4 +1,4 @@
-// Copyright © 2026 wizeshi
+﻿// Copyright © 2026 wizeshi
 
 import 'dart:io';
 
@@ -26,10 +26,16 @@ enum AppStyle {
     AppStyle.Original => const Color(0xFF0096FF),
   };
 
+  /// Original on Windows/Linux/Android, Apple Music on iOS/macOS.
+  static AppStyle get platformDefault =>
+      (Platform.isIOS || Platform.isMacOS)
+      ? AppStyle.AppleMusic
+      : AppStyle.Original;
+
   String toStorageString() => name;
 
   static AppStyle fromStorage(String? raw) {
-    if (raw == null || raw.isEmpty) return AppStyle.Spotify;
+    if (raw == null || raw.isEmpty) return platformDefault;
     final lower = raw.trim().toLowerCase();
     for (final style in AppStyle.values) {
       if (style.name.toLowerCase() == lower ||
@@ -37,7 +43,7 @@ enum AppStyle {
         return style;
       }
     }
-    return AppStyle.Spotify;
+    return platformDefault;
   }
 
   static AppStyle fromString(String string) => fromStorage(string);
@@ -76,9 +82,15 @@ class WispStyleTokens extends ThemeExtension<WispStyleTokens> {
   final double playerControlSpacing;
   final double playerVolumeSpacing;
   final double trackRowDurationWidth;
+  
+  final bool isAppleMode;
+  bool get isApple => isAppleMode;
+  bool get isSpotify => style == AppStyle.Spotify;
+  bool get isOriginal => style == AppStyle.Original;
 
   const WispStyleTokens({
     required this.style,
+    this.isAppleMode = false,
     required this.playIcon,
     required this.pauseIcon,
     required this.playNextIcon,
@@ -109,19 +121,16 @@ class WispStyleTokens extends ThemeExtension<WispStyleTokens> {
     required this.trackRowDurationWidth,
   });
 
-  bool get isApple => style == AppStyle.AppleMusic;
-  bool get isSpotify => style == AppStyle.Spotify;
-  bool get isOriginal => style == AppStyle.Original;
-
   factory WispStyleTokens.fromStyle(AppStyle style) {
     switch (style) {
       case AppStyle.AppleMusic:
         return const WispStyleTokens(
           style: AppStyle.AppleMusic,
+          isAppleMode: true,
           playIcon: CupertinoIcons.play_arrow_solid,
           pauseIcon: CupertinoIcons.pause_solid,
-          playNextIcon: CupertinoIcons.forward_end_alt_fill,
-          playPrevIcon: CupertinoIcons.backward_end_alt_fill,
+          playNextIcon: CupertinoIcons.forward_fill,
+          playPrevIcon: CupertinoIcons.backward_fill,
           shuffleIcon: CupertinoIcons.shuffle,
           repeatIcon: CupertinoIcons.repeat,
           connectIcon: CupertinoIcons.antenna_radiowaves_left_right,
@@ -143,14 +152,14 @@ class WispStyleTokens extends ThemeExtension<WispStyleTokens> {
           fullscreenIcon: CupertinoIcons.arrow_up_left_arrow_down_right,
           personIcon: CupertinoIcons.person_fill,
           personAddIcon: CupertinoIcons.person_add,
-          playerControlSpacing: 12.0,
+          playerControlSpacing: 24.0,
           playerVolumeSpacing: 6.0,
           trackRowDurationWidth: 70.0,
         );
       case AppStyle.Original:
-        // Original redirects to Spotify tokens for now until M3E / Liquid Glass are officially supported.
         return const WispStyleTokens(
           style: AppStyle.Original,
+          isAppleMode: false,
           playIcon: Icons.play_arrow,
           pauseIcon: Icons.pause,
           playNextIcon: Icons.skip_next,
@@ -218,6 +227,7 @@ class WispStyleTokens extends ThemeExtension<WispStyleTokens> {
   @override
   ThemeExtension<WispStyleTokens> copyWith({
     AppStyle? style,
+    bool? isAppleMode,
     IconData? playIcon,
     IconData? pauseIcon,
     IconData? playNextIcon,
@@ -249,6 +259,7 @@ class WispStyleTokens extends ThemeExtension<WispStyleTokens> {
   }) {
     return WispStyleTokens(
       style: style ?? this.style,
+      isAppleMode: isAppleMode ?? this.isAppleMode,
       playIcon: playIcon ?? this.playIcon,
       pauseIcon: pauseIcon ?? this.pauseIcon,
       playNextIcon: playNextIcon ?? this.playNextIcon,
@@ -333,12 +344,18 @@ class AppTheme {
       letterSpacing: appleLetterSpacing,
     );
 
+    String fontFamily = switch (appStyle) {
+      AppStyle.AppleMusic => 'SF Pro',
+      AppStyle.Spotify => 'SpotifyMixUI',
+      AppStyle.Original => 'Google Sans',
+    };
+
     return ThemeData(
-      fontFamily: appStyle == AppStyle.AppleMusic ? 'SF Pro' : 'SpotifyMixUI',
+      fontFamily: fontFamily,
       package: "wisp_assets",
       textTheme:
-          (appStyle == AppStyle.AppleMusic &&
-              (Platform.isMacOS || Platform.isIOS))
+            appStyle == AppStyle.AppleMusic &&
+            (Platform.isMacOS || Platform.isIOS)
           ? TextTheme(
               bodyLarge: withAppleLetterSpacing,
               bodyMedium: withAppleLetterSpacing,
@@ -378,7 +395,9 @@ class AppTheme {
       listTileTheme: const ListTileThemeData(mouseCursor: clickableCursor),
       checkboxTheme: const CheckboxThemeData(mouseCursor: clickableCursor),
       useMaterial3: true,
-      extensions: [WispStyleTokens.fromStyle(appStyle)],
+      extensions: [
+        WispStyleTokens.fromStyle(appStyle),
+      ],
     );
   }
 }

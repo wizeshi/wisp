@@ -7,16 +7,16 @@ import 'package:provider/provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
-import 'full_player/styles/apple_music_full_player.dart';
-import 'full_player/styles/original_full_player.dart';
-import 'full_player/styles/spotify_desktop_full_player.dart';
-import 'full_player/styles/spotify_full_player.dart';
+import 'full_player/styles/mobile/apple_music_full_player.dart';
+import 'full_player/styles/mobile/original_full_player.dart';
+import 'full_player/styles/desktop/spotify_desktop_full_player.dart';
+import 'full_player/styles/mobile/spotify_full_player.dart';
 
 // Re-export styles and components for external callers
-export 'full_player/styles/apple_music_full_player.dart';
-export 'full_player/styles/original_full_player.dart';
-export 'full_player/styles/spotify_desktop_full_player.dart';
-export 'full_player/styles/spotify_full_player.dart';
+export 'full_player/styles/mobile/apple_music_full_player.dart';
+export 'full_player/styles/mobile/original_full_player.dart';
+export 'full_player/styles/desktop/spotify_desktop_full_player.dart';
+export 'full_player/styles/mobile/spotify_full_player.dart';
 export 'full_player/components/canvas_video.dart';
 export 'full_player/components/cover_gradient_container.dart';
 export 'full_player/components/desktop_lyrics_preview.dart';
@@ -85,7 +85,11 @@ class FullScreenPlayer extends StatelessWidget {
   ) {
     switch (style) {
       case AppStyle.AppleMusic:
-        return AppleMusicFullScreenPlayer(scrollController: scrollController);
+        return _isDesktop
+            ? AppleMusicDesktopFullScreenPlayer(
+                scrollController: scrollController,
+              )
+            : AppleMusicFullScreenPlayer(scrollController: scrollController);
       case AppStyle.Original:
         return OriginalFullScreenPlayer(scrollController: scrollController);
       case AppStyle.Spotify:

@@ -11,8 +11,13 @@ import 'package:wisp/services/system/app_focus_service.dart';
 
 class RotatingBlurredCoverBackground extends StatefulWidget {
   final String imageUrl;
+  final double blurSigma;
 
-  const RotatingBlurredCoverBackground({super.key, required this.imageUrl});
+  const RotatingBlurredCoverBackground({
+    super.key,
+    required this.imageUrl,
+    this.blurSigma = 48,
+  });
 
   @override
   State<RotatingBlurredCoverBackground> createState() =>
@@ -122,7 +127,10 @@ class _RotatingBlurredCoverBackgroundState
           final imageSize = maxSide * 2.4;
 
           return ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: 48, sigmaY: 48),
+            imageFilter: ImageFilter.blur(
+              sigmaX: widget.blurSigma,
+              sigmaY: widget.blurSigma,
+            ),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -165,4 +173,3 @@ class _RotatingBlurredCoverBackgroundState
     );
   }
 }
-

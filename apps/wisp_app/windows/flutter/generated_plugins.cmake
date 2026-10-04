@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   audio_service_win
   connectivity_plus
+  dynamic_color
   flutter_inappwebview_windows
   flutter_js
   flutter_secure_storage_windows

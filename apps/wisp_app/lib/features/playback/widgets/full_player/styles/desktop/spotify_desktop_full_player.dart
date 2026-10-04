@@ -13,13 +13,14 @@ import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/playback/views/lyrics_view.dart';
 import 'package:wisp/features/playback/views/queue_view.dart';
 import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
+import 'package:wisp/shared/widgets/buttons/generic_button.dart';
 import 'package:wisp/features/playback/widgets/player_bar.dart';
-import '../components/canvas_video.dart';
-import '../components/cover_gradient_container.dart';
-import '../components/desktop_lyrics_preview.dart';
-import '../components/inline_delay_editor.dart';
-import '../components/mobile_artist_info_card.dart';
-import 'apple_music_full_player.dart';
+import '../../components/canvas_video.dart';
+import '../../components/cover_gradient_container.dart';
+import '../../components/desktop_lyrics_preview.dart';
+import '../../components/inline_delay_editor.dart';
+import '../../components/mobile_artist_info_card.dart';
+import '../mobile/apple_music_full_player.dart';
 
 enum _SpotifyDisplayMode { artwork, canvas, lyrics, queue }
 
@@ -593,7 +594,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                   const SizedBox(width: 16),
                   Builder(
                     builder: (buttonContext) {
-                      return IconButton(
+                      return GenericIconButton(
                         icon: const Icon(Icons.more_vert),
                         color: Colors.white70,
                         onPressed: () => _openTrackMenu(buttonContext),
@@ -602,7 +603,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                     },
                   ),
                   const SizedBox(width: 12),
-                  IconButton(
+                  GenericIconButton(
                     icon: const Icon(Icons.fullscreen_exit),
                     color: Colors.white70,
                     onPressed: () =>
@@ -629,19 +630,17 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     final isSelected = desktopState.preferredMode == mode;
     final color = isSelected ? Colors.white : Colors.white54;
 
-    return Tooltip(
-      message: !enabled && mode == _SpotifyDisplayMode.canvas
+    return GenericIconButton(
+      tooltip: !enabled && mode == _SpotifyDisplayMode.canvas
           ? 'Not available for this track'
           : label,
-      child: IconButton(
-        icon: Icon(icon),
-        color: enabled ? color : Colors.grey[700],
-        onPressed: enabled
-            ? () {
-                desktopState.setPreferredMode(mode);
-              }
-            : null,
-      ),
+      icon: Icon(icon),
+      color: enabled ? color : Colors.grey[700],
+      onPressed: enabled
+          ? () {
+              desktopState.setPreferredMode(mode);
+            }
+          : null,
     );
   }
 
@@ -1012,7 +1011,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                 ),
               ),
               onTrailingPressed != null
-                  ? IconButton(
+                  ? GenericIconButton(
                       icon: Icon(trailing, color: Colors.white70, size: 20),
                       onPressed: onTrailingPressed,
                       splashRadius: 20,

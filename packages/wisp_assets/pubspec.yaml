@@ -34,3 +34,8 @@ flutter:
     - family: SF Pro
       fonts:
         - asset: fonts/sf_pro.ttf
+    - family: Google Sans
+      fonts:
+        - asset: fonts/google_sans.ttf
+        - asset: fonts/google_sans_italic.ttf
+          style: italic

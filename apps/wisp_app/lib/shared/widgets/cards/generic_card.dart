@@ -71,7 +71,7 @@ class GenericCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             SizedBox(
               height: _kSubtitleLineHeight,
               child: subtitle == null

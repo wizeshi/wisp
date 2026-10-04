@@ -27,6 +27,7 @@ class ConnectivityService {
       StreamController<bool>.broadcast();
   Stream<bool> get onConnectivityChanged =>
       _connectivityStreamController.stream;
+  bool _disposed = false;
 
   /// Initialize connectivity listeners at app startup.
   Future<void> initialize() async {
@@ -48,7 +49,8 @@ class ConnectivityService {
 
   void _updateStatus(List<ConnectivityResult> results) {
     final online =
-        results.isNotEmpty && !results.every((r) => r == ConnectivityResult.none);
+        results.isNotEmpty &&
+        !results.every((r) => r == ConnectivityResult.none);
     if (_isOnline != online) {
       _isOnline = online;
       isOnlineNotifier.value = online;
@@ -79,9 +81,10 @@ class ConnectivityService {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _subscription?.cancel();
     _subscription = null;
     _connectivityStreamController.close();
   }
 }
-

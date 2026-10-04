@@ -89,10 +89,12 @@ async function getLyrics(query) {
     let endTimeMs = parseTimeMs(pAttrs['end']);
 
     const words = [];
+    // Match innermost leaf spans with text content
+    const leafSpanRegex = /<span\b([^>]*)>([^<]+)<\/span>/gi;
     let spanMatch;
-    while ((spanMatch = spanRegex.exec(pBody)) !== null) {
+    while ((spanMatch = leafSpanRegex.exec(pBody)) !== null) {
       const spanAttrsStr = spanMatch[1];
-      const spanText = decodeEntities(spanMatch[2].replace(/<[^>]+>/g, ''));
+      const spanText = decodeEntities(spanMatch[2]);
       let spanAttrs = {};
       let sAttr;
       while ((sAttr = attrRegex.exec(spanAttrsStr)) !== null) {
@@ -108,6 +110,9 @@ async function getLyrics(query) {
         });
       }
     }
+
+    // Sort words by startTimeMs to prevent out-of-order background vocals from causing timing stutter
+    words.sort((a, b) => a.startTimeMs - b.startTimeMs);
 
     const lineText = decodeEntities(pBody.replace(/<[^>]+>/g, ''));
     if (!lineText) continue;
@@ -126,25 +131,6 @@ async function getLyrics(query) {
 
   if (lines.length === 0) return null;
 
-  const allTimestamps = [];
-  lines.forEach(l => {
-    allTimestamps.push(l.startTimeMs);
-    l.words.forEach(w => allTimestamps.push(w.startTimeMs));
-  });
-  const positiveTimestamps = allTimestamps.filter(t => t > 0);
-  if (positiveTimestamps.length > 0) {
-    const minTimestamp = Math.min(...positiveTimestamps);
-    if (minTimestamp > 0) {
-      lines.forEach(l => {
-        l.startTimeMs = Math.max(0, l.startTimeMs - minTimestamp);
-        if (l.endTimeMs != null) l.endTimeMs = Math.max(0, l.endTimeMs - minTimestamp);
-        l.words.forEach(w => {
-          w.startTimeMs = Math.max(0, w.startTimeMs - minTimestamp);
-          if (w.endTimeMs != null) w.endTimeMs = Math.max(0, w.endTimeMs - minTimestamp);
-        });
-      });
-    }
-  }
 
   const hasWords = lines.some(l => l.words.length > 0);
   const syncMode = (mode === 'unsynced')

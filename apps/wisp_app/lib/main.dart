@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/rendering.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
@@ -39,14 +40,18 @@ import 'package:wisp/services/notifications/desktop_notification_center.dart';
 import 'package:wisp/services/discord/discord_rpc_service.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
+import 'package:wisp/services/audio/playback_session_store.dart';
 import 'package:wisp/features/onboarding/views/mobile_welcome_view.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/services/system/connectivity_service.dart';
 import 'package:wisp/features/shell/widgets/app_shell.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
+import 'package:wisp/services/system/app_focus_service.dart';
 
 void main() async {
+  debugRepaintRainbowEnabled = false;
+
   MediaKit.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -187,7 +192,7 @@ void main() async {
   );
 }
 
-class WispApp extends StatelessWidget {
+class WispApp extends StatefulWidget {
   final WispAudioHandler audioHandler;
   final PlaybackCoordinator playbackCoordinator;
   final AppLinks appLinks;
@@ -198,6 +203,60 @@ class WispApp extends StatelessWidget {
     required this.playbackCoordinator,
     required this.appLinks,
   });
+
+  @override
+  State<WispApp> createState() => _WispAppState();
+}
+
+class _WispAppState extends State<WispApp> with WindowListener {
+  bool _isClosing = false;
+
+  bool get _isDesktop =>
+      Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isDesktop) {
+      windowManager.addListener(this);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_isDesktop) {
+      windowManager.removeListener(this);
+    }
+    super.dispose();
+  }
+
+  @override
+  void onWindowClose() {
+    if (_isClosing) return;
+    _isClosing = true;
+    unawaited(_shutdown());
+  }
+
+  Future<void> _shutdown() async {
+    final connectSession = context.read<ConnectSessionProvider>();
+    try {
+      await widget.audioHandler.shutdown();
+      await PlaybackSessionStore.instance.flush();
+      await connectSession.shutdown();
+      await AudioStreamingProxy.instance.stop();
+      await DiscordRpcService.instance.dispose();
+      await DownloadForegroundService.stop();
+      AudioCacheManager.instance.dispose();
+      ConnectivityService.instance.dispose();
+      AppFocusService.instance.dispose();
+      AuthSourceManager.instance.dispose();
+      MetadataSourceManager.instance.dispose();
+      LyricsSourceManager.instance.dispose();
+      await logger.close();
+    } catch (error, stackTrace) {
+      logger.e('[Main] Shutdown failed', error: error, stackTrace: stackTrace);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -224,18 +283,19 @@ class WispApp extends StatelessWidget {
               preferences: ctx.read<PreferencesProvider>(),
             );
             ListeningHabitsService.instance.bindMetadataManager(m);
-            audioHandler.bindMetadataManager(m);
+            widget.audioHandler.bindMetadataManager(m);
             return m;
           },
           update: (_, youtube, preferences, manager) {
-            final m = manager ??
+            final m =
+                manager ??
                 MetadataManager(
                   youtubeProvider: youtube,
                   preferences: preferences,
                 );
             m.bindPreferences(preferences);
             ListeningHabitsService.instance.bindMetadataManager(m);
-            audioHandler.bindMetadataManager(m);
+            widget.audioHandler.bindMetadataManager(m);
             return m;
           },
         ),
@@ -251,8 +311,8 @@ class WispApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(create: (_) => LibraryFolderState()),
 
-        ChangeNotifierProvider.value(value: audioHandler),
-        ChangeNotifierProvider.value(value: playbackCoordinator),
+        ChangeNotifierProvider.value(value: widget.audioHandler),
+        ChangeNotifierProvider.value(value: widget.playbackCoordinator),
         ChangeNotifierProvider.value(value: ListeningHabitsService.instance),
 
         ChangeNotifierProxyProvider<WispAudioHandler, CoverArtPaletteProvider>(
@@ -298,10 +358,11 @@ class WispApp extends StatelessWidget {
               appStyle: preferences.style,
             ),
             themeMode: ThemeMode.dark,
-            home: (Platform.isAndroid || Platform.isIOS) &&
+            home:
+                (Platform.isAndroid || Platform.isIOS) &&
                     !preferences.isFirstBootCompleted
-                ? MobileWelcomeView(appLinks: appLinks)
-                : AppShell(appLinks: appLinks),
+                ? MobileWelcomeView(appLinks: widget.appLinks)
+                : AppShell(appLinks: widget.appLinks),
           );
         },
       ),

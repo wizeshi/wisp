@@ -1,0 +1,20 @@
+{
+    "id": "spicylyrics",
+    "name": "Spicy Lyrics",
+    "version": "1.0.2",
+    "type": "lyrics",
+    "entry": "index.js",
+    "author": "wizeshi",
+    "description": "Word-synced and line-synced lyrics using the Spicy Lyrics API",
+    "supportedSyncModes": [
+        "word",
+        "line",
+        "unsynced"
+    ],
+    "priority": 80,
+    "service": "spotify",
+    "dependencies": [
+        "auth/spotify"
+    ],
+    "homepage": "https://spicylyrics.org/"
+}

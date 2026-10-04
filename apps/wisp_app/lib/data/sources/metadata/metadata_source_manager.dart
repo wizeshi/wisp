@@ -22,6 +22,7 @@ class MetadataSourceManager extends ChangeNotifier {
   final Set<String> _explicitlyUninstalled = {};
   bool _initialized = false;
   Future<void>? _initFuture;
+  bool _disposed = false;
 
   bool get isInitialized => _initialized;
 
@@ -117,7 +118,9 @@ class MetadataSourceManager extends ChangeNotifier {
                 (manifestJson['dependencies'] as List?)?.cast<String>() ?? [];
             if (deps.isNotEmpty) {
               final unsatisfied =
-                  await ProviderDependencyValidator.checkDependenciesAsync(deps);
+                  await ProviderDependencyValidator.checkDependenciesAsync(
+                    deps,
+                  );
               if (unsatisfied.isNotEmpty) {
                 logger.w(
                   '[MetadataSourceManager] Skipping provider "$id" due to unsatisfied dependencies: '
@@ -137,9 +140,9 @@ class MetadataSourceManager extends ChangeNotifier {
                 (manifestJson['capabilities'] as List?)?.cast<String>() ?? [];
             final Set<MetadataCapability>? parsedCaps = rawCaps.isNotEmpty
                 ? rawCaps
-                    .map((c) => MetadataCapability.fromString(c))
-                    .whereType<MetadataCapability>()
-                    .toSet()
+                      .map((c) => MetadataCapability.fromString(c))
+                      .whereType<MetadataCapability>()
+                      .toSet()
                 : null;
 
             // Installed providers (user support dir) are added first in searchDirs.
@@ -196,5 +199,16 @@ class MetadataSourceManager extends ChangeNotifier {
     _initialized = false;
     _initFuture = null;
     await initialize();
+  }
+
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    for (final source in _sources.values) {
+      source.dispose();
+    }
+    _sources.clear();
+    super.dispose();
   }
 }

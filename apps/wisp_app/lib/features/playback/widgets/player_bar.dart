@@ -23,12 +23,20 @@ import 'package:wisp/shared/widgets/display/hover_underline.dart';
 import 'package:wisp/features/shell/navigation/navigation_state.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
+import 'package:wisp/shared/widgets/buttons/generic_button.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/features/connect/widgets/connect_menu.dart';
 import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
+import 'package:material_3_expressive/material_3_expressive.dart';
+import 'package:liquid_glass_easy/liquid_glass_easy.dart';
+
+part 'player_bar/components/progress_components.dart';
+part 'player_bar/styles/spotify_style.dart';
+part 'player_bar/styles/original_style.dart';
+part 'player_bar/styles/apple_music_style.dart';
 
 class WispPlayerBar extends StatelessWidget {
   const WispPlayerBar({super.key});
@@ -46,523 +54,23 @@ class WispPlayerBar extends StatelessWidget {
       (p) => p.style,
     );
 
-    if (_isMobile) {
-      return _MobilePlayerBarAnimated(
-        currentTrack: currentTrack,
-        appStyle: appStyle,
-      );
-    }
-
-    return _DesktopPlayerBar(currentTrack: currentTrack, appStyle: appStyle);
-  }
-}
-
-class _MobilePlayerBarAnimated extends StatefulWidget {
-  final dynamic currentTrack;
-  final AppStyle appStyle;
-
-  const _MobilePlayerBarAnimated({
-    required this.currentTrack,
-    required this.appStyle,
-  });
-
-  @override
-  State<_MobilePlayerBarAnimated> createState() =>
-      _MobilePlayerBarAnimatedState();
-}
-
-class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
-  double _dragOffset = 0.0;
-
-  void _onHorizontalDragUpdate(DragUpdateDetails details) {
-    setState(() {
-      _dragOffset += details.primaryDelta ?? 0;
-      _dragOffset = _dragOffset.clamp(-100.0, 100.0);
-    });
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    final playback = context.read<PlaybackCoordinator>();
-
-    if (velocity.abs() > 200 || _dragOffset.abs() > 50) {
-      if (_dragOffset < 0 || velocity < -200) {
-        playback.skipNext();
-      } else {
-        playback.skipPrevious();
-      }
-    }
-
-    setState(() {
-      _dragOffset = 0.0;
-    });
-  }
-
-  Color _tintedDominantColor(Color color, {double blend = 0.4}) {
-    final hsl = HSLColor.fromColor(color);
-    final overlay = hsl
-        .withLightness(0.22)
-        .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
-        .toColor();
-    return Color.lerp(color, overlay, blend) ?? color;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final offset = Offset(_dragOffset / 300, 0);
-    final dragProgress = (_dragOffset.abs() / 100).clamp(0.0, 1.0);
-    final swipePreview = context
-        .select<global_audio_player.WispAudioHandler, _SwipePreviewData>((
-          player,
-        ) {
-          final queue = player.queueTracks;
-          final currentIndex = player.currentIndex;
-          GenericSong? previousTrack;
-          GenericSong? nextTrack;
-
-          if (currentIndex > 0 && currentIndex < queue.length) {
-            previousTrack = queue[currentIndex - 1];
-          }
-          if (currentIndex >= 0 && currentIndex + 1 < queue.length) {
-            nextTrack = queue[currentIndex + 1];
-          }
-
-          return _SwipePreviewData(
-            previousTrack: previousTrack,
-            nextTrack: nextTrack,
-          );
-        });
-
-    final isSwipingLeft = _dragOffset < 0;
-    final previewTrack = isSwipingLeft
-        ? swipePreview.nextTrack
-        : swipePreview.previousTrack;
-
-    var bgColor = _tintedDominantColor(Theme.of(context).colorScheme.primary);
-
-    var btnColor = HSLColor.fromColor(
-      bgColor,
-    ).withLightness(0.7).withSaturation(1).toColor();
-
-    final handoffMessage = context.select<ConnectSessionProvider, String?>(
-      (connect) => _handoffStatusMessage(connect),
-    );
-
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Center(
-          child: GestureDetector(
-            onHorizontalDragUpdate: _onHorizontalDragUpdate,
-            onHorizontalDragEnd: _onHorizontalDragEnd,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => FullScreenPlayer.show(context),
-                    child: Container(
-                      width:
-                          MediaQuery.of(context).size.width -
-                          32, // 16px padding each side
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: bgColor.withValues(alpha: 0.78),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          width: 0.8,
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 3, 8, 0),
-                            child: Row(
-                              children: [
-                                _buildMobileAlbumArt(widget.currentTrack),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ClipRect(
-                                    clipBehavior: Clip.hardEdge,
-                                    child: Stack(
-                                      children: [
-                                        AnimatedSlide(
-                                          offset: offset,
-                                          duration: Duration.zero,
-                                          child: Opacity(
-                                            opacity: (1.0 - dragProgress).clamp(
-                                              0.3,
-                                              1.0,
-                                            ),
-                                            child: _buildMobileTrackInfo(
-                                              widget.currentTrack,
-                                            ),
-                                          ),
-                                        ),
-                                        if (previewTrack != null && dragProgress > 0)
-                                          Positioned.fill(
-                                            child: IgnorePointer(
-                                              child: Opacity(
-                                                opacity: (dragProgress * 0.95).clamp(
-                                                  0.0,
-                                                  0.95,
-                                                ),
-                                                child: Transform.translate(
-                                                  offset: Offset(
-                                                    isSwipingLeft
-                                                        ? (1 - dragProgress) * 24
-                                                        : -(1 - dragProgress) * 24,
-                                                    0,
-                                                  ),
-                                                  child: _buildMobileTrackInfo(
-                                                    previewTrack,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                _buildMobileConnectButton(widget.appStyle),
-                                LikeButton(
-                                  track: widget.currentTrack as GenericSong?,
-                                  iconSize: 24,
-                                  padding: const EdgeInsets.all(2),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 28,
-                                    minHeight: 28,
-                                  ),
-                                  color: btnColor,
-                                ),
-                                _buildMobilePlayPauseButton(widget.appStyle),
-                              ],
-                            ),
-                          ),
-                          _buildMiniProgressBar(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        if (handoffMessage != null)
-          Positioned(
-            top: -24,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: _HandoffStatusIndicator(
-                message: handoffMessage,
-                backgroundColor: btnColor,
-                mobile: true,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildMobileAlbumArt(dynamic currentTrack) {
-    final imageUrl = currentTrack?.thumbnailUrl ?? '';
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        width: 44,
-        height: 44,
-        color: Colors.grey[900],
-        child: imageUrl.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: imageUrl,
-                filterQuality: FilterQuality.high,
-                fit: BoxFit.cover,
-                placeholder: (context, url) =>
-                    Container(color: Colors.grey[800]),
-                errorWidget: (context, url, error) =>
-                    Icon(Icons.music_note, color: Colors.grey[700]),
-              )
-            : Icon(Icons.music_note, color: Colors.grey[700]),
-      ),
-    );
-  }
-
-  Widget _buildMobileTrackInfo(dynamic currentTrack) {
-    if (currentTrack == null || currentTrack is! GenericSong) {
-      return Text(
-        'No track playing',
-        style: TextStyle(color: Colors.grey[600], fontSize: 14),
-      );
-    }
-
-    final GenericSong track = currentTrack;
-
-    final output = context.select<ConnectSessionProvider, _MobileOutputInfo>(
-      (connect) => _MobileOutputInfo.fromProvider(connect),
-    );
-
-    if (output.isExternal) {
-      final artists = track.artists
-          .map((artist) => artist.name)
-          .join(', ');
-      final songLine = artists.isEmpty
-          ? track.title
-          : '${track.title}  ·  $artists';
-
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          MarqueeText(
-            text: songLine,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-            pauseWhenUnfocused: true,
-          ),
-          const SizedBox(height: 2),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TrackBadges(track: track),
-              Flexible(
-                child: MarqueeText(
-                  text: output.deviceName,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        MarqueeText(
-          text: track.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Row(
-          children: [
-            TrackBadges(track: track),
-            Expanded(
-              child: MarqueeText(
-                text: track.artists.map((a) => a.name).join(', '),
-                style: TextStyle(
-                  color: Colors.grey[250],
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMobileConnectButton(AppStyle appStyle) {
-    return _ConnectMenuButton(
-      iconSize: 24,
-      appStyle: appStyle,
-      inactiveColor: Colors.grey[300],
-      activeColorOverride: Colors.white,
-    );
-  }
-
-  Widget _buildMobilePlayPauseButton(AppStyle appStyle) {
-    return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
-      selector: (context, player) {
-        final track = player.currentTrack;
-        final queueFirst = player.queueTracks.isNotEmpty
-            ? player.queueTracks.first
-            : null;
-        return _PlayPauseData(
-          isPlaying: player.isPlaying,
-          isLoading: player.isLoading,
-          isBuffering: player.isBuffering,
-          isTransitioning: player.isTrackTransitioning,
-          isOnline: player.isOnline,
-          currentTrackId: track?.id,
-          currentTrackCached: track == null
-              ? true
-              : player.isTrackCached(track.id),
-          queueNotEmpty: player.queueTracks.isNotEmpty,
-          queueFirstId: queueFirst?.id,
-        );
-      },
-      builder: (context, data, child) {
-        final useHandoffState = context.select<PlaybackCoordinator, bool>(
-          (coordinator) => coordinator.useLinkedPlaybackState,
-        );
-        final effectiveIsPlaying = context.select<PlaybackCoordinator, bool>(
-          (coordinator) => coordinator.effectiveIsPlaying,
-        );
-        if (data.isLoading || data.isBuffering || data.isTransitioning) {
-          return const SizedBox(
-            width: 40,
-            height: 40,
-            child: Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            ),
-          );
+    switch (appStyle) {
+      case AppStyle.Spotify:
+        if (_isMobile) {
+          return _MobilePlayerBarAnimated(currentTrack: currentTrack, appStyle: appStyle);
         }
-
-        final isOfflineBlocked =
-            !useHandoffState &&
-            !data.isOnline &&
-            data.currentTrackId != null &&
-            !data.currentTrackCached;
-        final IconData icon = effectiveIsPlaying
-            ? context.tokens.pauseIcon
-            : context.tokens.playIcon;
-        VoidCallback? onPressed;
-        if (!isOfflineBlocked) {
-          if (effectiveIsPlaying) {
-            onPressed = () {
-              context.read<PlaybackCoordinator>().pause();
-            };
-          } else if (data.currentTrackId != null) {
-            onPressed = () {
-              final audio = context
-                  .read<global_audio_player.WispAudioHandler>();
-              if (!useHandoffState &&
-                  (audio.isLoading ||
-                      audio.isBuffering ||
-                      audio.isTrackTransitioning)) {
-                return;
-              }
-              context.read<PlaybackCoordinator>().play();
-            };
-          } else if (data.queueNotEmpty) {
-            onPressed = () {
-              final audio = context
-                  .read<global_audio_player.WispAudioHandler>();
-              if (!useHandoffState &&
-                  (audio.isLoading ||
-                      audio.isBuffering ||
-                      audio.isTrackTransitioning)) {
-                return;
-              }
-              context.read<PlaybackCoordinator>().play();
-            };
-          }
+        return _DesktopPlayerBar(currentTrack: currentTrack, appStyle: appStyle);
+      case AppStyle.AppleMusic:
+        if (_isMobile) {
+          return _AppleMusicMobilePlayerBar(currentTrack: currentTrack);
         }
-
-        return IconButton(
-          icon: Icon(icon, size: 28, color: Colors.white),
-          onPressed: onPressed,
-        );
-      },
-    );
-  }
-
-  Widget _buildMiniProgressBar() {
-    // Simpler selection: read playback position and duration directly
-    return RepaintBoundary(
-      child: Builder(
-        builder: (context) {
-          final useHandoffState = context.select<PlaybackCoordinator, bool>(
-            (coordinator) => coordinator.useLinkedPlaybackState,
-          );
-          final effectivePosition = context.select<PlaybackCoordinator, Duration>(
-            (coordinator) => coordinator.effectiveThrottledPosition,
-          );
-
-          final duration = context
-              .select<global_audio_player.WispAudioHandler, Duration>(
-                (player) => player.duration,
-              );
-
-          final isLoading =
-              !useHandoffState &&
-              context.select<global_audio_player.WispAudioHandler, bool>(
-                (player) => player.isLoading || player.isBuffering,
-              );
-
-          if (isLoading) {
-            return const SizedBox(
-              height: 3,
-              child: LinearProgressIndicator(
-                backgroundColor: Colors.transparent,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            );
-          }
-
-          final progress = duration.inMilliseconds > 0
-              ? effectivePosition.inMilliseconds / duration.inMilliseconds
-              : 0.0;
-
-          // Freeze the mini progress bar while the app is unfocused instead of
-          // rebuilding it on every position update.
-          if (context.select<PreferencesProvider, bool>(
-            (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
-              PausedBackgroundWidget.playerProgressBar,
-            ),
-          )) {
-            return FocusFreezeBuilder<(int, int)>(
-              value: (effectivePosition.inMilliseconds, duration.inMilliseconds),
-              builder: (context, _) {
-                return TweenAnimationBuilder<double>(
-                  tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-                  duration: const Duration(milliseconds: 200),
-                  builder: (context, animatedProgress, child) {
-                    return SizedBox(
-                      height: 3,
-                      child: LinearProgressIndicator(
-                        value: animatedProgress,
-                        backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    );
-                  },
-                );
-              },
-            );
-          }
-
-          return TweenAnimationBuilder<double>(
-            tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-            duration: const Duration(milliseconds: 200),
-            builder: (context, animatedProgress, child) {
-              return SizedBox(
-                height: 3,
-                child: LinearProgressIndicator(
-                  value: animatedProgress,
-                  backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
+        return _AppleMusicDesktopPlayerBar(currentTrack: currentTrack);
+      case AppStyle.Original:
+        if (_isMobile) {
+          return _OriginalMobilePlayerBar(currentTrack: currentTrack);
+        }
+        return _OriginalDesktopPlayerBar(currentTrack: currentTrack);
+    }
   }
 }
 
@@ -584,103 +92,6 @@ class _SwipePreviewData {
 
   @override
   int get hashCode => Object.hash(previousTrack?.id, nextTrack?.id);
-}
-
-class _DesktopPlayerBar extends StatelessWidget {
-  final GenericSong? currentTrack;
-  final AppStyle appStyle;
-
-  const _DesktopPlayerBar({required this.currentTrack, required this.appStyle});
-
-  @override
-  Widget build(BuildContext context) {
-    final buttonColor = Theme.of(context).colorScheme.primary;
-
-    final handoffMessage = context.select<ConnectSessionProvider, String?>(
-      (connect) => _handoffStatusMessage(connect),
-    );
-
-    return SizedBox(
-      height: 90,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            height: 90,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              border: Border(
-                top: BorderSide(color: Colors.grey[900]!, width: 1),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              child: Row(
-                children: [
-                  // Track Area (30%)
-                  Expanded(
-                    flex: 3,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 24),
-                        child: _DesktopTrackInfo(
-                          currentTrack: currentTrack,
-                          appStyle: appStyle,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Playback Area (40%)
-                  Expanded(
-                    flex: 4,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _DesktopPlaybackControls(appStyle: appStyle),
-                          _DesktopProgressBar(),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Control Center (30%)
-                  Expanded(
-                    flex: 3,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 24),
-                        child: _DesktopRightControls(
-                          currentTrack: currentTrack,
-                          appStyle: appStyle,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (handoffMessage != null)
-            Positioned(
-              top: -32,
-              right: 16,
-              child: _HandoffStatusIndicator(
-                message: handoffMessage,
-                backgroundColor: HSLColor.fromColor(
-                  buttonColor,
-                ).withLightness(0.4).toColor(),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 }
 
 class _HandoffStatusIndicator extends StatelessWidget {
@@ -772,8 +183,17 @@ class _DesktopProgressBar extends StatelessWidget {
           )) {
             return FocusFreezeBuilder<_PositionData>(
               value: data,
-              builder: (context, _) {
-                return buildBaseProgressBar(context, duration, progress);
+              builder: (context, frozenData) {
+                final frozenDuration = frozenData.duration;
+                final frozenProgress = frozenDuration.inMilliseconds > 0
+                    ? frozenData.position.inMilliseconds /
+                        frozenDuration.inMilliseconds
+                    : 0.0;
+                return buildBaseProgressBar(
+                  context,
+                  frozenDuration,
+                  frozenProgress,
+                );
               },
             );
           }
@@ -1351,9 +771,10 @@ class _DesktopPlaybackControls extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Shuffle
-            IconButton(
-              padding: EdgeInsets.all(4),
-              constraints: BoxConstraints(),
+            GenericIconButton(
+              style: appStyle,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
               tooltip: data.isDJMode ? 'Unavailable in DJ mode' : 'Shuffle',
               icon: Icon(
                 tokens.shuffleIcon,
@@ -1374,9 +795,10 @@ class _DesktopPlaybackControls extends StatelessWidget {
             SizedBox(width: controlSpacing),
 
             // Previous
-            IconButton(
-              padding: EdgeInsets.all(4),
-              constraints: BoxConstraints(),
+            GenericIconButton(
+              style: appStyle,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
               icon: Icon(
                 tokens.playPrevIcon,
                 color: Colors.white,
@@ -1397,9 +819,10 @@ class _DesktopPlaybackControls extends StatelessWidget {
             SizedBox(width: controlSpacing),
 
             // Next
-            IconButton(
-              padding: EdgeInsets.all(4),
-              constraints: BoxConstraints(),
+            GenericIconButton(
+              style: appStyle,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
               icon: Icon(
                 tokens.playNextIcon,
                 color: Colors.white,
@@ -1415,9 +838,10 @@ class _DesktopPlaybackControls extends StatelessWidget {
             SizedBox(width: controlSpacing),
 
             // Repeat
-            IconButton(
-              padding: EdgeInsets.all(4),
-              constraints: BoxConstraints(),
+            GenericIconButton(
+              style: appStyle,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(),
               tooltip: data.isDJMode ? 'Unavailable in DJ mode' : 'Repeat',
               icon: Icon(
                 data.repeatMode == global_audio_player.RepeatMode.one
@@ -1520,17 +944,19 @@ class _DesktopPlayPauseButton extends StatelessWidget {
     }
 
     if (isOfflineBlocked) {
-      return IconButton(
-        padding: EdgeInsets.all(4),
-        constraints: BoxConstraints(),
+      return GenericIconButton(
+        style: appStyle,
+        padding: const EdgeInsets.all(4),
+        constraints: const BoxConstraints(),
         icon: Icon(icon, color: Colors.grey[700], size: 40),
         onPressed: null,
       );
     }
 
-    return IconButton(
-      padding: EdgeInsets.all(4),
-      constraints: BoxConstraints(),
+    return GenericIconButton(
+      style: appStyle,
+      padding: const EdgeInsets.all(4),
+      constraints: const BoxConstraints(),
       icon: Icon(
         icon,
         color: tokens.isApple
@@ -1588,7 +1014,8 @@ class _DesktopRightControls extends StatelessWidget {
                     builder:(context, value, child) {
                       return Row(
                         children: [
-                        IconButton(
+                        GenericIconButton(
+                          style: appStyle,
                           icon: Icon(
                             Symbols.headphones,
                             color: value ? activeColor : inactiveColor,
@@ -1608,7 +1035,8 @@ class _DesktopRightControls extends StatelessWidget {
                     },
                   ),
                 if (!isFullScreenOpen) ...[
-                  IconButton(
+                  GenericIconButton(
+                    style: appStyle,
                     icon: Icon(
                       tokens.sidebarIcon,
                       color: isSidebarOpen ? activeColor : inactiveColor,
@@ -1625,7 +1053,8 @@ class _DesktopRightControls extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (showLyricsButton) ...[
-                          IconButton(
+                          GenericIconButton(
+                            style: appStyle,
                             icon: Icon(
                               tokens.lyricsIcon,
                               color: isFullScreenOpen
@@ -1671,7 +1100,8 @@ class _DesktopRightControls extends StatelessWidget {
                           SizedBox(width: controlSpacing),
                         ],
                         if (showQueueButton) ...[
-                          IconButton(
+                          GenericIconButton(
+                            style: appStyle,
                             icon: Icon(
                               tokens.queueIcon,
                               color: isFullScreenOpen
@@ -1740,7 +1170,8 @@ class _DesktopRightControls extends StatelessWidget {
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
+                        GenericIconButton(
+                          style: appStyle,
                           mouseCursor: SystemMouseCursors.click,
                           tooltip: volume == 0 ? 'Unmute' : 'Mute',
                           onPressed: player.toggleMute,
@@ -1768,8 +1199,9 @@ class _DesktopRightControls extends StatelessWidget {
                   },
                 ),
                 if (!isFullScreenOpen) ...[
-                  SizedBox(width: controlSpacing),
-                  IconButton(
+                  SizedBox(width: controlSpacing / 2),
+                  GenericIconButton(
+                    style: appStyle,
                     icon: Icon(
                       tokens.fullscreenIcon,
                       color: inactiveColor,
@@ -1789,6 +1221,7 @@ class _DesktopRightControls extends StatelessWidget {
                       }
                     },
                   ),
+                  SizedBox(width: controlSpacing / 2),
                 ],
               ],
             );
@@ -1973,7 +1406,7 @@ class _ConnectPanelContent extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  IconButton(
+                  GenericIconButton(
                     tooltip: 'Refresh Handoff devices',
                     splashRadius: 18,
                     onPressed: connect.refreshDiscovery,
@@ -2310,7 +1743,8 @@ class _ConnectMenuButton extends StatelessWidget {
     final icon = context.tokens.connectIcon;
 
     Widget buildIconButton(bool isActive) {
-      return IconButton(
+      return GenericIconButton(
+        style: appStyle,
         icon: Icon(
           icon,
           color: isActive ? activeColor : (inactiveColor ?? Colors.grey[400]),
@@ -2358,7 +1792,7 @@ class _VolumePopupButton extends StatelessWidget {
     return Selector<global_audio_player.WispAudioHandler, double>(
       selector: (context, player) => player.userVolume,
       builder: (context, volume, child) {
-        return IconButton(
+        return GenericIconButton(
           mouseCursor: SystemMouseCursors.click,
           tooltip: 'Volume',
           onPressed: () => _openVolumeMenu(context, accentColor: accentColor),
@@ -2488,7 +1922,7 @@ class _VolumeQuickPanel extends StatelessWidget {
                             ),
                           ),
                         ),
-                        IconButton(
+                        GenericIconButton(
                           tooltip: volume == 0 ? 'Unmute' : 'Mute',
                           onPressed: player.toggleMute,
                           icon: Icon(
@@ -2500,7 +1934,6 @@ class _VolumeQuickPanel extends StatelessWidget {
                             color: Colors.grey[300],
                             size: 18,
                           ),
-                          visualDensity: VisualDensity.compact,
                           constraints: const BoxConstraints(
                             minWidth: 28,
                             minHeight: 28,

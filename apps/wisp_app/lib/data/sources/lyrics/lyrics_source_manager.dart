@@ -21,6 +21,7 @@ class LyricsSourceManager {
   LyricsSourceManager._();
 
   final Map<String, LyricsSource> _sources = {};
+  bool _disposed = false;
   final Set<String> _explicitlyUninstalled = {};
   final List<VoidCallback> _listeners = [];
 
@@ -77,7 +78,11 @@ class LyricsSourceManager {
     try {
       await _loadDiskProviders();
     } catch (e, stack) {
-      logger.e('[LyricsSourceManager] Error loading external providers: $e', error: e, stackTrace: stack);
+      logger.e(
+        '[LyricsSourceManager] Error loading external providers: $e',
+        error: e,
+        stackTrace: stack,
+      );
     }
     _initialized = true;
     logger.i(
@@ -96,7 +101,10 @@ class LyricsSourceManager {
 
   /// Get all available sources ordered by user priority override (if set),
   /// otherwise by capability rank (word > line > unsynced), tie-broken by manifest priority.
-  List<LyricsSource> getOrderedSourcesForMode(LyricsSyncMode requestedMode, [PreferencesProvider? prefs]) {
+  List<LyricsSource> getOrderedSourcesForMode(
+    LyricsSyncMode requestedMode, [
+    PreferencesProvider? prefs,
+  ]) {
     final list = _sources.values.toList();
     final customOrder = prefs?.getProviderOrder('lyrics') ?? const [];
     list.sort((a, b) {
@@ -162,14 +170,18 @@ class LyricsSourceManager {
 
     for (final baseDir in searchDirs) {
       if (!baseDir.existsSync()) {
-        logger.d('[LyricsSourceManager] Directory does not exist: ${baseDir.path}');
+        logger.d(
+          '[LyricsSourceManager] Directory does not exist: ${baseDir.path}',
+        );
         continue;
       }
       final subdirs = baseDir.listSync().whereType<Directory>();
       for (final folder in subdirs) {
         final manifestFile = File(p.join(folder.path, 'manifest.json'));
         if (!manifestFile.existsSync()) {
-          logger.d('[LyricsSourceManager] Skipping directory (no manifest.json): ${folder.path}');
+          logger.d(
+            '[LyricsSourceManager] Skipping directory (no manifest.json): ${folder.path}',
+          );
           continue;
         }
 
@@ -179,7 +191,9 @@ class LyricsSourceManager {
                   as Map<String, dynamic>;
           final id = manifestJson['id'] as String? ?? p.basename(folder.path);
           if (_explicitlyUninstalled.contains(id)) {
-            logger.d('[LyricsSourceManager] Skipping uninstalled provider: $id');
+            logger.d(
+              '[LyricsSourceManager] Skipping uninstalled provider: $id',
+            );
             continue;
           }
           final name = manifestJson['name'] as String? ?? id;
@@ -191,11 +205,13 @@ class LyricsSourceManager {
               ?.cast<String>();
           final supportedModes = modesList != null
               ? modesList
-                  .map((m) => LyricsSyncMode.values.firstWhere(
+                    .map(
+                      (m) => LyricsSyncMode.values.firstWhere(
                         (v) => v.name.toLowerCase() == m.toLowerCase(),
                         orElse: () => LyricsSyncMode.line,
-                      ))
-                  .toSet()
+                      ),
+                    )
+                    .toSet()
               : const {LyricsSyncMode.line, LyricsSyncMode.unsynced};
 
           final priority = manifestJson['priority'] as int? ?? 0;
@@ -289,5 +305,14 @@ class LyricsSourceManager {
     _initFuture = null;
     await initialize();
     _notifyListeners();
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    for (final source in _sources.values) {
+      source.dispose();
+    }
+    _sources.clear();
   }
 }

@@ -1,4 +1,4 @@
-// Copyright © 2026 wizeshi
+﻿// Copyright Â© 2026 wizeshi
 
 import 'dart:convert';
 
@@ -78,7 +78,7 @@ class PreferencesProvider extends ChangeNotifier {
   static const bool _defaultDebugModeEnabled = false;
   static const bool _defaultAutoRegisterLocalProviders = false;
 
-  AppStyle _style = AppStyle.Spotify;
+  AppStyle _style = AppStyle.platformDefault;
   AppStyle get style => _style;
 
   bool _animatedCanvasEnabled = false;

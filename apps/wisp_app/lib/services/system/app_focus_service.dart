@@ -16,6 +16,7 @@ class AppFocusService with WindowListener, WidgetsBindingObserver {
   static final AppFocusService instance = AppFocusService._();
 
   final ValueNotifier<bool> isFocused = ValueNotifier(true);
+  bool _disposed = false;
 
   bool get _isDesktop =>
       Platform.isLinux || Platform.isWindows || Platform.isMacOS;
@@ -55,6 +56,8 @@ class AppFocusService with WindowListener, WidgetsBindingObserver {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     if (_isDesktop) {
       windowManager.removeListener(this);
     }

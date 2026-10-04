@@ -2,6 +2,7 @@
 
 // Debug View for the app. Shows internal info about app state, player state, whatever needed.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 

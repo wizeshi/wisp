@@ -371,7 +371,7 @@ class MetadataManager extends ChangeNotifier {
     String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
-    const fetchLimit = 200;
+    const fetchLimit = 500;
     final playlist = await provider.getPlaylistInfo(
       playlistId,
       offset: 0,

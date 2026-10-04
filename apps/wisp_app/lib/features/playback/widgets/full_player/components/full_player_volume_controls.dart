@@ -2,6 +2,7 @@
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/shared/widgets/buttons/generic_button.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
 
 class FullPlayerVolumeQuickPanel extends StatelessWidget {
@@ -67,7 +68,7 @@ class FullPlayerVolumeQuickPanel extends StatelessWidget {
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        IconButton(
+                        GenericIconButton(
                           tooltip: volume <= 0.001 ? 'Unmute' : 'Mute',
                           onPressed: onToggleMute,
                           icon: Icon(
@@ -79,7 +80,6 @@ class FullPlayerVolumeQuickPanel extends StatelessWidget {
                             color: Colors.grey[300],
                             size: 18,
                           ),
-                          visualDensity: VisualDensity.compact,
                           constraints: const BoxConstraints(
                             minWidth: 28,
                             minHeight: 28,

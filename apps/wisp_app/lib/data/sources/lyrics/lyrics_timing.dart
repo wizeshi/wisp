@@ -13,6 +13,7 @@ const int kLyricsFadeOutWindowMs = 140;
 
 class LyricsTimingState {
   final int activeIndex;
+  final Set<int> activeIndices;
   final int? previousIndex;
   final int? nextIndex;
   final int gapMs;
@@ -21,6 +22,7 @@ class LyricsTimingState {
 
   const LyricsTimingState({
     required this.activeIndex,
+    this.activeIndices = const {},
     required this.previousIndex,
     required this.nextIndex,
     required this.gapMs,
@@ -40,6 +42,29 @@ class LyricsTimingState {
       nextIndex != null &&
       gapMs > 0 &&
       gapMs <= kLyricsWaitingGapThresholdMs;
+}
+
+class LyricsFrame {
+  final int activeIndex;
+  final Set<int> activeIndices;
+  final LyricsTimingState? timing;
+  final int positionMs;
+  final int delayMs;
+
+  const LyricsFrame({
+    required this.activeIndex,
+    this.activeIndices = const {},
+    required this.timing,
+    required this.positionMs,
+    required this.delayMs,
+  });
+
+  const LyricsFrame.unsynced()
+      : activeIndex = 0,
+        activeIndices = const {0},
+        timing = null,
+        positionMs = 0,
+        delayMs = 0;
 }
 
 class LyricsWordTimingState {
@@ -162,6 +187,186 @@ List<bool> resolveWordLeadingSpaces(
   return leadingSpaces;
 }
 
+/// Maps each [LyricsWord] to its [TextSelection] range within [lineContent].
+List<TextSelection> resolveWordRanges(
+  String lineContent,
+  List<LyricsWord> words,
+) {
+  if (words.isEmpty) {
+    return const [];
+  }
+
+  final ranges = <TextSelection>[];
+  var pos = 0;
+
+  for (final word in words) {
+    if (word.content.isEmpty) {
+      ranges.add(TextSelection(baseOffset: pos, extentOffset: pos));
+      continue;
+    }
+
+    final idx = lineContent.indexOf(word.content, pos);
+    if (idx >= 0) {
+      final end = idx + word.content.length;
+      ranges.add(TextSelection(baseOffset: idx, extentOffset: end));
+      pos = end;
+    } else {
+      final nextEnd = (pos + word.content.length).clamp(0, lineContent.length);
+      ranges.add(TextSelection(baseOffset: pos, extentOffset: nextEnd));
+      pos = nextEnd;
+    }
+  }
+
+  return ranges;
+}
+
+/// Computes the effective end time in milliseconds for [line].
+int resolveLineEndTimeMs(
+  LyricsLine line, {
+  int? nextLineStartTimeMs,
+}) {
+  if (line.hasWordTiming && line.words.isNotEmpty) {
+    final lastWord = line.words.last;
+    final lastWordEnd = lastWord.endTimeMs ?? (lastWord.startTimeMs + 800);
+    if (line.endTimeMs != null && line.endTimeMs! > line.startTimeMs) {
+      return math.max(line.endTimeMs!, lastWordEnd);
+    }
+    return lastWordEnd;
+  }
+
+  if (line.endTimeMs != null && line.endTimeMs! > line.startTimeMs) {
+    return line.endTimeMs!;
+  }
+
+  if (nextLineStartTimeMs != null && nextLineStartTimeMs > line.startTimeMs) {
+    final span = nextLineStartTimeMs - line.startTimeMs;
+    return line.startTimeMs + _estimateLineActiveMs(line.content, span);
+  }
+
+  return line.startTimeMs + _estimateLineActiveMs(line.content, 4000);
+}
+
+/// A clipper that reveals the filled (sung) portion of a lyrics line from left to right.
+///
+/// Used in dual-layer lyrics line rendering where an identical inactive line is
+/// overlaid with a clipped active line. This ensures zero layout shifts or baseline
+/// jumps during the fill animation.
+class LyricsLineFillClipper extends CustomClipper<Path> {
+  final String lineContent;
+  final List<LyricsWord> words;
+  final List<TextSelection> wordRanges;
+  final int? lineEndTimeMs;
+  final TextStyle style;
+  final int positionMs;
+
+  const LyricsLineFillClipper({
+    required this.lineContent,
+    required this.words,
+    required this.wordRanges,
+    this.lineEndTimeMs,
+    required this.style,
+    required this.positionMs,
+  });
+
+  @override
+  Path getClip(Size size) {
+    if (words.isEmpty) return Path();
+
+    final tp = TextPainter(
+      text: TextSpan(text: lineContent, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: size.width);
+
+    final lineEnd = lineEndTimeMs ??
+        (words.last.endTimeMs ?? (words.last.startTimeMs + 800));
+
+    // If position is past the line's end, fully reveal the line
+    if (positionMs >= lineEnd) {
+      return Path()
+        ..addRect(Rect.fromLTWH(0, 0, size.width + 10, size.height + 10));
+    }
+
+    final wordTiming = resolveWordLyricsTiming(words, positionMs);
+    final activeIndex = wordTiming.activeIndex;
+
+    final path = Path();
+    if (activeIndex < 0 && positionMs < words.first.startTimeMs) {
+      return path;
+    }
+
+    for (var i = 0; i < words.length; i++) {
+      if (i > activeIndex && activeIndex >= 0) break;
+      if (i >= wordRanges.length) break;
+      final range = wordRanges[i];
+      if (range.start >= range.end) continue;
+
+      final word = words[i];
+      final wordStartMs = word.startTimeMs;
+      final int wordEndMs;
+      if (word.endTimeMs != null && word.endTimeMs! > wordStartMs) {
+        wordEndMs = word.endTimeMs!;
+      } else if (i + 1 < words.length) {
+        wordEndMs = words[i + 1].startTimeMs;
+      } else if (lineEndTimeMs != null && lineEndTimeMs! > wordStartMs) {
+        wordEndMs = lineEndTimeMs!;
+      } else {
+        wordEndMs = wordStartMs + 800;
+      }
+
+      final double fillProgress;
+      if (i < activeIndex) {
+        fillProgress = 1.0;
+      } else if (i == activeIndex) {
+        if (positionMs <= wordStartMs) {
+          fillProgress = 0.0;
+        } else if (positionMs >= wordEndMs || wordEndMs <= wordStartMs) {
+          fillProgress = 1.0;
+        } else {
+          fillProgress =
+              ((positionMs - wordStartMs) / (wordEndMs - wordStartMs)).clamp(0.0, 1.0);
+        }
+      } else {
+        fillProgress = 0.0;
+      }
+
+      if (fillProgress <= 0.0) continue;
+
+      final int extentEnd;
+      if (i < activeIndex && i + 1 < wordRanges.length) {
+        extentEnd = wordRanges[i + 1].start;
+      } else if (i == words.length - 1 && fillProgress >= 1.0) {
+        extentEnd = lineContent.length;
+      } else {
+        extentEnd = range.end;
+      }
+
+      final boxes = tp.getBoxesForSelection(
+        TextSelection(baseOffset: range.start, extentOffset: extentEnd),
+      );
+
+      for (final box in boxes) {
+        final rect = box.toRect();
+        if (fillProgress >= 1.0) {
+          path.addRect(Rect.fromLTRB(rect.left, rect.top, rect.right + 0.5, rect.bottom));
+        } else {
+          final partialWidth = rect.width * fillProgress;
+          path.addRect(Rect.fromLTRB(rect.left, rect.top, rect.left + partialWidth, rect.bottom));
+        }
+      }
+    }
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(LyricsLineFillClipper oldClipper) {
+    return oldClipper.positionMs != positionMs ||
+        oldClipper.style != style ||
+        oldClipper.lineContent != lineContent ||
+        oldClipper.lineEndTimeMs != lineEndTimeMs;
+  }
+}
+
 InlineSpan buildLyricsLineSpan({
   required LyricsLine line,
   required LyricsSyncMode syncMode,
@@ -170,6 +375,7 @@ InlineSpan buildLyricsLineSpan({
   required Color activeWordColor,
   required Color inactiveWordColor,
   required bool highlightWords,
+  bool animateWordFill = false,
 }) {
   if (!highlightWords ||
       syncMode != LyricsSyncMode.word ||
@@ -187,6 +393,22 @@ InlineSpan buildLyricsLineSpan({
   for (var index = 0; index < line.words.length; index++) {
     final word = line.words[index];
     final isActiveWord = wordTiming.activeIndex == index;
+    final wordStartMs = word.startTimeMs;
+    final wordEndMs =
+        word.endTimeMs ??
+        (index + 1 < line.words.length
+            ? line.words[index + 1].startTimeMs
+            : wordStartMs + 300);
+    final fillProgress = index < wordTiming.activeIndex
+        ? 1.0
+        : index > wordTiming.activeIndex || positionMs <= wordStartMs
+        ? 0.0
+        : positionMs >= wordEndMs || wordEndMs <= wordStartMs
+        ? 1.0
+        : ((positionMs - wordStartMs) / (wordEndMs - wordStartMs)).clamp(
+            0.0,
+            1.0,
+          );
 
     if (leadingSpaces[index]) {
       spans.add(
@@ -197,17 +419,22 @@ InlineSpan buildLyricsLineSpan({
       );
     }
 
+    if (animateWordFill) {
+      final color = Color.lerp(inactiveWordColor, activeWordColor, fillProgress);
+      spans.add(
+        TextSpan(
+          text: word.content,
+          style: baseStyle.copyWith(color: color),
+        ),
+      );
+      continue;
+    }
+
     spans.add(
-      WidgetSpan(
-        alignment: PlaceholderAlignment.baseline,
-        baseline: TextBaseline.alphabetic,
-        child: AnimatedDefaultTextStyle(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOutCubic,
-          style: baseStyle.copyWith(
-            color: isActiveWord ? activeWordColor : inactiveWordColor,
-          ),
-          child: Text(word.content),
+      TextSpan(
+        text: word.content,
+        style: baseStyle.copyWith(
+          color: isActiveWord ? activeWordColor : inactiveWordColor,
         ),
       ),
     );
@@ -250,6 +477,7 @@ LyricsTimingState resolveSyncedLyricsTiming(
   if (lines.isEmpty) {
     return const LyricsTimingState(
       activeIndex: -1,
+      activeIndices: {},
       previousIndex: null,
       nextIndex: null,
       gapMs: 0,
@@ -258,16 +486,28 @@ LyricsTimingState resolveSyncedLyricsTiming(
     );
   }
 
+  final lineEndTimes = List<int>.generate(lines.length, (i) {
+    final nextStart = i + 1 < lines.length ? lines[i + 1].startTimeMs : null;
+    return resolveLineEndTimeMs(lines[i], nextLineStartTimeMs: nextStart);
+  });
+
+  final activeIndices = <int>{};
   int? previousIndex;
   int? nextIndex;
 
   for (var i = 0; i < lines.length; i++) {
-    if (lines[i].startTimeMs <= safePositionMs) {
-      previousIndex = i;
-      continue;
+    final start = lines[i].startTimeMs;
+    final end = lineEndTimes[i];
+
+    if (start <= safePositionMs && safePositionMs < end) {
+      activeIndices.add(i);
     }
-    nextIndex = i;
-    break;
+
+    if (start <= safePositionMs) {
+      previousIndex = i;
+    } else {
+      nextIndex ??= i;
+    }
   }
 
   if (previousIndex == null) {
@@ -279,6 +519,7 @@ LyricsTimingState resolveSyncedLyricsTiming(
 
     return LyricsTimingState(
       activeIndex: -1,
+      activeIndices: const {},
       previousIndex: null,
       nextIndex: nextIndex,
       gapMs: gapMs,
@@ -288,8 +529,12 @@ LyricsTimingState resolveSyncedLyricsTiming(
   }
 
   if (nextIndex == null) {
+    final active = activeIndices.isNotEmpty
+        ? activeIndices.last
+        : (safePositionMs < lineEndTimes[previousIndex] ? previousIndex : -1);
     return LyricsTimingState(
-      activeIndex: previousIndex,
+      activeIndex: active,
+      activeIndices: activeIndices,
       previousIndex: previousIndex,
       nextIndex: null,
       gapMs: 0,
@@ -298,18 +543,8 @@ LyricsTimingState resolveSyncedLyricsTiming(
     );
   }
 
-  final previousStart = lines[previousIndex].startTimeMs;
   final nextStart = lines[nextIndex].startTimeMs;
-  final startToStartSpanMs = (nextStart - previousStart)
-      .clamp(0, 1 << 31)
-      .toInt();
-
-  final estimatedActiveMs = _estimateLineActiveMs(
-    lines[previousIndex].content,
-    startToStartSpanMs,
-  );
-  final estimatedLineEndMs = previousStart + estimatedActiveMs;
-  final lineEndMs = math.min(estimatedLineEndMs, nextStart);
+  final lineEndMs = lineEndTimes[previousIndex];
 
   final gapMs = (nextStart - lineEndMs).clamp(0, 1 << 31).toInt();
   final isPastLineEnd = safePositionMs >= lineEndMs;
@@ -326,10 +561,18 @@ LyricsTimingState resolveSyncedLyricsTiming(
             .toDouble();
 
   final isLongGap = gapMs > kLyricsWaitingGapThresholdMs;
-  final activeIndex = isLongGap && isPastLineEnd ? -1 : previousIndex;
+  final int activeIndex;
+  if (activeIndices.isNotEmpty) {
+    activeIndex = activeIndices.last;
+  } else if (isLongGap && isPastLineEnd) {
+    activeIndex = -1;
+  } else {
+    activeIndex = previousIndex;
+  }
 
   return LyricsTimingState(
     activeIndex: activeIndex,
+    activeIndices: activeIndices,
     previousIndex: previousIndex,
     nextIndex: nextIndex,
     gapMs: gapMs,

@@ -210,6 +210,7 @@ class ConnectSessionProvider extends ChangeNotifier
       _pendingTrustPromptDeviceName != null;
 
   Future<void>? _discoveryStartFuture;
+  bool _transportDisposed = false;
 
   ConnectSessionProvider({
     PreferencesProvider? preferences,
@@ -2328,6 +2329,13 @@ class ConnectSessionProvider extends ChangeNotifier
 
   @override
   void dispose() {
+    unawaited(shutdown());
+    super.dispose();
+  }
+
+  Future<void> shutdown() async {
+    if (_transportDisposed) return;
+    _transportDisposed = true;
     _audioHandler?.removeListener(_onAudioHandlerChanged);
     _pruneTimer?.cancel();
     _deviceSubscription?.cancel();
@@ -2343,8 +2351,7 @@ class ConnectSessionProvider extends ChangeNotifier
     // legacy playback pulse subscription removed
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
-    _transport.dispose();
-    super.dispose();
+    await _transport.dispose();
   }
 }
 

@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/connect/widgets/connect_menu.dart';
@@ -20,10 +21,11 @@ import 'package:wisp/features/playback/views/lyrics_view.dart';
 import 'package:wisp/features/playback/views/queue_view.dart';
 import 'package:wisp/features/playback/widgets/animated_lyrics_preview.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
+import 'package:wisp/shared/widgets/buttons/generic_button.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
-import '../components/canvas_video.dart';
-import '../components/cover_gradient_container.dart';
-import '../components/mobile_artist_info_card.dart';
+import '../../components/canvas_video.dart';
+import '../../components/cover_gradient_container.dart';
+import '../../components/mobile_artist_info_card.dart';
 import 'apple_music_full_player.dart';
 
 class SpotifyFullScreenPlayer extends StatelessWidget {
@@ -87,7 +89,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
           children: [
             SizedBox(
               width: 40,
-              child: IconButton(
+              child: GenericIconButton(
+                style: AppStyle.Spotify,
                 icon: const Icon(Icons.keyboard_arrow_down, size: 32),
                 color: Colors.white,
                 padding: EdgeInsets.zero,
@@ -125,7 +128,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
             ),
             SizedBox(
               width: 40,
-              child: IconButton(
+              child: GenericIconButton(
+                style: AppStyle.Spotify,
                 icon: const Icon(Icons.more_vert, size: 24),
                 color: Colors.white,
                 padding: EdgeInsets.zero,
@@ -516,7 +520,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                         ),
                       ),
                     ),
-                    IconButton(
+                    GenericIconButton(
+                      style: AppStyle.Spotify,
                       tooltip: 'Open lyrics',
                       onPressed: lyrics == null
                           ? null
@@ -524,7 +529,6 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                       icon: const Icon(Icons.lyrics_outlined),
                       iconSize: 20,
                       color: Colors.white,
-                      visualDensity: VisualDensity.compact,
                       splashRadius: 18,
                     ),
                   ],
@@ -624,8 +628,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            // Queue button
-            IconButton(
+            GenericIconButton(
+              style: AppStyle.Spotify,
               icon: const Icon(Icons.cast_connected),
               iconSize: 24,
               color: Colors.grey[400],
@@ -633,7 +637,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 unawaited(_openHandoffSheet(context));
               },
             ),
-            IconButton(
+            GenericIconButton(
+              style: AppStyle.Spotify,
               icon: const Icon(Icons.share),
               iconSize: 24,
               color: Colors.grey[400],
@@ -644,8 +649,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            // Queue button
-            IconButton(
+            GenericIconButton(
+              style: AppStyle.Spotify,
               icon: const Icon(Icons.queue_music),
               iconSize: 24,
               color: Colors.grey[400],
@@ -653,8 +658,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 showMobileQueueSheet(context);
               },
             ),
-            // Lyrics button
-            IconButton(
+            GenericIconButton(
+              style: AppStyle.Spotify,
               icon: const Icon(Icons.music_note),
               iconSize: 24,
               color: Colors.grey[400],
@@ -787,7 +792,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         // Shuffle
-        IconButton(
+        GenericIconButton(
+          style: AppStyle.Spotify,
           icon: const Icon(Icons.shuffle),
           iconSize: 28,
           color: player.isDJMode
@@ -802,7 +808,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 },
         ),
         // Previous
-        IconButton(
+        GenericIconButton(
+          style: AppStyle.Spotify,
           icon: const Icon(Icons.skip_previous),
           iconSize: 36,
           color: Colors.white,
@@ -816,7 +823,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
         // Play/Pause - Large circular button
         _buildPlayPauseButton(context, player, bgColor),
         // Next
-        IconButton(
+        GenericIconButton(
+          style: AppStyle.Spotify,
           icon: const Icon(Icons.skip_next),
           iconSize: 36,
           color: Colors.white,
@@ -828,7 +836,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
                 },
         ),
         // Repeat
-        IconButton(
+        GenericIconButton(
+          style: AppStyle.Spotify,
           icon: Icon(
             player.repeatMode == global_audio_player.RepeatMode.one
                 ? Icons.repeat_one
@@ -886,7 +895,8 @@ class SpotifyFullScreenPlayer extends StatelessWidget {
       width: 64,
       height: 64,
       decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
-      child: IconButton(
+      child: GenericIconButton(
+        style: AppStyle.Spotify,
         icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
         iconSize: 36,
         color: Colors.black,

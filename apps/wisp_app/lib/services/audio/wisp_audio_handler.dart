@@ -91,12 +91,7 @@ class PlaybackContext {
   });
 
   Map<String, dynamic> toJson() {
-    return {
-      'type': type.toJson(),
-      'id': id,
-      'name': name,
-      'source': source,
-    };
+    return {'type': type.toJson(), 'id': id, 'name': name, 'source': source};
   }
 
   static PlaybackContext? fromJson(Map<String, dynamic>? json) {
@@ -205,6 +200,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   static const Duration _positionNotifyInterval = Duration(milliseconds: 200);
   static const Duration _streamUrlTtl = Duration(minutes: 15);
+  final Stopwatch _rawPositionStopwatch = Stopwatch();
   Duration _lastRawPosition = Duration.zero;
   Duration _lastNotifiedPosition = Duration.zero;
   int _lastPositionNotifyMs = 0;
@@ -220,6 +216,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void>? _startupPrepareFuture;
   bool _isHandlingCompletion = false;
   bool _isTrackTransitioning = false;
+  bool _engineDisposed = false;
 
   static const int _prefetchWindowSize = 5;
   int _prefetchGeneration = 0;
@@ -261,6 +258,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _saveQueue();
     notifyListeners();
   }
+
   bool get _playlistPlaybackEnabled =>
       _gaplessPlaybackEnabled || _crossfadeEnabled;
   Duration get position => _engine.state.position;
@@ -620,8 +618,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     });
 
     _outputDevicesSubscription = _engine.outputDevices.listen((devices) {
-      logger.i("[Audio/Player] output devices: $devices");
-
       _availableOutputDevices = devices;
       notifyListeners();
     });
@@ -714,6 +710,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   void _handlePositionUpdate(Duration position) {
     _lastRawPosition = position;
+    _rawPositionStopwatch.reset();
+    if (isPlaying && !isBuffering) {
+      _rawPositionStopwatch.start();
+    }
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     _updateMediaSessionPosition(position, nowMs);
     if (nowMs - _lastPositionNotifyMs <
@@ -732,6 +732,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   void _forcePositionUpdate(Duration position) {
     _lastRawPosition = position;
+    _rawPositionStopwatch.reset();
+    if (isPlaying && !isBuffering) {
+      _rawPositionStopwatch.start();
+    }
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     _updateMediaSessionPosition(position, nowMs, force: true);
     _lastNotifiedPosition = position;
@@ -764,19 +768,19 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   Duration _getInterpolatedPosition() {
-    if (_lastPositionUpdateMs == 0) return _lastNotifiedPosition;
-    if (!isPlaying || isBuffering) return _lastNotifiedPosition;
+    if (_lastRawPosition == Duration.zero && _lastPositionUpdateMs == 0) {
+      return Duration.zero;
+    }
+    if (!isPlaying || isBuffering) return _lastRawPosition;
+    if (!_rawPositionStopwatch.isRunning) return _lastRawPosition;
 
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final elapsedMs = nowMs - _lastPositionUpdateMs;
-    if (elapsedMs <= 0) return _lastNotifiedPosition;
-
-    var predicted = _lastNotifiedPosition + Duration(milliseconds: elapsedMs);
-
-    if (_lastRawPosition > Duration.zero && predicted > _lastRawPosition) {
-      predicted = _lastRawPosition;
+    final elapsed = _rawPositionStopwatch.elapsed;
+    // Guard against drift if engine updates stall for more than 1.5 seconds
+    if (elapsed.inMilliseconds > 1500) {
+      return _lastRawPosition + const Duration(milliseconds: 1500);
     }
 
+    var predicted = _lastRawPosition + elapsed;
     final trackDuration = duration;
     if (trackDuration > Duration.zero && predicted > trackDuration) {
       predicted = trackDuration;
@@ -838,6 +842,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   void _setState(PlaybackState newState) {
     if (_state != newState) {
       _state = newState;
+      if (isPlaying && !isBuffering) {
+        _rawPositionStopwatch.start();
+      } else {
+        _rawPositionStopwatch.stop();
+      }
       notifyListeners();
       _broadcastPlaybackState();
       if (_currentTrack == null || newState == PlaybackState.idle) {
@@ -1186,15 +1195,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           shuffleMode: isDJMode
               ? audio_service.AudioServiceShuffleMode.none
               : (_shuffleEnabled
-                  ? audio_service.AudioServiceShuffleMode.all
-                  : audio_service.AudioServiceShuffleMode.none),
+                    ? audio_service.AudioServiceShuffleMode.all
+                    : audio_service.AudioServiceShuffleMode.none),
           repeatMode: isDJMode
               ? audio_service.AudioServiceRepeatMode.none
               : (_repeatMode == RepeatMode.one
-                  ? audio_service.AudioServiceRepeatMode.one
-                  : _repeatMode == RepeatMode.all
-                  ? audio_service.AudioServiceRepeatMode.all
-                  : audio_service.AudioServiceRepeatMode.none),
+                    ? audio_service.AudioServiceRepeatMode.one
+                    : _repeatMode == RepeatMode.all
+                    ? audio_service.AudioServiceRepeatMode.all
+                    : audio_service.AudioServiceRepeatMode.none),
           updatePosition: position,
         ),
       );
@@ -1242,6 +1251,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         trackDuration = _engine.state.duration;
       }
     }
+    
     return audio_service.MediaItem(
       id: track.id,
       title: track.title,
@@ -1319,8 +1329,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     try {
       final initialPosition =
           (_keepPositionBetweenRestarts && _savedPositionMs > 0)
-              ? Duration(milliseconds: _savedPositionMs)
-              : Duration.zero;
+          ? Duration(milliseconds: _savedPositionMs)
+          : Duration.zero;
 
       await _loadTrackAtIndex(
         _currentIndex < 0 ? 0 : _currentIndex,
@@ -1504,7 +1514,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         if (appended && nextIndex < _queue.length) {
           // Successfully appended tracks to DJ queue
         } else {
-          logger.i('[Audio/Player] Reached end of DJ queue, could not append tracks');
+          logger.i(
+            '[Audio/Player] Reached end of DJ queue, could not append tracks',
+          );
           _setState(PlaybackState.idle);
           return;
         }
@@ -1537,7 +1549,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     final metadata = _metadataManager;
     if (metadata == null) {
-      logger.w('[Audio/DJ] Cannot fetch similar tracks: MetadataManager not bound');
+      logger.w(
+        '[Audio/DJ] Cannot fetch similar tracks: MetadataManager not bound',
+      );
       return false;
     }
 
@@ -1561,7 +1575,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       logger.i(
         '[Audio/DJ] Fetching similar tracks for end of queue: ${lastTrack.title} ($cleanId)',
       );
-      final similar = await metadata.getSimilarTracks(cleanId, source: lastTrack.source);
+      final similar = await metadata.getSimilarTracks(
+        cleanId,
+        source: lastTrack.source,
+      );
       if (similar == null || similar.isEmpty) {
         logger.w('[Audio/DJ] getSimilarTracks returned null or empty');
         return false;
@@ -1590,20 +1607,20 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       final tracksToAdd = newTracks.isNotEmpty
           ? newTracks
           : similar
-              .where((t) => t.id != lastTrack.id)
-              .map(
-                (item) => GenericSong(
-                  id: item.id,
-                  source: item.source,
-                  title: item.title,
-                  artists: item.artists,
-                  thumbnailUrl: item.thumbnailUrl,
-                  explicit: item.explicit,
-                  durationSecs: item.durationSecs,
-                  album: item.album,
-                ),
-              )
-              .toList();
+                .where((t) => t.id != lastTrack.id)
+                .map(
+                  (item) => GenericSong(
+                    id: item.id,
+                    source: item.source,
+                    title: item.title,
+                    artists: item.artists,
+                    thumbnailUrl: item.thumbnailUrl,
+                    explicit: item.explicit,
+                    durationSecs: item.durationSecs,
+                    album: item.album,
+                  ),
+                )
+                .toList();
 
       if (tracksToAdd.isEmpty) {
         return false;
@@ -1976,8 +1993,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       final requestToken = ++_trackChangeToken;
       final initialPosition =
           (_keepPositionBetweenRestarts && _savedPositionMs > 0)
-              ? Duration(milliseconds: _savedPositionMs)
-              : Duration.zero;
+          ? Duration(milliseconds: _savedPositionMs)
+          : Duration.zero;
       await _loadTrackAtIndex(
         _currentIndex < 0 ? 0 : _currentIndex,
         play: true,
@@ -2496,8 +2513,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     try {
       final currentPosMs =
           (_keepPositionBetweenRestarts && _engine.state.source != null)
-              ? _engine.state.position.inMilliseconds
-              : 0;
+          ? _engine.state.position.inMilliseconds
+          : 0;
 
       final session = PlaybackSession(
         queue: _queue,
@@ -2607,6 +2624,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _setState(PlaybackState.idle);
   }
 
+  Future<void> shutdown() async {
+    try {
+      await stop();
+    } catch (_) {}
+    if (!_engineDisposed) {
+      await _engine.dispose();
+      _engineDisposed = true;
+    }
+    dispose();
+    await PlaybackSessionStore.instance.flush();
+  }
+
   @override
   void dispose() {
     _saveVolumePrefs();
@@ -2619,7 +2648,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _stopRpcTimer();
     _stopMprisTimer();
     DiscordRpcService.instance.dispose();
-    unawaited(_engine.dispose());
+    if (!_engineDisposed) {
+      unawaited(_engine.dispose());
+    }
     _youtube.dispose();
     super.dispose();
   }

@@ -1,4 +1,4 @@
-// Copyright © 2026 wizeshi
+﻿// Copyright © 2026 wizeshi
 
 /// Settings page with Spotify authentication
 library;
@@ -1421,8 +1421,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildDebugSection() {
     return Selector<PreferencesProvider, (bool, bool)>(
-      selector: (context, prefs) =>
-          (prefs.debugModeEnabled, prefs.autoRegisterLocalProviders),
+      selector: (context, prefs) => (
+        prefs.debugModeEnabled,
+        prefs.autoRegisterLocalProviders,
+      ),
       builder: (context, state, child) {
         final (debugModeEnabled, autoRegisterLocalProviders) = state;
         if (_isDesktop && !debugModeEnabled) {

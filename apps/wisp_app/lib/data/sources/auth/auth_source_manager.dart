@@ -19,6 +19,7 @@ class AuthSourceManager extends ChangeNotifier {
   final Set<String> _explicitlyUninstalled = {};
   bool _initialized = false;
   Future<void>? _initFuture;
+  bool _disposed = false;
 
   bool get isInitialized => _initialized;
   Map<String, JsAuthSource> get sources => Map.unmodifiable(_sources);
@@ -88,6 +89,17 @@ class AuthSourceManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    for (final source in _sources.values) {
+      source.dispose();
+    }
+    _sources.clear();
+    super.dispose();
+  }
+
   Future<Directory> getProvidersDirectory() async {
     final supportDir = await getApplicationSupportDirectory();
     final dir = Directory(p.join(supportDir.path, 'providers', 'auth'));
@@ -116,7 +128,11 @@ class AuthSourceManager extends ChangeNotifier {
         }
       }
     } catch (e, stack) {
-      logger.e('[AuthSourceManager] Error initializing: $e', error: e, stackTrace: stack);
+      logger.e(
+        '[AuthSourceManager] Error initializing: $e',
+        error: e,
+        stackTrace: stack,
+      );
     }
     _initialized = true;
     logger.i('[AuthSourceManager] Initialized with ${_sources.length} sources');
@@ -131,7 +147,9 @@ class AuthSourceManager extends ChangeNotifier {
         final scriptFile = File(p.join(entity.path, 'index.js'));
         if (manifestFile.existsSync() && scriptFile.existsSync()) {
           try {
-            final manifest = jsonDecode(await manifestFile.readAsString()) as Map<String, dynamic>;
+            final manifest =
+                jsonDecode(await manifestFile.readAsString())
+                    as Map<String, dynamic>;
             final id = manifest['id'] as String? ?? p.basename(entity.path);
             if (_explicitlyUninstalled.contains(id)) continue;
 
@@ -148,7 +166,9 @@ class AuthSourceManager extends ChangeNotifier {
             await source.initialize();
             _sources[id.toLowerCase()] = source;
           } catch (e) {
-            logger.e('[AuthSourceManager] Failed loading auth provider at ${entity.path}: $e');
+            logger.e(
+              '[AuthSourceManager] Failed loading auth provider at ${entity.path}: $e',
+            );
           }
         }
       }

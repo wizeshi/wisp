@@ -2,10 +2,9 @@
 
 library;
 
-import 'dart:async';
 import 'dart:io' show Platform;
-import 'dart:ui';
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
@@ -16,6 +15,7 @@ import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
+import '_lyrics_line_item.dart';
 
 class LyricsView extends StatefulWidget {
   final bool hideHeader;
@@ -26,27 +26,30 @@ class LyricsView extends StatefulWidget {
   State<LyricsView> createState() => _LyricsViewState();
 }
 
-class _LyricsViewState extends State<LyricsView> {
+class _LyricsViewState extends State<LyricsView>
+    with SingleTickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
+  List<ValueNotifier<LyricsFrame>> _lineTimingNotifiers = [];
   final GlobalKey _listKey = GlobalKey();
   List<GlobalKey> _lineKeys = [];
   LyricsSyncMode _syncMode = LyricsSyncMode.word;
   bool _autoScrollEnabled = true;
   int _currentLineIndex = -1;
+  Set<int> _currentActiveIndices = {};
   LyricsTimingState? _timingState;
+  int? _previousWaitingDotsIndex;
   String? _trackId;
   final TextEditingController _delayController = TextEditingController(
     text: '0',
   );
   double _lyricsDelaySeconds = 0;
-  Timer? _positionTimer;
+  Ticker? _positionTicker;
   LyricsResult? _activeLyrics;
   WispAudioHandler? _playerRef;
   bool _syncedLyricsAvailable = true;
   bool _didInitialCenter = false;
   bool _initialCenterScheduled = false;
   int _pendingInitialCenterIndex = -1;
-  int _hoveredLineIndex = -1;
   String? _delaySyncTrackId;
   double? _delaySyncValue;
 
@@ -70,8 +73,11 @@ class _LyricsViewState extends State<LyricsView> {
 
   @override
   void dispose() {
-    _positionTimer?.cancel();
+    _positionTicker?.dispose();
     _scrollController.dispose();
+    for (final notifier in _lineTimingNotifiers) {
+      notifier.dispose();
+    }
     _delayController.dispose();
     super.dispose();
   }
@@ -111,10 +117,11 @@ class _LyricsViewState extends State<LyricsView> {
     if (lyrics.syncMode == LyricsSyncMode.unsynced) {
       final newIndex = lyrics.lines.isEmpty ? -1 : 0;
       if (newIndex != _currentLineIndex || _timingState != null) {
-        setState(() {
-          _currentLineIndex = newIndex;
-          _timingState = null;
-        });
+        _currentLineIndex = newIndex;
+        _timingState = null;
+        _currentActiveIndices = {0};
+        _previousWaitingDotsIndex = null;
+        _notifyTimingLines(const LyricsFrame.unsynced());
       }
       return;
     }
@@ -127,10 +134,31 @@ class _LyricsViewState extends State<LyricsView> {
         scrollIndex != _currentLineIndex;
     final targetScrollIndex = scrollIndex ?? timing.activeIndex;
 
-    setState(() {
-      _currentLineIndex = timing.activeIndex;
-      _timingState = timing;
-    });
+    final waitingDotsIndex =
+        (timing.showWaitingDots && timing.nextIndex != null)
+            ? timing.nextIndex
+            : null;
+    final previousWaitingDotsIndex = _previousWaitingDotsIndex;
+    _previousWaitingDotsIndex = waitingDotsIndex;
+
+    final previousIndex = _currentLineIndex;
+    final previousActiveIndices = _currentActiveIndices;
+    final frame = LyricsFrame(
+      activeIndex: timing.activeIndex,
+      activeIndices: timing.activeIndices,
+      timing: timing,
+      positionMs: effectivePosition,
+      delayMs: delayMs,
+    );
+    _currentLineIndex = timing.activeIndex;
+    _currentActiveIndices = timing.activeIndices;
+    _timingState = timing;
+    _notifyTimingLines(
+      frame,
+      previousActiveIndices: previousActiveIndices,
+      previousIndex: previousIndex,
+      previousWaitingDotsIndex: previousWaitingDotsIndex,
+    );
 
     if (shouldScroll) {
       _scrollToLine(targetScrollIndex);
@@ -138,15 +166,40 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   int? _scrollTargetIndex(LyricsTimingState timing) {
+    if (timing.activeIndices.isNotEmpty) {
+      return timing.activeIndices.last;
+    }
     if (timing.activeIndex >= 0) {
       return timing.activeIndex;
     }
     return timing.nextIndex ?? timing.previousIndex;
   }
 
+  void _notifyTimingLines(
+    LyricsFrame frame, {
+    Set<int>? previousActiveIndices,
+    int? previousIndex,
+    int? previousWaitingDotsIndex,
+  }) {
+    final indices = <int>{
+      ?previousIndex,
+      ...?previousActiveIndices,
+      ?previousWaitingDotsIndex,
+      ...frame.activeIndices,
+      frame.activeIndex,
+      if (frame.timing?.showWaitingDots == true &&
+          frame.timing?.nextIndex != null)
+        frame.timing!.nextIndex!,
+    };
+    for (final index in indices) {
+      if (index >= 0 && index < _lineTimingNotifiers.length) {
+        _lineTimingNotifiers[index].value = frame;
+      }
+    }
+  }
+
   void _ensurePositionTimer() {
-    if (_positionTimer != null) return;
-    _positionTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+    _positionTicker ??= createTicker((_) {
       if (!mounted) return;
       // Freeze line-highlighting/auto-scroll while the app/window is
       // unfocused, if the user has enabled that behavior for this widget.
@@ -159,6 +212,9 @@ class _LyricsViewState extends State<LyricsView> {
       final positionMs = _effectivePositionMs();
       _updateCurrentLine(lyrics, positionMs);
     });
+    if (!_positionTicker!.isActive) {
+      _positionTicker!.start();
+    }
   }
 
   int _effectivePositionMs() {
@@ -169,8 +225,7 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   void _stopPositionTimer() {
-    _positionTimer?.cancel();
-    _positionTimer = null;
+    _positionTicker?.stop();
     _activeLyrics = null;
     _playerRef = null;
   }
@@ -326,6 +381,7 @@ class _LyricsViewState extends State<LyricsView> {
       _syncMode = mode;
       _currentLineIndex = mode == LyricsSyncMode.unsynced ? 0 : -1;
       _timingState = null;
+      _previousWaitingDotsIndex = null;
       _autoScrollEnabled = true;
       _didInitialCenter = false;
     });
@@ -464,9 +520,11 @@ class _LyricsViewState extends State<LyricsView> {
 
     final content = _buildLyricsContent(backgroundColor);
 
-    return Consumer2<WispAudioHandler, LyricsProvider>(
-      builder: (context, player, lyricsProvider, child) {
-        final track = player.currentTrack;
+    return Selector<WispAudioHandler, GenericSong?>(
+      selector: (context, player) => player.currentTrack,
+      builder: (context, track, child) {
+        final player = context.read<WispAudioHandler>();
+        final lyricsProvider = context.watch<LyricsProvider>();
         if (track == null) {
           _stopPositionTimer();
           return const Center(
@@ -528,9 +586,11 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildLyricsContent(Color backgroundColor) {
-    return Consumer2<WispAudioHandler, LyricsProvider>(
-      builder: (context, player, lyricsProvider, child) {
-        final track = player.currentTrack;
+    return Selector<WispAudioHandler, GenericSong?>(
+      selector: (context, player) => player.currentTrack,
+      builder: (context, track, child) {
+        final player = context.read<WispAudioHandler>();
+        final lyricsProvider = context.watch<LyricsProvider>();
         if (track == null) {
           _stopPositionTimer();
           return const Center(
@@ -549,7 +609,6 @@ class _LyricsViewState extends State<LyricsView> {
           _autoScrollEnabled = true;
           _syncedLyricsAvailable = true;
           _didInitialCenter = false;
-          _hoveredLineIndex = -1;
           lyricsProvider.ensureDelayLoaded(track.id);
           _loadLyricsDelay(lyricsProvider, track.id);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -643,21 +702,32 @@ class _LyricsViewState extends State<LyricsView> {
         }
 
         if (_lineKeys.length != lyrics.lines.length) {
+          _previousWaitingDotsIndex = null;
           _lineKeys = List.generate(lyrics.lines.length, (_) => GlobalKey());
+          for (final notifier in _lineTimingNotifiers) {
+            notifier.dispose();
+          }
+          final initialPosition = _effectivePositionMs();
+          final initialTiming = lyrics.syncMode != LyricsSyncMode.unsynced
+              ? resolveSyncedLyricsTiming(lyrics.lines, initialPosition)
+              : null;
+          final initialFrame = LyricsFrame(
+            activeIndex: initialTiming?.activeIndex ?? 0,
+            activeIndices: initialTiming?.activeIndices ?? const {0},
+            timing: initialTiming,
+            positionMs: initialPosition,
+            delayMs: (_lyricsDelaySeconds * 1000).round(),
+          );
+          _lineTimingNotifiers = List.generate(
+            lyrics.lines.length,
+            (_) => ValueNotifier<LyricsFrame>(initialFrame),
+          );
         }
 
         _activeLyrics = lyrics;
         _playerRef = player;
         _ensurePositionTimer();
         _centerCurrentLineOnOpen(player, lyrics);
-        final syncedTiming = lyrics.syncMode != LyricsSyncMode.unsynced
-            ? _timingState ??
-                  resolveSyncedLyricsTiming(
-                    lyrics.lines,
-                    _effectivePositionMs(),
-                  )
-            : null;
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -712,207 +782,49 @@ class _LyricsViewState extends State<LyricsView> {
                           behavior: ScrollConfiguration.of(
                             context,
                           ).copyWith(scrollbars: false),
-                          child: ListView.builder(
-                            key: _listKey,
-                            controller: _scrollController,
-                            padding: EdgeInsets.fromLTRB(
-                              horizontalPadding,
-                              topPadding,
-                              horizontalPadding,
-                              edgeCenterPadding,
-                            ),
-                            itemCount:
-                                lyrics.lines.length + (_isMobile ? 1 : 0),
-                            itemBuilder: (context, index) {
-                              if (_isMobile && index == lyrics.lines.length) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(
-                                    top: 12,
-                                    bottom: 12,
-                                  ),
-                                  child: Text(
-                                    'Lyrics provided by ${lyrics.providerLabel}',
-                                    style: TextStyle(
-                                      color: Colors.grey[300],
-                                      fontSize: 12,
+                          child: RepaintBoundary(
+                            child: ListView.builder(
+                              key: _listKey,
+                              controller: _scrollController,
+                              padding: EdgeInsets.fromLTRB(
+                                horizontalPadding,
+                                topPadding,
+                                horizontalPadding,
+                                edgeCenterPadding,
+                              ),
+                              itemCount:
+                                  lyrics.lines.length + (_isMobile ? 1 : 0),
+                              itemBuilder: (context, index) {
+                                if (_isMobile && index == lyrics.lines.length) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 12,
+                                      bottom: 12,
                                     ),
-                                    textAlign: TextAlign.left,
-                                  ),
-                                );
-                              }
-                              final line = lyrics.lines[index];
-                              final isSynced =
-                                  lyrics.syncMode != LyricsSyncMode.unsynced;
-                              final timing = syncedTiming;
-                              final anchorIndex = _currentLineIndex >= 0
-                                  ? _currentLineIndex
-                                  : (timing?.nextIndex ??
-                                        timing?.previousIndex ??
-                                        0);
-                              final offset = isSynced
-                                  ? (index - anchorIndex)
-                                  : 0;
-                              var opacity = 1.0;
-                              if (isSynced && anchorIndex >= 0) {
-                                if (offset > 0) {
-                                  opacity = (0.75 - (offset * 0.05)).clamp(
-                                    0.45,
-                                    0.75,
-                                  );
-                                } else if (offset < 0) {
-                                  opacity = (0.45 - (offset.abs() * 0.07))
-                                      .clamp(0.2, 0.45);
-                                }
-                              }
-                              final isCurrent =
-                                  isSynced && index == _currentLineIndex;
-                              final canSeek = line.startTimeMs > 0;
-                              final delayMs = (_lyricsDelaySeconds * 1000)
-                                  .round();
-                              final adjustedPosition =
-                                  _effectivePositionMs() - delayMs;
-                              final effectivePosition = adjustedPosition < 0
-                                  ? 0
-                                  : adjustedPosition;
-
-                              if (isSynced &&
-                                  timing != null &&
-                                  timing.shouldFadePreviousLine &&
-                                  timing.previousIndex == index &&
-                                  timing.nextIndex != null) {
-                                opacity = lerpDouble(
-                                  1.0,
-                                  0.5,
-                                  timing.fadeOutProgress,
-                                )!;
-                              }
-
-                              final isActiveLine =
-                                  isCurrent &&
-                                  !(isSynced &&
-                                      timing != null &&
-                                      timing.shouldFadePreviousLine &&
-                                      timing.fadeOutProgress > 0 &&
-                                      timing.previousIndex == index);
-
-                              final fontSize = _isDesktop ? 42.0 : 30.0;
-
-                              final isHovered =
-                                  _isDesktop && _hoveredLineIndex == index;
-                              final underline = isHovered
-                                  ? TextDecoration.underline
-                                  : TextDecoration.none;
-                              final inactiveColor =
-                                  Color.lerp(
-                                    Colors.white,
-                                    backgroundColor,
-                                    0.6,
-                                  ) ??
-                                  Colors.white70;
-                              final baseColor = isActiveLine
-                                  ? Colors.white
-                                  : inactiveColor;
-                              final baseTextStyle = TextStyle(
-                                color: baseColor.withValues(
-                                  alpha: (baseColor.a * opacity).clamp(0.0, 1.0),
-                                ),
-                                fontSize: fontSize,
-                                letterSpacing: _isDesktop ? -1.5 : 0.25,
-                                fontWeight: _isDesktop
-                                    ? FontWeight.w700
-                                    : FontWeight.w900,
-                                height: _isDesktop ? 1.4 : 1,
-                                decoration: underline,
-                                decorationColor: Colors.white70.withValues(
-                                  alpha: (Colors.white70.a * opacity).clamp(0.0, 1.0),
-                                ),
-                              );
-                              final activeWordColor = Colors.white.withValues(
-                                alpha: opacity,
-                              );
-                              final inactiveWordColor = isActiveLine
-                                  ? Colors.white.withValues(alpha: 0.45 * opacity)
-                                  : inactiveColor.withValues(
-                                      alpha: (inactiveColor.a * opacity).clamp(0.0, 1.0),
-                                    );
-                              final lineSpan = buildLyricsLineSpan(
-                                line: line,
-                                syncMode: _syncMode,
-                                positionMs: effectivePosition,
-                                baseStyle: baseTextStyle,
-                                activeWordColor: activeWordColor,
-                                inactiveWordColor: inactiveWordColor,
-                                highlightWords: isCurrent,
-                              );
-
-                              final lineWidget = Padding(
-                                key: _lineKeys[index],
-                                padding: EdgeInsets.symmetric(
-                                  vertical: _isDesktop ? 8 : 10,
-                                ),
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: MouseRegion(
-                                    cursor: canSeek
-                                        ? SystemMouseCursors.click
-                                        : MouseCursor.defer,
-                                    onEnter: (_) {
-                                      if (!_isDesktop) return;
-                                      setState(() => _hoveredLineIndex = index);
-                                    },
-                                    onExit: (_) {
-                                      if (!_isDesktop) return;
-                                      setState(() => _hoveredLineIndex = -1);
-                                    },
-                                    child: GestureDetector(
-                                      onTap: canSeek
-                                          ? () {
-                                              final targetMs =
-                                                  line.startTimeMs + delayMs;
-                                              final safeMs = targetMs < 0
-                                                  ? 0
-                                                  : targetMs;
-                                              player.seek(
-                                                Duration(milliseconds: safeMs),
-                                              );
-                                            }
-                                          : null,
-                                      child: AnimatedDefaultTextStyle(
-                                        duration: const Duration(
-                                          milliseconds: 250,
-                                        ),
-                                        style: baseTextStyle,
-                                        child: Text.rich(
-                                          lineSpan,
-                                          textAlign: TextAlign.left,
-                                        ),
+                                    child: Text(
+                                      'Lyrics provided by ${lyrics.providerLabel}',
+                                      style: TextStyle(
+                                        color: Colors.grey[300],
+                                        fontSize: 12,
                                       ),
+                                      textAlign: TextAlign.left,
                                     ),
-                                  ),
-                                ),
-                              );
-
-                              final showWaitingDots =
-                                  isSynced &&
-                                  timing != null &&
-                                  timing.showWaitingDots &&
-                                  timing.nextIndex == index;
-
-                              if (!showWaitingDots) {
-                                return lineWidget;
-                              }
-
-                              return Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _buildWaitingDots(
-                                    progress: timing.progressToNext,
-                                  ),
-                                  lineWidget,
-                                ],
-                              );
-                            },
+                                  );
+                                }
+                                final line = lyrics.lines[index];
+                                return LyricsLineItem(
+                                  key: _lineKeys[index],
+                                  line: line,
+                                  index: index,
+                                  isDesktop: _isDesktop,
+                                  syncMode: _syncMode,
+                                  backgroundColor: backgroundColor,
+                                  player: player,
+                                  frameListenable: _lineTimingNotifiers[index],
+                                  onSeek: (position) => player.seek(position),
+                                );
+                              },
+                            ),
                           ),
                         ),
                       );
@@ -1165,8 +1077,7 @@ class _LyricsViewState extends State<LyricsView> {
     final wordState = lyricsProvider.getState(track, LyricsSyncMode.word);
     final lineState = lyricsProvider.getState(track, LyricsSyncMode.line);
     final wordAvailable =
-        !wordState.hasFetched ||
-        wordState.lyrics?.isWordSynced == true;
+        !wordState.hasFetched || wordState.lyrics?.isWordSynced == true;
     final lineAvailable =
         !lineState.hasFetched ||
         lineState.lyrics?.isLineSynced == true ||
@@ -1317,44 +1228,6 @@ class _LyricsViewState extends State<LyricsView> {
         ),
         const Icon(Icons.sync_disabled, size: 16),
       ],
-    );
-  }
-
-  Widget _buildWaitingDots({required double progress}) {
-    final dotSize = _isDesktop ? 12.0 : 10.0;
-
-    final dots = List<Widget>.generate(3, (index) {
-      final start = index / 3;
-      final end = (index + 1) / 3;
-      final localProgress = ((progress - start) / (end - start)).clamp(
-        0.0,
-        1.0,
-      );
-      final opacity = lerpDouble(0.24, 1.0, localProgress)!;
-
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 7),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          width: dotSize,
-          height: dotSize,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: opacity),
-            shape: BoxShape.circle,
-          ),
-        ),
-      );
-    });
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Padding(
-          padding: EdgeInsets.zero,
-          child: Row(mainAxisSize: MainAxisSize.min, children: dots),
-        ),
-      ),
     );
   }
 }

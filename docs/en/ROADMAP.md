@@ -1,10 +1,10 @@
 Here's the TODOs for version v26.09:
 
 - Bugs:
-  - [ ] Fix lyrics not automatically centering on entering lyrics mode in the apple music full player.
   - [ ] Update installer with new marketplace features
   - [ ] Create proper provider docs
   - [ ] Fix view paddings
+  - [ ] When shuffle is toggled with an applicable view enabled, the track background switch animation plays.
 - Future changes: 
   - [ ] Replace snackbars with alerts
   - [ ] Replace elements in the artist view with the reusable ones: Top Songs, Albums

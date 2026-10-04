@@ -1,7 +1,7 @@
 {
   "id": "betterlyrics",
   "name": "BetterLyrics",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "lyrics",
   "entry": "index.js",
   "author": "wizeshi",

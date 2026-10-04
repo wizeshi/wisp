@@ -63,7 +63,7 @@ class CardRail<T> extends StatefulWidget {
     double? itemHeight,
     this.itemSpacing = 16,
     this.expandItemsToRailWidth = false,
-  }) : itemHeight = itemHeight ?? itemWidth + 58;
+  }) : itemHeight = itemHeight ?? itemWidth + 57;
 
   @override
   State<CardRail<T>> createState() => _CardRailState<T>();
