@@ -16,9 +16,29 @@ import 'generic_card.dart';
 
 class AlbumCard extends StatelessWidget {
   final GenericAlbum album;
+  final String? subtitle;
   final double? width;
 
-  const AlbumCard({super.key, required this.album, this.width});
+  const AlbumCard({
+    super.key,
+    required this.album,
+    this.subtitle,
+    this.width,
+  });
+
+  factory AlbumCard.fromSimpleAlbum({
+    Key? key,
+    required GenericSimpleAlbum album,
+    String? subtitle,
+    double? width,
+  }) {
+    return AlbumCard(
+      key: key,
+      album: album.toAlbum(),
+      subtitle: subtitle,
+      width: width,
+    );
+  }
 
   Future<void> _startAlbumPlayback(BuildContext context) async {
     final coordinator = context.read<PlaybackCoordinator>();
@@ -86,7 +106,8 @@ class AlbumCard extends StatelessWidget {
     );
     return GenericCard(
       title: album.title,
-      subtitle: album.artists.map((artist) => artist.name).join(', '),
+      subtitle:
+          subtitle ?? album.artists.map((artist) => artist.name).join(', '),
       artwork: ArtworkThumbnail(
         source: ArtworkSource.fromUrl(album.thumbnailUrl),
         size: ArtworkSize.large,

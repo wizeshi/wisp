@@ -46,35 +46,39 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                       physics: const AlwaysScrollableScrollPhysics(),
                       slivers: [
                         SliverToBoxAdapter(
-                          child: Container(
-                            key: view._headerKey,
-                            child: Padding(
-                              padding: EdgeInsets.fromLTRB(
-                                padding,
-                                padding,
-                                padding,
-                                0,
-                              ),
-                              child: view._buildMobileHeader(
-                                title,
-                                subtitle,
-                                subtitleUser,
-                                imageUrl,
-                                total,
-                                description,
+                          child: RepaintBoundary(
+                            child: Container(
+                              key: view._headerKey,
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  padding,
+                                  padding,
+                                  padding,
+                                  0,
+                                ),
+                                child: view._buildMobileHeader(
+                                  title,
+                                  subtitle,
+                                  subtitleUser,
+                                  imageUrl,
+                                  total,
+                                  description,
+                                ),
                               ),
                             ),
                           ),
                         ),
                         SliverToBoxAdapter(
-                          child: Container(
-                            key: view._mobileActionsKey,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: padding / 2,
-                              vertical: 4,
+                          child: RepaintBoundary(
+                            child: Container(
+                              key: view._mobileActionsKey,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: padding / 2,
+                                vertical: 4,
+                              ),
+                              color: const Color(0xFF121212),
+                              child: view._buildMobileActionsRow(),
                             ),
-                            color: const Color(0xFF121212),
-                            child: view._buildMobileActionsRow(),
                           ),
                         ),
                         view._buildSongsSliver(
@@ -139,55 +143,59 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                     physics: physics,
                     slivers: [
                       SliverToBoxAdapter(
-                        child: Container(
-                          key: view._headerKey,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: stickyHeaderColor,
-                            borderRadius: BorderRadius.zero,
-                          ),
-                          child: Column(
-                            children: [
-                              view._buildHeader(
-                                title,
-                                subtitle,
-                                subtitleUser,
-                                subtitleImageUrl,
-                                imageUrl,
-                                total,
-                                description,
-                              ),
-                              const SizedBox(height: 12),
-                              view._buildActionsRow(
-                                isDesktop,
-                                backgroundGradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  stops: const [0, 1],
-                                  colors: [actionsRowColor, contentSurfaceColor],
+                        child: RepaintBoundary(
+                          child: Container(
+                            key: view._headerKey,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: stickyHeaderColor,
+                              borderRadius: BorderRadius.zero,
+                            ),
+                            child: Column(
+                              children: [
+                                view._buildHeader(
+                                  title,
+                                  subtitle,
+                                  subtitleUser,
+                                  subtitleImageUrl,
+                                  imageUrl,
+                                  total,
+                                  description,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 12),
+                                view._buildActionsRow(
+                                  isDesktop,
+                                  backgroundGradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    stops: const [0, 1],
+                                    colors: [actionsRowColor, contentSurfaceColor],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                       SliverToBoxAdapter(
-                        child: ColoredBox(
-                          color: contentSurfaceColor,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                            child: LayoutBuilder(
-                              builder: (layoutContext, constraints) {
-                                return Column(
-                                  children: [
-                                    view._buildListHeaderContent(
-                                      availableWidth: constraints.maxWidth,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    const Divider(),
-                                  ],
-                                );
-                              },
+                        child: RepaintBoundary(
+                          child: ColoredBox(
+                            color: contentSurfaceColor,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                              child: LayoutBuilder(
+                                builder: (layoutContext, constraints) {
+                                  return Column(
+                                    children: [
+                                      view._buildListHeaderContent(
+                                        availableWidth: constraints.maxWidth,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      const Divider(),
+                                    ],
+                                  );
+                                },
+                              ),
                             ),
                           ),
                         ),
@@ -231,9 +239,11 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
           top: 0,
           child: SafeArea(
             bottom: false,
-            child: view._buildStickyNowPlayingBar(
-              title: title,
-              isDesktop: true,
+            child: RepaintBoundary(
+              child: view._buildStickyNowPlayingBar(
+                title: title,
+                isDesktop: true,
+              ),
             ),
           ),
         ),

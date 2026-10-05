@@ -54,7 +54,9 @@ class _PlayerBarTopProgressBarState
           );
         }
 
-        return _buildBarContent(context, data, activeColor);
+        return RepaintBoundary(
+          child: _buildBarContent(context, data, activeColor),
+        );
       },
     );
   }

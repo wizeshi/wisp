@@ -1326,14 +1326,25 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     required bool useAppleStyle,
     required bool protrude,
   }) {
-    return Consumer<global_audio_player.WispAudioHandler>(
-      builder: (context, player, child) {
-        final isPlayingList = _isCurrentListPlaying(player) && player.isPlaying;
+    return Selector<global_audio_player.WispAudioHandler, ({
+      bool isPlayingList,
+      bool isCurrentListActive,
+    })>(
+      selector: (context, player) {
+        final active = _isCurrentListPlaying(player);
+        return (
+          isPlayingList: active && player.isPlaying,
+          isCurrentListActive: active,
+        );
+      },
+      builder: (context, state, child) {
+        final isPlayingList = state.isPlayingList;
         final colorScheme = Theme.of(context).colorScheme;
         final icon = isPlayingList ? Icons.pause : Icons.play_arrow;
         void onPressed() {
           if (_items.isEmpty) return;
-          if (_isCurrentListPlaying(player)) {
+          final player = context.read<global_audio_player.WispAudioHandler>();
+          if (state.isCurrentListActive) {
             _toggleCurrentTrackPlayback(player);
           } else {
             _playFromStart();

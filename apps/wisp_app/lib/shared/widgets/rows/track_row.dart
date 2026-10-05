@@ -312,13 +312,14 @@ class TrackRow extends StatelessWidget {
     final artistWidget = _buildArtistWrap();
     final Widget artistArea = foldAlbum && track.album?.title.isNotEmpty == true
         ? Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(child: artistWidget),
+              Flexible(child: artistWidget),
               Text(
                 ' \u2022 ',
                 style: TextStyle(color: Colors.grey[400], fontSize: 12 * _fontScaling),
               ),
-              Expanded(child: _buildAlbumText()),
+              Flexible(child: _buildAlbumText()),
             ],
           )
         : artistWidget;
@@ -570,23 +571,29 @@ class TrackRow extends StatelessWidget {
                       SizedBox(
                         width: 48,
                         height: height,
-                        child: Builder(
-                          builder: (buttonContext) => GenericIconButton(
-                            padding: EdgeInsets.zero,
-                            alignment: Alignment.centerRight,
-                            constraints: BoxConstraints.tightFor(
-                              width: 48,
-                              height: height,
-                            ),
-                            minimumSize: Size(48, height),
-                            icon: Icon(
-                              tokens.moreIcon,
+                        child: Center(
+                          child: Builder(
+                            builder: (buttonContext) => GenericIconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              minimumSize: const Size(32, 32),
+                              iconSize: 18,
+                              splashRadius: 16,
                               color: isApple
                                   ? Theme.of(context).colorScheme.primary
                                   : Colors.grey[400],
-                              size: 18,
+                              icon: Icon(
+                                tokens.moreIcon,
+                                color: isApple
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.grey[400],
+                                size: 18,
+                              ),
+                              onPressed: () => onMoreTap!(buttonContext),
                             ),
-                            onPressed: () => onMoreTap!(buttonContext),
                           ),
                         ),
                       )

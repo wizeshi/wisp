@@ -158,15 +158,28 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
   }
 
   Widget _buildMobileActionsRow() {
-    return Consumer<global_audio_player.WispAudioHandler>(
-      builder: (context, player, child) {
-        final colorScheme = Theme.of(context).colorScheme;
+    return Selector<global_audio_player.WispAudioHandler, ({
+      bool isCurrentListPlaying,
+      bool shuffleEnabled,
+      bool repeatActive,
+      bool isRepeatOne,
+    })>(
+      selector: (context, player) {
         final isCurrentListActive = _isCurrentListPlaying(player);
+        return (
+          isCurrentListPlaying: isCurrentListActive,
+          shuffleEnabled: player.shuffleEnabled,
+          repeatActive: player.repeatMode != global_audio_player.RepeatMode.off,
+          isRepeatOne: player.repeatMode == global_audio_player.RepeatMode.one,
+        );
+      },
+      builder: (context, state, child) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final isCurrentListActive = state.isCurrentListPlaying;
         final shuffleActive = (isCurrentListActive
-            ? player.shuffleEnabled
+            ? state.shuffleEnabled
             : _preShuffleEnabled);
-        final repeatActive =
-            player.repeatMode != global_audio_player.RepeatMode.off;
+        final repeatActive = state.repeatActive;
 
         final playerIsPlaying = context.select<PlaybackCoordinator, bool>(
           (coordinator) => coordinator.effectiveIsPlaying,
@@ -192,7 +205,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
               // Right side: Loop + Shuffle + Play
               GenericIconButton(
                 icon: Icon(
-                  player.repeatMode == global_audio_player.RepeatMode.one
+                  state.isRepeatOne
                       ? Icons.repeat_one
                       : Icons.repeat,
                 ),
@@ -204,7 +217,9 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
               GenericIconButton(
                 icon: const Icon(Icons.shuffle),
                 color: shuffleActive ? colorScheme.primary : Colors.white,
-                onPressed: () => _toggleListShuffle(player),
+                onPressed: () => _toggleListShuffle(
+                  context.read<global_audio_player.WispAudioHandler>(),
+                ),
               ),
               const SizedBox(width: 8),
               Container(
@@ -456,14 +471,27 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
   }
 
   Widget _buildActionsRow(bool isDesktop, {Gradient? backgroundGradient}) {
-    return Consumer<global_audio_player.WispAudioHandler>(
-      builder: (context, player, child) {
+    return Selector<global_audio_player.WispAudioHandler, ({
+      bool isPlayingList,
+      bool isPlaying,
+      bool shuffleActive,
+      bool repeatActive,
+      bool isRepeatOne,
+    })>(
+      selector: (context, player) {
+        final isPlayingList = _isCurrentListPlaying(player);
+        return (
+          isPlayingList: isPlayingList,
+          isPlaying: isPlayingList && player.isPlaying,
+          shuffleActive: isPlayingList ? player.shuffleEnabled : _preShuffleEnabled,
+          repeatActive: player.repeatMode != global_audio_player.RepeatMode.off,
+          isRepeatOne: player.repeatMode == global_audio_player.RepeatMode.one,
+        );
+      },
+      builder: (context, state, child) {
         final colorScheme = Theme.of(context).colorScheme;
-        final shuffleActive = (_isCurrentListPlaying(player)
-            ? player.shuffleEnabled
-            : _preShuffleEnabled);
-        final repeatActive =
-            player.repeatMode != global_audio_player.RepeatMode.off;
+        final shuffleActive = state.shuffleActive;
+        final repeatActive = state.repeatActive;
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -492,7 +520,8 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                                 child: GenericFilledButton(
                                   onPressed: () {
                                     if (!_isLoading) {
-                                      if (_isCurrentListPlaying(player)) {
+                                      final player = context.read<global_audio_player.WispAudioHandler>();
+                                      if (state.isPlayingList) {
                                         _toggleCurrentTrackPlayback(player);
                                       } else {
                                         _playFromStart();
@@ -505,8 +534,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                                   padding: EdgeInsets.zero,
                                   shape: const CircleBorder(),
                                   child: Icon(
-                                    _isCurrentListPlaying(player) &&
-                                            player.isPlaying
+                                    state.isPlaying
                                         ? Icons.pause
                                         : Icons.play_arrow,
                                     size: 30,
@@ -517,7 +545,9 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                             const SizedBox(width: 8),
                             GenericIconButton(
                               onPressed: () {
-                                _toggleListShuffle(player);
+                                _toggleListShuffle(
+                                  context.read<global_audio_player.WispAudioHandler>(),
+                                );
                               },
                               icon: Icon(
                                 Icons.shuffle,
@@ -527,10 +557,11 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                               ),
                             ),
                             GenericIconButton(
-                              onPressed: player.toggleRepeat,
+                              onPressed: () {
+                                context.read<global_audio_player.WispAudioHandler>().toggleRepeat();
+                              },
                               icon: Icon(
-                                player.repeatMode ==
-                                        global_audio_player.RepeatMode.one
+                                state.isRepeatOne
                                     ? Icons.repeat_one
                                     : Icons.repeat,
                                 color: repeatActive
@@ -720,10 +751,20 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
           child: Row(
             children: [
               SizedBox(width: isDesktop ? 14 : 6),
-              Consumer<global_audio_player.WispAudioHandler>(
-                builder: (context, player, child) {
+              Selector<global_audio_player.WispAudioHandler, ({
+                bool isPlayingList,
+                bool isPlaying,
+              })>(
+                selector: (context, player) {
                   final isPlayingList = _isCurrentListPlaying(player);
-                  final isPlaying = isPlayingList && player.isPlaying;
+                  return (
+                    isPlayingList: isPlayingList,
+                    isPlaying: isPlayingList && player.isPlaying,
+                  );
+                },
+                builder: (context, state, child) {
+                  final isPlayingList = state.isPlayingList;
+                  final isPlaying = state.isPlaying;
                   return SizedBox(
                     width: 40,
                     height: 40,
@@ -734,6 +775,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                         customBorder: const CircleBorder(),
                         onTap: () {
                           if (_items.isEmpty) return;
+                          final player = context.read<global_audio_player.WispAudioHandler>();
                           if (isPlayingList) {
                             _toggleCurrentTrackPlayback(player);
                           } else {

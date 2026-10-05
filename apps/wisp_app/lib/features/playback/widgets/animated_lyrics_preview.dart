@@ -105,8 +105,9 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
 
       listState.removeItem(
         0,
-        (context, animation) =>
-            _buildAnimatedItem(removedLine, animation, isRemoving: true),
+        (context, animation) => RepaintBoundary(
+          child: _buildAnimatedItem(removedLine, animation, isRemoving: true),
+        ),
         duration: widget.duration,
       );
 
@@ -191,7 +192,9 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
       physics: const NeverScrollableScrollPhysics(),
       initialItemCount: _items.length,
       itemBuilder: (context, index, animation) {
-        return _buildAnimatedItem(_items[index], animation, isRemoving: false);
+        return RepaintBoundary(
+          child: _buildAnimatedItem(_items[index], animation, isRemoving: false),
+        );
       },
     );
   }

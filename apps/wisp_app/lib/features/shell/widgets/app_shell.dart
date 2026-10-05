@@ -312,44 +312,50 @@ class _AppShellState extends State<AppShell> {
         children: [
           _buildWindowTitleSync(),
           if (!isDesktopImmersive)
-            WispTitleBar(
-              onHomeTap: () => _pushTab(0),
-              onSettingsTap: () => _pushTab(3),
-              searchController: searchController,
-              searchFocusNode: _searchFocusNode,
-              onSearchChanged: _scheduleSearchAutoSwitch,
-              onSearchSubmitted: () {
-                _pushTab(1);
-                context.read<SearchState>().submit();
-              },
-              onSearchCleared: () => context.read<SearchState>().clear(),
-              availableSources: availableSources,
-              selectedSource: effectiveSource,
-              onSourceChanged: (source) {
-                final search = context.read<SearchState>();
-                search.setSelectedSource(source);
-                search.submit();
-              },
+            RepaintBoundary(
+              child: WispTitleBar(
+                onHomeTap: () => _pushTab(0),
+                onSettingsTap: () => _pushTab(3),
+                searchController: searchController,
+                searchFocusNode: _searchFocusNode,
+                onSearchChanged: _scheduleSearchAutoSwitch,
+                onSearchSubmitted: () {
+                  _pushTab(1);
+                  context.read<SearchState>().submit();
+                },
+                onSearchCleared: () => context.read<SearchState>().clear(),
+                availableSources: availableSources,
+                selectedSource: effectiveSource,
+                onSourceChanged: (source) {
+                  final search = context.read<SearchState>();
+                  search.setSelectedSource(source);
+                  search.submit();
+                },
+              ),
             ),
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (!isDesktopImmersive)
-                  WispNavigation(
-                    selectedView: navState.selectedLibraryView,
-                    onViewChanged: navState.setLibraryView,
-                    selectedIndex: navState.selectedNavIndex,
-                    onDestinationSelected: (index) {
-                      navState.setNavIndex(index);
-                      _pushTab(index);
-                    },
-                    onLibraryItemSelected: _handleLibraryItemSelected,
-                    expandedWidth: navState.leftSidebarWidth,
+                  RepaintBoundary(
+                    child: WispNavigation(
+                      selectedView: navState.selectedLibraryView,
+                      onViewChanged: navState.setLibraryView,
+                      selectedIndex: navState.selectedNavIndex,
+                      onDestinationSelected: (index) {
+                        navState.setNavIndex(index);
+                        _pushTab(index);
+                      },
+                      onLibraryItemSelected: _handleLibraryItemSelected,
+                      expandedWidth: navState.leftSidebarWidth,
+                    ),
                   ),
-                if (!isDesktopImmersive)
+                 if (!isDesktopImmersive)
                   _LeftResizeHandle(onResize: navState.adjustLeftSidebarWidth),
-                Expanded(child: contentNavigator),
+                Expanded(
+                  child: RepaintBoundary(child: contentNavigator),
+                ),
                 if (!isDesktopImmersive && navState.rightSidebarVisible)
                   RightSidebar(
                     width: navState.rightSidebarWidth,
@@ -358,13 +364,18 @@ class _AppShellState extends State<AppShell> {
               ],
             ),
           ),
-          if (!isDesktopImmersive) const WispPlayerBar(),
+          if (!isDesktopImmersive)
+            const RepaintBoundary(
+              child: WispPlayerBar(),
+            ),
         ],
       );
     } else {
       shellBody = Stack(
         children: [
-          Positioned.fill(child: contentNavigator),
+          Positioned.fill(
+            child: RepaintBoundary(child: contentNavigator),
+          ),
           if (navState.selectedNavIndex != 3 && !keyboardVisible)
             Positioned(
               left: 0,
@@ -375,17 +386,21 @@ class _AppShellState extends State<AppShell> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: const WispPlayerBar(),
+                    child: const RepaintBoundary(
+                      child: WispPlayerBar(),
+                    ),
                   ),
-                  WispNavigation(
-                    selectedView: navState.selectedLibraryView,
-                    onViewChanged: navState.setLibraryView,
-                    selectedIndex: navState.selectedNavIndex,
-                    onDestinationSelected: (index) {
-                      navState.setNavIndex(index);
-                      _pushTab(index);
-                    },
-                    onLibraryItemSelected: _handleLibraryItemSelected,
+                  RepaintBoundary(
+                    child: WispNavigation(
+                      selectedView: navState.selectedLibraryView,
+                      onViewChanged: navState.setLibraryView,
+                      selectedIndex: navState.selectedNavIndex,
+                      onDestinationSelected: (index) {
+                        navState.setNavIndex(index);
+                        _pushTab(index);
+                      },
+                      onLibraryItemSelected: _handleLibraryItemSelected,
+                    ),
                   ),
                 ],
               ),

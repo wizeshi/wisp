@@ -281,6 +281,25 @@ class EntityContextMenus {
     List<ContextMenuAction> additionalActions = const [],
     Future<void> Function()? onBeforeNavigate,
   }) async {
+    Rect? effectiveAnchorRect = anchorRect;
+    if (effectiveAnchorRect == null && globalPosition == null) {
+      final box = context.findRenderObject();
+      if (box is RenderBox && box.hasSize) {
+        final overlay =
+            Overlay.maybeOf(context, rootOverlay: true)?.context.findRenderObject()
+                as RenderBox?;
+        if (overlay != null) {
+          effectiveAnchorRect = Rect.fromPoints(
+            box.localToGlobal(Offset.zero, ancestor: overlay),
+            box.localToGlobal(
+              box.size.bottomRight(Offset.zero),
+              ancestor: overlay,
+            ),
+          );
+        }
+      }
+    }
+
     final metadataManager = context.read<MetadataManager>();
     await metadataManager.ensureLikedTracksLoaded(source: track.source);
     if (!context.mounted) return;
@@ -480,7 +499,7 @@ class EntityContextMenus {
     await showAdaptiveContextMenu(
       context: context,
       actions: actions,
-      anchorRect: anchorRect,
+      anchorRect: effectiveAnchorRect,
       globalPosition: globalPosition,
       mobileHeaderBuilder: (_) {
         return Padding(

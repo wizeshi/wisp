@@ -50,9 +50,25 @@ Future<void> showAdaptiveContextMenu({
     final overlay =
         Overlay.of(context, rootOverlay: true).context.findRenderObject()
             as RenderBox;
-    final anchor =
-        anchorRect ??
-        Rect.fromLTWH(globalPosition?.dx ?? 0, globalPosition?.dy ?? 0, 1, 1);
+    final Rect anchor;
+    if (anchorRect != null) {
+      anchor = anchorRect;
+    } else if (globalPosition != null) {
+      anchor = Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 1, 1);
+    } else {
+      final box = context.findRenderObject();
+      if (box is RenderBox && box.hasSize) {
+        anchor = Rect.fromPoints(
+          box.localToGlobal(Offset.zero, ancestor: overlay),
+          box.localToGlobal(
+            box.size.bottomRight(Offset.zero),
+            ancestor: overlay,
+          ),
+        );
+      } else {
+        anchor = const Rect.fromLTWH(0, 0, 1, 1);
+      }
+    }
     await showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -207,8 +223,29 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
   @override
   void initState() {
     super.initState();
+    final double proposedX;
+    if (widget.anchorRect.width > 1) {
+      if (widget.anchorRect.center.dx > widget.overlaySize.width / 2) {
+        proposedX = widget.anchorRect.right - _menuWidth;
+      } else {
+        proposedX = widget.anchorRect.left;
+      }
+    } else {
+      proposedX = widget.anchorRect.left;
+    }
+
+    final double proposedY;
+    final menuH = _menuHeight(widget.actions.length);
+    if (widget.anchorRect.bottom + menuH >
+            widget.overlaySize.height - _screenMargin &&
+        widget.anchorRect.top - menuH >= _screenMargin) {
+      proposedY = widget.anchorRect.top - menuH;
+    } else {
+      proposedY = widget.anchorRect.bottom;
+    }
+
     final rootPosition = _clampMenuPosition(
-      Offset(widget.anchorRect.left, widget.anchorRect.bottom),
+      Offset(proposedX, proposedY),
       itemCount: widget.actions.length,
     );
     _levels.add(

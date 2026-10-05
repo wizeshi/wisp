@@ -562,10 +562,23 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
   }
 
   Widget _buildMobilePlaybackRow() {
-    return Consumer<global_audio_player.WispAudioHandler>(
-      builder: (context, player, child) {
-        final isPlayingList =
-            view._isCurrentListPlaying(player) && player.isPlaying;
+    return Selector<global_audio_player.WispAudioHandler, ({
+      bool isPlayingList,
+      bool isCurrentListPlaying,
+      bool shuffleEnabled,
+    })>(
+      selector: (context, player) {
+        final current = view._isCurrentListPlaying(player);
+        return (
+          isPlayingList: current && player.isPlaying,
+          isCurrentListPlaying: current,
+          shuffleEnabled: player.shuffleEnabled,
+        );
+      },
+      builder: (context, state, child) {
+        final isPlayingList = state.isPlayingList;
+        final shuffleActive = view._preShuffleEnabled ||
+            (state.isCurrentListPlaying && state.shuffleEnabled);
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -577,19 +590,14 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   onPressed: view._items.isEmpty
                       ? null
                       : () {
+                          final player = context.read<global_audio_player.WispAudioHandler>();
                           view._toggleListShuffle(player);
                         },
                   icon: const Icon(CupertinoIcons.shuffle, size: 20),
-                  backgroundColor:
-                      view._preShuffleEnabled ||
-                          (view._isCurrentListPlaying(player) &&
-                              player.shuffleEnabled)
+                  backgroundColor: shuffleActive
                       ? Colors.white
                       : Theme.of(context).colorScheme.primary,
-                  color:
-                      view._preShuffleEnabled ||
-                          (view._isCurrentListPlaying(player) &&
-                              player.shuffleEnabled)
+                  color: shuffleActive
                       ? Theme.of(context).colorScheme.primary
                       : Colors.white,
                   borderRadius: BorderRadius.circular(999),
@@ -601,7 +609,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               onPressed: view._items.isEmpty
                   ? null
                   : () {
-                      if (view._isCurrentListPlaying(player)) {
+                      final player = context.read<global_audio_player.WispAudioHandler>();
+                      if (state.isCurrentListPlaying) {
                         view._toggleCurrentTrackPlayback(player);
                       } else {
                         view._playFromStart();
@@ -644,10 +653,19 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
   }
 
   Widget _buildDesktopPlaybackRow({required double availableWidth}) {
-    return Consumer<global_audio_player.WispAudioHandler>(
-      builder: (context, player, child) {
-        final isPlayingList =
-            view._isCurrentListPlaying(player) && player.isPlaying;
+    return Selector<global_audio_player.WispAudioHandler, ({
+      bool isPlayingList,
+      bool isCurrentListPlaying,
+    })>(
+      selector: (context, player) {
+        final current = view._isCurrentListPlaying(player);
+        return (
+          isPlayingList: current && player.isPlaying,
+          isCurrentListPlaying: current,
+        );
+      },
+      builder: (context, state, child) {
+        final isPlayingList = state.isPlayingList;
         final useCompactControls = availableWidth < 625;
 
         Widget buildPlaybackButton({
@@ -690,7 +708,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   onPressed: view._items.isEmpty
                       ? null
                       : () {
-                          if (view._isCurrentListPlaying(player)) {
+                          final player = context.read<global_audio_player.WispAudioHandler>();
+                          if (state.isCurrentListPlaying) {
                             view._toggleCurrentTrackPlayback(player);
                           } else {
                             view._playFromStart();
@@ -707,7 +726,8 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   onPressed: view._items.isEmpty
                       ? null
                       : () {
-                          if (view._isCurrentListPlaying(player)) {
+                          final player = context.read<global_audio_player.WispAudioHandler>();
+                          if (state.isCurrentListPlaying) {
                             view._toggleListShuffle(player);
                           } else {
                             view._playFromStart(shuffle: true);

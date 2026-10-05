@@ -122,18 +122,26 @@ class _RightSidebarState extends State<RightSidebar> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  _NowPlayingCard(
-                                    showHoverControls: _isHoveringSidebar,
+                                  RepaintBoundary(
+                                    child: _NowPlayingCard(
+                                      showHoverControls: _isHoveringSidebar,
+                                    ),
                                   ),
-                                  const Padding(
-                                    padding: EdgeInsets.all(16),
+                                  Padding(
+                                    padding: const EdgeInsets.all(16),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.stretch,
-                                      children: [
-                                        _LyricsPreviewCard(),
-                                        _ArtistInfoCard(),
-                                        _QueuePreviewCard(),
+                                      children: const [
+                                        RepaintBoundary(
+                                          child: _LyricsPreviewCard(),
+                                        ),
+                                        RepaintBoundary(
+                                          child: _ArtistInfoCard(),
+                                        ),
+                                        RepaintBoundary(
+                                          child: _QueuePreviewCard(),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -1554,67 +1562,70 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                   ),
                                 )
                               else
-                                Selector<PlaybackCoordinator, int>(
-                                  selector: (context, coordinator) {
-                                    final posMs = coordinator
-                                        .effectiveInterpolatedPosition
-                                        .inMilliseconds;
-                                    final delaySeconds = lyricsProvider
-                                        .getDelaySecondsCached(track.id);
-                                    final delayMs = (delaySeconds * 1000)
-                                        .round();
-                                    final effectivePosition =
-                                        posMs - delayMs < 0
-                                        ? 0
-                                        : posMs - delayMs;
-                                    final lines = nonEmptyLyricsLines(
-                                      lyrics!.lines,
-                                    );
-                                    if (lines.isEmpty ||
-                                        lyrics.syncMode ==
-                                            LyricsSyncMode.unsynced) {
-                                      return 0;
-                                    }
-                                    final timing = resolveSyncedLyricsTiming(
-                                      lines,
-                                      effectivePosition,
-                                    );
-                                    return timing.activeIndex >= 0
-                                        ? timing.activeIndex
-                                        : (timing.nextIndex ??
-                                              timing.previousIndex ??
-                                              0);
-                                  },
-                                  builder: (context, startIndex, child) {
-                                    // Freeze the scrolling lyrics preview while
-                                    // the app/window is unfocused instead of
-                                    // rebuilding it on every position tick.
-                                    return FocusFreezeBuilder<int>(
-                                      value: startIndex,
-                                      builder: (context, startIndex) {
-                                        final lines = nonEmptyLyricsLines(
-                                          lyrics!.lines,
-                                        );
-                                        final previewLines =
-                                            lyrics.syncMode ==
-                                                LyricsSyncMode.unsynced
-                                            ? lines.take(3).toList()
-                                            : lines
-                                                  .skip(startIndex)
-                                                  .take(3)
-                                                  .toList();
-                                        return AnimatedLyricsPreviewList(
-                                          lines: previewLines,
-                                          resetKey: track.id,
-                                          textStyle: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  },
+                                RepaintBoundary(
+                                  child: Selector<PlaybackCoordinator, int>(
+                                    selector: (context, coordinator) {
+                                      final posMs = coordinator
+                                          .effectiveInterpolatedPosition
+                                          .inMilliseconds;
+                                      final delaySeconds = lyricsProvider
+                                          .getDelaySecondsCached(track.id);
+                                      final delayMs = (delaySeconds * 1000)
+                                          .round();
+                                      final effectivePosition =
+                                          posMs - delayMs < 0
+                                          ? 0
+                                          : posMs - delayMs;
+                                      final lines = nonEmptyLyricsLines(
+                                        lyrics!.lines,
+                                      );
+                                      if (lines.isEmpty ||
+                                          lyrics.syncMode ==
+                                              LyricsSyncMode.unsynced) {
+                                        return 0;
+                                      }
+                                      final timing = resolveSyncedLyricsTiming(
+                                        lines,
+                                        effectivePosition,
+                                      );
+                                      return timing.activeIndex >= 0
+                                          ? timing.activeIndex
+                                          : (timing.nextIndex ??
+                                                timing.previousIndex ??
+                                                0);
+                                    },
+                                    builder: (context, startIndex, child) {
+                                      // Freeze the scrolling lyrics preview while
+                                      // the app/window is unfocused instead of
+                                      // rebuilding it on every position tick.
+                                      return FocusFreezeBuilder<int>(
+                                        value: startIndex,
+                                        builder: (context, startIndex) {
+                                          final lines = nonEmptyLyricsLines(
+                                            lyrics!.lines,
+                                          );
+                                          final previewLines =
+                                              lyrics.syncMode ==
+                                                  LyricsSyncMode.unsynced
+                                              ? lines.take(3).toList()
+                                              : lines
+                                                    .skip(startIndex)
+                                                    .take(3)
+                                                    .toList();
+                                          return AnimatedLyricsPreviewList(
+                                            lines: previewLines,
+                                            resetKey: track.id,
+                                            maxLines: 1,
+                                            textStyle: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
                                 ),
                               SizedBox(height: 4),
                               Text(

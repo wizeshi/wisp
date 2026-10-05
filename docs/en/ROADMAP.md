@@ -6,7 +6,6 @@ Here's the TODOs for version v26.09:
   - [ ] Fix view paddings
 - Future changes: 
   - [ ] Replace snackbars with alerts
-  - [ ] Replace elements in the artist view with the reusable ones: Top Songs, Albums
   - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
   - [ ] Add special card from the home screen on mobile. 
   - [ ] Make artist name clickable in the full player

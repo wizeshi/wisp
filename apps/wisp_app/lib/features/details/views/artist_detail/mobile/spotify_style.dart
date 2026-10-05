@@ -45,14 +45,10 @@ extension _MobileSpotifyStyle on _ArtistDetailViewState {
                   children: [
                     _buildTopTracksSection(),
                     const SizedBox(height: 24),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: padding),
-                      child: SizedBox.shrink(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: padding),
-                      child: _buildAlbumsGrid(false),
-                    ),
+                    if ((_artist?.albums ?? []).isNotEmpty) ...[
+                      _buildSpotifyAlbumsSection(isDesktop: false),
+                      const SizedBox(height: 24),
+                    ],
                   ],
                 ),
               ),

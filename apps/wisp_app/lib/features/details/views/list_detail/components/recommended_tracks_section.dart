@@ -388,9 +388,16 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
     final isAdded = _addedRecommendationTrackIDs.contains(item.id);
     final album = item.album;
 
-    return Consumer<global_audio_player.WispAudioHandler>(
-      builder: (context, player, child) {
-        final isCurrentTrack = player.currentTrack?.id == song.id;
+    return Selector<global_audio_player.WispAudioHandler, ({
+      bool isCurrentTrack,
+      bool isPlaying,
+    })>(
+      selector: (context, player) => (
+        isCurrentTrack: player.currentTrack?.id == song.id,
+        isPlaying: player.isPlaying,
+      ),
+      builder: (context, state, child) {
+        final isCurrentTrack = state.isCurrentTrack;
         final isHovering = _hoveredSongIds.contains(song.id);
 
         return MouseRegion(
@@ -464,6 +471,7 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
                                     color: Colors.transparent,
                                     child: InkWell(
                                       onTap: () {
+                                        final player = context.read<global_audio_player.WispAudioHandler>();
                                         unawaited(
                                           _toggleRecommendedTrackPlayback(
                                             player,
@@ -472,7 +480,7 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
                                         );
                                       },
                                       child: Icon(
-                                        isCurrentTrack && player.isPlaying
+                                        isCurrentTrack && state.isPlaying
                                             ? Icons.pause
                                             : Icons.play_arrow,
                                         color: Colors.white,

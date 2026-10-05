@@ -113,7 +113,7 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
                     ),
                     const SizedBox(height: 28),
                     if (hasAlbums) ...[
-                      _buildAlbumsGrid(true),
+                      _buildSpotifyAlbumsSection(isDesktop: true),
                       const SizedBox(height: 28),
                     ],
                     Container(

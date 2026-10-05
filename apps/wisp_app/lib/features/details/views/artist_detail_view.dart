@@ -24,7 +24,6 @@ import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/data/cache/metadata_diff.dart';
 import 'package:wisp/data/cache/metadata_revalidator.dart';
-import 'package:wisp/shared/widgets/display/hover_underline.dart';
 import 'package:wisp/features/shell/widgets/navigation.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/menus/adaptive_context_menu.dart';
@@ -34,6 +33,10 @@ import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/cards/album_card.dart';
+import 'package:wisp/shared/widgets/rails/card_rail.dart';
+import 'package:wisp/shared/widgets/rows/track_row.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
 import 'list_detail_view.dart';
 
 part 'artist_detail/desktop/spotify_style.dart';
@@ -73,7 +76,6 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   final MetadataRevalidatorToken _revalidationToken =
       MetadataRevalidatorToken();
   GenericArtist? _artist;
-  String? _hoveredTrackId;
   final ScrollController _scrollController = ScrollController();
   final PageController _appleTopSongsPageController = PageController(
     viewportFraction: 0.9,
@@ -129,12 +131,6 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     );
   }
 
-  String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-    return '$minutes:${secs.toString().padLeft(2, '0')}';
-  }
-
   String _formatNumber(int value) {
     if (value >= 1000000) {
       return '${(value / 1000000).toStringAsFixed(1)}M';
@@ -159,6 +155,24 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         source: _artist?.source ?? 'spotify',
       ),
     );
+  }
+
+  Future<void> _toggleTopTrackPlayback(int index) async {
+    final player = context.read<global_audio_player.WispAudioHandler>();
+    final tracks = _artist?.topSongs ?? [];
+    if (index >= tracks.length) return;
+    final track = tracks[index];
+    if (player.currentTrack?.id == track.id &&
+        player.playbackContext?.type == PlaybackContextType.artist &&
+        player.playbackContext?.id == _artist?.id) {
+      if (player.isPlaying) {
+        await player.pause();
+      } else {
+        await player.play();
+      }
+      return;
+    }
+    await _playTopTracks(index);
   }
 
   bool _isCurrentArtistPlaying(global_audio_player.WispAudioHandler player) {
@@ -412,157 +426,59 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     required GenericSong track,
     required int index,
   }) {
-    final player = context.watch<global_audio_player.WispAudioHandler>();
-    final colorScheme = Theme.of(context).colorScheme;
-    final isCurrentTrack = player.currentTrack?.id == track.id;
-
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hoveredTrackId = track.id),
-        onExit: (_) => setState(() => _hoveredTrackId = null),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            mouseCursor: SystemMouseCursors.click,
-            borderRadius: BorderRadius.circular(8),
-            onTap: () => _playTopTracks(index),
-            onSecondaryTapDown: (details) {
-              EntityContextMenus.showTrackMenu(
-                context,
-                track: track,
-                globalPosition: details.globalPosition,
-              );
-            },
-            child: Container(
-              height: 62,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: SizedBox(
-                      width: 42,
-                      height: 42,
-                      child: track.thumbnailUrl.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: track.thumbnailUrl,
-                              fit: BoxFit.cover,
-                            )
-                          : Container(
-                              color: Colors.grey[850],
-                              child: Icon(
-                                CupertinoIcons.music_note,
-                                color: Colors.grey[700],
-                                size: 16,
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isCurrentTrack
-                                ? colorScheme.primary
-                                : Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${track.album?.title ?? ''}${track.album?.releaseDate != null ? ' · ${track.album!.releaseDate.year}' : ''}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  AnimatedOpacity(
-                    opacity: _hoveredTrackId == track.id ? 1 : 0,
-                    duration: const Duration(milliseconds: 120),
-                    child: IgnorePointer(
-                      ignoring: _hoveredTrackId != track.id,
-                      child: LikeButton(
-                        track: track,
-                        iconSize: 15,
-                        padding: const EdgeInsets.all(2),
-                        constraints: const BoxConstraints(
-                          minWidth: 24,
-                          minHeight: 24,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: Builder(
-                      builder: (buttonContext) => GenericIconButton(
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 28,
-                          minHeight: 28,
-                        ),
-                        iconSize: 18,
-                        splashRadius: 16,
-                        onPressed: () {
-                          final overlay =
-                              Overlay.of(
-                                    context,
-                                    rootOverlay: true,
-                                  ).context.findRenderObject()
-                                  as RenderBox;
-                          final button =
-                              buttonContext.findRenderObject() as RenderBox?;
-                          Rect? anchorRect;
-                          if (button != null) {
-                            anchorRect = Rect.fromPoints(
-                              button.localToGlobal(
-                                Offset.zero,
-                                ancestor: overlay,
-                              ),
-                              button.localToGlobal(
-                                button.size.bottomRight(Offset.zero),
-                                ancestor: overlay,
-                              ),
-                            );
-                          }
-                          EntityContextMenus.showTrackMenu(
-                            context,
-                            track: track,
-                            anchorRect: anchorRect,
-                          );
-                        },
-                        icon: Icon(
-                          CupertinoIcons.ellipsis,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+      padding: const EdgeInsets.only(bottom: 6),
+      child: TrackRow(
+        track: track,
+        index: null,
+        viewContext: PlaybackContext(
+          type: PlaybackContextType.artist,
+          name: _artist?.name ?? '',
+          id: _artist?.id ?? '',
+          source: _artist?.source ?? 'spotify',
         ),
+        style: AppStyle.AppleMusic,
+        height: 52,
+        artworkSize: ArtworkSize.small,
+        foldAlbumIntoSubtitle: true,
+        showAlbumName: true,
+        showDuration: false,
+        onTap: () => _playTopTracks(index),
+        onPlayPause: () => _toggleTopTrackPlayback(index),
+        onSecondaryTapDown: (details) => EntityContextMenus.showTrackMenu(
+          context,
+          track: track,
+          globalPosition: details.globalPosition,
+        ),
+        onLongPress: () => EntityContextMenus.showTrackMenu(
+          context,
+          track: track,
+        ),
+        onMoreTap: (buttonContext) => EntityContextMenus.showTrackMenu(
+          buttonContext,
+          track: track,
+        ),
+        onArtistTap: (artist) => AppNavigation.instance.openArtist(
+          context,
+          artistId: artist.id,
+          initialArtist: artist,
+          fallbackName: artist.name,
+        ),
+        onArtistSecondaryTapDown: (artist, details) =>
+            EntityContextMenus.showArtistMenu(
+          context,
+          artist: artist,
+          globalPosition: details.globalPosition,
+        ),
+        onAlbumTap: track.album?.id.isNotEmpty == true
+            ? () => AppNavigation.instance.openSharedList(
+                  context,
+                  id: track.album!.id,
+                  type: SharedListType.album,
+                  initialTitle: track.album!.title,
+                  initialThumbnailUrl: track.album!.thumbnailUrl,
+                )
+            : null,
       ),
     );
   }
@@ -652,44 +568,55 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
 
   Widget _buildMobileActionsRow({required bool useAppleIcons}) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Consumer<global_audio_player.WispAudioHandler>(
-      builder: (context, player, child) {
-        return SizedBox(
-          height: 56,
-          child: Row(
-            children: [
-              Consumer<LibraryState>(
-                builder: (context, library, child) {
-                  final isFollowed = library.isArtistFollowed(widget.artistId);
-                  return GenericOutlinedButton(
-                    onPressed: () => _toggleFollowArtist(isFollowed),
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.grey[700]!),
-                    borderRadius: BorderRadius.circular(999),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    child: Text(isFollowed ? 'Following' : 'Follow'),
-                  );
-                },
-              ),
-              const SizedBox(width: 4),
-              Builder(
-                builder: (buttonContext) {
-                  return GenericIconButton(
-                    icon: Icon(
-                      useAppleIcons
-                          ? CupertinoIcons.ellipsis_circle
-                          : Icons.more_horiz,
-                    ),
-                    color: Colors.white,
-                    onPressed: () => _showArtistOptions(buttonContext),
-                  );
-                },
-              ),
-              const Spacer(),
-              Container(
+    return SizedBox(
+      height: 56,
+      child: Row(
+        children: [
+          Consumer<LibraryState>(
+            builder: (context, library, child) {
+              final isFollowed = library.isArtistFollowed(widget.artistId);
+              return GenericOutlinedButton(
+                onPressed: () => _toggleFollowArtist(isFollowed),
+                foregroundColor: Colors.white,
+                side: BorderSide(color: Colors.grey[700]!),
+                borderRadius: BorderRadius.circular(999),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Text(isFollowed ? 'Following' : 'Follow'),
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+          Builder(
+            builder: (buttonContext) {
+              return GenericIconButton(
+                icon: Icon(
+                  useAppleIcons
+                      ? CupertinoIcons.ellipsis_circle
+                      : Icons.more_horiz,
+                ),
+                color: Colors.white,
+                onPressed: () => _showArtistOptions(buttonContext),
+              );
+            },
+          ),
+          const Spacer(),
+          Selector<global_audio_player.WispAudioHandler, (bool, bool, bool, bool)>(
+            selector: (context, player) => (
+              _isCurrentArtistPlaying(player),
+              player.isPlaying,
+              player.isLoading,
+              player.isBuffering,
+            ),
+            builder: (context, state, child) {
+              final isCurrentPlaying = state.$1;
+              final isPlaying = state.$2;
+              final isLoading = state.$3;
+              final isBuffering = state.$4;
+
+              return Container(
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
@@ -698,7 +625,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 ),
                 child: GenericIconButton(
                   icon: Icon(
-                    _isCurrentArtistPlaying(player) && player.isPlaying
+                    isCurrentPlaying && isPlaying
                         ? (useAppleIcons
                               ? CupertinoIcons.pause_fill
                               : Icons.pause)
@@ -711,10 +638,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   onPressed: () async {
                     if (_isLoading) return;
                     final coordinator = context.read<PlaybackCoordinator>();
-                    if (_isCurrentArtistPlaying(player)) {
-                      if (player.isPlaying) {
+                    if (isCurrentPlaying) {
+                      if (isPlaying) {
                         await coordinator.pause();
-                      } else if (!player.isLoading && !player.isBuffering) {
+                      } else if (!isLoading && !isBuffering) {
                         await coordinator.play();
                       }
                     } else {
@@ -722,11 +649,11 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     }
                   },
                 ),
-              ),
-            ],
+              );
+            },
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -844,113 +771,46 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     required GenericSong track,
     required int index,
   }) {
-    final player = context.watch<global_audio_player.WispAudioHandler>();
-    final colorScheme = Theme.of(context).colorScheme;
-    final isCurrentTrack = player.currentTrack?.id == track.id;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
+    return TrackRow(
+      track: track,
+      index: null,
+      viewContext: PlaybackContext(
+        type: PlaybackContextType.artist,
+        name: _artist?.name ?? '',
+        id: _artist?.id ?? '',
+        source: _artist?.source ?? 'spotify',
+      ),
+      style: AppStyle.AppleMusic,
+      height: 54,
+      artworkSize: ArtworkSize.small,
+      showAlbumName: false,
+      showDuration: false,
       onTap: () => _playTopTracks(index),
-      onLongPress: () =>
-          EntityContextMenus.showTrackMenu(context, track: track),
-      child: Container(
-        height: 60,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Container(
-                width: 36,
-                height: 36,
-                color: Colors.grey[900],
-                child: track.thumbnailUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: track.thumbnailUrl,
-                        fit: BoxFit.cover,
-                      )
-                    : Icon(Icons.music_note, color: Colors.grey[700]),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          track.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isCurrentTrack
-                                ? colorScheme.primary
-                                : Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      if (track.explicit) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[600],
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          child: const Text(
-                            'E',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-                      Text(
-                        track.artists.map((artist) => artist.name).join(', '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            GenericIconButton(
-              onPressed: () =>
-                  EntityContextMenus.showTrackMenu(context, track: track),
-              icon: Icon(
-                CupertinoIcons.ellipsis,
-                color: Colors.grey[400],
-                size: 18,
-              ),
-              visualDensity: VisualDensity.compact,
-              splashRadius: 16,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            ),
-          ],
-        ),
+      onPlayPause: () => _toggleTopTrackPlayback(index),
+      onSecondaryTapDown: (details) => EntityContextMenus.showTrackMenu(
+        context,
+        track: track,
+        globalPosition: details.globalPosition,
+      ),
+      onLongPress: () => EntityContextMenus.showTrackMenu(
+        context,
+        track: track,
+      ),
+      onMoreTap: (buttonContext) => EntityContextMenus.showTrackMenu(
+        buttonContext,
+        track: track,
+      ),
+      onArtistTap: (artist) => AppNavigation.instance.openArtist(
+        context,
+        artistId: artist.id,
+        initialArtist: artist,
+        fallbackName: artist.name,
+      ),
+      onArtistSecondaryTapDown: (artist, details) =>
+          EntityContextMenus.showArtistMenu(
+        context,
+        artist: artist,
+        globalPosition: details.globalPosition,
       ),
     );
   }
@@ -961,112 +821,20 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       return const SizedBox.shrink();
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Albums',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 214,
-          child: WispListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: albums.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final album = albums[index];
-              return GestureDetector(
-                onTap: () {
-                  AppNavigation.instance.openSharedList(
-                    context,
-                    id: album.id,
-                    type: SharedListType.album,
-                    initialTitle: album.title,
-                    initialThumbnailUrl: album.thumbnailUrl,
-                  );
-                },
-                onLongPress: () {
-                  EntityContextMenus.showAlbumMenu(
-                    context,
-                    album: GenericAlbum(
-                      id: album.id,
-                      source: album.source,
-                      title: album.title,
-                      thumbnailUrl: album.thumbnailUrl,
-                      artists: [
-                        GenericSimpleArtist(
-                          id: widget.artistId,
-                          source: _artist?.source ?? 'spotify',
-                          name:
-                              _artist?.name ??
-                              widget.initialArtist?.name ??
-                              'Artist',
-                          thumbnailUrl:
-                              _artist?.thumbnailUrl ??
-                              widget.initialArtist?.thumbnailUrl ??
-                              '',
-                        ),
-                      ],
-                      label: '',
-                      releaseDate: album.releaseDate,
-                      explicit: false,
-                      durationSecs: 0,
-                    ),
-                  );
-                },
-                child: SizedBox(
-                  width: 150,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          width: 150,
-                          height: 150,
-                          color: Colors.grey[900],
-                          child: album.thumbnailUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: album.thumbnailUrl,
-                                  fit: BoxFit.cover,
-                                )
-                              : Icon(Icons.album, color: Colors.grey[700]),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        album.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${album.releaseDate.year}',
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: CardRail<GenericSimpleAlbum>(
+        title: 'Albums',
+        items: albums,
+        itemWidth: 150,
+        itemSpacing: 12,
+        itemBuilder: (context, album) {
+          return AlbumCard.fromSimpleAlbum(
+            album: album,
+            subtitle: '${album.releaseDate.year}',
+          );
+        },
+      ),
     );
   }
 
@@ -1074,18 +842,29 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     required bool useAppleIcons,
     Gradient? backgroundGradient,
   }) {
-    return Consumer<global_audio_player.WispAudioHandler>(
-      builder: (context, player, child) {
-        final colorScheme = Theme.of(context).colorScheme;
-        return Container(
-          alignment: Alignment.bottomLeft,
-          decoration: BoxDecoration(gradient: backgroundGradient),
-          padding: useAppleIcons ? EdgeInsets.all(0) : EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                SizedBox(
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      alignment: Alignment.bottomLeft,
+      decoration: BoxDecoration(gradient: backgroundGradient),
+      padding: useAppleIcons ? EdgeInsets.all(0) : EdgeInsets.all(24),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            Selector<global_audio_player.WispAudioHandler, (bool, bool, bool, bool)>(
+              selector: (context, player) => (
+                _isCurrentArtistPlaying(player),
+                player.isPlaying,
+                player.isLoading,
+                player.isBuffering,
+              ),
+              builder: (context, state, child) {
+                final isCurrentPlaying = state.$1;
+                final isPlaying = state.$2;
+                final isLoading = state.$3;
+                final isBuffering = state.$4;
+
+                return SizedBox(
                   width: 44,
                   height: 44,
                   child: GenericFilledButton(
@@ -1093,11 +872,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                       if (!_isLoading) {
                         final coordinator = context
                             .read<PlaybackCoordinator>();
-                        if (_isCurrentArtistPlaying(player)) {
-                          if (player.isPlaying) {
+                        if (isCurrentPlaying) {
+                          if (isPlaying) {
                             await coordinator.pause();
-                          } else if (!player.isLoading &&
-                              !player.isBuffering) {
+                          } else if (!isLoading && !isBuffering) {
                             await coordinator.play();
                           }
                         } else {
@@ -1110,7 +888,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     padding: EdgeInsets.zero,
                     borderRadius: BorderRadius.circular(12),
                     child: Icon(
-                      _isCurrentArtistPlaying(player) && player.isPlaying
+                      isCurrentPlaying && isPlaying
                           ? (useAppleIcons
                                 ? CupertinoIcons.pause_fill
                                 : Icons.pause)
@@ -1120,56 +898,86 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                       size: 24,
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                GenericIconButton(
-                  onPressed: player.isDJMode ? null : player.toggleShuffle,
-                  tooltip: player.isDJMode ? 'Unavailable in DJ mode' : null,
+                );
+              },
+            ),
+            const SizedBox(width: 12),
+            Selector<global_audio_player.WispAudioHandler, (bool, bool)>(
+              selector: (context, player) => (
+                player.isDJMode,
+                player.shuffleEnabled,
+              ),
+              builder: (context, state, child) {
+                final isDJMode = state.$1;
+                final shuffleEnabled = state.$2;
+
+                return GenericIconButton(
+                  onPressed: isDJMode
+                      ? null
+                      : () => context
+                            .read<global_audio_player.WispAudioHandler>()
+                            .toggleShuffle(),
+                  tooltip: isDJMode ? 'Unavailable in DJ mode' : null,
                   icon: Icon(
                     useAppleIcons ? CupertinoIcons.shuffle : Icons.shuffle,
-                    color: player.isDJMode
+                    color: isDJMode
                         ? Colors.grey[600]
-                        : (player.shuffleEnabled
+                        : (shuffleEnabled
                             ? colorScheme.primary
                             : Colors.grey[300]),
                   ),
-                ),
-                GenericIconButton(
-                  onPressed: player.isDJMode ? null : player.toggleRepeat,
-                  tooltip: player.isDJMode ? 'Unavailable in DJ mode' : null,
+                );
+              },
+            ),
+            Selector<global_audio_player.WispAudioHandler, (bool, global_audio_player.RepeatMode)>(
+              selector: (context, player) => (
+                player.isDJMode,
+                player.repeatMode,
+              ),
+              builder: (context, state, child) {
+                final isDJMode = state.$1;
+                final repeatMode = state.$2;
+
+                return GenericIconButton(
+                  onPressed: isDJMode
+                      ? null
+                      : () => context
+                            .read<global_audio_player.WispAudioHandler>()
+                            .toggleRepeat(),
+                  tooltip: isDJMode ? 'Unavailable in DJ mode' : null,
                   icon: Icon(
-                    player.repeatMode == global_audio_player.RepeatMode.one
+                    repeatMode == global_audio_player.RepeatMode.one
                         ? (useAppleIcons
                               ? CupertinoIcons.repeat_1
                               : Icons.repeat_one)
                         : (useAppleIcons
                               ? CupertinoIcons.repeat
                               : Icons.repeat),
-                    color: player.isDJMode
+                    color: isDJMode
                         ? Colors.grey[600]
-                        : (player.repeatMode == global_audio_player.RepeatMode.off
+                        : (repeatMode == global_audio_player.RepeatMode.off
                             ? Colors.grey[300]
                             : colorScheme.primary),
                   ),
-                ),
-                Builder(
-                  builder: (buttonContext) {
-                    return GenericIconButton(
-                      onPressed: () => _showArtistOptions(buttonContext),
-                      icon: Icon(
-                        useAppleIcons
-                            ? CupertinoIcons.ellipsis
-                            : Icons.more_horiz,
-                        color: Colors.grey,
-                      ),
-                    );
-                  },
-                ),
-              ],
+                );
+              },
             ),
-          ),
-        );
-      },
+            Builder(
+              builder: (buttonContext) {
+                return GenericIconButton(
+                  onPressed: () => _showArtistOptions(buttonContext),
+                  icon: Icon(
+                    useAppleIcons
+                        ? CupertinoIcons.ellipsis
+                        : Icons.more_horiz,
+                    color: Colors.grey,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1308,8 +1116,6 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     bool spotifyStyle = false,
   }) {
     final tracks = _artist?.topSongs ?? [];
-    final player = context.watch<global_audio_player.WispAudioHandler>();
-    final colorScheme = Theme.of(context).colorScheme;
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
@@ -1321,7 +1127,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Text(
             title,
             style: const TextStyle(
@@ -1346,198 +1152,102 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             itemCount: tracks.length,
             itemBuilder: (context, index) {
               final track = tracks[index];
-              final isCurrentTrack = player.currentTrack?.id == track.id;
-              final album = track.album;
-              final isHovering = _hoveredTrackId == track.id;
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
+              return TrackRow(
+                track: track,
+                index: null,
+                viewContext: PlaybackContext(
+                  type: PlaybackContextType.artist,
+                  name: _artist?.name ?? '',
+                  id: _artist?.id ?? '',
+                  source: _artist?.source ?? 'spotify',
+                ),
+                style: spotifyStyle ? AppStyle.Spotify : null,
+                showAlbumName: false,
+                showDuration: true,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                trailing: isDesktop
+                    ? LikeButton(
+                        track: track,
+                        iconSize: 16,
+                        hoverOnlyWhenUnliked: true,
+                        padding: const EdgeInsets.all(2),
+                        constraints: const BoxConstraints(
+                          minWidth: 24,
+                          minHeight: 24,
+                        ),
+                      )
+                    : null,
+                onTap: () => _playTopTracks(index),
+                onPlayPause: () => _toggleTopTrackPlayback(index),
                 onSecondaryTapDown: isDesktop
-                    ? (details) {
-                        EntityContextMenus.showTrackMenu(
+                    ? (details) => EntityContextMenus.showTrackMenu(
                           context,
                           track: track,
                           globalPosition: details.globalPosition,
-                        );
-                      }
+                        )
                     : null,
                 onLongPress: isDesktop
                     ? null
-                    : () {
-                        EntityContextMenus.showTrackMenu(context, track: track);
-                      },
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  onEnter: (_) {
-                    if (!isDesktop) return;
-                    setState(() => _hoveredTrackId = track.id);
-                  },
-                  onExit: (_) {
-                    if (!isDesktop) return;
-                    setState(() => _hoveredTrackId = null);
-                  },
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      mouseCursor: SystemMouseCursors.click,
-                      onTap: () => _playTopTracks(index),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+                    : () => EntityContextMenus.showTrackMenu(
+                          context,
+                          track: track,
                         ),
-                        decoration: BoxDecoration(
-                          color: spotifyStyle && index == 0
-                              ? Colors.white.withValues(alpha: 0.07)
-                              : Colors.transparent,
-                          borderRadius: spotifyStyle
-                              ? BorderRadius.zero
-                              : BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            if (isDesktop) ...[
-                              SizedBox(
-                                width: 40,
-                                child: Text(
-                                  '${index + 1}',
-                                  style: TextStyle(color: Colors.grey[400]),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: Container(
-                                width: 40,
-                                height: 40,
-                                color: Colors.grey[900],
-                                child: track.thumbnailUrl.isNotEmpty
-                                    ? CachedNetworkImage(
-                                        imageUrl: track.thumbnailUrl,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : Icon(
-                                        Icons.music_note,
-                                        color: Colors.grey[700],
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 3,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  (isDesktop &&
-                                          album != null &&
-                                          album.id.isNotEmpty)
-                                      ? HoverUnderline(
-                                          onTap: () {
-                                            AppNavigation.instance
-                                                .openSharedList(
-                                                  context,
-                                                  id: album.id,
-                                                  type: SharedListType.album,
-                                                  initialTitle: album.title,
-                                                  initialThumbnailUrl:
-                                                      album.thumbnailUrl,
-                                                );
-                                          },
-                                          builder: (isHovering) => Text(
-                                            track.title,
-                                            style: TextStyle(
-                                              color: isCurrentTrack
-                                                  ? colorScheme.primary
-                                                  : Colors.white,
-                                              decoration: isHovering
-                                                  ? TextDecoration.underline
-                                                  : TextDecoration.none,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        )
-                                      : Text(
-                                          track.title,
-                                          style: TextStyle(
-                                            color: isCurrentTrack
-                                                ? colorScheme.primary
-                                                : Colors.white,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    track.artists.map((a) => a.name).join(', '),
-                                    style: TextStyle(
-                                      color: spotifyStyle
-                                          ? Colors.grey[400]
-                                          : Colors.grey[500],
-                                      fontSize: 12,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (isDesktop) ...[
-                              AnimatedOpacity(
-                                opacity: isHovering ? 1 : 0,
-                                duration: const Duration(milliseconds: 120),
-                                child: IgnorePointer(
-                                  ignoring: !isHovering,
-                                  child: LikeButton(
-                                    track: track,
-                                    iconSize: 16,
-                                    padding: const EdgeInsets.all(2),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 24,
-                                      minHeight: 24,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            SizedBox(
-                              width: 80,
-                              child: Text(
-                                _formatDuration(track.durationSecs),
-                                style: TextStyle(
-                                  color: spotifyStyle
-                                      ? Colors.grey[300]
-                                      : Colors.grey[400],
-                                  fontSize: 12,
-                                ),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                            SizedBox(width: isDesktop ? 16 : 12),
-                            if (!spotifyStyle)
-                              Icon(
-                                Icons.graphic_eq,
-                                color: colorScheme.primary,
-                                size: 18,
-                              )
-                            else
-                              Icon(
-                                Icons.more_horiz,
-                                color: Colors.grey[500],
-                                size: 18,
-                              ),
-                          ],
-                        ),
-                      ),
+                onMoreTap: (buttonContext) =>
+                    EntityContextMenus.showTrackMenu(
+                      buttonContext,
+                      track: track,
                     ),
-                  ),
+                onArtistTap: (artist) => AppNavigation.instance.openArtist(
+                  context,
+                  artistId: artist.id,
+                  initialArtist: artist,
+                  fallbackName: artist.name,
                 ),
+                onArtistSecondaryTapDown: isDesktop
+                    ? (artist, details) => EntityContextMenus.showArtistMenu(
+                          context,
+                          artist: artist,
+                          globalPosition: details.globalPosition,
+                        )
+                    : null,
+                onAlbumTap: track.album?.id.isNotEmpty == true
+                    ? () => AppNavigation.instance.openSharedList(
+                          context,
+                          id: track.album!.id,
+                          type: SharedListType.album,
+                          initialTitle: track.album!.title,
+                          initialThumbnailUrl: track.album!.thumbnailUrl,
+                        )
+                    : null,
               );
             },
           ),
       ],
+    );
+  }
+
+  Widget _buildSpotifyAlbumsSection({bool isDesktop = true}) {
+    final albums = _artist?.albums ?? [];
+    if (albums.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isDesktop ? 0 : 20),
+      child: CardRail<GenericSimpleAlbum>(
+        title: 'Albums',
+        items: albums,
+        itemWidth: isDesktop ? 180 : 150,
+        itemBuilder: (context, album) {
+          return AlbumCard.fromSimpleAlbum(
+            album: album,
+            subtitle: '${album.releaseDate.year}',
+          );
+        },
+      ),
     );
   }
 
@@ -1555,9 +1265,9 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       children: [
         (isDesktop
             ? _buildSectionTitle('Albums')
-            : Text(
+            : const Text(
                 'Albums',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -1572,114 +1282,29 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             ),
           )
         else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: isDesktop ? 16 : 16,
-              mainAxisSpacing: isDesktop ? 20 : 16,
-              childAspectRatio: isDesktop ? 0.76 : 0.885,
-            ),
-            itemCount: albums.length,
-            itemBuilder: (context, index) {
-              final album = albums[index];
-              return GestureDetector(
-                onSecondaryTapDown: isDesktop
-                    ? (details) {
-                        EntityContextMenus.showAlbumMenu(
-                          context,
-                          album: GenericAlbum(
-                            id: album.id,
-                            source: album.source,
-                            title: album.title,
-                            thumbnailUrl: album.thumbnailUrl,
-                            artists: [
-                              GenericSimpleArtist(
-                                id: widget.artistId,
-                                source: _artist?.source ?? 'spotify',
-                                name:
-                                    _artist?.name ??
-                                    widget.initialArtist?.name ??
-                                    'Artist',
-                                thumbnailUrl:
-                                    _artist?.thumbnailUrl ??
-                                    widget.initialArtist?.thumbnailUrl ??
-                                    '',
-                              ),
-                            ],
-                            label: '',
-                            releaseDate: album.releaseDate,
-                            explicit: false,
-                            durationSecs: 0,
-                          ),
-                          globalPosition: details.globalPosition,
-                        );
-                      }
-                    : null,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () {
-                      AppNavigation.instance.openSharedList(
-                        context,
-                        id: album.id,
-                        type: SharedListType.album,
-                        initialTitle: album.title,
-                        initialThumbnailUrl: album.thumbnailUrl,
-                      );
-                    },
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  width: double.infinity,
-                                  color: Colors.grey[900],
-                                  child: album.thumbnailUrl.isNotEmpty
-                                      ? CachedNetworkImage(
-                                          imageUrl: album.thumbnailUrl,
-                                          fit: BoxFit.cover,
-                                        )
-                                      : Icon(
-                                          Icons.album,
-                                          color: Colors.grey[700],
-                                        ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              album.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              '${album.releaseDate.year}',
-                              style: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const spacing = 16.0;
+              final totalSpacing = (columns - 1) * spacing;
+              final itemWidth = (constraints.maxWidth - totalSpacing) / columns;
+              final itemHeight = itemWidth + 56;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: isDesktop ? 20 : 16,
+                  childAspectRatio: itemWidth / itemHeight,
                 ),
+                itemCount: albums.length,
+                itemBuilder: (context, index) {
+                  final album = albums[index];
+                  return AlbumCard.fromSimpleAlbum(
+                    album: album,
+                    subtitle: '${album.releaseDate.year}',
+                  );
+                },
               );
             },
           ),
