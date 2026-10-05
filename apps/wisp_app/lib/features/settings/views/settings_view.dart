@@ -1,4 +1,4 @@
-﻿// Copyright © 2026 wizeshi
+// Copyright © 2026 wizeshi
 
 /// Settings page with Spotify authentication
 library;
@@ -23,6 +23,7 @@ import '../widgets/cache_deletion_dialog.dart';
 import '../widgets/trusted_devices_dialog.dart';
 import '../widgets/update_widget.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -460,21 +461,19 @@ class _SettingsPageState extends State<SettingsPage> {
                 children: [
                   if (isDesktop) ...[
                     Expanded(
-                      child: OutlinedButton.icon(
+                      child: GenericOutlinedButton.icon(
                         onPressed: _openAudioCacheFolder,
                         icon: const Icon(Icons.folder_open_outlined, size: 18),
                         label: const Text('Go to Folder'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.grey[400],
-                          side: BorderSide(color: Colors.grey[700]!),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
+                        foregroundColor: Colors.grey[400],
+                        side: BorderSide(color: Colors.grey[700]!),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                     const SizedBox(width: 12),
                   ],
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: GenericOutlinedButton.icon(
                       onPressed: () {
                         Navigator.of(context).push(
                           MaterialPageRoute<void>(
@@ -484,24 +483,20 @@ class _SettingsPageState extends State<SettingsPage> {
                       },
                       icon: const Icon(Icons.download_outlined, size: 18),
                       label: const Text('Downloads'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.grey[400],
-                        side: BorderSide(color: Colors.grey[700]!),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
+                      foregroundColor: Colors.grey[400],
+                      side: BorderSide(color: Colors.grey[700]!),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: OutlinedButton.icon(
+                    child: GenericOutlinedButton.icon(
                       onPressed: () => _showCacheDeleteDialog(),
                       icon: const Icon(Icons.delete_outline, size: 18),
                       label: const Text('Clear'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red[400],
-                        side: BorderSide(color: Colors.red[700]!),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
+                      foregroundColor: Colors.red[400],
+                      side: BorderSide(color: Colors.red[700]!),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ],
@@ -675,13 +670,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (isConnected) ...[
-                        IconButton(
+                        GenericIconButton(
                           icon: Icon(Icons.logout, color: Colors.grey[400]),
                           onPressed: () => _handleAuthLogout(auth),
                           tooltip: 'Logout',
                         ),
                       ] else ...[
-                        IconButton(
+                        GenericIconButton(
                           icon: Icon(Icons.login, color: accentColor),
                           onPressed: () => _handleAuthLogin(auth),
                           tooltip: 'Login',
@@ -1148,7 +1143,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                   ),
-                  TextButton(
+                  GenericTextButton(
                     onPressed: _showTrustedDevicesDialog,
                     child: const Text('View'),
                   ),
@@ -1292,7 +1287,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
-          FilledButton(
+          GenericFilledButton(
             onPressed: () {
               showDialog(
                 context: context,
@@ -1351,11 +1346,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     actions: [
-                      FilledButton(
+                      GenericFilledButton(
                         onPressed: () => Navigator.of(context).pop(),
                         child: const Text('Cancel'),
                       ),
-                      FilledButton(
+                      GenericFilledButton(
                         onPressed: () => Navigator.of(context).pop(),
                         child: const Text('Save'),
                       ),
@@ -1364,10 +1359,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               );
             },
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: const Text(
               'Manage',
               style: TextStyle(color: Colors.white, fontSize: 14),

@@ -43,6 +43,7 @@ import 'package:wisp/data/cache/metadata_revalidator.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 part 'list_detail/styles/spotify_style.dart';
@@ -1005,16 +1006,15 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           style: TextStyle(color: Colors.grey[400]),
         ),
         actions: [
-          TextButton(
+          GenericTextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+            foregroundColor: Colors.grey[400],
+            child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          GenericElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
             child: const Text('Download'),
           ),
         ],
@@ -1274,7 +1274,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             ? AppBar(
                 backgroundColor: contentSurfaceColor,
                 elevation: 0,
-                leading: IconButton(
+                leading: GenericIconButton(
                   icon: const Icon(CupertinoIcons.back),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
@@ -1289,7 +1289,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         backgroundColor: const Color(0xFF121212),
         clipBehavior: Clip.none,
         elevation: 0,
-        leading: IconButton(
+        leading: GenericIconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -1341,13 +1341,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         }
 
         final button = useAppleStyle
-            ? FilledButton(
+            ? GenericFilledButton(
                 onPressed: onPressed,
-                style: FilledButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: const Size(72, 44),
-                  shape: const StadiumBorder(),
-                ),
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(72, 44),
+                borderRadius: BorderRadius.circular(999),
                 child: Icon(icon, size: 20),
               )
             : Material(

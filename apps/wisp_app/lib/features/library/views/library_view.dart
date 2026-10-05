@@ -23,6 +23,7 @@ import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/features/details/views/list_detail_view.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
@@ -549,7 +550,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
   }
 
   Widget _buildDragToggleButton() {
-    return IconButton(
+    return GenericIconButton(
       tooltip: _dragModeEnabled ? 'Disable drag' : 'Enable drag',
       icon: Icon(
         Icons.drag_handle,
@@ -562,7 +563,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
   }
 
   Widget _buildCreateMenuButton() {
-    return IconButton(
+    return GenericIconButton(
       tooltip: 'Create',
       icon: Icon(Icons.add, color: Colors.grey[300]),
       onPressed: _showCreateMenu,
@@ -938,14 +939,12 @@ class LibraryTabViewState extends State<LibraryTabView> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
+          GenericElevatedButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh),
             label: const Text('Retry'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Theme.of(context).colorScheme.onPrimary,
           ),
         ],
       ),

@@ -17,6 +17,7 @@ import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class PlaylistFolderModals {
   static OverlayEntry? _activeSubmenu;
@@ -332,14 +333,12 @@ class PlaylistFolderModals {
                         _ThumbnailPreview(file: selectedFile),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: OutlinedButton.icon(
+                          child: GenericOutlinedButton.icon(
                             onPressed: () => pickThumbnail(setModalState),
                             icon: const Icon(Icons.image_outlined),
                             label: const Text('Choose thumbnail'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(color: Colors.white24),
-                            ),
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white24),
                           ),
                         ),
                       ],
@@ -348,7 +347,7 @@ class PlaylistFolderModals {
                     Row(
                       children: [
                         Expanded(
-                          child: TextButton(
+                          child: GenericTextButton(
                             onPressed: () => Navigator.pop(context),
                             child: Text(
                               'Cancel',
@@ -357,7 +356,7 @@ class PlaylistFolderModals {
                           ),
                         ),
                         Expanded(
-                          child: ElevatedButton(
+                          child: GenericElevatedButton(
                             onPressed: () => save(modalContext),
                             child: const Text('Create'),
                           ),
@@ -409,14 +408,12 @@ class PlaylistFolderModals {
                       _ThumbnailPreview(file: selectedFile),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: GenericOutlinedButton.icon(
                           onPressed: () => pickThumbnail(setModalState),
                           icon: const Icon(Icons.image_outlined),
                           label: const Text('Choose thumbnail'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white24),
-                          ),
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white24),
                         ),
                       ),
                     ],
@@ -426,11 +423,11 @@ class PlaylistFolderModals {
             },
           ),
           actions: [
-            TextButton(
+            GenericTextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
             ),
-            ElevatedButton(
+            GenericElevatedButton(
               onPressed: () => save(dialogContext),
               child: const Text('Create'),
             ),
@@ -523,14 +520,12 @@ class PlaylistFolderModals {
                         _ThumbnailPreview(file: selectedFile),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: OutlinedButton.icon(
+                          child: GenericOutlinedButton.icon(
                             onPressed: () => pickThumbnail(setModalState),
                             icon: const Icon(Icons.image_outlined),
                             label: const Text('Choose thumbnail'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(color: Colors.white24),
-                            ),
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white24),
                           ),
                         ),
                       ],
@@ -539,7 +534,7 @@ class PlaylistFolderModals {
                     Row(
                       children: [
                         Expanded(
-                          child: TextButton(
+                          child: GenericTextButton(
                             onPressed: () => Navigator.pop(context),
                             child: Text(
                               'Cancel',
@@ -548,7 +543,7 @@ class PlaylistFolderModals {
                           ),
                         ),
                         Expanded(
-                          child: ElevatedButton(
+                          child: GenericElevatedButton(
                             onPressed: () => save(modalContext),
                             child: const Text('Create'),
                           ),
@@ -601,14 +596,12 @@ class PlaylistFolderModals {
                       _ThumbnailPreview(file: selectedFile),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: GenericOutlinedButton.icon(
                           onPressed: () => pickThumbnail(setModalState),
                           icon: const Icon(Icons.image_outlined),
                           label: const Text('Choose thumbnail'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white24),
-                          ),
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white24),
                         ),
                       ),
                     ],
@@ -618,11 +611,11 @@ class PlaylistFolderModals {
             },
           ),
           actions: [
-            TextButton(
+            GenericTextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
             ),
-            TextButton(
+            GenericTextButton(
               onPressed: () => save(dialogContext),
               child: Text('Create', style: TextStyle(color: Colors.white)),
             ),
@@ -664,11 +657,11 @@ class PlaylistFolderModals {
             ),
           ),
           actions: [
-            TextButton(
+            GenericTextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
             ),
-            TextButton(
+            GenericTextButton(
               onPressed: () async {
                 final name = controller.text.trim();
                 if (name.isEmpty) return;
@@ -757,7 +750,7 @@ class PlaylistFolderModals {
                 Row(
                   children: [
                     Expanded(
-                      child: TextButton(
+                      child: GenericTextButton(
                         onPressed: () => Navigator.pop(modalContext),
                         child: Text(
                           'Cancel',
@@ -766,7 +759,7 @@ class PlaylistFolderModals {
                       ),
                     ),
                     Expanded(
-                      child: ElevatedButton(
+                      child: GenericElevatedButton(
                         onPressed: () => submit(modalContext),
                         child: const Text('Save'),
                       ),
@@ -806,11 +799,11 @@ class PlaylistFolderModals {
             ),
           ),
           actions: [
-            TextButton(
+            GenericTextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
             ),
-            ElevatedButton(
+            GenericElevatedButton(
               onPressed: () => submit(dialogContext),
               child: const Text('Save'),
             ),

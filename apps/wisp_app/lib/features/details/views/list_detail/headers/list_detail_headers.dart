@@ -178,19 +178,19 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
           child: Row(
             children: [
               // Left side: Download + More
-              IconButton(
+              GenericIconButton(
                 icon: const Icon(Icons.download_outlined),
                 color: Colors.white,
                 onPressed: () => _downloadAll(),
               ),
-              IconButton(
+              GenericIconButton(
                 icon: const Icon(Icons.more_horiz),
                 color: Colors.white,
                 onPressed: () => _showListContextMenu(),
               ),
               const Spacer(),
               // Right side: Loop + Shuffle + Play
-              IconButton(
+              GenericIconButton(
                 icon: Icon(
                   player.repeatMode == global_audio_player.RepeatMode.one
                       ? Icons.repeat_one
@@ -201,7 +201,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                   context.read<PlaybackCoordinator>().toggleRepeat();
                 },
               ),
-              IconButton(
+              GenericIconButton(
                 icon: const Icon(Icons.shuffle),
                 color: shuffleActive ? colorScheme.primary : Colors.white,
                 onPressed: () => _toggleListShuffle(player),
@@ -214,7 +214,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                   color: colorScheme.primary,
                   shape: BoxShape.circle,
                 ),
-                child: IconButton(
+                child: GenericIconButton(
                   icon: Icon(
                     playlistIsPlaying ? Icons.pause : Icons.play_arrow,
                     size: 32,
@@ -489,7 +489,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                               height: 54,
                               child: MouseRegion(
                                 cursor: SystemMouseCursors.click,
-                                child: FilledButton(
+                                child: GenericFilledButton(
                                   onPressed: () {
                                     if (!_isLoading) {
                                       if (_isCurrentListPlaying(player)) {
@@ -499,14 +499,11 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                                       }
                                     }
                                   },
-                                  style: FilledButton.styleFrom(
-                                    enabledMouseCursor:
-                                        SystemMouseCursors.click,
-                                    backgroundColor: colorScheme.primary,
-                                    foregroundColor: colorScheme.onPrimary,
-                                    padding: EdgeInsets.zero,
-                                    shape: const CircleBorder(),
-                                  ),
+                                  mouseCursor: SystemMouseCursors.click,
+                                  backgroundColor: colorScheme.primary,
+                                  foregroundColor: colorScheme.onPrimary,
+                                  padding: EdgeInsets.zero,
+                                  shape: const CircleBorder(),
                                   child: Icon(
                                     _isCurrentListPlaying(player) &&
                                             player.isPlaying
@@ -518,7 +515,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            IconButton(
+                            GenericIconButton(
                               onPressed: () {
                                 _toggleListShuffle(player);
                               },
@@ -529,7 +526,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                                     : Colors.white70,
                               ),
                             ),
-                            IconButton(
+                            GenericIconButton(
                               onPressed: player.toggleRepeat,
                               icon: Icon(
                                 player.repeatMode ==
@@ -541,7 +538,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                                     : Colors.white70,
                               ),
                             ),
-                            IconButton(
+                            GenericIconButton(
                               onPressed: _isLoading ? null : _downloadAll,
                               icon: const Icon(
                                 Icons.download,
@@ -550,7 +547,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                             ),
                             Builder(
                               builder: (buttonContext) {
-                                return IconButton(
+                                return GenericIconButton(
                                   onPressed: () {
                                     if (isDesktop) {
                                       _showListContextMenu(
@@ -609,7 +606,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                                 ),
                               ),
                             ),
-                            IconButton(
+                            GenericIconButton(
                               onPressed: () {
                                 _safeSetState(() {
                                   _showSearch = !_showSearch;

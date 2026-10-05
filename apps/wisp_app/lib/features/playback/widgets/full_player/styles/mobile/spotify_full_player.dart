@@ -21,7 +21,7 @@ import 'package:wisp/features/playback/views/lyrics_view.dart';
 import 'package:wisp/features/playback/views/queue_view.dart';
 import 'package:wisp/features/playback/widgets/animated_lyrics_preview.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
-import 'package:wisp/shared/widgets/buttons/generic_button.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 import '../../components/canvas_video.dart';
 import '../../components/cover_gradient_container.dart';

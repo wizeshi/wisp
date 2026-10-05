@@ -24,6 +24,7 @@ import 'package:wisp/core/utils/song_source_icon.dart';
 import 'adaptive_context_menu.dart';
 import 'playlist_folder_modals.dart';
 import 'track_inspect_dialog.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class EntityContextMenus {
   static String _idWithoutPrefix(String id) {
@@ -642,11 +643,11 @@ class EntityContextMenus {
                   'Delete confirmation is still a placeholder for now.',
                 ),
                 actions: [
-                  TextButton(
+                  GenericTextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(false),
                     child: const Text('Cancel'),
                   ),
-                  FilledButton(
+                  GenericFilledButton(
                     onPressed: () => Navigator.of(dialogContext).pop(true),
                     child: const Text('Delete'),
                   ),

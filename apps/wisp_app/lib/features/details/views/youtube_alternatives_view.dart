@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class YouTubeAlternativesView extends StatefulWidget {
   final GenericSong track;
@@ -86,11 +87,11 @@ class _YouTubeAlternativesViewState extends State<YouTubeAlternativesView> {
           ],
         ),
         actions: [
-          TextButton(
+          GenericTextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          GenericElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Save'),
           ),
@@ -153,7 +154,7 @@ class _YouTubeAlternativesViewState extends State<YouTubeAlternativesView> {
             children: [
               Text(_error!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
-              FilledButton(onPressed: _runSearch, child: const Text('Retry')),
+              GenericFilledButton(onPressed: _runSearch, child: const Text('Retry')),
             ],
           ),
         ),

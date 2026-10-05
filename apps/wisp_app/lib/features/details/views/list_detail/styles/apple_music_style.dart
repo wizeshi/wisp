@@ -105,7 +105,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   clipBehavior: Clip.none,
                   pinned: true,
                   expandedHeight: expandedHeight,
-                  leading: IconButton(
+                  leading: GenericIconButton(
                     icon: const Icon(CupertinoIcons.back),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -130,11 +130,11 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                         protrude: true,
                       )
                     else ...[
-                      IconButton(
+                      GenericIconButton(
                         icon: const Icon(CupertinoIcons.arrow_down_to_line),
                         onPressed: view._isLoading ? null : view._downloadAll,
                       ),
-                      IconButton(
+                      GenericIconButton(
                         icon: const Icon(CupertinoIcons.ellipsis_vertical),
                         onPressed: view._showListContextMenu,
                       ),
@@ -573,34 +573,31 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               height: 44,
               child: AspectRatio(
                 aspectRatio: 1,
-                child: IconButton.filled(
+                child: GenericIconButton.filled(
                   onPressed: view._items.isEmpty
                       ? null
                       : () {
                           view._toggleListShuffle(player);
                         },
                   icon: const Icon(CupertinoIcons.shuffle, size: 20),
-                  style: IconButton.styleFrom(
-                    backgroundColor:
-                        view._preShuffleEnabled ||
-                            (view._isCurrentListPlaying(player) &&
-                                player.shuffleEnabled)
-                        ? Colors.white
-                        : Theme.of(context).colorScheme.primary,
-                    foregroundColor:
-                        view._preShuffleEnabled ||
-                            (view._isCurrentListPlaying(player) &&
-                                player.shuffleEnabled)
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.white,
-                    shape: const StadiumBorder(),
-                    minimumSize: const Size(0, 44),
-                  ),
+                  backgroundColor:
+                      view._preShuffleEnabled ||
+                          (view._isCurrentListPlaying(player) &&
+                              player.shuffleEnabled)
+                      ? Colors.white
+                      : Theme.of(context).colorScheme.primary,
+                  color:
+                      view._preShuffleEnabled ||
+                          (view._isCurrentListPlaying(player) &&
+                              player.shuffleEnabled)
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            FilledButton.icon(
+            GenericFilledButton.icon(
               onPressed: view._items.isEmpty
                   ? null
                   : () {
@@ -620,29 +617,23 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                 isPlayingList ? 'Pause' : 'Play',
                 style: const TextStyle(fontSize: 20),
               ),
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-                shape: const StadiumBorder(),
-                minimumSize: const Size(0, 44),
-              ),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+              borderRadius: BorderRadius.circular(999),
             ),
             const SizedBox(width: 8),
             SizedBox(
               height: 44,
               child: AspectRatio(
                 aspectRatio: 1,
-                child: IconButton.filled(
+                child: GenericIconButton.filled(
                   onPressed: view._items.isEmpty
                       ? null
                       : view._showListContextMenu,
                   icon: const Icon(CupertinoIcons.ellipsis_vertical, size: 20),
-                  style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    shape: const StadiumBorder(),
-                    minimumSize: const Size(0, 44),
-                  ),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
             ),
@@ -666,37 +657,27 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
           required bool isPrimary,
         }) {
           if (useCompactControls) {
-            return FilledButton(
+            return GenericFilledButton(
               onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(40, 40),
-                padding: EdgeInsets.zero,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(40, 36),
+              padding: EdgeInsets.zero,
+              borderRadius: BorderRadius.circular(6),
               child: Icon(icon, size: 20),
             );
           }
 
-          return FilledButton.icon(
+          return GenericFilledButton.icon(
             onPressed: onPressed,
             icon: Icon(icon),
             label: Text(label),
-            style: FilledButton.styleFrom(
-              enabledMouseCursor: SystemMouseCursors.click,
-              disabledMouseCursor: SystemMouseCursors.basic,
-              minimumSize: const Size(112, 40),
-              textStyle: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
+            minimumSize: const Size(112, 36),
+            textStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
+            borderRadius: BorderRadius.circular(6),
           );
         }
 
@@ -739,22 +720,23 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               ],
             ),
             Row(
+              spacing: 16,
               children: [
-                IconButton(
+                GenericIconButton(
                   icon: Icon(
                     CupertinoIcons.share,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   onPressed: view._showShareDialog,
                 ),
-                IconButton(
+                GenericIconButton(
                   icon: Icon(
                     CupertinoIcons.pencil,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   onPressed: view._showEditDialog,
                 ),
-                IconButton(
+                GenericIconButton(
                   icon: Icon(
                     CupertinoIcons.arrow_down_to_line,
                     color: Theme.of(context).colorScheme.primary,
@@ -762,7 +744,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
                   onPressed: view._isLoading ? null : view._downloadAll,
                 ),
                 Builder(
-                  builder: (buttonContext) => IconButton(
+                  builder: (buttonContext) => GenericIconButton(
                     icon: Icon(
                       CupertinoIcons.ellipsis,
                       color: Theme.of(context).colorScheme.primary,

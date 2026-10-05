@@ -23,6 +23,7 @@ import 'package:wisp/shared/widgets/cards/playlist_card.dart';
 import 'package:wisp/shared/widgets/cards/user_card.dart';
 import 'package:wisp/shared/widgets/rails/card_rail.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 
@@ -433,16 +434,14 @@ class _UserDetailViewState extends State<UserDetailView> {
     final label = isFollowing ? 'Following' : 'Follow';
     final icon = isFollowing ? tokens.personIcon : tokens.personAddIcon;
 
-    return OutlinedButton.icon(
+    return GenericOutlinedButton.icon(
       onPressed: null,
       icon: Icon(icon, size: 18),
       label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.white,
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.22)),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-      ),
+      foregroundColor: Colors.white,
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.22)),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
     );
   }
 

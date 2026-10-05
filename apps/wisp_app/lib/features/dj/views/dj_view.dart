@@ -11,6 +11,7 @@ import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/shared/widgets/rails/card_rail.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 import '../data/dj_constants.dart';
 import '../models/dj_chat_message.dart';
@@ -814,14 +815,12 @@ class _DJViewState extends State<DJView> {
                               constraints: BoxConstraints(
                                 maxWidth: constraints.maxWidth * 0.8,
                               ),
-                              child: ElevatedButton(
+                              child: GenericElevatedButton(
                                 onPressed: _isBlocked
                                     ? null
                                     : () => _handleSubmitted(entry.value),
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14.0,
-                                  ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14.0,
                                 ),
                                 child: Text(
                                   entry.value,
@@ -847,7 +846,7 @@ class _DJViewState extends State<DJView> {
                                 ? 8.0
                                 : 0.0,
                           ),
-                          child: ElevatedButton(
+                          child: GenericElevatedButton(
                             onPressed: _isBlocked
                                 ? null
                                 : () => _handleSubmitted(entry.value),
@@ -877,7 +876,7 @@ class _DJViewState extends State<DJView> {
                     isDesktop
                         ? SizedBox(
                             height: 48.0,
-                            child: FilledButton.icon(
+                            child: GenericFilledButton.icon(
                               label: const Text('Pick something for me'),
                               icon: const Icon(Symbols.shuffle),
                               onPressed: () {
@@ -894,7 +893,7 @@ class _DJViewState extends State<DJView> {
                         : SizedBox(
                             width: 48.0,
                             height: 48.0,
-                            child: IconButton.filled(
+                            child: GenericIconButton.filled(
                               icon: const Icon(Symbols.shuffle),
                               tooltip: 'Pick something for me',
                               onPressed: () {
@@ -929,7 +928,7 @@ class _DJViewState extends State<DJView> {
                                     ),
                                   ),
                                 )
-                              : IconButton(
+                              : GenericIconButton(
                                   icon: const Icon(Symbols.send),
                                   onPressed: () {
                                     _handleSubmitted(
@@ -944,7 +943,7 @@ class _DJViewState extends State<DJView> {
                       ),
                     ),
                     const SizedBox(width: 8.0),
-                    IconButton.filled(
+                    GenericIconButton.filled(
                       icon: const Icon(Symbols.info),
                       onPressed: () {
                         showDialog(
@@ -960,7 +959,7 @@ class _DJViewState extends State<DJView> {
                                 'So, the more you listen, the better the suggestions will be!',
                               ),
                               actions: [
-                                TextButton(
+                                GenericTextButton(
                                   onPressed: () => Navigator.of(context).pop(),
                                   child: const Text('Close'),
                                 ),

@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 /// A horizontally scrolling row of cards, with a title header, edge fade,
 /// and hover-revealed scroll arrows on desktop.
@@ -254,7 +255,11 @@ class _ScrollArrowButton extends StatelessWidget {
     return Material(
       color: Colors.black.withValues(alpha: 0.5),
       shape: const CircleBorder(),
-      child: IconButton(
+      child: GenericIconButton(
+        constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+        minimumSize: const Size(40, 40),
+        padding: EdgeInsets.zero,
+        iconSize: 24,
         icon: Icon(icon, color: Colors.white),
         onPressed: onPressed,
         splashRadius: 18,

@@ -28,8 +28,8 @@ class _SlidingTrackBackgroundState extends State<SlidingTrackBackground> {
   @override
   void didUpdateWidget(covariant SlidingTrackBackground oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.queueIndex == widget.queueIndex &&
-        oldWidget.transitionToken == widget.transitionToken) {
+    if (oldWidget.transitionToken == widget.transitionToken &&
+        oldWidget.trackId == widget.trackId) {
       return;
     }
 
@@ -75,7 +75,7 @@ class _SlidingTrackBackgroundState extends State<SlidingTrackBackground> {
       },
       child: KeyedSubtree(
         key: ValueKey<String>(
-          '${widget.transitionToken}-${widget.trackId ?? 'null'}-${widget.queueIndex}',
+          '${widget.transitionToken}-${widget.trackId ?? 'null'}',
         ),
         child: widget.child,
       ),

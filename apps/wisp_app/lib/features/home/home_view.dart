@@ -22,6 +22,7 @@ import 'package:wisp/shared/widgets/rows/generic_row.dart';
 import 'package:wisp/shared/widgets/rows/playlist_row.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 import 'package:wisp/data/models/library_folder.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
@@ -595,12 +596,12 @@ class HomePageState extends State<HomePage> {
               runSpacing: 12,
               alignment: WrapAlignment.center,
               children: [
-                FilledButton.icon(
+                GenericFilledButton.icon(
                   onPressed: () => AppNavigation.instance.pushTab(1),
                   icon: const Icon(Symbols.search_rounded),
                   label: const Text('Go to Search'),
                 ),
-                OutlinedButton.icon(
+                GenericOutlinedButton.icon(
                   onPressed: () => AppNavigation.instance.openSettings(),
                   icon: const Icon(Symbols.settings_rounded),
                   label: const Text('Open Settings'),
@@ -625,7 +626,7 @@ class HomePageState extends State<HomePage> {
             style: const TextStyle(fontSize: 18, color: Colors.grey),
           ),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
+          GenericElevatedButton.icon(
             onPressed: () {
               AppNavigation.instance.openSettings();
             },
@@ -703,7 +704,7 @@ class HomePageState extends State<HomePage> {
 
   List<Widget> _buildMobileHeaderActions({bool useAppleIcon = false}) {
     return [
-      IconButton(
+      GenericIconButton(
         icon: const Icon(
           Symbols.headphones,
           color: Colors.white,
@@ -719,7 +720,7 @@ class HomePageState extends State<HomePage> {
           if (!debugModeEnabled) {
             return const SizedBox.shrink();
           }
-          return IconButton(
+          return GenericIconButton(
             icon: const Icon(
               Icons.bug_report_outlined,
               color: Colors.white,
@@ -731,7 +732,7 @@ class HomePageState extends State<HomePage> {
           );
         },
       ),
-      IconButton(
+      GenericIconButton(
         icon: Icon(
           useAppleIcon
               ? CupertinoIcons.settings

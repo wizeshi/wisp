@@ -7,6 +7,7 @@ import 'package:simple_icons/simple_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:wisp/core/utils/json.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 
 class UpdateWidget extends StatefulWidget {
@@ -105,7 +106,7 @@ class _UpdateWidgetState extends State<UpdateWidget> {
             spacing: _isDesktop ? 8 : 0,
             children: [
               if (isUpdated)
-                IconButton(
+                GenericIconButton(
                   icon: Center(
                     child: OverflowBox(
                       minWidth: 0,

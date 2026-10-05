@@ -14,6 +14,7 @@ import 'package:wisp/core/utils/song_source_icon.dart';
 import 'package:wisp/shared/widgets/display/hover_underline.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 /// Where a [TrackRow]'s play/pause affordance lives. Having both the index
 /// column *and* the cover art independently offer a play button is
@@ -568,24 +569,24 @@ class TrackRow extends StatelessWidget {
                     if (onMoreTap != null)
                       SizedBox(
                         width: 48,
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Builder(
-                            builder: (buttonContext) => IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: 24,
-                                minHeight: 24,
-                              ),
-                              icon: Icon(
-                                tokens.moreIcon,
-                                color: isApple
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Colors.grey[400],
-                                size: 18,
-                              ),
-                              onPressed: () => onMoreTap!(buttonContext),
+                        height: height,
+                        child: Builder(
+                          builder: (buttonContext) => GenericIconButton(
+                            padding: EdgeInsets.zero,
+                            alignment: Alignment.centerRight,
+                            constraints: BoxConstraints.tightFor(
+                              width: 48,
+                              height: height,
                             ),
+                            minimumSize: Size(48, height),
+                            icon: Icon(
+                              tokens.moreIcon,
+                              color: isApple
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.grey[400],
+                              size: 18,
+                            ),
+                            onPressed: () => onMoreTap!(buttonContext),
                           ),
                         ),
                       )
@@ -665,9 +666,10 @@ class _IndexOrPlayButton extends StatelessWidget {
           duration: const Duration(milliseconds: 120),
           child: IgnorePointer(
             ignoring: !showButton,
-            child: IconButton(
+            child: GenericIconButton(
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              minimumSize: const Size(32, 32),
               iconSize: 18,
               icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
               color: Colors.white,

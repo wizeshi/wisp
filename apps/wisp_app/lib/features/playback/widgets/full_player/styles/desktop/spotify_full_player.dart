@@ -13,7 +13,7 @@ import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/playback/views/lyrics_view.dart';
 import 'package:wisp/features/playback/views/queue_view.dart';
 import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
-import 'package:wisp/shared/widgets/buttons/generic_button.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/features/playback/widgets/player_bar.dart';
 import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import '../../components/canvas_video.dart';

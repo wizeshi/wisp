@@ -17,6 +17,7 @@ import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/details/views/list_detail_view.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class QueueView extends StatefulWidget {
   /// If true, only returns the queue content without scaffold (for mobile bottom sheet)
@@ -69,7 +70,7 @@ class _QueueViewState extends State<QueueView> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF121212),
         elevation: 0,
-        leading: IconButton(
+        leading: GenericIconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -82,7 +83,7 @@ class _QueueViewState extends State<QueueView> {
             selector: (context, player) => player.queueTracks.isNotEmpty,
             builder: (context, hasTracks, child) {
               if (!hasTracks) return const SizedBox.shrink();
-              return TextButton(
+              return GenericTextButton(
                 onPressed: () {
                   context.read<PlaybackCoordinator>().clearQueue();
                 },
@@ -176,15 +177,13 @@ class _QueueViewState extends State<QueueView> {
                 ),
               ),
               if (_isDesktop && queueLength > 0)
-                TextButton.icon(
+                GenericTextButton.icon(
                   onPressed: () {
                     context.read<PlaybackCoordinator>().clearQueue();
                   },
                   icon: const Icon(Icons.delete_outline, size: 20),
                   label: const Text('Clear queue'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.grey[400],
-                  ),
+                  foregroundColor: Colors.grey[400],
                 ),
             ],
           ),
@@ -534,7 +533,7 @@ class _QueueViewState extends State<QueueView> {
                     const SizedBox(width: 8),
                     // Remove button or spacer
                     if (!isCurrentTrack)
-                      IconButton(
+                      GenericIconButton(
                         icon: Icon(
                           Icons.close,
                           color: Colors.grey[400],
@@ -625,7 +624,7 @@ void showMobileQueueSheet(BuildContext context) {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    IconButton(
+                    GenericIconButton(
                       icon: const Icon(
                         Icons.keyboard_arrow_down,
                         color: Colors.white,
@@ -639,7 +638,7 @@ void showMobileQueueSheet(BuildContext context) {
                         if (!hasTracks) {
                           return const SizedBox.shrink();
                         }
-                        return TextButton(
+                        return GenericTextButton(
                           onPressed: () {
                             context.read<PlaybackCoordinator>().clearQueue();
                           },

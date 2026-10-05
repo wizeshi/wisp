@@ -11,6 +11,7 @@ import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/settings/views/providers_marketplace_view.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class SettingsContent extends StatelessWidget {
   final Widget Function(BuildContext, JsAuthSource, String, IconData, Color)
@@ -184,7 +185,7 @@ class SettingsContent extends StatelessWidget {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
+                        GenericIconButton(
                           tooltip: 'Restore',
                           icon: Icon(
                             Icons.restore_outlined,
@@ -197,7 +198,7 @@ class SettingsContent extends StatelessWidget {
                             showSnackBar('Playlist restored');
                           },
                         ),
-                        IconButton(
+                        GenericIconButton(
                           tooltip: 'Delete permanently',
                           icon: Icon(
                             Icons.delete_outline,
@@ -218,18 +219,16 @@ class SettingsContent extends StatelessWidget {
                                   style: TextStyle(color: Colors.grey[400]),
                                 ),
                                 actions: [
-                                  TextButton(
+                                  GenericTextButton(
                                     onPressed: () => Navigator.pop(ctx, false),
                                     child: Text(
                                       'Cancel',
                                       style: TextStyle(color: Colors.grey[400]),
                                     ),
                                   ),
-                                  ElevatedButton(
+                                  GenericElevatedButton(
                                     onPressed: () => Navigator.pop(ctx, true),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red[700],
-                                    ),
+                                    backgroundColor: Colors.red[700],
                                     child: const Text('Delete'),
                                   ),
                                 ],
@@ -277,7 +276,7 @@ class SettingsContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              OutlinedButton(
+              GenericOutlinedButton(
                 onPressed: () async {
                   final idController = TextEditingController();
                   final bool? ok = await showDialog<bool>(
@@ -298,14 +297,14 @@ class SettingsContent extends StatelessWidget {
                         ),
                       ),
                       actions: [
-                      TextButton(
+                      GenericTextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         child: Text(
                           'Cancel',
                           style: TextStyle(color: Colors.grey[400]),
                         ),
                       ),
-                      ElevatedButton(
+                      GenericElevatedButton(
                         onPressed: () => Navigator.pop(ctx, true),
                         child: const Text('Unhide'),
                       ),
@@ -479,21 +478,19 @@ class SettingsContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              FilledButton.tonalIcon(
+              GenericButton.tonalIcon(
                 onPressed: () => ProvidersMarketplaceView.push(context),
                 icon: Icon(
                   hasUpdates ? Icons.system_update_alt : Icons.arrow_forward,
                   size: 16,
                 ),
                 label: Text(hasUpdates ? 'Updates ($updateCount)' : 'Browse'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: (hasUpdates ? Colors.amber : primaryColor)
-                      .withValues(alpha: 0.2),
-                  foregroundColor: hasUpdates ? Colors.amber : primaryColor,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
+                backgroundColor: (hasUpdates ? Colors.amber : primaryColor)
+                    .withValues(alpha: 0.2),
+                foregroundColor: hasUpdates ? Colors.amber : primaryColor,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
                 ),
               ),
             ],

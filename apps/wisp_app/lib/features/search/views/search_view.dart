@@ -23,6 +23,7 @@ import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/search/state/search_state.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
@@ -342,7 +343,7 @@ class _SearchViewState extends State<SearchView> {
         hintStyle: TextStyle(color: Colors.grey[500]),
         prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
         suffixIcon: _searchController.text.isNotEmpty
-            ? IconButton(
+            ? GenericIconButton(
                 icon: Icon(Icons.clear, color: Colors.grey[400]),
                 onPressed: _clearSearch,
               )
@@ -924,16 +925,14 @@ class _SearchViewState extends State<SearchView> {
                     ),
                   ),
                 ),
-                TextButton(
+                GenericTextButton(
                   onPressed: _searchState.clearHistory,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.grey[500],
-                    textStyle: const TextStyle(fontSize: 12),
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
+                  foregroundColor: Colors.grey[500],
+                  textStyle: const TextStyle(fontSize: 12),
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
                   ),
                   child: const Text('Clear all'),
                 ),
@@ -1019,7 +1018,7 @@ class _SearchViewState extends State<SearchView> {
             style: TextStyle(color: Colors.grey[500]),
           ),
           const SizedBox(height: 20),
-          FilledButton.icon(
+          GenericFilledButton.icon(
             onPressed: () => _performSearch(_lastQuery),
             icon: const Icon(Icons.refresh),
             label: const Text('Retry'),

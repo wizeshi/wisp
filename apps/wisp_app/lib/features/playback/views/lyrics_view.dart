@@ -19,6 +19,7 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/services/system/app_focus_service.dart';
 import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import '_lyrics_line_item.dart';
 
 class LyricsView extends StatefulWidget {
@@ -1113,7 +1114,7 @@ class _LyricsViewState extends State<LyricsView>
         children: [
           _buildDelayInput(isCompact: isCompact),
           const SizedBox(width: 4),
-          IconButton(
+          GenericIconButton(
             icon: Icon(Icons.refresh, size: iconSize),
             color: Colors.white.withValues(alpha: 0.85),
             tooltip: 'Reset Delay',
@@ -1315,7 +1316,7 @@ class _LyricsViewState extends State<LyricsView>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          IconButton(
+                          GenericIconButton(
                             icon: const Icon(Icons.skip_previous_rounded, size: 28),
                             color: Colors.white,
                             splashRadius: 22,
@@ -1350,7 +1351,7 @@ class _LyricsViewState extends State<LyricsView>
                             ),
                           ),
                           const SizedBox(width: 20),
-                          IconButton(
+                          GenericIconButton(
                             icon: const Icon(Icons.skip_next_rounded, size: 28),
                             color: Colors.white,
                             splashRadius: 22,

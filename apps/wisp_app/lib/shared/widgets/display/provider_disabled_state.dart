@@ -3,6 +3,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class ProviderDisabledState extends StatelessWidget {
   final String message;
@@ -26,7 +27,7 @@ class ProviderDisabledState extends StatelessWidget {
               style: TextStyle(fontSize: 16, color: Colors.grey[300]),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
+            GenericElevatedButton.icon(
               onPressed: () {
                 AppNavigation.instance.openSettings();
               },

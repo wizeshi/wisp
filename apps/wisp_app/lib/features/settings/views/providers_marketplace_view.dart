@@ -11,6 +11,7 @@ import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/data/sources/providers/provider_dependency_validator.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class ProvidersMarketplaceView extends StatefulWidget {
   const ProvidersMarketplaceView({super.key});
@@ -138,12 +139,12 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
               : 'Are you sure you want to remove ${pkg.name}?',
         ),
         actions: [
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red[700]),
+          GenericFilledButton(
+            backgroundColor: Colors.red[700],
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Uninstall'),
           ),
-          TextButton(
+          GenericTextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Cancel'),
           ),
@@ -208,12 +209,12 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
+          GenericIconButton(
             tooltip: 'Provider Priority Order',
             icon: const Icon(Icons.low_priority),
             onPressed: () => _showPriorityOrderDialog(context),
           ),
-          IconButton(
+          GenericIconButton(
             tooltip: 'Refresh catalog',
             icon: const Icon(Icons.refresh),
             onPressed: _isLoading ? null : _loadCatalog,
@@ -300,7 +301,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                           style: TextStyle(color: Colors.grey[400]),
                         ),
                         const SizedBox(height: 12),
-                        FilledButton.icon(
+                        GenericFilledButton.icon(
                           onPressed: _loadCatalog,
                           icon: const Icon(Icons.refresh),
                           label: const Text('Try Again'),
@@ -393,14 +394,12 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
             ),
           ),
           const SizedBox(width: 10),
-          FilledButton.icon(
+          GenericFilledButton.icon(
             onPressed: _isUpdatingAll ? null : _updateAll,
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.amber[700],
-              foregroundColor: Colors.black,
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            ),
+            backgroundColor: Colors.amber[700],
+            foregroundColor: Colors.black,
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             icon: _isUpdatingAll
                 ? const SizedBox(
                     width: 14,
@@ -607,25 +606,21 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               else if (!pkg.isInstalled)
-                FilledButton.icon(
+                GenericFilledButton.icon(
                   onPressed: () => _installOrUpdate(pkg),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                  ),
+                  backgroundColor: primaryColor,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   icon: const Icon(Icons.download, size: 16),
                   label: const Text('Install'),
                 )
               else if (hasUpdate)
-                FilledButton.icon(
+                GenericFilledButton.icon(
                   onPressed: () => _installOrUpdate(pkg),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.amber[700],
-                    foregroundColor: Colors.black,
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                  ),
+                  backgroundColor: Colors.amber[700],
+                  foregroundColor: Colors.black,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   icon: const Icon(Icons.system_update_alt, size: 16),
                   label: const Text(
                     'Update',
@@ -660,15 +655,13 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                                   'Do you want to proceed?',
                                 ),
                                 actions: [
-                                  FilledButton(
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: Colors.red[700],
-                                    ),
+                                  GenericFilledButton(
+                                    backgroundColor: Colors.red[700],
                                     onPressed: () =>
                                         Navigator.of(ctx).pop(true),
                                     child: const Text('Disable All'),
                                   ),
-                                  TextButton(
+                                  GenericTextButton(
                                     onPressed: () =>
                                         Navigator.of(ctx).pop(false),
                                     child: const Text('Cancel'),
@@ -694,7 +687,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                         _loadCatalog();
                       },
                     ),
-                    IconButton(
+                    GenericIconButton(
                       tooltip: 'Uninstall',
                       icon: const Icon(
                         Icons.delete_outline,
@@ -813,7 +806,7 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
                     'Provider Priority & Fallbacks',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
-                  IconButton(
+                  GenericIconButton(
                     icon: const Icon(Icons.close, color: Colors.grey),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -991,7 +984,7 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
         if (customOrder.isNotEmpty)
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton.icon(
+            child: GenericTextButton.icon(
               icon: const Icon(Icons.restore, size: 14),
               label: const Text(
                 'Reset to Defaults',

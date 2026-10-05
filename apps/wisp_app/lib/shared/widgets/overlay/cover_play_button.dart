@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:wisp/shared/widgets/overlay/hover.dart';
 import 'package:wisp/shared/widgets/overlay/waveform.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class PlaybackAffordance extends StatelessWidget {
   final bool visible;
@@ -52,7 +53,12 @@ class PlaybackAffordance extends StatelessWidget {
                 child: Material(
                   color: Theme.of(context).colorScheme.primary,
                   shape: const CircleBorder(),
-                  child: IconButton(
+                  child: GenericIconButton(
+                    constraints: BoxConstraints.tightFor(
+                      width: buttonSize,
+                      height: buttonSize,
+                    ),
+                    minimumSize: Size(buttonSize, buttonSize),
                     padding: EdgeInsets.zero,
                     iconSize: iconSize,
                     icon: Icon(

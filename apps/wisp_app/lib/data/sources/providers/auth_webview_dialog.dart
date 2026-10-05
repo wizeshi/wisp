@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 /// Generic in-app webview modal for provider authentication (OAuth, cookie capture, etc.).
 class AuthWebviewDialog extends StatefulWidget {
@@ -114,7 +115,7 @@ class _AuthWebviewDialogState extends State<AuthWebviewDialog> {
         appBar: AppBar(
           title: Text(widget.title),
           actions: [
-            TextButton(
+            GenericTextButton(
               onPressed: () async {
                 if (_hasPopped) return;
                 final cookies = await _collectCookiesForCurrentUrl();

@@ -19,6 +19,7 @@ import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/shared/widgets/menus/playlist_folder_modals.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 enum LibraryView { all, playlists, albums, artists }
 
@@ -605,7 +606,7 @@ class _WispNavigationState extends State<WispNavigation> {
                             opacity: _isHoveringHeader ? 1 : 0,
                             child: IgnorePointer(
                               ignoring: !_isHoveringHeader,
-                              child: IconButton(
+                              child: GenericIconButton(
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(
                                   minHeight: 24,
@@ -614,13 +615,13 @@ class _WispNavigationState extends State<WispNavigation> {
                                   maxWidth: 24,
                                 ),
                                 tooltip: 'Collapse Sidebar',
-                                icon: Icon(
+                                icon: const Icon(
                                   Symbols.left_panel_close,
                                   color: Colors.white,
                                   size: 20,
                                 ),
-                                onPressed: () => {
-                                  setState(() => _isCollapsed = !_isCollapsed),
+                                onPressed: () {
+                                  setState(() => _isCollapsed = !_isCollapsed);
                                 },
                               ),
                             ),
@@ -688,23 +689,21 @@ class _WispNavigationState extends State<WispNavigation> {
             const SizedBox(width: 4),
             Builder(
               builder: (buttonContext) {
-                return FilledButton.icon(
-                  label: Text(
+                return GenericFilledButton.icon(
+                  label: const Text(
                     "Create",
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 14,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.black38,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
+                  backgroundColor: Colors.black38,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
                   ),
-                  icon: Icon(Icons.add, color: Colors.white, size: 20),
+                  icon: const Icon(Icons.add, color: Colors.white, size: 20),
                   onPressed: () => _showCreateMenu(buttonContext),
                 );
               },
@@ -723,7 +722,7 @@ class _WispNavigationState extends State<WispNavigation> {
         mainAxisSize: MainAxisSize.min,
         children: [
           _isHoveringHeader
-              ? IconButton(
+              ? GenericIconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
                     minHeight: 32,
@@ -732,7 +731,7 @@ class _WispNavigationState extends State<WispNavigation> {
                     maxWidth: 32,
                   ),
                   tooltip: 'Expand Sidebar',
-                  icon: Icon(
+                  icon: const Icon(
                     Symbols.left_panel_open,
                     color: Colors.white,
                     size: 28,

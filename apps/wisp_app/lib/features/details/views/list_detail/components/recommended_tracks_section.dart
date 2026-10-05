@@ -263,7 +263,7 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
                     width: 34,
                     height: 34,
                     child: Center(
-                      child: IconButton(
+                      child: GenericIconButton(
                         onPressed: _isLoadingRecommendations
                             ? null
                             : _refreshRecommendations,
@@ -340,28 +340,24 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Center(
-                child: OutlinedButton(
+                child: GenericOutlinedButton(
                   onPressed: _isLoadingRecommendations
                       ? null
                       : _refreshRecommendations,
-                  style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    side: BorderSide(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 8,
-                    ),
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.5),
-                    disabledForegroundColor: Colors.white70,
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
                   ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 8,
+                  ),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.5),
+                  disabledForegroundColor: Colors.white70,
                   child: _isLoadingRecommendations
                       ? const SizedBox(
                           width: 16,
@@ -590,60 +586,54 @@ extension _ListDetailRecommendations on _SharedListDetailViewState {
                                           color: Colors.white,
                                         ),
                                       )
-                                    : OutlinedButton(
+                                    : GenericOutlinedButton(
                                         onPressed: (isAdding || isAdded)
                                             ? null
                                             : () => _addRecommendedTrack(item),
-                                        style: OutlinedButton.styleFrom(
-                                          shape: const CircleBorder(),
-                                          side: BorderSide(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
-                                          ),
-                                          padding: const EdgeInsets.all(8),
-                                          minimumSize: const Size(36, 36),
-                                          backgroundColor: Theme.of(
+                                        shape: const CircleBorder(),
+                                        side: BorderSide(
+                                          color: Theme.of(
                                             context,
                                           ).colorScheme.primary,
-                                          foregroundColor: Colors.white,
-                                          disabledBackgroundColor:
-                                              Theme.of(context)
-                                                  .colorScheme
-                                                  .primary
-                                                  .withValues(alpha: 0.5),
-                                          disabledForegroundColor:
-                                              Colors.white70,
                                         ),
+                                        padding: const EdgeInsets.all(8),
+                                        minimumSize: const Size(36, 36),
+                                        backgroundColor: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        foregroundColor: Colors.white,
+                                        disabledBackgroundColor:
+                                            Theme.of(context)
+                                                .colorScheme
+                                                .primary
+                                                .withValues(alpha: 0.5),
+                                        disabledForegroundColor:
+                                            Colors.white70,
                                         child: isAdded
                                             ? const Icon(Icons.check, size: 18)
                                             : const Icon(Icons.add, size: 18),
                                       ))
-                              : FilledButton(
+                              : GenericFilledButton(
                                   onPressed: (isAdding || isAdded)
                                       ? null
                                       : () => _addRecommendedTrack(item),
-                                  style: FilledButton.styleFrom(
-                                    minimumSize: const Size(54, 34),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                    ),
-                                    enabledMouseCursor:
-                                        SystemMouseCursors.click,
-                                    disabledMouseCursor:
-                                        SystemMouseCursors.basic,
-                                    backgroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .primary
-                                        .withValues(alpha: 0.35),
-                                    foregroundColor: Colors.white,
-                                    disabledBackgroundColor: Theme.of(context)
-                                        .colorScheme
-                                        .primary
-                                        .withValues(alpha: 0.18),
-                                    disabledForegroundColor: Colors.white70,
-                                    elevation: 0,
+                                  minimumSize: const Size(54, 34),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
                                   ),
+                                  mouseCursor:
+                                      SystemMouseCursors.click,
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.35),
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.18),
+                                  disabledForegroundColor: Colors.white70,
+                                  elevation: 0,
                                   child: isAdding
                                       ? const SizedBox(
                                           width: 14,

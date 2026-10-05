@@ -7,10 +7,10 @@ import 'package:provider/provider.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/search/state/search_state.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/services/notifications/desktop_notification_center.dart';
-
 
 class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onSettingsTap;
@@ -220,7 +220,7 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Notifications button
-                    _buildNotificationButton(context),
+                    _buildNotificationButton(),
 
                     Selector<PreferencesProvider, bool>(
                       selector: (context, prefs) => prefs.debugModeEnabled,
@@ -312,122 +312,119 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     bool enabled = true,
   }) {
     final isEnabled = enabled && onPressed != null;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        mouseCursor: isEnabled
-            ? SystemMouseCursors.click
-            : SystemMouseCursors.basic,
-        onTap: isEnabled ? onPressed : null,
-        borderRadius: BorderRadius.circular(20),
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: Icon(
-            icon,
-            color: isEnabled ? Colors.white : Colors.grey[600],
-            size: 16,
-          ),
-        ),
+
+    return GenericIconButton(
+      padding: EdgeInsets.zero,
+      constraints: BoxConstraints.tightFor(width: 24, height: 24),
+      icon: Icon(
+        icon,
+        color: isEnabled ? Colors.white : Colors.grey[600],
+        size: 16,
       ),
+      onPressed: isEnabled ? onPressed : null,
     );
   }
 
   Widget _buildActionButton(IconData icon, VoidCallback onPressed) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        mouseCursor: SystemMouseCursors.click,
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(20),
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: Icon(icon, color: Colors.grey[400], size: 16),
-        ),
-      ),
+    return GenericIconButton(
+      padding: EdgeInsets.zero,
+      constraints: BoxConstraints.tightFor(width: 24, height: 24),
+      icon: Icon(icon, color: Colors.grey[400], size: 16),
+      onPressed: onPressed,
     );
   }
 
-  Widget _buildNotificationButton(BuildContext context) {
-    return Consumer<DesktopNotificationCenter>(
-      builder: (context, center, _) {
-        return Builder(
-          builder: (buttonContext) {
-            return Material(
-              color: Colors.transparent,
-              child: InkWell(
-                mouseCursor: SystemMouseCursors.click,
-                onTap: () => _showNotificationMenu(buttonContext),
-                borderRadius: BorderRadius.circular(20),
-                child: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(
-                        Icons.notifications_none,
-                        color: Colors.grey[400],
-                        size: 16,
+  Widget _buildNotificationButton() {
+    return Builder(
+      builder: (buttonContext) {
+        return SizedBox(
+          width: 24,
+          height: 24,
+          child: Stack(
+            children: [
+              GenericIconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+                icon: Icon(Icons.notifications_none, color: Colors.grey[400], size: 16),
+                onPressed: () => _showNotificationMenu(buttonContext),
+              ),
+              Positioned(
+                right: 1,
+                top: 1,
+                child: Selector<DesktopNotificationCenter, int>(
+                  selector: (context, center) => center.items.length,
+                  builder: (context, itemCount, _) {
+                    if (itemCount == 0) {
+                      return const SizedBox.shrink();
+                    }
+                    return Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 13,
+                        minHeight: 13,
                       ),
-                      if (center.items.isNotEmpty)
-                        Positioned(
-                          right: 1,
-                          top: 1,
-                          child: Container(
-                            constraints: const BoxConstraints(
-                              minWidth: 13,
-                              minHeight: 13,
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 3),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primary,
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                            child: Text(
-                              center.items.length > 99
-                                  ? '99+'
-                                  : '${center.items.length}',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onPrimary,
-                                fontSize: 8,
-                                fontWeight: FontWeight.w700,
-                                height: 1,
-                              ),
-                            ),
-                          ),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(
+                        itemCount > 99 ? '99+' : '$itemCount',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onPrimary,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                          height: 1,
                         ),
-                    ],
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ),
-            );
-          },
+            ],
+          ),
         );
       },
     );
   }
 
   Future<void> _showNotificationMenu(BuildContext context) async {
-    // Show the notification dropdown menu centered below the notification button
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final Offset buttonPosition = button.localToGlobal(Offset.zero);
+    // Show the notification dropdown menu below the notification button
+    final RenderBox? button = context.findRenderObject() as RenderBox?;
+    if (button == null) return;
+    final RenderBox? overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+
+    const offset = Offset(0.0, 4.0);
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(
+          Offset(0.0, button.size.height) + offset,
+          ancestor: overlay,
+        ),
+        button.localToGlobal(
+          button.size.bottomRight(Offset.zero) + offset,
+          ancestor: overlay,
+        ),
+      ),
+      Offset.zero & overlay.size,
+    );
 
     showMenu(
       color: Colors.transparent,
       elevation: 0,
+      menuPadding: EdgeInsets.zero,
       context: context,
-      // Center the menu below the button
-      position: RelativeRect.fromLTRB(
-        buttonPosition.dx,
-        buttonPosition.dy + button.size.height,
-        buttonPosition.dx + button.size.width,
-        buttonPosition.dy,
-      ),
-      items: [PopupMenuItem(enabled: false, child: _NotificationDropdown())],
+      position: position,
+      items: const [
+        PopupMenuItem(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: _NotificationDropdown(),
+        ),
+      ],
     );
   }
 
@@ -436,20 +433,15 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     VoidCallback onPressed, {
     bool isClose = false,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        mouseCursor: SystemMouseCursors.click,
-        onTap: onPressed,
-        hoverColor: isClose
-            ? Colors.red.withValues(alpha: 0.8)
-            : Colors.grey[800],
-        child: SizedBox(
-          width: 40,
-          height: 32,
-          child: Icon(icon, color: Colors.grey[400], size: 16),
-        ),
-      ),
+    return GenericIconButton(
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 40, height: 32),
+      icon: Icon(icon, color: Colors.grey[400], size: 16),
+      onPressed: onPressed,
+      borderRadius: BorderRadius.zero,
+      hoverColor: isClose
+          ? Colors.red.withValues(alpha: 0.8)
+          : Colors.grey[800],
     );
   }
 }
@@ -486,8 +478,7 @@ class _TitleBarSearchHistory extends StatefulWidget {
   });
 
   @override
-  State<_TitleBarSearchHistory> createState() =>
-      _TitleBarSearchHistoryState();
+  State<_TitleBarSearchHistory> createState() => _TitleBarSearchHistoryState();
 }
 
 class _TitleBarSearchHistoryState extends State<_TitleBarSearchHistory> {
@@ -528,10 +519,7 @@ class _TitleBarSearchHistoryState extends State<_TitleBarSearchHistory> {
       _showOverlayIfNeeded();
     } else {
       // Small delay so a tap on a dropdown item registers before we remove it.
-      Future.delayed(
-        const Duration(milliseconds: 150),
-        _removeOverlay,
-      );
+      Future.delayed(const Duration(milliseconds: 150), _removeOverlay);
     }
   }
 
@@ -790,7 +778,7 @@ class _TitleBarHistoryDropdown extends StatelessWidget {
               children: [
                 // Header
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 6, 4),
+                  padding: const EdgeInsets.fromLTRB(12, 4, 6, 4),
                   child: Row(
                     children: [
                       Expanded(
@@ -804,16 +792,14 @@ class _TitleBarHistoryDropdown extends StatelessWidget {
                           ),
                         ),
                       ),
-                      TextButton(
+                      GenericTextButton(
                         onPressed: searchState.clearHistory,
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.grey[500],
-                          textStyle: const TextStyle(fontSize: 11),
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
+                        foregroundColor: Colors.grey[500],
+                        textStyle: const TextStyle(fontSize: 11),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
                         ),
                         child: const Text('Clear all'),
                       ),
@@ -872,10 +858,7 @@ class _HistoryDropdownItem extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               onTap: () => searchState.removeFromHistory(query),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 child: Icon(Icons.close, size: 12, color: Colors.grey[600]),
               ),
             ),
@@ -937,13 +920,11 @@ class _NotificationDropdown extends StatelessWidget {
                             ),
                       ),
                     ),
-                    TextButton(
+                    GenericTextButton(
                       onPressed: center.clearAll,
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey[400],
-                        textStyle: (textTheme.labelSmall ?? const TextStyle())
-                            .copyWith(fontSize: 11),
-                      ),
+                      foregroundColor: Colors.grey[400],
+                      textStyle: (textTheme.labelSmall ?? const TextStyle())
+                          .copyWith(fontSize: 11),
                       child: const Text('Clear'),
                     ),
                   ],
@@ -1048,18 +1029,18 @@ class _NotificationDropdown extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: IconButton(
-                                    padding: EdgeInsets.zero,
-                                    icon: const Icon(
-                                      Icons.close,
-                                      size: 16,
-                                      color: Colors.grey,
-                                    ),
-                                    onPressed: () => center.dismiss(item.id),
+                                GenericIconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 24,
+                                    height: 24,
                                   ),
+                                  icon: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: Colors.grey,
+                                  ),
+                                  onPressed: () => center.dismiss(item.id),
                                 ),
                               ],
                             ),

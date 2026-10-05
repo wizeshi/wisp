@@ -15,6 +15,7 @@ import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 String _formatDuration(int? duration, {bool miliseconds = false}) {
   if (duration == null) return '--:--';
@@ -162,7 +163,7 @@ class _DebugViewState extends State<DebugView> {
                   SizedBox(
                     width: 32,
                     height: 32,
-                    child: IconButton(
+                    child: GenericIconButton(
                       padding: EdgeInsets.zero,
                       icon: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 100),
@@ -426,7 +427,7 @@ class PlayerStateView extends StatelessWidget {
                     PlayerStateViewRow(
                       label: "Queue",
                       value: "View Queue",
-                      valueOverride: TextButton(
+                      valueOverride: GenericTextButton(
                         child: const Text("View Queue"),
                         onPressed: () {},
                       ),
@@ -435,7 +436,7 @@ class PlayerStateView extends StatelessWidget {
                     PlayerStateViewRow(
                       label: "Original Queue",
                       value: "View Original Queue",
-                      valueOverride: TextButton(
+                      valueOverride: GenericTextButton(
                         child: const Text("View Original Queue"),
                         onPressed: () {},
                       ),
@@ -1130,15 +1131,11 @@ class PlayerStateView extends StatelessWidget {
                     PlayerStateViewRow(
                       label: "Stream URL Cache",
                       value: "Open Stream URL Cache",
-                      valueOverride: TextButton(
-                        style: ButtonStyle(
-                          backgroundColor: WidgetStateProperty.all(
+                      valueOverride: GenericTextButton(
+                        backgroundColor:
                             Theme.of(context).colorScheme.primary,
-                          ),
-                          foregroundColor: WidgetStateProperty.all(
+                        foregroundColor:
                             Colors.white,
-                          ),
-                        ),
                         child: const Text("Open Stream URL Cache"),
                         onPressed: () {},
                       ),
@@ -1984,7 +1981,7 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        ElevatedButton.icon(
+                        GenericElevatedButton.icon(
                           onPressed: _isLookingUp ? null : _performLiveLookup,
                           icon: _isLookingUp
                               ? const SizedBox(
@@ -2058,7 +2055,7 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                     ),
                   ),
                 ),
-                IconButton(
+                GenericIconButton(
                   tooltip: _sortByFrequency
                       ? "Sorted by Frequency (Click for A-Z)"
                       : "Sorted Alphabetically (Click for Frequency)",
@@ -2072,7 +2069,7 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                     });
                   },
                 ),
-                ElevatedButton.icon(
+                GenericElevatedButton.icon(
                   icon: const Icon(Icons.copy, size: 16),
                   label: const Text("Copy JSON"),
                   onPressed: uniqueGenresSet.isEmpty
@@ -2083,7 +2080,7 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                         },
                 ),
                 const SizedBox(width: 8),
-                OutlinedButton.icon(
+                GenericOutlinedButton.icon(
                   icon: const Icon(Icons.list, size: 16),
                   label: const Text("Copy List"),
                   onPressed: uniqueGenresSet.isEmpty
@@ -2106,7 +2103,7 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                 hintText: "Filter unique genres...",
                 prefixIcon: const Icon(Icons.filter_list, size: 20),
                 suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
+                    ? GenericIconButton(
                         icon: const Icon(Icons.clear, size: 18),
                         onPressed: () {
                           _searchController.clear();

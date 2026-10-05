@@ -11,6 +11,7 @@ import 'package:wisp_audio_output_info/models/types.dart';
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class ConnectMenu extends StatelessWidget {
   final VoidCallback onClose;
@@ -37,11 +38,11 @@ class ConnectMenu extends StatelessWidget {
             "Target device's connection security level is too low. Retry with lower, but equal, level security?",
           ),
           actions: [
-            TextButton(
+            GenericTextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Cancel'),
             ),
-            FilledButton(
+            GenericFilledButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
                 connect.retryRejectedPairingWithLowerSecurity();
@@ -278,7 +279,7 @@ class _ConnectMenuHeader extends StatelessWidget {
                 ),
               ),
               if (!compact)
-                IconButton(
+                GenericIconButton(
                   tooltip: 'Close',
                   onPressed: onClose,
                   icon: const Icon(Icons.close, color: Colors.white70),
@@ -372,18 +373,18 @@ class _CurrentOutputCard extends StatelessWidget {
             ),
           ),
           if (isMobile)
-            IconButton(
+            GenericIconButton(
               tooltip: 'Switch System Output',
               onPressed: SystemUi.showOutputSwitcher,
               icon: Icon(Icons.output, color: Colors.grey[200], size: 20),
             ),
-          IconButton(
+          GenericIconButton(
             tooltip: 'Refresh devices',
             onPressed: connect.refreshConnectMenuData,
             icon: Icon(Icons.refresh, color: Colors.grey[200], size: 20),
           ),
           if (connectionKind == ConnectionKind.handoff)
-            TextButton(
+            GenericTextButton(
               onPressed: () => connect.unlink(localResumed: true),
               child: const Text('Unlink'),
             ),
@@ -493,14 +494,12 @@ class _ConnectNoticeCard extends StatelessWidget {
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: TextButton(
+                  child: GenericTextButton(
                     onPressed: onAction,
-                    style: TextButton.styleFrom(
-                      foregroundColor: accent,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
+                    foregroundColor: accent,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
                     ),
                     child: Text(actionLabel),
                   ),
@@ -753,7 +752,7 @@ class _DeviceCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      IconButton(
+                      GenericIconButton(
                         icon: const Icon(Icons.close, size: 18),
                         color: Colors.white70,
                         padding: EdgeInsets.zero,
@@ -849,12 +848,10 @@ class _PendingPairRequestCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: GenericOutlinedButton(
                   onPressed: connect.rejectIncomingPair,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white24),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
+                  side: const BorderSide(color: Colors.white24),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   child: const Text(
                     'Decline',
                     style: TextStyle(
@@ -867,12 +864,10 @@ class _PendingPairRequestCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: FilledButton(
+                child: GenericFilledButton(
                   onPressed: connect.acceptIncomingPair,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: accent,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
+                  backgroundColor: accent,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   child: const Text(
                     'Accept',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),

@@ -23,7 +23,7 @@ import 'package:wisp/shared/widgets/display/hover_underline.dart';
 import 'package:wisp/features/shell/navigation/navigation_state.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
-import 'package:wisp/shared/widgets/buttons/generic_button.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
@@ -1446,7 +1446,7 @@ class _ConnectPanelContent extends StatelessWidget {
                           ),
                         ),
                       ),
-                      TextButton(
+                      GenericTextButton(
                         onPressed: () {
                           connect.unlink(localResumed: true);
                           onClose();
@@ -1488,17 +1488,15 @@ class _ConnectPanelContent extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: OutlinedButton(
+                            child: GenericOutlinedButton(
                               onPressed: connect.rejectIncomingPair,
-                              style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: Colors.grey[700]!),
-                              ),
+                              side: BorderSide(color: Colors.grey[700]!),
                               child: const Text('Decline'),
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: ElevatedButton(
+                            child: GenericElevatedButton(
                               onPressed: connect.acceptIncomingPair,
                               child: const Text('Accept'),
                             ),

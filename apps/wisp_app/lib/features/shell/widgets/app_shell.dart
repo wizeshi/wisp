@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/shell/navigation/navigation_state.dart';
@@ -247,11 +248,11 @@ class _AppShellState extends State<AppShell> {
         title: const Text('Exit App'),
         content: const Text('Do you want to exit wisp?'),
         actions: [
-          TextButton(
+          GenericTextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          GenericTextButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Exit'),
           ),

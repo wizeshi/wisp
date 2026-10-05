@@ -15,6 +15,7 @@ import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/widgets/app_shell.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class MobileWelcomeView extends StatefulWidget {
   final AppLinks appLinks;
@@ -287,12 +288,12 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 leading: _currentStep > 0
-                    ? IconButton(
+                    ? GenericIconButton(
                         icon: const Icon(Icons.arrow_back, color: Colors.white),
                         onPressed: () => _goToStep(_currentStep - 1),
                       )
                     : widget.isFromSettings
-                        ? IconButton(
+                        ? GenericIconButton(
                             icon: const Icon(Icons.close, color: Colors.white),
                             onPressed: () => Navigator.of(context).pop(),
                           )
@@ -461,7 +462,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                         style: TextStyle(color: Colors.grey[400], fontSize: 12),
                       ),
                       const SizedBox(height: 16),
-                      OutlinedButton.icon(
+                      GenericOutlinedButton.icon(
                         onPressed: _loadCatalog,
                         icon: const Icon(Icons.refresh, size: 16),
                         label: const Text('Retry'),
@@ -483,14 +484,12 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                     ),
                   ),
                   const Spacer(),
-                  TextButton(
+                  GenericTextButton(
                     onPressed: _selectedProviderKeys.length == _catalog.length
                         ? _deselectAll
                         : _selectAll,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      minimumSize: const Size(0, 32),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 32),
                     child: Text(
                       _selectedProviderKeys.length == _catalog.length
                           ? 'Deselect All'
@@ -680,7 +679,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
               ),
             ],
             const SizedBox(height: 12),
-            FilledButton.icon(
+            GenericFilledButton.icon(
               onPressed: _installSelectedAndProceed,
               icon: const Icon(Icons.arrow_forward_rounded, size: 18),
               label: Text(
@@ -692,18 +691,16 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              style: FilledButton.styleFrom(
-                backgroundColor: primaryColor,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
             const SizedBox(height: 6),
             Center(
-              child: TextButton(
+              child: GenericTextButton(
                 onPressed: () => _goToStep(1),
                 child: Text(
                   'Skip extension installation',
@@ -912,7 +909,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                           ),
                                           const SizedBox(height: 14),
                                           if (isConnected) ...[
-                                            OutlinedButton.icon(
+                                            GenericOutlinedButton.icon(
                                               onPressed: () =>
                                                   _handleLogout(auth),
                                               icon: const Icon(
@@ -922,18 +919,16 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                               label: const Text(
                                                 'Disconnect / Switch Account',
                                               ),
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor:
-                                                    Colors.grey[400],
-                                                side: BorderSide(
-                                                  color: Colors.grey[700]!,
-                                                ),
-                                                minimumSize:
-                                                    const Size.fromHeight(42),
+                                              foregroundColor:
+                                                  Colors.grey[400],
+                                              side: BorderSide(
+                                                color: Colors.grey[700]!,
                                               ),
+                                              minimumSize:
+                                                  const Size.fromHeight(42),
                                             ),
                                           ] else ...[
-                                            FilledButton.icon(
+                                            GenericFilledButton.icon(
                                               onPressed: isLoggingIn
                                                   ? null
                                                   : () => _handleLogin(auth),
@@ -956,18 +951,16 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                                     ? 'Connecting...'
                                                     : 'Log in to ${auth.displayName}',
                                               ),
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor:
-                                                    auth.id == 'spotify'
-                                                        ? const Color(0xFF1DB954)
-                                                        : primaryColor,
-                                                foregroundColor: Colors.white,
-                                                minimumSize:
-                                                    const Size.fromHeight(44),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
+                                              backgroundColor:
+                                                  auth.id == 'spotify'
+                                                      ? const Color(0xFF1DB954)
+                                                      : primaryColor,
+                                              foregroundColor: Colors.white,
+                                              minimumSize:
+                                                  const Size.fromHeight(44),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
                                               ),
                                             ),
                                           ],
@@ -980,15 +973,13 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                             ),
                     ),
                     const SizedBox(height: 12),
-                    FilledButton(
+                    GenericFilledButton(
                       onPressed: _completeOnboarding,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
                         'Start Listening',
@@ -1001,7 +992,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                     if (anyNotConnected && authSources.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Center(
-                        child: TextButton(
+                        child: GenericTextButton(
                           onPressed: _completeOnboarding,
                           child: Text(
                             'Skip for now',

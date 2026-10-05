@@ -29,7 +29,7 @@ import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/shared/widgets/menus/adaptive_context_menu.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
-import 'package:wisp/shared/widgets/buttons/generic_button.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 import '../../components/canvas_video.dart';
 import '../../components/rotating_blurred_cover_background.dart';

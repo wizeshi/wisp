@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/overlay/hover.dart';
 
 class LikeButton extends StatefulWidget {
@@ -78,27 +79,21 @@ class _LikeButtonState extends State<LikeButton> {
         final icon = isLiked ? widget.likedIcon : widget.notLikedIcon;
         final color = isLiked ? widget.color : Colors.white;
 
-        final button = IconButton(
+        Widget button = GenericIconButton(
           padding: widget.padding,
           constraints: widget.constraints,
           icon: Icon(icon, size: widget.iconSize, color: color),
+          tooltip: isLiked ? 'Remove from Likes' : 'Add to Likes',
           onPressed: () async {
             await context.read<MetadataManager>().toggleTrackLike(track);
           },
         );
 
-        Widget content = widget.showTooltip
-            ? Tooltip(
-                message: isLiked ? 'Remove from Likes' : 'Add to Likes',
-                child: button,
-              )
-            : button;
-
         if (widget.hoverOnlyWhenUnliked) {
-          content = HoverVisible(alwaysVisible: isLiked, child: content);
+          button = HoverVisible(alwaysVisible: isLiked, child: button);
         }
 
-        return content;
+        return button;
       },
     );
   }

@@ -394,6 +394,10 @@ class AppTheme {
       ),
       listTileTheme: const ListTileThemeData(mouseCursor: clickableCursor),
       checkboxTheme: const CheckboxThemeData(mouseCursor: clickableCursor),
+      dropdownMenuTheme: const DropdownMenuThemeData(
+        menuStyle: MenuStyle(mouseCursor: clickableCursor)
+      ),
+      
       useMaterial3: true,
       extensions: [
         WispStyleTokens.fromStyle(appStyle),

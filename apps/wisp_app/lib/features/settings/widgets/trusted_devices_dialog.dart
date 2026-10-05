@@ -3,6 +3,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class TrustedDevicesDialog extends StatelessWidget {
   const TrustedDevicesDialog({super.key});
@@ -134,7 +135,7 @@ class TrustedDevicesDialog extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        TextButton(
+                        GenericTextButton(
                           onPressed: () async {
                             final confirmed =
                                 await showDialog<bool>(
@@ -157,13 +158,13 @@ class TrustedDevicesDialog extends StatelessWidget {
                                         ),
                                       ),
                                       actions: [
-                                        TextButton(
+                                        GenericTextButton(
                                           onPressed: () => Navigator.of(
                                             confirmContext,
                                           ).pop(false),
                                           child: const Text('Cancel'),
                                         ),
-                                        TextButton(
+                                        GenericTextButton(
                                           onPressed: () => Navigator.of(
                                             confirmContext,
                                           ).pop(true),
@@ -191,7 +192,7 @@ class TrustedDevicesDialog extends StatelessWidget {
         ),
       ),
       actions: [
-        TextButton(
+        GenericTextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
         ),

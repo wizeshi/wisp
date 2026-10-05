@@ -32,6 +32,7 @@ import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/display/hover_underline.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class RightSidebar extends StatefulWidget {
   final double width;
@@ -353,11 +354,10 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                                 opacity: showHoverControls ? 1 : 0,
                                 child: IgnorePointer(
                                   ignoring: !showHoverControls,
-                                  child: IconButton(
+                                  child: GenericIconButton(
                                     tooltip: 'Hide sidebar',
                                     icon: const Icon(Symbols.right_panel_close),
                                     iconSize: 20,
-                                    visualDensity: VisualDensity.compact,
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(
                                       minWidth: 20,
@@ -424,11 +424,10 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                               ignoring: !showHoverControls,
                               child: Builder(
                                 builder: (buttonContext) {
-                                  return IconButton(
+                                  return GenericIconButton(
                                     tooltip: 'More',
                                     icon: const Icon(Icons.more_horiz),
                                     iconSize: 18,
-                                    visualDensity: VisualDensity.compact,
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(
                                       minWidth: 28,
@@ -518,12 +517,10 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                                         opacity: showHoverControls ? 1 : 0,
                                         child: IgnorePointer(
                                           ignoring: !showHoverControls,
-                                          child: IconButton(
+                                          child: GenericIconButton(
                                             tooltip: 'Share',
                                             icon: const Icon(Icons.share),
                                             iconSize: 18,
-                                            visualDensity:
-                                                VisualDensity.compact,
                                             padding: EdgeInsets.zero,
                                             constraints: const BoxConstraints(
                                               minWidth: 28,

@@ -33,6 +33,7 @@ import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'list_detail_view.dart';
 
 part 'artist_detail/desktop/spotify_style.dart';
@@ -263,7 +264,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
           appBar: AppBar(
             backgroundColor: const Color(0xFF121212),
             elevation: 0,
-            leading: IconButton(
+            leading: GenericIconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () => Navigator.of(context).pop(),
             ),
@@ -514,7 +515,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     width: 28,
                     height: 28,
                     child: Builder(
-                      builder: (buttonContext) => IconButton(
+                      builder: (buttonContext) => GenericIconButton(
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(
                           minWidth: 28,
@@ -660,18 +661,14 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               Consumer<LibraryState>(
                 builder: (context, library, child) {
                   final isFollowed = library.isArtistFollowed(widget.artistId);
-                  return OutlinedButton(
+                  return GenericOutlinedButton(
                     onPressed: () => _toggleFollowArtist(isFollowed),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.grey[700]!),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
+                    foregroundColor: Colors.white,
+                    side: BorderSide(color: Colors.grey[700]!),
+                    borderRadius: BorderRadius.circular(999),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
                     ),
                     child: Text(isFollowed ? 'Following' : 'Follow'),
                   );
@@ -680,7 +677,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               const SizedBox(width: 4),
               Builder(
                 builder: (buttonContext) {
-                  return IconButton(
+                  return GenericIconButton(
                     icon: Icon(
                       useAppleIcons
                           ? CupertinoIcons.ellipsis_circle
@@ -699,7 +696,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   color: colorScheme.primary,
                   shape: BoxShape.circle,
                 ),
-                child: IconButton(
+                child: GenericIconButton(
                   icon: Icon(
                     _isCurrentArtistPlaying(player) && player.isPlaying
                         ? (useAppleIcons
@@ -939,7 +936,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               ),
             ),
             const SizedBox(width: 10),
-            IconButton(
+            GenericIconButton(
               onPressed: () =>
                   EntityContextMenus.showTrackMenu(context, track: track),
               icon: Icon(
@@ -1091,49 +1088,41 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 SizedBox(
                   width: 44,
                   height: 44,
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: FilledButton(
-                      onPressed: () async {
-                        if (!_isLoading) {
-                          final coordinator = context
-                              .read<PlaybackCoordinator>();
-                          if (_isCurrentArtistPlaying(player)) {
-                            if (player.isPlaying) {
-                              await coordinator.pause();
-                            } else if (!player.isLoading &&
-                                !player.isBuffering) {
-                              await coordinator.play();
-                            }
-                          } else {
-                            _playTopTracks(0);
+                  child: GenericFilledButton(
+                    onPressed: () async {
+                      if (!_isLoading) {
+                        final coordinator = context
+                            .read<PlaybackCoordinator>();
+                        if (_isCurrentArtistPlaying(player)) {
+                          if (player.isPlaying) {
+                            await coordinator.pause();
+                          } else if (!player.isLoading &&
+                              !player.isBuffering) {
+                            await coordinator.play();
                           }
+                        } else {
+                          _playTopTracks(0);
                         }
-                      },
-                      style: FilledButton.styleFrom(
-                        enabledMouseCursor: SystemMouseCursors.click,
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: colorScheme.onPrimary,
-                        padding: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Icon(
-                        _isCurrentArtistPlaying(player) && player.isPlaying
-                            ? (useAppleIcons
-                                  ? CupertinoIcons.pause_fill
-                                  : Icons.pause)
-                            : (useAppleIcons
-                                  ? CupertinoIcons.play_fill
-                                  : Icons.play_arrow),
-                        size: 24,
-                      ),
+                      }
+                    },
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    padding: EdgeInsets.zero,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Icon(
+                      _isCurrentArtistPlaying(player) && player.isPlaying
+                          ? (useAppleIcons
+                                ? CupertinoIcons.pause_fill
+                                : Icons.pause)
+                          : (useAppleIcons
+                                ? CupertinoIcons.play_fill
+                                : Icons.play_arrow),
+                      size: 24,
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                IconButton(
+                GenericIconButton(
                   onPressed: player.isDJMode ? null : player.toggleShuffle,
                   tooltip: player.isDJMode ? 'Unavailable in DJ mode' : null,
                   icon: Icon(
@@ -1145,7 +1134,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                             : Colors.grey[300]),
                   ),
                 ),
-                IconButton(
+                GenericIconButton(
                   onPressed: player.isDJMode ? null : player.toggleRepeat,
                   tooltip: player.isDJMode ? 'Unavailable in DJ mode' : null,
                   icon: Icon(
@@ -1165,7 +1154,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 ),
                 Builder(
                   builder: (buttonContext) {
-                    return IconButton(
+                    return GenericIconButton(
                       onPressed: () => _showArtistOptions(buttonContext),
                       icon: Icon(
                         useAppleIcons

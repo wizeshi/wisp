@@ -10,6 +10,7 @@ import 'package:wisp/features/details/views/artist_detail_view.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/shell/navigation/navigation_state.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class MobileArtistInfoCard extends StatefulWidget {
   final GenericSimpleArtist artist;
@@ -118,21 +119,19 @@ class _MobileArtistInfoCardState extends State<MobileArtistInfoCard> {
                             ),
                           ),
                         ),
-                        OutlinedButton(
+                        GenericOutlinedButton(
                           onPressed: () async {
                             await _openArtist(data, widget.artist);
                           },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white24),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white24),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                           child: const Text('Open'),
                         ),

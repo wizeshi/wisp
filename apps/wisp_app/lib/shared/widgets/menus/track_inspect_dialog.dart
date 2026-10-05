@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 /// A dev-mode panel that dumps the full in-memory state of a [GenericSong] in
 /// a readable, copy-friendly format. Only shown when debug mode is enabled in
@@ -69,7 +70,7 @@ class TrackInspectDialog extends StatelessWidget {
                     ),
                   ),
                 ),
-                IconButton(
+                GenericIconButton(
                   icon: const Icon(Icons.close, size: 18, color: Colors.grey),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -84,7 +85,7 @@ class TrackInspectDialog extends StatelessWidget {
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: fields.length,
-              separatorBuilder: (_, __) =>
+              separatorBuilder: (_, _) =>
                   Divider(color: Colors.grey[900], height: 1, indent: 20),
               itemBuilder: (context, i) => _FieldRow(
                 field: fields[i],
@@ -96,13 +97,11 @@ class TrackInspectDialog extends StatelessWidget {
           // Copy all button
           Padding(
             padding: const EdgeInsets.all(12),
-            child: TextButton.icon(
+            child: GenericTextButton.icon(
               icon: const Icon(Icons.copy, size: 14),
               label: const Text('Copy all as JSON'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.grey[400],
-                textStyle: const TextStyle(fontSize: 12),
-              ),
+              foregroundColor: Colors.grey[400],
+              textStyle: const TextStyle(fontSize: 12),
               onPressed: () async {
                 final json = _buildJsonString();
                 await Clipboard.setData(ClipboardData(text: json));

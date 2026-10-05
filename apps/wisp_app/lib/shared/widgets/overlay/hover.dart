@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 /// Whether the current platform supports mouse hover.
 ///
@@ -213,7 +214,9 @@ class _PlayPauseButton extends StatelessWidget {
       child: Material(
         color: colorScheme.primary,
         shape: const CircleBorder(),
-        child: IconButton(
+        child: GenericIconButton(
+          constraints: BoxConstraints.tightFor(width: size, height: size),
+          minimumSize: Size(size, size),
           padding: EdgeInsets.zero,
           iconSize: iconSize,
           icon: Icon(

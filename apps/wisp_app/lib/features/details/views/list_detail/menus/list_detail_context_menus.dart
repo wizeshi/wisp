@@ -26,11 +26,11 @@ extension _ListDetailContextMenus on _SharedListDetailViewState {
             'Delete confirmation is still a placeholder for now.',
           ),
           actions: [
-            TextButton(
+            GenericTextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: const Text('Cancel'),
             ),
-            FilledButton(
+            GenericFilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Delete'),
             ),

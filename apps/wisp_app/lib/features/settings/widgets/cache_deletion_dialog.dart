@@ -8,6 +8,7 @@ import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
+import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class _CacheCategory {
   final String key;
@@ -172,11 +173,11 @@ class _CacheDeletionDialogState extends State<CacheDeletionDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        GenericTextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
         ),
-        ElevatedButton(
+        GenericElevatedButton(
           onPressed: _cacheDeleteEnabled.values.any((v) => v)
               ? () async {
                   final navigator = Navigator.of(context);
@@ -196,10 +197,8 @@ class _CacheDeletionDialogState extends State<CacheDeletionDialog> {
                   navigator.pop();
                 }
               : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.redAccent,
-            foregroundColor: Colors.white,
-          ),
+          backgroundColor: Colors.redAccent,
+          foregroundColor: Colors.white,
           child: const Text('Delete Selected'),
         ),
       ],
