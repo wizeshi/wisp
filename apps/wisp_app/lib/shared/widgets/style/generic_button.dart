@@ -405,6 +405,25 @@ class _HoverableCupertinoIconButtonState
       );
     }
 
+    final hasMaterial = Material.maybeOf(context) != null;
+    if (hasMaterial) {
+      button = InkResponse(
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        focusColor: Colors.transparent,
+        splashFactory: NoSplash.splashFactory,
+        containedInkWell: true,
+        borderRadius: widget.borderRadius ??
+            (effectiveColor != null ? BorderRadius.circular(100) : null),
+        onTapDown: (widget.onPressed != null || widget.onLongPress != null)
+            ? (_) {}
+            : null,
+        onLongPress: widget.onLongPress,
+        child: button,
+      );
+    }
+
     return button;
   }
 }
@@ -622,6 +641,22 @@ class GenericFilledButton extends StatelessWidget {
       if (tooltip != null && tooltip!.isNotEmpty) {
         button = Tooltip(
           message: tooltip!,
+          child: button,
+        );
+      }
+
+      final hasMaterial = Material.maybeOf(context) != null;
+      if (hasMaterial) {
+        button = InkResponse(
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          hoverColor: Colors.transparent,
+          focusColor: Colors.transparent,
+          splashFactory: NoSplash.splashFactory,
+          containedInkWell: true,
+          borderRadius: effectiveRadius,
+          onTapDown: isEnabled ? (_) {} : null,
+          onLongPress: onLongPress,
           child: button,
         );
       }
@@ -1438,6 +1473,22 @@ class GenericButton extends StatelessWidget {
       if (tooltip != null && tooltip!.isNotEmpty) {
         button = Tooltip(
           message: tooltip!,
+          child: button,
+        );
+      }
+
+      final hasMaterial = Material.maybeOf(context) != null;
+      if (hasMaterial) {
+        button = InkResponse(
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          hoverColor: Colors.transparent,
+          focusColor: Colors.transparent,
+          splashFactory: NoSplash.splashFactory,
+          containedInkWell: true,
+          borderRadius: effectiveRadius,
+          onTapDown: isEnabled ? (_) {} : null,
+          onLongPress: onLongPress,
           child: button,
         );
       }
