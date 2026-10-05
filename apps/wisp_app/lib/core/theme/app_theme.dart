@@ -152,7 +152,7 @@ class WispStyleTokens extends ThemeExtension<WispStyleTokens> {
           fullscreenIcon: CupertinoIcons.arrow_up_left_arrow_down_right,
           personIcon: CupertinoIcons.person_fill,
           personAddIcon: CupertinoIcons.person_add,
-          playerControlSpacing: 24.0,
+          playerControlSpacing: 8.0,
           playerVolumeSpacing: 6.0,
           trackRowDurationWidth: 70.0,
         );

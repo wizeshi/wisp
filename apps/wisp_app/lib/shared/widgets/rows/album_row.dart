@@ -1,5 +1,6 @@
 // Copyright © 2026 wizeshi
 
+import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
@@ -58,6 +59,29 @@ class AlbumRow extends StatelessWidget {
           ),
         );
       }
+
+      if (fullAlbum.hasMore == true ||
+          (fullAlbum.total != null && fullAlbum.total! > tracks.length)) {
+        unawaited(() async {
+          try {
+            final full = await metadataManager.fetchFullAlbumWithTracks(
+              album.id,
+              source: album.source,
+            );
+            final allTracks = full.songs ?? [];
+            final audio = coordinator.audioHandler;
+            if (audio == null ||
+                audio.playbackContext?.type != PlaybackContextType.album ||
+                audio.playbackContext?.id != album.id) {
+              return;
+            }
+            if (allTracks.length > tracks.length) {
+              final missingTracks = allTracks.sublist(tracks.length);
+              await coordinator.addTracksToQueue(missingTracks);
+            }
+          } catch (_) {}
+        }());
+      }
     } catch (_) {}
   }
 
@@ -77,6 +101,19 @@ class AlbumRow extends StatelessWidget {
         return _startAlbumPlayback(context);
       }
     }
+  }
+
+  Future<void> _playAlbum(BuildContext context) async {
+    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
+    if (audioHandler != null &&
+        audioHandler.playbackContext?.type == PlaybackContextType.album &&
+        audioHandler.playbackContext?.id == album.id) {
+      if (!audioHandler.isPlaying) {
+        return audioHandler.play();
+      }
+      return _startAlbumPlayback(context);
+    }
+    return _startAlbumPlayback(context);
   }
 
   @override
@@ -109,6 +146,7 @@ class AlbumRow extends StatelessWidget {
         initialThumbnailUrl: album.thumbnailUrl,
       ),
       onPlay: () => _toggleAlbumPlayback(context),
+      onDoubleTap: () => _playAlbum(context),
       onSecondaryTapDown: (details) {
         EntityContextMenus.showAlbumMenu(
           context,

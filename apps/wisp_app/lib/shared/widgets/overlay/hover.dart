@@ -29,6 +29,7 @@ bool get isDesktopPlatform =>
 class HoverRegion extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
   final BorderRadius? borderRadius;
@@ -37,6 +38,7 @@ class HoverRegion extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.onDoubleTap,
     this.onLongPress,
     this.onSecondaryTapDown,
     this.borderRadius,
@@ -57,6 +59,7 @@ class HoverRegion extends StatefulWidget {
 
 class _HoverRegionState extends State<HoverRegion> {
   bool _isHovering = false;
+  DateTime? _lastTapTime;
 
   void _setHovering(bool value) {
     if (isDesktopPlatform && _isHovering != value) {
@@ -64,15 +67,29 @@ class _HoverRegionState extends State<HoverRegion> {
     }
   }
 
+  void _handleTap() {
+    final now = DateTime.now();
+    if (widget.onDoubleTap != null &&
+        _lastTapTime != null &&
+        now.difference(_lastTapTime!) < const Duration(milliseconds: 350)) {
+      _lastTapTime = null;
+      widget.onDoubleTap!();
+    } else {
+      _lastTapTime = now;
+      widget.onTap?.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasTapAction = widget.onTap != null || widget.onDoubleTap != null;
     return MouseRegion(
-      cursor: (isDesktopPlatform && widget.onTap != null) ? SystemMouseCursors.click : MouseCursor.defer,
+      cursor: (isDesktopPlatform && hasTapAction) ? SystemMouseCursors.click : MouseCursor.defer,
       onEnter: (_) => _setHovering(true),
       onExit: (_) => _setHovering(false),
       child: InkWell(
-        mouseCursor: (isDesktopPlatform && widget.onTap != null) ? SystemMouseCursors.click : null,
-        onTap: widget.onTap,
+        mouseCursor: (isDesktopPlatform && hasTapAction) ? SystemMouseCursors.click : null,
+        onTap: hasTapAction ? _handleTap : null,
         onLongPress: widget.onLongPress,
         onSecondaryTapDown: widget.onSecondaryTapDown,
         borderRadius: widget.borderRadius,

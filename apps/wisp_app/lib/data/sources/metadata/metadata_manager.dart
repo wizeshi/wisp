@@ -11,6 +11,7 @@ import 'package:wisp/data/sources/metadata/js_metadata_source.dart';
 import 'package:wisp/data/sources/metadata/metadata_source_manager.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'package:wisp/core/utils/liked_songs.dart';
 
 /// Central manager orchestrating catalog, search, and detail metadata operations
 /// across multiple built-in and dynamic metadata providers.
@@ -323,6 +324,48 @@ class MetadataManager extends ChangeNotifier {
     int limit = 50,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
+    if (isLikedSongsPlaylistId(playlistId)) {
+      final cached = await getCachedLikedSongs(providerId: providerId, source: source);
+      if (cached != null && cached.isNotEmpty && offset == 0 && policy != MetadataFetchPolicy.refreshAlways) {
+        return GenericPlaylist(
+          id: playlistId,
+          source: source ?? 'spotify',
+          title: 'Liked Songs',
+          thumbnailUrl: '',
+          author: GenericSimpleUser(
+            id: 'liked_songs_user',
+            source: source ?? 'spotify',
+            displayName: userDisplayName ?? 'You',
+          ),
+          songs: cached.take(limit).toList(),
+          durationSecs: 0,
+          total: likedTracksTotalCount ?? cached.length,
+          hasMore: cached.length > limit,
+        );
+      }
+      final savedSongs = await getUserSavedTracks(
+        limit: limit,
+        offset: offset,
+        providerId: providerId,
+        source: source,
+        policy: policy,
+      );
+      return GenericPlaylist(
+        id: playlistId,
+        source: source ?? 'spotify',
+        title: 'Liked Songs',
+        thumbnailUrl: '',
+        author: GenericSimpleUser(
+          id: 'liked_songs_user',
+          source: source ?? 'spotify',
+          displayName: userDisplayName ?? 'You',
+        ),
+        songs: savedSongs,
+        durationSecs: 0,
+        total: likedTracksTotalCount,
+        hasMore: (likedTracksTotalCount != null && (offset + limit) < likedTracksTotalCount!),
+      );
+    }
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.getPlaylistInfo(playlistId, offset: offset, limit: limit, policy: policy);
   }
@@ -370,8 +413,27 @@ class MetadataManager extends ChangeNotifier {
     String? providerId,
     String? source,
   }) async {
+    if (isLikedSongsPlaylistId(playlistId)) {
+      final savedSongs = await fetchLikedSongs(providerId: providerId, source: source);
+      return GenericPlaylist(
+        id: playlistId,
+        source: source ?? 'spotify',
+        title: 'Liked Songs',
+        thumbnailUrl: '',
+        author: GenericSimpleUser(
+          id: 'liked_songs_user',
+          source: source ?? 'spotify',
+          displayName: userDisplayName ?? 'You',
+        ),
+        songs: savedSongs,
+        durationSecs: savedSongs.fold(0, (acc, s) => acc + s.durationSecs),
+        total: savedSongs.length,
+        hasMore: false,
+      );
+    }
+
     final provider = _resolveProvider(providerId: providerId, source: source);
-    const fetchLimit = 500;
+    const fetchLimit = 50;
     final playlist = await provider.getPlaylistInfo(
       playlistId,
       offset: 0,
@@ -381,7 +443,7 @@ class MetadataManager extends ChangeNotifier {
     final items = <PlaylistItem>[...?(playlist.songs)];
 
     int offset = items.length;
-    while (playlist.hasMore == true && offset < (playlist.total ?? 0)) {
+    while (offset < (playlist.total ?? 0)) {
       final morePlaylist = await provider.getPlaylistInfo(
         playlistId,
         offset: offset,
@@ -392,7 +454,7 @@ class MetadataManager extends ChangeNotifier {
       if (more.isEmpty) break;
       items.addAll(more);
       offset = items.length;
-      if (more.length < fetchLimit) break;
+      if (more.length < fetchLimit || morePlaylist.hasMore == false) break;
     }
 
     final full = GenericPlaylist(

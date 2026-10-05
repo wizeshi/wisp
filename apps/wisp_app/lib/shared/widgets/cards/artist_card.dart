@@ -71,6 +71,19 @@ class ArtistCard extends StatelessWidget {
     }
   }
 
+  Future<void> _playArtist(BuildContext context) async {
+    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
+    if (audioHandler != null &&
+        audioHandler.playbackContext?.type == PlaybackContextType.artist &&
+        audioHandler.playbackContext?.id == artist.id) {
+      if (!audioHandler.isPlaying) {
+        return audioHandler.play();
+      }
+      return _startArtistPlayback(context);
+    }
+    return _startArtistPlayback(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isPlaying = context.watchIsPlayingArtist(
@@ -91,6 +104,7 @@ class ArtistCard extends StatelessWidget {
       onTap: () =>
           AppNavigation.instance.openArtist(context, artistId: artist.id),
       onPlay: () => _toggleArtistPlayback(context),
+      onDoubleTap: () => _playArtist(context),
       onSecondaryTapDown: (details) {
         EntityContextMenus.showArtistMenu(
           context,

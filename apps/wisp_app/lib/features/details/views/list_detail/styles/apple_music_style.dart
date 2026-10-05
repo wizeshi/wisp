@@ -720,7 +720,7 @@ class _AppleMusicListDetailRenderer extends StatelessWidget {
               ],
             ),
             Row(
-              spacing: 16,
+              spacing: 0,
               children: [
                 GenericIconButton(
                   icon: Icon(

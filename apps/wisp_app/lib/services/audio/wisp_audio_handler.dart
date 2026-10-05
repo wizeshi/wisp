@@ -2240,6 +2240,20 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     notifyListeners();
   }
 
+  void addTracksToQueue(List<GenericSong> tracks) {
+    if (tracks.isEmpty) return;
+    _queue.addAll(tracks);
+    if (_originalQueue.isNotEmpty) {
+      _originalQueue.addAll(tracks);
+    }
+    _broadcastQueue();
+    _saveQueue();
+    _clearPreloadBookkeeping();
+    unawaited(_engine.clearPreload());
+    _invalidatePlaybackPrefetch();
+    notifyListeners();
+  }
+
   void removeFromQueue(int index) {
     if (index < 0 || index >= _queue.length) return;
     if (index == _currentIndex) {

@@ -17,6 +17,7 @@ class GenericRow extends StatelessWidget {
   final VoidCallback onTap;
 
   final VoidCallback? onPlay;
+  final VoidCallback? onDoubleTap;
 
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
@@ -39,6 +40,7 @@ class GenericRow extends StatelessWidget {
     this.isPlaying = false,
     required this.onTap,
     this.onPlay,
+    this.onDoubleTap,
     this.onLongPress,
     this.onSecondaryTapDown,
     this.height = 48,
@@ -57,6 +59,7 @@ class GenericRow extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: HoverRegion(
         onTap: onTap,
+        onDoubleTap: onDoubleTap ?? onPlay,
         onLongPress: isDesktopPlatform ? null : onLongPress,
         onSecondaryTapDown: onSecondaryTapDown,
         borderRadius: BorderRadius.circular(8),

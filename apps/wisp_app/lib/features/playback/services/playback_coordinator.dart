@@ -251,4 +251,27 @@ class PlaybackCoordinator extends ChangeNotifier {
       originalQueue: originalQueue,
     );
   }
+
+  Future<void> addTracksToQueue(List<GenericSong> tracks) async {
+    final audio = _audioHandler;
+    if (audio == null || tracks.isEmpty) return;
+
+    final transport = _transport;
+    if (transport?.isHost ?? false) {
+      final updatedQueue = [...audio.queueTracks, ...tracks];
+      await transport!.sendSetQueueCommand(
+        updatedQueue,
+        startIndex: audio.currentIndex,
+        play: audio.isPlaying,
+        playbackContext: audio.playbackContext,
+        shuffleEnabled: audio.shuffleEnabled,
+        originalQueue: audio.originalQueueTracks.isNotEmpty
+            ? [...audio.originalQueueTracks, ...tracks]
+            : null,
+      );
+      return;
+    }
+
+    audio.addTracksToQueue(tracks);
+  }
 }

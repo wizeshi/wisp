@@ -1,11 +1,8 @@
 // Copyright © 2026 wizeshi
 
 import 'package:material_ui/material_ui.dart';
-import 'package:provider/provider.dart';
-import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
-import 'package:wisp/features/playback/services/playback_coordinator.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/features/playback/services/playlist_playback_helper.dart';
 import 'package:wisp/features/details/views/list_detail_view.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 
@@ -52,66 +49,6 @@ class PlaylistCard extends StatelessWidget {
     );
   }
 
-  Future<void> _startPlaylistPlayback(BuildContext context) async {
-    final coordinator = context.read<PlaybackCoordinator>();
-    final metadataManager = context.read<MetadataManager>();
-
-    try {
-      final fullPlaylist = await metadataManager.getPlaylistInfo(
-        playlist.id,
-        source: playlist.source,
-      );
-      final items = fullPlaylist.songs ?? [];
-      if (items.isEmpty) return;
-      final tracks = items
-          .map(
-            (item) => GenericSong(
-              id: item.id,
-              source: item.source,
-              title: item.title,
-              artists: item.artists,
-              thumbnailUrl: item.thumbnailUrl,
-              explicit: item.explicit,
-              album: item.album,
-              durationSecs: item.durationSecs,
-            ),
-          )
-          .toList();
-      if (tracks.isEmpty) return;
-      if (context.mounted) {
-        await coordinator.setQueue(
-          tracks,
-          startIndex: 0,
-          play: true,
-          playbackContext: PlaybackContext(
-            type: PlaybackContextType.playlist,
-            name: fullPlaylist.title,
-            id: fullPlaylist.id,
-            source: fullPlaylist.source,
-          ),
-        );
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _togglePlaylistPlayback(BuildContext context) async {
-    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
-    // Check if playlist is currently active, and if so, whether it's playing or paused. If it's active and playing, pause it; otherwise, play it.
-    if (audioHandler != null) {
-      if (audioHandler.playbackContext?.type == PlaybackContextType.playlist &&
-          audioHandler.playbackContext?.id == playlist.id) {
-        if (audioHandler.isPlaying) {
-          return audioHandler.pause();
-        } else {
-          return audioHandler.play();
-        }
-      } else {
-        // Playlist is not active, so play it.
-        return _startPlaylistPlayback(context);
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isPlaying = context.watchIsPlayingPlaylist(
@@ -135,7 +72,8 @@ class PlaylistCard extends StatelessWidget {
         initialTitle: playlist.title,
         initialThumbnailUrl: playlist.thumbnailUrl,
       ),
-      onPlay: () => _togglePlaylistPlayback(context),
+      onPlay: () => PlaylistPlaybackHelper.togglePlaylistPlayback(context, playlist),
+      onDoubleTap: () => PlaylistPlaybackHelper.playPlaylist(context, playlist),
       onSecondaryTapDown: (details) {
         EntityContextMenus.showPlaylistMenu(
           context,

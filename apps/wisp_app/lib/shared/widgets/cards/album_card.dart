@@ -65,6 +65,19 @@ class AlbumCard extends StatelessWidget {
     }
   }
 
+  Future<void> _playAlbum(BuildContext context) async {
+    final audioHandler = context.read<PlaybackCoordinator>().audioHandler;
+    if (audioHandler != null &&
+        audioHandler.playbackContext?.type == PlaybackContextType.album &&
+        audioHandler.playbackContext?.id == album.id) {
+      if (!audioHandler.isPlaying) {
+        return audioHandler.play();
+      }
+      return _startAlbumPlayback(context);
+    }
+    return _startAlbumPlayback(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isPlaying = context.watchIsPlayingAlbum(
@@ -89,6 +102,7 @@ class AlbumCard extends StatelessWidget {
         initialThumbnailUrl: album.thumbnailUrl,
       ),
       onPlay: () => _toggleAlbumPlayback(context),
+      onDoubleTap: () => _playAlbum(context),
       onSecondaryTapDown: (details) {
         EntityContextMenus.showAlbumMenu(
           context,

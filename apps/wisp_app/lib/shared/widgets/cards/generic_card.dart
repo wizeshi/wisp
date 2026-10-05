@@ -18,6 +18,7 @@ class GenericCard extends StatelessWidget {
   final VoidCallback onTap;
 
   final VoidCallback? onPlay;
+  final VoidCallback? onDoubleTap;
 
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
@@ -32,6 +33,7 @@ class GenericCard extends StatelessWidget {
     this.isPlaying = false,
     required this.onTap,
     this.onPlay,
+    this.onDoubleTap,
     this.onLongPress,
     this.onSecondaryTapDown,
     this.width,
@@ -41,6 +43,7 @@ class GenericCard extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget content = HoverRegion(
       onTap: onTap,
+      onDoubleTap: onDoubleTap ?? onPlay,
       onLongPress: isDesktopPlatform ? null : onLongPress,
       onSecondaryTapDown: onSecondaryTapDown,
       borderRadius: context.tokens.cardRadius,
