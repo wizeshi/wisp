@@ -58,7 +58,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   }) : _settings = settings ?? PlaybackEngineSettings() {
     MediaKit.ensureInitialized();
     
-    log('[MediaKitPlaybackEngine]: initialized with settings: $_settings');
+    log('[MediaKitPlaybackEngine]: initialized with settings: ${_settings.toString()}');
     
     _first = Player();
     _second = Player();
@@ -419,6 +419,8 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
       source: _activeSource,
       preloadedSource: _preloadedSource,
       isTransitioning: _isTransitioning,
+      audioBitrate: reportingPlayer.state.audioBitrate,
+      audioSampleRate: reportingPlayer.state.audioParams.sampleRate,
       error: _lastError,
     );
     _states.add(_state);

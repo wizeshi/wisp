@@ -75,6 +75,12 @@ class PlaybackEngineState {
   final PlaybackSource? preloadedSource;
   /// True while a crossfade is running. Commands must be able to cancel it.
   final bool isTransitioning;
+
+  /// The audio bitrate of the currently playing source, if available.
+  final double? audioBitrate;
+
+  final int? audioSampleRate;
+
   final PlaybackEngineError? error;
 
   const PlaybackEngineState({
@@ -86,6 +92,8 @@ class PlaybackEngineState {
     this.source,
     this.preloadedSource,
     this.isTransitioning = false,
+    this.audioBitrate,
+    this.audioSampleRate,
     this.error,
   });
 

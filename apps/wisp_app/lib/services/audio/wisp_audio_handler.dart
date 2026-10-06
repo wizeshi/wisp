@@ -167,6 +167,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool _engineIsPlaying = false;
   bool _engineIsBuffering = false;
   bool _engineIsTransitioning = false;
+  double? _engineAudioBitrate;
+  int? _engineAudioSampleRate;
   PlaybackEngineError? _lastEngineError;
   List<AudioOutputDevice> _availableOutputDevices = const [];
   AudioOutputDevice? _activeOutputDevice;
@@ -248,6 +250,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool get crossfadeEnabled => _crossfadeEnabled;
   double get crossfadeDurationSeconds => _crossfadeDurationSeconds;
   bool get keepPositionBetweenRestarts => _keepPositionBetweenRestarts;
+
+  double? get audioBitrate => _engineAudioBitrate;
+  int? get audioSampleRate => _engineAudioSampleRate;
 
   void setKeepPositionBetweenRestarts(bool enabled) {
     if (_keepPositionBetweenRestarts == enabled) return;
@@ -635,6 +640,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _engineIsTransitioning = engineState.isTransitioning;
     _engineIsBuffering = engineState.isBuffering;
     _engineIsPlaying = engineState.isPlaying;
+
+    _engineAudioBitrate = engineState.audioBitrate; 
+    _engineAudioSampleRate = engineState.audioSampleRate;
 
     if (engineState.duration > Duration.zero) {
       final durationChanged = _lastKnownDuration != engineState.duration;

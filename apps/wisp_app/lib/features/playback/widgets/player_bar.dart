@@ -14,7 +14,8 @@ import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
 import 'package:wisp/shared/widgets/display/focus_freeze_builder.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
+import 'package:wisp/services/audio/wisp_audio_handler.dart'
+    as global_audio_player;
 import 'package:wisp/data/models/metadata_models.dart';
 import 'full_player.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
@@ -57,9 +58,15 @@ class WispPlayerBar extends StatelessWidget {
     switch (appStyle) {
       case AppStyle.Spotify:
         if (_isMobile) {
-          return _MobilePlayerBarAnimated(currentTrack: currentTrack, appStyle: appStyle);
+          return _MobilePlayerBarAnimated(
+            currentTrack: currentTrack,
+            appStyle: appStyle,
+          );
         }
-        return _DesktopPlayerBar(currentTrack: currentTrack, appStyle: appStyle);
+        return _DesktopPlayerBar(
+          currentTrack: currentTrack,
+          appStyle: appStyle,
+        );
       case AppStyle.AppleMusic:
         if (_isMobile) {
           return _AppleMusicMobilePlayerBar(currentTrack: currentTrack);
@@ -187,7 +194,7 @@ class _DesktopProgressBar extends StatelessWidget {
                 final frozenDuration = frozenData.duration;
                 final frozenProgress = frozenDuration.inMilliseconds > 0
                     ? frozenData.position.inMilliseconds /
-                        frozenDuration.inMilliseconds
+                          frozenDuration.inMilliseconds
                     : 0.0;
                 return buildBaseProgressBar(
                   context,
@@ -407,10 +414,7 @@ class _DesktopTrackInfo extends StatelessWidget {
   final GenericSong? currentTrack;
   final AppStyle appStyle;
 
-  const _DesktopTrackInfo({
-    required this.currentTrack,
-    required this.appStyle,
-  });
+  const _DesktopTrackInfo({required this.currentTrack, required this.appStyle});
 
   @override
   Widget build(BuildContext context) {
@@ -489,6 +493,51 @@ class _DesktopTrackInfo extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Selector<global_audio_player.WispAudioHandler, double?>(
+                    selector: (context, player) => player.audioBitrate,
+                    builder: (context, audioBitrate, child) {
+                      if (audioBitrate == null) {
+                        return const SizedBox.shrink();
+                      }
+                      return Text(
+                        '${(audioBitrate / 1000).floor() - 1} kbps',
+                        style: TextStyle(
+                          color: Colors.grey[250],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      );
+                    },
+                  ),
+                  Text(
+                    ' • ',
+                    style: TextStyle(
+                      color: Colors.grey[250],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Selector<global_audio_player.WispAudioHandler, int?>(
+                    selector: (context, player) => player.audioSampleRate,
+                    builder: (context, audioSampleRate, child) {
+                      if (audioSampleRate == null) {
+                        return const SizedBox.shrink();
+                      }
+                      return Text(
+                        '${((audioSampleRate / 100).floor()) / 10} kHz',
+                        style: TextStyle(
+                          color: Colors.grey[250],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -553,8 +602,8 @@ class _DesktopPlaybackControls extends StatelessWidget {
                 color: data.isDJMode
                     ? Colors.grey[600]
                     : (data.shuffleEnabled
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey[400]),
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey[400]),
                 size: 20,
               ),
               onPressed: data.isDJMode
@@ -571,11 +620,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               style: appStyle,
               padding: const EdgeInsets.all(4),
               constraints: const BoxConstraints(),
-              icon: Icon(
-                tokens.playPrevIcon,
-                color: Colors.white,
-                size: 24,
-              ),
+              icon: Icon(tokens.playPrevIcon, color: Colors.white, size: 24),
               onPressed: data.queueNotEmpty
                   ? () {
                       context.read<PlaybackCoordinator>().skipPrevious();
@@ -595,11 +640,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
               style: appStyle,
               padding: const EdgeInsets.all(4),
               constraints: const BoxConstraints(),
-              icon: Icon(
-                tokens.playNextIcon,
-                color: Colors.white,
-                size: 24,
-              ),
+              icon: Icon(tokens.playNextIcon, color: Colors.white, size: 24),
               onPressed: data.queueNotEmpty
                   ? () {
                       context.read<PlaybackCoordinator>().skipNext();
@@ -622,8 +663,8 @@ class _DesktopPlaybackControls extends StatelessWidget {
                 color: data.isDJMode
                     ? Colors.grey[600]
                     : (data.repeatMode != global_audio_player.RepeatMode.off
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey[400]),
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey[400]),
                 size: 20,
               ),
               onPressed: data.isDJMode
@@ -677,12 +718,8 @@ class _DesktopPlayPauseButton extends StatelessWidget {
         !data.currentTrackCached;
     final tokens = context.tokens;
     IconData icon = effectiveIsPlaying
-        ? (tokens.isApple
-              ? tokens.pauseIcon
-              : Icons.pause_circle_filled)
-        : (tokens.isApple
-              ? tokens.playIcon
-              : Icons.play_circle_filled);
+        ? (tokens.isApple ? tokens.pauseIcon : Icons.pause_circle_filled)
+        : (tokens.isApple ? tokens.playIcon : Icons.play_circle_filled);
     VoidCallback? onPressed;
 
     if (!isOfflineBlocked) {
@@ -781,29 +818,38 @@ class _DesktopRightControls extends StatelessWidget {
                 if (!isFullScreenOpen)
                   Selector<global_audio_player.WispAudioHandler, bool>(
                     selector: (context, player) {
-                      return player.playbackContext != null && player.playbackContext!.id.toLowerCase().startsWith("dj");
+                      return player.playbackContext != null &&
+                          player.playbackContext!.id.toLowerCase().startsWith(
+                            "dj",
+                          );
                     },
-                    builder:(context, value, child) {
+                    builder: (context, value, child) {
                       return Row(
                         children: [
-                        GenericIconButton(
-                          style: appStyle,
-                          icon: Icon(
-                            Symbols.headphones,
-                            color: value ? activeColor : inactiveColor,
-                            size: 20,
+                          GenericIconButton(
+                            style: appStyle,
+                            icon: Icon(
+                              Symbols.headphones,
+                              color: value ? activeColor : inactiveColor,
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              NavigationHistory
+                                          .instance
+                                          .currentRoute
+                                          .value
+                                          ?.settings
+                                          .name ==
+                                      '/dj'
+                                  ? NavigationHistory.instance.goBack()
+                                  : AppNavigation.instance.navigateToDJView(
+                                      context,
+                                    );
+                            },
                           ),
-                          onPressed: () {
-                            NavigationHistory
-                                  .instance
-                                  .currentRoute
-                                  .value
-                                  ?.settings
-                                  .name == '/dj' ? NavigationHistory.instance.goBack() : AppNavigation.instance.navigateToDJView(context);
-                          }
-                        ),
-                        SizedBox(width: controlSpacing),
-                      ]);
+                          SizedBox(width: controlSpacing),
+                        ],
+                      );
                     },
                   ),
                 if (!isFullScreenOpen) ...[
