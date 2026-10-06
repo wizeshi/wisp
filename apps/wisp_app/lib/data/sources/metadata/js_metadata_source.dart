@@ -107,16 +107,20 @@ class JsMetadataSource extends MetadataProvider {
   bool get hasLoadedLikedTracks => _likedTracksLoaded;
 
   @override
-  bool isTrackLiked(String trackId) =>
-      _likedTrackIds.contains(trackId) ||
-      _likedTrackIds.contains(_cleanId(trackId));
+  bool isTrackLiked(String trackId) {
+    if (trackId.isEmpty) return false;
+    return _likedTrackIds.contains(trackId) ||
+        _likedTrackIds.contains(_cleanId(trackId));
+  }
 
   @override
   void setLikedTracksFromItems(List<PlaylistItem> items) {
     _likedTrackIds.clear();
     for (final item in items) {
-      _likedTrackIds.add(item.id);
-      _likedTrackIds.add(_cleanId(item.id));
+      if (item.id.isNotEmpty) {
+        _likedTrackIds.add(item.id);
+        _likedTrackIds.add(_cleanId(item.id));
+      }
     }
     _likedTracksTotalCount = items.length;
     _likedTracksLoaded = true;
@@ -503,10 +507,17 @@ class JsMetadataSource extends MetadataProvider {
         if (policy == MetadataFetchPolicy.cacheFirst || !cached.isExpired) {
           final items = cached.payload['items'] as List?;
           if (items != null) {
-            return items
+            final parsed = items
                 .whereType<Map<String, dynamic>>()
                 .map(fromJson)
                 .toList();
+            if (type.startsWith('saved_tracks') &&
+                parsed.isNotEmpty &&
+                parsed.any((it) => it is PlaylistItem && it.id.isEmpty)) {
+              // Discard corrupted cache containing empty track IDs
+            } else {
+              return parsed;
+            }
           }
         }
       }
@@ -541,7 +552,13 @@ class JsMetadataSource extends MetadataProvider {
           logger.w(
             '[JsMetadataSource/$providerId] List fetch failed ($e), serving cached $type',
           );
-          return items.whereType<Map<String, dynamic>>().map(fromJson).toList();
+          final parsed = items.whereType<Map<String, dynamic>>().map(fromJson).toList();
+          if (type.startsWith('saved_tracks') &&
+              parsed.isNotEmpty &&
+              parsed.any((it) => it is PlaylistItem && it.id.isEmpty)) {
+            return const [];
+          }
+          return parsed;
         }
       }
       rethrow;
@@ -933,10 +950,14 @@ class JsMetadataSource extends MetadataProvider {
     if (cached != null) {
       final items = cached.payload['items'] as List?;
       if (items != null) {
-        return items
+        final parsed = items
             .whereType<Map<String, dynamic>>()
             .map(PlaylistItem.fromJson)
             .toList();
+        if (parsed.isNotEmpty && parsed.any((it) => it.id.isEmpty)) {
+          return null;
+        }
+        return parsed;
       }
     }
     return null;

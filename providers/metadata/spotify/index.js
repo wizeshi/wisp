@@ -451,8 +451,18 @@ function extractDurationMs(t) {
 
 function trackToGeneric(track, albumLookup = null, defaultArtist = null) {
   if (!track) return null;
-  const rawUri = track.uri || '';
-  const id = rawUri.includes(':') ? rawUri.split(':').pop() : (track.id || '');
+  const rawUri = track.uri ||
+                 track._uri ||
+                 (track.track && (track.track.uri || track.track._uri)) ||
+                 (track.data && (track.data.uri || track.data._uri)) ||
+                 '';
+  const id = rawUri.includes(':')
+    ? rawUri.split(':').pop()
+    : (track.id ||
+       track._id ||
+       (track.track && (track.track.id || track.track._id)) ||
+       (track.data && (track.data.id || track.data._id)) ||
+       '');
   let artists = extractArtists(track.artists);
   if ((!artists || artists.length === 0) && defaultArtist) {
     artists = [{
@@ -475,8 +485,8 @@ function trackToGeneric(track, albumLookup = null, defaultArtist = null) {
   let album = null;
   const albumData = track.albumOfTrack || track.album;
   if (albumData) {
-    const albumUri = albumData.uri || (albumData.id ? ('spotify:album:' + albumData.id) : '');
-    const albumId = albumUri.includes(':') ? albumUri.split(':').pop() : (albumData.id || '');
+    const albumUri = albumData.uri || albumData._uri || (albumData.id ? ('spotify:album:' + albumData.id) : '');
+    const albumId = albumUri.includes(':') ? albumUri.split(':').pop() : (albumData.id || albumData._id || '');
 
     let matchedAlbum = null;
     if (albumLookup) {
@@ -605,8 +615,22 @@ function extractPlaylistItems(contents, offset) {
     if (!sourceData) continue;
 
     trackNum++;
-    const trackUri = sourceData.uri || (item.itemV2 && item.itemV2.data && item.itemV2.data.uri) || (item.itemV3 && item.itemV3.data && item.itemV3.data.uri) || '';
-    const trackId = trackUri.includes(':') ? trackUri.split(':').pop() : (sourceData.id || '');
+    const trackUri = sourceData.uri ||
+                     sourceData._uri ||
+                     (item.track && (item.track.uri || item.track._uri)) ||
+                     (item.itemV2 && item.itemV2.data && (item.itemV2.data.uri || item.itemV2.data._uri)) ||
+                     (item.itemV3 && item.itemV3.data && (item.itemV3.data.uri || item.itemV3.data._uri)) ||
+                     item.uri ||
+                     item._uri ||
+                     '';
+    const trackId = trackUri.includes(':')
+      ? trackUri.split(':').pop()
+      : (sourceData.id ||
+         sourceData._id ||
+         (item.track && (item.track.id || item.track._id)) ||
+         item.id ||
+         item._id ||
+         '');
 
     const identity = sourceData.identityTrait;
     const title = (identity && identity.name) || sourceData.name || 'Unknown Track';
@@ -1355,8 +1379,20 @@ async function getUserSavedTracks(options = {}) {
     if (!trackData) continue;
     trackNum++;
 
+    const trackUri = (item.track && (item.track.uri || item.track._uri)) || item.uri || item._uri || '';
+    const trackId = (item.track && (item.track.id || item.track._id)) || item.id || item._id || '';
+    if (trackUri && !trackData.uri && !trackData._uri) {
+      trackData.uri = trackUri;
+    }
+    if (trackId && !trackData.id && !trackData._id) {
+      trackData.id = trackId;
+    }
+
     const t = trackToGeneric(trackData);
     if (!t) continue;
+    if (!t.id && (trackUri || trackId)) {
+      t.id = trackUri ? (trackUri.includes(':') ? trackUri.split(':').pop() : trackUri) : trackId;
+    }
 
     songs.push({
       id: t.id,

@@ -574,10 +574,14 @@ class MetadataManager extends ChangeNotifier {
     if (entry != null) {
       final items = entry.payload['items'] as List?;
       if (items != null) {
-        return items
+        final parsed = items
             .whereType<Map<String, dynamic>>()
             .map(PlaylistItem.fromJson)
             .toList();
+        if (parsed.isNotEmpty && parsed.any((s) => s.id.isEmpty)) {
+          return null;
+        }
+        return parsed;
       }
     }
     return provider.getCachedSavedTracksAll();

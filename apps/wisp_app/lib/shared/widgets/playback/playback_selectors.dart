@@ -32,8 +32,13 @@ extension PlaybackSelectors on BuildContext {
   /// will show the same song as "playing" in every list that happens to
   /// contain it.
   bool watchIsPlayingTrack(String trackId) {
+    if (trackId.isEmpty) return false;
     return select<WispAudioHandler, bool>(
-      (player) => player.isPlaying && player.currentTrack?.id == trackId,
+      (player) =>
+          player.isPlaying &&
+          player.currentTrack?.id != null &&
+          player.currentTrack!.id.isNotEmpty &&
+          player.currentTrack!.id == trackId,
     );
   }
 
@@ -54,9 +59,12 @@ extension PlaybackSelectors on BuildContext {
     required String trackId,
     required PlaybackContext? viewContext,
   }) {
-    if (viewContext == null) return false;
+    if (trackId.isEmpty || viewContext == null) return false;
     return select<WispAudioHandler, bool>((player) {
-      if (player.currentTrack?.id != trackId) return false;
+      final currentId = player.currentTrack?.id;
+      if (currentId == null || currentId.isEmpty || currentId != trackId) {
+        return false;
+      }
       final playerContext = player.playbackContext;
       return playerContext != null && playerContext.matches(viewContext);
     });
@@ -71,10 +79,13 @@ extension PlaybackSelectors on BuildContext {
     required String trackId,
     required PlaybackContext? viewContext,
   }) {
-    if (viewContext == null) return false;
+    if (trackId.isEmpty || viewContext == null) return false;
     return select<WispAudioHandler, bool>((player) {
       if (!player.isPlaying) return false;
-      if (player.currentTrack?.id != trackId) return false;
+      final currentId = player.currentTrack?.id;
+      if (currentId == null || currentId.isEmpty || currentId != trackId) {
+        return false;
+      }
       final playerContext = player.playbackContext;
       return playerContext != null && playerContext.matches(viewContext);
     });

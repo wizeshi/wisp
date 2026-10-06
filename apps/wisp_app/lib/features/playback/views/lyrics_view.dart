@@ -106,7 +106,9 @@ class _LyricsViewState extends State<LyricsView>
       if (_freezeWhenUnfocused && _positionTicker != null && !_positionTicker!.isActive) {
         _positionTicker!.start();
       }
-      if (_wasAutoScrollEnabledBeforeUnfocus && _currentLineIndex >= 0) {
+      if (_wasAutoScrollEnabledBeforeUnfocus &&
+          _currentLineIndex >= 0 &&
+          _syncMode != LyricsSyncMode.unsynced) {
         _autoScrollEnabled = true;
         _userInteracting = false;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -126,6 +128,7 @@ class _LyricsViewState extends State<LyricsView>
 
   void _handleScroll() {
     if (_userInteracting) return;
+    if (_syncMode == LyricsSyncMode.unsynced) return;
     final visible = _isCurrentLineVisible();
     if (!visible && _autoScrollEnabled) {
       setState(() => _autoScrollEnabled = false);
@@ -444,6 +447,7 @@ class _LyricsViewState extends State<LyricsView>
 
   void _onSyncModeChanged(LyricsSyncMode mode) {
     if (_syncMode == mode) return;
+    _resumeAutoScrollTimer?.cancel();
     setState(() {
       _syncMode = mode;
       _currentLineIndex = mode == LyricsSyncMode.unsynced ? 0 : -1;
@@ -495,6 +499,7 @@ class _LyricsViewState extends State<LyricsView>
 
   void _handleSyncedUnavailable() {
     if (!_syncedLyricsAvailable) return;
+    _resumeAutoScrollTimer?.cancel();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       setState(() {
@@ -876,7 +881,8 @@ class _LyricsViewState extends State<LyricsView>
                                 if (notification.dragDetails != null) {
                                   _userInteracting = true;
                                   _resumeAutoScrollTimer?.cancel();
-                                  if (_autoScrollEnabled) {
+                                  if (_autoScrollEnabled &&
+                                      _syncMode != LyricsSyncMode.unsynced) {
                                     setState(() => _autoScrollEnabled = false);
                                   }
                                 }
@@ -884,37 +890,48 @@ class _LyricsViewState extends State<LyricsView>
                                 if (notification.direction != ScrollDirection.idle) {
                                   _userInteracting = true;
                                   _resumeAutoScrollTimer?.cancel();
-                                  if (_autoScrollEnabled) {
+                                  if (_autoScrollEnabled &&
+                                      _syncMode != LyricsSyncMode.unsynced) {
                                     setState(() => _autoScrollEnabled = false);
                                   }
                                 } else {
                                   _userInteracting = false;
                                   _resumeAutoScrollTimer?.cancel();
-                                  _resumeAutoScrollTimer = Timer(
-                                    const Duration(seconds: 4),
-                                    () {
-                                      if (!mounted) return;
-                                      setState(() => _autoScrollEnabled = true);
-                                      if (_currentLineIndex >= 0) {
-                                        _scrollToLine(_currentLineIndex);
-                                      }
-                                    },
-                                  );
+                                  if (_syncMode != LyricsSyncMode.unsynced) {
+                                    _resumeAutoScrollTimer = Timer(
+                                      const Duration(seconds: 4),
+                                      () {
+                                        if (!mounted ||
+                                            _syncMode == LyricsSyncMode.unsynced) {
+                                          return;
+                                        }
+                                        setState(() => _autoScrollEnabled = true);
+                                        if (_currentLineIndex >= 0) {
+                                          _scrollToLine(_currentLineIndex);
+                                        }
+                                      },
+                                    );
+                                  }
                                 }
                               } else if (notification is ScrollEndNotification) {
                                 if (_userInteracting) {
                                   _userInteracting = false;
                                   _resumeAutoScrollTimer?.cancel();
-                                  _resumeAutoScrollTimer = Timer(
-                                    const Duration(seconds: 4),
-                                    () {
-                                      if (!mounted) return;
-                                      setState(() => _autoScrollEnabled = true);
-                                      if (_currentLineIndex >= 0) {
-                                        _scrollToLine(_currentLineIndex);
-                                      }
-                                    },
-                                  );
+                                  if (_syncMode != LyricsSyncMode.unsynced) {
+                                    _resumeAutoScrollTimer = Timer(
+                                      const Duration(seconds: 4),
+                                      () {
+                                        if (!mounted ||
+                                            _syncMode == LyricsSyncMode.unsynced) {
+                                          return;
+                                        }
+                                        setState(() => _autoScrollEnabled = true);
+                                        if (_currentLineIndex >= 0) {
+                                          _scrollToLine(_currentLineIndex);
+                                        }
+                                      },
+                                    );
+                                  }
                                 }
                               }
                               return false;

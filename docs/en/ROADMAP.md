@@ -1,8 +1,7 @@
-Here's the TODOs for version v26.09:
+Here's the TODOs for version v26.10:
 
 - Bugs:
   - [ ] Fix view paddings
-  - [ ] Fix liked views playback being buggy: songs not skipping correctly, all track rows showing as playing
   - [ ] Fix collapsed track rows in nav sidebar not centering properly
 - Future changes: 
   - [ ] Implement submenu on track context menu for adding to playlist

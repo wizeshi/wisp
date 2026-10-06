@@ -7,19 +7,33 @@ import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/rows/track_row.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class _FakeAudioHandler extends Fake implements WispAudioHandler {
-  @override
-  GenericSong? get currentTrack => null;
+  final GenericSong? _currentTrack;
+  final PlaybackContext? _playbackContext;
+  final bool _isPlaying;
+
+  _FakeAudioHandler({
+    GenericSong? currentTrack,
+    PlaybackContext? playbackContext,
+    bool isPlaying = false,
+  })  : _currentTrack = currentTrack,
+        _playbackContext = playbackContext,
+        _isPlaying = isPlaying;
 
   @override
-  PlaybackContext? get playbackContext => null;
+  GenericSong? get currentTrack => _currentTrack;
 
   @override
-  bool get isPlaying => false;
+  PlaybackContext? get playbackContext => _playbackContext;
+
+  @override
+  bool get isPlaying => _isPlaying;
 }
 
 class _FakeMetadataManager extends Fake implements MetadataManager {
@@ -35,6 +49,7 @@ class _FakeMetadataManager extends Fake implements MetadataManager {
 
 void main() {
   setUpAll(() {
+    SharedPreferences.setMockInitialValues({});
     Provider.debugCheckInvalidValueType = null;
   });
   final testArtist = GenericSimpleArtist(
@@ -63,10 +78,16 @@ void main() {
     thumbnailUrl: '',
   );
 
-  Widget buildTestWidget({required Widget child}) {
+  Widget buildTestWidget({
+    required Widget child,
+    WispAudioHandler? audioHandler,
+  }) {
     return MultiProvider(
       providers: [
-        Provider<WispAudioHandler>.value(value: _FakeAudioHandler()),
+        ChangeNotifierProvider<PreferencesProvider>(
+          create: (_) => PreferencesProvider(),
+        ),
+        Provider<WispAudioHandler>.value(value: audioHandler ?? _FakeAudioHandler()),
         Provider<MetadataManager>.value(value: _FakeMetadataManager()),
       ],
       child: MaterialApp(
@@ -178,6 +199,105 @@ void main() {
       await tester.tap(find.byType(GenericIconButton));
       await tester.pumpAndSettle();
       expect(appleMoreTapped, isTrue);
+    });
+
+    testWidgets('empty track id never shows as playing even if currentTrack has empty id', (tester) async {
+      final emptyIdTrack = GenericSong(
+        id: '',
+        source: 'spotify',
+        title: 'Empty ID Song',
+        durationSecs: 180,
+        explicit: false,
+        artists: [testArtist],
+        thumbnailUrl: '',
+      );
+
+      final playlistContext = PlaybackContext(
+        type: PlaybackContextType.playlist,
+        id: 'liked_songs',
+        name: 'Liked Songs',
+        source: 'spotify',
+      );
+
+      final handler = _FakeAudioHandler(
+        currentTrack: emptyIdTrack,
+        playbackContext: playlistContext,
+        isPlaying: true,
+      );
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          audioHandler: handler,
+          child: TrackRow(
+            track: emptyIdTrack,
+            viewContext: playlistContext,
+            style: AppStyle.Spotify,
+            index: 0,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Title should be white, NOT green/accent primary color
+      final textWidget = tester.widget<Text>(find.text('Empty ID Song'));
+      expect(textWidget.style?.color, equals(Colors.white));
+    });
+
+    testWidgets('matching non-empty track id shows as playing, distinct id does not', (tester) async {
+      final playlistContext = PlaybackContext(
+        type: PlaybackContextType.playlist,
+        id: 'liked_songs',
+        name: 'Liked Songs',
+        source: 'spotify',
+      );
+
+      final otherSong = GenericSong(
+        id: 'track_2',
+        source: 'spotify',
+        title: 'Other Song',
+        durationSecs: 200,
+        explicit: false,
+        artists: [testArtist],
+        thumbnailUrl: '',
+      );
+
+      final handler = _FakeAudioHandler(
+        currentTrack: testSong, // id: 'track_1'
+        playbackContext: playlistContext,
+        isPlaying: true,
+      );
+
+      await tester.pumpWidget(
+        buildTestWidget(
+          audioHandler: handler,
+          child: Column(
+            children: [
+              TrackRow(
+                track: testSong,
+                viewContext: playlistContext,
+                style: AppStyle.Spotify,
+                index: 0,
+              ),
+              TrackRow(
+                track: otherSong,
+                viewContext: playlistContext,
+                style: AppStyle.Spotify,
+                index: 1,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final playingText = tester.widget<Text>(find.text('Test Song'));
+      final notPlayingText = tester.widget<Text>(find.text('Other Song'));
+
+      // The currently playing track row is highlighted (not white), whereas other is white
+      expect(notPlayingText.style?.color, equals(Colors.white));
+      expect(playingText.style?.color, isNot(equals(Colors.white)));
     });
   });
 }

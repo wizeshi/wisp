@@ -1697,7 +1697,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     GenericSong track, {
     bool allowPrefetched = true,
   }) async {
-    if (allowPrefetched) {
+    if (allowPrefetched && track.id.isNotEmpty) {
       final prefetched = _prefetchedSources[track.id];
       if (prefetched != null) {
         return prefetched;
@@ -1716,7 +1716,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         ? Duration(seconds: track.durationSecs)
         : null;
 
-    final cachedPath = cacheManager.getCachedPath(track.id);
+    final cachedPath = track.id.isNotEmpty
+        ? cacheManager.getCachedPath(track.id)
+        : null;
     if (cachedPath != null && File(cachedPath).existsSync()) {
       await cacheManager.updateLastPlayed(track.id);
       return PlaybackSource(
@@ -1730,7 +1732,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       throw Exception('Offline and track not cached');
     }
 
-    String? videoId = YouTubeProvider.getCachedVideoId(track.id);
+    String? videoId = track.id.isNotEmpty
+        ? YouTubeProvider.getCachedVideoId(track.id)
+        : null;
     videoId ??= await _getVideoIdForTrack(track);
     if (videoId == null) return null;
 

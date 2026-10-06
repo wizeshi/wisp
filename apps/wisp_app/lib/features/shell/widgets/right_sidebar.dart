@@ -33,6 +33,7 @@ import 'package:wisp/shared/widgets/display/hover_underline.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 
 class RightSidebar extends StatefulWidget {
   final double width;
@@ -646,29 +647,35 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
       fontWeight: FontWeight.w700,
     );
 
-    return MarqueeText(
-      text: track.title,
-      style: style,
-      pauseWhenUnfocused: true,
-      builder: (context, textStyle) => HoverUnderline(
-        cursor: hasAlbum ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onTap: hasAlbum ? () => _openAlbum(context, album) : null,
-        onSecondaryTapDown: (details) {
-          EntityContextMenus.showTrackMenu(
-            context,
-            track: track,
-            globalPosition: details.globalPosition,
-          );
-        },
-        builder: (isHovering) => Text(
-          track.title,
-          style: textStyle.copyWith(
-            decoration: isHovering && hasAlbum
-                ? TextDecoration.underline
-                : TextDecoration.none,
+    return Row(
+      children: [
+        MarqueeText(
+          text: track.title,
+          style: style,
+          pauseWhenUnfocused: true,
+          builder: (context, textStyle) => HoverUnderline(
+            cursor: hasAlbum
+                ? SystemMouseCursors.click
+                : SystemMouseCursors.basic,
+            onTap: hasAlbum ? () => _openAlbum(context, album) : null,
+            onSecondaryTapDown: (details) {
+              EntityContextMenus.showTrackMenu(
+                context,
+                track: track,
+                globalPosition: details.globalPosition,
+              );
+            },
+            builder: (isHovering) => Text(
+              track.title,
+              style: textStyle.copyWith(
+                decoration: isHovering && hasAlbum
+                    ? TextDecoration.underline
+                    : TextDecoration.none,
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -683,75 +690,82 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
       fontWeight: FontWeight.w500,
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final textPainter = TextPainter(
-          text: TextSpan(text: joinedText, style: style),
-          maxLines: 1,
-          textDirection: Directionality.of(context),
-          textScaler: MediaQuery.textScalerOf(context),
-        )..layout();
+    return Row(
+      children: [
+        TrackBadges(track: track),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final textPainter = TextPainter(
+                text: TextSpan(text: joinedText, style: style),
+                maxLines: 1,
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+              )..layout();
 
-        final overflows =
-            constraints.hasBoundedWidth &&
-            textPainter.width > constraints.maxWidth;
+              final overflows =
+                  constraints.hasBoundedWidth &&
+                  textPainter.width > constraints.maxWidth;
 
-        if (overflows) {
-          return MarqueeText(
-            text: joinedText,
-            style: style,
-            pauseWhenUnfocused: true,
-            builder: artists.length == 1
-                ? (context, textStyle) => HoverUnderline(
-                    cursor: SystemMouseCursors.click,
-                    onTap: () => _openArtist(context, artists.first),
-                    onSecondaryTapDown: (details) {
-                      EntityContextMenus.showArtistMenu(
-                        context,
-                        artist: artists.first,
-                        globalPosition: details.globalPosition,
-                      );
-                    },
-                    builder: (isHovering) => Text(
-                      joinedText,
-                      style: textStyle.copyWith(
-                        decoration: isHovering
-                            ? TextDecoration.underline
-                            : TextDecoration.none,
+              if (overflows) {
+                return MarqueeText(
+                  text: joinedText,
+                  style: style,
+                  pauseWhenUnfocused: true,
+                  builder: artists.length == 1
+                      ? (context, textStyle) => HoverUnderline(
+                          cursor: SystemMouseCursors.click,
+                          onTap: () => _openArtist(context, artists.first),
+                          onSecondaryTapDown: (details) {
+                            EntityContextMenus.showArtistMenu(
+                              context,
+                              artist: artists.first,
+                              globalPosition: details.globalPosition,
+                            );
+                          },
+                          builder: (isHovering) => Text(
+                            joinedText,
+                            style: textStyle.copyWith(
+                              decoration: isHovering
+                                  ? TextDecoration.underline
+                                  : TextDecoration.none,
+                            ),
+                          ),
+                        )
+                      : null,
+                );
+              }
+
+              return Wrap(
+                children: [
+                  for (int i = 0; i < artists.length; i++) ...[
+                    HoverUnderline(
+                      cursor: SystemMouseCursors.click,
+                      onTap: () => _openArtist(context, artists[i]),
+                      onSecondaryTapDown: (details) {
+                        EntityContextMenus.showArtistMenu(
+                          context,
+                          artist: artists[i],
+                          globalPosition: details.globalPosition,
+                        );
+                      },
+                      builder: (isHovering) => Text(
+                        artists[i].name,
+                        style: style.copyWith(
+                          decoration: isHovering
+                              ? TextDecoration.underline
+                              : TextDecoration.none,
+                        ),
                       ),
                     ),
-                  )
-                : null,
-          );
-        }
-
-        return Wrap(
-          children: [
-            for (int i = 0; i < artists.length; i++) ...[
-              HoverUnderline(
-                cursor: SystemMouseCursors.click,
-                onTap: () => _openArtist(context, artists[i]),
-                onSecondaryTapDown: (details) {
-                  EntityContextMenus.showArtistMenu(
-                    context,
-                    artist: artists[i],
-                    globalPosition: details.globalPosition,
-                  );
-                },
-                builder: (isHovering) => Text(
-                  artists[i].name,
-                  style: style.copyWith(
-                    decoration: isHovering
-                        ? TextDecoration.underline
-                        : TextDecoration.none,
-                  ),
-                ),
-              ),
-              if (i < artists.length - 1) Text(', ', style: style),
-            ],
-          ],
-        );
-      },
+                    if (i < artists.length - 1) Text(', ', style: style),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1210,11 +1224,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Selector2<
-      WispAudioHandler,
-      MetadataManager,
-      (GenericSong?, bool)
-    >(
+    return Selector2<WispAudioHandler, MetadataManager, (GenericSong?, bool)>(
       selector: (context, player, metadata) =>
           (player.currentTrack, metadata.isAuthenticated),
       builder: (context, data, child) {
@@ -1498,7 +1508,9 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
       builder: (context, lyricsProvider, child) {
         final wordState = lyricsProvider.getState(track, LyricsSyncMode.word);
         final lineState = lyricsProvider.getState(track, LyricsSyncMode.line);
-        if (!wordState.isLoading && wordState.lyrics == null && wordState.error == null) {
+        if (!wordState.isLoading &&
+            wordState.lyrics == null &&
+            wordState.error == null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             lyricsProvider.ensureLyrics(track, LyricsSyncMode.word);
           });
@@ -1522,7 +1534,9 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
           });
         }
 
-        final isLoading = wordState.isLoading || (wordState.lyrics == null && lineState.isLoading);
+        final isLoading =
+            wordState.isLoading ||
+            (wordState.lyrics == null && lineState.isLoading);
         if (!isLoading && (lyrics == null || lyrics.lines.isEmpty)) {
           return const SizedBox.shrink();
         }
@@ -1775,16 +1789,26 @@ class _QueuePreviewCardState extends State<_QueuePreviewCard> {
                                           ),
                                         ),
                                         const SizedBox(height: 2),
-                                        Text(
-                                          track.artists
-                                              .map((a) => a.name)
-                                              .join(', '),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: Colors.grey[500],
-                                            fontSize: 11,
-                                          ),
+                                        Row(
+                                          children: [
+                                            TrackBadges(
+                                              track: track,
+                                              fontScaling: 0.85,
+                                            ),
+                                            Expanded(
+                                              child: Text(
+                                                track.artists
+                                                    .map((a) => a.name)
+                                                    .join(', '),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: Colors.grey[500],
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),

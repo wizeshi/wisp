@@ -64,31 +64,46 @@ class TrackCacheIndicator extends StatelessWidget {
 class TrackBadges extends StatelessWidget {
   final GenericSong track;
   final double fontScaling;
+  final double? leadingSpacing;
 
   const TrackBadges({
     super.key,
     required this.track,
     this.fontScaling = 1.0,
+    this.leadingSpacing,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (track.explicit) ...[
-          Icon(
-            Icons.explicit,
-            size: 14 * fontScaling,
-            color: Colors.grey[500],
-          ),
-          const SizedBox(width: 4),
-        ],
-        TrackCacheIndicator(
-          trackId: track.id,
-          fontScaling: fontScaling,
-        ),
-      ],
+    return ValueListenableBuilder<TrackDownloadProgress>(
+      valueListenable: AudioCacheManager.instance.watchTrack(track.id),
+      builder: (context, state, _) {
+        final isCached = state.isCached;
+        final isDownloading = state.isDownloading;
+        final hasCache = isCached || isDownloading;
+        final hasAny = track.explicit || hasCache;
+        if (!hasAny) return const SizedBox.shrink();
+
+        final lead = leadingSpacing;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (lead != null && lead > 0) SizedBox(width: lead),
+            if (track.explicit) ...[
+              Icon(
+                Icons.explicit,
+                size: 14 * fontScaling,
+                color: Colors.grey[500],
+              ),
+              const SizedBox(width: 4),
+            ],
+            TrackCacheIndicator(
+              trackId: track.id,
+              fontScaling: fontScaling,
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -20,7 +20,10 @@ extension _ListDetailTrackList on _SharedListDetailViewState {
     final viewContext = _viewContext;
     final isApple = WispStyleTokens.fromStyle(visualStyle).isApple;
 
-    final isCurrentHere = player.currentTrack?.id == song.id &&
+    final isCurrentHere = song.id.isNotEmpty &&
+        player.currentTrack?.id != null &&
+        player.currentTrack!.id.isNotEmpty &&
+        player.currentTrack!.id == song.id &&
         player.playbackContext?.matches(viewContext) == true;
 
     void handlePlayPause() {

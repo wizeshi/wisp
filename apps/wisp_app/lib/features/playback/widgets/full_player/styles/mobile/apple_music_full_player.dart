@@ -32,6 +32,7 @@ import 'package:wisp/shared/widgets/menus/adaptive_context_menu.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 import '../../components/canvas_video.dart';
 import '../../components/rotating_blurred_cover_background.dart';
@@ -264,15 +265,26 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                currentTrack?.title ?? 'No track playing',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      currentTrack?.title ?? 'No track playing',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  if (currentTrack is GenericSong)
+                                    TrackBadges(
+                                      track: currentTrack,
+                                      leadingSpacing: 6,
+                                    ),
+                                ],
                               ),
                               const SizedBox(height: 2),
                               Text(
@@ -1032,22 +1044,31 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              GestureDetector(
-                onTap: () {
-                  // TODO: Navigate to track
-                },
-                child: SizedBox(
-                  width: double.infinity,
-                  child: MarqueeText(
-                    pauseWhenUnfocused: true,
-                    text: title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+              Row(
+                children: [
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: GestureDetector(
+                      onTap: () {
+                        // TODO: Navigate to track
+                      },
+                      child: MarqueeText(
+                        pauseWhenUnfocused: true,
+                        text: title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (currentTrack != null)
+                    TrackBadges(
+                      track: currentTrack,
+                      leadingSpacing: 6,
+                    ),
+                ],
               ),
               const SizedBox(height: 2),
               if (artists.isEmpty && albumName.isEmpty)
@@ -2068,7 +2089,9 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
           _positionTicker!.start();
         }
         _updateCurrentLine();
-        if (!_userInteracting && _lastFocusIndex >= 0) {
+        if (!_userInteracting &&
+            _lastFocusIndex >= 0 &&
+            widget.lyricsRenderMode != LyricsSyncMode.unsynced) {
           _scrollToLine(_lastFocusIndex);
         }
       } else if (_freezeWhenUnfocused) {
@@ -2108,7 +2131,8 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
   void didUpdateWidget(_AppleMusicLyricsView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.currentTrack.id != oldWidget.currentTrack.id ||
-        widget.lyrics.lines.length != oldWidget.lyrics.lines.length) {
+        widget.lyrics.lines.length != oldWidget.lyrics.lines.length ||
+        widget.lyricsRenderMode != oldWidget.lyricsRenderMode) {
       _resumeAutoScrollTimer?.cancel();
       _userInteracting = false;
       _disposeLines();
@@ -2300,20 +2324,39 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
                   notification.dragDetails != null) {
                 _userInteracting = true;
                 _resumeAutoScrollTimer?.cancel();
+              } else if (notification is UserScrollNotification) {
+                if (notification.direction != ScrollDirection.idle) {
+                  _userInteracting = true;
+                  _resumeAutoScrollTimer?.cancel();
+                } else if (_userInteracting) {
+                  _userInteracting = false;
+                  _resumeAutoScrollTimer?.cancel();
+                  if (widget.lyricsRenderMode != LyricsSyncMode.unsynced) {
+                    _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
+                      if (!mounted ||
+                          widget.lyricsRenderMode == LyricsSyncMode.unsynced) {
+                        return;
+                      }
+                      final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
+                      _scrollToLine(focusIndex);
+                    });
+                  }
+                }
               } else if (notification is ScrollEndNotification) {
                 if (_userInteracting) {
+                  _userInteracting = false;
                   _resumeAutoScrollTimer?.cancel();
-                  _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
-                    if (!mounted) return;
-                    _userInteracting = false;
-                    final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
-                    _scrollToLine(focusIndex);
-                  });
+                  if (widget.lyricsRenderMode != LyricsSyncMode.unsynced) {
+                    _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
+                      if (!mounted ||
+                          widget.lyricsRenderMode == LyricsSyncMode.unsynced) {
+                        return;
+                      }
+                      final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
+                      _scrollToLine(focusIndex);
+                    });
+                  }
                 }
-              } else if (notification is UserScrollNotification &&
-                  notification.direction == ScrollDirection.idle &&
-                  !_userInteracting) {
-                // Idle notification when not user interacting
               }
               return false;
             },
