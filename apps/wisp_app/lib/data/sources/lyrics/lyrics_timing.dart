@@ -247,25 +247,38 @@ int resolveLineEndTimeMs(
   LyricsLine line, {
   int? nextLineStartTimeMs,
 }) {
+  int effectiveEnd;
   if (line.hasWordTiming && line.words.isNotEmpty) {
     final lastWord = line.words.last;
     final lastWordEnd = lastWord.endTimeMs ?? (lastWord.startTimeMs + 800);
     if (line.endTimeMs != null && line.endTimeMs! > line.startTimeMs) {
-      return math.max(line.endTimeMs!, lastWordEnd);
+      effectiveEnd = math.max(line.endTimeMs!, lastWordEnd);
+    } else {
+      effectiveEnd = lastWordEnd;
     }
-    return lastWordEnd;
-  }
-
-  if (line.endTimeMs != null && line.endTimeMs! > line.startTimeMs) {
-    return line.endTimeMs!;
-  }
-
-  if (nextLineStartTimeMs != null && nextLineStartTimeMs > line.startTimeMs) {
+  } else if (line.endTimeMs != null && line.endTimeMs! > line.startTimeMs) {
+    effectiveEnd = line.endTimeMs!;
+  } else if (nextLineStartTimeMs != null && nextLineStartTimeMs > line.startTimeMs) {
     final span = nextLineStartTimeMs - line.startTimeMs;
-    return line.startTimeMs + _estimateLineActiveMs(line.content, span);
+    effectiveEnd = line.startTimeMs + _estimateLineActiveMs(line.content, span);
+  } else {
+    effectiveEnd = line.startTimeMs + _estimateLineActiveMs(line.content, 4000);
   }
 
-  return line.startTimeMs + _estimateLineActiveMs(line.content, 4000);
+  // Ensure background vocals are fully accommodated if they extend past main vocals
+  for (final bg in line.background) {
+    int? bgEnd = bg.endTimeMs;
+    if (bgEnd == null && bg.words.isNotEmpty) {
+      final lastWord = bg.words.last;
+      bgEnd = lastWord.endTimeMs ?? (lastWord.startTimeMs + 800);
+    }
+    bgEnd ??= (line.endTimeMs ?? (bg.startTimeMs + 2000));
+    if (bgEnd > effectiveEnd) {
+      effectiveEnd = bgEnd;
+    }
+  }
+
+  return effectiveEnd;
 }
 
 /// A clipper that reveals the filled (sung) portion of a lyrics line from left to right.

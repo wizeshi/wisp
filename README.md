@@ -6,17 +6,15 @@ wisp is a Flutter-based music player, with modular support (coming soon) for mul
 
 * Easy to use UI, with styles to ensure you feel right at home, no matter the service you're coming from. 
 * Great, almost-native, performance
-* Extractors from services such as:
-    * Youtube (Innertube, metadata & audio)
-    * Spotify (internal API, metadata, maybe audio in the future)
-* Everything caching (support for audio, and metadata caches for everything, playlists, songs, you name it)
-* Lyrics (synced & unsynced) from the following services:
-    * Spotify
-    * LrcLib
-    * BetterLyrics
+* Multiple self-updating YouTube audio extractors.
+* Modular provider support. Currently, you can build providers using JS for Authentication, and Lyrics and Metadata extraction. These here are official and have direct developer support:
+    * Spotify - Auth, Lyrics, Metadata
+    * SpicyLyrics - Auth, Lyrics
+    * LRCLib - Lyrics
+    * BetterLyrics - Lyrics
+* Cache support for everything, guaranteeing full offline support.
 
-I'm also working on adding support for more services (e.g. Apple Music, Deezer, Tidal, Qobuz, etc) Check the [Roadmap](https://github.com/wizeshi/wisp/blob/main/docs/en/ROADMAP.md) for more info on that.
-(P.S: if you want support for a service early, either offer me a subscription to it, or better yet, open a PR with an extractor for it :D)
+If you want support for any other providers, you can add them yourself, or ask nicely!
 
 ## Installation
 
@@ -45,7 +43,7 @@ So, that was the best I could do, but these days nothing on the app itself refle
 I mean yeah, they do. Though 1. they're not as cool and 2. they have very limited support. For example, Spotube is currently busy remaking their app in Kotlin Multiplatform due to architecture reasons, leaving the app essentially dead for the time being. 
 
 #### Is this ready?
-Mostly. Right now, it's mostly missing (some) writing to spotify and source mixing (not finished as well). Also crossfade has some weird kinks. Everything else is on the Roadmap.
+Kind of. You can already use it fully in terms of reading, but writing support is iffy at best. There's still some kinks to iron out. Check the [Roadmap](https://github.com/wizeshi/wisp/blob/main/docs/en/ROADMAP.md)
 
 ## Acknowledgements
 There's a lot of free software out there which I was inspired by or used as reference when developing wisp. Here's a couple of them:
@@ -53,7 +51,9 @@ YT-DLP, librespot, Spotube, Meld, NewPipeExtractor, YouTube.js
 
 ## Contributing
 
-If you wanna contribute (no idea why), check [this](https://github.com/wizeshi/wisp/blob/main/docs/en/CONTRIBUTING.md) out
+Want to make your own provider? Check out the spec [here](https://github.com/wizeshi/wisp/blob/main/providers/README.md)
+
+If you wanna to the app itself, check [this](https://github.com/wizeshi/wisp/blob/main/docs/en/CONTRIBUTING.md) out
 
 ## License
 

@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
+import 'auth_input_dialog.dart';
 import 'auth_webview_dialog.dart';
 import 'crypto_bridge_utils.dart';
 import 'service_session_manager.dart';
@@ -445,6 +446,60 @@ class JsProviderBridge {
           logger.e('[JS/$providerName] Error opening login webview: $e');
           if (cbId != null) {
             resolveJsCallback(runtime, cbId, {'error': e.toString()});
+          }
+        }
+      }());
+      return '';
+    });
+
+    runtime.onMessage('wisp_auth_prompt_input', (dynamic args) {
+      unawaited(() async {
+        int? cbId;
+        try {
+          final map = args is String
+              ? jsonDecode(args) as Map<String, dynamic>
+              : (args as Map).cast<String, dynamic>();
+          cbId = map['cbId'] as int?;
+          final title = map['title'] as String? ?? 'Input';
+          final description = map['description'] as String?;
+          final label = map['label'] as String? ?? 'Key';
+          final hint = map['hint'] as String?;
+          final defaultValue = map['defaultValue'] as String?;
+          final link = map['link'] as String?;
+          final linkText = map['linkText'] as String?;
+          final isSecret = map['isSecret'] == true;
+
+          final navContext =
+              NavigationHistory.instance.rootNavigatorKey.currentContext ??
+              NavigationHistory.instance.navigatorKey.currentContext;
+          if (navContext == null) {
+            throw StateError('No navigation context available for input dialog');
+          }
+
+          final result = await showDialog<String>(
+            context: navContext,
+            builder: (_) => AuthInputDialog(
+              title: title,
+              description: description,
+              label: label,
+              hint: hint,
+              defaultValue: defaultValue,
+              link: link,
+              linkText: linkText,
+              isSecret: isSecret,
+            ),
+          );
+
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {
+              'value': result,
+              'cancelled': result == null,
+            });
+          }
+        } catch (e) {
+          logger.e('[JS/$providerName] Error opening input dialog: $e');
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {'error': e.toString(), 'cancelled': true});
           }
         }
       }());
@@ -951,6 +1006,25 @@ class JsProviderBridge {
                 title: options.title || 'Login',
                 targetCookies: options.captureCookies || options.targetCookies || [],
                 redirectUrlPrefix: options.redirectUrlPrefix || null
+              }));
+            });
+          },
+          promptInput: function(options) {
+            return new Promise(function(resolve) {
+              var cbId = ++globalThis.__wisp_callback_counter;
+              globalThis.__wisp_pending_callbacks[cbId] = function(res) {
+                resolve(res || null);
+              };
+              sendMessage('wisp_auth_prompt_input', JSON.stringify({
+                cbId: cbId,
+                title: (options && options.title) || 'Input',
+                description: options && options.description,
+                label: (options && options.label) || 'Key',
+                hint: options && options.hint,
+                defaultValue: options && options.defaultValue,
+                link: options && options.link,
+                linkText: options && options.linkText,
+                isSecret: Boolean(options && options.isSecret)
               }));
             });
           },

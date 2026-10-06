@@ -27,9 +27,6 @@ class SpotifyAuthManager {
       const tokens = await wisp.auth.getTokens({ serviceId: this.serviceId, forceRefresh: forceRefresh });
       if (tokens) return tokens;
     }
-    if (wisp.spotify && typeof wisp.spotify.getTokens === 'function') {
-      return await wisp.spotify.getTokens({ forceRefresh: forceRefresh });
-    }
     return await this.getSession();
   }
 
@@ -186,8 +183,10 @@ async function fetchLyricsForTrackId(trackId, auth) {
   console.log('[Spotify] Lyrics fetched successfully: ' + lines.length + ' lines (syncMode: ' + syncMode + ')');
 
   return {
+    version: '1.0',
     provider: 'spotify',
     syncMode: syncMode,
+    attribution: 'Sourced using Musixmatch',
     lines: lines
   };
 }

@@ -160,9 +160,18 @@ class _RotatingBlurredCoverBackgroundState
                       ],
                     );
                   },
-                  child: CachedNetworkImage(
-                    imageUrl: widget.imageUrl,
-                    fit: BoxFit.cover,
+                  child: ColorFiltered(
+                    colorFilter: ColorFilter.mode(
+                      Colors.black.withValues(
+                        alpha: 0.1,
+                      ), // Adjust opacity to control darkness
+                      BlendMode.srcATop,
+                    ),
+                    child: CachedNetworkImage(
+                      imageUrl: widget.imageUrl,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                    ),
                   ),
                 ),
               ],

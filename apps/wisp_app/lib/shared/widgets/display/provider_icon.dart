@@ -140,14 +140,24 @@ class _ProviderIconState extends State<ProviderIcon> {
       }
     }
 
+    final idVariants = <String>{
+      cleanId,
+      cleanId.replaceAll('_', '-'),
+      cleanId.replaceAll('-', ''),
+      if (cleanId == 'spicylyrics') 'spicy-lyrics',
+      if (cleanId == 'spicy-lyrics') 'spicylyrics',
+    };
+
     for (final baseDir in searchDirs) {
       for (final t in candidateTypes) {
-        final targetDir = Directory(p.join(baseDir.path, t, cleanId));
-        if (targetDir.existsSync()) {
-          final svg = File(p.join(targetDir.path, 'icon.svg'));
-          if (svg.existsSync()) return svg.path;
-          final png = File(p.join(targetDir.path, 'icon.png'));
-          if (png.existsSync()) return png.path;
+        for (final idVar in idVariants) {
+          final targetDir = Directory(p.join(baseDir.path, t, idVar));
+          if (targetDir.existsSync()) {
+            final svg = File(p.join(targetDir.path, 'icon.svg'));
+            if (svg.existsSync()) return svg.path;
+            final png = File(p.join(targetDir.path, 'icon.png'));
+            if (png.existsSync()) return png.path;
+          }
         }
       }
     }

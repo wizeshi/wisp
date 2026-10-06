@@ -173,9 +173,17 @@ extension _AppleMusicDesktopLayout on AppleMusicFullScreenPlayer {
             child: ClipRect(
               child: ImageFiltered(
                 imageFilter: ImageFilter.blur(sigmaX: 90, sigmaY: 90),
-                child: Transform.scale(
-                  scale: 1.08,
-                  child: CanvasVideo(url: url, fallbackUrl: fallbackUrl),
+                child: ColorFiltered(
+                  colorFilter: ColorFilter.mode(
+                    Colors.black.withValues(
+                        alpha: 0.1,
+                      ),
+                    BlendMode.srcATop,
+                  ),
+                  child: Transform.scale(
+                    scale: 1.08,
+                    child: CanvasVideo(url: url, fallbackUrl: fallbackUrl),
+                  ),
                 ),
               ),
             ),
@@ -198,33 +206,33 @@ extension _AppleMusicDesktopLayout on AppleMusicFullScreenPlayer {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final contentWidth = constraints.maxWidth;
-        final contentHeight = constraints.maxHeight;
-        final panelGap = (contentWidth * 0.025).clamp(16.0, 32.0);
-        final nowPlayingWidth = (contentWidth * 0.5).clamp(320.0, 620.0);
-        final modeWidth = (contentWidth - nowPlayingWidth - panelGap).clamp(
-          280.0,
-          contentWidth * 0.42,
-        );
-        final panelHeight = contentHeight.clamp(0.0, 760.0);
-        final modeHeight = panelHeight * 0.75;
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final contentWidth = screenWidth * 0.7;
+        final panelGap = contentWidth * 0.025;
+        final nowPlayingWidth = contentWidth * 0.45;
+        final modeWidth = contentWidth - nowPlayingWidth - panelGap;
+
+        // Since the aspect ratio of the image is 1, calculate height proportionally.
+        // Image width accounts for 20px padding on each side (40px total).
+        final imageSize = nowPlayingWidth - 40.0;
+        const extraControlsHeight = 232.0; // track info + controls + vertical spacing & padding
+        final nowPlayingHeight = imageSize + extraControlsHeight;
+        final modeHeight = nowPlayingHeight * 0.75;
 
         Widget nowPlayingPanel = Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Flexible(
-                fit: FlexFit.loose,
-                child: SizedBox(
-                  width: double.infinity,
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: _buildCoverImageBox(
-                      context,
-                      imageUrl,
-                      double.infinity,
-                    ),
+              SizedBox(
+                width: double.infinity,
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _buildCoverImageBox(
+                    context,
+                    imageUrl,
+                    double.infinity,
                   ),
                 ),
               ),
@@ -299,14 +307,12 @@ extension _AppleMusicDesktopLayout on AppleMusicFullScreenPlayer {
         return Center(
           child: SizedBox(
             width: contentWidth,
-            height: panelHeight,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 SizedBox(
                   width: nowPlayingWidth,
-                  height: panelHeight,
                   child: nowPlayingPanel,
                 ),
                 AnimatedSize(

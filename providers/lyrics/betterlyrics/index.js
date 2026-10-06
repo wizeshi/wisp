@@ -140,6 +140,7 @@ async function getLyrics(query) {
       : 'line';
 
   return {
+    version: '1.0',
     provider: 'betterlyrics',
     syncMode: syncMode,
     lines: lines

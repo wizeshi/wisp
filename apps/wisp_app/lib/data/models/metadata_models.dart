@@ -806,6 +806,7 @@ enum LyricsProviderType {
   betterlyrics,
   spotify,
   lrclib,
+  spicylyrics,
   custom;
 
   String get label {
@@ -816,6 +817,8 @@ enum LyricsProviderType {
         return 'Spotify';
       case LyricsProviderType.lrclib:
         return 'LRCLIB';
+      case LyricsProviderType.spicylyrics:
+        return 'SpicyLyrics';
       case LyricsProviderType.custom:
         return 'Custom';
     }
@@ -834,25 +837,57 @@ enum LyricsSyncMode {
       : 'Unsynced';
 }
 
+enum LyricSpeaker {
+  left,
+  right;
+
+  static LyricSpeaker fromString(String? val) {
+    if (val == null) return LyricSpeaker.left;
+    final lower = val.toLowerCase().trim();
+    if (lower == 'right' || lower == 'secondary' || lower == 'opposite') {
+      return LyricSpeaker.right;
+    }
+    return LyricSpeaker.left;
+  }
+}
+
 class LyricsWord {
   final String content;
   final int startTimeMs;
   final int? endTimeMs;
+  final bool partOfWord;
 
   const LyricsWord({
     required this.content,
     required this.startTimeMs,
     this.endTimeMs,
+    this.partOfWord = false,
   });
+
+  Map<String, dynamic> toJson() => {
+    'content': content,
+    'startTimeMs': startTimeMs,
+    if (endTimeMs != null) 'endTimeMs': endTimeMs,
+    if (partOfWord) 'partOfWord': true,
+  };
+
+  factory LyricsWord.fromJson(Map<String, dynamic> json) {
+    return LyricsWord(
+      content: (json['content'] ?? json['text'] ?? '').toString(),
+      startTimeMs: (json['startTimeMs'] ?? json['startMs'] as num?)?.toInt() ?? 0,
+      endTimeMs: (json['endTimeMs'] ?? json['endMs'] as num?)?.toInt(),
+      partOfWord: json['partOfWord'] == true || json['isPartOfWord'] == true,
+    );
+  }
 }
 
-class LyricsLine {
+class BackgroundVocalLine {
   final String content;
   final int startTimeMs;
   final int? endTimeMs;
   final List<LyricsWord> words;
 
-  const LyricsLine({
+  const BackgroundVocalLine({
     required this.content,
     required this.startTimeMs,
     this.endTimeMs,
@@ -860,18 +895,96 @@ class LyricsLine {
   });
 
   bool get hasWordTiming => words.isNotEmpty;
+
+  Map<String, dynamic> toJson() => {
+    'content': content,
+    'startTimeMs': startTimeMs,
+    if (endTimeMs != null) 'endTimeMs': endTimeMs,
+    'words': words.map((w) => w.toJson()).toList(),
+  };
+
+  factory BackgroundVocalLine.fromJson(Map<String, dynamic> json) {
+    final rawWords = (json['words'] as List?) ?? const [];
+    return BackgroundVocalLine(
+      content: (json['content'] ?? json['text'] ?? '').toString(),
+      startTimeMs: (json['startTimeMs'] ?? json['startMs'] as num?)?.toInt() ?? 0,
+      endTimeMs: (json['endTimeMs'] ?? json['endMs'] as num?)?.toInt(),
+      words: rawWords
+          .whereType<Map>()
+          .map((w) => LyricsWord.fromJson(w.cast<String, dynamic>()))
+          .toList(),
+    );
+  }
+}
+
+class LyricsLine {
+  final String content;
+  final int startTimeMs;
+  final int? endTimeMs;
+  final List<LyricsWord> words;
+  final LyricSpeaker speaker;
+  final List<BackgroundVocalLine> background;
+
+  const LyricsLine({
+    required this.content,
+    required this.startTimeMs,
+    this.endTimeMs,
+    this.words = const [],
+    this.speaker = LyricSpeaker.left,
+    this.background = const [],
+  });
+
+  bool get hasWordTiming => words.isNotEmpty;
+  bool get isRightSpeaker => speaker == LyricSpeaker.right;
+  bool get hasBackground => background.isNotEmpty;
+
+  Map<String, dynamic> toJson() => {
+    'content': content,
+    'startTimeMs': startTimeMs,
+    if (endTimeMs != null) 'endTimeMs': endTimeMs,
+    'words': words.map((w) => w.toJson()).toList(),
+    if (speaker != LyricSpeaker.left) 'speaker': speaker.name,
+    if (background.isNotEmpty)
+      'background': background.map((b) => b.toJson()).toList(),
+  };
+
+  factory LyricsLine.fromJson(Map<String, dynamic> json) {
+    final rawWords = (json['words'] as List?) ?? const [];
+    final rawBg = (json['background'] as List?) ?? const [];
+    final speakerStr = json['speaker'] as String?;
+    final opposite = json['oppositeAligned'] == true;
+
+    return LyricsLine(
+      content: (json['content'] ?? json['text'] ?? '').toString(),
+      startTimeMs: (json['startTimeMs'] ?? json['startMs'] as num?)?.toInt() ?? 0,
+      endTimeMs: (json['endTimeMs'] ?? json['endMs'] as num?)?.toInt(),
+      words: rawWords
+          .whereType<Map>()
+          .map((w) => LyricsWord.fromJson(w.cast<String, dynamic>()))
+          .toList(),
+      speaker: opposite
+          ? LyricSpeaker.right
+          : LyricSpeaker.fromString(speakerStr),
+      background: rawBg
+          .whereType<Map>()
+          .map((b) => BackgroundVocalLine.fromJson(b.cast<String, dynamic>()))
+          .toList(),
+    );
+  }
 }
 
 class LyricsResult {
   final LyricsProviderType provider;
   final String? customProviderName;
   final LyricsSyncMode syncMode;
+  final String? attribution;
   final List<LyricsLine> lines;
 
   const LyricsResult({
     required this.provider,
     this.customProviderName,
     required this.syncMode,
+    this.attribution,
     required this.lines,
   });
 
@@ -884,6 +997,60 @@ class LyricsResult {
   bool get isLineSynced =>
       syncMode == LyricsSyncMode.line ||
       (!isWordSynced && lines.any((line) => line.startTimeMs > 0));
+
+  Map<String, dynamic> toWlfJson() => {
+    'version': '1.0',
+    'provider': customProviderName ?? provider.name,
+    'syncMode': syncMode.name,
+    if (attribution != null && attribution!.isNotEmpty)
+      'attribution': attribution,
+    'lines': lines.map((l) => l.toJson()).toList(),
+  };
+
+  factory LyricsResult.fromWlfJson(
+    Map<String, dynamic> json, {
+    String? fallbackProvider,
+    String? fallbackName,
+  }) {
+    final providerStr =
+        json['provider'] as String? ?? fallbackProvider ?? 'custom';
+    final matchedType = LyricsProviderType.values.firstWhere(
+      (t) => t.name.toLowerCase() == providerStr.toLowerCase(),
+      orElse: () => LyricsProviderType.custom,
+    );
+
+    final customName =
+        json['customProviderName'] as String? ?? fallbackName ?? matchedType.label;
+
+    final syncModeStr = json['syncMode'] as String? ?? 'line';
+    var syncMode = LyricsSyncMode.values.firstWhere(
+      (m) => m.name == syncModeStr,
+      orElse: () => LyricsSyncMode.line,
+    );
+
+    final attribution = json['attribution'] as String?;
+
+    final rawLines = (json['lines'] as List?) ?? const [];
+    final lines = rawLines
+        .whereType<Map>()
+        .map((l) => LyricsLine.fromJson(l.cast<String, dynamic>()))
+        .toList();
+
+    if (lines.any((l) => l.hasWordTiming)) {
+      syncMode = LyricsSyncMode.word;
+    } else if (syncMode == LyricsSyncMode.word &&
+        lines.every((l) => !l.hasWordTiming)) {
+      syncMode = LyricsSyncMode.line;
+    }
+
+    return LyricsResult(
+      provider: matchedType,
+      customProviderName: customName,
+      syncMode: syncMode,
+      attribution: attribution,
+      lines: lines,
+    );
+  }
 }
 
 class GenericLibrary {

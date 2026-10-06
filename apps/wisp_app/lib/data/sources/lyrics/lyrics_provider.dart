@@ -474,81 +474,11 @@ class LyricsProvider extends ChangeNotifier {
     );
   }
 
-  Map<String, dynamic> _lyricsToJson(LyricsResult result) => {
-    'provider': result.provider.name,
-    'customProviderName': result.customProviderName,
-    'syncMode': result.syncMode.name,
-    'lines': result.lines
-        .map(
-          (line) => {
-            'content': line.content,
-            'startTimeMs': line.startTimeMs,
-            'endTimeMs': line.endTimeMs,
-            'words': line.words
-                .map(
-                  (word) => {
-                    'content': word.content,
-                    'startTimeMs': word.startTimeMs,
-                    'endTimeMs': word.endTimeMs,
-                  },
-                )
-                .toList(),
-          },
-        )
-        .toList(),
-  };
+  Map<String, dynamic> _lyricsToJson(LyricsResult result) => result.toWlfJson();
 
   LyricsResult? _lyricsFromJson(Map<String, dynamic> json) {
     try {
-      final provider = LyricsProviderType.values.firstWhere(
-        (p) => p.name == json['provider'],
-        orElse: () => LyricsProviderType.lrclib,
-      );
-      var customProviderName = json['customProviderName'] as String?;
-      if (customProviderName == null ||
-          customProviderName.isEmpty ||
-          customProviderName.toLowerCase() == provider.name.toLowerCase()) {
-        final registered = LyricsSourceManager.instance.allSources
-            .cast<LyricsSource?>()
-            .firstWhere(
-              (s) =>
-                  s?.id.toLowerCase() ==
-                  (json['provider'] as String?)?.toLowerCase(),
-              orElse: () => null,
-            );
-        customProviderName = registered?.name ?? provider.label;
-      }
-      final syncMode = LyricsSyncMode.values.firstWhere(
-        (m) => m.name == json['syncMode'],
-        orElse: () => LyricsSyncMode.unsynced,
-      );
-      final linesJson = (json['lines'] as List?) ?? const [];
-      final lines = linesJson
-          .whereType<Map<String, dynamic>>()
-          .map(
-            (line) => LyricsLine(
-              content: line['content'] as String? ?? '',
-              startTimeMs: line['startTimeMs'] as int? ?? 0,
-              endTimeMs: line['endTimeMs'] as int?,
-              words: ((line['words'] as List?) ?? const [])
-                  .whereType<Map<String, dynamic>>()
-                  .map(
-                    (word) => LyricsWord(
-                      content: word['content'] as String? ?? '',
-                      startTimeMs: word['startTimeMs'] as int? ?? 0,
-                      endTimeMs: word['endTimeMs'] as int?,
-                    ),
-                  )
-                  .toList(),
-            ),
-          )
-          .toList();
-      return LyricsResult(
-        provider: provider,
-        customProviderName: customProviderName,
-        syncMode: syncMode,
-        lines: lines,
-      );
+      return LyricsResult.fromWlfJson(json);
     } catch (_) {
       return null;
     }

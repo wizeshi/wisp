@@ -257,77 +257,24 @@ class JsLyricsSource extends LyricsSource {
     LyricsSyncMode requestedMode,
   ) {
     try {
-      final providerStr = data['provider'] as String? ?? id;
-      final syncModeStr = data['syncMode'] as String? ?? 'line';
-      var syncMode = LyricsSyncMode.values.firstWhere(
-        (m) => m.name == syncModeStr,
-        orElse: () => LyricsSyncMode.line,
+      final result = LyricsResult.fromWlfJson(
+        data,
+        fallbackProvider: id,
+        fallbackName: name,
       );
 
-      final rawLines = (data['lines'] as List?) ?? const [];
-      final lines = <LyricsLine>[];
-
-      for (final rawLine in rawLines) {
-        if (rawLine is! Map) continue;
-        final map = rawLine.cast<String, dynamic>();
-        final content = map['content'] as String? ?? '';
-        final startTimeMs = map['startTimeMs'] as int? ?? 0;
-        final endTimeMs = map['endTimeMs'] as int?;
-
-        final rawWords = (map['words'] as List?) ?? const [];
-        final words = <LyricsWord>[];
-        for (final rawWord in rawWords) {
-          if (rawWord is! Map) continue;
-          final wMap = rawWord.cast<String, dynamic>();
-          words.add(
-            LyricsWord(
-              content: wMap['content'] as String? ?? '',
-              startTimeMs: wMap['startTimeMs'] as int? ?? 0,
-              endTimeMs: wMap['endTimeMs'] as int?,
-            ),
-          );
-        }
-
-        lines.add(
-          LyricsLine(
-            content: content,
-            startTimeMs: startTimeMs,
-            endTimeMs: endTimeMs,
-            words: words,
-          ),
-        );
-      }
-
-      if (lines.isEmpty) {
-        logger.w('[JsLyricsSource/$id] Result contained 0 valid lyric lines');
+      if (result.lines.isEmpty) {
+        logger.w('[JsLyricsSource/$id] WLF result contained 0 valid lyric lines');
         return null;
       }
 
-      if (lines.any((l) => l.words.isNotEmpty) &&
-          requestedMode != LyricsSyncMode.unsynced) {
-        syncMode = LyricsSyncMode.word;
-      } else if (syncMode == LyricsSyncMode.word &&
-          lines.every((l) => l.words.isEmpty)) {
-        syncMode = LyricsSyncMode.line;
-      }
-
-      final matchedType = LyricsProviderType.values.firstWhere(
-        (t) => t.name.toLowerCase() == providerStr.toLowerCase(),
-        orElse: () => LyricsProviderType.custom,
-      );
-
       logger.i(
-        '[JsLyricsSource/$id] Parsed ${lines.length} lines from $providerStr (mode: ${syncMode.name})',
+        '[JsLyricsSource/$id] Parsed ${result.lines.length} lines from ${result.providerLabel} (mode: ${result.syncMode.name})',
       );
 
-      return LyricsResult(
-        provider: matchedType,
-        customProviderName: name,
-        syncMode: syncMode,
-        lines: lines,
-      );
+      return result;
     } catch (e, stack) {
-      logger.e('[JsLyricsSource/$id] Error parsing result: $e', error: e, stackTrace: stack);
+      logger.e('[JsLyricsSource/$id] Error parsing WLF result: $e', error: e, stackTrace: stack);
       return null;
     }
   }

@@ -5,12 +5,14 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
@@ -2290,56 +2292,142 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
       builder: (context, constraints) {
         final bottomPadding = constraints.maxHeight * 0.75;
 
-        return NotificationListener<ScrollNotification>(
-          onNotification: (notification) {
-            if (notification is ScrollStartNotification &&
-                notification.dragDetails != null) {
-              _userInteracting = true;
-              _resumeAutoScrollTimer?.cancel();
-            } else if (notification is ScrollEndNotification) {
-              if (_userInteracting) {
+        return ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification is ScrollStartNotification &&
+                  notification.dragDetails != null) {
+                _userInteracting = true;
                 _resumeAutoScrollTimer?.cancel();
-                _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
-                  if (!mounted) return;
-                  _userInteracting = false;
-                  final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
-                  _scrollToLine(focusIndex);
-                });
-              }
-            } else if (notification is UserScrollNotification &&
-                notification.direction == ScrollDirection.idle &&
-                !_userInteracting) {
-              // Idle notification when not user interacting
-            }
-            return false;
-          },
-          child: ListView.builder(
-            key: _listKey,
-            controller: _scrollController,
-            scrollCacheExtent: ScrollCacheExtent.pixels(20000),
-            itemCount: widget.lyrics.lines.length,
-            padding: EdgeInsets.fromLTRB(0, 24.0, 0, bottomPadding),
-            itemBuilder: (context, index) {
-              return _AppleMusicLyricsLineItem(
-                key: _lineKeys[index],
-                line: widget.lyrics.lines[index],
-                index: index,
-                syncMode: widget.lyricsRenderMode,
-                frameListenable: _lineTimingNotifiers[index],
-                onSeek: (position) {
+              } else if (notification is ScrollEndNotification) {
+                if (_userInteracting) {
                   _resumeAutoScrollTimer?.cancel();
-                  _userInteracting = false;
-                  _lastFocusIndex = index;
-                  _scrollToLine(index);
-                  unawaited(
-                    context.read<PlaybackCoordinator>().seek(position),
-                  );
-                },
-              );
+                  _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
+                    if (!mounted) return;
+                    _userInteracting = false;
+                    final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
+                    _scrollToLine(focusIndex);
+                  });
+                }
+              } else if (notification is UserScrollNotification &&
+                  notification.direction == ScrollDirection.idle &&
+                  !_userInteracting) {
+                // Idle notification when not user interacting
+              }
+              return false;
             },
+            child: ListView.builder(
+              key: _listKey,
+              controller: _scrollController,
+              scrollCacheExtent: ScrollCacheExtent.pixels(20000),
+              itemCount: widget.lyrics.lines.length + 1,
+              padding: EdgeInsets.fromLTRB(0, 24.0, 0, bottomPadding),
+              itemBuilder: (context, index) {
+                if (index == widget.lyrics.lines.length) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lyrics provided by ${widget.lyrics.providerLabel}',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 12,
+                          ),
+                          textAlign: TextAlign.left,
+                        ),
+                        if (widget.lyrics.attribution != null &&
+                            widget.lyrics.attribution!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          _buildAttributionText(
+                            widget.lyrics.attribution!,
+                            baseStyle: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.5),
+                              fontSize: 11,
+                            ),
+                            linkStyle: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              decoration: TextDecoration.underline,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }
+                return _AppleMusicLyricsLineItem(
+                  key: _lineKeys[index],
+                  line: widget.lyrics.lines[index],
+                  index: index,
+                  syncMode: widget.lyricsRenderMode,
+                  frameListenable: _lineTimingNotifiers[index],
+                  onSeek: (position) {
+                    _resumeAutoScrollTimer?.cancel();
+                    _userInteracting = false;
+                    _lastFocusIndex = index;
+                    _scrollToLine(index);
+                    unawaited(
+                      context.read<PlaybackCoordinator>().seek(position),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildAttributionText(
+    String text, {
+    required TextStyle baseStyle,
+    required TextStyle linkStyle,
+  }) {
+    final spans = <InlineSpan>[];
+    final linkRegex = RegExp(r'\[([^\]]+)\]\((https?://[^\)]+)\)');
+    int lastMatchEnd = 0;
+
+    for (final match in linkRegex.allMatches(text)) {
+      if (match.start > lastMatchEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastMatchEnd, match.start),
+          style: baseStyle,
+        ));
+      }
+      final linkText = match.group(1) ?? '';
+      final linkUrl = match.group(2) ?? '';
+      spans.add(
+        TextSpan(
+          text: linkText,
+          style: linkStyle,
+          recognizer: TapGestureRecognizer()
+            ..onTap = () async {
+              final uri = Uri.tryParse(linkUrl);
+              if (uri != null && await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+        ),
+      );
+      lastMatchEnd = match.end;
+    }
+
+    if (lastMatchEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastMatchEnd),
+        style: baseStyle,
+      ));
+    }
+
+    return Text.rich(
+      TextSpan(children: spans),
+      textAlign: TextAlign.left,
     );
   }
 }
@@ -2367,19 +2455,35 @@ class _AppleMusicLyricsLineItem extends StatefulWidget {
 
 class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
   late List<TextSelection> _wordRanges;
+  late List<List<TextSelection>> _bgWordRanges;
+
+  String _formatBgContent(String content) {
+    final trimmed = content.trim();
+    if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+      return trimmed;
+    }
+    return '($trimmed)';
+  }
 
   @override
   void initState() {
     super.initState();
-    _wordRanges = resolveWordRanges(widget.line.content, widget.line.words);
+    _initRanges();
   }
 
   @override
   void didUpdateWidget(_AppleMusicLyricsLineItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.line != oldWidget.line) {
-      _wordRanges = resolveWordRanges(widget.line.content, widget.line.words);
+      _initRanges();
     }
+  }
+
+  void _initRanges() {
+    _wordRanges = resolveWordRanges(widget.line.content, widget.line.words);
+    _bgWordRanges = widget.line.background
+        .map((bg) => resolveWordRanges(_formatBgContent(bg.content), bg.words))
+        .toList();
   }
 
   @override
@@ -2431,6 +2535,10 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
         final effectiveBaseStyle = defaultTextStyle.merge(baseStyle);
         final textScaler = MediaQuery.textScalerOf(context);
 
+        final isRight = widget.line.isRightSpeaker;
+        final textAlign = isRight ? TextAlign.right : TextAlign.left;
+        final alignment = isRight ? Alignment.centerRight : Alignment.centerLeft;
+
         final Widget textContent;
         if (isLineActive &&
             widget.syncMode == LyricsSyncMode.word &&
@@ -2446,12 +2554,12 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
                   : MediaQuery.sizeOf(context).width;
 
               return Stack(
-                alignment: Alignment.centerLeft,
+                alignment: alignment,
                 children: [
                   Text(
                     widget.line.content,
                     style: effectiveBaseStyle.copyWith(color: inactiveWordColor),
-                    textAlign: TextAlign.left,
+                    textAlign: textAlign,
                   ),
                   ClipPath(
                     clipper: LyricsLineFillClipper(
@@ -2467,7 +2575,7 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
                     child: Text(
                       widget.line.content,
                       style: effectiveBaseStyle.copyWith(color: activeWordColor),
-                      textAlign: TextAlign.left,
+                      textAlign: textAlign,
                     ),
                   ),
                 ],
@@ -2478,11 +2586,140 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
           textContent = Text(
             widget.line.content,
             style: effectiveBaseStyle,
-            textAlign: TextAlign.left,
+            textAlign: textAlign,
           );
         }
 
+        // Synchronized Background vocal lines rendering if present
+        Widget? backgroundContent;
+        if (widget.line.hasBackground) {
+          final bgWidgets = <Widget>[];
+          final baseBgFontSize = fontSize * 0.72;
+
+          for (int bIdx = 0; bIdx < widget.line.background.length; bIdx++) {
+            final bg = widget.line.background[bIdx];
+            final bgRanges = (bIdx < _bgWordRanges.length)
+                ? _bgWordRanges[bIdx]
+                : <TextSelection>[];
+            final bgFormattedText = _formatBgContent(bg.content);
+
+            // Timing checks for this background vocal phrase
+            final bgStart = bg.startTimeMs;
+            int? resolvedBgEnd = bg.endTimeMs;
+            if (resolvedBgEnd == null && bg.words.isNotEmpty) {
+              final lastWord = bg.words.last;
+              resolvedBgEnd = lastWord.endTimeMs ?? (lastWord.startTimeMs + 800);
+            }
+            resolvedBgEnd ??= (widget.line.endTimeMs ?? (bgStart + 2000));
+
+            final isBgActive = isSynced &&
+                isLineActive &&
+                frame.positionMs >= bgStart &&
+                frame.positionMs < resolvedBgEnd;
+            final isBgPast = isSynced &&
+                (frame.positionMs >= resolvedBgEnd ||
+                    (!isLineActive && frame.positionMs >= bgStart));
+            final isBgUpcoming = isSynced && frame.positionMs < bgStart;
+
+            double bgOpacity = opacity;
+            if (isSynced) {
+              if (isBgActive) {
+                bgOpacity = 1.0;
+              } else if (isBgPast) {
+                bgOpacity = (opacity * 0.65).clamp(0.2, 0.7);
+              } else if (isBgUpcoming) {
+                bgOpacity = (opacity * 0.35).clamp(0.1, 0.4);
+              }
+            }
+
+            final inactiveBgColor = Color.lerp(Colors.grey[500]!, Colors.black, 0.2) ?? Colors.grey[600]!;
+            final bgBaseStyle = effectiveBaseStyle.copyWith(
+              fontSize: baseBgFontSize,
+              fontStyle: FontStyle.italic,
+              color: (isBgActive ? Colors.white : inactiveBgColor).withValues(
+                alpha: (isBgActive ? bgOpacity : (inactiveBgColor.a * bgOpacity)).clamp(0.0, 1.0),
+              ),
+            );
+
+            Widget phraseWidget;
+            if (isBgActive && bg.hasWordTiming && bgRanges.isNotEmpty) {
+              final activeWordColor = Colors.white.withValues(alpha: bgOpacity);
+              final inactiveWordColor = Colors.white.withValues(alpha: 0.45 * bgOpacity);
+
+              phraseWidget = LayoutBuilder(
+                builder: (context, constraints) {
+                  final bgLayoutWidth = constraints.maxWidth.isFinite
+                      ? constraints.maxWidth
+                      : MediaQuery.sizeOf(context).width;
+
+                  return Stack(
+                    alignment: alignment,
+                    children: [
+                      Text(
+                        bgFormattedText,
+                        style: bgBaseStyle.copyWith(color: inactiveWordColor),
+                        textAlign: textAlign,
+                      ),
+                      ClipPath(
+                        clipper: LyricsLineFillClipper(
+                          lineContent: bgFormattedText,
+                          words: bg.words,
+                          wordRanges: bgRanges,
+                          lineEndTimeMs: resolvedBgEnd,
+                          style: bgBaseStyle,
+                          textScaler: textScaler,
+                          layoutWidth: bgLayoutWidth,
+                          positionMs: frame.positionMs,
+                        ),
+                        child: Text(
+                          bgFormattedText,
+                          style: bgBaseStyle.copyWith(color: activeWordColor),
+                          textAlign: textAlign,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            } else {
+              phraseWidget = Text(
+                bgFormattedText,
+                style: bgBaseStyle,
+                textAlign: textAlign,
+              );
+            }
+
+            bgWidgets.add(
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: phraseWidget,
+              ),
+            );
+          }
+
+          if (bgWidgets.isNotEmpty) {
+            backgroundContent = Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment:
+                  isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: bgWidgets,
+            );
+          }
+        }
+
         final canSeek = isSynced && widget.line.startTimeMs > 0;
+
+        final fullContent = backgroundContent == null
+            ? textContent
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                    isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  textContent,
+                  backgroundContent,
+                ],
+              );
 
         final lineWidget = AnimatedOpacity(
           duration: const Duration(milliseconds: 220),
@@ -2502,8 +2739,8 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
                     )
                   : null,
               child: Align(
-                alignment: Alignment.centerLeft,
-                child: textContent,
+                alignment: alignment,
+                child: fullContent,
               ),
             ),
           ),
@@ -2520,7 +2757,8 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
 
         return Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             _buildWaitingDots(timing.progressToNext),
             lineWidget,

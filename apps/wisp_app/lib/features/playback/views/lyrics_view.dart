@@ -5,9 +5,11 @@ library;
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui' show ImageFilter;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/models/metadata_models.dart';
@@ -938,15 +940,37 @@ class _LyricsViewState extends State<LyricsView>
                                       return Padding(
                                         padding: const EdgeInsets.only(
                                           top: 12,
-                                          bottom: 12,
+                                          bottom: 16,
                                         ),
-                                        child: Text(
-                                          'Lyrics provided by ${lyrics.providerLabel}',
-                                          style: TextStyle(
-                                            color: Colors.grey[300],
-                                            fontSize: 12,
-                                          ),
-                                          textAlign: TextAlign.left,
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Lyrics provided by ${lyrics.providerLabel}',
+                                              style: TextStyle(
+                                                color: Colors.grey[300],
+                                                fontSize: 12,
+                                              ),
+                                              textAlign: TextAlign.left,
+                                            ),
+                                            if (lyrics.attribution != null && lyrics.attribution!.trim().isNotEmpty) ...[
+                                              const SizedBox(height: 3),
+                                              _buildAttributionText(
+                                                lyrics.attribution!,
+                                                baseStyle: TextStyle(
+                                                  color: Colors.grey[400],
+                                                  fontSize: 11,
+                                                ),
+                                                linkStyle: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 11,
+                                                  decoration: TextDecoration.underline,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       );
                                     }
@@ -1030,13 +1054,35 @@ class _LyricsViewState extends State<LyricsView>
                     Positioned(
                       left: 32,
                       bottom: 16,
-                      child: Text(
-                        'Lyrics provided by ${lyrics.providerLabel}',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
-                          fontSize: 11,
-                        ),
-                        textAlign: TextAlign.left,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Lyrics provided by ${lyrics.providerLabel}',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.6),
+                              fontSize: 11,
+                            ),
+                            textAlign: TextAlign.left,
+                          ),
+                          if (lyrics.attribution != null && lyrics.attribution!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            _buildAttributionText(
+                              lyrics.attribution!,
+                              baseStyle: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.5),
+                                fontSize: 11,
+                              ),
+                              linkStyle: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                decoration: TextDecoration.underline,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                 ],
@@ -1045,6 +1091,53 @@ class _LyricsViewState extends State<LyricsView>
           ],
         );
       },
+    );
+  }
+
+  Widget _buildAttributionText(
+    String text, {
+    required TextStyle baseStyle,
+    required TextStyle linkStyle,
+  }) {
+    final spans = <InlineSpan>[];
+    final linkRegex = RegExp(r'\[([^\]]+)\]\((https?://[^\)]+)\)');
+    int lastMatchEnd = 0;
+
+    for (final match in linkRegex.allMatches(text)) {
+      if (match.start > lastMatchEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastMatchEnd, match.start),
+          style: baseStyle,
+        ));
+      }
+      final linkText = match.group(1) ?? '';
+      final linkUrl = match.group(2) ?? '';
+      spans.add(
+        TextSpan(
+          text: linkText,
+          style: linkStyle,
+          recognizer: TapGestureRecognizer()
+            ..onTap = () async {
+              final uri = Uri.tryParse(linkUrl);
+              if (uri != null && await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            },
+        ),
+      );
+      lastMatchEnd = match.end;
+    }
+
+    if (lastMatchEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastMatchEnd),
+        style: baseStyle,
+      ));
+    }
+
+    return Text.rich(
+      TextSpan(children: spans),
+      textAlign: TextAlign.left,
     );
   }
 

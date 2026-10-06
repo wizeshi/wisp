@@ -39,19 +39,35 @@ class LyricsLineItem extends StatefulWidget {
 class _LyricsLineItemState extends State<LyricsLineItem> {
   bool _hovered = false;
   late List<TextSelection> _wordRanges;
+  late List<List<TextSelection>> _bgWordRanges;
 
   @override
   void initState() {
     super.initState();
-    _wordRanges = resolveWordRanges(widget.line.content, widget.line.words);
+    _initRanges();
   }
 
   @override
   void didUpdateWidget(LyricsLineItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.line != widget.line) {
-      _wordRanges = resolveWordRanges(widget.line.content, widget.line.words);
+      _initRanges();
     }
+  }
+
+  String _formatBgContent(String content) {
+    final trimmed = content.trim();
+    if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
+      return trimmed;
+    }
+    return '($trimmed)';
+  }
+
+  void _initRanges() {
+    _wordRanges = resolveWordRanges(widget.line.content, widget.line.words);
+    _bgWordRanges = widget.line.background
+        .map((bg) => resolveWordRanges(_formatBgContent(bg.content), bg.words))
+        .toList();
   }
 
   @override
@@ -128,23 +144,28 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
         final effectiveBaseStyle = defaultTextStyle.merge(baseStyle);
         final textScaler = MediaQuery.textScalerOf(context);
 
-        final Widget textContent;
-        if (isLineActive &&
+        final isRight = widget.line.isRightSpeaker;
+        final textAlign = isRight ? TextAlign.right : TextAlign.left;
+        final alignment = isRight ? Alignment.centerRight : Alignment.centerLeft;
+
+        Widget textContent;
+        if (isActiveLine &&
             widget.syncMode == LyricsSyncMode.word &&
             widget.line.hasWordTiming) {
           textContent = LayoutBuilder(
             builder: (context, constraints) {
-              final layoutWidth = constraints.maxWidth.isFinite
-                  ? constraints.maxWidth
-                  : MediaQuery.sizeOf(context).width;
+              final layoutWidth =
+                  constraints.maxWidth.isFinite && constraints.maxWidth > 0
+                      ? constraints.maxWidth
+                      : null;
 
               return Stack(
-                alignment: Alignment.centerLeft,
+                alignment: alignment,
                 children: [
                   Text(
                     widget.line.content,
                     style: effectiveBaseStyle.copyWith(color: inactiveWordColor),
-                    textAlign: TextAlign.left,
+                    textAlign: textAlign,
                   ),
                   ClipPath(
                     clipper: LyricsLineFillClipper(
@@ -160,7 +181,7 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
                     child: Text(
                       widget.line.content,
                       style: effectiveBaseStyle.copyWith(color: activeWordColor),
-                      textAlign: TextAlign.left,
+                      textAlign: textAlign,
                     ),
                   ),
                 ],
@@ -171,8 +192,122 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
           textContent = Text(
             widget.line.content,
             style: effectiveBaseStyle,
-            textAlign: TextAlign.left,
+            textAlign: textAlign,
           );
+        }
+
+        // Synchronized Background vocal lines rendering if present
+        Widget? backgroundContent;
+        if (widget.line.hasBackground) {
+          final bgWidgets = <Widget>[];
+          final baseBgFontSize = (effectiveBaseStyle.fontSize ?? 24) * 0.72;
+
+          for (int bIdx = 0; bIdx < widget.line.background.length; bIdx++) {
+            final bg = widget.line.background[bIdx];
+            final bgRanges = (bIdx < _bgWordRanges.length) ? _bgWordRanges[bIdx] : <TextSelection>[];
+            final bgFormattedText = _formatBgContent(bg.content);
+
+            // Timing checks for this background vocal phrase
+            final bgStart = bg.startTimeMs;
+            int? resolvedBgEnd = bg.endTimeMs;
+            if (resolvedBgEnd == null && bg.words.isNotEmpty) {
+              final lastWord = bg.words.last;
+              resolvedBgEnd = lastWord.endTimeMs ?? (lastWord.startTimeMs + 800);
+            }
+            resolvedBgEnd ??= (widget.line.endTimeMs ?? (bgStart + 2000));
+
+            final isBgActive = isSynced &&
+                isLineActive &&
+                frame.positionMs >= bgStart &&
+                frame.positionMs < resolvedBgEnd;
+            final isBgPast = isSynced &&
+                (frame.positionMs >= resolvedBgEnd ||
+                    (!isLineActive && frame.positionMs >= bgStart));
+            final isBgUpcoming = isSynced && frame.positionMs < bgStart;
+
+            double bgOpacity = opacity;
+            if (isSynced) {
+              if (isBgActive) {
+                bgOpacity = 1.0;
+              } else if (isBgPast) {
+                bgOpacity = (opacity * 0.65).clamp(0.2, 0.7);
+              } else if (isBgUpcoming) {
+                bgOpacity = (opacity * 0.35).clamp(0.1, 0.4);
+              }
+            }
+
+            final bgBaseStyle = effectiveBaseStyle.copyWith(
+              fontSize: baseBgFontSize,
+              fontStyle: FontStyle.italic,
+              color: (isBgActive ? Colors.white : inactiveColor).withValues(
+                alpha: (isBgActive ? bgOpacity : (inactiveColor.a * bgOpacity)).clamp(0.0, 1.0),
+              ),
+            );
+
+            Widget phraseWidget;
+            if (isBgActive && bg.hasWordTiming && bgRanges.isNotEmpty) {
+              final activeWordColor = Colors.white.withValues(alpha: bgOpacity);
+              final inactiveWordColor = Colors.white.withValues(alpha: 0.45 * bgOpacity);
+
+              phraseWidget = LayoutBuilder(
+                builder: (context, constraints) {
+                  final bgLayoutWidth =
+                      constraints.maxWidth.isFinite && constraints.maxWidth > 0
+                          ? constraints.maxWidth
+                          : null;
+
+                  return Stack(
+                    alignment: alignment,
+                    children: [
+                      Text(
+                        bgFormattedText,
+                        style: bgBaseStyle.copyWith(color: inactiveWordColor),
+                        textAlign: textAlign,
+                      ),
+                      ClipPath(
+                        clipper: LyricsLineFillClipper(
+                          lineContent: bgFormattedText,
+                          words: bg.words,
+                          wordRanges: bgRanges,
+                          lineEndTimeMs: resolvedBgEnd,
+                          style: bgBaseStyle,
+                          textScaler: textScaler,
+                          layoutWidth: bgLayoutWidth,
+                          positionMs: frame.positionMs,
+                        ),
+                        child: Text(
+                          bgFormattedText,
+                          style: bgBaseStyle.copyWith(color: activeWordColor),
+                          textAlign: textAlign,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            } else {
+              phraseWidget = Text(
+                bgFormattedText,
+                style: bgBaseStyle,
+                textAlign: textAlign,
+              );
+            }
+
+            bgWidgets.add(
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: phraseWidget,
+              ),
+            );
+          }
+
+          if (bgWidgets.isNotEmpty) {
+            backgroundContent = Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: bgWidgets,
+            );
+          }
         }
 
         final canSeek = widget.line.startTimeMs > 0;
@@ -180,7 +315,7 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
         final lineWidget = Padding(
           padding: EdgeInsets.symmetric(vertical: widget.isDesktop ? 8 : 12),
           child: Align(
-            alignment: Alignment.centerLeft,
+            alignment: alignment,
             child: Material(
               color: Colors.transparent,
               child: InkWell(
@@ -198,7 +333,16 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
                     : null,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: textContent,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: isRight
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
+                    children: [
+                      textContent,
+                      ?backgroundContent,
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -216,7 +360,8 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
 
         return Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             _buildWaitingDots(
               progress: timing.progressToNext,

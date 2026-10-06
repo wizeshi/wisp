@@ -87,9 +87,6 @@ class SpotifyAuthManager {
       const tokens = await wisp.auth.getTokens({ serviceId: this.serviceId, forceRefresh: forceRefresh });
       if (tokens) return tokens;
     }
-    if (wisp.spotify && typeof wisp.spotify.getTokens === 'function') {
-      return await wisp.spotify.getTokens({ forceRefresh: forceRefresh });
-    }
     return await this.getSession();
   }
 

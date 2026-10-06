@@ -1,0 +1,16 @@
+{
+  "id": "spicylyrics",
+  "name": "SpicyLyrics Auth",
+  "version": "1.0.0",
+  "type": "auth",
+  "service": "spicylyrics",
+  "description": "API Key management for SpicyLyrics",
+  "author": "wizeshi",
+  "path": "auth/spicylyrics",
+  "priority": 90,
+  "files": [
+    "manifest.json",
+    "index.js"
+  ]
+}
+

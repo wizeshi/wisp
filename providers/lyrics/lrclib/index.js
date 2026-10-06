@@ -74,6 +74,7 @@ async function getLyrics(query) {
 
   if (mode === 'line' && syncedLyrics) {
     return {
+      version: '1.0',
       provider: 'lrclib',
       syncMode: 'line',
       lines: parseSynced(syncedLyrics)
@@ -82,6 +83,7 @@ async function getLyrics(query) {
 
   if (mode === 'unsynced' && plainLyrics) {
     return {
+      version: '1.0',
       provider: 'lrclib',
       syncMode: 'unsynced',
       lines: parsePlain(plainLyrics)
@@ -90,6 +92,7 @@ async function getLyrics(query) {
 
   if (syncedLyrics) {
     return {
+      version: '1.0',
       provider: 'lrclib',
       syncMode: 'line',
       lines: parseSynced(syncedLyrics)
@@ -98,6 +101,7 @@ async function getLyrics(query) {
 
   if (plainLyrics) {
     return {
+      version: '1.0',
       provider: 'lrclib',
       syncMode: 'unsynced',
       lines: parsePlain(plainLyrics)
