@@ -23,6 +23,7 @@ class AlbumRow extends StatelessWidget {
   final GenericRowPlayPosition playPosition;
   final Color? backgroundColor;
   final bool showSubtitle;
+  final bool isCollapsed;
 
   const AlbumRow({
     super.key,
@@ -33,6 +34,7 @@ class AlbumRow extends StatelessWidget {
     this.playPosition = GenericRowPlayPosition.end,
     this.backgroundColor,
     this.showSubtitle = true,
+    this.isCollapsed = false,
   });
 
   Future<void> _startAlbumPlayback(BuildContext context) async {
@@ -129,6 +131,7 @@ class AlbumRow extends StatelessWidget {
       playPosition: playPosition,
       backgroundColor: backgroundColor,
       showSubtitle: showSubtitle,
+      isCollapsed: isCollapsed,
       title: album.title,
       subtitle: album.artists.map((artist) => artist.name).join(', '),
       artwork: ArtworkThumbnail(

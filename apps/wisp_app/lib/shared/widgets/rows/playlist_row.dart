@@ -33,6 +33,7 @@ class PlaylistRow extends StatelessWidget {
   final GenericRowPlayPosition playPosition;
   final Color? backgroundColor;
   final bool showSubtitle;
+  final bool isCollapsed;
 
   const PlaylistRow({
     super.key,
@@ -43,6 +44,7 @@ class PlaylistRow extends StatelessWidget {
     this.playPosition = GenericRowPlayPosition.end,
     this.backgroundColor,
     this.showSubtitle = true,
+    this.isCollapsed = false,
   });
 
   @override
@@ -58,6 +60,7 @@ class PlaylistRow extends StatelessWidget {
       playPosition: playPosition,
       backgroundColor: backgroundColor,
       showSubtitle: showSubtitle,
+      isCollapsed: isCollapsed,
       title: playlist.title,
       subtitle: playlistSubtitle(playlist),
       artwork: (playlist.title == "Liked Songs" || isLikedSongsPlaylistId(playlist.id))

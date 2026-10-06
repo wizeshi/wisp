@@ -31,6 +31,7 @@ class GenericRow extends StatelessWidget {
 
   final Color? backgroundColor;
   final bool showSubtitle;
+  final bool isCollapsed;
 
   const GenericRow({
     super.key,
@@ -49,10 +50,28 @@ class GenericRow extends StatelessWidget {
     this.padding = EdgeInsets.zero,
     this.backgroundColor,
     this.showSubtitle = true,
+    this.isCollapsed = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final artworkWidget = SizedBox(
+      height: height,
+      width: height,
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: playPosition == GenericRowPlayPosition.cover
+            ? CoverPlayOverlay(
+                isPlaying: isPlaying,
+                onPressed: onPlay,
+                iconSize: height * 0.42,
+                waveformSize: height * 0.32,
+                child: artwork,
+              )
+            : artwork,
+      ),
+    );
+
     return Material(
       color: backgroundColor ?? Colors.transparent,
       borderRadius: BorderRadius.circular(8),
@@ -65,71 +84,67 @@ class GenericRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: padding,
-          child: Row(
-            children: [
-              SizedBox(
-                height: height,
-                width: height,
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: playPosition == GenericRowPlayPosition.cover
-                      ? CoverPlayOverlay(
-                          isPlaying: isPlaying,
-                          onPressed: onPlay,
-                          iconSize: height * 0.42,
-                          waveformSize: height * 0.32,
-                          child: artwork,
-                        )
-                      : artwork,
-                ),
-              ),
-
-              const SizedBox(width: 8),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
+          child: isCollapsed
+              ? Center(
+                  child: Tooltip(
+                    message: title,
+                    waitDuration: const Duration(milliseconds: 500),
+                    child: artworkWidget,
+                  ),
+                )
+              : Row(
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 14,
+                    artworkWidget,
+
+                    const SizedBox(width: 8),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (showSubtitle && subtitle != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle!,
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    if (showSubtitle && subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+
+                    if (playPosition == GenericRowPlayPosition.end)
+                      Builder(
+                        builder: (context) {
+                          final visible = HoverRegion.of(context) ?? false;
+                          return PlaybackAffordance(
+                            visible: visible,
+                            isPlaying: isPlaying,
+                            onPressed: onPlay,
+                          );
+                        },
                       ),
-                    ],
+
+                    const SizedBox(width: 4),
                   ],
                 ),
-              ),
-
-              if (playPosition == GenericRowPlayPosition.end)
-                Builder(
-                  builder: (context) {
-                    final visible = HoverRegion.of(context) ?? false;
-                    return PlaybackAffordance(
-                      visible: visible,
-                      isPlaying: isPlaying,
-                      onPressed: onPlay,
-                    );
-                  },
-                ),
-
-              const SizedBox(width: 4),
-            ],
-          ),
         ),
       ),
     );

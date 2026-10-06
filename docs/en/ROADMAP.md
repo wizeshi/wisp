@@ -2,7 +2,6 @@ Here's the TODOs for version v26.10:
 
 - Bugs:
   - [ ] Fix view paddings
-  - [ ] Fix collapsed track rows in nav sidebar not centering properly
 - Future changes: 
   - [ ] Implement submenu on track context menu for adding to playlist
   - [ ] Implement proper URL copying endpoint

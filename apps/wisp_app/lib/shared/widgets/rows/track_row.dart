@@ -190,6 +190,8 @@ class TrackRow extends StatelessWidget {
   /// where a "favorite" affordance sits in most music-app track lists.
   final Widget? trailing;
 
+  final bool isCollapsed;
+
   const TrackRow({
     super.key,
     required this.track,
@@ -221,6 +223,7 @@ class TrackRow extends StatelessWidget {
     this.durationColumnWidth,
     this.dateColumnWidth = 120,
     this.trailing,
+    this.isCollapsed = false,
   }) : assert(
          playIconLocation == null ||
              playIconLocation != PlayIconLocation.number ||
@@ -445,6 +448,32 @@ class TrackRow extends StatelessWidget {
             height: height,
             child: Builder(
               builder: (context) {
+                if (isCollapsed) {
+                  return Center(
+                    child: Tooltip(
+                      message: track.title,
+                      waitDuration: const Duration(milliseconds: 500),
+                      child: SizedBox(
+                        height: height,
+                        width: height,
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child:
+                              effectivePlayIconLocation == PlayIconLocation.art
+                                  ? CoverPlayOverlay(
+                                      isPlaying: isPlayingHere,
+                                      onPressed: onPlayPause,
+                                      iconSize: height * 0.42,
+                                      waveformSize: height * 0.32,
+                                      child: _artwork,
+                                    )
+                                  : _artwork,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
                 final showAlbumColumn =
                     showAlbumName && !foldAlbumIntoSubtitle;
                 final showDateColumn = showDateAdded && !isApple;

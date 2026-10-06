@@ -16,6 +16,7 @@ class FolderRow extends StatelessWidget {
   final double width;
   final EdgeInsetsGeometry padding;
   final GenericRowPlayPosition playPosition;
+  final bool isCollapsed;
 
   const FolderRow({
     super.key,
@@ -23,6 +24,7 @@ class FolderRow extends StatelessWidget {
     this.width = 160,
     this.padding = EdgeInsets.zero,
     this.playPosition = GenericRowPlayPosition.end,
+    this.isCollapsed = false,
   });
 
   Future<void> _toggleFolderState(BuildContext context) async {
@@ -57,6 +59,7 @@ class FolderRow extends StatelessWidget {
               width: width,
               padding: padding,
               playPosition: GenericRowPlayPosition.end,
+              isCollapsed: isCollapsed,
               title: folder.title,
               subtitle: '$count playlist${count == 1 ? '' : 's'}',
               artwork: ArtworkThumbnail(

@@ -299,5 +299,33 @@ void main() {
       expect(notPlayingText.style?.color, equals(Colors.white));
       expect(playingText.style?.color, isNot(equals(Colors.white)));
     });
+
+    testWidgets('TrackRow centers artwork and hides columns when isCollapsed is true', (tester) async {
+      await tester.pumpWidget(
+        buildTestWidget(
+          child: SizedBox(
+            width: 88,
+            child: TrackRow(
+              track: testSong,
+              style: AppStyle.Spotify,
+              index: 0,
+              isCollapsed: true,
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+            ),
+          ),
+        ),
+      );
+
+      // Title should not be rendered
+      expect(find.text('Test Song'), findsNothing);
+      // Index column should not be rendered
+      expect(find.text('1'), findsNothing);
+
+      // Artwork (height/width: 48) should be centered in the 88px container (center dx = 44)
+      final center = tester.getCenter(
+        find.descendant(of: find.byType(TrackRow), matching: find.byType(AspectRatio)),
+      );
+      expect(center.dx, equals(44.0));
+    });
   });
 }

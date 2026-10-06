@@ -9,6 +9,8 @@ import 'package:wisp/shared/widgets/rows/artist_row.dart';
 import 'package:wisp/shared/widgets/rows/folder_row.dart';
 import 'package:wisp/shared/widgets/rows/generic_row.dart';
 import 'package:wisp/shared/widgets/rows/playlist_row.dart';
+import 'package:wisp/shared/widgets/rows/track_row.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/library_folder.dart';
@@ -92,6 +94,7 @@ class _WispNavigationState extends State<WispNavigation> {
   String _itemTitle(dynamic item) {
     if (item is PlaylistFolder) return item.title;
     if (item is GenericPlaylist) return item.title;
+    if (item is GenericSong) return item.title;
     if (item is GenericAlbum || item is GenericSimpleAlbum) {
       try {
         return (item as dynamic).title as String? ?? '';
@@ -112,6 +115,7 @@ class _WispNavigationState extends State<WispNavigation> {
   String? _itemId(dynamic item) {
     if (item is PlaylistFolder) return item.id;
     if (item is GenericPlaylist) return item.id;
+    if (item is GenericSong) return item.id;
     try {
       return (item as dynamic).id as String?;
     } catch (_) {
@@ -433,6 +437,7 @@ class _WispNavigationState extends State<WispNavigation> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: _isCollapsed ? widget.collapsedWidth : widget.expandedWidth,
+      clipBehavior: Clip.hardEdge,
       color: Colors.grey[900]?.withValues(alpha: 0.3),
       onEnd: () {
         if (_layoutCollapsed != _isCollapsed) {
@@ -776,9 +781,11 @@ class _WispNavigationState extends State<WispNavigation> {
 
     const basePadding = EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0);
     const folderChildIndent = 8.0;
-    final rowPadding = entry.folderId != null
-        ? basePadding.add(const EdgeInsets.only(left: folderChildIndent))
-        : basePadding;
+    final rowPadding = isCollapsed
+        ? const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0)
+        : (entry.folderId != null
+            ? basePadding.add(const EdgeInsets.only(left: folderChildIndent))
+            : basePadding);
 
     const playButtonPosition = GenericRowPlayPosition.cover;
 
@@ -788,12 +795,14 @@ class _WispNavigationState extends State<WispNavigation> {
         folder: resolvedItem,
         padding: rowPadding,
         playPosition: playButtonPosition,
+        isCollapsed: isCollapsed,
       );
     } else if (resolvedItem is GenericPlaylist) {
       tile = PlaylistRow(
         playlist: resolvedItem,
         padding: rowPadding,
         playPosition: playButtonPosition,
+        isCollapsed: isCollapsed,
       );
     } else if (resolvedItem is GenericAlbum ||
         resolvedItem is GenericSimpleAlbum) {
@@ -801,6 +810,7 @@ class _WispNavigationState extends State<WispNavigation> {
         album: resolvedItem,
         padding: rowPadding,
         playPosition: playButtonPosition,
+        isCollapsed: isCollapsed,
       );
     } else if (resolvedItem is GenericSimpleArtist ||
         resolvedItem is GenericArtist) {
@@ -808,6 +818,18 @@ class _WispNavigationState extends State<WispNavigation> {
         artist: resolvedItem,
         padding: rowPadding,
         playPosition: playButtonPosition,
+        isCollapsed: isCollapsed,
+      );
+    } else if (resolvedItem is GenericSong) {
+      tile = TrackRow(
+        track: resolvedItem,
+        padding: rowPadding,
+        isCollapsed: isCollapsed,
+        playIconLocation: PlayIconLocation.art,
+        onTap: () async {
+          final coordinator = context.read<PlaybackCoordinator>();
+          await coordinator.setQueue([resolvedItem], startIndex: 0, play: true);
+        },
       );
     } else {
       return const SizedBox.shrink();

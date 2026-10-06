@@ -23,6 +23,7 @@ class ArtistRow extends StatelessWidget {
   final String? subtitle;
   final Color? backgroundColor;
   final bool showSubtitle;
+  final bool isCollapsed;
 
   const ArtistRow({
     super.key,
@@ -34,6 +35,7 @@ class ArtistRow extends StatelessWidget {
     this.playPosition = GenericRowPlayPosition.end,
     this.backgroundColor,
     this.showSubtitle = true,
+    this.isCollapsed = false,
   });
 
   Future<void> _startArtistPlayback(BuildContext context) async {
@@ -107,6 +109,7 @@ class ArtistRow extends StatelessWidget {
       playPosition: playPosition,
       backgroundColor: backgroundColor,
       showSubtitle: showSubtitle,
+      isCollapsed: isCollapsed,
       title: artist.name,
       subtitle: subtitle ?? 'Artist',
       artwork: ArtworkThumbnail(

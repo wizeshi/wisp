@@ -647,35 +647,29 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
       fontWeight: FontWeight.w700,
     );
 
-    return Row(
-      children: [
-        MarqueeText(
-          text: track.title,
-          style: style,
-          pauseWhenUnfocused: true,
-          builder: (context, textStyle) => HoverUnderline(
-            cursor: hasAlbum
-                ? SystemMouseCursors.click
-                : SystemMouseCursors.basic,
-            onTap: hasAlbum ? () => _openAlbum(context, album) : null,
-            onSecondaryTapDown: (details) {
-              EntityContextMenus.showTrackMenu(
-                context,
-                track: track,
-                globalPosition: details.globalPosition,
-              );
-            },
-            builder: (isHovering) => Text(
-              track.title,
-              style: textStyle.copyWith(
-                decoration: isHovering && hasAlbum
-                    ? TextDecoration.underline
-                    : TextDecoration.none,
-              ),
-            ),
+    return MarqueeText(
+      text: track.title,
+      style: style,
+      pauseWhenUnfocused: true,
+      builder: (context, textStyle) => HoverUnderline(
+        cursor: hasAlbum ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onTap: hasAlbum ? () => _openAlbum(context, album) : null,
+        onSecondaryTapDown: (details) {
+          EntityContextMenus.showTrackMenu(
+            context,
+            track: track,
+            globalPosition: details.globalPosition,
+          );
+        },
+        builder: (isHovering) => Text(
+          track.title,
+          style: textStyle.copyWith(
+            decoration: isHovering && hasAlbum
+                ? TextDecoration.underline
+                : TextDecoration.none,
           ),
         ),
-      ],
+      ),
     );
   }
 
