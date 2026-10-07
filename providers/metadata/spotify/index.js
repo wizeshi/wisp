@@ -2757,6 +2757,84 @@ async function getTrackGenres(trackId) {
   }
 }
 
+async function getTrackIsrc(trackId) {
+  try {
+    if (!trackId || typeof trackId !== 'string') return null;
+    const cleanTrackId = trackId.includes(':') ? trackId.split(':').pop() : trackId;
+    const hexGid = spotifyIdToHexGid(cleanTrackId);
+
+    // 1. Check direct metadata/4/track endpoint first (fastest)
+    try {
+      const endpoint = 'https://spclient.wg.spotify.com/metadata/4/track/' + hexGid + '?market=from_token';
+      const res = await fetchSpClient(endpoint);
+      if (res.status === 200) {
+        const data = await res.json();
+        if (data && Array.isArray(data.external_id)) {
+          const isrcEntry = data.external_id.find(e => e.type === 'isrc' || e.type === 'ISRC');
+          if (isrcEntry && isrcEntry.id) return isrcEntry.id;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Fallback to extended-metadata endpoint
+    const trackUri = 'spotify:track:' + cleanTrackId;
+    const token = await authManager.getAccessToken();
+    if (!token) return null;
+
+    const queryWriter = new SimpleProtoWriter();
+    queryWriter.writeInt32(1, 1); // Track metadata extension
+
+    const entityWriter = new SimpleProtoWriter();
+    entityWriter.writeString(1, trackUri);
+    entityWriter.writeMessage(2, queryWriter);
+
+    const rootWriter = new SimpleProtoWriter();
+    rootWriter.writeString(1, 'PT');
+    rootWriter.writeString(2, 'premium');
+    const traceId = [];
+    for (let i = 0; i < 16; i++) traceId.push(Math.floor(Math.random() * 256));
+    rootWriter.writeBytes(3, traceId);
+    rootWriter.writeMessage(2, entityWriter);
+
+    const bodyBytes = rootWriter.toBytes();
+    const session = await authManager.getSession();
+    const clientToken = session ? (session.clientToken || '') : '';
+
+    const headers = {
+      'Authorization': 'Bearer ' + token,
+      'App-Platform': 'Win32_x86_64',
+      'Accept': 'application/json',
+      'Content-Type': 'application/protobuf',
+      'Spotify-App-Version': APP_VERSION,
+      'User-Agent': USER_AGENT
+    };
+    if (clientToken) headers['Client-Token'] = clientToken;
+
+    const res = await wisp.fetch('https://gew1-spclient.spotify.com/extended-metadata/v0/extended-metadata', {
+      method: 'POST',
+      headers: headers,
+      body: bodyBytes
+    });
+
+    if (res.status === 200) {
+      const json = await res.json();
+      if (json && Array.isArray(json.extended_metadata)) {
+        for (const ext of json.extended_metadata) {
+          if (ext && Array.isArray(ext.external_id)) {
+            const entry = ext.external_id.find(e => (e.type || '').toLowerCase() === 'isrc');
+            if (entry && entry.id) return entry.id;
+          }
+        }
+      }
+    }
+
+    return null;
+  } catch (e) {
+    console.warn('[Spotify] Failed getTrackIsrc: ' + e);
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Module Exports
 // ---------------------------------------------------------------------------
@@ -2797,6 +2875,7 @@ const SpotifyMetadataProvider = {
   addPlaylistToFolder,
   removePlaylistFromFolder,
   getTrackGenres,
+  getTrackIsrc,
   isAuthenticated,
   login: () => authManager.login(),
   logout: () => authManager.logout()

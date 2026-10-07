@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/sources/audio/audio_source_manager.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_source_manager.dart';
 import 'package:wisp/data/sources/metadata/metadata_source_manager.dart';
@@ -225,6 +226,8 @@ class ProvidersRepositoryService {
             ? MetadataSourceManager.instance.sources.containsKey(pkg.id)
             : pkg.type == 'auth'
             ? AuthSourceManager.instance.sources.containsKey(pkg.id)
+            : pkg.type == 'audio'
+            ? AudioSourceManager.instance.sources.containsKey(pkg.id)
             : LyricsSourceManager.instance.allSources.any(
                 (s) => s.id == pkg.id,
               );
@@ -378,12 +381,15 @@ class ProvidersRepositoryService {
         LyricsSourceManager.instance.clearUninstalled(pkg.id);
       } else if (pkg.type == 'auth') {
         AuthSourceManager.instance.clearUninstalled(pkg.id);
+      } else if (pkg.type == 'audio') {
+        AudioSourceManager.instance.clearUninstalled(pkg.id);
       }
 
       // Reload source managers so changes are immediately active
       await AuthSourceManager.instance.reload();
       await MetadataSourceManager.instance.reload();
       await LyricsSourceManager.instance.reload();
+      await AudioSourceManager.instance.reload();
       packagesWithUpdate.value = packagesWithUpdate.value
           .where((p) => p.uniqueKey != pkg.uniqueKey)
           .toList();
@@ -416,11 +422,14 @@ class ProvidersRepositoryService {
         LyricsSourceManager.instance.unregisterSource(pkg.id);
       } else if (pkg.type == 'auth') {
         AuthSourceManager.instance.unregisterSource(pkg.id);
+      } else if (pkg.type == 'audio') {
+        AudioSourceManager.instance.unregisterSource(pkg.id);
       }
 
       await AuthSourceManager.instance.reload();
       await MetadataSourceManager.instance.reload();
       await LyricsSourceManager.instance.reload();
+      await AudioSourceManager.instance.reload();
       packagesWithUpdate.value = packagesWithUpdate.value
           .where((p) => p.uniqueKey != pkg.uniqueKey)
           .toList();

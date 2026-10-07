@@ -495,6 +495,7 @@ class _DesktopTrackInfo extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Selector<global_audio_player.WispAudioHandler, double?>(
                     selector: (context, player) => player.audioBitrate,

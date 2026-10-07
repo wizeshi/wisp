@@ -10,7 +10,6 @@ import 'package:wisp/features/details/views/list_detail_view.dart';
 
 import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
@@ -375,39 +374,25 @@ class EntityContextMenus {
         icon: Icons.ondemand_video,
         onSelected: (_) async {
           final player = context.read<global_audio_player.WispAudioHandler>();
-          final previousVideoId = YouTubeProvider.getCachedVideoId(track.id);
-          final selectedVideoId = await AppNavigation.instance
-              .openYouTubeAlternatives(track);
-          if (!context.mounted || selectedVideoId == null) return;
+          final selection = await AppNavigation.instance
+              .openAudioAlternatives(track);
+          if (!context.mounted || selection == null) return;
 
-          final hasChanged = selectedVideoId.isEmpty
-              ? previousVideoId != null
-              : previousVideoId != selectedVideoId;
+          await player.onAudioAlternativeUpdated(
+            track.id,
+            providerId: selection.providerId,
+            mediaId: selection.mediaId,
+          );
 
-          if (selectedVideoId.isEmpty) {
-            await YouTubeProvider.removeCachedVideoId(track.id);
-            if (hasChanged) {
-              await player.onYouTubeAlternativeUpdated(
-                track.id,
-                previousVideoId: previousVideoId,
-              );
-            }
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('YouTube mapping cleared')),
-            );
-            return;
-          }
-          await YouTubeProvider.setCachedVideoId(track.id, selectedVideoId);
-          if (hasChanged) {
-            await player.onYouTubeAlternativeUpdated(
-              track.id,
-              previousVideoId: previousVideoId,
-            );
-          }
           if (!context.mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('YouTube alternative saved')),
+            SnackBar(
+              content: Text(
+                selection.isClear
+                    ? '${selection.providerId} mapping cleared'
+                    : 'Alternative saved for ${selection.providerId}',
+              ),
+            ),
           );
         },
       ),

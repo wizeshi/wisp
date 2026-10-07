@@ -127,10 +127,11 @@ class AudioStorageService extends ChangeNotifier {
     return parts.isNotEmpty ? parts.last : trimmed;
   }
 
-  String buildSafeCacheFileName(String trackId, String videoId) {
+  String buildSafeCacheFileName(String trackId, String videoId, {String extension = 'm4a'}) {
     final input = '$trackId|$videoId';
     final digest = sha1.convert(utf8.encode(input)).toString();
-    return 'track_$digest.m4a';
+    final ext = extension.startsWith('.') ? extension.substring(1) : extension;
+    return 'track_$digest.$ext';
   }
 
   /// Initialize the storage directory, load entries, and perform orphan reconciliation.

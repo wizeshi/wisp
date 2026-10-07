@@ -244,6 +244,8 @@ abstract class MetadataProvider extends ChangeNotifier {
 
   Future<List<String>> getTrackGenres(String trackId) async => const [];
 
+  Future<String?> getTrackIsrc(String trackId) async => null;
+
   Map<String, dynamic> dumpJson() => {
     'name': name,
     'displayName': displayName,

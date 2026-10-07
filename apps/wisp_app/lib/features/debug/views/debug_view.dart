@@ -1241,13 +1241,7 @@ class PlayerStateView extends StatelessWidget {
                         PlayerStateViewElement(
                           flex: 1,
                           label: "Error Message",
-                          value: _formatDuration(
-                            int.tryParse(
-                                  playerInfo['engine']['error'].toString(),
-                                ) ??
-                                0,
-                            miliseconds: true,
-                          ),
+                          value: playerInfo['engine']['error'].toString(),
                         ),
                       ],
                     ),

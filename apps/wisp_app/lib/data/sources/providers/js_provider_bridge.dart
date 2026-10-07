@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_js/flutter_js.dart';
 import 'package:http/http.dart' as http;
@@ -15,6 +16,7 @@ import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'auth_input_dialog.dart';
 import 'auth_webview_dialog.dart';
 import 'crypto_bridge_utils.dart';
+import 'jumo_crypto_utils.dart';
 import 'service_session_manager.dart';
 
 /// Configures and installs the standardized `wisp.*` host bridges into a JavaScript runtime.
@@ -397,6 +399,73 @@ class JsProviderBridge {
       } catch (e) {
         if (cbId != null) {
           resolveJsCallback(runtime, cbId, {'hex': '', 'error': e.toString()});
+        }
+      }
+      return '';
+    });
+
+    runtime.onMessage('wisp_crypto_generate_p256_keypair', (dynamic args) {
+      int? cbId;
+      try {
+        final map = args is String
+            ? jsonDecode(args) as Map<String, dynamic>
+            : (args as Map).cast<String, dynamic>();
+        cbId = map['cbId'] as int?;
+        final res = JumoCryptoUtils.generateP256KeyPair();
+        if (cbId != null) {
+          resolveJsCallback(runtime, cbId, res);
+        }
+      } catch (e) {
+        if (cbId != null) {
+          resolveJsCallback(runtime, cbId, {'error': e.toString()});
+        }
+      }
+      return '';
+    });
+
+    runtime.onMessage('wisp_crypto_decrypt_jumo', (dynamic args) {
+      int? cbId;
+      try {
+        final map = args is String
+            ? jsonDecode(args) as Map<String, dynamic>
+            : (args as Map).cast<String, dynamic>();
+        cbId = map['cbId'] as int?;
+        final clientPrivHex = map['clientPrivHex'] as String;
+        final serverPubKey = map['serverPubKey'] as String;
+        final bodyB64 = map['bodyB64'] as String;
+        final url = map['url'] as String;
+        final nonce = map['nonce'] as String;
+
+        // 1. Derive shared secret X
+        final sharedX = JumoCryptoUtils.deriveSharedSecretX(clientPrivHex, serverPubKey);
+        // 2. Derive AES key
+        final aesKey = JumoCryptoUtils.deriveAesGcmKey(sharedX);
+        // 3. Decode payload body bytes
+        var cleanB64 = bodyB64.replaceAll('-', '+').replaceAll('_', '/');
+        while (cleanB64.length % 4 != 0) {
+          cleanB64 += '=';
+        }
+        final bodyBytes = base64Decode(cleanB64);
+        final iv = bodyBytes.sublist(0, 12);
+        final ciphertext = bodyBytes.sublist(12);
+        final aad = Uint8List.fromList(utf8.encode('$url\n$nonce'));
+
+        // 4. Decrypt
+        final decrypted = JumoCryptoUtils.decryptAesGcm(
+          key: aesKey,
+          iv: iv,
+          ciphertextWithTag: ciphertext,
+          aad: aad,
+        );
+        final decryptedText = utf8.decode(decrypted);
+        final jsonResult = jsonDecode(decryptedText);
+
+        if (cbId != null) {
+          resolveJsCallback(runtime, cbId, {'result': jsonResult});
+        }
+      } catch (e) {
+        if (cbId != null) {
+          resolveJsCallback(runtime, cbId, {'error': e.toString()});
         }
       }
       return '';
@@ -804,6 +873,57 @@ class JsProviderBridge {
         };
       }
 
+      if (typeof URL === 'undefined') {
+        globalThis.URL = function(url, base) {
+          var full = url;
+          if (base) {
+            var b = String(base).replace(/\\/+\$/, '');
+            var u = String(url).replace(/^\\/+/, '');
+            if (!String(url).match(/^https?:\\/\\//i)) {
+              full = b + '/' + u;
+            }
+          }
+          this.href = full;
+          var match = full.match(/^(https?:\\/\\/[^\\/?#]+)([^?#]*)(\\?[^#]*)?(#.*)?/i);
+          if (match) {
+            this.origin = match[1];
+            this.pathname = match[2] || '/';
+            this.search = match[3] || '';
+            this.hash = match[4] || '';
+          } else {
+            this.origin = '';
+            this.pathname = full;
+            this.search = '';
+            this.hash = '';
+          }
+          this.toString = function() { return this.href; };
+        };
+      }
+
+      if (typeof URLSearchParams === 'undefined') {
+        globalThis.URLSearchParams = function(init) {
+          var params = {};
+          if (typeof init === 'string') {
+            var str = init.replace(/^\\?/, '');
+            var pairs = str.split('&');
+            for (var i = 0; i < pairs.length; i++) {
+              if (!pairs[i]) continue;
+              var parts = pairs[i].split('=');
+              params[decodeURIComponent(parts[0])] = decodeURIComponent(parts.slice(1).join('='));
+            }
+          } else if (init && typeof init === 'object') {
+            for (var k in init) params[k] = String(init[k]);
+          }
+          this.get = function(name) { return params[name] !== undefined ? params[name] : null; };
+          this.set = function(name, val) { params[name] = String(val); };
+          this.toString = function() {
+            var res = [];
+            for (var k in params) res.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+            return res.join('&');
+          };
+        };
+      }
+
       globalThis.wisp = {
         fetch: function(url, options) {
           return new Promise(function(resolve) {
@@ -959,6 +1079,33 @@ class JsProviderBridge {
                 resolve(res ? res.hex : '');
               };
               sendMessage('wisp_crypto_random_hex', JSON.stringify({ cbId: cbId, length: length || 32 }));
+            });
+          },
+          generateP256KeyPair: function() {
+            return new Promise(function(resolve, reject) {
+              var cbId = ++globalThis.__wisp_callback_counter;
+              globalThis.__wisp_pending_callbacks[cbId] = function(res) {
+                if (res && res.error) reject(new Error(res.error));
+                else resolve(res);
+              };
+              sendMessage('wisp_crypto_generate_p256_keypair', JSON.stringify({ cbId: cbId }));
+            });
+          },
+          decryptJumoPayload: function(options) {
+            return new Promise(function(resolve, reject) {
+              var cbId = ++globalThis.__wisp_callback_counter;
+              globalThis.__wisp_pending_callbacks[cbId] = function(res) {
+                if (res && res.error) reject(new Error(res.error));
+                else resolve(res ? res.result : null);
+              };
+              sendMessage('wisp_crypto_decrypt_jumo', JSON.stringify({
+                cbId: cbId,
+                clientPrivHex: options.clientPrivHex,
+                serverPubKey: options.serverPubKey,
+                bodyB64: options.bodyB64,
+                url: options.url,
+                nonce: options.nonce
+              }));
             });
           }
         },

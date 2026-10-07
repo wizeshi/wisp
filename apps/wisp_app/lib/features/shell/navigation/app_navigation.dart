@@ -21,6 +21,7 @@ import 'package:wisp/features/details/views/artist_detail_view.dart';
 import 'package:wisp/features/details/views/user_detail_view.dart';
 import 'package:wisp/features/details/views/list_detail_view.dart';
 import 'package:wisp/features/details/views/youtube_alternatives_view.dart';
+import 'package:wisp/features/details/views/audio_alternatives_view.dart';
 import 'package:wisp/features/playback/widgets/full_player.dart';
 
 enum FullPlayerDesktopMode { artwork, canvas, lyrics, queue }
@@ -301,6 +302,23 @@ class AppNavigation {
       id: contextId,
       type: type,
       initialTitle: contextName,
+    );
+  }
+
+  /// Opens Audio alternatives (multi-provider) inside the shell navigator so desktop
+  /// navigation chrome remains visible regardless of where it was launched.
+  Future<AudioAlternativeSelection?> openAudioAlternatives(GenericSong track) {
+    final shellNavigator = _shellNavigator;
+    if (shellNavigator == null) return Future.value(null);
+
+    return shellNavigator.push<AudioAlternativeSelection>(
+      PageRouteBuilder<AudioAlternativeSelection>(
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        settings: RouteSettings(name: '/audio-alternatives/${track.id}'),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            AudioAlternativesView(track: track),
+      ),
     );
   }
 

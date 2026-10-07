@@ -8,10 +8,11 @@ Every provider runs inside an isolated, secure JavaScript environment powered by
 
 ## Provider Categories & Documentation
 
-The provider ecosystem is organized into three distinct categories, each with its own specifications and manifest contracts:
+The provider ecosystem is organized into four distinct categories, each with its own specifications and manifest contracts:
 
 | Type | Directory | Documentation | Description |
 |---|---|---|---|
+| **Audio** | `providers/audio/` | [Audio Providers Documentation](audio/README.md) | Supplies direct audio stream candidates and playable stream URLs (e.g. Qobuz, YouTube, SoundCloud). |
 | **Auth** | `providers/auth/` | [Auth Providers Documentation](auth/README.md) | Manages authentication, session vaults, and token renewal. Appears under **Settings -> ACCOUNTS**. |
 | **Metadata** | `providers/metadata/` | [Metadata Providers Documentation](metadata/README.md) | Supplies tracks, albums, artist catalogs, search, user libraries, home feed trays, and canvas visuals. |
 | **Lyrics** | `providers/lyrics/` | [Lyrics Providers Documentation](lyrics/README.md) | Normalizes lyrics into the universal **wisp Lyrics Format (WLF v1.0)** across word, line, and unsynced precision. |
@@ -22,12 +23,14 @@ The provider ecosystem is organized into three distinct categories, each with it
 
 ### Discovery
 wisp discovers providers through two complementary mechanisms:
-1. **Local Workspace**: Scans `providers/` recursively across `metadata/`, `lyrics/`, and `auth/` subdirectories.
+1. **Local Workspace**: Scans `providers/` recursively across `audio/`, `metadata/`, `lyrics/`, and `auth/` subdirectories.
 2. **Remote Repository**: Fetches the directory tree from the official GitHub repository (`wizeshi/wisp`).
 
 Installed providers reside in the application support directory:
 ```
 <ApplicationSupportDirectory>/providers/
+  ├── audio/
+  │   └── qobuz/
   ├── auth/
   │   ├── spicylyrics/
   │   └── spotify/

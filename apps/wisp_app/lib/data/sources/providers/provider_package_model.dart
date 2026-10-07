@@ -72,6 +72,12 @@ class ProviderPackage {
       if (supportedSyncModes.contains('unsynced')) return 1;
       return 0;
     }
+    if (type == 'audio') {
+      final qLower = supportedQualities.map((q) => q.toLowerCase()).toList();
+      if (qLower.contains('hi-res') || qLower.contains('hires') || qLower.contains('lossless')) return 3;
+      if (qLower.contains('high')) return 2;
+      return 1;
+    }
     if (type == 'metadata') {
       if (priority >= 100) return 3;
       if (priority >= 50) return 2;
@@ -83,9 +89,9 @@ class ProviderPackage {
     return 1;
   }
 
-  /// Sorts by type (metadata -> lyrics -> auth), then capability tier descending, then priority descending.
+  /// Sorts by type (metadata -> audio -> lyrics -> auth), then capability tier descending, then priority descending.
   static int comparePackages(ProviderPackage a, ProviderPackage b) {
-    const typeOrder = {'metadata': 1, 'lyrics': 2, 'auth': 3};
+    const typeOrder = {'metadata': 1, 'audio': 2, 'lyrics': 3, 'auth': 4};
     final aTypeRank = typeOrder[a.type.toLowerCase()] ?? 99;
     final bTypeRank = typeOrder[b.type.toLowerCase()] ?? 99;
     if (aTypeRank != bTypeRank) return aTypeRank.compareTo(bTypeRank);
@@ -105,6 +111,7 @@ class ProviderPackage {
     this.author = 'wisp',
     this.description = '',
     this.supportedSyncModes = const [],
+    this.supportedQualities = const [],
     this.priority = 0,
     this.dependencies = const [],
     this.capabilityTier,
@@ -116,6 +123,8 @@ class ProviderPackage {
     this.isEnabled = true,
   });
 
+  final List<String> supportedQualities;
+
   factory ProviderPackage.fromJson(
     Map<String, dynamic> json, {
     bool isInstalled = false,
@@ -123,6 +132,7 @@ class ProviderPackage {
     bool isEnabled = true,
   }) {
     final modes = (json['supportedSyncModes'] as List?)?.cast<String>() ?? [];
+    final qualities = (json['supportedQualities'] as List?)?.cast<String>() ?? [];
     final deps = (json['dependencies'] as List?)?.cast<String>() ?? [];
     final filesList = (json['files'] as List?)?.cast<String>() ?? ['manifest.json', 'index.js'];
 
@@ -135,6 +145,7 @@ class ProviderPackage {
       author: json['author'] as String? ?? 'wisp',
       description: json['description'] as String? ?? '',
       supportedSyncModes: modes,
+      supportedQualities: qualities,
       priority: json['priority'] as int? ?? 0,
       dependencies: deps,
       capabilityTier: json['capabilityTier'] as int?,
@@ -151,6 +162,7 @@ class ProviderPackage {
     bool? isInstalled,
     String? installedVersion,
     bool? isEnabled,
+    List<String>? supportedQualities,
   }) {
     return ProviderPackage(
       id: id,
@@ -161,6 +173,7 @@ class ProviderPackage {
       author: author,
       description: description,
       supportedSyncModes: supportedSyncModes,
+      supportedQualities: supportedQualities ?? this.supportedQualities,
       priority: priority,
       dependencies: dependencies,
       capabilityTier: capabilityTier,

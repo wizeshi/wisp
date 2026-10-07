@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/cache/audio/audio_mapping_store.dart';
 
 /// Metadata entry representing a cached track -> YouTube video ID mapping.
 class YouTubeMappingEntry {
@@ -170,6 +171,20 @@ class YouTubeMappingStore {
       isManualOverride: isManualOverride,
     );
     _scheduleDebouncedFlush();
+
+    // Also mirror into canonical AudioMappingStore
+    unawaited(
+      AudioMappingStore.instance.setMapping(
+        title != null && title.isNotEmpty
+            ? AudioMappingStore.canonicalKey(title: title, artists: const [])
+            : trackId,
+        AudioMappingItem(
+          providerID: 'youtube',
+          mediaID: videoId,
+          manualOverride: isManualOverride,
+        ),
+      ),
+    );
   }
 
   /// Removes a cached video ID for a track.
@@ -177,6 +192,9 @@ class YouTubeMappingStore {
     if (_mappings.remove(trackId) != null) {
       _scheduleDebouncedFlush();
     }
+    unawaited(
+      AudioMappingStore.instance.removeMapping(trackId, providerId: 'youtube'),
+    );
   }
 
   /// Clears the entire mapping cache and empties the persistent file.

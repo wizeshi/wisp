@@ -20,6 +20,9 @@ import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
+import 'package:wisp/data/cache/audio/audio_mapping_store.dart';
+import 'package:wisp/data/sources/audio/audio_resolver.dart';
+import 'package:wisp/data/sources/audio/audio_source_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
@@ -201,7 +204,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   int _rpcLastSecond = -1;
 
   static const Duration _positionNotifyInterval = Duration(milliseconds: 200);
-  static const Duration _streamUrlTtl = Duration(minutes: 15);
   final Stopwatch _rawPositionStopwatch = Stopwatch();
   Duration _lastRawPosition = Duration.zero;
   Duration _lastNotifiedPosition = Duration.zero;
@@ -547,6 +549,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _keepPositionBetweenRestarts =
         await PreferencesProvider.isKeepPositionBetweenRestartsEnabled();
     await _loadQueue();
+    await AudioMappingStore.instance.initialize();
+    await AudioSourceManager.instance.initialize();
     await YouTubeProvider.loadVideoIdCache();
     _gaplessPlaybackEnabled =
         await PreferencesProvider.isGaplessPlaybackEnabled();
@@ -1740,13 +1744,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       throw Exception('Offline and track not cached');
     }
 
-    String? videoId = track.id.isNotEmpty
-        ? YouTubeProvider.getCachedVideoId(track.id)
-        : null;
-    videoId ??= await _getVideoIdForTrack(track);
-    if (videoId == null) return null;
+    final resolved = await AudioResolver.instance.resolveTrack(track);
+    if (resolved == null) return null;
 
-    final streamUrl = await _getStreamUrlWithCache(videoId);
+    final streamUrl = resolved.stream.url;
 
     // Stream through AudioStreamingProxy to spool audio chunks into cache without double-downloading
     final proxy = AudioStreamingProxy.instance;
@@ -1758,27 +1759,21 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         ? Uri.parse(
             proxy.buildProxyUrl(
               trackId: track.id,
-              videoId: videoId,
+              videoId: resolved.mediaId,
               trackTitle: track.title,
               artistName: track.artists.map((a) => a.name).join(', '),
               targetUrl: streamUrl,
+              headers: resolved.stream.headers,
+              providerId: resolved.providerId,
+              segmentedDescriptor: resolved.stream.segmented,
+              customData: resolved.stream.customData,
             ),
           )
         : Uri.parse(streamUrl);
 
-    // Must match YouTubeProvider.userAgentForPlatform() — this is the same
-    // client identity used to validate the URL, so playback and validation
-    // agree.
-    final userAgent = YouTubeProvider.userAgentForPlatform();
-
-    // Note: unlike the old just_audio-based path, there's no per-platform
-    // ClippingAudioSource workaround for inflated HE-AAC durations here —
-    // the engine already clips a suspiciously-long reported duration
-    // against `expectedDuration` (see PlaybackSource.expectedDuration and
-    // the engine's own duration-reporting logic) for every platform.
     return PlaybackSource(
       uri: playUri,
-      headers: {'User-Agent': userAgent},
+      headers: resolved.stream.headers,
       expectedDuration: expectedDuration,
       debugLabel: track.title,
     );
@@ -1803,23 +1798,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> _preResolveNextTrack(GenericSong track) async {
     if (!_isOnline) return;
 
-    final audioYouTubeEnabled =
-        await PreferencesProvider.isAudioYouTubeEnabled();
-    if (!audioYouTubeEnabled) return;
-
     final cacheManager = AudioCacheManager.instance;
     if (cacheManager.isTrackCached(track.id)) {
       return;
     }
 
-    String? videoId = YouTubeProvider.getCachedVideoId(track.id);
-    if (videoId != null && _getCachedStreamUrl(videoId) != null) return;
-
     try {
-      videoId ??= await _getVideoIdForTrack(track);
-      if (videoId == null) return;
-
-      await _getStreamUrlWithCache(videoId);
+      await AudioResolver.instance.resolveTrack(track);
       logger.d('[Audio/Player] Pre-resolved next track URL: ${track.title}');
     } catch (e) {
       logger.w('[Audio/Player] Failed to pre-resolve next track', error: e);
@@ -1840,82 +1825,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       artistName: artistNames,
       isUserDownload: false,
       resolveAndGetStream: () async {
-        final audioYouTubeEnabled =
-            await PreferencesProvider.isAudioYouTubeEnabled();
-
-        if (!audioYouTubeEnabled) {
-          throw Exception('All audio providers are disabled in Preferences.');
-        }
-
-        String? videoId = YouTubeProvider.getCachedVideoId(track.id);
-        videoId ??= await _getVideoIdForTrack(track);
-        if (videoId == null) throw Exception('Could not find video');
-        final streamUrl = await _getStreamUrlWithCache(videoId);
-        return (videoId, streamUrl);
+        final resolved = await AudioResolver.instance.resolveTrack(track);
+        if (resolved == null) throw Exception('Could not resolve audio stream');
+        return (resolved.mediaId, resolved.stream.url);
       },
     );
-  }
-
-  String? _getCachedStreamUrl(String videoId) {
-    final entry = _streamUrlCache[videoId];
-    if (entry == null) return null;
-    if (!entry.isValid) {
-      _streamUrlCache.remove(videoId);
-      return null;
-    }
-    return entry.url;
-  }
-
-  Future<String> _getStreamUrlWithCache(String videoId) async {
-    final cached = _getCachedStreamUrl(videoId);
-    if (cached != null) return cached;
-
-    var task = _streamUrlTasks[videoId];
-    if (task != null) return await task;
-
-    final completer = Completer<String>();
-    _streamUrlTasks[videoId] = completer.future;
-    try {
-      final streamUrl = await _youtube.getStreamUrl(videoId);
-      _streamUrlCache[videoId] = _StreamUrlCacheEntry(
-        url: streamUrl,
-        expiresAt: DateTime.now().add(_streamUrlTtl),
-      );
-      completer.complete(streamUrl);
-      return streamUrl;
-    } catch (e) {
-      completer.completeError(e);
-      rethrow;
-    } finally {
-      _streamUrlTasks.remove(videoId);
-    }
-  }
-
-  Future<String?> _getVideoIdForTrack(GenericSong track) async {
-    var task = _videoIdTasks[track.id];
-    if (task != null) return await task;
-
-    final completer = Completer<String?>();
-    _videoIdTasks[track.id] = completer.future;
-    try {
-      final artistNames = track.artists.map((a) => a.name).join(', ');
-      final result = await _youtube.searchYouTube(
-        artistNames,
-        track.title,
-        durationSecs: track.durationSecs,
-      );
-      final videoId = result?.videoId;
-      if (videoId != null) {
-        YouTubeProvider.cacheVideoId(track.id, videoId);
-      }
-      completer.complete(videoId);
-      return videoId;
-    } catch (e) {
-      completer.completeError(e);
-      rethrow;
-    } finally {
-      _videoIdTasks.remove(track.id);
-    }
   }
 
   Future<void> _updateDiscordPresence({bool force = false}) async {
@@ -2434,26 +2348,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       trackTitle: track.title,
       artistName: artistNames,
       resolveAndGetStream: () async {
-        final audioYouTubeEnabled =
-            await PreferencesProvider.isAudioYouTubeEnabled();
-
-        if (!audioYouTubeEnabled) {
-          throw Exception('All audio providers are disabled in Preferences.');
-        }
-
-        String? videoId = YouTubeProvider.getCachedVideoId(track.id);
-        if (videoId == null) {
-          final result = await _youtube.searchYouTube(
-            artistNames,
-            track.title,
-            durationSecs: track.durationSecs,
-          );
-          if (result == null) throw Exception('Could not find video');
-          videoId = result.videoId;
-          YouTubeProvider.cacheVideoId(track.id, videoId);
-        }
-        final streamUrl = await _youtube.getStreamUrl(videoId);
-        return (videoId, streamUrl);
+        final resolved = await AudioResolver.instance.resolveTrack(track);
+        if (resolved == null) throw Exception('Could not resolve audio stream');
+        return (resolved.mediaId, resolved.stream.url);
       },
     );
   }
@@ -2477,16 +2374,21 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> removeFromCache(String trackId) async =>
       AudioCacheManager.instance.removeFromCache(trackId);
 
-  Future<void> onYouTubeAlternativeUpdated(
+  Future<void> onAudioAlternativeUpdated(
     String trackId, {
-    String? previousVideoId,
+    String? providerId,
+    String? mediaId,
+    String? previousMediaId,
   }) async {
     await removeFromCache(trackId);
     _prefetchedSources.remove(trackId);
     _prefetchSourceTasks.remove(trackId);
 
-    if (previousVideoId != null && previousVideoId.isNotEmpty) {
-      _streamUrlCache.remove(previousVideoId);
+    if (previousMediaId != null && previousMediaId.isNotEmpty) {
+      _streamUrlCache.remove(previousMediaId);
+    }
+    if (mediaId != null && mediaId.isNotEmpty) {
+      _streamUrlCache.remove(mediaId);
     }
 
     final updatedVideoId = YouTubeProvider.getCachedVideoId(trackId);
@@ -2497,6 +2399,11 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (_currentTrack?.id != trackId) return;
     await _reloadCurrentTrackSource();
   }
+
+  Future<void> onYouTubeAlternativeUpdated(
+    String trackId, {
+    String? previousVideoId,
+  }) => onAudioAlternativeUpdated(trackId, previousMediaId: previousVideoId);
 
   double? getDownloadProgress(String trackId) =>
       AudioCacheManager.instance.getDownloadProgress(trackId);

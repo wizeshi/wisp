@@ -13,6 +13,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:fvp/fvp.dart' as fvp;
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
+import 'package:wisp/data/sources/audio/audio_source_manager.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/services/system/protocol_registrar.dart';
 import 'package:wisp_assets/wisp_assets.dart';
@@ -250,6 +251,7 @@ class _WispAppState extends State<WispApp> with WindowListener {
       ConnectivityService.instance.dispose();
       AppFocusService.instance.dispose();
       AuthSourceManager.instance.dispose();
+      AudioSourceManager.instance.dispose();
       MetadataSourceManager.instance.dispose();
       LyricsSourceManager.instance.dispose();
       await logger.close();
@@ -268,6 +270,7 @@ class _WispAppState extends State<WispApp> with WindowListener {
         ChangeNotifierProvider(create: (_) => LyricsProvider()),
 
         ChangeNotifierProvider.value(value: AuthSourceManager.instance),
+        ChangeNotifierProvider.value(value: AudioSourceManager.instance),
 
         ChangeNotifierProvider(create: (_) => LocalPlaylistState()),
 

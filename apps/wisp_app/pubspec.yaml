@@ -4,7 +4,7 @@ publish_to: 'none'
 
 resolution: workspace
 
-version: 26.10.1+334
+version: 26.10.1+343
 
 environment:
   sdk: ^3.10.7
@@ -95,7 +95,6 @@ dependencies:
   # Other local packages
   wisp_shared: any
   wisp_assets: any
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

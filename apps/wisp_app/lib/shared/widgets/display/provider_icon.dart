@@ -101,7 +101,7 @@ class _ProviderIconState extends State<ProviderIcon> {
     final cleanId = widget.providerId.toLowerCase();
     final candidateTypes = widget.type != null
         ? [widget.type!.toLowerCase()]
-        : ['metadata', 'lyrics', 'auth'];
+        : ['metadata', 'audio', 'lyrics', 'auth'];
 
     Directory? supportDir;
     try {

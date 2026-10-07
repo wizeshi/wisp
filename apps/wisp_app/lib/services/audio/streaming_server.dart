@@ -1,12 +1,16 @@
 // Copyright © 2026 wizeshi
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:dio/dio.dart' hide Response;
 import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
+import 'package:wisp/data/sources/audio/audio_source.dart';
+import 'package:wisp/data/sources/providers/jumo_crypto_utils.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 
 /// Local loopback streaming proxy that feeds MediaKit while simultaneously
@@ -65,6 +69,10 @@ class AudioStreamingProxy {
     required String trackTitle,
     required String artistName,
     required String targetUrl,
+    Map<String, String>? headers,
+    String? providerId,
+    SegmentedAudioDescriptor? segmentedDescriptor,
+    Map<String, dynamic>? customData,
   }) {
     final queryParams = {
       'trackId': trackId,
@@ -72,6 +80,13 @@ class AudioStreamingProxy {
       'title': trackTitle,
       'artist': artistName,
       'url': targetUrl,
+      'providerId': ?providerId,
+      if (headers != null && headers.isNotEmpty)
+        'headers': base64Url.encode(utf8.encode(jsonEncode(headers))),
+      if (segmentedDescriptor != null)
+        'segmented': base64Url.encode(utf8.encode(jsonEncode(segmentedDescriptor.toMap()))),
+      if (customData != null && customData.isNotEmpty)
+        'customData': base64Url.encode(utf8.encode(jsonEncode(customData))),
     };
     final uri = Uri(
       scheme: 'http',
@@ -88,38 +103,74 @@ class AudioStreamingProxy {
       return shelf.Response.notFound('Not found');
     }
 
-    final youtubeUrl = request.url.queryParameters['url'];
+    final targetUrl = request.url.queryParameters['url'];
     final trackId = request.url.queryParameters['trackId'];
     final videoId = request.url.queryParameters['videoId'] ?? '';
-    final trackTitle =
-        request.url.queryParameters['title'] ?? 'Unknown Track';
-    final artistName =
-        request.url.queryParameters['artist'] ?? 'Unknown Artist';
+    final trackTitle = request.url.queryParameters['title'] ?? 'Unknown Track';
+    final artistName = request.url.queryParameters['artist'] ?? 'Unknown Artist';
+    final providerId = request.url.queryParameters['providerId'] ?? 'unknown';
+    final rawHeadersParam = request.url.queryParameters['headers'];
+    final rawSegmentedParam = request.url.queryParameters['segmented'];
 
-    if (youtubeUrl == null || trackId == null) {
+    if (targetUrl == null || trackId == null) {
       return shelf.Response.badRequest(body: 'Missing required parameters');
+    }
+
+    // Generic segmented stream handling (protocol-driven, provider agnostic)
+    if (rawSegmentedParam != null && rawSegmentedParam.isNotEmpty) {
+      try {
+        final decodedMap = (jsonDecode(utf8.decode(base64Url.decode(rawSegmentedParam))) as Map).cast<String, dynamic>();
+        final descriptor = SegmentedAudioDescriptor.fromMap(decodedMap);
+        return await _handleSegmentedStream(
+          request: request,
+          trackId: trackId,
+          videoId: videoId,
+          trackTitle: trackTitle,
+          artistName: artistName,
+          descriptor: descriptor,
+        );
+      } catch (e) {
+        logger.w('[AudioStreamingProxy] Failed to parse segmented descriptor: $e');
+      }
     }
 
     try {
       final rangeHeader = request.headers['range'];
-      final userAgent = YouTubeProvider.userAgentForPlatform();
+      final Map<String, String> requestHeaders = {
+        'accept': '*/*',
+        'accept-encoding': 'identity',
+        'connection': 'keep-alive',
+      };
+
+      if (rawHeadersParam != null && rawHeadersParam.isNotEmpty) {
+        try {
+          final decodedJson =
+              jsonDecode(utf8.decode(base64Url.decode(rawHeadersParam))) as Map;
+          requestHeaders.addAll(decodedJson.cast<String, String>());
+        } catch (_) {}
+      }
+
+      if (providerId == 'youtube') {
+        requestHeaders.putIfAbsent(
+          'user-agent',
+          () => YouTubeProvider.userAgentForPlatform(),
+        );
+        requestHeaders.putIfAbsent('referer', () => 'https://www.youtube.com/');
+        requestHeaders.putIfAbsent('origin', () => 'https://www.youtube.com');
+      }
+
+      if (rangeHeader != null) {
+        requestHeaders['range'] = rangeHeader;
+      }
 
       final options = Options(
-        headers: {
-          'user-agent': userAgent,
-          'accept': '*/*',
-          'accept-encoding': 'identity',
-          'connection': 'keep-alive',
-          'range': ?rangeHeader,
-          'referer': 'https://www.youtube.com/',
-          'origin': 'https://www.youtube.com',
-        },
+        headers: requestHeaders,
         responseType: ResponseType.stream,
         validateStatus: (status) => status != null && status < 500,
       );
 
       final response = await _dio.get<ResponseBody>(
-        youtubeUrl,
+        targetUrl,
         options: options,
       );
 
@@ -220,6 +271,155 @@ class AudioStreamingProxy {
     } catch (e, stack) {
       logger.e('[AudioStreamingProxy] Streaming error', error: e, stackTrace: stack);
       return shelf.Response.internalServerError(body: 'Streaming error: $e');
+    }
+  }
+
+  /// Concurrently downloads, decrypts, and streams segmented audio seamlessly.
+  Future<shelf.Response> _handleSegmentedStream({
+    required shelf.Request request,
+    required String trackId,
+    required String videoId,
+    required String trackTitle,
+    required String artistName,
+    required SegmentedAudioDescriptor descriptor,
+  }) async {
+    try {
+      final storage = AudioStorageService.instance;
+      final cacheDir = storage.cacheDirectory;
+      final container = descriptor.container;
+      final cipherConfig = descriptor.cipher;
+      final contentKey = cipherConfig != null && cipherConfig.keyHex.isNotEmpty
+          ? JumoCryptoUtils.hexToBytes(cipherConfig.keyHex)
+          : Uint8List(0);
+
+      // Check if file was already fully assembled & cached locally
+      if (cacheDir != null) {
+        final fileName = storage.buildSafeCacheFileName(trackId, videoId, extension: container);
+        final cachedFile = File('${cacheDir.path}/$fileName');
+        if (await cachedFile.exists()) {
+          final length = await cachedFile.length();
+          final headers = {
+            'content-type': container == 'flac' ? 'audio/flac' : 'audio/mp4',
+            'content-length': length.toString(),
+            'accept-ranges': 'bytes',
+          };
+          return shelf.Response.ok(cachedFile.openRead(), headers: headers);
+        }
+      }
+
+      // 1. Fetch initialization segment (Metadata & segment table)
+      final initRes = await _dio.get<List<int>>(
+        descriptor.initSegmentUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      if (initRes.data == null || initRes.data!.isEmpty) {
+        throw Exception('Failed to download audio initialization segment');
+      }
+
+      final seg0Info = JumoCryptoUtils.parseSegment0(Uint8List.fromList(initRes.data!));
+      final numSegments = seg0Info.table.isNotEmpty ? seg0Info.table.length : descriptor.segmentCount;
+
+      // Spooling setup to cache track as it plays
+      final shouldSpool = AudioCacheManager.instance.autoCacheEnabled &&
+          !storage.isStorageFull &&
+          !storage.isTrackCached(trackId);
+
+      String? tempPartPath;
+      String? finalFilePath;
+      IOSink? fileSink;
+      File? partFile;
+
+      if (shouldSpool && cacheDir != null) {
+        final fileName = storage.buildSafeCacheFileName(trackId, videoId, extension: container);
+        finalFilePath = '${cacheDir.path}/$fileName';
+        tempPartPath = '$finalFilePath.part';
+        partFile = File(tempPartPath);
+        fileSink = partFile.openWrite();
+      }
+
+      final streamController = StreamController<List<int>>();
+
+      // Write header first
+      final headerBytes = seg0Info.header;
+      fileSink?.add(headerBytes);
+      streamController.add(headerBytes);
+
+      // Stream segments in background sequentially as they are downloaded
+      unawaited(() async {
+        try {
+          for (var s = 1; s <= numSegments; s++) {
+            final segUrl = descriptor.segmentUrlTemplate.replaceAll(r'$SEGMENT$', s.toString());
+            final segRes = await _dio.get<List<int>>(
+              segUrl,
+              options: Options(responseType: ResponseType.bytes),
+            );
+            if (segRes.data == null || segRes.data!.isEmpty) {
+              throw Exception('Segment $s download failed');
+            }
+
+            final rawSegmentBytes = Uint8List.fromList(segRes.data!);
+            final audioBytes = contentKey.isNotEmpty
+                ? JumoCryptoUtils.decryptSegmentAudio(
+                    segmentBytes: rawSegmentBytes,
+                    contentKey: contentKey,
+                  )
+                : rawSegmentBytes;
+
+            fileSink?.add(audioBytes);
+            streamController.add(audioBytes);
+          }
+
+          await streamController.close();
+          final localPartFile = partFile;
+          final localSink = fileSink;
+          if (localSink != null) {
+            await localSink.flush();
+            await localSink.close();
+
+            if (localPartFile != null && await localPartFile.exists() && await localPartFile.length() > 0) {
+              await storage.registerCompletedDownload(
+                trackId: trackId,
+                videoId: videoId,
+                tempPartPath: tempPartPath!,
+                finalFilePath: finalFilePath!,
+                trackTitle: trackTitle,
+                artistName: artistName,
+                isUserDownload: false,
+              );
+              AudioCacheManager.instance.coordinator.setCompleted(trackId);
+              logger.i('[AudioStreamingProxy] Segmented track assembled and cached: $trackTitle');
+            }
+          }
+        } catch (e, st) {
+          logger.e('[AudioStreamingProxy] Error assembling segmented stream: $e', error: e, stackTrace: st);
+          if (!streamController.isClosed) {
+            streamController.addError(e, st);
+            await streamController.close();
+          }
+          final localPartFile = partFile;
+          if (fileSink != null) {
+            await fileSink.close();
+            try {
+              if (localPartFile != null && await localPartFile.exists()) {
+                await localPartFile.delete();
+              }
+            } catch (_) {}
+          }
+        }
+      }());
+
+      final headers = {
+        'content-type': container == 'flac' ? 'audio/flac' : 'audio/mp4',
+        'accept-ranges': 'none',
+      };
+
+      return shelf.Response.ok(
+        streamController.stream,
+        headers: headers,
+      );
+    } catch (e, stack) {
+      logger.e('[AudioStreamingProxy] Segmented stream initialization error: $e', error: e, stackTrace: stack);
+      return shelf.Response.internalServerError(body: 'Segmented stream error: $e');
     }
   }
 }

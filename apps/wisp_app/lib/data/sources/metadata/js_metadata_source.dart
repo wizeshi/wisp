@@ -1300,6 +1300,20 @@ class JsMetadataSource extends MetadataProvider {
     return const [];
   }
 
+  @override
+  Future<String?> getTrackIsrc(String trackId) async {
+    final cleanId = _cleanId(trackId);
+    try {
+      final res = await _invoke('getTrackIsrc', [cleanId]);
+      if (res is String && res.trim().isNotEmpty) {
+        return res.trim();
+      }
+    } catch (e) {
+      logger.w('[JsMetadataSource/$providerId] getTrackIsrc failed: $e');
+    }
+    return null;
+  }
+
   Future<void> reportItemPlayed({
     required String itemId,
     required String itemType,

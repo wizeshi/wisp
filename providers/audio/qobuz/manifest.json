@@ -1,0 +1,20 @@
+{
+  "id": "qobuz",
+  "name": "Qobuz",
+  "version": "1.0.4",
+  "type": "audio",
+  "description": "High-resolution lossless CD and Hi-Res streaming provider powered by Jumo and Qobuz",
+  "author": "wizeshi",
+  "entrypoint": "index.js",
+  "priority": 60,
+  "supportedQualities": [
+    "standard",
+    "high",
+    "lossless",
+    "hiRes"
+  ],
+  "permissions": [
+    "network"
+  ]
+}
+

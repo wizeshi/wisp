@@ -4,6 +4,7 @@ library;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/data/sources/audio/audio_source_manager.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/sources/providers/provider_package_model.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
@@ -181,6 +182,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
     final filtered = _packages.where((pkg) {
       if (_selectedFilter.startsWith('Updates') && !pkg.hasUpdate) return false;
       if (_selectedFilter == 'Metadata' && pkg.type != 'metadata') return false;
+      if (_selectedFilter == 'Audio' && pkg.type != 'audio') return false;
       if (_selectedFilter == 'Lyrics' && pkg.type != 'lyrics') return false;
       if (_selectedFilter == 'Auth' && pkg.type != 'auth') return false;
       if (_selectedFilter == 'Installed' && !pkg.isInstalled) return false;
@@ -200,7 +202,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
     if (updateCount > 0) {
       filterTabs.add('Updates ($updateCount)');
     }
-    filterTabs.addAll(['Metadata', 'Lyrics', 'Auth', 'Installed']);
+    filterTabs.addAll(['Metadata', 'Audio', 'Lyrics', 'Auth', 'Installed']);
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -464,7 +466,9 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                           ? Icons.mic
                           : pkg.type == 'auth'
                               ? Icons.vpn_key
-                              : Icons.extension,
+                              : pkg.type == 'audio'
+                                  ? Icons.graphic_eq
+                                  : Icons.extension,
                       color: hasUpdate ? Colors.amber : primaryColor,
                     ),
                   ),
@@ -778,7 +782,7 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -823,6 +827,7 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
                 indicatorColor: Theme.of(context).colorScheme.primary,
                 tabs: const [
                   Tab(text: 'Metadata Providers'),
+                  Tab(text: 'Audio Providers'),
                   Tab(text: 'Lyrics Providers'),
                 ],
               ),
@@ -832,6 +837,7 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
                   controller: _tabController,
                   children: [
                     _buildOrderTab('metadata'),
+                    _buildOrderTab('audio'),
                     _buildOrderTab('lyrics'),
                   ],
                 ),
@@ -894,6 +900,25 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
       }
     }
 
+    if (type == 'audio') {
+      try {
+        final audioManager = AudioSourceManager.instance;
+        for (final source in audioManager.allSources) {
+          final id = source.id.toLowerCase();
+          if (!seenIds.contains(id)) {
+            seenIds.add(id);
+            items.add(_ProviderPriorityItem(
+              id: id,
+              name: source.name,
+              type: 'audio',
+              priority: source.priority,
+              uniqueKey: 'audio/$id',
+            ));
+          }
+        }
+      } catch (_) {}
+    }
+
     if (items.isEmpty) {
       return Center(
         child: Text(
@@ -950,8 +975,11 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
                     providerId: item.id,
                     type: item.type,
                     size: 22,
-                    fallbackIcon:
-                        type == 'lyrics' ? Icons.mic : Icons.extension,
+                    fallbackIcon: type == 'lyrics'
+                        ? Icons.mic
+                        : type == 'audio'
+                            ? Icons.graphic_eq
+                            : Icons.extension,
                   ),
                   title: Text(
                     item.name,

@@ -1,10 +1,12 @@
-﻿// Copyright Â© 2026 wizeshi
+// Copyright Â© 2026 wizeshi
 
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/data/sources/audio/audio_source.dart';
+import 'package:wisp/data/sources/audio/audio_source_manager.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_source_manager.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 
@@ -62,9 +64,11 @@ class PreferencesProvider extends ChangeNotifier {
       'keep_position_between_restarts';
   static const _keyProviderPriorityOrderPrefix =
       'provider_priority_order_';
+  static const _keyPreferredAudioQuality = 'preferred_audio_quality';
 
   static const bool _defaultAllowWriting = true;
   static const bool _defaultAudioYouTubeEnabled = true;
+  static const AudioQuality _defaultPreferredAudioQuality = AudioQuality.auto;
   static const bool _defaultGaplessPlaybackEnabled = true;
   static const bool _defaultCrossfadeEnabled = false;
   static const double _defaultCrossfadeDurationSeconds = 3.0;
@@ -89,6 +93,9 @@ class PreferencesProvider extends ChangeNotifier {
 
   bool _audioYouTubeEnabled = _defaultAudioYouTubeEnabled;
   bool get audioYouTubeEnabled => _audioYouTubeEnabled;
+
+  AudioQuality _preferredAudioQuality = _defaultPreferredAudioQuality;
+  AudioQuality get preferredAudioQuality => _preferredAudioQuality;
 
   bool _gaplessPlaybackEnabled = _defaultGaplessPlaybackEnabled;
   bool get gaplessPlaybackEnabled => _gaplessPlaybackEnabled;
@@ -145,6 +152,9 @@ class PreferencesProvider extends ChangeNotifier {
       isProviderEnabled('youtube', type: 'metadata');
   bool get hasLyricsProviderEnabled =>
       _lyricsLrclibEnabled || _lyricsSpotifyEnabled || isProviderEnabled('betterlyrics', type: 'lyrics');
+  bool get hasAudioProviderEnabled =>
+      isProviderEnabled('youtube', type: 'audio') ||
+      AudioSourceManager.instance.getOrderedSources(this).isNotEmpty;
 
   PreferencesProvider() {
     _load();
@@ -159,6 +169,9 @@ class PreferencesProvider extends ChangeNotifier {
       _allowWriting = prefs.getBool(_keyAllowWriting) ?? _defaultAllowWriting;
       _audioYouTubeEnabled =
           prefs.getBool(_keyAudioYouTubeEnabled) ?? _defaultAudioYouTubeEnabled;
+      _preferredAudioQuality = AudioQuality.fromString(
+        prefs.getString(_keyPreferredAudioQuality),
+      );
       _gaplessPlaybackEnabled =
           prefs.getBool(_keyGaplessPlaybackEnabled) ??
           _defaultGaplessPlaybackEnabled;
@@ -419,6 +432,16 @@ class PreferencesProvider extends ChangeNotifier {
   }
 
 
+  Future<void> setPreferredAudioQuality(AudioQuality quality) async {
+    if (quality == _preferredAudioQuality) return;
+    _preferredAudioQuality = quality;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyPreferredAudioQuality, quality.name);
+    } catch (_) {}
+  }
+
   Future<void> setAudioYouTubeEnabled(bool enabled) async {
     if (enabled == _audioYouTubeEnabled) return;
     _audioYouTubeEnabled = enabled;
@@ -427,6 +450,7 @@ class PreferencesProvider extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyAudioYouTubeEnabled, enabled);
     } catch (_) {}
+    await setProviderEnabled('youtube', enabled, type: 'audio');
   }
 
   Future<void> setGaplessPlaybackEnabled(bool enabled) async {

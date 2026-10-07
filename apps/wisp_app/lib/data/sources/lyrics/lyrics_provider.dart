@@ -377,6 +377,7 @@ class LyricsProvider extends ChangeNotifier {
         provider: result.provider,
         customProviderName: result.customProviderName,
         syncMode: LyricsSyncMode.word,
+        attribution: result.attribution,
         lines: result.lines,
       );
     }
@@ -387,6 +388,7 @@ class LyricsProvider extends ChangeNotifier {
         provider: result.provider,
         customProviderName: result.customProviderName,
         syncMode: LyricsSyncMode.unsynced,
+        attribution: result.attribution,
         lines: result.lines
             .map((line) => LyricsLine(content: line.content, startTimeMs: 0))
             .toList(),

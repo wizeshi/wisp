@@ -1028,6 +1028,11 @@ class MetadataManager extends ChangeNotifier {
     return provider.getTrackGenres(trackId);
   }
 
+  Future<String?> getTrackIsrc(String trackId, {String? providerId, String? source}) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    return provider.getTrackIsrc(trackId);
+  }
+
   Future<dynamic> getNpvArtistInfo(String artistId, String trackId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     if (provider is JsMetadataSource) {

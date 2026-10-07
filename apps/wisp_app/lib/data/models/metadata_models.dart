@@ -988,7 +988,14 @@ class LyricsResult {
     required this.lines,
   });
 
-  String get providerLabel => customProviderName ?? provider.label;
+  String get providerLabel {
+    if (customProviderName != null &&
+        customProviderName!.trim().isNotEmpty &&
+        customProviderName != 'Custom') {
+      return customProviderName!;
+    }
+    return provider.label;
+  }
 
   bool get hasWordTiming => lines.any((line) => line.hasWordTiming);
 
@@ -1000,7 +1007,12 @@ class LyricsResult {
 
   Map<String, dynamic> toWlfJson() => {
     'version': '1.0',
-    'provider': customProviderName ?? provider.name,
+    'provider': provider.name,
+    if (customProviderName != null &&
+        customProviderName!.trim().isNotEmpty &&
+        customProviderName != provider.label &&
+        customProviderName != 'Custom')
+      'customProviderName': customProviderName,
     'syncMode': syncMode.name,
     if (attribution != null && attribution!.isNotEmpty)
       'attribution': attribution,
@@ -1012,15 +1024,33 @@ class LyricsResult {
     String? fallbackProvider,
     String? fallbackName,
   }) {
-    final providerStr =
+    final rawProviderStr =
         json['provider'] as String? ?? fallbackProvider ?? 'custom';
+    final normalizedProvider =
+        rawProviderStr.toLowerCase().replaceAll(RegExp(r'[\s\-_]'), '');
+
     final matchedType = LyricsProviderType.values.firstWhere(
-      (t) => t.name.toLowerCase() == providerStr.toLowerCase(),
+      (t) => t.name.toLowerCase() == normalizedProvider,
       orElse: () => LyricsProviderType.custom,
     );
 
-    final customName =
-        json['customProviderName'] as String? ?? fallbackName ?? matchedType.label;
+    final rawCustomName = json['customProviderName'] as String?;
+    final String? customName;
+    if (rawCustomName != null &&
+        rawCustomName.trim().isNotEmpty &&
+        rawCustomName != 'Custom') {
+      customName = rawCustomName.trim();
+    } else if (fallbackName != null &&
+        fallbackName.trim().isNotEmpty &&
+        fallbackName != 'Custom') {
+      customName = fallbackName.trim();
+    } else if (matchedType != LyricsProviderType.custom) {
+      customName = matchedType.label;
+    } else if (rawProviderStr.toLowerCase() != 'custom') {
+      customName = rawProviderStr;
+    } else {
+      customName = null;
+    }
 
     final syncModeStr = json['syncMode'] as String? ?? 'line';
     var syncMode = LyricsSyncMode.values.firstWhere(

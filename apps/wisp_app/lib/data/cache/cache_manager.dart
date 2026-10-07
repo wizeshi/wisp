@@ -459,10 +459,10 @@ class AudioCacheManager extends ChangeNotifier {
           cancelToken: task.cancelToken,
           options: Options(
             headers: {
-              ...?pending.requestHeaders,
               'User-Agent': Platform.isAndroid
                   ? 'com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip'
                   : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              ...?pending.requestHeaders,
             },
           ),
           onReceiveProgress: (received, total) {
