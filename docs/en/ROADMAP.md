@@ -11,6 +11,7 @@ Here's the TODOs for version v26.10:
   - [ ] Add special card from the home screen on mobile. 
   - [ ] Make artist name clickable in the full player
 - Planned features:
+  - [ ] Rework connect pinging system: only ping once on startup, then reply to incoming hello pings. As for keeping connections alive, send a signal every 5sec tos devices.
   - [ ] Audio compressor utility. Since the app now supports multiple file types, we should, at some point, consider having a utility in the settings to compress audio into a standard format.
   - [ ] Add CI/CD pipeline
     - [x] Replace installer remote download with local extraction
