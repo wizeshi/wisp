@@ -207,16 +207,16 @@ class _MarqueeTextState extends State<MarqueeText>
     });
   }
 
-  Widget _buildTextChild(BuildContext context) {
+  Widget _buildTextChild(BuildContext context, TextStyle effectiveStyle) {
     if (widget.builder != null) {
-      return widget.builder!(context, widget.style);
+      return widget.builder!(context, effectiveStyle);
     }
     return Text(
       widget.text,
       maxLines: 1,
       overflow: TextOverflow.visible,
       softWrap: false,
-      style: widget.style,
+      style: effectiveStyle,
       textScaler: MediaQuery.textScalerOf(context),
       textDirection: Directionality.of(context),
     );
@@ -224,13 +224,20 @@ class _MarqueeTextState extends State<MarqueeText>
 
   @override
   Widget build(BuildContext context) {
+    final defaultTextStyle = DefaultTextStyle.of(context);
+    var effectiveStyle = widget.style;
+    if (effectiveStyle.inherit) {
+      effectiveStyle = defaultTextStyle.style.merge(effectiveStyle);
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final textPainter = TextPainter(
-          text: TextSpan(text: widget.text, style: widget.style),
+          text: TextSpan(text: widget.text, style: effectiveStyle),
           maxLines: 1,
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
+          textHeightBehavior: defaultTextStyle.textHeightBehavior,
         )..layout();
 
         final viewportWidth = constraints.hasBoundedWidth
@@ -246,7 +253,7 @@ class _MarqueeTextState extends State<MarqueeText>
           hasOverflow: hasOverflow,
         );
 
-        final textChild = _buildTextChild(context);
+        final textChild = _buildTextChild(context, effectiveStyle);
 
         if (!hasOverflow) {
           return textChild;
@@ -264,14 +271,27 @@ class _MarqueeTextState extends State<MarqueeText>
                 width: viewportWidth,
                 height: textPainter.height,
                 child: ClipRect(
+                  clipper: const _HorizontalMarqueeClipper(),
                   child: Stack(
-                    clipBehavior: Clip.hardEdge,
+                    clipBehavior: Clip.none,
                     children: [
-                      Positioned(left: -currentOffset, top: 0, child: textChild),
+                      Positioned(
+                        left: -currentOffset,
+                        top: 0,
+                        bottom: 0,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: textChild,
+                        ),
+                      ),
                       Positioned(
                         left: -currentOffset + singleWidth,
                         top: 0,
-                        child: textChild,
+                        bottom: 0,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: textChild,
+                        ),
                       ),
                     ],
                   ),
@@ -283,4 +303,23 @@ class _MarqueeTextState extends State<MarqueeText>
       },
     );
   }
+}
+
+class _HorizontalMarqueeClipper extends CustomClipper<Rect> {
+  const _HorizontalMarqueeClipper();
+
+  static const double _verticalPadding = 8.0;
+
+  @override
+  Rect getClip(Size size) {
+    return Rect.fromLTWH(
+      0,
+      -_verticalPadding,
+      size.width,
+      size.height + (_verticalPadding * 2),
+    );
+  }
+
+  @override
+  bool shouldReclip(covariant _HorizontalMarqueeClipper oldClipper) => false;
 }

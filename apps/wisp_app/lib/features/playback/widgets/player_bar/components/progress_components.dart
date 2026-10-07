@@ -222,38 +222,50 @@ class _PlayerBarCircularProgressRing extends StatelessWidget {
       );
     }
 
-    final effectivePosition =
-        context.select<PlaybackCoordinator, Duration>(
-      (c) => c.effectiveThrottledPosition,
-    );
-    final duration = context.select<global_audio_player.WispAudioHandler,
-        Duration>(
-      (player) => player.duration,
-    );
-
-    final shouldFreeze = context.select<PreferencesProvider, bool>(
-      (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
-        PausedBackgroundWidget.playerProgressBar,
+    return Selector2<
+      global_audio_player.WispAudioHandler,
+      PlaybackCoordinator,
+      _PositionData
+    >(
+      selector: (context, player, coordinator) => _PositionData(
+        position: coordinator.useLinkedPlaybackState
+            ? coordinator.effectiveThrottledPosition
+            : player.throttledPosition,
+        duration: player.duration,
+        isLoading: false,
       ),
+      builder: (context, data, _) {
+        final duration = data.duration;
+        final position = data.position;
+        final progress = duration.inMilliseconds > 0
+            ? (position.inMilliseconds / duration.inMilliseconds)
+                .clamp(0.0, 1.0)
+            : 0.0;
+
+        final shouldFreeze = context.select<PreferencesProvider, bool>(
+          (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+            PausedBackgroundWidget.playerProgressBar,
+          ),
+        );
+
+        if (shouldFreeze) {
+          return FocusFreezeBuilder<_PositionData>(
+            value: data,
+            builder: (context, frozenData) {
+              final fDuration = frozenData.duration;
+              final fProgress = fDuration.inMilliseconds > 0
+                  ? (frozenData.position.inMilliseconds /
+                          fDuration.inMilliseconds)
+                      .clamp(0.0, 1.0)
+                  : 0.0;
+              return _buildRing(fProgress);
+            },
+          );
+        }
+
+        return _buildRing(progress);
+      },
     );
-
-    if (shouldFreeze) {
-      return FocusFreezeBuilder<(int, int)>(
-        value: (effectivePosition.inMilliseconds, duration.inMilliseconds),
-        builder: (context, frozenVal) {
-          final progress = frozenVal.$2 > 0
-              ? (frozenVal.$1 / frozenVal.$2).clamp(0.0, 1.0)
-              : 0.0;
-          return _buildRing(progress);
-        },
-      );
-    }
-
-    final progress = duration.inMilliseconds > 0
-        ? (effectivePosition.inMilliseconds / duration.inMilliseconds)
-            .clamp(0.0, 1.0)
-        : 0.0;
-    return _buildRing(progress);
   }
 
   Widget _buildRing(double progress) {

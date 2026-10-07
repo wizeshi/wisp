@@ -518,5 +518,49 @@ void main() {
       expect(winner!.provider, LyricsProviderType.spotify);
       expect(winner.isLineSynced, isTrue);
     });
+
+    test('LyricsResult.isSynced accurately distinguishes unsynced vs line/word synced lyrics', () {
+      const unsyncedResult = LyricsResult(
+        provider: LyricsProviderType.lrclib,
+        syncMode: LyricsSyncMode.unsynced,
+        lines: [
+          LyricsLine(content: 'Plain lyric line 1', startTimeMs: 0),
+          LyricsLine(content: 'Plain lyric line 2', startTimeMs: 0),
+        ],
+      );
+      expect(unsyncedResult.isSynced, isFalse);
+      expect(unsyncedResult.isLineSynced, isFalse);
+      expect(unsyncedResult.isWordSynced, isFalse);
+
+      const lineSyncedResult = LyricsResult(
+        provider: LyricsProviderType.lrclib,
+        syncMode: LyricsSyncMode.line,
+        lines: [
+          LyricsLine(content: 'Line 1', startTimeMs: 1000),
+          LyricsLine(content: 'Line 2', startTimeMs: 5000),
+        ],
+      );
+      expect(lineSyncedResult.isSynced, isTrue);
+      expect(lineSyncedResult.isLineSynced, isTrue);
+      expect(lineSyncedResult.isWordSynced, isFalse);
+
+      const wordSyncedResult = LyricsResult(
+        provider: LyricsProviderType.spotify,
+        syncMode: LyricsSyncMode.word,
+        lines: [
+          LyricsLine(
+            content: 'Hello world',
+            startTimeMs: 1000,
+            words: [
+              LyricsWord(content: 'Hello', startTimeMs: 1000, endTimeMs: 1500),
+              LyricsWord(content: 'world', startTimeMs: 1500, endTimeMs: 2000),
+            ],
+          ),
+        ],
+      );
+      expect(wordSyncedResult.isSynced, isTrue);
+      expect(wordSyncedResult.isWordSynced, isTrue);
+    });
   });
 }
+

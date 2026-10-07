@@ -275,7 +275,6 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             ),
             pauseWhenUnfocused: true,
           ),
-          const SizedBox(height: 2),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -428,88 +427,70 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   }
 
   Widget _buildMiniProgressBar() {
-    // Simpler selection: read playback position and duration directly
-    return RepaintBoundary(
-      child: Builder(
-        builder: (context) {
-          final useHandoffState = context.select<PlaybackCoordinator, bool>(
-            (coordinator) => coordinator.useLinkedPlaybackState,
-          );
-          final effectivePosition = context.select<PlaybackCoordinator, Duration>(
-            (coordinator) => coordinator.effectiveThrottledPosition,
-          );
-
-          final duration = context
-              .select<global_audio_player.WispAudioHandler, Duration>(
-                (player) => player.duration,
-              );
-
-          final isLoading =
-              !useHandoffState &&
-              context.select<global_audio_player.WispAudioHandler, bool>(
-                (player) => player.isLoading || player.isBuffering,
-              );
-
-          if (isLoading) {
-            return const SizedBox(
-              height: 3,
-              child: LinearProgressIndicator(
-                backgroundColor: Colors.transparent,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-              ),
-            );
-          }
-
-          final progress = duration.inMilliseconds > 0
-              ? effectivePosition.inMilliseconds / duration.inMilliseconds
-              : 0.0;
-
-          // Freeze the mini progress bar while the app is unfocused instead of
-          // rebuilding it on every position update.
-          if (context.select<PreferencesProvider, bool>(
-            (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
-              PausedBackgroundWidget.playerProgressBar,
+    return Selector2<
+      global_audio_player.WispAudioHandler,
+      PlaybackCoordinator,
+      _PositionData
+    >(
+      selector: (context, player, coordinator) => _PositionData(
+        position: coordinator.useLinkedPlaybackState
+            ? coordinator.effectiveThrottledPosition
+            : player.throttledPosition,
+        duration: player.duration,
+        isLoading: !coordinator.useLinkedPlaybackState &&
+            (player.isLoading || player.isBuffering),
+      ),
+      builder: (context, data, _) {
+        if (data.isLoading) {
+          return const SizedBox(
+            height: 3,
+            child: LinearProgressIndicator(
+              backgroundColor: Colors.transparent,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
-          )) {
-            return FocusFreezeBuilder<(int, int)>(
-              value: (effectivePosition.inMilliseconds, duration.inMilliseconds),
-              builder: (context, frozenVal) {
-                final frozenProgress = frozenVal.$2 > 0
-                    ? (frozenVal.$1 / frozenVal.$2).clamp(0.0, 1.0)
-                    : 0.0;
-                return TweenAnimationBuilder<double>(
-                  tween: Tween<double>(end: frozenProgress),
-                  duration: const Duration(milliseconds: 200),
-                  builder: (context, animatedProgress, child) {
-                    return SizedBox(
-                      height: 3,
-                      child: LinearProgressIndicator(
-                        value: animatedProgress,
-                        backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    );
-                  },
-                );
-              },
-            );
-          }
+          );
+        }
 
-          return TweenAnimationBuilder<double>(
-            tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-            duration: const Duration(milliseconds: 200),
-            builder: (context, animatedProgress, child) {
-              return SizedBox(
-                height: 3,
-                child: LinearProgressIndicator(
-                  value: animatedProgress,
-                  backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              );
+        final duration = data.duration;
+        final position = data.position;
+        final progress = duration.inMilliseconds > 0
+            ? (position.inMilliseconds / duration.inMilliseconds)
+                .clamp(0.0, 1.0)
+            : 0.0;
+
+        final shouldFreeze = context.select<PreferencesProvider, bool>(
+          (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+            PausedBackgroundWidget.playerProgressBar,
+          ),
+        );
+
+        if (shouldFreeze) {
+          return FocusFreezeBuilder<_PositionData>(
+            value: data,
+            builder: (context, frozenData) {
+              final fDuration = frozenData.duration;
+              final fProgress = fDuration.inMilliseconds > 0
+                  ? (frozenData.position.inMilliseconds /
+                          fDuration.inMilliseconds)
+                      .clamp(0.0, 1.0)
+                  : 0.0;
+              return _buildMiniProgressIndicator(fProgress);
             },
           );
-        },
+        }
+
+        return _buildMiniProgressIndicator(progress);
+      },
+    );
+  }
+
+  Widget _buildMiniProgressIndicator(double progress) {
+    return SizedBox(
+      height: 3,
+      child: LinearProgressIndicator(
+        value: progress,
+        backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
+        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
       ),
     );
   }

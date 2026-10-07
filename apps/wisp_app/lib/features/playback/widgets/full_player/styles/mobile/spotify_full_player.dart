@@ -284,7 +284,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
 
     final lyrics = state.lyrics;
-    if (lyrics == null || lyrics.lines.isEmpty) {
+    if (lyrics == null || lyrics.lines.isEmpty || !lyrics.isSynced) {
       return const SizedBox.shrink();
     }
 
@@ -301,12 +301,12 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        final timing = lyrics.syncMode == LyricsSyncMode.line
+        final timing = lyrics.isSynced
             ? resolveSyncedLyricsTiming(lines, effectivePosition)
             : null;
         final line = _getSingleLine(lyrics, effectivePosition);
         final showWaitingPlaceholder =
-            lyrics.syncMode == LyricsSyncMode.line &&
+            lyrics.isSynced &&
             timing != null &&
             timing.activeIndex < 0 &&
             timing.nextIndex != null;
@@ -581,7 +581,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
   List<LyricsLine> _getPreviewLines(LyricsResult lyrics, int positionMs) {
     final lines = nonEmptyLyricsLines(lyrics.lines);
     if (lines.isEmpty) return const [];
-    if (lyrics.syncMode != LyricsSyncMode.line) {
+    if (!lyrics.isSynced) {
       return lines.take(5).toList();
     }
     final timing = resolveSyncedLyricsTiming(lines, positionMs);
@@ -593,10 +593,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
 
   LyricsLine? _getSingleLine(LyricsResult lyrics, int positionMs) {
     final lines = nonEmptyLyricsLines(lyrics.lines);
-    if (lines.isEmpty) return null;
-    if (lyrics.syncMode != LyricsSyncMode.line) {
-      return lines.first;
-    }
+    if (lines.isEmpty || !lyrics.isSynced) return null;
     final timing = resolveSyncedLyricsTiming(lines, positionMs);
     if (timing.activeIndex < 0 || timing.activeIndex >= lines.length) {
       return null;

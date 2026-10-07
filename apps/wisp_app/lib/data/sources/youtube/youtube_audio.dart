@@ -348,24 +348,37 @@ class YouTubeProvider {
     String url, {
     Map<String, String>? headers,
   }) async {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
     try {
       final effectiveHeaders =
           headers ?? {'User-Agent': userAgentForPlatform()};
-      final response = await HttpClient().getUrl(Uri.parse(url)).then((req) {
-        effectiveHeaders.forEach((key, value) => req.headers.set(key, value));
-        return req.close();
-      });
-      if (response.statusCode == 200) {
+      final req = await client
+          .getUrl(Uri.parse(url))
+          .timeout(const Duration(seconds: 5));
+      effectiveHeaders.forEach((key, value) => req.headers.set(key, value));
+      final response = await req.close().timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200 || response.statusCode == 206) {
         return true;
-      } else {
+      } else if (response.statusCode == 403 ||
+          response.statusCode == 404 ||
+          response.statusCode == 410) {
         logger.w(
-          '[YouTube] Stream URL returned status code: ${response.statusCode}',
+          '[YouTube] Stream URL returned expired/forbidden status code: ${response.statusCode}',
         );
         return false;
       }
+      return true;
+    } on SocketException catch (e) {
+      logger.w('[YouTube] Network check inconclusive due to socket error: $e');
+      return true;
+    } on TimeoutException catch (e) {
+      logger.w('[YouTube] Network check inconclusive due to timeout: $e');
+      return true;
     } catch (e) {
-      logger.w('[YouTube] Error checking stream URL validity', error: e);
-      return false;
+      logger.w('[YouTube] Inconclusive error checking stream URL validity', error: e);
+      return true;
+    } finally {
+      client.close(force: true);
     }
   }
 

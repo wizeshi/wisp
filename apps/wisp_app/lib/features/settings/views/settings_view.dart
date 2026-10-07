@@ -408,13 +408,13 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 16),
               _buildSliderSetting(
-                'Pre-download Next Tracks',
-                '${cacheManager.preDownloadCount} tracks',
-                cacheManager.preDownloadCount.toDouble(),
+                'Pre-cache Next Tracks',
+                '${cacheManager.preCacheCount} tracks',
+                cacheManager.preCacheCount.toDouble(),
                 0,
                 5,
                 (value) {
-                  cacheManager.setPreDownloadCount(value.toInt());
+                  cacheManager.setPreCacheCount(value.toInt());
                 },
                 divisions: 5,
               ),

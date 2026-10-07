@@ -81,7 +81,7 @@ class AudioCacheManager extends ChangeNotifier {
 
   // Settings
   int _maxConcurrentDownloads = 2;
-  int _preDownloadCount = 1;
+  int _preCacheCount = 1;
   bool _wifiOnlyDownloads = true;
   bool _autoCacheEnabled = true;
   bool _networkOnlyMode = false;
@@ -153,7 +153,8 @@ class AudioCacheManager extends ChangeNotifier {
   List<AudioCacheEntry> get downloadedTracks => _storage.userDownloads;
 
   int get maxConcurrentDownloads => _maxConcurrentDownloads;
-  int get preDownloadCount => _preDownloadCount;
+  int get preCacheCount => _preCacheCount;
+  int get preDownloadCount => _preCacheCount;
   bool get wifiOnlyDownloads => _wifiOnlyDownloads;
   bool get autoCacheEnabled => _autoCacheEnabled;
   bool get networkOnlyMode => _networkOnlyMode;
@@ -721,11 +722,13 @@ class AudioCacheManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setPreDownloadCount(int count) async {
-    _preDownloadCount = count.clamp(0, 5);
+  Future<void> setPreCacheCount(int count) async {
+    _preCacheCount = count.clamp(0, 5);
     await _saveSettings();
     notifyListeners();
   }
+
+  Future<void> setPreDownloadCount(int count) => setPreCacheCount(count);
 
   Future<void> setWifiOnlyDownloads(bool value) async {
     _wifiOnlyDownloads = value;
@@ -755,7 +758,9 @@ class AudioCacheManager extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       _maxConcurrentDownloads = prefs.getInt('cache_max_concurrent') ?? 2;
-      _preDownloadCount = prefs.getInt('cache_pre_download') ?? 1;
+      _preCacheCount = prefs.getInt('cache_pre_cache') ??
+          prefs.getInt('cache_pre_download') ??
+          1;
       _wifiOnlyDownloads = prefs.getBool('cache_wifi_only') ?? true;
       _autoCacheEnabled = prefs.getBool('cache_auto_cache') ?? true;
       _networkOnlyMode = prefs.getBool('cache_network_only') ?? false;
@@ -768,7 +773,8 @@ class AudioCacheManager extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('cache_max_concurrent', _maxConcurrentDownloads);
-      await prefs.setInt('cache_pre_download', _preDownloadCount);
+      await prefs.setInt('cache_pre_cache', _preCacheCount);
+      await prefs.setInt('cache_pre_download', _preCacheCount);
       await prefs.setBool('cache_wifi_only', _wifiOnlyDownloads);
       await prefs.setBool('cache_auto_cache', _autoCacheEnabled);
       await prefs.setBool('cache_network_only', _networkOnlyMode);

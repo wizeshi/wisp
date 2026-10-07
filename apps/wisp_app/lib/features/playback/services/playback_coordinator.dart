@@ -76,7 +76,7 @@ class PlaybackCoordinator extends ChangeNotifier {
       return;
     }
 
-    if (audio.isLoading || audio.isBuffering || audio.isTrackTransitioning) {
+    if (audio.isTrackTransitioning) {
       return;
     }
 

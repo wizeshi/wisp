@@ -582,6 +582,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     });
     final result = await _connectivity.checkConnectivity();
     _isOnline = !result.contains(ConnectivityResult.none);
+    AudioCacheManager.instance.addListener(_handleCacheSettingsChanged);
 
     if (_savedVolume != null) {
       final initialVolume = _savedVolume!.clamp(0.0, 1.0);
@@ -708,7 +709,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         !_isTrackTransitioning &&
         _currentTrack != null) {
       if (_engineIsBuffering) {
-        _setState(PlaybackState.loading);
+        if (!_userPaused) {
+          _setState(PlaybackState.loading);
+        }
       } else if (_engineIsPlaying) {
         _setState(PlaybackState.playing);
       } else if (_state == PlaybackState.playing ||
@@ -1428,6 +1431,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         _prefetchedSources[track.id] = source;
       }
     }
+    _schedulePreCacheUpcomingTracks();
   }
 
   Future<PlaybackSource?> _prefetchTrackSource(
@@ -1690,7 +1694,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     final message = error.toString().toLowerCase();
     return message.contains('403') ||
         message.contains('forbidden') ||
-        message.contains('expired');
+        message.contains('expired') ||
+        message.contains('socket') ||
+        message.contains('connection') ||
+        message.contains('timeout') ||
+        message.contains('network') ||
+        message.contains('failed to get stream url') ||
+        message.contains('all methods failed');
   }
 
   Future<void> _invalidateTrackSourceCaches(GenericSong track) async {
@@ -1715,6 +1725,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
 
       await _invalidateTrackSourceCaches(track);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
       return await _getPlaybackSource(track, allowPrefetched: false);
     }
   }
@@ -1832,6 +1843,30 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     );
   }
 
+  void _handleCacheSettingsChanged() {
+    _schedulePreCacheUpcomingTracks();
+  }
+
+  void _schedulePreCacheUpcomingTracks() {
+    if (!_isOnline || _queue.isEmpty) return;
+    final cacheManager = AudioCacheManager.instance;
+    final count = cacheManager.preCacheCount;
+    if (count <= 0) return;
+
+    final currentIndex = _currentIndex;
+    if (currentIndex < 0 || currentIndex >= _queue.length) return;
+
+    for (var offset = 1; offset <= count; offset++) {
+      final nextIndex = _queueIndexAfter(currentIndex, offset);
+      if (nextIndex == null || nextIndex == currentIndex) break;
+      final nextTrack = _queue[nextIndex];
+      if (!cacheManager.isTrackCached(nextTrack.id) &&
+          !cacheManager.isDownloading(nextTrack.id)) {
+        unawaited(_queueTrackCache(nextTrack));
+      }
+    }
+  }
+
   void _queueCaching(GenericSong track) {
     final cacheManager = AudioCacheManager.instance;
     if (!cacheManager.autoCacheEnabled) return;
@@ -1846,6 +1881,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (_currentIndex + 1 < _queue.length) {
       _preResolveNextTrack(_queue[_currentIndex + 1]);
     }
+
+    _schedulePreCacheUpcomingTracks();
   }
 
   Future<void> _preResolveNextTrack(GenericSong track) async {
@@ -1958,8 +1995,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> play() async {
     _userPaused = false;
 
-    if (isLoading || isBuffering || isTrackTransitioning) {
-      logger.d('[Audio/Player] Ignoring play intent while track is loading');
+    if (isTrackTransitioning) {
+      logger.d('[Audio/Player] Ignoring play intent while track is transitioning');
       return;
     }
 
@@ -1996,6 +2033,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _setState(PlaybackState.error);
       return;
     }
+    _setState(PlaybackState.playing);
     _ensureRpcTimer();
     _ensureMprisTimer();
     _updateDiscordPresence(force: true);
@@ -2223,6 +2261,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     unawaited(_engine.clearPreload());
     _invalidatePlaybackPrefetch();
     notifyListeners();
+    _schedulePreCacheUpcomingTracks();
   }
 
   void addTracksToQueue(List<GenericSong> tracks) {
@@ -2237,6 +2276,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     unawaited(_engine.clearPreload());
     _invalidatePlaybackPrefetch();
     notifyListeners();
+    _schedulePreCacheUpcomingTracks();
   }
 
   void removeFromQueue(int index) {
@@ -2637,6 +2677,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _outputDevicesSubscription?.cancel();
     _activeOutputDeviceSubscription?.cancel();
     _connectivitySubscription?.cancel();
+    AudioCacheManager.instance.removeListener(_handleCacheSettingsChanged);
     _stopRpcTimer();
     _stopMprisTimer();
     DiscordRpcService.instance.dispose();

@@ -4,7 +4,7 @@ publish_to: 'none'
 
 resolution: workspace
 
-version: 26.10.1+344
+version: 26.10.1+347
 
 environment:
   sdk: ^3.10.7
@@ -71,7 +71,7 @@ dependencies:
       ref: master
   wisp_newpipe_manager: any
   wisp_ytdlp_manager: any
-  newpipeextractor_dart: ^2.0.1
+  newpipeextractor_dart: ^2.0.2
 
   # Storage and persistence
   path_provider: ^2.1.4

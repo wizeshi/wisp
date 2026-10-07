@@ -142,6 +142,15 @@ class AudioResolver {
           logger.w(
             '[AudioResolver] Stream resolution failed for cached ${source.id} item: $e',
           );
+          final errStr = e.toString().toLowerCase();
+          if (errStr.contains('403') ||
+              errStr.contains('expired') ||
+              errStr.contains('unavailable')) {
+            await _mappingStore.removeMapping(
+              canonicalKey,
+              providerId: source.id,
+            );
+          }
           // Fall through to re-search or try next provider
         }
       }

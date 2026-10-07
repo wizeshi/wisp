@@ -650,7 +650,10 @@ class _LyricsViewState extends State<LyricsView>
                         ),
                       ),
                 body: content,
-                bottomNavigationBar: _buildMobilePlaybackBar(player, track, dominantColor),
+                bottomNavigationBar: _MobileLyricsPlaybackBar(
+                  track: track,
+                  dominantColor: dominantColor,
+                ),
               );
 
         return Stack(
@@ -1333,156 +1336,243 @@ class _LyricsViewState extends State<LyricsView>
     );
   }
 
-  Widget _buildMobilePlaybackBar(
-    WispAudioHandler player,
-    GenericSong track,
-    Color dominantColor,
-  ) {
-    return Consumer<PlaybackCoordinator>(
-      builder: (context, coordinator, _) {
-        final position = coordinator.effectiveInterpolatedPosition;
-        final durationSecs = track.durationSecs;
-        final duration = durationSecs > 0
-            ? Duration(seconds: durationSecs)
-            : (position > Duration.zero ? position : const Duration(seconds: 1));
+}
 
-        final maxMs = duration.inMilliseconds;
-        final curMs = position.inMilliseconds.clamp(0, maxMs);
-        final progress = maxMs > 0 ? (curMs / maxMs).clamp(0.0, 1.0) : 0.0;
-        final isPlaying = coordinator.effectiveIsPlaying;
+class _MobileLyricsPlaybackBar extends StatefulWidget {
+  final GenericSong track;
+  final Color dominantColor;
 
-        final barBackground = _tintedDominantColor(dominantColor, blend: 0.7)
-            .withValues(alpha: 0.94);
+  const _MobileLyricsPlaybackBar({
+    required this.track,
+    required this.dominantColor,
+  });
 
-        return ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-            child: Container(
-              decoration: BoxDecoration(
-                color: barBackground,
-                border: Border(
-                  top: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    width: 0.5,
-                  ),
-                ),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Progress Bar & Durations
-                      SliderTheme(
-                        data: SliderThemeData(
-                          trackHeight: 3,
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 5,
-                          ),
-                          overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 10,
-                          ),
-                          activeTrackColor: Colors.white,
-                          inactiveTrackColor: Colors.white.withValues(alpha: 0.22),
-                          thumbColor: Colors.white,
-                          overlayColor: Colors.white.withValues(alpha: 0.15),
-                        ),
-                        child: Slider(
-                          value: progress,
-                          onChanged: (value) {
-                            final targetMs = (value * maxMs).round();
-                            coordinator.seek(Duration(milliseconds: targetMs));
-                          },
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _formatMobileDuration(position),
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              _formatMobileDuration(duration),
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      // Controls: Skip Backward, Play/Pause, Skip Forward
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          GenericIconButton(
-                            icon: const Icon(Icons.skip_previous_rounded, size: 28),
-                            color: Colors.white,
-                            splashRadius: 22,
-                            onPressed: () => coordinator.skipPrevious(),
-                          ),
-                          const SizedBox(width: 20),
-                          Material(
-                            color: Colors.white,
-                            shape: const CircleBorder(),
-                            elevation: 2,
-                            child: InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: () {
-                                if (isPlaying) {
-                                  coordinator.pause();
-                                } else {
-                                  coordinator.play();
-                                }
-                              },
-                              child: Container(
-                                width: 44,
-                                height: 44,
-                                alignment: Alignment.center,
-                                child: Icon(
-                                  isPlaying
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                  size: 26,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 20),
-                          GenericIconButton(
-                            icon: const Icon(Icons.skip_next_rounded, size: 28),
-                            color: Colors.white,
-                            splashRadius: 22,
-                            onPressed: () => coordinator.skipNext(),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
+  @override
+  State<_MobileLyricsPlaybackBar> createState() =>
+      _MobileLyricsPlaybackBarState();
+}
+
+class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
+    with SingleTickerProviderStateMixin {
+  Ticker? _ticker;
+  double? _dragPositionRatio;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker((_) {
+      if (!mounted) return;
+      if (!AppFocusService.instance.isFocused.value) return;
+      setState(() {});
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final coordinator = context.read<PlaybackCoordinator>();
+      if (coordinator.effectiveIsPlaying) {
+        _ticker?.start();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.dispose();
+    super.dispose();
+  }
+
+  Color _tintedDominantColor(Color color, {double blend = 0.4}) {
+    final hsl = HSLColor.fromColor(color);
+    final overlay = hsl
+        .withLightness(0.22)
+        .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+        .toColor();
+    return Color.lerp(color, overlay, blend) ?? color;
   }
 
   String _formatMobileDuration(Duration duration) {
     final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final seconds =
+        duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$minutes:$seconds';
+  }
+
+  void _syncTicker(bool isPlaying) {
+    if (isPlaying) {
+      if (_ticker != null && !_ticker!.isActive) {
+        _ticker!.start();
+      }
+    } else {
+      if (_ticker != null && _ticker!.isActive) {
+        _ticker!.stop();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    context.watch<WispAudioHandler>();
+    final coordinator = context.watch<PlaybackCoordinator>();
+    final isPlaying = coordinator.effectiveIsPlaying;
+
+    _syncTicker(isPlaying);
+
+    final position = coordinator.effectiveInterpolatedPosition;
+    final durationSecs = widget.track.durationSecs;
+    final duration = durationSecs > 0
+        ? Duration(seconds: durationSecs)
+        : (position > Duration.zero ? position : const Duration(seconds: 1));
+
+    final maxMs = duration.inMilliseconds;
+    final curMs = position.inMilliseconds.clamp(0, maxMs);
+    final progress = _dragPositionRatio ??
+        (maxMs > 0 ? (curMs / maxMs).clamp(0.0, 1.0) : 0.0);
+
+    final displayPosition = _dragPositionRatio != null
+        ? Duration(milliseconds: (_dragPositionRatio! * maxMs).round())
+        : position;
+
+    final barBackground =
+        _tintedDominantColor(widget.dominantColor, blend: 0.7)
+            .withValues(alpha: 0.94);
+
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+        child: Container(
+          decoration: BoxDecoration(
+            color: barBackground,
+            border: Border(
+              top: BorderSide(
+                color: Colors.white.withValues(alpha: 0.12),
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Progress Bar & Durations
+                  SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 5,
+                      ),
+                      overlayShape: const RoundSliderOverlayShape(
+                        overlayRadius: 10,
+                      ),
+                      activeTrackColor: Colors.white,
+                      inactiveTrackColor:
+                          Colors.white.withValues(alpha: 0.22),
+                      thumbColor: Colors.white,
+                      overlayColor: Colors.white.withValues(alpha: 0.15),
+                    ),
+                    child: Slider(
+                      value: progress,
+                      onChangeStart: (val) {
+                        setState(() {
+                          _dragPositionRatio = val;
+                        });
+                      },
+                      onChanged: (value) {
+                        setState(() {
+                          _dragPositionRatio = value;
+                        });
+                      },
+                      onChangeEnd: (value) {
+                        final targetMs = (value * maxMs).round();
+                        coordinator.seek(Duration(milliseconds: targetMs));
+                        setState(() {
+                          _dragPositionRatio = null;
+                        });
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _formatMobileDuration(displayPosition),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          _formatMobileDuration(duration),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  // Controls: Skip Backward, Play/Pause, Skip Forward
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      GenericIconButton(
+                        icon:
+                            const Icon(Icons.skip_previous_rounded, size: 28),
+                        color: Colors.white,
+                        splashRadius: 22,
+                        onPressed: () => coordinator.skipPrevious(),
+                      ),
+                      const SizedBox(width: 20),
+                      Material(
+                        color: Colors.white,
+                        shape: const CircleBorder(),
+                        elevation: 2,
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () {
+                            if (isPlaying) {
+                              coordinator.pause();
+                              _syncTicker(false);
+                            } else {
+                              coordinator.play();
+                              _syncTicker(true);
+                            }
+                          },
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.center,
+                            child: Icon(
+                              isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              size: 26,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      GenericIconButton(
+                        icon: const Icon(Icons.skip_next_rounded, size: 28),
+                        color: Colors.white,
+                        splashRadius: 22,
+                        onPressed: () => coordinator.skipNext(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

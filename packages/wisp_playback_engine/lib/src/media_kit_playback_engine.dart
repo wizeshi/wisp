@@ -217,6 +217,24 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
 
   @override
   Future<void> pause() {
+    if (_isTransitioning && _fadeOutgoingSource != null) {
+      // Paused mid-crossfade: commit the incoming track as active, stop the outgoing
+      // track, and pause the incoming track so queue state stays aligned.
+      _transitionGeneration++;
+      final outgoing = _active;
+      return _enqueue(() async {
+        await outgoing.stop();
+        _swapSlots();
+        _isTransitioning = false;
+        _reportingPlayer = null;
+        _fadeOutgoingSource = null;
+        _preloadedSource = null;
+        await _active.setVolume(_volume * 100);
+        await _active.pause();
+        _publishState();
+      });
+    }
+
     _cancelTransition();
     return _enqueue(() async {
       await _active.pause();
@@ -226,6 +244,24 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
 
   @override
   Future<void> seek(Duration position) {
+    if (_isTransitioning && _fadeOutgoingSource != null) {
+      // Seeked mid-crossfade: commit the incoming track as active, stop the outgoing
+      // track, and seek the incoming track.
+      _transitionGeneration++;
+      final outgoing = _active;
+      return _enqueue(() async {
+        await outgoing.stop();
+        _swapSlots();
+        _isTransitioning = false;
+        _reportingPlayer = null;
+        _fadeOutgoingSource = null;
+        _preloadedSource = null;
+        await _active.setVolume(_volume * 100);
+        await _active.seek(position);
+        _publishState();
+      });
+    }
+
     _cancelTransition();
     return _enqueue(() async {
       await _active.seek(position);
@@ -251,7 +287,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
 
     unawaited((() async {
       final audioDevices = await (_first.platform as NativePlayer).getProperty('audio-device-list');
-      log('[MediaKitPlaybackEngine] mpv inner state: ${audioDevices}');
+      log('[MediaKitPlaybackEngine] mpv inner state: $audioDevices');
     })());
 
     String filteredDeviceId = deviceId;
@@ -311,7 +347,10 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     final frameCount = frames.toInt();
     for (var frameIndex = 1; frameIndex <= frameCount; frameIndex++) {
       if (generation != _transitionGeneration || _disposed) {
-        return _abortCrossfade(outgoing, incoming);
+        if (_fadeOutgoingSource != null) {
+          return _abortCrossfade(outgoing, incoming);
+        }
+        return false;
       }
       final progress = frameIndex / frameCount;
       await Future.wait([
@@ -321,7 +360,10 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
       if (frameIndex < frameCount) await Future<void>.delayed(frame);
     }
     if (generation != _transitionGeneration || _disposed) {
-      return _abortCrossfade(outgoing, incoming);
+      if (_fadeOutgoingSource != null) {
+        return _abortCrossfade(outgoing, incoming);
+      }
+      return false;
     }
     await outgoing.stop();
     _swapSlots();

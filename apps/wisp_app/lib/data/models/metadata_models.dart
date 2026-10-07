@@ -1005,6 +1005,8 @@ class LyricsResult {
       syncMode == LyricsSyncMode.line ||
       (!isWordSynced && lines.any((line) => line.startTimeMs > 0));
 
+  bool get isSynced => isWordSynced || isLineSynced;
+
   Map<String, dynamic> toWlfJson() => {
     'version': '1.0',
     'provider': provider.name,
