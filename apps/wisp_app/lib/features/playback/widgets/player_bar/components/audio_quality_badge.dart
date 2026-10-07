@@ -113,29 +113,14 @@ class _AudioQualityBadgeState extends State<AudioQualityBadge> {
         final label = quality?.label ??
             ((engineBitrate != null && engineBitrate >= 320000) ? 'High' : 'Standard');
         final isHiRes = quality?.isHiRes ?? false;
-        final isLossless = quality?.isLossless ?? false;
 
         final coverPalette = context.watch<CoverArtPaletteProvider>();
         final primaryColor = coverPalette.primaryColor ??
             Theme.of(context).colorScheme.primary;
 
-        Color badgeColor;
-        Color badgeTextColor;
-        Color badgeBorderColor;
-
-        if (isHiRes) {
-          badgeColor = primaryColor.withValues(alpha: 0.22);
-          badgeTextColor = primaryColor;
-          badgeBorderColor = primaryColor.withValues(alpha: 0.6);
-        } else if (isLossless) {
-          badgeColor = primaryColor.withValues(alpha: 0.16);
-          badgeTextColor = primaryColor;
-          badgeBorderColor = primaryColor.withValues(alpha: 0.45);
-        } else {
-          badgeColor = primaryColor.withValues(alpha: 0.10);
-          badgeTextColor = primaryColor;
-          badgeBorderColor = primaryColor.withValues(alpha: 0.3);
-        }
+        final badgeColor = primaryColor.withValues(alpha: 0.22);
+        final badgeTextColor = primaryColor;
+        final badgeBorderColor = primaryColor.withValues(alpha: 0.6);
 
         return CompositedTransformTarget(
           link: _layerLink,
@@ -165,7 +150,7 @@ class _AudioQualityBadgeState extends State<AudioQualityBadge> {
                       const SizedBox(width: 3),
                     ],
                     Text(
-                      label.toUpperCase(),
+                      label,
                       style: TextStyle(
                         color: badgeTextColor,
                         fontSize: 9.5,

@@ -494,7 +494,7 @@ class _DesktopTrackInfo extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              const AudioQualityBadge(),
+              AudioQualityBadge(),
             ],
           ),
         ),

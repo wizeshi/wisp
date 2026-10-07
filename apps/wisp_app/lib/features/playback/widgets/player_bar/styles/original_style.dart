@@ -1046,6 +1046,7 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        const SizedBox(height: 2),
         Row(
           children: [
             TrackBadges(track: track),
