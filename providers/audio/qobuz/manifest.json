@@ -1,7 +1,7 @@
 {
   "id": "qobuz",
   "name": "Qobuz",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "type": "audio",
   "description": "High-resolution lossless CD and Hi-Res streaming provider powered by Jumo and Qobuz",
   "author": "wizeshi",

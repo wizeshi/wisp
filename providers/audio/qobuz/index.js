@@ -110,21 +110,38 @@ class JumoClient {
     return [];
   }
 
-  async resolveStream(track, preferredQuality = 'hiRes') {
+  async resolveStream(track, preferredQuality = 'auto') {
     if (!track.fetchUrls) {
       throw new Error('Track has no fetchUrls available');
     }
 
     const availableFormats = Object.keys(track.fetchUrls);
-    let chosenFormat = '6';
 
-    if (preferredQuality === 'hiRes' && availableFormats.includes('27')) {
-      chosenFormat = '27';
-    } else if (availableFormats.includes('6')) {
-      chosenFormat = '6';
-    } else if (availableFormats.includes('5')) {
-      chosenFormat = '5';
-    } else if (availableFormats.length > 0) {
+    // Format IDs:
+    // '27': Hi-Res Lossless (24-bit / 96-192 kHz)
+    // '6': Lossless CD (16-bit / 44.1 kHz)
+    // '5': High / Standard (MP3 320 kbps)
+    let candidateOrder;
+    switch (preferredQuality) {
+      case 'lossless':
+        // Try Lossless CD first, then fallback to highest available (27 -> 5)
+        candidateOrder = ['6', '27', '5'];
+        break;
+      case 'high':
+      case 'standard':
+        // Try MP3 320 first, fallback to Lossless / Hi-Res
+        candidateOrder = ['5', '6', '27'];
+        break;
+      case 'hiRes':
+      case 'auto':
+      default:
+        // Try Hi-Res first, then Lossless, then MP3
+        candidateOrder = ['27', '6', '5'];
+        break;
+    }
+
+    let chosenFormat = candidateOrder.find(f => availableFormats.includes(f));
+    if (!chosenFormat && availableFormats.length > 0) {
       chosenFormat = availableFormats[0];
     }
 
@@ -134,11 +151,24 @@ class JumoClient {
     }
 
     const payload = await this.request(fetchPath, { 'X-Jumo-Embed-Cover': '1' });
+    let resolvedBitDepth = 16;
+    let resolvedSamplingRate = 44.1;
+    if (chosenFormat === '27') {
+      resolvedBitDepth = track.maximum_bit_depth && track.maximum_bit_depth > 16 ? track.maximum_bit_depth : 24;
+      resolvedSamplingRate = track.maximum_sampling_rate && track.maximum_sampling_rate > 44.1 ? track.maximum_sampling_rate : 96.0;
+    } else if (chosenFormat === '6') {
+      resolvedBitDepth = 16;
+      resolvedSamplingRate = 44.1;
+    } else {
+      resolvedBitDepth = 16;
+      resolvedSamplingRate = 44.1;
+    }
+
     return {
       payload,
       formatId: chosenFormat,
-      bitDepth: track.maximum_bit_depth || 16,
-      samplingRate: track.maximum_sampling_rate || 44.1
+      bitDepth: resolvedBitDepth,
+      samplingRate: resolvedSamplingRate
     };
   }
 }

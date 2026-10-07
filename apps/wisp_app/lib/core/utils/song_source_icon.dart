@@ -1,3 +1,5 @@
+// Copyright © 2026 wizeshi
+
 import 'package:material_ui/material_ui.dart';
 
 /// The icon used to represent a song source anywhere in the UI (row source

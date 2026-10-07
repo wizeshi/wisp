@@ -16,6 +16,7 @@ import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart'
     as global_audio_player;
+import 'package:wisp/data/sources/audio/audio_source.dart';
 import 'settings_downloads_view.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import '../widgets/settings_content.dart';
@@ -848,11 +849,75 @@ class _SettingsPageState extends State<SettingsPage> {
     await context.read<PreferencesProvider>().setStyle(selected);
   }
 
+  Future<void> _showQualitySelectionSheet(
+    AudioQuality selectedQuality,
+    List<AudioQuality> options,
+  ) async {
+    final selected = await showModalBottomSheet<AudioQuality>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: const Color(0xFF282828),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[600],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...options.map(
+                (q) => ListTile(
+                  title: Text(
+                    q.label,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  trailing: q == selectedQuality
+                      ? Icon(
+                          Icons.check,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.of(sheetContext).pop(q),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || selected == null || selected == selectedQuality) {
+      return;
+    }
+
+    await context.read<PreferencesProvider>().setPreferredAudioQuality(selected);
+    if (mounted) {
+      context
+          .read<global_audio_player.WispAudioHandler>()
+          .setPreferredAudioQuality(selected);
+    }
+  }
+
   Widget _buildAudioPreferenceRow() {
     return Consumer<PreferencesProvider>(
       builder: (context, prefs, child) {
         final crossfadeEnabled = prefs.crossfadeEnabled;
         final crossfadeDurationSeconds = prefs.crossfadeDurationSeconds;
+        final selectedQuality = prefs.preferredAudioQuality;
+        const qualityOptions = AudioQuality.values;
 
         return Container(
           decoration: BoxDecoration(
@@ -863,6 +928,91 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Streaming Quality',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        Text(
+                          'Preferred audio stream quality (cascades to highest available if unsupported)',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_isMobile)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => _showQualitySelectionSheet(
+                        selectedQuality,
+                        qualityOptions,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              selectedQuality.label,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.keyboard_arrow_down,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: DropdownButton<AudioQuality>(
+                        value: selectedQuality,
+                        mouseCursor: SystemMouseCursors.click,
+                        items: qualityOptions
+                            .map(
+                              (q) => DropdownMenuItem(
+                                value: q,
+                                child: Text(
+                                  q.label,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) async {
+                          if (value == null) return;
+                          await context
+                              .read<PreferencesProvider>()
+                              .setPreferredAudioQuality(value);
+                          if (context.mounted) {
+                            context
+                                .read<global_audio_player.WispAudioHandler>()
+                                .setPreferredAudioQuality(value);
+                          }
+                        },
+                        dropdownColor: const Color(0xFF282828),
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   const Expanded(

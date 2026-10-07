@@ -323,6 +323,15 @@ class PreferencesProvider extends ChangeNotifier {
         _defaultKeepPositionBetweenRestarts;
   }
 
+  static Future<AudioQuality> getPreferredAudioQualityStatic() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return AudioQuality.fromString(prefs.getString(_keyPreferredAudioQuality));
+    } catch (_) {
+      return _defaultPreferredAudioQuality;
+    }
+  }
+
   static Future<bool> isLyricsLrclibEnabled() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_keyLyricsLrclibEnabled) ??

@@ -31,6 +31,7 @@ import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/features/connect/widgets/connect_menu.dart';
 import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
+import 'package:wisp/features/playback/widgets/player_bar/components/audio_quality_badge.dart';
 import 'package:material_3_expressive/material_3_expressive.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
@@ -482,7 +483,6 @@ class _DesktopTrackInfo extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _DesktopTrackName(track: track),
-              const SizedBox(height: 2),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -493,52 +493,8 @@ class _DesktopTrackInfo extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 2),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Selector<global_audio_player.WispAudioHandler, double?>(
-                    selector: (context, player) => player.audioBitrate,
-                    builder: (context, audioBitrate, child) {
-                      if (audioBitrate == null) {
-                        return const SizedBox.shrink();
-                      }
-                      return Text(
-                        '${(audioBitrate / 1000).floor() - 1} kbps',
-                        style: TextStyle(
-                          color: Colors.grey[250],
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      );
-                    },
-                  ),
-                  Text(
-                    ' • ',
-                    style: TextStyle(
-                      color: Colors.grey[250],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Selector<global_audio_player.WispAudioHandler, int?>(
-                    selector: (context, player) => player.audioSampleRate,
-                    builder: (context, audioSampleRate, child) {
-                      if (audioSampleRate == null) {
-                        return const SizedBox.shrink();
-                      }
-                      return Text(
-                        '${((audioSampleRate / 100).floor()) / 10} kHz',
-                        style: TextStyle(
-                          color: Colors.grey[250],
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
+              const SizedBox(height: 4),
+              const AudioQualityBadge(),
             ],
           ),
         ),

@@ -10,6 +10,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wisp/data/sources/audio/audio_source_manager.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 import 'package:wisp_playback_engine/wisp_playback_engine.dart';
 
@@ -22,7 +23,8 @@ import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 import 'package:wisp/data/cache/audio/audio_mapping_store.dart';
 import 'package:wisp/data/sources/audio/audio_resolver.dart';
-import 'package:wisp/data/sources/audio/audio_source_manager.dart';
+import 'package:wisp/data/sources/audio/audio_source.dart';
+import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
@@ -157,6 +159,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool _crossfadeEnabled = false;
   double _crossfadeDurationSeconds = 3.0;
   bool _keepPositionBetweenRestarts = false;
+  AudioQuality _preferredAudioQuality = AudioQuality.auto;
+  ActiveTrackQualityInfo? _activeTrackQuality;
   int _savedPositionMs = 0;
   int _lastSessionSaveMs = 0;
 
@@ -255,6 +259,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   double? get audioBitrate => _engineAudioBitrate;
   int? get audioSampleRate => _engineAudioSampleRate;
+  AudioQuality get preferredAudioQuality => _preferredAudioQuality;
+  ActiveTrackQualityInfo? get activeTrackQuality => _activeTrackQuality;
+
+  void setPreferredAudioQuality(AudioQuality quality) {
+    if (_preferredAudioQuality == quality) return;
+    _preferredAudioQuality = quality;
+    notifyListeners();
+  }
 
   void setKeepPositionBetweenRestarts(bool enabled) {
     if (_keepPositionBetweenRestarts == enabled) return;
@@ -557,6 +569,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _crossfadeEnabled = await PreferencesProvider.isCrossfadeEnabled();
     _crossfadeDurationSeconds =
         await PreferencesProvider.isCrossfadeDurationSeconds();
+    _preferredAudioQuality =
+        await PreferencesProvider.getPreferredAudioQualityStatic();
     await _engine.updateSettings(_buildEngineSettings());
     _attachEngineListeners();
 
@@ -1744,10 +1758,49 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       throw Exception('Offline and track not cached');
     }
 
-    final resolved = await AudioResolver.instance.resolveTrack(track);
+    final resolved = await AudioResolver.instance.resolveTrack(
+      track,
+      preferredQuality: _preferredAudioQuality,
+    );
     if (resolved == null) return null;
 
     final streamUrl = resolved.stream.url;
+
+    // Update active track quality telemetry
+    final bitDepth = resolved.stream.bitDepth;
+    final sampleRate = resolved.stream.sampleRate;
+    final formatStr = resolved.stream.format ??
+        (resolved.providerId == 'qobuz' ? 'flac' : 'm4a');
+    final isLossless = (bitDepth != null && bitDepth >= 16) ||
+        formatStr.toLowerCase() == 'flac';
+    final isHiRes = (bitDepth != null && bitDepth > 16) ||
+        (sampleRate != null && sampleRate > 48000);
+
+    String label;
+    if (isHiRes) {
+      label = 'Hi-Res Lossless';
+    } else if (isLossless) {
+      label = 'Lossless';
+    } else if (resolved.stream.bitrate != null &&
+        resolved.stream.bitrate! >= 256) {
+      label = 'High';
+    } else {
+      label = 'Standard';
+    }
+
+    _activeTrackQuality = ActiveTrackQualityInfo(
+      providerId: resolved.providerId,
+      providerName: resolved.providerId == 'qobuz'
+          ? 'Qobuz'
+          : (resolved.providerId == 'youtube' ? 'YouTube' : resolved.providerId),
+      targetQuality: _preferredAudioQuality,
+      label: label,
+      format: formatStr.toUpperCase(),
+      bitDepth: bitDepth,
+      sampleRate: sampleRate,
+      bitrate: resolved.stream.bitrate,
+    );
+    notifyListeners();
 
     // Stream through AudioStreamingProxy to spool audio chunks into cache without double-downloading
     final proxy = AudioStreamingProxy.instance;
@@ -1804,7 +1857,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     try {
-      await AudioResolver.instance.resolveTrack(track);
+      await AudioResolver.instance.resolveTrack(
+        track,
+        preferredQuality: _preferredAudioQuality,
+      );
       logger.d('[Audio/Player] Pre-resolved next track URL: ${track.title}');
     } catch (e) {
       logger.w('[Audio/Player] Failed to pre-resolve next track', error: e);
@@ -1825,7 +1881,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       artistName: artistNames,
       isUserDownload: false,
       resolveAndGetStream: () async {
-        final resolved = await AudioResolver.instance.resolveTrack(track);
+        final resolved = await AudioResolver.instance.resolveTrack(
+          track,
+          preferredQuality: _preferredAudioQuality,
+        );
         if (resolved == null) throw Exception('Could not resolve audio stream');
         return (resolved.mediaId, resolved.stream.url);
       },

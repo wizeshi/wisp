@@ -50,6 +50,9 @@ class AudioResolver {
       artists: artistNames,
     );
 
+    final effectiveQuality =
+        preferredQuality ?? preferences?.preferredAudioQuality ?? AudioQuality.auto;
+
     final orderedSources = _sourceManager.getOrderedSources(preferences);
     if (orderedSources.isEmpty) {
       logger.w('[AudioResolver] No audio providers currently enabled');
@@ -71,7 +74,7 @@ class AudioResolver {
           );
           final stream = await overrideSource.getStreamUrl(
             manualOverride.mediaID,
-            preferredQuality: preferredQuality,
+            preferredQuality: effectiveQuality,
           );
           return AudioResolvedStream(
             providerId: overrideSource.id,
@@ -127,7 +130,7 @@ class AudioResolver {
           );
           final stream = await source.getStreamUrl(
             existingMapping.mediaID,
-            preferredQuality: preferredQuality,
+            preferredQuality: effectiveQuality,
           );
           return AudioResolvedStream(
             providerId: source.id,
@@ -157,7 +160,7 @@ class AudioResolver {
 
         final stream = await source.getStreamUrl(
           bestMatch.mediaId,
-          preferredQuality: preferredQuality,
+          preferredQuality: effectiveQuality,
         );
 
         // Store resolution in canonical store
