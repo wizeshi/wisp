@@ -158,12 +158,15 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
   }
 
   Widget _buildMobileActionsRow() {
-    return Selector<global_audio_player.WispAudioHandler, ({
-      bool isCurrentListPlaying,
-      bool shuffleEnabled,
-      bool repeatActive,
-      bool isRepeatOne,
-    })>(
+    return Selector<
+      global_audio_player.WispAudioHandler,
+      ({
+        bool isCurrentListPlaying,
+        bool shuffleEnabled,
+        bool repeatActive,
+        bool isRepeatOne,
+      })
+    >(
       selector: (context, player) {
         final isCurrentListActive = _isCurrentListPlaying(player);
         return (
@@ -204,11 +207,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
               const Spacer(),
               // Right side: Loop + Shuffle + Play
               GenericIconButton(
-                icon: Icon(
-                  state.isRepeatOne
-                      ? Icons.repeat_one
-                      : Icons.repeat,
-                ),
+                icon: Icon(state.isRepeatOne ? Icons.repeat_one : Icons.repeat),
                 color: repeatActive ? colorScheme.primary : Colors.white,
                 onPressed: () {
                   context.read<PlaybackCoordinator>().toggleRepeat();
@@ -282,208 +281,236 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
       double.infinity,
     );
 
-    return Container(
-      width: double.infinity,
-      height: headerHeight.toDouble(),
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-      decoration: const BoxDecoration(),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: isLiked
-                  ? const LikedSongsArt()
-                  : (imageUrl.isNotEmpty
-                        ? (_isLocalImagePath(imageUrl)
-                              ? Image.file(
-                                  File(imageUrl.replaceFirst('file://', '')),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, url, error) =>
-                                      Container(color: Colors.grey[800]),
-                                )
-                              : CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) =>
-                                      Container(color: Colors.grey[800]),
-                                ))
-                        : Icon(
-                            widget.type == SharedListType.playlist
-                                ? Icons.playlist_play
-                                : Icons.album,
-                            color: Colors.grey[600],
-                            size: 48,
-                          )),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  widget.type == SharedListType.playlist ? 'PLAYLIST' : 'ALBUM',
-                  style: TextStyle(
-                    color: Colors.grey[300],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: (52 * baseFontSize).toDouble(),
-                    height: 0.95,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (hasDescription) const SizedBox(height: 4),
-                if (hasDescription)
-                  buildParsedText(
-                    context,
-                    descriptionText,
-                    style: TextStyle(
-                      color: Colors.grey[300],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w300,
-                    ),
-                    linkStyle: TextStyle(
-                      color: Colors.grey[300],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w300,
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    if (subtitleImageUrl != null) ...[
-                      MouseRegion(
-                        cursor: subtitleUser == null
-                            ? SystemMouseCursors.basic
-                            : SystemMouseCursors.click,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: subtitleUser == null
-                              ? null
-                              : () => _openUser(subtitleUser),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              width: 24,
-                              height: 24,
-                              color: Colors.grey[900],
-                              child: _isLocalImagePath(subtitleImageUrl)
+    return FutureBuilder<ColorScheme?>(
+      future: context.read<CoverArtPaletteProvider>().paletteForImageUrl(imageUrl),
+      builder: (context, snapshot) {
+        final headerColor = snapshot.data?.primary;
+
+        return Container(
+          width: double.infinity,
+          height: headerHeight.toDouble(),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+          decoration: BoxDecoration(color: headerColor),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: isLiked
+                      ? const LikedSongsArt()
+                      : (imageUrl.isNotEmpty
+                            ? (_isLocalImagePath(imageUrl)
                                   ? Image.file(
                                       File(
-                                        subtitleImageUrl.replaceFirst(
-                                          'file://',
-                                          '',
-                                        ),
+                                        imageUrl.replaceFirst('file://', ''),
                                       ),
-                                      filterQuality: FilterQuality.medium,
                                       fit: BoxFit.cover,
                                       errorBuilder: (context, url, error) =>
                                           Container(color: Colors.grey[800]),
                                     )
                                   : CachedNetworkImage(
-                                      imageUrl: subtitleImageUrl,
+                                      imageUrl: imageUrl,
                                       fit: BoxFit.cover,
-                                      filterQuality: FilterQuality.medium,
                                       placeholder: (context, url) =>
                                           Container(color: Colors.grey[800]),
-                                      errorWidget: (context, url, error) =>
-                                          Container(color: Colors.grey[800]),
-                                    ),
-                            ),
-                          ),
+                                    ))
+                            : Icon(
+                                widget.type == SharedListType.playlist
+                                    ? Icons.playlist_play
+                                    : Icons.album,
+                                color: Colors.grey[600],
+                                size: 48,
+                              )),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      widget.type == SharedListType.playlist
+                          ? 'PLAYLIST'
+                          : 'ALBUM',
+                      style: TextStyle(
+                        color: Colors.grey[300],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: (52 * baseFontSize).toDouble(),
+                        height: 0.95,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (hasDescription) const SizedBox(height: 4),
+                    if (hasDescription)
+                      buildParsedText(
+                        context,
+                        descriptionText,
+                        style: TextStyle(
+                          color: Colors.grey[300],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w300,
+                        ),
+                        linkStyle: TextStyle(
+                          color: Colors.grey[300],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w300,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
-                    if (subtitle != null)
-                      Flexible(
-                        child: subtitleUser == null
-                            ? Text(
-                                subtitle,
-                                style: TextStyle(
-                                  color: Colors.grey[300],
-                                  fontSize: 15,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              )
-                            : HoverUnderline(
-                                onTap: () => _openUser(subtitleUser),
-                                builder: (isHovering) => Text(
-                                  subtitle,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    decoration: isHovering
-                                        ? TextDecoration.underline
-                                        : TextDecoration.none,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        if (subtitleImageUrl != null) ...[
+                          MouseRegion(
+                            cursor: subtitleUser == null
+                                ? SystemMouseCursors.basic
+                                : SystemMouseCursors.click,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: subtitleUser == null
+                                  ? null
+                                  : () => _openUser(subtitleUser),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  width: 24,
+                                  height: 24,
+                                  color: Colors.grey[900],
+                                  child: _isLocalImagePath(subtitleImageUrl)
+                                      ? Image.file(
+                                          File(
+                                            subtitleImageUrl.replaceFirst(
+                                              'file://',
+                                              '',
+                                            ),
+                                          ),
+                                          filterQuality: FilterQuality.medium,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, url, error) =>
+                                              Container(
+                                                color: Colors.grey[800],
+                                              ),
+                                        )
+                                      : CachedNetworkImage(
+                                          imageUrl: subtitleImageUrl,
+                                          fit: BoxFit.cover,
+                                          filterQuality: FilterQuality.medium,
+                                          placeholder: (context, url) =>
+                                              Container(
+                                                color: Colors.grey[800],
+                                              ),
+                                          errorWidget: (context, url, error) =>
+                                              Container(
+                                                color: Colors.grey[800],
+                                              ),
+                                        ),
                                 ),
                               ),
-                      ),
-                    if (subtitle != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text(
-                          '•',
-                          style: TextStyle(color: Colors.grey[500]),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (subtitle != null)
+                          Flexible(
+                            child: subtitleUser == null
+                                ? Text(
+                                    subtitle,
+                                    style: TextStyle(
+                                      color: Colors.grey[300],
+                                      fontSize: 15,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  )
+                                : HoverUnderline(
+                                    onTap: () => _openUser(subtitleUser),
+                                    builder: (isHovering) => Text(
+                                      subtitle,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        decoration: isHovering
+                                            ? TextDecoration.underline
+                                            : TextDecoration.none,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                          ),
+                        if (subtitle != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              '•',
+                              style: TextStyle(color: Colors.grey[500]),
+                            ),
+                          ),
+                        Text(
+                          '$total songs',
+                          style: TextStyle(
+                            color: Colors.grey[300],
+                            fontSize: 15,
+                          ),
                         ),
-                      ),
-                    Text(
-                      '$total songs',
-                      style: TextStyle(color: Colors.grey[300], fontSize: 15),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
-                        '•',
-                        style: TextStyle(color: Colors.grey[500]),
-                      ),
-                    ),
-                    Text(
-                      _formatDuration(_totalDurationSecs()),
-                      style: TextStyle(color: Colors.grey[300], fontSize: 15),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            '•',
+                            style: TextStyle(color: Colors.grey[500]),
+                          ),
+                        ),
+                        Text(
+                          _formatDuration(_totalDurationSecs()),
+                          style: TextStyle(
+                            color: Colors.grey[300],
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildActionsRow(bool isDesktop, {Gradient? backgroundGradient}) {
-    return Selector<global_audio_player.WispAudioHandler, ({
-      bool isPlayingList,
-      bool isPlaying,
-      bool shuffleActive,
-      bool repeatActive,
-      bool isRepeatOne,
-    })>(
+    return Selector<
+      global_audio_player.WispAudioHandler,
+      ({
+        bool isPlayingList,
+        bool isPlaying,
+        bool shuffleActive,
+        bool repeatActive,
+        bool isRepeatOne,
+      })
+    >(
       selector: (context, player) {
         final isPlayingList = _isCurrentListPlaying(player);
         return (
           isPlayingList: isPlayingList,
           isPlaying: isPlayingList && player.isPlaying,
-          shuffleActive: isPlayingList ? player.shuffleEnabled : _preShuffleEnabled,
+          shuffleActive: isPlayingList
+              ? player.shuffleEnabled
+              : _preShuffleEnabled,
           repeatActive: player.repeatMode != global_audio_player.RepeatMode.off,
           isRepeatOne: player.repeatMode == global_audio_player.RepeatMode.one,
         );
@@ -520,7 +547,10 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                                 child: GenericFilledButton(
                                   onPressed: () {
                                     if (!_isLoading) {
-                                      final player = context.read<global_audio_player.WispAudioHandler>();
+                                      final player = context
+                                          .read<
+                                            global_audio_player.WispAudioHandler
+                                          >();
                                       if (state.isPlayingList) {
                                         _toggleCurrentTrackPlayback(player);
                                       } else {
@@ -546,7 +576,10 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                             GenericIconButton(
                               onPressed: () {
                                 _toggleListShuffle(
-                                  context.read<global_audio_player.WispAudioHandler>(),
+                                  context
+                                      .read<
+                                        global_audio_player.WispAudioHandler
+                                      >(),
                                 );
                               },
                               icon: Icon(
@@ -558,7 +591,11 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                             ),
                             GenericIconButton(
                               onPressed: () {
-                                context.read<global_audio_player.WispAudioHandler>().toggleRepeat();
+                                context
+                                    .read<
+                                      global_audio_player.WispAudioHandler
+                                    >()
+                                    .toggleRepeat();
                               },
                               icon: Icon(
                                 state.isRepeatOne
@@ -751,10 +788,10 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
           child: Row(
             children: [
               SizedBox(width: isDesktop ? 14 : 6),
-              Selector<global_audio_player.WispAudioHandler, ({
-                bool isPlayingList,
-                bool isPlaying,
-              })>(
+              Selector<
+                global_audio_player.WispAudioHandler,
+                ({bool isPlayingList, bool isPlaying})
+              >(
                 selector: (context, player) {
                   final isPlayingList = _isCurrentListPlaying(player);
                   return (
@@ -775,7 +812,8 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                         customBorder: const CircleBorder(),
                         onTap: () {
                           if (_items.isEmpty) return;
-                          final player = context.read<global_audio_player.WispAudioHandler>();
+                          final player = context
+                              .read<global_audio_player.WispAudioHandler>();
                           if (isPlayingList) {
                             _toggleCurrentTrackPlayback(player);
                           } else {
@@ -944,9 +982,7 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
                 ),
               ),
             ],
-            const SizedBox(
-              width: 48,
-            ), // Space for more context menu button
+            const SizedBox(width: 48), // Space for more context menu button
           ],
         ),
       );
@@ -1040,12 +1076,9 @@ extension _ListDetailHeaders on _SharedListDetailViewState {
               ),
             ),
           ),
-          const SizedBox(
-            width: 48,
-          ), // Space for more context menu button
+          const SizedBox(width: 48), // Space for more context menu button
         ],
       ),
     );
   }
 }
-

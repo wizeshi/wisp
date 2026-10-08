@@ -1,0 +1,14 @@
+{
+  "id": "spotify",
+  "name": "Spotify",
+  "version": "1.0.4",
+  "type": "audio",
+  "entry": "index.js",
+  "author": "wizeshi",
+  "description": "Premium only, direct audio streaming from Spotify.",
+  "priority": 85,
+  "service": "spotify",
+  "dependencies": ["auth/spotify"],
+  "supportedQualities": ["standard", "high"]
+}
+

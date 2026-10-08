@@ -315,6 +315,49 @@ void main() {
       expect(service.isTrackCached('backup_track'), isTrue);
       expect(service.isTrackUserDownload('backup_track'), isTrue);
     });
+
+    test('bidirectional lookup matches by videoId or normalized URI', () async {
+      final service = AudioStorageService.instance;
+      service.resetForTesting();
+
+      final supportDir = Directory('${tempDir.path}/support_test_bidi')..createSync(recursive: true);
+      final cacheDir = Directory('${tempDir.path}/cache_test_bidi')..createSync(recursive: true);
+      final audioDir = Directory('${cacheDir.path}/audio_cache')..createSync(recursive: true);
+      final testFile = File('${audioDir.path}/song.ogg')..writeAsStringSync('ogg audio content');
+
+      final entry = AudioCacheEntry(
+        trackId: 'track_original_123',
+        videoId: 'spotify_vid_999',
+        filePath: testFile.path,
+        fileSize: testFile.lengthSync(),
+        trackTitle: 'Spotify Song',
+        artistName: 'Spotify Artist',
+        downloadDate: DateTime.now(),
+        lastPlayedDate: DateTime.now(),
+        isUserDownload: false,
+      );
+
+      SharedPreferences.setMockInitialValues({
+        'cache_entries': json.encode({'track_original_123': entry.toJson()}),
+      });
+
+      await service.initialize(
+        supportDirectory: supportDir,
+        cacheDirectory: cacheDir,
+      );
+
+      // Lookup by exact trackId
+      expect(service.isTrackCached('track_original_123'), isTrue);
+      expect(service.getCachedPath('track_original_123'), equals(testFile.path));
+
+      // Bidirectional lookup by videoId
+      expect(service.isTrackCached('spotify_vid_999'), isTrue);
+      expect(service.getCachedPath('spotify_vid_999'), equals(testFile.path));
+
+      // Lookup by Spotify URI format
+      expect(service.isTrackCached('spotify:track:spotify_vid_999'), isTrue);
+      expect(service.getCachedPath('spotify:track:spotify_vid_999'), equals(testFile.path));
+    });
   });
 }
 

@@ -4,7 +4,6 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/core/theme/cover_art_palette_provider.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
 /// Compact, interactive audio quality pill badge in the player bar.
@@ -13,7 +12,10 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart';
 /// resolved source stream parameters (Format, Bit Depth, Sample Rate, Provider)
 /// alongside playback engine output parameters (Engine Bitrate and Sample Rate).
 class AudioQualityBadge extends StatefulWidget {
-  const AudioQualityBadge({super.key});
+  final Widget child;
+  final Color preferredColor;
+
+  const AudioQualityBadge({super.key, required this.child, required this.preferredColor});
 
   @override
   State<AudioQualityBadge> createState() => _AudioQualityBadgeState();
@@ -53,7 +55,7 @@ class _AudioQualityBadgeState extends State<AudioQualityBadge> {
 
     const bubbleWidth = 270.0;
     // Keep at least 12px padding from left/right edges of screen
-    final leftPos = (badgeOffset.dx).clamp(
+    final leftPos = (badgeOffset.dx - (bubbleWidth / 3)).clamp(
       12.0,
       (screenSize.width - bubbleWidth - 12.0).clamp(12.0, double.infinity),
     );
@@ -61,7 +63,6 @@ class _AudioQualityBadgeState extends State<AudioQualityBadge> {
     final bottomPos = screenSize.height - badgeOffset.dy + 8.0;
 
     final theme = Theme.of(context);
-    final coverArtColor = context.read<CoverArtPaletteProvider>().primaryColor;
 
     _overlayEntry = OverlayEntry(
       builder: (ctx) => Stack(
@@ -85,7 +86,7 @@ class _AudioQualityBadgeState extends State<AudioQualityBadge> {
                 color: Colors.transparent,
                 child: _QualityInfoBubble(
                   onClose: _removeOverlay,
-                  primaryColor: coverArtColor,
+                  primaryColor: widget.preferredColor
                 ),
               ),
             ),
@@ -99,84 +100,24 @@ class _AudioQualityBadgeState extends State<AudioQualityBadge> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<WispAudioHandler>(
-      builder: (context, handler, _) {
-        final quality = handler.activeTrackQuality;
-        final engineBitrate = handler.audioBitrate;
-        final engineSampleRate = handler.audioSampleRate;
-
-        // If no quality telemetry or track, fallback or hide
-        if (quality == null && engineBitrate == null && engineSampleRate == null) {
-          return const SizedBox.shrink();
-        }
-
-        final label = quality?.label ??
-            ((engineBitrate != null && engineBitrate >= 320000) ? 'High' : 'Standard');
-        final isHiRes = quality?.isHiRes ?? false;
-
-        final coverPalette = context.watch<CoverArtPaletteProvider>();
-        final primaryColor = coverPalette.primaryColor ??
-            Theme.of(context).colorScheme.primary;
-
-        final badgeColor = primaryColor.withValues(alpha: 0.22);
-        final badgeTextColor = primaryColor;
-        final badgeBorderColor = primaryColor.withValues(alpha: 0.6);
-
-        return CompositedTransformTarget(
-          link: _layerLink,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: _toggleOverlay,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 0),
-                decoration: BoxDecoration(
-                  color: badgeColor,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: badgeBorderColor,
-                    width: 0.8,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isHiRes) ...[
-                      Icon(
-                        Icons.auto_awesome,
-                        size: 10,
-                        color: badgeTextColor,
-                      ),
-                      const SizedBox(width: 3),
-                    ],
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: badgeTextColor,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: _toggleOverlay,
+          child: widget.child
+        ),
+      ),
     );
   }
 }
 
 class _QualityInfoBubble extends StatelessWidget {
   final VoidCallback onClose;
-  final Color? primaryColor;
+  final Color primaryColor;
 
-  const _QualityInfoBubble({
-    required this.onClose,
-    this.primaryColor,
-  });
+  const _QualityInfoBubble({required this.onClose, required this.primaryColor});
 
   @override
   Widget build(BuildContext context) {
@@ -185,11 +126,6 @@ class _QualityInfoBubble extends StatelessWidget {
         final quality = handler.activeTrackQuality;
         final engineBitrate = handler.audioBitrate;
         final engineSampleRate = handler.audioSampleRate;
-
-        final coverPalette = context.watch<CoverArtPaletteProvider>();
-        final primary = primaryColor ??
-            coverPalette.primaryColor ??
-            Theme.of(context).colorScheme.primary;
 
         final sourceBitDepth = quality?.bitDepth;
         final sourceSampleRate = quality?.sampleRate;
@@ -243,11 +179,7 @@ class _QualityInfoBubble extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.graphic_eq,
-                        size: 15,
-                        color: primary,
-                      ),
+                      Icon(Icons.graphic_eq, size: 15, color: primaryColor),
                       const SizedBox(width: 6),
                       Text(
                         'AUDIO FIDELITY',
@@ -287,23 +219,20 @@ class _QualityInfoBubble extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              _buildMetricRow(
-                label: 'Container / Codec',
-                value: sourceFormat,
-              ),
+              _buildMetricRow(label: 'Container / Codec', value: sourceFormat),
               if (sourceBitDepth != null && sourceBitDepth > 0)
                 _buildMetricRow(
                   label: 'Bit Depth',
                   value: '$sourceBitDepth-bit',
                   accent: sourceBitDepth >= 24,
-                  accentColor: primary,
+                  accentColor: primaryColor,
                 ),
               if (sourceKHz != null)
                 _buildMetricRow(
                   label: 'Sample Rate',
                   value: sourceKHz,
                   accent: (sourceSampleRate ?? 0) > 48000,
-                  accentColor: primary,
+                  accentColor: primaryColor,
                 ),
               if (quality?.bitrate != null && quality!.bitrate! > 0)
                 _buildMetricRow(
@@ -326,15 +255,9 @@ class _QualityInfoBubble extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               if (engineKbps != null)
-                _buildMetricRow(
-                  label: 'Rendered Bitrate',
-                  value: engineKbps,
-                ),
+                _buildMetricRow(label: 'Rendered Bitrate', value: engineKbps),
               if (engineKHz != null)
-                _buildMetricRow(
-                  label: 'Output Rate',
-                  value: engineKHz,
-                ),
+                _buildMetricRow(label: 'Output Rate', value: engineKHz),
 
               if (engineKbps == null && engineKHz == null)
                 Text(
@@ -365,10 +288,7 @@ class _QualityInfoBubble extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 11.5,
-            ),
+            style: TextStyle(color: Colors.grey[400], fontSize: 11.5),
           ),
           Text(
             value,

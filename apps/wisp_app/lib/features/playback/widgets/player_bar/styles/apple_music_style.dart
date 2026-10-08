@@ -166,87 +166,182 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
 
-    return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
-      selector: (context, player) {
-        final track = player.currentTrack;
-        final queueFirst = player.queueTracks.isNotEmpty
-            ? player.queueTracks.first
-            : null;
-        return _PlayPauseData(
-          isPlaying: player.isPlaying,
-          isLoading: player.isLoading,
-          isBuffering: player.isBuffering,
-          isTransitioning: player.isTrackTransitioning,
-          isOnline: player.isOnline,
-          currentTrackId: track?.id,
-          currentTrackCached: track == null
-              ? true
-              : player.isTrackCached(track.id),
-          queueNotEmpty: player.queueTracks.isNotEmpty,
-          queueFirstId: queueFirst?.id,
-          shuffleEnabled: player.shuffleEnabled,
-          repeatMode: player.repeatMode,
-          isDJMode: player.isDJMode,
-        );
-      },
-      builder: (context, data, child) {
-        final coordinator = context.read<PlaybackCoordinator>();
-        final repeatActive =
-            data.repeatMode != global_audio_player.RepeatMode.off;
-        final repeatIcon = data.repeatMode == global_audio_player.RepeatMode.one
-            ? tokens.repeatOneIcon
-            : tokens.repeatIcon;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
+          selector: (context, player) {
+            final track = player.currentTrack;
+            final queueFirst = player.queueTracks.isNotEmpty
+                ? player.queueTracks.first
+                : null;
+            return _PlayPauseData(
+              isPlaying: player.isPlaying,
+              isLoading: player.isLoading,
+              isBuffering: player.isBuffering,
+              isTransitioning: player.isTrackTransitioning,
+              isOnline: player.isOnline,
+              currentTrackId: track?.id,
+              currentTrackCached: track == null
+                  ? true
+                  : player.isTrackCached(track.id),
+              queueNotEmpty: player.queueTracks.isNotEmpty,
+              queueFirstId: queueFirst?.id,
+              shuffleEnabled: player.shuffleEnabled,
+              repeatMode: player.repeatMode,
+              isDJMode: player.isDJMode,
+            );
+          },
+          builder: (context, data, child) {
+            final coordinator = context.read<PlaybackCoordinator>();
+            final repeatActive =
+                data.repeatMode != global_audio_player.RepeatMode.off;
+            final repeatIcon =
+                data.repeatMode == global_audio_player.RepeatMode.one
+                ? tokens.repeatOneIcon
+                : tokens.repeatIcon;
 
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          spacing: 24,
-          children: [
-            _controlButton(
-              icon: tokens.shuffleIcon,
-              tooltip: 'Shuffle',
-              size: 20,
-              active: data.shuffleEnabled,
-              onPressed: data.isDJMode ? null : coordinator.toggleShuffle,
-            ),
-            Row(
-              spacing: 16,
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              spacing: 24,
               children: [
-                GenericIconButton(
-                  style: AppStyle.AppleMusic,
-                  mouseCursor: SystemMouseCursors.click,
-                  tooltip: 'Previous',
-                  icon: Icon(
-                    tokens.playPrevIcon,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                  onPressed: coordinator.skipPrevious,
+                _controlButton(
+                  icon: tokens.shuffleIcon,
+                  tooltip: 'Shuffle',
+                  size: 20,
+                  active: data.shuffleEnabled,
+                  onPressed: data.isDJMode ? null : coordinator.toggleShuffle,
                 ),
-                const _AppleMusicDesktopPlayPauseButton(),
-                GenericIconButton(
-                  style: AppStyle.AppleMusic,
-                  mouseCursor: SystemMouseCursors.click,
-                  tooltip: 'Next',
-                  icon: Icon(
-                    tokens.playNextIcon,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                  onPressed: coordinator.skipNext,
+                Column(
+                  children: [
+                    Row(
+                      spacing: 16,
+                      children: [
+                        GenericIconButton(
+                          style: AppStyle.AppleMusic,
+                          mouseCursor: SystemMouseCursors.click,
+                          tooltip: 'Previous',
+                          icon: Icon(
+                            tokens.playPrevIcon,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          onPressed: coordinator.skipPrevious,
+                        ),
+                        const _AppleMusicDesktopPlayPauseButton(),
+                        GenericIconButton(
+                          style: AppStyle.AppleMusic,
+                          mouseCursor: SystemMouseCursors.click,
+                          tooltip: 'Next',
+                          icon: Icon(
+                            tokens.playNextIcon,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          onPressed: coordinator.skipNext,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    AudioQualityBadge(
+                      preferredColor: Colors.white,
+                      child:
+                          Selector<
+                            global_audio_player.WispAudioHandler,
+                            ActiveTrackQualityInfo?
+                          >(
+                            selector: (context, player) =>
+                                player.activeTrackQuality,
+                            builder: (context, quality, child) {
+                              if (quality == null) {
+                                return const SizedBox.shrink();
+                              }
+
+                              String label = 'Standard';
+
+                              if (quality.isHiRes) {
+                                label = 'Hi-Res Lossless';
+                              } else if (quality.isLossless) {
+                                label = 'Lossless';
+                              } else if (quality.bitrate != null) {
+                                if (quality.bitrate! >= 320) {
+                                  label = 'High Quality';
+                                } else if (quality.bitrate! < 320) {
+                                  label = 'Standard';
+                                }
+                              }
+
+                              Widget? icon;
+
+                              if (quality.isHiRes || quality.isLossless) {
+                                icon = SvgPicture.network(
+                                  "https://upload.wikimedia.org/wikipedia/commons/0/0d/Apple_Lossless_logo.svg",
+                                  fit: BoxFit.fill,
+                                  colorFilter: ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
+                                );
+                              } else if (quality.bitrate != null &&
+                                  quality.bitrate! >= 320) {
+                                icon = Icon(
+                                  CupertinoIcons.checkmark_seal_fill,
+                                  color: Colors.white,
+                                  size: 12,
+                                );
+                              }
+
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.35),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    if (icon != null) ...[
+                                      icon,
+                                      const SizedBox(width: 4),
+                                    ],
+
+                                    Text(
+                                      label,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                    ),
+                  ],
+                ),
+                _controlButton(
+                  icon: repeatIcon,
+                  tooltip: data.isDJMode ? 'Unavailable in DJ mode' : 'Repeat',
+                  size: 20,
+                  active: repeatActive,
+                  onPressed: data.isDJMode ? null : coordinator.toggleRepeat,
                 ),
               ],
-            ),
-            _controlButton(
-              icon: repeatIcon,
-              tooltip: data.isDJMode ? 'Unavailable in DJ mode' : 'Repeat',
-              size: 20,
-              active: repeatActive,
-              onPressed: data.isDJMode ? null : coordinator.toggleRepeat,
-            ),
-          ],
-        );
-      },
+            );
+          },
+        ),
+      ],
     );
   }
 }
@@ -317,12 +412,12 @@ class _AppleMusicDesktopPlayPauseButton extends StatelessWidget {
         }
 
         return GenericIconButton(
-            style: AppStyle.AppleMusic,
-            mouseCursor: SystemMouseCursors.click,
-            padding: EdgeInsets.zero,
-            iconSize: 44,
-            icon: Icon(icon, color: Colors.white),
-            onPressed: onPressed,
+          style: AppStyle.AppleMusic,
+          mouseCursor: SystemMouseCursors.click,
+          padding: EdgeInsets.zero,
+          iconSize: 44,
+          icon: Icon(icon, color: Colors.white),
+          onPressed: onPressed,
         );
       },
     );

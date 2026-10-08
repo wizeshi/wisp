@@ -15,6 +15,7 @@ import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'auth_input_dialog.dart';
 import 'auth_webview_dialog.dart';
+import 'ap_key_resolver.dart';
 import 'crypto_bridge_utils.dart';
 import 'jumo_crypto_utils.dart';
 import 'service_session_manager.dart';
@@ -790,7 +791,44 @@ class JsProviderBridge {
       return '';
     });
 
-    // 9. Inject standard global environment and polyfills
+    // 9. Generic Audio Content Decryption Key Resolver Bridge
+    runtime.onMessage('wisp_audio_resolve_key', (dynamic args) {
+      unawaited(() async {
+        int? cbId;
+        try {
+          final map = args is String
+              ? jsonDecode(args) as Map<String, dynamic>
+              : (args as Map).cast<String, dynamic>();
+          cbId = map['cbId'] as int?;
+          final protocol = map['protocol'] as String? ?? 'ap';
+          final trackId = map['trackId'] as String?;
+          final fileId = map['fileId'] as String?;
+          final token = map['token'] as String?;
+
+          if (protocol == 'ap' && trackId != null && fileId != null && token != null) {
+            final keyHex = await ApKeyResolver.resolveKey(
+              trackId: trackId,
+              fileId: fileId,
+              token: token,
+            );
+            if (cbId != null) {
+              resolveJsCallback(runtime, cbId, {
+                'result': {'keyHex': keyHex}
+              });
+            }
+          } else {
+            throw ArgumentError('Unsupported protocol or missing parameters for audio key resolution');
+          }
+        } catch (e) {
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {'error': e.toString()});
+          }
+        }
+      }());
+      return '';
+    });
+
+    // 10. Inject standard global environment and polyfills
     runtime.evaluate('''
       globalThis.__wisp_pending_callbacks = {};
       globalThis.__wisp_pending_refresh_fns = {};
@@ -1105,6 +1143,25 @@ class JsProviderBridge {
                 bodyB64: options.bodyB64,
                 url: options.url,
                 nonce: options.nonce
+              }));
+            });
+          }
+        },
+
+        audio: {
+          resolveKey: function(options) {
+            return new Promise(function(resolve, reject) {
+              var cbId = ++globalThis.__wisp_callback_counter;
+              globalThis.__wisp_pending_callbacks[cbId] = function(res) {
+                if (res && res.error) reject(new Error(res.error));
+                else resolve(res ? res.result : null);
+              };
+              sendMessage('wisp_audio_resolve_key', JSON.stringify({
+                cbId: cbId,
+                protocol: (options && options.protocol) || 'ap',
+                trackId: options && options.trackId,
+                fileId: options && options.fileId,
+                token: options && options.token
               }));
             });
           }

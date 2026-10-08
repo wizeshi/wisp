@@ -22,7 +22,7 @@ enum AppStyle {
 
   Color get brandColor => switch (this) {
     AppStyle.Spotify => const Color(0xFF1DB954),
-    AppStyle.AppleMusic => const Color(0xFFFA243C),
+    AppStyle.AppleMusic => const Color(0xFFFF4E6B),
     AppStyle.Original => const Color(0xFF0096FF),
   };
 

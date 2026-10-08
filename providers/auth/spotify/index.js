@@ -143,21 +143,77 @@ class SpotifyAuthProvider {
         console.warn('[Spotify/Auth] Client token acquisition warning: ' + e);
       }
 
+      const product = await this._fetchAccountProduct(accessData.accessToken, clientToken);
+      const isPremium = String(product).toUpperCase() === 'PREMIUM';
+
       const cleanSpDc = cleanCookie.replace(/^sp_dc=/, '');
       const newSession = {
         accessToken: accessData.accessToken,
         clientToken: clientToken || '',
         cookies: { sp_dc: cleanSpDc },
         expiresAtMs: accessData.accessTokenExpirationTimestampMs || (Date.now() + 3600000),
-        clientId: accessData.clientId
+        clientId: accessData.clientId,
+        product: product,
+        isPremium: isPremium
       };
 
       await wisp.service.setSession(this.serviceId, newSession);
       console.log('[Spotify/Auth] Tokens successfully refreshed in vault (expires in: ' +
-        Math.round((newSession.expiresAtMs - Date.now()) / 1000) + 's)');
+        Math.round((newSession.expiresAtMs - Date.now()) / 1000) + 's, product: ' + product + ', isPremium: ' + isPremium + ')');
 
       return newSession;
     });
+  }
+
+  async _fetchAccountProduct(accessToken, clientToken) {
+    try {
+      const url = 'https://api-partner.spotify.com/pathfinder/v2/query';
+      const headers = {
+        'Authorization': 'Bearer ' + accessToken,
+        'client-token': clientToken || '',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': USER_AGENT,
+        'Origin': 'https://open.spotify.com',
+        'Referer': 'https://open.spotify.com/',
+        'app-platform': 'WebPlayer',
+        'spotify-app-version': APP_VERSION
+      };
+      const payload = {
+        operationName: 'accountAttributes',
+        variables: {},
+        extensions: {
+          persistedQuery: {
+            version: 1,
+            sha256Hash: '41cb03e50f4db7f661057895c23cbec5248dcc5dd3d5cde2ed4bc809ccc2d2e3'
+          }
+        }
+      };
+      const res = await wisp.fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(payload)
+      });
+      if (res.status === 200) {
+        const data = await res.json();
+        const product = data && data.data && data.data.me && data.data.me.account && data.data.me.account.product;
+        return product || 'FREE';
+      }
+    } catch (e) {
+      console.warn('[Spotify/Auth] Failed to fetch account product attributes: ' + e);
+    }
+    return 'FREE';
+  }
+
+  async isPremium() {
+    const session = await this.getSession();
+    if (!session) return false;
+    if (session.isPremium !== undefined) return !!session.isPremium;
+    if (session.accessToken) {
+      const tokens = await this.getTokens(false);
+      return !!(tokens && tokens.isPremium);
+    }
+    return false;
   }
 
   async _generateOtp(secretValue) {
@@ -226,6 +282,7 @@ const AuthExport = {
   logout: () => authInstance.logout(),
   getSession: () => authInstance.getSession(),
   isAuthenticated: () => authInstance.isAuthenticated(),
+  isPremium: () => authInstance.isPremium(),
   getTokens: (forceRefresh) => authInstance.getTokens(forceRefresh)
 };
 

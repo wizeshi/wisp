@@ -754,8 +754,6 @@ class LibraryTabViewState extends State<LibraryTabView> {
               folder: entry.folder!,
               horizontalPadding: padding,
               playlists: _displayPlaylists,
-              albums: _albums,
-              artists: _artists,
               currentLibraryView: _selectedTab,
               currentNavIndex: 2,
               playlistCount: folderCounts[entry.folder!.id] ?? 0,
@@ -1172,8 +1170,6 @@ class _FolderListTile extends StatefulWidget {
   final PlaylistFolder folder;
   final double horizontalPadding;
   final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
   final LibraryView? currentLibraryView;
   final int? currentNavIndex;
   final int playlistCount;
@@ -1185,8 +1181,6 @@ class _FolderListTile extends StatefulWidget {
     required this.folder,
     required this.horizontalPadding,
     required this.playlists,
-    required this.albums,
-    required this.artists,
     required this.currentLibraryView,
     required this.currentNavIndex,
     required this.enableDrag,

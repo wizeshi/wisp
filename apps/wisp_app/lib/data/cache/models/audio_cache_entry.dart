@@ -30,6 +30,28 @@ class AudioCacheEntry {
     this.isUserDownload = false,
   });
 
+  AudioCacheEntry copyWith({
+    String? trackId,
+    String? videoId,
+    String? filePath,
+    int? fileSize,
+    String? trackTitle,
+    String? artistName,
+    DateTime? downloadDate,
+    DateTime? lastPlayedDate,
+    bool? isUserDownload,
+  }) => AudioCacheEntry(
+    trackId: trackId ?? this.trackId,
+    videoId: videoId ?? this.videoId,
+    filePath: filePath ?? this.filePath,
+    fileSize: fileSize ?? this.fileSize,
+    trackTitle: trackTitle ?? this.trackTitle,
+    artistName: artistName ?? this.artistName,
+    downloadDate: downloadDate ?? this.downloadDate,
+    lastPlayedDate: lastPlayedDate ?? this.lastPlayedDate,
+    isUserDownload: isUserDownload ?? this.isUserDownload,
+  );
+
   Map<String, dynamic> toJson() => {
     'trackId': trackId,
     'videoId': videoId,

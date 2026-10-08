@@ -414,7 +414,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   }
 
   Media _media(PlaybackSource source) => Media(
-    source.uri.toString(),
+    source.uri.isScheme('file') ? source.uri.toFilePath() : source.uri.toString(),
     httpHeaders: source.headers.isEmpty ? null : source.headers,
   );
 

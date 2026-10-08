@@ -145,8 +145,18 @@ globalThis.getStreamUrl = async function(mediaId, options) {
       'User-Agent': 'wisp-audio-client/1.0'
     },
     format: data.format || 'mp3',
-    bitrate: data.bitrate || 320000
+    bitrate: data.bitrate || 320000,
+    // Optional encrypted stream configuration (e.g. for Spotify AES-128-CTR Ogg Vorbis streams)
+    customData: {
+      cipher: {
+        algorithm: 'aes-128-ctr',
+        keyHex: '...',
+        ivHex: '72e067fbddcbcf77ebe8bc643f630d93',
+        skipBytes: 167
+      }
+    }
   };
 };
 ```
+
 

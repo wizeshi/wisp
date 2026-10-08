@@ -537,9 +537,8 @@ class _DesktopPlayerBar extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: Padding(
                         padding: const EdgeInsets.only(right: 24),
-                        child: _DesktopTrackInfo(
+                        child: _SpotifyDesktopTrackInfo(
                           currentTrack: currentTrack,
-                          appStyle: appStyle,
                         ),
                       ),
                     ),
@@ -593,3 +592,128 @@ class _DesktopPlayerBar extends StatelessWidget {
   }
 }
 
+class _SpotifyDesktopTrackInfo extends StatelessWidget {
+  final GenericSong? currentTrack;
+
+  const _SpotifyDesktopTrackInfo({required this.currentTrack});
+
+  @override
+  Widget build(BuildContext context) {
+    final track = currentTrack!;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Container(
+            width: 56,
+            height: 56,
+            color: Colors.grey[900],
+            child: currentTrack!.thumbnailUrl.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: currentTrack!.thumbnailUrl,
+                    fit: BoxFit.cover,
+                    filterQuality: FilterQuality.high,
+                    placeholder: (context, url) =>
+                        Container(color: Colors.grey[800]),
+                    errorWidget: (context, url, error) =>
+                        Icon(Icons.music_note, color: Colors.grey[700]),
+                  )
+                : Icon(Icons.music_note, color: Colors.grey[700]),
+          ),
+        ),
+        SizedBox(width: 12),
+        Flexible(
+          fit: FlexFit.loose,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _DesktopTrackName(track: track),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TrackBadges(track: track),
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: _DesktopTrackArtists(track: track),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AudioQualityBadge(
+                    preferredColor: Theme.of(context).colorScheme.primary,
+                    child:
+                        Selector<
+                          global_audio_player.WispAudioHandler,
+                          ActiveTrackQualityInfo?
+                        >(
+                          selector: (context, player) =>
+                              player.activeTrackQuality,
+                          builder: (context, quality, child) {
+                            if (quality == null) {
+                              return const SizedBox.shrink();
+                            }
+
+                            String label = 'Standard';
+
+                            if (quality.isHiRes) {
+                              label = 'Hi-Res Lossless';
+                            } else if (quality.isLossless) {
+                              label = 'Lossless';
+                            } else if (quality.bitrate != null) {
+                              if (quality.bitrate! >= 320) {
+                                label = 'High Quality';
+                              } else if (quality.bitrate! < 320) {
+                                label = 'Standard';
+                              }
+                            }
+
+                            return HoverRegion(
+                              child: Builder(
+                                builder: (context) {
+                                  final isHovered =
+                                      HoverRegion.of(context) ?? false;
+
+                                  return MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    child: Text(
+                                      label,
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        decorationColor: Theme.of(context).colorScheme.primary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        decoration: isHovered
+                                            ? TextDecoration.underline
+                                            : TextDecoration.none,
+                                        decorationThickness: 3
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 24),
+        LikeButton(
+          track: currentTrack,
+          iconSize: 18,
+          padding: const EdgeInsets.all(2),
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ],
+    );
+  }
+}

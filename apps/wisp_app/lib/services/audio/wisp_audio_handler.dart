@@ -1143,14 +1143,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     try {
       await _engine.transitionToPreloaded(play: true);
     } catch (e) {
-      logger.w('[Audio/Player] Transition to preloaded track failed', error: e);
-      // We've already committed to the new track in the UI/session — the
-      // engine call failing after the fade has visually/audibly started is
-      // an engine-level playback error, not a reason to snap the UI back
-      // to the track that's already fading out.
+      logger.w('[Audio/Player] Transition to preloaded track failed, falling back to full load', error: e);
       if (requestToken == _trackChangeToken) {
-        _errorMessage = e.toString();
-        _setState(PlaybackState.error);
+        await _loadTrackAtIndex(nextIndex, play: true, token: requestToken);
       }
     }
   }
@@ -1734,25 +1729,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     GenericSong track, {
     bool allowPrefetched = true,
   }) async {
-    if (allowPrefetched && track.id.isNotEmpty) {
-      final prefetched = _prefetchedSources[track.id];
-      if (prefetched != null) {
-        return prefetched;
-      }
-    }
-
     final cacheManager = AudioCacheManager.instance;
-    final audioYouTubeEnabled =
-        await PreferencesProvider.isAudioYouTubeEnabled();
-
-    if (!audioYouTubeEnabled) {
-      throw Exception('All audio providers are disabled in Preferences.');
-    }
-
     final expectedDuration = track.durationSecs > 0
         ? Duration(seconds: track.durationSecs)
         : null;
 
+    // 1. ALWAYS check local cache first by track.id before using any prefetched network stream!
     final cachedPath = track.id.isNotEmpty
         ? cacheManager.getCachedPath(track.id)
         : null;
@@ -1765,6 +1747,34 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       );
     }
 
+    // 2. Check prefetched source if allowed
+    if (allowPrefetched && track.id.isNotEmpty) {
+      final prefetched = _prefetchedSources[track.id];
+      if (prefetched != null) {
+        // If prefetched is a network stream, double check if it was downloaded meanwhile
+        if (!prefetched.uri.isScheme('file')) {
+          final lateCachedPath = cacheManager.getCachedPath(track.id);
+          if (lateCachedPath != null && File(lateCachedPath).existsSync()) {
+            await cacheManager.updateLastPlayed(track.id);
+            _prefetchedSources.remove(track.id);
+            return PlaybackSource(
+              uri: Uri.file(lateCachedPath),
+              expectedDuration: expectedDuration,
+              debugLabel: track.title,
+            );
+          }
+        }
+        return prefetched;
+      }
+    }
+
+    final audioYouTubeEnabled =
+        await PreferencesProvider.isAudioYouTubeEnabled();
+
+    if (!audioYouTubeEnabled) {
+      throw Exception('All audio providers are disabled in Preferences.');
+    }
+
     if (!_isOnline) {
       throw Exception('Offline and track not cached');
     }
@@ -1774,6 +1784,19 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       preferredQuality: _preferredAudioQuality,
     );
     if (resolved == null) return null;
+
+    // 3. Re-check disk cache by resolved.mediaId! (e.g. Spotify track ID or YouTube video ID)
+    if (resolved.mediaId.isNotEmpty && resolved.mediaId != track.id) {
+      final resolvedCachedPath = cacheManager.getCachedPath(resolved.mediaId);
+      if (resolvedCachedPath != null && File(resolvedCachedPath).existsSync()) {
+        await cacheManager.updateLastPlayed(resolved.mediaId);
+        return PlaybackSource(
+          uri: Uri.file(resolvedCachedPath),
+          expectedDuration: expectedDuration,
+          debugLabel: track.title,
+        );
+      }
+    }
 
     final streamUrl = resolved.stream.url;
 
@@ -1803,7 +1826,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       providerId: resolved.providerId,
       providerName: resolved.providerId == 'qobuz'
           ? 'Qobuz'
-          : (resolved.providerId == 'youtube' ? 'YouTube' : resolved.providerId),
+          : (resolved.providerId == 'spotify'
+              ? 'Spotify'
+              : (resolved.providerId == 'youtube' ? 'YouTube' : resolved.providerId)),
       targetQuality: _preferredAudioQuality,
       label: label,
       format: formatStr.toUpperCase(),
@@ -1844,6 +1869,31 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   void _handleCacheSettingsChanged() {
+    final cacheManager = AudioCacheManager.instance;
+    _prefetchedSources.removeWhere((trackId, source) {
+      if (!source.uri.isScheme('file') && cacheManager.isTrackCached(trackId)) {
+        return true;
+      }
+      return false;
+    });
+
+    final nextTrack = _preloadedNextTrack;
+    if (nextTrack != null && cacheManager.isTrackCached(nextTrack.id)) {
+      final cachedPath = cacheManager.getCachedPath(nextTrack.id);
+      if (cachedPath != null && File(cachedPath).existsSync()) {
+        final expectedDuration = nextTrack.durationSecs > 0
+            ? Duration(seconds: nextTrack.durationSecs)
+            : null;
+        unawaited(_engine.preloadNext(
+          PlaybackSource(
+            uri: Uri.file(cachedPath),
+            expectedDuration: expectedDuration,
+            debugLabel: nextTrack.title,
+          ),
+        ));
+      }
+    }
+
     _schedulePreCacheUpcomingTracks();
   }
 
@@ -1923,7 +1973,43 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           preferredQuality: _preferredAudioQuality,
         );
         if (resolved == null) throw Exception('Could not resolve audio stream');
-        return (resolved.mediaId, resolved.stream.url);
+
+        final format = resolved.stream.format ??
+            (resolved.providerId == 'qobuz'
+                ? 'flac'
+                : (resolved.providerId == 'spotify' ? 'ogg' : 'm4a'));
+
+        final proxy = AudioStreamingProxy.instance;
+        final needsProxy = resolved.stream.customData?['cipher'] != null ||
+            resolved.stream.segmented != null;
+
+        String streamUrl = resolved.stream.url;
+        if (needsProxy || proxy.isRunning) {
+          if (!proxy.isRunning) {
+            await proxy.start();
+          }
+          if (proxy.isRunning) {
+            streamUrl = proxy.buildProxyUrl(
+              trackId: track.id,
+              videoId: resolved.mediaId,
+              trackTitle: track.title,
+              artistName: artistNames,
+              targetUrl: resolved.stream.url,
+              headers: resolved.stream.headers,
+              providerId: resolved.providerId,
+              segmentedDescriptor: resolved.stream.segmented,
+              customData: resolved.stream.customData,
+              spool: false,
+            );
+          }
+        }
+
+        return DownloadStreamInfo(
+          videoId: resolved.mediaId,
+          streamUrl: streamUrl,
+          format: format,
+          headers: resolved.stream.headers,
+        );
       },
     );
   }
@@ -2447,9 +2533,48 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       trackTitle: track.title,
       artistName: artistNames,
       resolveAndGetStream: () async {
-        final resolved = await AudioResolver.instance.resolveTrack(track);
+        final resolved = await AudioResolver.instance.resolveTrack(
+          track,
+          preferredQuality: _preferredAudioQuality,
+        );
         if (resolved == null) throw Exception('Could not resolve audio stream');
-        return (resolved.mediaId, resolved.stream.url);
+
+        final format = resolved.stream.format ??
+            (resolved.providerId == 'qobuz'
+                ? 'flac'
+                : (resolved.providerId == 'spotify' ? 'ogg' : 'm4a'));
+
+        final proxy = AudioStreamingProxy.instance;
+        final needsProxy = resolved.stream.customData?['cipher'] != null ||
+            resolved.stream.segmented != null;
+
+        String streamUrl = resolved.stream.url;
+        if (needsProxy || proxy.isRunning) {
+          if (!proxy.isRunning) {
+            await proxy.start();
+          }
+          if (proxy.isRunning) {
+            streamUrl = proxy.buildProxyUrl(
+              trackId: track.id,
+              videoId: resolved.mediaId,
+              trackTitle: track.title,
+              artistName: artistNames,
+              targetUrl: resolved.stream.url,
+              headers: resolved.stream.headers,
+              providerId: resolved.providerId,
+              segmentedDescriptor: resolved.stream.segmented,
+              customData: resolved.stream.customData,
+              spool: false,
+            );
+          }
+        }
+
+        return DownloadStreamInfo(
+          videoId: resolved.mediaId,
+          streamUrl: streamUrl,
+          format: format,
+          headers: resolved.stream.headers,
+        );
       },
     );
   }

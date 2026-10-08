@@ -164,42 +164,71 @@ class AudioStorageService extends ChangeNotifier {
     }
   }
 
-  bool isTrackCached(String trackId) {
+  AudioCacheEntry? _findEntry(String trackId) {
     final key = normalizeTrackId(trackId);
-    return _cacheEntries.containsKey(key);
+    final direct = _cacheEntries[key];
+    if (direct != null) return direct;
+
+    for (final entry in _cacheEntries.values) {
+      if (normalizeTrackId(entry.videoId) == key ||
+          normalizeTrackId(entry.trackId) == key) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  bool isTrackCached(String trackId) {
+    return _findEntry(trackId) != null;
   }
 
   bool isTrackUserDownload(String trackId) {
-    final key = normalizeTrackId(trackId);
-    return _cacheEntries[key]?.isUserDownload ?? false;
+    return _findEntry(trackId)?.isUserDownload ?? false;
   }
 
   AudioCacheEntry? getEntry(String trackId) {
-    final key = normalizeTrackId(trackId);
-    return _cacheEntries[key];
+    return _findEntry(trackId);
   }
 
   String? getCachedPath(String trackId) {
-    final key = normalizeTrackId(trackId);
-    final entry = _cacheEntries[key];
+    final entry = _findEntry(trackId);
     if (entry == null) return null;
 
     final file = File(entry.filePath);
     if (!file.existsSync()) {
       logger.w('[AudioStorageService] Cached file missing from disk: $trackId');
-      _cacheEntries.remove(key);
+      _cacheEntries.remove(entry.trackId);
       _recalculateSizes();
       _saveCacheEntries(immediate: true);
       notifyListeners();
       return null;
     }
 
+    // Corrupted file safeguard: if entry points to .m4a but a valid .ogg exists
+    // (e.g. from Spotify AES-CTR decryption), prefer the .ogg file and clean up the corrupted .m4a.
+    if (entry.filePath.endsWith('.m4a')) {
+      final oggPath = entry.filePath.replaceAll(RegExp(r'\.m4a$'), '.ogg');
+      final oggFile = File(oggPath);
+      if (oggFile.existsSync()) {
+        logger.i('[AudioStorageService] Found valid .ogg file replacing corrupted .m4a: $oggPath');
+        try {
+          file.deleteSync();
+        } catch (_) {}
+        final updatedEntry = entry.copyWith(
+          filePath: oggPath,
+          fileSize: oggFile.lengthSync(),
+        );
+        _cacheEntries[entry.trackId] = updatedEntry;
+        _saveCacheEntries(immediate: true);
+        return oggPath;
+      }
+    }
+
     return entry.filePath;
   }
 
   Future<void> updateLastPlayed(String trackId) async {
-    final key = normalizeTrackId(trackId);
-    final entry = _cacheEntries[key];
+    final entry = _findEntry(trackId);
     if (entry != null) {
       entry.lastPlayedDate = DateTime.now();
       await _saveCacheEntries();
@@ -208,14 +237,13 @@ class AudioStorageService extends ChangeNotifier {
 
   /// Promotes an existing auto-cached entry to a protected user download.
   Future<void> promoteToUserDownload(String trackId) async {
-    final key = normalizeTrackId(trackId);
-    final entry = _cacheEntries[key];
+    final entry = _findEntry(trackId);
     if (entry != null && !entry.isUserDownload) {
       entry.isUserDownload = true;
       _recalculateSizes();
       await _saveCacheEntries(immediate: true);
       notifyListeners();
-      logger.i('[AudioStorageService] Promoted $trackId to user download');
+      logger.i('[AudioStorageService] Promoted ${entry.trackId} to user download');
     }
   }
 
@@ -336,13 +364,12 @@ class AudioStorageService extends ChangeNotifier {
 
   /// Remove a single entry and its physical file.
   Future<void> removeEntry(String trackId) async {
-    final key = normalizeTrackId(trackId);
-    final entry = _cacheEntries[key];
+    final entry = _findEntry(trackId);
     if (entry == null) return;
 
-    logger.i('[AudioStorageService] Removing track: $trackId');
+    logger.i('[AudioStorageService] Removing track: ${entry.trackId}');
     await _deleteEntryFile(entry);
-    _cacheEntries.remove(key);
+    _cacheEntries.remove(entry.trackId);
     _recalculateSizes();
     await _saveCacheEntries(immediate: true);
     notifyListeners();
@@ -442,8 +469,35 @@ class AudioStorageService extends ChangeNotifier {
         }
       }
 
-      // SAFEGUARD: Never delete .m4a audio files on startup!
-      // If the index failed to load or experienced a timing glitch, deleting .m4a files
+      // SAFEGUARD: Cleanup duplicate corrupted .m4a files where a corresponding .ogg exists.
+      for (final entity in entities) {
+        if (entity is File && entity.path.endsWith('.m4a')) {
+          final oggPath = entity.path.replaceAll(RegExp(r'\.m4a$'), '.ogg');
+          if (File(oggPath).existsSync()) {
+            logger.i('[AudioStorageService] Removing duplicate corrupted .m4a file: ${entity.path}');
+            try {
+              entity.deleteSync();
+            } catch (_) {}
+          }
+        }
+      }
+
+      // If an existing entry was pointing to .m4a but .ogg exists, migrate it
+      for (final MapEntry(:key, :value) in _cacheEntries.entries.toList()) {
+        if (value.filePath.endsWith('.m4a')) {
+          final oggPath = value.filePath.replaceAll(RegExp(r'\.m4a$'), '.ogg');
+          final oggFile = File(oggPath);
+          if (oggFile.existsSync()) {
+            _cacheEntries[key] = value.copyWith(
+              filePath: oggPath,
+              fileSize: oggFile.lengthSync(),
+            );
+          }
+        }
+      }
+
+      // SAFEGUARD: Never delete valid audio files on startup!
+      // If the index failed to load or experienced a timing glitch, deleting audio files
       // would wipe the user's entire offline music library.
       // Instead, we verify that registered entries still exist on disk and prune
       // any dead index keys.

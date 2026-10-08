@@ -6,10 +6,14 @@ library;
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:ui' show ImageFilter;
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:wisp/core/theme/cover_art_palette_provider.dart';
+import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
@@ -17,6 +21,7 @@ import 'package:wisp/shared/widgets/display/focus_freeze_builder.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart'
     as global_audio_player;
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/shared/widgets/overlay/hover.dart';
 import 'full_player.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/details/views/list_detail_view.dart';
@@ -493,8 +498,6 @@ class _DesktopTrackInfo extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
-              AudioQualityBadge(),
             ],
           ),
         ),

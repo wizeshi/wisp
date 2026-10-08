@@ -162,7 +162,6 @@ class _SpotifyListDetailRenderer extends StatelessWidget {
                                   total,
                                   description,
                                 ),
-                                const SizedBox(height: 12),
                                 view._buildActionsRow(
                                   isDesktop,
                                   backgroundGradient: LinearGradient(

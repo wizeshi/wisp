@@ -32,6 +32,21 @@ enum QueueDownloadResult {
   storageLimitReached,
 }
 
+/// Resolved stream metadata for cache downloading
+class DownloadStreamInfo {
+  final String videoId;
+  final String streamUrl;
+  final String? format;
+  final Map<String, String>? headers;
+
+  const DownloadStreamInfo({
+    required this.videoId,
+    required this.streamUrl,
+    this.format,
+    this.headers,
+  });
+}
+
 /// A download task
 class DownloadTask {
   final String trackId;
@@ -249,8 +264,7 @@ class AudioCacheManager extends ChangeNotifier {
     required String trackId,
     required String trackTitle,
     required String artistName,
-    required Future<(String videoId, String streamUrl)> Function()
-    resolveAndGetStream,
+    required Future<DownloadStreamInfo> Function() resolveAndGetStream,
     Map<String, String>? requestHeaders,
     bool isUserDownload = true,
   }) async {
@@ -422,11 +436,15 @@ class AudioCacheManager extends ChangeNotifier {
     try {
       // Resolve video ID and get stream URL
       logger.d('[AudioCacheManager] Resolving video for: ${task.trackTitle}');
-      final (resolvedId, streamUrl) = await pending.resolveAndGetStream();
+      final streamInfo = await pending.resolveAndGetStream();
+      final resolvedId = streamInfo.videoId;
+      final streamUrl = streamInfo.streamUrl;
+      final format = streamInfo.format ?? 'm4a';
 
       final fileName = _storage.buildSafeCacheFileName(
         _normalizeTrackId(trackId),
         resolvedId,
+        extension: format,
       );
       final finalFilePath = '${_storage.cacheDirectory!.path}/$fileName';
       tempPartPath = '$finalFilePath.part';
@@ -464,6 +482,7 @@ class AudioCacheManager extends ChangeNotifier {
                   ? 'com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip'
                   : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               ...?pending.requestHeaders,
+              ...?streamInfo.headers,
             },
           ),
           onReceiveProgress: (received, total) {
@@ -794,8 +813,7 @@ class AudioCacheManager extends ChangeNotifier {
 }
 
 class _PendingDownload {
-  final Future<(String videoId, String streamUrl)> Function()
-  resolveAndGetStream;
+  final Future<DownloadStreamInfo> Function() resolveAndGetStream;
   final Map<String, String>? requestHeaders;
 
   _PendingDownload({required this.resolveAndGetStream, this.requestHeaders});

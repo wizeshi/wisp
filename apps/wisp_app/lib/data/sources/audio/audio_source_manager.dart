@@ -11,6 +11,7 @@ import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/sources/audio/audio_source.dart';
 import 'package:wisp/data/sources/audio/js_audio_source.dart';
 import 'package:wisp/data/sources/audio/sources/youtube_audio_source.dart';
+import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/data/sources/providers/provider_dependency_validator.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 
@@ -64,6 +65,9 @@ class AudioSourceManager extends ChangeNotifier {
 
   Future<void> _doInitialize() async {
     logger.i('[AudioSourceManager] Initializing audio sources...');
+
+    // Ensure AuthSourceManager is initialized first so dependency validation (e.g. auth/spotify) succeeds
+    await AuthSourceManager.instance.initialize();
 
     // 1. Register built-in YouTube source
     if (!_explicitlyUninstalled.contains('youtube') && !_sources.containsKey('youtube')) {

@@ -21,12 +21,16 @@ class _OriginalCircularPlayButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final ringColor = Theme.of(context).colorScheme.primary;
 
-    return Selector2<global_audio_player.WispAudioHandler, PlaybackCoordinator,
-        _PlayPauseData>(
+    return Selector2<
+      global_audio_player.WispAudioHandler,
+      PlaybackCoordinator,
+      _PlayPauseData
+    >(
       selector: (context, player, coordinator) {
         final track = player.currentTrack;
-        final queueFirst =
-            player.queueTracks.isNotEmpty ? player.queueTracks.first : null;
+        final queueFirst = player.queueTracks.isNotEmpty
+            ? player.queueTracks.first
+            : null;
         return _PlayPauseData(
           isPlaying: coordinator.effectiveIsPlaying,
           isLoading: player.isLoading,
@@ -34,8 +38,9 @@ class _OriginalCircularPlayButton extends StatelessWidget {
           isTransitioning: player.isTrackTransitioning,
           isOnline: player.isOnline,
           currentTrackId: track?.id,
-          currentTrackCached:
-              track == null ? true : player.isTrackCached(track.id),
+          currentTrackCached: track == null
+              ? true
+              : player.isTrackCached(track.id),
           queueNotEmpty: player.queueTracks.isNotEmpty,
           queueFirstId: queueFirst?.id,
         );
@@ -126,20 +131,124 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
           ),
 
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: Row(
               children: [
                 // Track Area (takes available space on left)
                 Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 16),
-                      child: _DesktopTrackInfo(
-                        currentTrack: currentTrack,
-                        appStyle: AppStyle.Original,
+                  child: Row(
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 16),
+                          child: _DesktopTrackInfo(
+                            currentTrack: currentTrack,
+                            appStyle: AppStyle.Original,
+                          ),
+                        ),
                       ),
-                    ),
+
+                      AudioQualityBadge(
+                        preferredColor: Colors.white,
+                        child:
+                            Selector<
+                              global_audio_player.WispAudioHandler,
+                              ActiveTrackQualityInfo?
+                            >(
+                              selector: (context, player) =>
+                                  player.activeTrackQuality,
+                              builder: (context, quality, child) {
+                                if (quality == null) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                String label = 'Standard';
+
+                                if (quality.isHiRes) {
+                                  label = 'Hi-Res Lossless';
+                                } else if (quality.isLossless) {
+                                  label = 'Lossless';
+                                } else if (quality.bitrate != null) {
+                                  if (quality.bitrate! >= 320) {
+                                    label = 'High Quality';
+                                  } else if (quality.bitrate! < 320) {
+                                    label = 'Standard';
+                                  }
+                                }
+
+                                Widget? icon;
+
+                                if (quality.isHiRes || quality.isLossless) {
+                                  icon = SvgPicture.network(
+                                    "https://upload.wikimedia.org/wikipedia/commons/0/0d/Apple_Lossless_logo.svg",
+                                    fit: BoxFit.fill,
+                                    colorFilter: ColorFilter.mode(
+                                      Colors.white,
+                                      BlendMode.srcIn,
+                                    ),
+                                  );
+                                } else if (quality.bitrate != null &&
+                                    quality.bitrate! >= 320) {
+                                  icon = Icon(
+                                    Symbols.check_circle_filled,
+                                    fill: 1,
+                                    color: Colors.white,
+                                    size: 12,
+                                  );
+                                }
+
+                                return Selector<
+                                  CoverArtPaletteProvider,
+                                  Color?
+                                >(
+                                  selector: (context, palette) =>
+                                      palette.primaryColor,
+                                  builder: (context, primaryColor, child) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: primaryColor?.withValues(
+                                          alpha: 0.2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: primaryColor != null ? Border.all(
+                                          color: primaryColor.withValues(
+                                            alpha: 0.35,
+                                          ),
+                                          width: 1,
+                                        ) : null,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          if (icon != null) ...[
+                                            icon,
+                                            const SizedBox(width: 4),
+                                          ],
+
+                                          Text(
+                                            label,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -180,9 +289,9 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
               right: 16,
               child: _HandoffStatusIndicator(
                 message: handoffMessage,
-                backgroundColor: HSLColor.fromColor(primaryColor)
-                    .withLightness(0.4)
-                    .toColor(),
+                backgroundColor: HSLColor.fromColor(
+                  primaryColor,
+                ).withLightness(0.4).toColor(),
               ),
             ),
         ],
@@ -212,8 +321,9 @@ class _OriginalDesktopPlaybackControls extends StatelessWidget {
           isTransitioning: player.isTrackTransitioning,
           isOnline: player.isOnline,
           currentTrackId: track?.id,
-          currentTrackCached:
-              track == null ? true : player.isTrackCached(track.id),
+          currentTrackCached: track == null
+              ? true
+              : player.isTrackCached(track.id),
           queueNotEmpty: player.queueTracks.isNotEmpty,
           queueFirstId: queueFirst?.id,
           shuffleEnabled: player.shuffleEnabled,
@@ -237,10 +347,9 @@ class _OriginalDesktopPlaybackControls extends StatelessWidget {
             ? Theme.of(context).colorScheme.onPrimary
             : Colors.grey[400];
 
-        final repeatIcon =
-            data.repeatMode == global_audio_player.RepeatMode.one
-                ? tokens.repeatOneIcon
-                : tokens.repeatIcon;
+        final repeatIcon = data.repeatMode == global_audio_player.RepeatMode.one
+            ? tokens.repeatOneIcon
+            : tokens.repeatIcon;
 
         const navBtnVariant = M3EIconButtonVariant.tonal;
         const navBtnDecoration = M3EIconButtonDecoration(
@@ -328,12 +437,16 @@ class _OriginalDesktopPlayPauseButton extends StatelessWidget {
     final tokens = context.tokens;
     final primaryColor = Theme.of(context).colorScheme.primary;
 
-    return Selector2<global_audio_player.WispAudioHandler, PlaybackCoordinator,
-        _PlayPauseData>(
+    return Selector2<
+      global_audio_player.WispAudioHandler,
+      PlaybackCoordinator,
+      _PlayPauseData
+    >(
       selector: (context, player, coordinator) {
         final track = player.currentTrack;
-        final queueFirst =
-            player.queueTracks.isNotEmpty ? player.queueTracks.first : null;
+        final queueFirst = player.queueTracks.isNotEmpty
+            ? player.queueTracks.first
+            : null;
         return _PlayPauseData(
           isPlaying: coordinator.effectiveIsPlaying,
           isLoading: player.isLoading,
@@ -341,8 +454,9 @@ class _OriginalDesktopPlayPauseButton extends StatelessWidget {
           isTransitioning: player.isTrackTransitioning,
           isOnline: player.isOnline,
           currentTrackId: track?.id,
-          currentTrackCached:
-              track == null ? true : player.isTrackCached(track.id),
+          currentTrackCached: track == null
+              ? true
+              : player.isTrackCached(track.id),
           queueNotEmpty: player.queueTracks.isNotEmpty,
           queueFirstId: queueFirst?.id,
         );
@@ -359,7 +473,9 @@ class _OriginalDesktopPlayPauseButton extends StatelessWidget {
           onPressed = () => coordinator.play();
         }
 
-        final IconData icon = data.isPlaying ? tokens.pauseIcon : tokens.playIcon;
+        final IconData icon = data.isPlaying
+            ? tokens.pauseIcon
+            : tokens.playIcon;
 
         if (isLoading) {
           return SizedBox(
@@ -440,31 +556,36 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                   segments.add(
                     (radius) =>
                         Selector<global_audio_player.WispAudioHandler, bool>(
-                      selector: (context, player) =>
-                          player.playbackContext != null &&
-                          player.playbackContext!.id
-                              .toLowerCase()
-                              .startsWith('dj'),
-                      builder: (context, isDjActive, child) {
-                        return _buildSegmentItem(
-                          icon: Symbols.headphones,
-                          tooltip: 'DJ',
-                          isActive: isDjActive,
-                          primaryColor: primaryColor,
-                          onPrimaryColor: onPrimaryColor,
-                          inactiveColor: inactiveColor,
-                          borderRadius: radius,
-                          onPressed: () {
-                            NavigationHistory.instance.currentRoute.value
-                                        ?.settings.name ==
-                                    '/dj'
-                                ? NavigationHistory.instance.goBack()
-                                : AppNavigation.instance
-                                    .navigateToDJView(context);
+                          selector: (context, player) =>
+                              player.playbackContext != null &&
+                              player.playbackContext!.id
+                                  .toLowerCase()
+                                  .startsWith('dj'),
+                          builder: (context, isDjActive, child) {
+                            return _buildSegmentItem(
+                              icon: Symbols.headphones,
+                              tooltip: 'DJ',
+                              isActive: isDjActive,
+                              primaryColor: primaryColor,
+                              onPrimaryColor: onPrimaryColor,
+                              inactiveColor: inactiveColor,
+                              borderRadius: radius,
+                              onPressed: () {
+                                NavigationHistory
+                                            .instance
+                                            .currentRoute
+                                            .value
+                                            ?.settings
+                                            .name ==
+                                        '/dj'
+                                    ? NavigationHistory.instance.goBack()
+                                    : AppNavigation.instance.navigateToDJView(
+                                        context,
+                                      );
+                              },
+                            );
                           },
-                        );
-                      },
-                    ),
+                        ),
                   );
 
                   // Sidebar segment
@@ -504,8 +625,8 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                                 } else {
                                   AppNavigation.instance
                                       .setFullPlayerDesktopMode(
-                                    FullPlayerDesktopMode.lyrics,
-                                  );
+                                        FullPlayerDesktopMode.lyrics,
+                                      );
                                 }
                                 return;
                               }
@@ -568,25 +689,26 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                 segments.add(
                   (radius) =>
                       Consumer2<ConnectSessionProvider, NavigationState>(
-                    builder: (context, connect, navigation, child) {
-                      final isDesktopConnectMenuOpen =
-                          navigation.rightSidebarVisible &&
-                          navigation.rightSidebarContent ==
-                              RightSidebarContent.connect;
-                      final isConnectActive =
-                          connect.isLinked || isDesktopConnectMenuOpen;
-                      return _buildSegmentItem(
-                        icon: tokens.connectIcon,
-                        tooltip: 'Handoff',
-                        isActive: isConnectActive,
-                        primaryColor: primaryColor,
-                        onPrimaryColor: onPrimaryColor,
-                        inactiveColor: inactiveColor,
-                        borderRadius: radius,
-                        onPressed: () => _openConnectMenuWithAccent(context),
-                      );
-                    },
-                  ),
+                        builder: (context, connect, navigation, child) {
+                          final isDesktopConnectMenuOpen =
+                              navigation.rightSidebarVisible &&
+                              navigation.rightSidebarContent ==
+                                  RightSidebarContent.connect;
+                          final isConnectActive =
+                              connect.isLinked || isDesktopConnectMenuOpen;
+                          return _buildSegmentItem(
+                            icon: tokens.connectIcon,
+                            tooltip: 'Handoff',
+                            isActive: isConnectActive,
+                            primaryColor: primaryColor,
+                            onPrimaryColor: onPrimaryColor,
+                            inactiveColor: inactiveColor,
+                            borderRadius: radius,
+                            onPressed: () =>
+                                _openConnectMenuWithAccent(context),
+                          );
+                        },
+                      ),
                 );
 
                 if (!isFullScreenOpen) {
@@ -624,14 +746,12 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                   final radius = isFirst && isLast
                       ? BorderRadius.circular(16)
                       : isFirst
-                          ? const BorderRadius.horizontal(
-                              left: Radius.circular(16),
-                            )
-                          : isLast
-                              ? const BorderRadius.horizontal(
-                                  right: Radius.circular(16),
-                                )
-                              : BorderRadius.zero; // Completely square in the middle!
+                      ? const BorderRadius.horizontal(left: Radius.circular(16))
+                      : isLast
+                      ? const BorderRadius.horizontal(
+                          right: Radius.circular(16),
+                        )
+                      : BorderRadius.zero; // Completely square in the middle!
 
                   segmentWidgets.add(segments[i](radius));
                   if (!isLast) {
@@ -761,9 +881,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
       child: Tooltip(
         message: tooltip,
         child: Material(
-          color: isActive
-              ? primaryColor
-              : Colors.transparent,
+          color: isActive ? primaryColor : Colors.transparent,
           borderRadius: borderRadius,
           child: InkWell(
             mouseCursor: isClickable
@@ -780,8 +898,8 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                 color: isActive
                     ? onPrimaryColor
                     : (isClickable
-                        ? (inactiveColor ?? Colors.grey[400])
-                        : Colors.grey[600]),
+                          ? (inactiveColor ?? Colors.grey[400])
+                          : Colors.grey[600]),
                 size: 18,
               ),
             ),
@@ -958,7 +1076,7 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
         ),
       ),
     );
-    
+
     cardBody = BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
       child: cardBody,
