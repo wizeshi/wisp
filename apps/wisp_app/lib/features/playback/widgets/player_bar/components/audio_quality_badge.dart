@@ -4,7 +4,7 @@ library;
 
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
@@ -155,11 +155,16 @@ class _QualityInfoBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<WispAudioHandler>(
-      builder: (context, handler, _) {
-        final quality = handler.activeTrackQuality;
-        final engineBitrate = handler.audioBitrate;
-        final engineSampleRate = handler.audioSampleRate;
+    return Selector<WispAudioHandler, (ActiveTrackQualityInfo?, double?, int?)>(
+      selector: (context, handler) => (
+        handler.activeTrackQuality,
+        handler.audioBitrate,
+        handler.audioSampleRate,
+      ),
+      builder: (context, data, _) {
+        final quality = data.$1;
+        final engineBitrate = data.$2;
+        final engineSampleRate = data.$3;
 
         final sourceBitDepth = quality?.bitDepth;
         final sourceSampleRate = quality?.sampleRate;
@@ -355,8 +360,14 @@ class QualityInfoSheet extends StatelessWidget {
   }) {
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: const Color(0xFF282828),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (sheetContext) => QualityInfoSheet(
         onClose: () => Navigator.of(sheetContext).pop(),
         primaryColor: primaryColor,
@@ -431,24 +442,8 @@ class QualityInfoSheet extends StatelessWidget {
         }
 
         return SafeArea(
-          top: false,
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.15),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.55),
-                  blurRadius: 16,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -457,7 +452,7 @@ class QualityInfoSheet extends StatelessWidget {
                 Center(
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    width: 36,
+                    width: 40,
                     height: 4,
                     decoration: BoxDecoration(
                       color: Colors.grey[600],
@@ -484,7 +479,9 @@ class QualityInfoSheet extends StatelessWidget {
                         ),
                       ],
                     ),
-                    GestureDetector(
+                    (Platform.isAndroid || Platform.isIOS)
+                        ? const SizedBox.shrink() // No close button on mobile
+                        : GestureDetector(
                       onTap: onClose,
                       behavior: HitTestBehavior.opaque,
                       child: Padding(
