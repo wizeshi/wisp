@@ -2,8 +2,11 @@
 
 library;
 
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
 /// Compact, interactive audio quality pill badge in the player bar.
@@ -17,6 +20,14 @@ class AudioQualityBadge extends StatefulWidget {
 
   const AudioQualityBadge({super.key, required this.child, required this.preferredColor});
 
+  /// Opens the audio quality sheet on mobile or compact screens directly.
+  static Future<void> showSheet(
+    BuildContext context, {
+    required Color preferredColor,
+  }) {
+    return QualityInfoSheet.show(context, primaryColor: preferredColor);
+  }
+
   @override
   State<AudioQualityBadge> createState() => _AudioQualityBadgeState();
 }
@@ -25,10 +36,33 @@ class _AudioQualityBadgeState extends State<AudioQualityBadge> {
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
 
+  bool get _isMobile {
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      return true;
+    }
+    return MediaQuery.sizeOf(context).width < 600;
+  }
+
   @override
   void dispose() {
     _removeOverlay();
     super.dispose();
+  }
+
+  void _handleTap() {
+    if (_isMobile) {
+      _showSheet();
+    } else {
+      _toggleOverlay();
+    }
+  }
+
+  void _showSheet() {
+    _removeOverlay();
+    QualityInfoSheet.show(
+      context,
+      primaryColor: widget.preferredColor,
+    );
   }
 
   void _toggleOverlay() {
@@ -105,7 +139,7 @@ class _AudioQualityBadgeState extends State<AudioQualityBadge> {
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
-          onTap: _toggleOverlay,
+          onTap: _handleTap,
           child: widget.child
         ),
       ),
@@ -300,6 +334,238 @@ class _QualityInfoBubble extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class QualityInfoSheet extends StatelessWidget {
+  final VoidCallback onClose;
+  final Color primaryColor;
+
+  const QualityInfoSheet({
+    super.key,
+    required this.onClose,
+    required this.primaryColor,
+  });
+
+  /// Displays the audio quality sheet as a modal bottom sheet.
+  static Future<void> show(
+    BuildContext context, {
+    required Color primaryColor,
+  }) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => QualityInfoSheet(
+        onClose: () => Navigator.of(sheetContext).pop(),
+        primaryColor: primaryColor,
+      ),
+    );
+  }
+
+  Widget _buildMetricRow({
+    required String label,
+    required String value,
+    bool accent = false,
+    Color? accentColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey[400], fontSize: 13),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: accent ? (accentColor ?? Colors.white) : Colors.white,
+              fontSize: 13,
+              fontWeight: accent ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<WispAudioHandler, (ActiveTrackQualityInfo?, double?, int?)>(
+      selector: (_, handler) => (
+        handler.activeTrackQuality,
+        handler.audioBitrate,
+        handler.audioSampleRate,
+      ),
+      builder: (context, data, _) {
+        final quality = data.$1;
+        final engineBitrate = data.$2;
+        final engineSampleRate = data.$3;
+
+        final sourceBitDepth = quality?.bitDepth;
+        final sourceSampleRate = quality?.sampleRate;
+        final sourceFormat = quality?.format ?? 'M4A / AAC';
+        final providerName = quality?.providerName ?? 'Audio Source';
+
+        // Format source kHz string
+        String? sourceKHz;
+        if (sourceSampleRate != null && sourceSampleRate > 0) {
+          final khzVal = sourceSampleRate / 1000.0;
+          sourceKHz = '${khzVal.toStringAsFixed(khzVal % 1 == 0 ? 0 : 1)} kHz';
+        }
+
+        // Format engine kHz string
+        String? engineKHz;
+        if (engineSampleRate != null && engineSampleRate > 0) {
+          final khzVal = engineSampleRate / 1000.0;
+          engineKHz = '${khzVal.toStringAsFixed(khzVal % 1 == 0 ? 0 : 1)} kHz';
+        }
+
+        // Engine bitrate string
+        String? engineKbps;
+        if (engineBitrate != null && engineBitrate > 0) {
+          engineKbps = '${(engineBitrate / 1000).floor()} kbps';
+        }
+
+        return SafeArea(
+          top: false,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.15),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  blurRadius: 16,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[600],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                // Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.graphic_eq, size: 16, color: primaryColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          'AUDIO FIDELITY',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
+                    ),
+                    GestureDetector(
+                      onTap: onClose,
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.close,
+                          size: 16,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+                const SizedBox(height: 12),
+
+                // Source Stream Section
+                Text(
+                  'Source Stream ($providerName)',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildMetricRow(label: 'Container / Codec', value: sourceFormat),
+                if (sourceBitDepth != null && sourceBitDepth > 0)
+                  _buildMetricRow(
+                    label: 'Bit Depth',
+                    value: '$sourceBitDepth-bit',
+                    accent: sourceBitDepth >= 24,
+                    accentColor: primaryColor,
+                  ),
+                if (sourceKHz != null)
+                  _buildMetricRow(
+                    label: 'Sample Rate',
+                    value: sourceKHz,
+                    accent: (sourceSampleRate ?? 0) > 48000,
+                    accentColor: primaryColor,
+                  ),
+                if (quality?.bitrate != null && quality!.bitrate! > 0)
+                  _buildMetricRow(
+                    label: 'Nominal Bitrate',
+                    value: '${quality.bitrate} kbps',
+                  ),
+
+                const SizedBox(height: 12),
+                Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+                const SizedBox(height: 12),
+
+                // Playback Engine Output Section
+                const Text(
+                  'Playback Engine Output',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (engineKbps != null)
+                  _buildMetricRow(label: 'Rendered Bitrate', value: engineKbps),
+                if (engineKHz != null)
+                  _buildMetricRow(label: 'Output Rate', value: engineKHz),
+
+                if (engineKbps == null && engineKHz == null)
+                  Text(
+                    'Engine telemetry syncing...',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

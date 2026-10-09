@@ -9,13 +9,16 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/features/playback/widgets/player_bar/components/audio_quality_badge.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/connect/widgets/connect_menu.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
@@ -446,7 +449,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       lyricsProvider: lyricsProvider,
     );
   }
-
 
   Widget _buildQueueModeContent(
     BuildContext context,
@@ -1064,10 +1066,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     ),
                   ),
                   if (currentTrack != null)
-                    TrackBadges(
-                      track: currentTrack,
-                      leadingSpacing: 6,
-                    ),
+                    TrackBadges(track: currentTrack, leadingSpacing: 6),
                 ],
               ),
               const SizedBox(height: 2),
@@ -1662,6 +1661,90 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     _formatDuration(animatedPosition),
                     style: TextStyle(color: Colors.grey[600], fontSize: 11),
                   ),
+
+                  AudioQualityBadge(
+                    preferredColor: Colors.white,
+                    child:
+                        Selector<
+                          global_audio_player.WispAudioHandler,
+                          ActiveTrackQualityInfo?
+                        >(
+                          selector: (context, player) =>
+                              player.activeTrackQuality,
+                          builder: (context, quality, child) {
+                            if (quality == null) {
+                              return const SizedBox.shrink();
+                            }
+
+                            String label = 'Standard';
+
+                            if (quality.isHiRes) {
+                              label = 'Hi-Res Lossless';
+                            } else if (quality.isLossless) {
+                              label = 'Lossless';
+                            } else if (quality.bitrate != null) {
+                              if (quality.bitrate! >= 320) {
+                                label = 'High Quality';
+                              } else if (quality.bitrate! < 320) {
+                                label = 'Standard';
+                              }
+                            }
+
+                            Widget? icon;
+
+                            if (quality.isHiRes || quality.isLossless) {
+                              icon = SvgPicture.network(
+                                "https://upload.wikimedia.org/wikipedia/commons/0/0d/Apple_Lossless_logo.svg",
+                                fit: BoxFit.fill,
+                                colorFilter: ColorFilter.mode(
+                                  Colors.white,
+                                  BlendMode.srcIn,
+                                ),
+                              );
+                            } else if (quality.bitrate != null &&
+                                quality.bitrate! >= 320) {
+                              icon = Icon(
+                                CupertinoIcons.checkmark_seal_fill,
+                                color: Colors.white,
+                                size: 12,
+                              );
+                            }
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.35),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  if (icon != null) ...[
+                                    icon,
+                                    const SizedBox(width: 4),
+                                  ],
+
+                                  Text(
+                                    label,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                  ),
+
                   Text(
                     _formatDuration(duration),
                     style: TextStyle(color: Colors.grey[600], fontSize: 11),
@@ -2103,7 +2186,10 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
 
   void _initLines() {
     _lineKeys = List.generate(widget.lyrics.lines.length, (_) => GlobalKey());
-    final delayMs = (widget.lyricsProvider.getDelaySecondsCached(widget.currentTrack.id) * 1000).round();
+    final delayMs =
+        (widget.lyricsProvider.getDelaySecondsCached(widget.currentTrack.id) *
+                1000)
+            .round();
     final initialPos = _effectivePositionMs(delayMs);
     final initialTiming = widget.lyricsRenderMode != LyricsSyncMode.unsynced
         ? resolveSyncedLyricsTiming(widget.lyrics.lines, initialPos)
@@ -2175,13 +2261,19 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
   }
 
   int _effectivePositionMs(int delayMs) {
-    final basePos = context.read<PlaybackCoordinator>().effectiveInterpolatedPosition.inMilliseconds;
+    final basePos = context
+        .read<PlaybackCoordinator>()
+        .effectiveInterpolatedPosition
+        .inMilliseconds;
     final adjusted = basePos - delayMs;
     return adjusted < 0 ? 0 : adjusted;
   }
 
   void _updateCurrentLine() {
-    final delayMs = (widget.lyricsProvider.getDelaySecondsCached(widget.currentTrack.id) * 1000).round();
+    final delayMs =
+        (widget.lyricsProvider.getDelaySecondsCached(widget.currentTrack.id) *
+                1000)
+            .round();
     final effectivePosition = _effectivePositionMs(delayMs);
 
     if (widget.lyricsRenderMode == LyricsSyncMode.unsynced) {
@@ -2195,8 +2287,12 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
       return;
     }
 
-    final timing = resolveSyncedLyricsTiming(widget.lyrics.lines, effectivePosition);
-    final waitingDotsIndex = (timing.showWaitingDots && timing.nextIndex != null)
+    final timing = resolveSyncedLyricsTiming(
+      widget.lyrics.lines,
+      effectivePosition,
+    );
+    final waitingDotsIndex =
+        (timing.showWaitingDots && timing.nextIndex != null)
         ? timing.nextIndex
         : null;
     final previousWaitingDotsIndex = _previousWaitingDotsIndex;
@@ -2249,7 +2345,10 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
 
       final lineBox = lineContext.findRenderObject() as RenderBox?;
       final listBox = listContext.findRenderObject() as RenderBox?;
-      if (lineBox == null || listBox == null || !lineBox.hasSize || !listBox.hasSize) {
+      if (lineBox == null ||
+          listBox == null ||
+          !lineBox.hasSize ||
+          !listBox.hasSize) {
         if (retries > 0) {
           _scrollToLine(focusIndex, instant: instant, retries: retries - 1);
         }
@@ -2262,7 +2361,8 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
 
       const topTargetOffset = 24.0;
       final currentOffset = _scrollController.offset;
-      final targetOffset = (currentOffset + lineTopInViewport) - topTargetOffset;
+      final targetOffset =
+          (currentOffset + lineTopInViewport) - topTargetOffset;
       final clampedOffset = targetOffset.clamp(
         _scrollController.position.minScrollExtent,
         _scrollController.position.maxScrollExtent,
@@ -2332,14 +2432,20 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
                   _userInteracting = false;
                   _resumeAutoScrollTimer?.cancel();
                   if (widget.lyricsRenderMode != LyricsSyncMode.unsynced) {
-                    _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
-                      if (!mounted ||
-                          widget.lyricsRenderMode == LyricsSyncMode.unsynced) {
-                        return;
-                      }
-                      final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
-                      _scrollToLine(focusIndex);
-                    });
+                    _resumeAutoScrollTimer = Timer(
+                      const Duration(seconds: 4),
+                      () {
+                        if (!mounted ||
+                            widget.lyricsRenderMode ==
+                                LyricsSyncMode.unsynced) {
+                          return;
+                        }
+                        final focusIndex = _lastFocusIndex >= 0
+                            ? _lastFocusIndex
+                            : 0;
+                        _scrollToLine(focusIndex);
+                      },
+                    );
                   }
                 }
               } else if (notification is ScrollEndNotification) {
@@ -2347,14 +2453,20 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
                   _userInteracting = false;
                   _resumeAutoScrollTimer?.cancel();
                   if (widget.lyricsRenderMode != LyricsSyncMode.unsynced) {
-                    _resumeAutoScrollTimer = Timer(const Duration(seconds: 4), () {
-                      if (!mounted ||
-                          widget.lyricsRenderMode == LyricsSyncMode.unsynced) {
-                        return;
-                      }
-                      final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
-                      _scrollToLine(focusIndex);
-                    });
+                    _resumeAutoScrollTimer = Timer(
+                      const Duration(seconds: 4),
+                      () {
+                        if (!mounted ||
+                            widget.lyricsRenderMode ==
+                                LyricsSyncMode.unsynced) {
+                          return;
+                        }
+                        final focusIndex = _lastFocusIndex >= 0
+                            ? _lastFocusIndex
+                            : 0;
+                        _scrollToLine(focusIndex);
+                      },
+                    );
                   }
                 }
               }
@@ -2438,10 +2550,12 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
 
     for (final match in linkRegex.allMatches(text)) {
       if (match.start > lastMatchEnd) {
-        spans.add(TextSpan(
-          text: text.substring(lastMatchEnd, match.start),
-          style: baseStyle,
-        ));
+        spans.add(
+          TextSpan(
+            text: text.substring(lastMatchEnd, match.start),
+            style: baseStyle,
+          ),
+        );
       }
       final linkText = match.group(1) ?? '';
       final linkUrl = match.group(2) ?? '';
@@ -2462,16 +2576,10 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
     }
 
     if (lastMatchEnd < text.length) {
-      spans.add(TextSpan(
-        text: text.substring(lastMatchEnd),
-        style: baseStyle,
-      ));
+      spans.add(TextSpan(text: text.substring(lastMatchEnd), style: baseStyle));
     }
 
-    return Text.rich(
-      TextSpan(children: spans),
-      textAlign: TextAlign.left,
-    );
+    return Text.rich(TextSpan(children: spans), textAlign: TextAlign.left);
   }
 }
 
@@ -2540,7 +2648,8 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
             ? frame.activeIndex
             : (timing?.nextIndex ?? timing?.previousIndex ?? 0);
         final distance = (widget.index - anchorIndex).abs();
-        final isLineActive = !isSynced ||
+        final isLineActive =
+            !isSynced ||
             frame.activeIndices.contains(widget.index) ||
             frame.activeIndex == widget.index;
 
@@ -2548,8 +2657,12 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
             ? 1.0
             : (1.0 - (distance * 0.22)).clamp(0.16, 0.72);
         var fontSize = (!isSynced || isLineActive) ? 34.0 : 30.0;
-        var fontWeight = (!isSynced || isLineActive) ? FontWeight.w700 : FontWeight.w600;
-        var color = (!isSynced || isLineActive) ? Colors.white : Colors.grey[500]!;
+        var fontWeight = (!isSynced || isLineActive)
+            ? FontWeight.w700
+            : FontWeight.w600;
+        var color = (!isSynced || isLineActive)
+            ? Colors.white
+            : Colors.grey[500]!;
 
         if (isSynced &&
             timing != null &&
@@ -2580,15 +2693,18 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
 
         final isRight = widget.line.isRightSpeaker;
         final textAlign = isRight ? TextAlign.right : TextAlign.left;
-        final alignment = isRight ? Alignment.centerRight : Alignment.centerLeft;
+        final alignment = isRight
+            ? Alignment.centerRight
+            : Alignment.centerLeft;
 
         final Widget textContent;
         if (isLineActive &&
             widget.syncMode == LyricsSyncMode.word &&
             widget.line.hasWordTiming) {
           final activeWordColor = Colors.white.withValues(alpha: opacity);
-          final inactiveWordColor =
-              Colors.white.withValues(alpha: 0.45 * opacity);
+          final inactiveWordColor = Colors.white.withValues(
+            alpha: 0.45 * opacity,
+          );
 
           textContent = LayoutBuilder(
             builder: (context, constraints) {
@@ -2601,7 +2717,9 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
                 children: [
                   Text(
                     widget.line.content,
-                    style: effectiveBaseStyle.copyWith(color: inactiveWordColor),
+                    style: effectiveBaseStyle.copyWith(
+                      color: inactiveWordColor,
+                    ),
                     textAlign: textAlign,
                   ),
                   ClipPath(
@@ -2617,7 +2735,9 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
                     ),
                     child: Text(
                       widget.line.content,
-                      style: effectiveBaseStyle.copyWith(color: activeWordColor),
+                      style: effectiveBaseStyle.copyWith(
+                        color: activeWordColor,
+                      ),
                       textAlign: textAlign,
                     ),
                   ),
@@ -2651,15 +2771,18 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
             int? resolvedBgEnd = bg.endTimeMs;
             if (resolvedBgEnd == null && bg.words.isNotEmpty) {
               final lastWord = bg.words.last;
-              resolvedBgEnd = lastWord.endTimeMs ?? (lastWord.startTimeMs + 800);
+              resolvedBgEnd =
+                  lastWord.endTimeMs ?? (lastWord.startTimeMs + 800);
             }
             resolvedBgEnd ??= (widget.line.endTimeMs ?? (bgStart + 2000));
 
-            final isBgActive = isSynced &&
+            final isBgActive =
+                isSynced &&
                 isLineActive &&
                 frame.positionMs >= bgStart &&
                 frame.positionMs < resolvedBgEnd;
-            final isBgPast = isSynced &&
+            final isBgPast =
+                isSynced &&
                 (frame.positionMs >= resolvedBgEnd ||
                     (!isLineActive && frame.positionMs >= bgStart));
             final isBgUpcoming = isSynced && frame.positionMs < bgStart;
@@ -2675,19 +2798,25 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
               }
             }
 
-            final inactiveBgColor = Color.lerp(Colors.grey[500]!, Colors.black, 0.2) ?? Colors.grey[600]!;
+            final inactiveBgColor =
+                Color.lerp(Colors.grey[500]!, Colors.black, 0.2) ??
+                Colors.grey[600]!;
             final bgBaseStyle = effectiveBaseStyle.copyWith(
               fontSize: baseBgFontSize,
               fontStyle: FontStyle.italic,
               color: (isBgActive ? Colors.white : inactiveBgColor).withValues(
-                alpha: (isBgActive ? bgOpacity : (inactiveBgColor.a * bgOpacity)).clamp(0.0, 1.0),
+                alpha:
+                    (isBgActive ? bgOpacity : (inactiveBgColor.a * bgOpacity))
+                        .clamp(0.0, 1.0),
               ),
             );
 
             Widget phraseWidget;
             if (isBgActive && bg.hasWordTiming && bgRanges.isNotEmpty) {
               final activeWordColor = Colors.white.withValues(alpha: bgOpacity);
-              final inactiveWordColor = Colors.white.withValues(alpha: 0.45 * bgOpacity);
+              final inactiveWordColor = Colors.white.withValues(
+                alpha: 0.45 * bgOpacity,
+              );
 
               phraseWidget = LayoutBuilder(
                 builder: (context, constraints) {
@@ -2743,8 +2872,9 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
           if (bgWidgets.isNotEmpty) {
             backgroundContent = Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment:
-                  isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isRight
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: bgWidgets,
             );
           }
@@ -2756,12 +2886,10 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
             ? textContent
             : Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment:
-                    isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                children: [
-                  textContent,
-                  backgroundContent,
-                ],
+                crossAxisAlignment: isRight
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [textContent, backgroundContent],
               );
 
         final lineWidget = AnimatedOpacity(
@@ -2781,15 +2909,13 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
                       ),
                     )
                   : null,
-              child: Align(
-                alignment: alignment,
-                child: fullContent,
-              ),
+              child: Align(alignment: alignment, child: fullContent),
             ),
           ),
         );
 
-        final showWaitingDots = isSynced &&
+        final showWaitingDots =
+            isSynced &&
             timing != null &&
             timing.showWaitingDots &&
             timing.nextIndex == widget.index;
@@ -2800,12 +2926,10 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
 
         return Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment:
-              isRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            _buildWaitingDots(timing.progressToNext),
-            lineWidget,
-          ],
+          crossAxisAlignment: isRight
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [_buildWaitingDots(timing.progressToNext), lineWidget],
         );
       },
     );
@@ -2816,8 +2940,10 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
     final dots = List<Widget>.generate(3, (index) {
       final start = index / 3;
       final end = (index + 1) / 3;
-      final localProgress =
-          ((progress - start) / (end - start)).clamp(0.0, 1.0);
+      final localProgress = ((progress - start) / (end - start)).clamp(
+        0.0,
+        1.0,
+      );
       final opacity = lerpDouble(0.2, 1.0, localProgress)!;
 
       return Padding(
