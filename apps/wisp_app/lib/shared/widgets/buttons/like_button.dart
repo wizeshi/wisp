@@ -3,9 +3,11 @@
 /// Shared Like button widget
 library;
 
+import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
@@ -18,9 +20,10 @@ class LikeButton extends StatefulWidget {
   final BoxConstraints constraints;
   final bool showTooltip;
   final bool showIfUnliked;
-  final Color color;
+  final Color? color;
   final IconData? likedIcon;
   final IconData? notLikedIcon;
+  final AppStyle? style;
 
   /// When true, the button stays hidden until the row it's in is hovered,
   /// *except* while the track is liked, in which case it's always visible
@@ -38,9 +41,10 @@ class LikeButton extends StatefulWidget {
     this.constraints = const BoxConstraints(minWidth: 28, minHeight: 28),
     this.showTooltip = true,
     this.showIfUnliked = true,
-    this.color = Colors.white,
-    this.likedIcon = Icons.favorite,
-    this.notLikedIcon = Icons.favorite_border,
+    this.color,
+    this.likedIcon,
+    this.notLikedIcon,
+    this.style,
     this.hoverOnlyWhenUnliked = false,
   });
 
@@ -68,6 +72,17 @@ class _LikeButtonState extends State<LikeButton> {
       return const SizedBox.shrink();
     }
 
+    final effectiveStyle = widget.style ?? context.tokens.style;
+    final isApple = effectiveStyle == AppStyle.AppleMusic;
+
+    final defaultLikedIcon =
+        isApple ? CupertinoIcons.heart_fill : Icons.favorite;
+    final defaultNotLikedIcon =
+        isApple ? CupertinoIcons.heart : Icons.favorite_border;
+
+    final likedIcon = widget.likedIcon ?? defaultLikedIcon;
+    final notLikedIcon = widget.notLikedIcon ?? defaultNotLikedIcon;
+
     return Selector<MetadataManager, bool>(
       selector: (context, manager) =>
           manager.isTrackLiked(track.id, source: track.source),
@@ -76,10 +91,15 @@ class _LikeButtonState extends State<LikeButton> {
           return const SizedBox.shrink();
         }
 
-        final icon = isLiked ? widget.likedIcon : widget.notLikedIcon;
-        final color = isLiked ? widget.color : Colors.white;
+        final icon = isLiked ? likedIcon : notLikedIcon;
+        final color = isLiked
+            ? (widget.color ?? Theme.of(context).colorScheme.primary)
+            : (isApple
+                ? (widget.color ?? Colors.grey[400]!)
+                : (widget.color ?? Colors.white));
 
         Widget button = GenericIconButton(
+          style: effectiveStyle,
           padding: widget.padding,
           constraints: widget.constraints,
           icon: Icon(icon, size: widget.iconSize, color: color),

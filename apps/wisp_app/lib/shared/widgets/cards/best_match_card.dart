@@ -7,7 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/core/theme/app_theme.dart';
-import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/features/navigation/views/list/view.dart' show SharedListType;
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
 import 'package:wisp/shared/widgets/overlay/cover_play_button.dart';

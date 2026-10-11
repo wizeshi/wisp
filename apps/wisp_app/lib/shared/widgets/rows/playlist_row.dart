@@ -4,7 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playlist_playback_helper.dart';
 import 'package:wisp/shared/widgets/rows/generic_row.dart';
-import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/features/navigation/views/list/view.dart' show SharedListType;
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
 import 'package:wisp/core/utils/liked_songs.dart';

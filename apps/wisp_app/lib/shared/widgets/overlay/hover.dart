@@ -33,6 +33,7 @@ class HoverRegion extends StatefulWidget {
   final VoidCallback? onLongPress;
   final GestureTapDownCallback? onSecondaryTapDown;
   final BorderRadius? borderRadius;
+  final MouseCursor? cursor;
 
   const HoverRegion({
     super.key,
@@ -42,6 +43,7 @@ class HoverRegion extends StatefulWidget {
     this.onLongPress,
     this.onSecondaryTapDown,
     this.borderRadius,
+    this.cursor,
   });
 
   /// Returns whether the nearest enclosing [HoverRegion] is currently
@@ -83,18 +85,35 @@ class _HoverRegionState extends State<HoverRegion> {
   @override
   Widget build(BuildContext context) {
     final hasTapAction = widget.onTap != null || widget.onDoubleTap != null;
+    final hasInteractiveAction = hasTapAction ||
+        widget.onLongPress != null ||
+        widget.onSecondaryTapDown != null;
+
+    final effectiveCursor = widget.cursor ??
+        ((isDesktopPlatform && hasTapAction)
+            ? SystemMouseCursors.click
+            : MouseCursor.defer);
+
+    final content = _HoverRegionScope(isHovering: _isHovering, child: widget.child);
+
     return MouseRegion(
-      cursor: (isDesktopPlatform && hasTapAction) ? SystemMouseCursors.click : MouseCursor.defer,
+      cursor: effectiveCursor,
       onEnter: (_) => _setHovering(true),
       onExit: (_) => _setHovering(false),
-      child: InkWell(
-        mouseCursor: (isDesktopPlatform && hasTapAction) ? SystemMouseCursors.click : null,
-        onTap: hasTapAction ? _handleTap : null,
-        onLongPress: widget.onLongPress,
-        onSecondaryTapDown: widget.onSecondaryTapDown,
-        borderRadius: widget.borderRadius,
-        child: _HoverRegionScope(isHovering: _isHovering, child: widget.child),
-      ),
+      child: hasInteractiveAction
+          ? Material(
+              color: Colors.transparent,
+              borderRadius: widget.borderRadius,
+              child: InkWell(
+                mouseCursor: effectiveCursor,
+                onTap: hasTapAction ? _handleTap : null,
+                onLongPress: widget.onLongPress,
+                onSecondaryTapDown: widget.onSecondaryTapDown,
+                borderRadius: widget.borderRadius,
+                child: content,
+              ),
+            )
+          : content,
     );
   }
 }
@@ -175,6 +194,7 @@ class _HoverPlayOverlayState extends State<CardHoverPlayOverlay> {
         (isDesktopPlatform && (_isHovering || parentHovering));
 
     return MouseRegion(
+      opaque: false,
       onEnter: (_) => _setHovering(true),
       onExit: (_) => _setHovering(false),
       child: Stack(
@@ -192,11 +212,15 @@ class _HoverPlayOverlayState extends State<CardHoverPlayOverlay> {
                 duration: const Duration(milliseconds: 120),
                 child: IgnorePointer(
                   ignoring: !visible,
-                  child: _PlayPauseButton(
-                    isPlaying: widget.isPlaying,
-                    onPressed: widget.onPressed,
-                    size: widget.buttonSize,
-                    iconSize: widget.iconSize,
+                  child: Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: (_) {},
+                    child: _PlayPauseButton(
+                      isPlaying: widget.isPlaying,
+                      onPressed: widget.onPressed,
+                      size: widget.buttonSize,
+                      iconSize: widget.iconSize,
+                    ),
                   ),
                 ),
               ),

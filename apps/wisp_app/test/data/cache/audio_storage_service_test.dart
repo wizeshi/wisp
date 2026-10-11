@@ -10,6 +10,8 @@ import 'package:wisp/data/cache/audio/audio_storage_service.dart';
 import 'package:wisp/data/cache/audio/track_download_state_coordinator.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/data/cache/models/audio_cache_entry.dart';
+import 'package:wisp/data/sources/audio/audio_source.dart';
+import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 
 class FakePathProviderPlatform extends Fake
     with MockPlatformInterfaceMixin
@@ -109,6 +111,71 @@ void main() {
       expect(reconstructed.trackId, 'spotify:track:12345');
       expect(reconstructed.isUserDownload, isTrue);
       expect(reconstructed.fileSize, 4500000);
+      expect(reconstructed.qualityInfo, isNull);
+    });
+
+    test('serializes and deserializes qualityInfo accurately', () {
+      final now = DateTime.now();
+      final quality = ActiveTrackQualityInfo.create(
+        providerId: 'qobuz',
+        providerName: 'Qobuz',
+        targetQuality: AudioQuality.hiRes,
+        format: 'FLAC',
+        bitDepth: 24,
+        sampleRate: 96000,
+        bitrate: 3000,
+      );
+
+      final entry = AudioCacheEntry(
+        trackId: 'qobuz:track:999',
+        videoId: 'media_999',
+        filePath: '/path/to/track.flac',
+        fileSize: 25000000,
+        trackTitle: 'Hi-Res Song',
+        artistName: 'Hi-Res Artist',
+        downloadDate: now,
+        lastPlayedDate: now,
+        qualityInfo: quality,
+      );
+
+      final json = entry.toJson();
+      expect(json['qualityInfo'], isNotNull);
+      expect(json['qualityInfo']['providerId'], 'qobuz');
+      expect(json['qualityInfo']['providerName'], 'Qobuz');
+      expect(json['qualityInfo']['format'], 'FLAC');
+      expect(json['qualityInfo']['bitDepth'], 24);
+
+      final reconstructed = AudioCacheEntry.fromJson(json);
+      expect(reconstructed.qualityInfo, isNotNull);
+      expect(reconstructed.qualityInfo!.providerId, 'qobuz');
+      expect(reconstructed.qualityInfo!.providerName, 'Qobuz');
+      expect(reconstructed.qualityInfo!.isHiRes, isTrue);
+      expect(reconstructed.qualityInfo!.bitDepth, 24);
+      expect(reconstructed.qualityInfo!.sampleRate, 96000);
+      expect(reconstructed.qualityInfo!.sourceFidelitySpec, '24-bit / 96 kHz');
+    });
+
+    test('inferFromCachedPath provides best-effort telemetry for legacy files', () {
+      final flacInferred = ActiveTrackQualityInfo.inferFromCachedPath(
+        filePath: '/storage/audio_cache/song.flac',
+      );
+      expect(flacInferred.format, 'FLAC');
+      expect(flacInferred.isLossless, isTrue);
+      expect(flacInferred.providerName, 'Qobuz');
+
+      final oggInferred = ActiveTrackQualityInfo.inferFromCachedPath(
+        filePath: '/storage/audio_cache/song.ogg',
+        trackId: '1234567890123456789012',
+      );
+      expect(oggInferred.format, 'OGG');
+      expect(oggInferred.providerName, 'Spotify');
+
+      final ytInferred = ActiveTrackQualityInfo.inferFromCachedPath(
+        filePath: '/storage/audio_cache/song.m4a',
+        videoId: 'dQw4w9WgXcQ',
+      );
+      expect(ytInferred.format, 'AAC');
+      expect(ytInferred.providerName, 'YouTube');
     });
   });
 

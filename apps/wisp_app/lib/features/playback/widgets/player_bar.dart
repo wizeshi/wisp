@@ -24,9 +24,9 @@ import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/shared/widgets/overlay/hover.dart';
 import 'full_player.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
-import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/features/navigation/views/list/view.dart' show SharedListType;
 import 'package:wisp/shared/widgets/display/hover_underline.dart';
-import 'package:wisp/features/shell/navigation/navigation_state.dart';
+import 'package:wisp/features/navigation/shell/navigation_state.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
@@ -759,7 +759,8 @@ class _DesktopRightControls extends StatelessWidget {
         final volumeSpacing = tokens.playerVolumeSpacing;
         final isLyricsRouteOpen = routeName == '/lyrics';
         final isQueueOpen = routeName == '/queue';
-        final isFullScreenOpen = routeName == '/fullplayer';
+        final isFullScreenOpen =
+            routeName == '/fullplayer' || routeName == '/player';
         final hasTrack = currentTrack != null;
         final isSidebarOpen = hasTrack && navState.rightSidebarVisible;
         final activeColor = Theme.of(context).colorScheme.primary;
@@ -992,7 +993,8 @@ class _DesktopRightControls extends StatelessWidget {
                           .value
                           ?.settings
                           .name;
-                      if (currentScreen == '/fullplayer') {
+                      if (currentScreen == '/fullplayer' ||
+                          currentScreen == '/player') {
                         await AppNavigation.instance.closeFullPlayer();
                       } else {
                         await _openFullPlayer(context);
@@ -1012,7 +1014,8 @@ class _DesktopRightControls extends StatelessWidget {
 
 Future<void> _openFullPlayer(BuildContext context) async {
   final currentRoute = ModalRoute.of(context);
-  if (currentRoute?.settings.name == '/fullplayer') {
+  if (currentRoute?.settings.name == '/fullplayer' ||
+      currentRoute?.settings.name == '/player') {
     return;
   }
   await AppNavigation.instance.openFullPlayer();

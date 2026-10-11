@@ -138,6 +138,8 @@ class AudioStreamingProxy {
     required String targetUrl,
     Map<String, String>? headers,
     String? providerId,
+    String? providerName,
+    ActiveTrackQualityInfo? qualityInfo,
     SegmentedAudioDescriptor? segmentedDescriptor,
     Map<String, dynamic>? customData,
     bool spool = true,
@@ -149,7 +151,11 @@ class AudioStreamingProxy {
       'artist': artistName,
       'url': targetUrl,
       'providerId': ?providerId,
+      'providerName': ?providerName,
       if (!spool) 'spool': '0',
+      if (qualityInfo != null)
+        'qualityInfo':
+            base64Url.encode(utf8.encode(jsonEncode(qualityInfo.toJson()))),
       if (headers != null && headers.isNotEmpty)
         'headers': base64Url.encode(utf8.encode(jsonEncode(headers))),
       if (segmentedDescriptor != null)
@@ -181,9 +187,20 @@ class AudioStreamingProxy {
     final rawHeadersParam = request.url.queryParameters['headers'];
     final rawSegmentedParam = request.url.queryParameters['segmented'];
     final rawCustomDataParam = request.url.queryParameters['customData'];
+    final rawQualityParam = request.url.queryParameters['qualityInfo'];
 
     if (targetUrl == null || trackId == null) {
       return shelf.Response.badRequest(body: 'Missing required parameters');
+    }
+
+    ActiveTrackQualityInfo? qualityInfo;
+    if (rawQualityParam != null && rawQualityParam.isNotEmpty) {
+      try {
+        final decodedMap = (jsonDecode(utf8.decode(base64Url.decode(rawQualityParam)))
+                as Map)
+            .cast<String, dynamic>();
+        qualityInfo = ActiveTrackQualityInfo.fromJson(decodedMap);
+      } catch (_) {}
     }
 
     Map<String, dynamic>? customData;
@@ -205,6 +222,7 @@ class AudioStreamingProxy {
           trackTitle: trackTitle,
           artistName: artistName,
           descriptor: descriptor,
+          qualityInfo: qualityInfo,
         );
       } catch (e) {
         logger.w('[AudioStreamingProxy] Failed to parse segmented descriptor: $e');
@@ -241,6 +259,7 @@ class AudioStreamingProxy {
           headers: requestHeaders,
           cipherMap: cipherMap,
           allowSpool: allowSpool,
+          qualityInfo: qualityInfo,
         );
       }
     }
@@ -350,6 +369,7 @@ class AudioStreamingProxy {
                   trackTitle: trackTitle,
                   artistName: artistName,
                   isUserDownload: false,
+                  qualityInfo: qualityInfo,
                 );
                 AudioCacheManager.instance.coordinator.setCompleted(trackId);
                 logger.i(
@@ -395,6 +415,7 @@ class AudioStreamingProxy {
     required String trackTitle,
     required String artistName,
     required SegmentedAudioDescriptor descriptor,
+    ActiveTrackQualityInfo? qualityInfo,
   }) async {
     try {
       final storage = AudioStorageService.instance;
@@ -500,6 +521,7 @@ class AudioStreamingProxy {
                 trackTitle: trackTitle,
                 artistName: artistName,
                 isUserDownload: false,
+                qualityInfo: qualityInfo,
               );
               AudioCacheManager.instance.coordinator.setCompleted(trackId);
               logger.i('[AudioStreamingProxy] Segmented track assembled and cached: $trackTitle');
@@ -549,6 +571,7 @@ class AudioStreamingProxy {
     required Map<String, String> headers,
     required Map<String, dynamic> cipherMap,
     bool allowSpool = true,
+    ActiveTrackQualityInfo? qualityInfo,
   }) async {
     try {
       final storage = AudioStorageService.instance;
@@ -702,6 +725,7 @@ class AudioStreamingProxy {
                   trackTitle: trackTitle,
                   artistName: artistName,
                   isUserDownload: false,
+                  qualityInfo: qualityInfo,
                 );
                 AudioCacheManager.instance.coordinator.setCompleted(trackId);
                 logger.i('[AudioStreamingProxy] Decrypted track cached: $trackTitle');

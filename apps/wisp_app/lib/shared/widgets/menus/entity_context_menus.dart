@@ -6,7 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/features/navigation/views/list/view.dart' show SharedListType;
 
 import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/data/models/metadata_models.dart';

@@ -132,6 +132,9 @@ class PreferencesProvider extends ChangeNotifier {
   bool _autoRegisterLocalProviders = _defaultAutoRegisterLocalProviders;
   bool get autoRegisterLocalProviders => _autoRegisterLocalProviders;
 
+  bool _isLoaded = false;
+  bool get isLoaded => _isLoaded;
+
   bool _firstBootCompleted = false;
   bool get isFirstBootCompleted => _firstBootCompleted;
 
@@ -239,9 +242,12 @@ class PreferencesProvider extends ChangeNotifier {
           _providerOrders[type] = List.unmodifiable(list);
         }
       }
+      _isLoaded = true;
       notifyListeners();
     } catch (_) {
       // Ignore load errors; keep default
+      _isLoaded = true;
+      notifyListeners();
     }
   }
 

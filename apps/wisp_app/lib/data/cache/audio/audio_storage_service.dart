@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/cache/models/audio_cache_entry.dart';
+import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 
 enum StorageStatus {
   /// Normal storage usage (< 80% of max quota).
@@ -317,6 +318,7 @@ class AudioStorageService extends ChangeNotifier {
     required String trackTitle,
     required String artistName,
     required bool isUserDownload,
+    ActiveTrackQualityInfo? qualityInfo,
   }) async {
     final key = normalizeTrackId(trackId);
     final tempFile = File(tempPartPath);
@@ -347,6 +349,7 @@ class AudioStorageService extends ChangeNotifier {
       downloadDate: now,
       lastPlayedDate: now,
       isUserDownload: isUserDownload,
+      qualityInfo: qualityInfo,
     );
 
     _cacheEntries[key] = entry;

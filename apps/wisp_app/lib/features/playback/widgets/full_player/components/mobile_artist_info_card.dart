@@ -6,10 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:wisp/core/utils/text_parser.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
-import 'package:wisp/features/details/views/artist_detail_view.dart';
-import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
-import 'package:wisp/features/shell/navigation/navigation_state.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class MobileArtistInfoCard extends StatefulWidget {
@@ -216,8 +213,6 @@ class _MobileArtistInfoCardState extends State<MobileArtistInfoCard> {
     GenericArtist? data,
     GenericSimpleArtist fallback,
   ) async {
-    final libraryState = context.read<LibraryState>();
-    final navState = context.read<NavigationState>();
     final artist = data == null
         ? fallback
         : GenericSimpleArtist(
@@ -230,21 +225,10 @@ class _MobileArtistInfoCardState extends State<MobileArtistInfoCard> {
     await AppNavigation.instance.disableFullPlayerDesktopMode();
     if (!mounted) return;
 
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ArtistDetailView(
-              artistId: artist.id,
-              initialArtist: artist,
-              playlists: libraryState.playlists,
-              albums: libraryState.albums,
-              artists: libraryState.artists,
-              initialLibraryView: navState.selectedLibraryView,
-              initialNavIndex: navState.selectedNavIndex,
-            ),
-      ),
+    AppNavigation.instance.openArtist(
+      context,
+      artistId: artist.id,
+      initialArtist: artist,
     );
   }
 }

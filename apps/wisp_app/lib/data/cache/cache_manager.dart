@@ -13,12 +13,14 @@ import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/cache/audio/audio_storage_service.dart';
 import 'package:wisp/data/cache/audio/track_download_state_coordinator.dart';
 import 'package:wisp/data/cache/models/audio_cache_entry.dart';
+import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/services/notifications/download_foreground_service.dart';
 import 'package:wisp/services/notifications/notification_service.dart';
 
 export 'package:wisp/data/cache/audio/audio_storage_service.dart';
 export 'package:wisp/data/cache/audio/track_download_state_coordinator.dart';
 export 'package:wisp/data/cache/models/audio_cache_entry.dart';
+export 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 
 /// Download task status
 enum DownloadStatus { queued, downloading, completed, failed, cancelled }
@@ -38,12 +40,14 @@ class DownloadStreamInfo {
   final String streamUrl;
   final String? format;
   final Map<String, String>? headers;
+  final ActiveTrackQualityInfo? qualityInfo;
 
   const DownloadStreamInfo({
     required this.videoId,
     required this.streamUrl,
     this.format,
     this.headers,
+    this.qualityInfo,
   });
 }
 
@@ -241,6 +245,8 @@ class AudioCacheManager extends ChangeNotifier {
 
   bool isTrackUserDownload(String trackId) =>
       _storage.isTrackUserDownload(trackId);
+
+  AudioCacheEntry? getEntry(String trackId) => _storage.getEntry(trackId);
 
   String? getCachedPath(String trackId) {
     if (_networkOnlyMode) {
@@ -518,6 +524,7 @@ class AudioCacheManager extends ChangeNotifier {
         trackTitle: task.trackTitle,
         artistName: task.artistName,
         isUserDownload: task.isUserDownload,
+        qualityInfo: streamInfo.qualityInfo,
       );
 
       task.status = DownloadStatus.completed;

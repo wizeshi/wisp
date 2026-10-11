@@ -57,7 +57,7 @@ void main() {
       );
       expect(
         inkFeatures,
-        isNot(paints..rect(rect: const Rect.fromLTRB(0.0, 0.0, 200.0, 300.0))),
+        isNot(paints..circle()),
       );
 
       // Release the play button
@@ -66,6 +66,87 @@ void main() {
 
       expect(playPressed, isTrue);
       expect(cardTapped, isFalse);
+    });
+
+    testWidgets('hovering over generic card shows click cursor', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(appStyle: AppStyle.Spotify),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 200,
+                height: 300,
+                child: GenericCard(
+                  title: 'Test Album',
+                  subtitle: 'Test Artist',
+                  artwork: Container(color: Colors.blue),
+                  onTap: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final cardFinder = find.byType(GenericCard);
+      final mouseLocation = tester.getCenter(cardFinder);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(mouseLocation);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.binding.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.click,
+      );
+    });
+
+    testWidgets('press and hold on card triggers ripple on card', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(appStyle: AppStyle.Spotify),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 200,
+                height: 300,
+                child: GenericCard(
+                  title: 'Test Album',
+                  subtitle: 'Test Artist',
+                  artwork: Container(color: Colors.blue),
+                  onTap: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final cardFinder = find.byType(GenericCard);
+      final cardCenter = tester.getCenter(cardFinder);
+      final gesture = await tester.startGesture(cardCenter);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final allInk = tester.allRenderObjects
+          .where((obj) => obj.runtimeType.toString() == '_RenderInkFeatures')
+          .toList();
+      expect(allInk, isNotEmpty);
+      // The ripple should be painted on the card's Material above the artwork
+      expect(
+        allInk.any((ink) {
+          try {
+            expect(ink, paints..rect());
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }),
+        isTrue,
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
   });
 }

@@ -524,7 +524,8 @@ class _OriginalDesktopRightControls extends StatelessWidget {
         final routeName = route?.settings.name;
         final isLyricsRouteOpen = routeName == '/lyrics';
         final isQueueOpen = routeName == '/queue';
-        final isFullScreenOpen = routeName == '/fullplayer';
+        final isFullScreenOpen =
+            routeName == '/fullplayer' || routeName == '/player';
         final hasTrack = currentTrack != null;
         final isSidebarOpen = hasTrack && navState.rightSidebarVisible;
         final primaryColor = Theme.of(context).colorScheme.primary;
@@ -729,7 +730,8 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                             .value
                             ?.settings
                             .name;
-                        if (currentScreen == '/fullplayer') {
+                        if (currentScreen == '/fullplayer' ||
+                            currentScreen == '/player') {
                           await AppNavigation.instance.closeFullPlayer();
                         } else {
                           await _openFullPlayer(context);

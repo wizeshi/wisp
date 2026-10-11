@@ -56,6 +56,7 @@ class AudioSearchQuery {
 class AudioTrackCandidate {
   final String mediaId;
   final String providerId;
+  final String? providerName;
   final String title;
   final String artist;
   final String? album;
@@ -67,6 +68,7 @@ class AudioTrackCandidate {
   AudioTrackCandidate({
     required this.mediaId,
     required this.providerId,
+    this.providerName,
     required this.title,
     required this.artist,
     this.album,

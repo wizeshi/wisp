@@ -13,7 +13,7 @@ import 'package:wisp/data/sources/metadata/metadata_source_manager.dart';
 import 'package:wisp/data/sources/providers/provider_package_model.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
-import 'package:wisp/features/shell/widgets/app_shell.dart';
+import 'package:wisp/features/navigation/router/navigation_service.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
@@ -260,11 +260,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
     if (widget.isFromSettings) {
       Navigator.of(context).pop();
     } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => AppShell(appLinks: widget.appLinks),
-        ),
-      );
+      NavigationService.instance.goHome();
     }
   }
 

@@ -1,5 +1,7 @@
 // Copyright © 2026 wizeshi
 
+import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
+
 /// Model representing an audio file stored in cache.
 class AudioCacheEntry {
   final String trackId;
@@ -10,6 +12,9 @@ class AudioCacheEntry {
   final String? artistName;
   final DateTime downloadDate;
   DateTime lastPlayedDate;
+
+  /// Detailed audio source fidelity metadata (provider, format, bit depth, sample rate, bitrate).
+  final ActiveTrackQualityInfo? qualityInfo;
 
   /// If true, this track was explicitly downloaded by the user for offline listening.
   /// User downloads are protected and NEVER automatically evicted by LRU.
@@ -27,6 +32,7 @@ class AudioCacheEntry {
     this.artistName,
     required this.downloadDate,
     required this.lastPlayedDate,
+    this.qualityInfo,
     this.isUserDownload = false,
   });
 
@@ -39,6 +45,7 @@ class AudioCacheEntry {
     String? artistName,
     DateTime? downloadDate,
     DateTime? lastPlayedDate,
+    ActiveTrackQualityInfo? qualityInfo,
     bool? isUserDownload,
   }) => AudioCacheEntry(
     trackId: trackId ?? this.trackId,
@@ -49,6 +56,7 @@ class AudioCacheEntry {
     artistName: artistName ?? this.artistName,
     downloadDate: downloadDate ?? this.downloadDate,
     lastPlayedDate: lastPlayedDate ?? this.lastPlayedDate,
+    qualityInfo: qualityInfo ?? this.qualityInfo,
     isUserDownload: isUserDownload ?? this.isUserDownload,
   );
 
@@ -62,6 +70,7 @@ class AudioCacheEntry {
     'downloadDate': downloadDate.toIso8601String(),
     'lastPlayedDate': lastPlayedDate.toIso8601String(),
     'isUserDownload': isUserDownload,
+    if (qualityInfo != null) 'qualityInfo': qualityInfo!.toJson(),
   };
 
   factory AudioCacheEntry.fromJson(Map<String, dynamic> json) => AudioCacheEntry(
@@ -74,6 +83,10 @@ class AudioCacheEntry {
     downloadDate: DateTime.parse(json['downloadDate'] as String),
     lastPlayedDate: DateTime.parse(json['lastPlayedDate'] as String),
     isUserDownload: (json['isUserDownload'] as bool?) ?? false,
+    qualityInfo: json['qualityInfo'] is Map
+        ? ActiveTrackQualityInfo.fromJson(
+            (json['qualityInfo'] as Map).cast<String, dynamic>())
+        : null,
   );
 }
 

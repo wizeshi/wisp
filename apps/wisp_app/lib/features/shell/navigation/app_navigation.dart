@@ -2,27 +2,20 @@
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
-import 'package:window_manager/window_manager.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart';
-import 'package:wisp/features/debug/views/debug_view.dart';
 import 'dart:io' show Platform;
-import 'package:wisp/features/dj/views/dj_view.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:wisp/core/theme/app_theme.dart';
-import 'package:wisp/features/settings/state/preferences_provider.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/features/library/state/library_state.dart';
-import 'package:wisp/features/shell/navigation/navigation_state.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
-import 'package:wisp/features/shell/navigation/tab_routes.dart';
-import 'package:wisp/features/playback/views/lyrics_view.dart';
-import 'package:wisp/features/playback/views/queue_view.dart';
-import 'package:wisp/features/details/views/artist_detail_view.dart';
-import 'package:wisp/features/details/views/user_detail_view.dart';
-import 'package:wisp/features/details/views/list_detail_view.dart';
-import 'package:wisp/features/details/views/youtube_alternatives_view.dart';
-import 'package:wisp/features/details/views/audio_alternatives_view.dart';
 import 'package:wisp/features/playback/widgets/full_player.dart';
+import 'package:wisp/features/playback/views/queue_view.dart';
+import 'package:wisp/services/audio/wisp_audio_handler.dart';
+import 'package:wisp/features/navigation/shell/navigation_state.dart';
+import 'package:wisp/features/navigation/router/navigation_service.dart';
+import 'package:wisp/features/navigation/views/list/view.dart' show SharedListType;
+import 'package:wisp/features/navigation/views/alternatives/audio_alternatives_view.dart'
+    show AudioAlternativeSelection;
 
 enum FullPlayerDesktopMode { artwork, canvas, lyrics, queue }
 
@@ -99,85 +92,69 @@ class AppNavigation {
   }
 
   Future<bool> maybePopShell() async {
-    final shellNavigator = _shellNavigator;
-    if (shellNavigator == null) {
-      return false;
+    if (NavigationService.instance.canPop()) {
+      NavigationService.instance.pop();
+      return true;
     }
-    return shellNavigator.maybePop();
+    if (NavigationHistory.instance.canGoBack) {
+      NavigationHistory.instance.goBack();
+      return true;
+    }
+    return false;
   }
 
   void pushTab(int index) {
-    final routeName = TabRoutes.routeForIndex(index);
-    if (NavigationHistory.instance.currentRouteName == routeName) {
-      return;
+    switch (index) {
+      case 0:
+        NavigationService.instance.goHome();
+        break;
+      case 1:
+        NavigationService.instance.goSearch();
+        break;
+      case 2:
+        NavigationService.instance.goLibrary();
+        break;
+      case 3:
+        NavigationService.instance.pushSettings();
+        break;
     }
-    _shellNavigator?.pushNamed(routeName);
   }
 
   void openSettings() {
-    if (NavigationHistory.instance.currentRouteName == TabRoutes.settings) {
-      return;
-    }
-    _shellNavigator?.pushNamed(TabRoutes.settings);
+    NavigationService.instance.pushSettings();
   }
 
   void openLibraryItem(BuildContext context, dynamic item) {
     if (item is GenericPlaylist) {
-      openSharedList(
-        context,
+      NavigationService.instance.pushList(
         id: item.id,
-        type: SharedListType.playlist,
-        initialTitle: item.title,
-        initialThumbnailUrl: item.thumbnailUrl,
+        type: 'playlist',
+        source: item.source,
       );
       return;
     }
 
     if (item is GenericAlbum) {
-      openSharedList(
-        context,
+      NavigationService.instance.pushList(
         id: item.id,
-        type: SharedListType.album,
-        initialTitle: item.title,
-        initialThumbnailUrl: item.thumbnailUrl,
+        type: 'album',
+        source: item.source,
       );
       return;
     }
 
     if (item is GenericSimpleArtist) {
-      openArtist(context, artistId: item.id, initialArtist: item);
+      NavigationService.instance.pushArtist(id: item.id, source: item.source);
       return;
     }
 
     if (item is GenericSimpleUser) {
-      openUser(
-        context,
-        userId: item.id,
-        initialUser: GenericUser(
-          id: item.id,
-          source: item.source,
-          displayName: item.displayName,
-          avatarUrl: item.avatarUrl,
-          followerCount: item.followerCount,
-          followingCount: null,
-          recentArtists: const [],
-          publicPlaylists: const [],
-          followers: const [],
-          following: const [],
-        ),
-      );
+      NavigationService.instance.pushUser(id: item.id, source: item.source);
     }
   }
 
   void navigateToDJView(BuildContext context) {
-    _shellNavigator?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: const RouteSettings(name: '/dj'),
-        pageBuilder: (context, animation, secondaryAnimation) => DJView(),
-      ),
-    );
+    NavigationService.instance.pushDJ();
   }
 
   void openSharedList(
@@ -187,43 +164,14 @@ class AppNavigation {
     String? initialTitle,
     String? initialThumbnailUrl,
   }) {
-    final libraryState = context.read<LibraryState>();
-    final navState = context.read<NavigationState>();
-
-    _shellNavigator?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: RouteSettings(
-          name: type == SharedListType.playlist
-              ? '/playlist/$id'
-              : '/album/$id',
-        ),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            SharedListDetailView(
-              id: id,
-              type: type,
-              initialTitle: initialTitle,
-              initialThumbnailUrl: initialThumbnailUrl,
-              playlists: libraryState.playlists,
-              albums: libraryState.albums,
-              artists: libraryState.artists,
-              initialLibraryView: navState.selectedLibraryView,
-              initialNavIndex: navState.selectedNavIndex,
-            ),
-      ),
+    NavigationService.instance.pushList(
+      id: id,
+      type: type == SharedListType.album ? 'album' : 'playlist',
     );
   }
 
   void openDebug(BuildContext context) {
-    _shellNavigator?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: const RouteSettings(name: '/debug'),
-        pageBuilder: (context, animation, secondaryAnimation) => DebugView(),
-      ),
-    );
+    NavigationService.instance.pushDebug();
   }
 
   void openArtist(
@@ -232,33 +180,7 @@ class AppNavigation {
     GenericSimpleArtist? initialArtist,
     String? fallbackName,
   }) {
-    final libraryState = context.read<LibraryState>();
-    final navState = context.read<NavigationState>();
-
-    _shellNavigator?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: RouteSettings(name: '/artist/$artistId'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            ArtistDetailView(
-              artistId: artistId,
-              initialArtist:
-                  initialArtist ??
-                  GenericSimpleArtist(
-                    id: artistId,
-                    source: 'spotify',
-                    name: fallbackName ?? 'Artist',
-                    thumbnailUrl: '',
-                  ),
-              playlists: libraryState.playlists,
-              albums: libraryState.albums,
-              artists: libraryState.artists,
-              initialLibraryView: navState.selectedLibraryView,
-              initialNavIndex: navState.selectedNavIndex,
-            ),
-      ),
-    );
+    NavigationService.instance.pushArtist(id: artistId);
   }
 
   void openUser(
@@ -267,19 +189,7 @@ class AppNavigation {
     GenericUser? initialUser,
     AppStyle? style,
   }) {
-    final effectiveStyle = style ?? context.read<PreferencesProvider>().style;
-    _shellNavigator?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: RouteSettings(name: '/user/$userId'),
-        pageBuilder: (context, animation, secondaryAnimation) => UserDetailView(
-          userId: userId,
-          initialUser: initialUser,
-          style: effectiveStyle,
-        ),
-      ),
-    );
+    NavigationService.instance.pushUser(id: userId);
   }
 
   void openPlaybackContext(
@@ -305,44 +215,17 @@ class AppNavigation {
     );
   }
 
-  /// Opens Audio alternatives (multi-provider) inside the shell navigator so desktop
-  /// navigation chrome remains visible regardless of where it was launched.
-  Future<AudioAlternativeSelection?> openAudioAlternatives(GenericSong track) {
-    final shellNavigator = _shellNavigator;
-    if (shellNavigator == null) return Future.value(null);
-
-    return shellNavigator.push<AudioAlternativeSelection>(
-      PageRouteBuilder<AudioAlternativeSelection>(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: RouteSettings(name: '/audio-alternatives/${track.id}'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            AudioAlternativesView(track: track),
-      ),
-    );
-  }
-
   /// Opens YouTube alternatives inside the shell navigator so desktop
   /// navigation chrome remains visible regardless of where it was launched.
   Future<String?> openYouTubeAlternatives(GenericSong track) {
-    final shellNavigator = _shellNavigator;
-    if (shellNavigator == null) return Future.value(null);
+    return NavigationService.instance.pushYouTubeAlternatives<String>(track.id);
+  }
 
-    return shellNavigator.push<String>(
-      PageRouteBuilder<String>(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: RouteSettings(name: '/youtube-alternatives/${track.id}'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            YouTubeAlternativesView(track: track),
-      ),
-    );
+  Future<AudioAlternativeSelection?> openAudioAlternatives(GenericSong track) {
+    return NavigationService.instance.pushAudioAlternatives<AudioAlternativeSelection>(track.id);
   }
 
   Future<void> openFullPlayer() async {
-    if (NavigationHistory.instance.currentRouteName == '/fullplayer') {
-      return;
-    }
     fullPlayerLyricsMode.value = false;
     fullPlayerDesktopMode.value = FullPlayerDesktopMode.artwork;
     fullPlayerDesktopPreviousMode.value = null;
@@ -350,24 +233,14 @@ class AppNavigation {
     if (_isDesktop) {
       await _enterFullPlayerDesktopMode();
     }
-    _shellNavigator?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: const RouteSettings(name: '/fullplayer'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const FullScreenPlayer(),
-      ),
-    );
+    await NavigationService.instance.openPlayer();
   }
 
   Future<void> closeFullPlayer() async {
     fullPlayerLyricsMode.value = false;
     fullPlayerDesktopMode.value = FullPlayerDesktopMode.artwork;
     fullPlayerDesktopPreviousMode.value = null;
-    if (NavigationHistory.instance.currentRouteName == '/fullplayer') {
-      await _shellNavigator?.maybePop();
-    }
+    NavigationService.instance.closePlayer();
     if (_isDesktop) {
       await _exitFullPlayerDesktopMode();
     }
@@ -410,32 +283,27 @@ class AppNavigation {
     fullPlayerLyricsMode.value = false;
     fullPlayerDesktopMode.value = FullPlayerDesktopMode.artwork;
     fullPlayerDesktopPreviousMode.value = null;
-    _shellNavigator?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: const RouteSettings(name: '/lyrics'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const LyricsView(),
-      ),
-    );
+    NavigationService.instance.pushLyrics();
   }
 
-  void openQueue() {
+  void openQueue([BuildContext? context]) {
+    final isMobile = Platform.isAndroid || Platform.isIOS;
+    if (isMobile) {
+      final ctx = context ??
+          NavigationHistory.instance.navigatorKey.currentContext ??
+          NavigationHistory.instance.rootNavigatorKey.currentContext;
+      if (ctx != null) {
+        showMobileQueueSheet(ctx);
+      }
+      return;
+    }
+
     if (NavigationHistory.instance.currentRouteName == '/queue') {
       return;
     }
     fullPlayerLyricsMode.value = false;
     fullPlayerDesktopMode.value = FullPlayerDesktopMode.artwork;
     fullPlayerDesktopPreviousMode.value = null;
-    _shellNavigator?.push(
-      PageRouteBuilder(
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: Duration.zero,
-        settings: const RouteSettings(name: '/queue'),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const QueueView(),
-      ),
-    );
+    NavigationService.instance.pushQueue();
   }
 }

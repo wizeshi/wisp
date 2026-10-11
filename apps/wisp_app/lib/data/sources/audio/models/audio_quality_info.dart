@@ -64,5 +64,129 @@ class ActiveTrackQualityInfo {
     }
     return parts.isEmpty ? format.toUpperCase() : parts.join(' / ');
   }
+  Map<String, dynamic> toJson() => {
+        'providerId': providerId,
+        'providerName': providerName,
+        'targetQuality': targetQuality.name,
+        'label': label,
+        'format': format,
+        if (bitDepth != null) 'bitDepth': bitDepth,
+        if (sampleRate != null) 'sampleRate': sampleRate,
+        if (bitrate != null) 'bitrate': bitrate,
+      };
+
+  factory ActiveTrackQualityInfo.fromJson(Map<String, dynamic> json) =>
+      ActiveTrackQualityInfo(
+        providerId: json['providerId'] as String? ?? 'cache',
+        providerName: json['providerName'] as String? ?? 'Offline Cache',
+        targetQuality: AudioQuality.fromString(json['targetQuality'] as String?),
+        label: json['label'] as String? ?? 'Standard',
+        format: json['format'] as String? ?? 'M4A',
+        bitDepth: (json['bitDepth'] as num?)?.toInt(),
+        sampleRate: (json['sampleRate'] as num?)?.toInt(),
+        bitrate: (json['bitrate'] as num?)?.toInt(),
+      );
+
+  factory ActiveTrackQualityInfo.create({
+    required String providerId,
+    required String providerName,
+    required AudioQuality targetQuality,
+    String? format,
+    int? bitDepth,
+    int? sampleRate,
+    int? bitrate,
+  }) {
+    final formatStr = (format ??
+            (providerId.toLowerCase() == 'qobuz'
+                ? 'FLAC'
+                : (providerId.toLowerCase() == 'spotify' ? 'OGG' : 'M4A')))
+        .toUpperCase();
+    final isLossless = (bitDepth != null && bitDepth >= 16) || formatStr == 'FLAC';
+    final isHiRes =
+        (bitDepth != null && bitDepth > 16) || ((sampleRate ?? 0) > 48000);
+
+    String label;
+    if (isHiRes) {
+      label = 'Hi-Res Lossless';
+    } else if (isLossless) {
+      label = 'Lossless';
+    } else if (bitrate != null && bitrate >= 256) {
+      label = 'High';
+    } else {
+      label = 'Standard';
+    }
+
+    return ActiveTrackQualityInfo(
+      providerId: providerId,
+      providerName: providerName,
+      targetQuality: targetQuality,
+      label: label,
+      format: formatStr,
+      bitDepth: bitDepth,
+      sampleRate: sampleRate,
+      bitrate: bitrate,
+    );
+  }
+
+  /// Best-effort inference for legacy cached files that lack recorded quality metadata.
+  factory ActiveTrackQualityInfo.inferFromCachedPath({
+    required String filePath,
+    String? trackId,
+    String? videoId,
+  }) {
+    final lower = filePath.toLowerCase();
+    String format = 'M4A';
+    int? bitDepth;
+    int? sampleRate;
+    int? bitrate;
+    AudioQuality quality = AudioQuality.standard;
+
+    if (lower.endsWith('.flac')) {
+      format = 'FLAC';
+      bitDepth = 16;
+      sampleRate = 44100;
+      quality = AudioQuality.lossless;
+    } else if (lower.endsWith('.ogg')) {
+      format = 'OGG';
+      bitrate = 160;
+      quality = AudioQuality.high;
+    } else if (lower.endsWith('.mp3')) {
+      format = 'MP3';
+      bitrate = 320;
+      quality = AudioQuality.standard;
+    } else if (lower.endsWith('.m4a') || lower.endsWith('.aac')) {
+      format = 'AAC';
+      bitrate = 128;
+      quality = AudioQuality.standard;
+    }
+
+    // Infer provider from media identifiers or format
+    final idToCheck = (videoId != null && videoId.isNotEmpty)
+        ? videoId
+        : (trackId ?? '');
+    String providerId = 'cache';
+    String providerName = 'Offline Cache';
+
+    if (format == 'FLAC') {
+      providerId = 'qobuz';
+      providerName = 'Qobuz';
+    } else if (format == 'OGG' || idToCheck.length == 22) {
+      providerId = 'spotify';
+      providerName = 'Spotify';
+    } else if (idToCheck.length == 11) {
+      providerId = 'youtube';
+      providerName = 'YouTube';
+    }
+
+    return ActiveTrackQualityInfo.create(
+      providerId: providerId,
+      providerName: providerName,
+      targetQuality: quality,
+      format: format,
+      bitDepth: bitDepth,
+      sampleRate: sampleRate,
+      bitrate: bitrate,
+    );
+  }
 }
 

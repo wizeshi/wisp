@@ -30,7 +30,7 @@ import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
 import 'package:wisp/features/search/state/search_state.dart';
-import 'package:wisp/features/shell/navigation/navigation_state.dart';
+import 'package:wisp/features/navigation/shell/navigation_state.dart';
 import 'package:wisp/core/theme/cover_art_palette_provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
@@ -42,12 +42,11 @@ import 'package:wisp/services/discord/discord_rpc_service.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
 import 'package:wisp/services/audio/playback_session_store.dart';
-import 'package:wisp/features/onboarding/views/mobile_welcome_view.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/services/system/connectivity_service.dart';
-import 'package:wisp/features/shell/widgets/app_shell.dart';
-import 'package:wisp/features/shell/navigation/navigation_history.dart';
+import 'package:go_router/go_router.dart';
+import 'package:wisp/features/navigation/router/app_router.dart';
 import 'package:wisp/services/system/app_focus_service.dart';
 
 void main() async {
@@ -187,7 +186,9 @@ void main() async {
     (error, stack) {
       logger.e('[Main] Uncaught async error', error: error, stackTrace: stack);
       // Also print to stdout to ensure it appears in simple adb/logcat streams
+      // ignore: avoid_print
       print('[Main] Uncaught async error: $error');
+      // ignore: avoid_print
       print(stack);
     },
   );
@@ -211,6 +212,8 @@ class WispApp extends StatefulWidget {
 
 class _WispAppState extends State<WispApp> with WindowListener {
   bool _isClosing = false;
+  late final PreferencesProvider _preferences;
+  late final GoRouter _router;
 
   bool get _isDesktop =>
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
@@ -218,6 +221,11 @@ class _WispAppState extends State<WispApp> with WindowListener {
   @override
   void initState() {
     super.initState();
+    _preferences = PreferencesProvider();
+    _router = AppRouter.createRouter(
+      appLinks: widget.appLinks,
+      preferences: _preferences,
+    );
     if (_isDesktop) {
       windowManager.addListener(this);
     }
@@ -274,7 +282,7 @@ class _WispAppState extends State<WispApp> with WindowListener {
 
         ChangeNotifierProvider(create: (_) => LocalPlaylistState()),
 
-        ChangeNotifierProvider(create: (_) => PreferencesProvider()),
+        ChangeNotifierProvider.value(value: _preferences),
         ChangeNotifierProxyProvider2<
           YouTubeMetadataProvider,
           PreferencesProvider,
@@ -348,8 +356,8 @@ class _WispAppState extends State<WispApp> with WindowListener {
       ],
       child: Consumer2<CoverArtPaletteProvider, PreferencesProvider>(
         builder: (context, palette, preferences, child) {
-          return MaterialApp(
-            navigatorKey: NavigationHistory.instance.rootNavigatorKey,
+          return MaterialApp.router(
+            routerConfig: _router,
             title: 'wisp',
             scrollBehavior: const DesktopSmoothScrollBehavior(),
             theme: AppTheme.dark(
@@ -361,11 +369,6 @@ class _WispAppState extends State<WispApp> with WindowListener {
               appStyle: preferences.style,
             ),
             themeMode: ThemeMode.dark,
-            home:
-                (Platform.isAndroid || Platform.isIOS) &&
-                    !preferences.isFirstBootCompleted
-                ? MobileWelcomeView(appLinks: widget.appLinks)
-                : AppShell(appLinks: widget.appLinks),
           );
         },
       ),

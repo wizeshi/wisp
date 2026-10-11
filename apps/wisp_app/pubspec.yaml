@@ -4,7 +4,7 @@ publish_to: 'none'
 
 resolution: workspace
 
-version: 26.10.1+370
+version: 26.10.1+389
 
 environment:
   sdk: ^3.10.7
@@ -78,6 +78,7 @@ dependencies:
   shared_preferences: 2.5.5
 
   # URL handling and deep linking
+  go_router: ^14.8.1
   url_launcher: ^6.3.2
   app_links: ^7.2.1
 

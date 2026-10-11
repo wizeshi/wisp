@@ -41,72 +41,103 @@ class GenericCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cardRadius = context.tokens.cardRadius;
+
+    Widget visualContent = Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: artwork,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              fontSize: 15,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          SizedBox(
+            height: _kSubtitleLineHeight,
+            child: subtitle == null
+                ? null
+                : TextParser.needsParsing(subtitle!)
+                ? buildParsedText(
+                    context,
+                    subtitle!,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
+                    linkStyle: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      decoration: TextDecoration.underline,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : Text(
+                    subtitle!,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+          ),
+        ],
+      ),
+    );
+
     Widget content = HoverRegion(
-      onTap: onTap,
-      onDoubleTap: onDoubleTap ?? onPlay,
-      onLongPress: isDesktopPlatform ? null : onLongPress,
-      onSecondaryTapDown: onSecondaryTapDown,
-      borderRadius: context.tokens.cardRadius,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AspectRatio(
-              aspectRatio: 1,
-              child: onPlay == null
-                  ? artwork
-                  : CardHoverPlayOverlay(
-                      isPlaying: isPlaying,
-                      onPressed: onPlay!,
-                      child: artwork,
-                    ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontSize: 15,
+      borderRadius: cardRadius,
+      cursor: isDesktopPlatform ? SystemMouseCursors.click : MouseCursor.defer,
+      child: Stack(
+        children: [
+          // Layer 0: Visual card content
+          visualContent,
+
+          // Layer 1: InkWell overlay on top of artwork and text for visible ripples
+          Positioned.fill(
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                mouseCursor: isDesktopPlatform ? SystemMouseCursors.click : MouseCursor.defer,
+                borderRadius: cardRadius,
+                onTap: onTap,
+                onDoubleTap: onDoubleTap ?? onPlay,
+                onLongPress: isDesktopPlatform ? null : onLongPress,
+                onSecondaryTapDown: onSecondaryTapDown,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 2),
-            SizedBox(
-              height: _kSubtitleLineHeight,
-              child: subtitle == null
-                  ? null
-                  : TextParser.needsParsing(subtitle!)
-                  ? buildParsedText(
-                      context,
-                      subtitle!,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                      linkStyle: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                        decoration: TextDecoration.underline,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  : Text(
-                      subtitle!,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+          ),
+
+          // Layer 2: Play button on top of InkWell overlay
+          if (onPlay != null)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: CardHoverPlayOverlay(
+                  isPlaying: isPlaying,
+                  onPressed: onPlay!,
+                  child: const SizedBox.shrink(),
+                ),
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
 

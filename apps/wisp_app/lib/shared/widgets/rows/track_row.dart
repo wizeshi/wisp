@@ -269,7 +269,7 @@ class TrackRow extends StatelessWidget {
     semanticLabel: 'Artwork for ${track.title}',
   );
 
-  double get _fontScaling => height / 48.0; 
+  double get _fontScaling => height / 48.0;
 
   /// Explicit badge + cache/download indicator + artist names (individually
   /// tappable via [onArtistTap]), in that order — matching how the old
@@ -320,7 +320,10 @@ class TrackRow extends StatelessWidget {
               Flexible(child: artistWidget),
               Text(
                 ' \u2022 ',
-                style: TextStyle(color: Colors.grey[400], fontSize: 12 * _fontScaling),
+                style: TextStyle(
+                  color: Colors.grey[400],
+                  fontSize: 12 * _fontScaling,
+                ),
               ),
               Flexible(child: _buildAlbumText()),
             ],
@@ -351,32 +354,41 @@ class TrackRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       );
     }
-    return Wrap(
-      children: [
-        for (var i = 0; i < track.artists.length; i++) ...[
-          HoverUnderline(
-            onTap: () => onArtistTap!(track.artists[i]),
-            onSecondaryTapDown: onArtistSecondaryTapDown == null
-                ? null
-                : (details) =>
-                      onArtistSecondaryTapDown!(track.artists[i], details),
-            builder: (hovering) => Text(
-              track.artists[i].name,
-              style: TextStyle(
-                color: Colors.grey[500],
-                fontSize: 12 * _fontScaling,
-                decoration: hovering
-                    ? TextDecoration.underline
-                    : TextDecoration.none,
+    return ClipRect(
+      clipBehavior: Clip.hardEdge,
+      child: Row(
+        children: [
+          for (var i = 0; i < track.artists.length; i++) ...[
+            HoverUnderline(
+              onTap: () => onArtistTap!(track.artists[i]),
+              onSecondaryTapDown: onArtistSecondaryTapDown == null
+                  ? null
+                  : (details) =>
+                        onArtistSecondaryTapDown!(track.artists[i], details),
+              builder: (hovering) => Text(
+                track.artists[i].name,
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 12 * _fontScaling,
+                  decoration: hovering
+                      ? TextDecoration.underline
+                      : TextDecoration.none,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-          if (i < track.artists.length - 1)
-            Text(', ', style: TextStyle(color: Colors.grey[500], fontSize: 12 * _fontScaling)),
+            if (i < track.artists.length - 1)
+              Text(
+                ', ',
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 12 * _fontScaling,
+                ),
+              ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -386,7 +398,10 @@ class TrackRow extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final title = album.title;
-    final style = TextStyle(color: Colors.grey[400], fontSize: 12 * _fontScaling);
+    final style = TextStyle(
+      color: Colors.grey[400],
+      fontSize: 12 * _fontScaling,
+    );
     if (onAlbumTap == null && onAlbumSecondaryTapDown == null) {
       return Text(
         title,
@@ -413,15 +428,16 @@ class TrackRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = style != null ? WispStyleTokens.fromStyle(style!) : context.tokens;
+    final tokens = style != null
+        ? WispStyleTokens.fromStyle(style!)
+        : context.tokens;
     final isApple = tokens.isApple;
 
-    final effectivePlayIconLocation = playIconLocation ??
+    final effectivePlayIconLocation =
+        playIconLocation ??
         (isApple
             ? PlayIconLocation.art
-            : (index != null
-                ? PlayIconLocation.number
-                : PlayIconLocation.art));
+            : (index != null ? PlayIconLocation.number : PlayIconLocation.art));
 
     final effectiveDurationColumnWidth =
         durationColumnWidth ?? tokens.trackRowDurationWidth;
@@ -460,24 +476,24 @@ class TrackRow extends StatelessWidget {
                           aspectRatio: 1,
                           child:
                               effectivePlayIconLocation == PlayIconLocation.art
-                                  ? CoverPlayOverlay(
-                                      isPlaying: isPlayingHere,
-                                      onPressed: onPlayPause,
-                                      iconSize: height * 0.42,
-                                      waveformSize: height * 0.32,
-                                      child: _artwork,
-                                    )
-                                  : _artwork,
+                              ? CoverPlayOverlay(
+                                  isPlaying: isPlayingHere,
+                                  onPressed: onPlayPause,
+                                  iconSize: height * 0.42,
+                                  waveformSize: height * 0.32,
+                                  child: _artwork,
+                                )
+                              : _artwork,
                         ),
                       ),
                     ),
                   );
                 }
 
-                final showAlbumColumn =
-                    showAlbumName && !foldAlbumIntoSubtitle;
+                final showAlbumColumn = showAlbumName && !foldAlbumIntoSubtitle;
                 final showDateColumn = showDateAdded && !isApple;
-                final showSubtitle = !isApple ||
+                final showSubtitle =
+                    !isApple ||
                     showArtistInline ||
                     (foldAlbumIntoSubtitle && showAlbumName);
 
@@ -491,7 +507,8 @@ class TrackRow extends StatelessWidget {
                           isPlaying: isPlayingHere,
                           onPressed: onPlayPause,
                           canTogglePlay:
-                              effectivePlayIconLocation == PlayIconLocation.number,
+                              effectivePlayIconLocation ==
+                              PlayIconLocation.number,
                           fontScaling: _fontScaling,
                         ),
                       ),
@@ -533,8 +550,7 @@ class TrackRow extends StatelessWidget {
                             const SizedBox(height: 2),
                             _buildSubtitle(
                               context,
-                              foldAlbum:
-                                  foldAlbumIntoSubtitle && showAlbumName,
+                              foldAlbum: foldAlbumIntoSubtitle && showAlbumName,
                               isApple: isApple,
                             ),
                           ],
@@ -564,7 +580,7 @@ class TrackRow extends StatelessWidget {
                             : const SizedBox.shrink(),
                       ),
 
-                    if (!isApple && trailing != null) trailing!,
+                    ?trailing,
 
                     if (showDuration) ...[
                       const SizedBox(width: 8),
@@ -626,10 +642,6 @@ class TrackRow extends StatelessWidget {
                           ),
                         ),
                       )
-                    else if (isApple)
-                      const SizedBox(width: 48)
-                    else
-                      const SizedBox(width: 16),
                   ],
                 );
               },

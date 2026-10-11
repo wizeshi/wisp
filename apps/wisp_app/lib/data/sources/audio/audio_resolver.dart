@@ -13,12 +13,14 @@ import 'package:wisp/features/settings/state/preferences_provider.dart';
 /// Successful resolution bundle linking track canonical key to active audio stream.
 class AudioResolvedStream {
   final String providerId;
+  final String providerName;
   final String mediaId;
   final AudioStreamResult stream;
   final String canonicalKey;
 
   AudioResolvedStream({
     required this.providerId,
+    required this.providerName,
     required this.mediaId,
     required this.stream,
     required this.canonicalKey,
@@ -78,6 +80,7 @@ class AudioResolver {
           );
           return AudioResolvedStream(
             providerId: overrideSource.id,
+            providerName: overrideSource.name,
             mediaId: manualOverride.mediaID,
             stream: stream,
             canonicalKey: canonicalKey,
@@ -134,6 +137,7 @@ class AudioResolver {
           );
           return AudioResolvedStream(
             providerId: source.id,
+            providerName: source.name,
             mediaId: existingMapping.mediaID,
             stream: stream,
             canonicalKey: canonicalKey,
@@ -184,6 +188,7 @@ class AudioResolver {
 
         return AudioResolvedStream(
           providerId: source.id,
+          providerName: bestMatch.providerName ?? source.name,
           mediaId: bestMatch.mediaId,
           stream: stream,
           canonicalKey: canonicalKey,

@@ -1,6 +1,8 @@
 // Copyright © 2026 wizeshi
 
+import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/features/navigation/router/navigation_service.dart';
 
 class NavigationHistory {
   NavigationHistory._();
@@ -9,116 +11,108 @@ class NavigationHistory {
 
   final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-  late final NavigationHistoryObserver observer = NavigationHistoryObserver(
-    this,
-  );
+  late final NavigationHistoryObserver observer = NavigationHistoryObserver(this);
+
   final ValueNotifier<Route<dynamic>?> currentRoute =
       ValueNotifier<Route<dynamic>?>(null);
 
-  final List<Route<dynamic>> _history = [];
+  final List<String> _history = [];
   int _index = -1;
-  bool _isRestoring = false;
+  bool _isNavigatingHistory = false;
 
   bool get canGoBack => _index > 0;
-  bool get canGoForward => _index + 1 < _history.length;
+  bool get canGoForward => _index >= 0 && _index < _history.length - 1;
   String? get currentRouteName => currentRoute.value?.settings.name;
+  String? get currentLocation =>
+      (_index >= 0 && _index < _history.length) ? _history[_index] : null;
+
+  void recordLocation(String location) {
+    if (location.isEmpty) return;
+    final path = Uri.tryParse(location)?.path ?? location;
+
+    if (_isNavigatingHistory) {
+      _isNavigatingHistory = false;
+      final existingIndex = _history.indexOf(location);
+      if (existingIndex != -1) {
+        _index = existingIndex;
+      }
+      _updateCurrentRoute(path);
+      return;
+    }
+
+    // Ignore duplicate consecutive updates
+    if (_index >= 0 && _index < _history.length && _history[_index] == location) {
+      return;
+    }
+
+    // If popped to previous history entry
+    if (_index > 0 && _history[_index - 1] == location) {
+      _index--;
+      _updateCurrentRoute(path);
+      return;
+    }
+
+    // Drop forward history on new navigation
+    if (_index < _history.length - 1) {
+      _history.removeRange(_index + 1, _history.length);
+    }
+
+    _history.add(location);
+    _index = _history.length - 1;
+    _updateCurrentRoute(path);
+  }
+
+  void _updateCurrentRoute(String path) {
+    final route = MaterialPageRoute<dynamic>(
+      settings: RouteSettings(name: path),
+      builder: (_) => const SizedBox.shrink(),
+    );
+    try {
+      final binding = WidgetsBinding.instance;
+      if (binding.schedulerPhase == SchedulerPhase.idle) {
+        currentRoute.value = route;
+      } else {
+        binding.addPostFrameCallback((_) {
+          currentRoute.value = route;
+        });
+      }
+    } catch (_) {
+      currentRoute.value = route;
+    }
+  }
 
   void goBack() {
-    navigatorKey.currentState?.maybePop();
+    if (!canGoBack) return;
+    _isNavigatingHistory = true;
+    final targetIndex = _index - 1;
+    final targetUri = _history[targetIndex];
+
+    if (NavigationService.instance.canPop()) {
+      _index = targetIndex;
+      _updateCurrentRoute(Uri.tryParse(targetUri)?.path ?? targetUri);
+      NavigationService.instance.pop();
+    } else {
+      _index = targetIndex;
+      _updateCurrentRoute(Uri.tryParse(targetUri)?.path ?? targetUri);
+      NavigationService.instance.router.go(targetUri);
+    }
   }
 
   void goForward() {
     if (!canGoForward) return;
-    final next = _history[_index + 1];
-    final cloned = _cloneRoute(next);
-    if (cloned == null) return;
-    _isRestoring = true;
-    navigatorKey.currentState?.push(cloned);
+    _isNavigatingHistory = true;
+    final targetIndex = _index + 1;
+    final targetUri = _history[targetIndex];
+    _index = targetIndex;
+    _updateCurrentRoute(Uri.tryParse(targetUri)?.path ?? targetUri);
+    NavigationService.instance.router.go(targetUri);
   }
 
-  void _handlePush(Route<dynamic> route) {
-    if (_isRestoring) {
-      _isRestoring = false;
-      if (_index + 1 < _history.length) {
-        _history[_index + 1] = route;
-        _index++;
-      } else {
-        _history.add(route);
-        _index = _history.length - 1;
-      }
-      currentRoute.value = route;
-      return;
+  void resetToHome() {
+    while (NavigationService.instance.canPop()) {
+      NavigationService.instance.pop();
     }
-
-    if (_index < _history.length - 1) {
-      _history.removeRange(_index + 1, _history.length);
-    }
-    _history.add(route);
-    _index = _history.length - 1;
-    currentRoute.value = route;
-  }
-
-  void _handlePop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    final poppedIndex = _history.indexOf(route);
-    if (poppedIndex != -1) {
-      _history.removeAt(poppedIndex);
-    }
-
-    if (previousRoute == null) {
-      _index = -1;
-      currentRoute.value = null;
-      return;
-    }
-
-    final previousIndex = _history.indexOf(previousRoute);
-    if (previousIndex != -1) {
-      _index = previousIndex;
-      currentRoute.value = _history[_index];
-      return;
-    }
-
-    _history.add(previousRoute);
-    _index = _history.length - 1;
-    currentRoute.value = previousRoute;
-  }
-
-  void _handleRemove(Route<dynamic> route) {
-    final removeIndex = _history.indexOf(route);
-    if (removeIndex == -1) return;
-    _history.removeAt(removeIndex);
-    if (_index >= removeIndex) {
-      _index = (_index - 1).clamp(-1, _history.length - 1);
-    }
-    currentRoute.value = _index >= 0 ? _history[_index] : null;
-  }
-
-  void _handleReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    if (oldRoute == null || newRoute == null) return;
-    final replaceIndex = _history.indexOf(oldRoute);
-    if (replaceIndex == -1) return;
-    _history[replaceIndex] = newRoute;
-    if (_index == replaceIndex) {
-      currentRoute.value = newRoute;
-    }
-  }
-
-  Route<dynamic>? _cloneRoute(Route<dynamic> route) {
-    if (route is MaterialPageRoute) {
-      return MaterialPageRoute(
-        builder: route.builder,
-        settings: route.settings,
-      );
-    }
-    if (route is PageRouteBuilder) {
-      return PageRouteBuilder(
-        pageBuilder: route.pageBuilder,
-        transitionsBuilder: route.transitionsBuilder,
-        transitionDuration: route.transitionDuration,
-        reverseTransitionDuration: route.reverseTransitionDuration,
-        settings: route.settings,
-      );
-    }
-    return null;
+    NavigationService.instance.goHome();
   }
 }
 
@@ -129,25 +123,19 @@ class NavigationHistoryObserver extends NavigatorObserver {
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _history._handlePush(route);
+    final name = route.settings.name;
+    if (name != null && name.isNotEmpty) {
+      _history.recordLocation(name);
+    }
     super.didPush(route, previousRoute);
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _history._handlePop(route, previousRoute);
+    final prevName = previousRoute?.settings.name;
+    if (prevName != null && prevName.isNotEmpty) {
+      _history.recordLocation(prevName);
+    }
     super.didPop(route, previousRoute);
-  }
-
-  @override
-  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _history._handleRemove(route);
-    super.didRemove(route, previousRoute);
-  }
-
-  @override
-  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
-    _history._handleReplace(newRoute: newRoute, oldRoute: oldRoute);
-    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
   }
 }

@@ -24,7 +24,6 @@ import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 import 'package:wisp/data/cache/audio/audio_mapping_store.dart';
 import 'package:wisp/data/sources/audio/audio_resolver.dart';
 import 'package:wisp/data/sources/audio/audio_source.dart';
-import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
@@ -1753,6 +1752,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         : null;
     if (cachedPath != null && File(cachedPath).existsSync()) {
       await cacheManager.updateLastPlayed(track.id);
+      final cacheEntry = cacheManager.getEntry(track.id);
+      _activeTrackQuality = cacheEntry?.qualityInfo ??
+          ActiveTrackQualityInfo.inferFromCachedPath(
+            filePath: cachedPath,
+            trackId: track.id,
+            videoId: cacheEntry?.videoId,
+          );
+      notifyListeners();
       return PlaybackSource(
         uri: Uri.file(cachedPath),
         expectedDuration: expectedDuration,
@@ -1769,6 +1776,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           final lateCachedPath = cacheManager.getCachedPath(track.id);
           if (lateCachedPath != null && File(lateCachedPath).existsSync()) {
             await cacheManager.updateLastPlayed(track.id);
+            final cacheEntry = cacheManager.getEntry(track.id);
+            _activeTrackQuality = cacheEntry?.qualityInfo ??
+                ActiveTrackQualityInfo.inferFromCachedPath(
+                  filePath: lateCachedPath,
+                  trackId: track.id,
+                  videoId: cacheEntry?.videoId,
+                );
+            notifyListeners();
             _prefetchedSources.remove(track.id);
             return PlaybackSource(
               uri: Uri.file(lateCachedPath),
@@ -1803,6 +1818,19 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       final resolvedCachedPath = cacheManager.getCachedPath(resolved.mediaId);
       if (resolvedCachedPath != null && File(resolvedCachedPath).existsSync()) {
         await cacheManager.updateLastPlayed(resolved.mediaId);
+        final cacheEntry = cacheManager.getEntry(resolved.mediaId) ??
+            cacheManager.getEntry(track.id);
+        _activeTrackQuality = cacheEntry?.qualityInfo ??
+            ActiveTrackQualityInfo.create(
+              providerId: resolved.providerId,
+              providerName: resolved.providerName,
+              targetQuality: _preferredAudioQuality,
+              format: resolved.stream.format,
+              bitDepth: resolved.stream.bitDepth,
+              sampleRate: resolved.stream.sampleRate,
+              bitrate: resolved.stream.bitrate,
+            );
+        notifyListeners();
         return PlaybackSource(
           uri: Uri.file(resolvedCachedPath),
           expectedDuration: expectedDuration,
@@ -1813,40 +1841,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     final streamUrl = resolved.stream.url;
 
-    // Update active track quality telemetry
-    final bitDepth = resolved.stream.bitDepth;
-    final sampleRate = resolved.stream.sampleRate;
-    final formatStr = resolved.stream.format ??
-        (resolved.providerId == 'qobuz' ? 'flac' : 'm4a');
-    final isLossless = (bitDepth != null && bitDepth >= 16) ||
-        formatStr.toLowerCase() == 'flac';
-    final isHiRes = (bitDepth != null && bitDepth > 16) ||
-        (sampleRate != null && sampleRate > 48000);
-
-    String label;
-    if (isHiRes) {
-      label = 'Hi-Res Lossless';
-    } else if (isLossless) {
-      label = 'Lossless';
-    } else if (resolved.stream.bitrate != null &&
-        resolved.stream.bitrate! >= 256) {
-      label = 'High';
-    } else {
-      label = 'Standard';
-    }
-
-    _activeTrackQuality = ActiveTrackQualityInfo(
+    // Update active track quality telemetry directly from provider metadata
+    _activeTrackQuality = ActiveTrackQualityInfo.create(
       providerId: resolved.providerId,
-      providerName: resolved.providerId == 'qobuz'
-          ? 'Qobuz'
-          : (resolved.providerId == 'spotify'
-              ? 'Spotify'
-              : (resolved.providerId == 'youtube' ? 'YouTube' : resolved.providerId)),
+      providerName: resolved.providerName,
       targetQuality: _preferredAudioQuality,
-      label: label,
-      format: formatStr.toUpperCase(),
-      bitDepth: bitDepth,
-      sampleRate: sampleRate,
+      format: resolved.stream.format,
+      bitDepth: resolved.stream.bitDepth,
+      sampleRate: resolved.stream.sampleRate,
       bitrate: resolved.stream.bitrate,
     );
     notifyListeners();
@@ -1867,6 +1869,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
               targetUrl: streamUrl,
               headers: resolved.stream.headers,
               providerId: resolved.providerId,
+              providerName: resolved.providerName,
+              qualityInfo: _activeTrackQuality,
               segmentedDescriptor: resolved.stream.segmented,
               customData: resolved.stream.customData,
             ),
@@ -1992,6 +1996,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
                 ? 'flac'
                 : (resolved.providerId == 'spotify' ? 'ogg' : 'm4a'));
 
+        final qualityInfo = ActiveTrackQualityInfo.create(
+          providerId: resolved.providerId,
+          providerName: resolved.providerName,
+          targetQuality: _preferredAudioQuality,
+          format: resolved.stream.format,
+          bitDepth: resolved.stream.bitDepth,
+          sampleRate: resolved.stream.sampleRate,
+          bitrate: resolved.stream.bitrate,
+        );
+
         final proxy = AudioStreamingProxy.instance;
         final needsProxy = resolved.stream.customData?['cipher'] != null ||
             resolved.stream.segmented != null;
@@ -2010,6 +2024,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
               targetUrl: resolved.stream.url,
               headers: resolved.stream.headers,
               providerId: resolved.providerId,
+              providerName: resolved.providerName,
+              qualityInfo: qualityInfo,
               segmentedDescriptor: resolved.stream.segmented,
               customData: resolved.stream.customData,
               spool: false,
@@ -2022,6 +2038,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           streamUrl: streamUrl,
           format: format,
           headers: resolved.stream.headers,
+          qualityInfo: qualityInfo,
         );
       },
     );
@@ -2557,6 +2574,16 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
                 ? 'flac'
                 : (resolved.providerId == 'spotify' ? 'ogg' : 'm4a'));
 
+        final qualityInfo = ActiveTrackQualityInfo.create(
+          providerId: resolved.providerId,
+          providerName: resolved.providerName,
+          targetQuality: _preferredAudioQuality,
+          format: resolved.stream.format,
+          bitDepth: resolved.stream.bitDepth,
+          sampleRate: resolved.stream.sampleRate,
+          bitrate: resolved.stream.bitrate,
+        );
+
         final proxy = AudioStreamingProxy.instance;
         final needsProxy = resolved.stream.customData?['cipher'] != null ||
             resolved.stream.segmented != null;
@@ -2575,6 +2602,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
               targetUrl: resolved.stream.url,
               headers: resolved.stream.headers,
               providerId: resolved.providerId,
+              providerName: resolved.providerName,
+              qualityInfo: qualityInfo,
               segmentedDescriptor: resolved.stream.segmented,
               customData: resolved.stream.customData,
               spool: false,
@@ -2587,6 +2616,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           streamUrl: streamUrl,
           format: format,
           headers: resolved.stream.headers,
+          qualityInfo: qualityInfo,
         );
       },
     );

@@ -14,7 +14,7 @@ import 'package:wisp/shared/widgets/display/hover_underline.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
-import 'package:wisp/features/details/views/list_detail_view.dart';
+import 'package:wisp/features/navigation/views/list/view.dart' show SharedListType;
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
