@@ -160,6 +160,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool _keepPositionBetweenRestarts = false;
   AudioQuality _preferredAudioQuality = AudioQuality.auto;
   ActiveTrackQualityInfo? _activeTrackQuality;
+  final Map<String, ActiveTrackQualityInfo> _trackQualityCache = {};
   int _savedPositionMs = 0;
   int _lastSessionSaveMs = 0;
 
@@ -260,6 +261,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   int? get audioSampleRate => _engineAudioSampleRate;
   AudioQuality get preferredAudioQuality => _preferredAudioQuality;
   ActiveTrackQualityInfo? get activeTrackQuality => _activeTrackQuality;
+
+  void _updateActiveQualityForTrack(GenericSong track) {
+    _activeTrackQuality = _trackQualityCache[track.id] ??
+        AudioCacheManager.instance.getEntry(track.id)?.qualityInfo ??
+        (AudioCacheManager.instance.getCachedPath(track.id) != null
+            ? ActiveTrackQualityInfo.inferFromCachedPath(
+                filePath: AudioCacheManager.instance.getCachedPath(track.id)!,
+                trackId: track.id,
+              )
+            : null);
+  }
 
   void setPreferredAudioQuality(AudioQuality quality) {
     if (_preferredAudioQuality == quality) return;
@@ -1136,6 +1148,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _preloadedNextTrack = null;
     _currentIndex = nextIndex;
     _currentTrack = nextTrack;
+    _updateActiveQualityForTrack(nextTrack);
     _lastKnownDuration = nextTrack.durationSecs > 0
         ? Duration(seconds: nextTrack.durationSecs)
         : null;
@@ -1462,6 +1475,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _prefetchSourceTasks.clear();
     if (clearSources) {
       _prefetchedSources.clear();
+      _trackQualityCache.clear();
     }
   }
 
@@ -1508,6 +1522,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
       _currentIndex = safeIndex;
       _currentTrack = track;
+      _updateActiveQualityForTrack(track);
       _forcePositionUpdate(position);
       _setState(play ? PlaybackState.playing : PlaybackState.paused);
       _broadcastPlaybackState();
@@ -1713,6 +1728,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Future<void> _invalidateTrackSourceCaches(GenericSong track) async {
     _prefetchedSources.remove(track.id);
     _prefetchSourceTasks.remove(track.id);
+    _trackQualityCache.remove(track.id);
 
     final cachedVideoId = YouTubeProvider.getCachedVideoId(track.id);
     if (cachedVideoId != null && cachedVideoId.isNotEmpty) {
@@ -1753,13 +1769,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (cachedPath != null && File(cachedPath).existsSync()) {
       await cacheManager.updateLastPlayed(track.id);
       final cacheEntry = cacheManager.getEntry(track.id);
-      _activeTrackQuality = cacheEntry?.qualityInfo ??
+      final quality = cacheEntry?.qualityInfo ??
           ActiveTrackQualityInfo.inferFromCachedPath(
             filePath: cachedPath,
             trackId: track.id,
             videoId: cacheEntry?.videoId,
           );
-      notifyListeners();
+      _trackQualityCache[track.id] = quality;
+      if (track.id == _currentTrack?.id) {
+        _activeTrackQuality = quality;
+        notifyListeners();
+      }
       return PlaybackSource(
         uri: Uri.file(cachedPath),
         expectedDuration: expectedDuration,
@@ -1777,13 +1797,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           if (lateCachedPath != null && File(lateCachedPath).existsSync()) {
             await cacheManager.updateLastPlayed(track.id);
             final cacheEntry = cacheManager.getEntry(track.id);
-            _activeTrackQuality = cacheEntry?.qualityInfo ??
+            final quality = cacheEntry?.qualityInfo ??
                 ActiveTrackQualityInfo.inferFromCachedPath(
                   filePath: lateCachedPath,
                   trackId: track.id,
                   videoId: cacheEntry?.videoId,
                 );
-            notifyListeners();
+            _trackQualityCache[track.id] = quality;
+            if (track.id == _currentTrack?.id) {
+              _activeTrackQuality = quality;
+              notifyListeners();
+            }
             _prefetchedSources.remove(track.id);
             return PlaybackSource(
               uri: Uri.file(lateCachedPath),
@@ -1820,7 +1844,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         await cacheManager.updateLastPlayed(resolved.mediaId);
         final cacheEntry = cacheManager.getEntry(resolved.mediaId) ??
             cacheManager.getEntry(track.id);
-        _activeTrackQuality = cacheEntry?.qualityInfo ??
+        final quality = cacheEntry?.qualityInfo ??
             ActiveTrackQualityInfo.create(
               providerId: resolved.providerId,
               providerName: resolved.providerName,
@@ -1830,7 +1854,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
               sampleRate: resolved.stream.sampleRate,
               bitrate: resolved.stream.bitrate,
             );
-        notifyListeners();
+        _trackQualityCache[track.id] = quality;
+        _trackQualityCache[resolved.mediaId] = quality;
+        if (track.id == _currentTrack?.id) {
+          _activeTrackQuality = quality;
+          notifyListeners();
+        }
         return PlaybackSource(
           uri: Uri.file(resolvedCachedPath),
           expectedDuration: expectedDuration,
@@ -1841,8 +1870,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     final streamUrl = resolved.stream.url;
 
-    // Update active track quality telemetry directly from provider metadata
-    _activeTrackQuality = ActiveTrackQualityInfo.create(
+    // Record resolved track quality in local cache
+    final quality = ActiveTrackQualityInfo.create(
       providerId: resolved.providerId,
       providerName: resolved.providerName,
       targetQuality: _preferredAudioQuality,
@@ -1851,7 +1880,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       sampleRate: resolved.stream.sampleRate,
       bitrate: resolved.stream.bitrate,
     );
-    notifyListeners();
+    _trackQualityCache[track.id] = quality;
+    if (resolved.mediaId.isNotEmpty) {
+      _trackQualityCache[resolved.mediaId] = quality;
+    }
+    if (track.id == _currentTrack?.id) {
+      _activeTrackQuality = quality;
+      notifyListeners();
+    }
 
     // Stream through AudioStreamingProxy to spool audio chunks into cache without double-downloading
     final proxy = AudioStreamingProxy.instance;
@@ -1870,7 +1906,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
               headers: resolved.stream.headers,
               providerId: resolved.providerId,
               providerName: resolved.providerName,
-              qualityInfo: _activeTrackQuality,
+              qualityInfo: quality,
               segmentedDescriptor: resolved.stream.segmented,
               customData: resolved.stream.customData,
             ),
@@ -2402,6 +2438,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _clearPreloadBookkeeping();
       _invalidatePlaybackPrefetch(clearSources: true);
       _currentTrack = null;
+      _activeTrackQuality = null;
       _currentIndex = -1;
       _setState(PlaybackState.idle);
       _clearDiscordPresence();
@@ -2416,6 +2453,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     unawaited(_engine.clearPreload());
     _prefetchedSources.remove(removedTrack.id);
     _prefetchSourceTasks.remove(removedTrack.id);
+    _trackQualityCache.remove(removedTrack.id);
     _invalidatePlaybackPrefetch();
     notifyListeners();
   }
@@ -2424,6 +2462,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _queue.clear();
     _currentIndex = -1;
     _currentTrack = null;
+    _activeTrackQuality = null;
+    _trackQualityCache.clear();
     unawaited(_engine.stop());
     _clearPreloadBookkeeping();
     _invalidatePlaybackPrefetch(clearSources: true);

@@ -176,6 +176,13 @@ void main() {
       );
       expect(ytInferred.format, 'AAC');
       expect(ytInferred.providerName, 'YouTube');
+
+      final ytInferredWithSpotifyTrackId = ActiveTrackQualityInfo.inferFromCachedPath(
+        filePath: '/storage/audio_cache/song.m4a',
+        trackId: '4zww0H1u0yYvyBGixrRCb9',
+      );
+      expect(ytInferredWithSpotifyTrackId.format, 'AAC');
+      expect(ytInferredWithSpotifyTrackId.providerName, 'YouTube');
     });
   });
 

@@ -170,12 +170,15 @@ class ActiveTrackQualityInfo {
     if (format == 'FLAC') {
       providerId = 'qobuz';
       providerName = 'Qobuz';
-    } else if (format == 'OGG' || idToCheck.length == 22) {
+    } else if (format == 'OGG') {
       providerId = 'spotify';
       providerName = 'Spotify';
-    } else if (idToCheck.length == 11) {
+    } else if (format == 'AAC' || format == 'M4A' || idToCheck.length == 11) {
       providerId = 'youtube';
       providerName = 'YouTube';
+    } else if (idToCheck.length == 22) {
+      providerId = 'spotify';
+      providerName = 'Spotify';
     }
 
     return ActiveTrackQualityInfo.create(

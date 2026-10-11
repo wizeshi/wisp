@@ -243,10 +243,10 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
                       onArtistTap: (artist) => widget.onOpenArtist?.call(artist),
                       onMoreTap: (buttonContext) =>
                           widget.onTrackContextMenu(buttonContext, song, null),
-                      onSecondaryTapDown: (details) => widget.onTrackContextMenu(
+                      onLongPress: () => widget.onTrackContextMenu(
                         context,
                         song,
-                        details.globalPosition,
+                        null,
                       ),
                     ),
                   ),
@@ -542,8 +542,8 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
               onPlayPause: () => widget.onAddRecommendedTrack(song),
               onAlbumTap: () => widget.onOpenAlbum?.call(song.album),
               onArtistTap: (artist) => widget.onOpenArtist?.call(artist),
-              onSecondaryTapDown: (details) =>
-                  widget.onTrackContextMenu(context, song, details.globalPosition),
+              onLongPress: () =>
+                  widget.onTrackContextMenu(context, song, null),
             ),
           );
         }),

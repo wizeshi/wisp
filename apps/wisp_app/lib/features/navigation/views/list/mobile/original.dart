@@ -252,11 +252,11 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
                           song,
                           null,
                         ),
-                        onSecondaryTapDown: (details) =>
+                        onLongPress: () =>
                             widget.onTrackContextMenu(
                               context,
                               song,
-                              details.globalPosition,
+                              null,
                             ),
                       ),
                     ),
@@ -596,10 +596,10 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
               onPlayPause: () => widget.onAddRecommendedTrack(song),
               onAlbumTap: () => widget.onOpenAlbum?.call(song.album),
               onArtistTap: (artist) => widget.onOpenArtist?.call(artist),
-              onSecondaryTapDown: (details) => widget.onTrackContextMenu(
+              onLongPress: () => widget.onTrackContextMenu(
                 context,
                 song,
-                details.globalPosition,
+                null,
               ),
             ),
           );

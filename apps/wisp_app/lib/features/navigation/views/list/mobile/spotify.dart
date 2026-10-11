@@ -254,11 +254,11 @@ class _MobileSpotifyListViewState extends State<MobileSpotifyListView> {
                           song,
                           null,
                         ),
-                        onSecondaryTapDown: (details) =>
+                        onLongPress: () =>
                             widget.onTrackContextMenu(
                               context,
                               song,
-                              details.globalPosition,
+                              null,
                             ),
                       ),
                     ),
@@ -598,10 +598,10 @@ class _MobileSpotifyListViewState extends State<MobileSpotifyListView> {
               onPlayPause: () => widget.onAddRecommendedTrack(song),
               onAlbumTap: () => widget.onOpenAlbum?.call(song.album),
               onArtistTap: (artist) => widget.onOpenArtist?.call(artist),
-              onSecondaryTapDown: (details) => widget.onTrackContextMenu(
+              onLongPress: () => widget.onTrackContextMenu(
                 context,
                 song,
-                details.globalPosition,
+                null,
               ),
             ),
           );
