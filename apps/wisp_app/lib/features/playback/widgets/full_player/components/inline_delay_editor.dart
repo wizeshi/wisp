@@ -150,13 +150,7 @@ class _InlineDelayEditorState extends State<InlineDelayEditor> {
               shape: LiquidGlassShape.continuousRoundedRectangle(
                 cornerRadius: 8,
               ),
-              appearance: LiquidGlassAppearance(
-                blur: const LiquidGlassBlur(sigmaX: 16, sigmaY: 16),
-              ),
-              refraction: const LiquidGlassRefraction(
-                distortion: 0.12,
-                distortionWidth: 18,
-              ),
+              blur: 16,
             ),
             child: editor,
           )

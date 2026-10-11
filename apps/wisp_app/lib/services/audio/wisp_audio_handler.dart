@@ -283,11 +283,18 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   Duration get position => _engine.state.position;
   Duration get throttledPosition => _lastNotifiedPosition;
   Duration get interpolatedPosition => _getInterpolatedPosition();
-  Duration get duration => _isHandoffHost
-      ? (_lastKnownDuration ?? _engine.state.duration)
-      : (_engine.state.duration > Duration.zero
-            ? _engine.state.duration
-            : _lastKnownDuration ?? Duration.zero);
+  Duration get duration {
+    if (_isHandoffHost) {
+      return _lastKnownDuration ?? _engine.state.duration;
+    }
+    if (_currentTrack != null && _currentTrack!.durationSecs > 0) {
+      return Duration(seconds: _currentTrack!.durationSecs);
+    }
+    if (_lastKnownDuration != null && _lastKnownDuration! > Duration.zero) {
+      return _lastKnownDuration!;
+    }
+    return _engine.state.duration;
+  }
   double get volume => _engineVolume;
   double get userVolume => _savedVolume ?? _lastVolume;
   bool get isOnline => _isOnline;
@@ -664,8 +671,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _engineAudioSampleRate = engineState.audioSampleRate;
 
     if (engineState.duration > Duration.zero) {
-      final durationChanged = _lastKnownDuration != engineState.duration;
-      _lastKnownDuration = engineState.duration;
+      final hasPredeterminedDuration =
+          _currentTrack != null && _currentTrack!.durationSecs > 0;
+      final effectiveDuration = hasPredeterminedDuration
+          ? Duration(seconds: _currentTrack!.durationSecs)
+          : engineState.duration;
+      final durationChanged = _lastKnownDuration != effectiveDuration;
+      _lastKnownDuration = effectiveDuration;
       if (_currentTrack != null && _currentTrack!.durationSecs == 0) {
         final updatedTrack = GenericSong(
           id: _currentTrack!.id,
@@ -723,14 +735,15 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _broadcastPlaybackState();
 
     if (!_engineIsTransitioning) {
+      final effectiveTrackDuration = duration > Duration.zero ? duration : engineState.duration;
       unawaited(
-        _maybeSchedulePreload(engineState.position, engineState.duration),
+        _maybeSchedulePreload(engineState.position, effectiveTrackDuration),
       );
       if (_crossfadeEnabled) {
         unawaited(
           _maybeStartCrossfadeTransition(
             engineState.position,
-            engineState.duration,
+            effectiveTrackDuration,
           ),
         );
       }

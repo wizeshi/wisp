@@ -17,14 +17,8 @@ class _AppleGlassLens extends StatelessWidget {
         shape: LiquidGlassShape.continuousRoundedRectangle(
           cornerRadius: cornerRadius,
         ),
-        appearance: LiquidGlassAppearance(
-          blur: const LiquidGlassBlur(sigmaX: 6, sigmaY: 6),
-          color: Colors.black.withValues(alpha: 0.18),
-        ),
-        refraction: const LiquidGlassRefraction(
-          distortion: 0.12,
-          distortionWidth: 24,
-        ),
+        blur: 6,
+        color: Colors.black.withValues(alpha: 0.18),
       ),
       child: child,
     );

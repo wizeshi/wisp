@@ -469,14 +469,11 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   }
 
   Duration _reportedDuration(Player player) {
-    final actual = player.state.duration;
     final expected = _activeSource?.expectedDuration;
-    if (expected == null || expected <= Duration.zero) return actual;
-    // Some native decoders report an inflated duration for HE-AAC. Metadata
-    // is a safer upper bound, while a genuinely shorter native duration is
-    // retained so callers can still detect truncated streams.
-    if (actual <= Duration.zero || actual > expected) return expected;
-    return actual;
+    if (expected != null && expected > Duration.zero) {
+      return expected;
+    }
+    return player.state.duration;
   }
 
   Future<void> _enqueue(Future<void> Function() action) {

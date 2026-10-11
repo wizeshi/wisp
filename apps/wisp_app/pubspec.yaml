@@ -17,12 +17,12 @@ dependencies:
   logger: ^2.6.2
 
   # UI
-  cupertino_ui: any
-  cupertino_icons: ^1.0.8
-  liquid_glass_easy: any
+  cupertino_ui: ^1.1.2
+  cupertino_icons: ^2.0.0
+  liquid_glass_easy: ^5.0.0
   material_symbols_icons: ^4.2960.0
-  material_ui: any
-  material_3_expressive: any
+  material_ui: ^1.6.0
+  material_3_expressive: ^1.1.6
   simple_icons: ^16.23.0
 
   # Media Playback
