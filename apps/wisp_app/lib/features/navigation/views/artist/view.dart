@@ -27,6 +27,7 @@ import 'package:wisp/data/cache/metadata_revalidator.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/menus/adaptive_context_menu.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
+import 'package:wisp/shared/widgets/menus/inspect_dialog.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
@@ -1041,6 +1042,22 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             );
           },
         ),
+        if (context.read<PreferencesProvider>().debugModeEnabled)
+          ContextMenuAction(
+            id: 'inspect-element',
+            label: 'Inspect Element',
+            icon: Icons.code,
+            onSelected: (_) {
+              final artistData = _artist?.toJson() ??
+                  widget.initialArtist?.toJson() ??
+                  {'id': widget.artistId};
+              InspectDialog.show(
+                context,
+                data: artistData,
+                title: 'Inspect Artist',
+              );
+            },
+          ),
       ],
     );
   }

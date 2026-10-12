@@ -116,6 +116,12 @@ class UserCard extends StatelessWidget {
         ),
         globalPosition: position,
       );
+    } else {
+      EntityContextMenus.showUserMenu(
+        context,
+        user: user,
+        globalPosition: position,
+      );
     }
   }
 
@@ -132,10 +138,9 @@ class UserCard extends StatelessWidget {
         semanticLabel: 'Photo of ${user.displayName}',
       ),
       onTap: () => _onTap(context),
-      onSecondaryTapDown: _isArtist
-          ? (details) => _showContextMenu(context, position: details.globalPosition)
-          : null,
-      onLongPress: _isArtist ? () => _showContextMenu(context) : null,
+      onSecondaryTapDown: (details) =>
+          _showContextMenu(context, position: details.globalPosition),
+      onLongPress: () => _showContextMenu(context),
       width: width,
     );
   }

@@ -22,7 +22,7 @@ import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/core/utils/song_source_icon.dart';
 import 'adaptive_context_menu.dart';
 import 'playlist_folder_modals.dart';
-import 'track_inspect_dialog.dart';
+import 'inspect_dialog.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 class EntityContextMenus {
@@ -476,7 +476,11 @@ class EntityContextMenus {
           id: 'inspect-element',
           label: 'Inspect Element',
           icon: Icons.code,
-          onSelected: (_) => TrackInspectDialog.show(context, track),
+          onSelected: (_) => InspectDialog.show(
+            context,
+            data: track.toJson(),
+            title: 'Inspect Track',
+          ),
         ),
     ];
 
@@ -743,6 +747,17 @@ class EntityContextMenus {
           id: playlist.id,
         ),
       ),
+      if (context.read<PreferencesProvider>().debugModeEnabled)
+        ContextMenuAction(
+          id: 'inspect-element',
+          label: 'Inspect Element',
+          icon: Icons.code,
+          onSelected: (_) => InspectDialog.show(
+            context,
+            data: playlist.toJson(),
+            title: 'Inspect Playlist',
+          ),
+        ),
     ];
 
     await showAdaptiveContextMenu(
@@ -909,6 +924,17 @@ class EntityContextMenus {
           id: resolvedAlbum.id,
         ),
       ),
+      if (context.read<PreferencesProvider>().debugModeEnabled)
+        ContextMenuAction(
+          id: 'inspect-element',
+          label: 'Inspect Element',
+          icon: Icons.code,
+          onSelected: (_) => InspectDialog.show(
+            context,
+            data: resolvedAlbum.toJson(),
+            title: 'Inspect Album',
+          ),
+        ),
     ];
 
     await showAdaptiveContextMenu(
@@ -1005,6 +1031,17 @@ class EntityContextMenus {
           id: artist.id,
         ),
       ),
+      if (context.read<PreferencesProvider>().debugModeEnabled)
+        ContextMenuAction(
+          id: 'inspect-element',
+          label: 'Inspect Element',
+          icon: Icons.code,
+          onSelected: (_) => InspectDialog.show(
+            context,
+            data: artist.toJson(),
+            title: 'Inspect Artist',
+          ),
+        ),
     ];
 
     await showAdaptiveContextMenu(
@@ -1044,6 +1081,77 @@ class EntityContextMenus {
         onSelected: (_) =>
             context.read<LibraryFolderState>().deleteFolder(folder.id),
       ),
+      if (context.read<PreferencesProvider>().debugModeEnabled)
+        ContextMenuAction(
+          id: 'inspect-element',
+          label: 'Inspect Element',
+          icon: Icons.code,
+          onSelected: (_) => InspectDialog.show(
+            context,
+            data: folder.toJson(),
+            title: 'Inspect Folder',
+          ),
+        ),
+    ];
+
+    await showAdaptiveContextMenu(
+      context: context,
+      actions: actions,
+      anchorRect: anchorRect,
+      globalPosition: globalPosition,
+    );
+  }
+
+  static Future<void> showUserMenu(
+    BuildContext context, {
+    required dynamic user,
+    Offset? globalPosition,
+    Rect? anchorRect,
+  }) async {
+    final isDebugMode =
+        context.read<PreferencesProvider>().debugModeEnabled;
+    final Map<String, dynamic> userData;
+    if (user is GenericUser) {
+      userData = user.toJson();
+    } else if (user is GenericSimpleUser) {
+      userData = user.toJson();
+    } else if (user is Map<String, dynamic>) {
+      userData = user;
+    } else {
+      userData = {'raw': user.toString()};
+    }
+
+    final id = user is GenericUser
+        ? user.id
+        : (user is GenericSimpleUser ? user.id : '');
+    final source = user is GenericUser
+        ? user.source
+        : (user is GenericSimpleUser ? user.source : 'spotify');
+
+    final actions = <ContextMenuAction>[
+      if (id.isNotEmpty)
+        ContextMenuAction(
+          id: 'share',
+          label: 'Share',
+          icon: Icons.share,
+          onSelected: (_) => copySpotifyShareUrl(
+            context,
+            source: source,
+            type: 'user',
+            id: id,
+          ),
+        ),
+      if (isDebugMode)
+        ContextMenuAction(
+          id: 'inspect-element',
+          label: 'Inspect Element',
+          icon: Icons.code,
+          onSelected: (_) => InspectDialog.show(
+            context,
+            data: userData,
+            title: 'Inspect User',
+          ),
+        ),
     ];
 
     await showAdaptiveContextMenu(

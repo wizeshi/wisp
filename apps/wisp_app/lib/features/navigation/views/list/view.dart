@@ -27,6 +27,7 @@ import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/shared/widgets/menus/playlist_folder_modals.dart';
 import 'package:wisp/shared/widgets/menus/adaptive_context_menu.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
+import 'package:wisp/shared/widgets/menus/inspect_dialog.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/data/cache/metadata_diff.dart';
@@ -1652,6 +1653,17 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           icon: Icons.share,
           onSelected: (_) async => _showShareDialog(),
         ),
+        if (context.read<PreferencesProvider>().debugModeEnabled && _playlist != null)
+          ContextMenuAction(
+            id: 'inspect-element',
+            label: 'Inspect Element',
+            icon: Icons.code,
+            onSelected: (_) => InspectDialog.show(
+              context,
+              data: _playlist!.toJson(),
+              title: 'Inspect Playlist',
+            ),
+          ),
       ];
     }
 
@@ -1716,6 +1728,17 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         icon: Icons.share,
         onSelected: (_) async => _showShareDialog(),
       ),
+      if (context.read<PreferencesProvider>().debugModeEnabled && album != null)
+        ContextMenuAction(
+          id: 'inspect-element',
+          label: 'Inspect Element',
+          icon: Icons.code,
+          onSelected: (_) => InspectDialog.show(
+            context,
+            data: album.toJson(),
+            title: 'Inspect Album',
+          ),
+        ),
     ];
   }
 
