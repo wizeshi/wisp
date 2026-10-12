@@ -108,6 +108,12 @@ async function getArtist(id) {
 async function getPlaylist(id) {
   // Returns: GenericPlaylist
 }
+
+// Shareable Web URL for any entity
+async function getShareUrl(type, id) {
+  // type: 'track' | 'album' | 'artist' | 'playlist'
+  // Returns: string URL or null
+}
 ```
 
 ### Capability-Specific Methods

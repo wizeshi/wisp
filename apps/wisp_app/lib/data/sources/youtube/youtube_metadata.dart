@@ -41,6 +41,18 @@ class YouTubeMetadataProvider extends MetadataProvider {
   };
 
   @override
+  Future<String?> getShareUrl({
+    required String type,
+    required String id,
+  }) async {
+    final cleanId = id.contains(':') ? id.split(':').last : id;
+    final t = type.toLowerCase();
+    if (t == 'track') return 'https://www.youtube.com/watch?v=$cleanId';
+    if (t == 'playlist') return 'https://www.youtube.com/playlist?list=$cleanId';
+    return null;
+  }
+
+  @override
   Future<GenericSong> getTrackInfo(
     String trackId, {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,

@@ -1,13 +1,9 @@
 Here's the TODOs for version v26.10:
 
 - Bugs:
-  - [ ] Fix view paddings
 - Future changes: 
   - [ ] Implement submenu on track context menu for adding to playlist
-  - [ ] Implement proper URL copying endpoint
   - [ ] Update installer with new marketplace features
-  - [ ] Replace snackbars with alerts
-  - [ ] Add a little pop-up that informs the user when they copy a link to the clipboard. 
   - [ ] Add special card from the home screen on mobile. 
   - [ ] Make artist name clickable in the full player
 - Planned features:

@@ -61,6 +61,12 @@ abstract class MetadataProvider extends ChangeNotifier {
   /// Logout and clear token
   Future<void> logout() async {}
 
+  /// Get shareable URL for an entity (track, album, artist, playlist)
+  Future<String?> getShareUrl({
+    required String type,
+    required String id,
+  }) async => null;
+
   /// Get track information by ID
   Future<GenericSong> getTrackInfo(
     String trackId, {

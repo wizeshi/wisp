@@ -2835,6 +2835,17 @@ async function getTrackIsrc(trackId) {
   }
 }
 
+async function getShareUrl(type, id) {
+  if (!type || !id) return null;
+  const cleanId = id.includes(':') ? id.split(':').pop() : id;
+  const t = String(type).toLowerCase();
+  if (t === 'track') return `https://open.spotify.com/track/${cleanId}`;
+  if (t === 'album') return `https://open.spotify.com/album/${cleanId}`;
+  if (t === 'artist') return `https://open.spotify.com/artist/${cleanId}`;
+  if (t === 'playlist') return `https://open.spotify.com/playlist/${cleanId}`;
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Module Exports
 // ---------------------------------------------------------------------------
@@ -2847,6 +2858,7 @@ const SpotifyMetadataProvider = {
   getArtist,
   search,
   getCanvasUrl,
+  getShareUrl,
   getUserProfile,
   getUserProfileView,
   getUserFollowers,

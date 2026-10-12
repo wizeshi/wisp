@@ -605,6 +605,22 @@ class JsMetadataSource extends MetadataProvider {
   }
 
   @override
+  Future<String?> getShareUrl({
+    required String type,
+    required String id,
+  }) async {
+    try {
+      final result = await _invoke('getShareUrl', [type, id]);
+      if (result is String && result.isNotEmpty) {
+        return result;
+      }
+    } catch (e) {
+      logger.w('[JsMetadataSource/$providerId] Failed getShareUrl: $e');
+    }
+    return null;
+  }
+
+  @override
   Future<GenericSong> getTrackInfo(
     String trackId, {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,

@@ -773,6 +773,23 @@ class MetadataManager extends ChangeNotifier {
     return future;
   }
 
+  /// Get shareable URL for an entity (track, album, artist, playlist)
+  /// from the specified provider or active default provider.
+  Future<String?> getShareUrl({
+    String? source,
+    String? providerId,
+    required String type,
+    required String id,
+  }) async {
+    try {
+      final provider = _resolveProvider(providerId: providerId, source: source);
+      return await provider.getShareUrl(type: type, id: id);
+    } catch (e) {
+      logger.w('[MetadataManager] Failed getShareUrl for $source/$type/$id: $e');
+      return null;
+    }
+  }
+
   /// Get similar tracks (track radio / autoplay).
   Future<List<PlaylistItem>?> getSimilarTracks(
     String trackId, {

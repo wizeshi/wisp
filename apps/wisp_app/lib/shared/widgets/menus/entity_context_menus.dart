@@ -32,32 +32,22 @@ class EntityContextMenus {
     return id.split(':').last;
   }
 
-  static String? getShareUrl({
-    required String source,
-    required String type,
-    required String id,
-  }) {
-    final cleanId = _idWithoutPrefix(id);
-    final src = source.toLowerCase();
-    if (src == 'spotify') {
-      return 'https://open.spotify.com/$type/$cleanId';
-    } else if (src == 'youtube') {
-      if (type == 'track') return 'https://www.youtube.com/watch?v=$cleanId';
-      if (type == 'playlist') return 'https://www.youtube.com/playlist?list=$cleanId';
-    }
-    return null;
-  }
-
   static Future<void> copyShareUrl(
     BuildContext context, {
     required String source,
     required String type,
     required String id,
   }) async {
-    final url = getShareUrl(source: source, type: type, id: id);
-    if (url == null) {
-      if (!context.mounted) return;
-      context.showWarningAlert('Share is only available for supported sources');
+    final cleanId = _idWithoutPrefix(id);
+    final metadataManager = context.read<MetadataManager>();
+    final url = await metadataManager.getShareUrl(
+      source: source,
+      type: type,
+      id: cleanId,
+    );
+    if (!context.mounted) return;
+    if (url == null || url.isEmpty) {
+      context.showWarningAlert('Share URL is not supported by this provider');
       return;
     }
     await Clipboard.setData(ClipboardData(text: url));
