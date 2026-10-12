@@ -186,7 +186,7 @@ class DesktopAppleMusicListView extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context, bool isLikedPlaylist) {
     final width = MediaQuery.of(context).size.width;
-    final headerHeight = (width * 0.125).clamp(200.0, 340.0);
+    final headerHeight = (width * 0.125).clamp(240.0, 340.0);
     final baseFontSize = (width * 0.00075).clamp(1.0, 1.4);
     final descriptionText = description?.trim();
     final hasDescription =
@@ -196,115 +196,120 @@ class DesktopAppleMusicListView extends StatelessWidget {
       width: double.infinity,
       height: headerHeight,
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: isLikedPlaylist
-                  ? const LikedSongsArt()
-                  : (imageUrl.isNotEmpty
-                        ? (_isLocalImagePath(imageUrl)
-                              ? Image.file(
-                                  File(imageUrl.replaceFirst('file://', '')),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) =>
-                                      Container(color: Colors.grey[800]),
-                                )
-                              : CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.cover,
-                                  placeholder: (_, _) =>
-                                      Container(color: Colors.grey[800]),
-                                  errorWidget: (_, _, _) =>
-                                      Container(color: Colors.grey[800]),
-                                ))
-                        : Icon(
-                            type == SharedListType.playlist
-                                ? Icons.playlist_play
-                                : Icons.album,
-                            color: Colors.grey[600],
-                            size: 48,
-                          )),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                const SizedBox(height: 6),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 52 * baseFontSize,
-                    height: 0.95,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (hasDescription) const SizedBox(height: 6),
-                if (hasDescription)
-                  buildParsedText(
-                    context,
-                    descriptionText,
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      '$totalTracks ${totalTracks == 1 ? "item" : "items"}',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    Text(' • ', style: TextStyle(color: Colors.white70)),
-                    Text(
-                      _formatDuration(totalDurationSecs),
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ArtworkThumbnail(
-                      source: ArtworkSource.network(subtitleImageUrl ?? ''),
-                      size: ArtworkSize.tiny,
-                      sizeOverride: 20.0,
-                      semanticLabel:
-                          'Profile Picture of ${subtitleUser?.displayName ?? subtitle ?? ''}',
-                      shape: ArtworkShape.circle,
-                    ),
-                    const SizedBox(width: 6),
-                    HoverUnderline(
-                      cursor: SystemMouseCursors.click,
-                      onTap: () => onOpenUser?.call(subtitleUser!),
-                      builder: (isHovering) => Text(
-                        subtitleUser?.displayName ?? subtitle ?? '',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                          decoration: isHovering
-                              ? TextDecoration.underline
-                              : TextDecoration.none,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Builder(
-                  builder: (context) {
-                    final isCompact = MediaQuery.of(context).size.width < 600;
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 600;
 
-                    return Row(
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: isLikedPlaylist
+                      ? const LikedSongsArt()
+                      : (imageUrl.isNotEmpty
+                            ? (_isLocalImagePath(imageUrl)
+                                  ? Image.file(
+                                      File(
+                                        imageUrl.replaceFirst('file://', ''),
+                                      ),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) =>
+                                          Container(color: Colors.grey[800]),
+                                    )
+                                  : CachedNetworkImage(
+                                      imageUrl: imageUrl,
+                                      fit: BoxFit.cover,
+                                      placeholder: (_, _) =>
+                                          Container(color: Colors.grey[800]),
+                                      errorWidget: (_, _, _) =>
+                                          Container(color: Colors.grey[800]),
+                                    ))
+                            : Icon(
+                                type == SharedListType.playlist
+                                    ? Icons.playlist_play
+                                    : Icons.album,
+                                color: Colors.grey[600],
+                                size: 48,
+                              )),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const SizedBox(height: 6),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 52 * baseFontSize,
+                        height: 0.95,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (hasDescription) const SizedBox(height: 6),
+                    if (hasDescription)
+                      buildParsedText(
+                        context,
+                        descriptionText,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Text(
+                          '$totalTracks ${totalTracks == 1 ? "item" : "items"}',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        Text(' • ', style: TextStyle(color: Colors.white70)),
+                        Text(
+                          _formatDuration(totalDurationSecs),
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        ArtworkThumbnail(
+                          source: ArtworkSource.network(subtitleImageUrl ?? ''),
+                          size: ArtworkSize.tiny,
+                          sizeOverride: 20.0,
+                          semanticLabel:
+                              'Profile Picture of ${subtitleUser?.displayName ?? subtitle ?? ''}',
+                          shape: ArtworkShape.circle,
+                        ),
+                        const SizedBox(width: 6),
+                        HoverUnderline(
+                          cursor: SystemMouseCursors.click,
+                          onTap: () => onOpenUser?.call(subtitleUser!),
+                          builder: (isHovering) => Text(
+                            subtitleUser?.displayName ?? subtitle ?? '',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                              decoration: isHovering
+                                  ? TextDecoration.underline
+                                  : TextDecoration.none,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
                       children: [
                         Selector<WispAudioHandler, bool>(
                           selector: (context, player) =>
@@ -338,13 +343,13 @@ class DesktopAppleMusicListView extends StatelessWidget {
                           },
                         ),
                       ],
-                    );
-                  },
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -357,14 +362,13 @@ class DesktopAppleMusicListView extends StatelessWidget {
     required bool isCompact,
   }) {
     if (isCompact) {
-      return GenericFilledButton(
+      return GenericIconButton.filled(
         onPressed: onPressed,
         backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
         minimumSize: const Size(40, 36),
         padding: EdgeInsets.zero,
         borderRadius: BorderRadius.circular(6),
-        child: Icon(icon, size: 20),
+        icon: Icon(icon, size: 20),
       );
     }
 

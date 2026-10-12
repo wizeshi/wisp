@@ -93,7 +93,7 @@ class TrackBadges extends StatelessWidget {
               Icon(
                 Icons.explicit,
                 size: 14 * fontScaling,
-                color: Colors.grey[500],
+                color: Colors.grey[600],
               ),
               const SizedBox(width: 4),
             ],

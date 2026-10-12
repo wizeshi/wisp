@@ -94,15 +94,18 @@ class _LikeButtonState extends State<LikeButton> {
         final icon = isLiked ? likedIcon : notLikedIcon;
         final color = isLiked
             ? (widget.color ?? Theme.of(context).colorScheme.primary)
-            : (isApple
-                ? (widget.color ?? Colors.grey[400]!)
-                : (widget.color ?? Colors.white));
+            : Colors.white;
 
         Widget button = GenericIconButton(
           style: effectiveStyle,
           padding: widget.padding,
           constraints: widget.constraints,
-          icon: Icon(icon, size: widget.iconSize, color: color),
+          icon: Icon(
+            icon, 
+            size: widget.iconSize, 
+            color: color,
+            fontWeight: FontWeight.bold,
+          ),
           tooltip: isLiked ? 'Remove from Likes' : 'Add to Likes',
           onPressed: () async {
             await context.read<MetadataManager>().toggleTrackLike(track);
