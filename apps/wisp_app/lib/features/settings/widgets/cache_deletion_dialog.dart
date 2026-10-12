@@ -9,6 +9,7 @@ import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 class _CacheCategory {
   final String key;
@@ -25,13 +26,13 @@ class _CacheCategory {
 }
 
 class CacheDeletionDialog extends StatefulWidget {
-  final void Function(String message) showSnackBar;
+  final void Function(String message)? showSnackBar;
 
-  const CacheDeletionDialog({super.key, required this.showSnackBar});
+  const CacheDeletionDialog({super.key, this.showSnackBar});
 
   static Future<void> show(
     BuildContext context, {
-    required void Function(String message) showSnackBar,
+    void Function(String message)? showSnackBar,
   }) {
     return showDialog<void>(
       context: context,
@@ -188,12 +189,16 @@ class _CacheDeletionDialogState extends State<CacheDeletionDialog> {
                       if (!success) hadFailure = true;
                     }
                   }
-                  if (!mounted) return;
-                  widget.showSnackBar(
-                    hadFailure
-                        ? 'Some selected caches could not be deleted.'
-                        : 'Selected caches cleared.',
-                  );
+                  if (!context.mounted) return;
+                  final message = hadFailure
+                      ? 'Some selected caches could not be deleted.'
+                      : 'Selected caches cleared.';
+                  if (hadFailure) {
+                    context.showWarningAlert(message);
+                  } else {
+                    context.showSuccessAlert(message);
+                  }
+                  widget.showSnackBar?.call(message);
                   navigator.pop();
                 }
               : null,

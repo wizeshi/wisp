@@ -16,6 +16,7 @@ import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 String _formatDuration(int? duration, {bool miliseconds = false}) {
   if (duration == null) return '--:--';
@@ -1857,12 +1858,8 @@ class _GenresDebugViewState extends State<GenresDebugView> {
 
   void _copyToClipboard(BuildContext context, String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$label copied to clipboard!'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    if (!context.mounted) return;
+    context.showSuccessAlert('$label copied to clipboard!');
   }
 
   @override

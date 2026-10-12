@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 import 'package:wisp/features/navigation/shell/navigation_state.dart';
 import 'package:wisp/features/search/state/search_state.dart';
@@ -44,12 +45,8 @@ class _AppShellState extends State<AppShell> {
   late final void Function(String) showSnackBar = _showContentSnackBar;
 
   void _showContentSnackBar(String message) {
-    final messenger = _contentMessengerKey.currentState;
-    if (messenger == null) return;
-
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    if (!mounted) return;
+    context.showSuccessAlert(message);
   }
 
   @override

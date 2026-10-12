@@ -24,6 +24,7 @@ import 'adaptive_context_menu.dart';
 import 'playlist_folder_modals.dart';
 import 'inspect_dialog.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 class EntityContextMenus {
   static String _idWithoutPrefix(String id) {
@@ -56,18 +57,12 @@ class EntityContextMenus {
     final url = getShareUrl(source: source, type: type, id: id);
     if (url == null) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Share is only available for supported sources'),
-        ),
-      );
+      context.showWarningAlert('Share is only available for supported sources');
       return;
     }
     await Clipboard.setData(ClipboardData(text: url));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Link copied to clipboard')));
+    context.showSuccessAlert('Link copied to clipboard');
   }
 
   static Future<void> copySpotifyShareUrl(
@@ -216,9 +211,7 @@ class EntityContextMenus {
     List<GenericSong> tracks,
   ) async {
     if (tracks.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('No tracks available')));
+      context.showWarningAlert('No tracks available');
       return;
     }
     final player = context.read<global_audio_player.WispAudioHandler>();
@@ -238,9 +231,7 @@ class EntityContextMenus {
     }
 
     if (added == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All tracks are already in queue')),
-      );
+      context.showInfoAlert('All tracks are already in queue');
       return;
     }
 
@@ -265,11 +256,7 @@ class EntityContextMenus {
     );
 
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Added $added track${added == 1 ? '' : 's'} to queue'),
-      ),
-    );
+    context.showSuccessAlert('Added $added track${added == 1 ? '' : 's'} to queue');
   }
 
   static Future<void> showTrackMenu(
@@ -326,9 +313,7 @@ class EntityContextMenus {
         label: 'Add to Playlist',
         icon: Icons.playlist_add,
         onSelected: (_) async {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Add to playlist placeholder')),
-          );
+          context.showInfoAlert('Add to playlist placeholder');
         },
       ),
       ContextMenuAction(
@@ -343,9 +328,7 @@ class EntityContextMenus {
           if (isCached) {
             await cacheManager.removeFromCache(track.id);
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Removed from audio cache')),
-            );
+            context.showSuccessAlert('Removed from audio cache');
             return;
           }
           final player = context.read<global_audio_player.WispAudioHandler>();
@@ -363,9 +346,14 @@ class EntityContextMenus {
             QueueDownloadResult.storageLimitReached =>
               'Download failed: Storage limit reached',
           };
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(message)));
+          if (result == QueueDownloadResult.queued ||
+              result == QueueDownloadResult.alreadyCached) {
+            context.showSuccessAlert(message);
+          } else if (result == QueueDownloadResult.storageLimitReached) {
+            context.showErrorAlert(message);
+          } else {
+            context.showWarningAlert(message);
+          }
         },
       ),
       ContextMenuAction(
@@ -385,14 +373,10 @@ class EntityContextMenus {
           );
 
           if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                selection.isClear
-                    ? '${selection.providerId} mapping cleared'
-                    : 'Alternative saved for ${selection.providerId}',
-              ),
-            ),
+          context.showSuccessAlert(
+            selection.isClear
+                ? '${selection.providerId} mapping cleared'
+                : 'Alternative saved for ${selection.providerId}',
           );
         },
       ),
@@ -610,9 +594,7 @@ class EntityContextMenus {
           final tracks = await _resolveAllPlaylistTracks(context, playlist);
           if (tracks.isEmpty) {
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No tracks available in playlist')),
-            );
+            context.showWarningAlert('No tracks available in playlist');
             return;
           }
           await ListeningHabitsService.instance.enqueueTasteIngestion(
@@ -620,12 +602,8 @@ class EntityContextMenus {
             sourceTitle: playlist.title,
           );
           if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Adding ${tracks.length} songs to your tastes in the background...',
-              ),
-            ),
+          context.showInfoAlert(
+            'Adding ${tracks.length} songs to your tastes in the background...',
           );
         },
       ),
@@ -664,9 +642,7 @@ class EntityContextMenus {
             },
           );
           if (confirm != true || !context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Delete playlist placeholder')),
-          );
+          context.showInfoAlert('Delete playlist placeholder');
         },
       ),
       ContextMenuAction(
@@ -679,9 +655,7 @@ class EntityContextMenus {
             label: 'Download Metadata',
             icon: Icons.description_outlined,
             onSelected: (_) async {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Download metadata placeholder')),
-              );
+              context.showInfoAlert('Download metadata placeholder');
             },
           ),
           ContextMenuAction(
@@ -692,11 +666,7 @@ class EntityContextMenus {
               final tracks = await _resolvePlaylistTracks(context, playlist);
               if (!context.mounted) return;
               if (tracks.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No tracks available to download'),
-                  ),
-                );
+                context.showWarningAlert('No tracks available to download');
                 return;
               }
               final player = context
@@ -704,12 +674,8 @@ class EntityContextMenus {
               final results = await player.downloadTracks(tracks);
               if (!context.mounted) return;
               final queued = results[QueueDownloadResult.queued] ?? 0;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Queued $queued track${queued == 1 ? '' : 's'} for download',
-                  ),
-                ),
+              context.showSuccessAlert(
+                'Queued $queued track${queued == 1 ? '' : 's'} for download',
               );
             },
           ),
@@ -799,11 +765,7 @@ class EntityContextMenus {
           final metadataManager = context.read<MetadataManager>();
           if (!metadataManager.isAuthenticated) {
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Provider is not connected.'),
-              ),
-            );
+            context.showWarningAlert('Provider is not connected.');
             return;
           }
           try {
@@ -815,18 +777,12 @@ class EntityContextMenus {
               libraryState.addAlbum(resolvedAlbum);
             }
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  isSaved ? 'Album removed from library' : 'Album saved',
-                ),
-              ),
+            context.showSuccessAlert(
+              isSaved ? 'Album removed from library' : 'Album saved',
             );
           } catch (e) {
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to update album: $e')),
-            );
+            context.showErrorAlert('Failed to update album: $e');
           }
         },
       ),
@@ -848,9 +804,7 @@ class EntityContextMenus {
           final tracks = await _resolveAlbumTracks(context, resolvedAlbum);
           if (tracks.isEmpty) {
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No tracks available in album')),
-            );
+            context.showWarningAlert('No tracks available in album');
             return;
           }
           await ListeningHabitsService.instance.enqueueTasteIngestion(
@@ -858,12 +812,8 @@ class EntityContextMenus {
             sourceTitle: resolvedAlbum.title,
           );
           if (!context.mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Adding ${tracks.length} songs to your tastes in the background...',
-              ),
-            ),
+          context.showInfoAlert(
+            'Adding ${tracks.length} songs to your tastes in the background...',
           );
         },
       ),
@@ -877,9 +827,7 @@ class EntityContextMenus {
             label: 'Download Metadata',
             icon: Icons.description_outlined,
             onSelected: (_) async {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Download metadata placeholder')),
-              );
+              context.showInfoAlert('Download metadata placeholder');
             },
           ),
           ContextMenuAction(
@@ -890,11 +838,7 @@ class EntityContextMenus {
               final tracks = await _resolveAlbumTracks(context, resolvedAlbum);
               if (!context.mounted) return;
               if (tracks.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No tracks available to download'),
-                  ),
-                );
+                context.showWarningAlert('No tracks available to download');
                 return;
               }
               final player = context
@@ -902,12 +846,8 @@ class EntityContextMenus {
               final results = await player.downloadTracks(tracks);
               if (!context.mounted) return;
               final queued = results[QueueDownloadResult.queued] ?? 0;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Queued $queued track${queued == 1 ? '' : 's'} for download',
-                  ),
-                ),
+              context.showSuccessAlert(
+                'Queued $queued track${queued == 1 ? '' : 's'} for download',
               );
             },
           ),
@@ -965,11 +905,7 @@ class EntityContextMenus {
           final metadataManager = context.read<MetadataManager>();
           if (!metadataManager.isAuthenticated) {
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Provider is not connected.'),
-              ),
-            );
+            context.showWarningAlert('Provider is not connected.');
             return;
           }
           try {
@@ -981,20 +917,12 @@ class EntityContextMenus {
               libraryState.addArtist(artist);
             }
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  isFollowed ? 'Unfollowed artist' : 'Followed artist',
-                ),
-              ),
+            context.showSuccessAlert(
+              isFollowed ? 'Unfollowed artist' : 'Followed artist',
             );
           } catch (e) {
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to update artist follow state: $e'),
-              ),
-            );
+            context.showErrorAlert('Failed to update artist follow state: $e');
           }
         },
       ),
@@ -1009,14 +937,10 @@ class EntityContextMenus {
               source: artist.source,
             );
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Artist metadata refreshed')),
-            );
+            context.showSuccessAlert('Artist metadata refreshed');
           } catch (e) {
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to refresh artist metadata: $e')),
-            );
+            context.showErrorAlert('Failed to refresh artist metadata: $e');
           }
         },
       ),

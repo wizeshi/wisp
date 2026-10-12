@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 /// A reusable dev-mode inspector dialog that dumps and traverses an arbitrary
 /// [Map<String, dynamic>] in a readable, copy-friendly tree view with collapsible
@@ -130,11 +131,7 @@ class InspectDialog extends StatelessWidget {
                   final json = _formatJson(data);
                   await Clipboard.setData(ClipboardData(text: json));
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Copied all data to clipboard'),
-                    ),
-                  );
+                  context.showSuccessAlert('Copied all data to clipboard');
                 },
               ),
             ),
@@ -358,12 +355,8 @@ class _CollapsibleSectionState extends State<_CollapsibleSection> {
                     final json = InspectDialog._formatJson(widget.dataForCopy);
                     await Clipboard.setData(ClipboardData(text: json));
                     if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          '"${widget.label}" JSON copied to clipboard',
-                        ),
-                      ),
+                    context.showSuccessAlert(
+                      '"${widget.label}" JSON copied to clipboard',
                     );
                   },
                 ),
@@ -430,9 +423,7 @@ class _FieldRow extends StatelessWidget {
       onTap: () async {
         await Clipboard.setData(ClipboardData(text: stringValue));
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('"$keyName" copied to clipboard')),
-        );
+        context.showSuccessAlert('"$keyName" copied to clipboard');
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 7),

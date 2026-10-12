@@ -13,7 +13,6 @@ import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
-import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart'
     as global_audio_player;
 import 'package:wisp/data/sources/audio/audio_source.dart';
@@ -23,6 +22,7 @@ import 'package:wisp/features/settings/widgets/settings_content.dart';
 import 'package:wisp/features/settings/widgets/cache_deletion_dialog.dart';
 import 'package:wisp/features/settings/widgets/trusted_devices_dialog.dart';
 import 'package:wisp/features/settings/widgets/update_widget.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
@@ -50,16 +50,20 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showCacheDeleteDialog() =>
-      CacheDeletionDialog.show(context, showSnackBar: _showSnackBar);
+      CacheDeletionDialog.show(context);
 
   Future<void> _handleAuthLogin(JsAuthSource auth) async {
     try {
       await auth.login();
       if (mounted) {
-        _showSnackBar('Successfully authenticated with ${auth.displayName}!');
+        context.showSuccessAlert(
+          'Successfully authenticated with ${auth.displayName}!',
+        );
       }
     } catch (e) {
-      _showSnackBar('Login failed: $e');
+      if (mounted) {
+        context.showErrorAlert('Login failed: $e');
+      }
     }
   }
 
@@ -67,10 +71,12 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       await auth.logout();
       if (mounted) {
-        _showSnackBar('Logged out successfully');
+        context.showSuccessAlert('Logged out successfully');
       }
     } catch (e) {
-      _showSnackBar('Logout failed: $e');
+      if (mounted) {
+        context.showErrorAlert('Logout failed: $e');
+      }
     }
   }
 
@@ -106,21 +112,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    final localMessenger = ScaffoldMessenger.maybeOf(context);
-    final localScaffold = Scaffold.maybeOf(context);
-    if (localMessenger != null && localScaffold != null) {
-      localMessenger.showSnackBar(SnackBar(content: Text(message)));
-      return;
-    }
-
-    final rootContext = NavigationHistory.instance.navigatorKey.currentContext;
-    if (rootContext != null) {
-      final rootMessenger = ScaffoldMessenger.maybeOf(rootContext);
-      final rootScaffold = Scaffold.maybeOf(rootContext);
-      if (rootMessenger != null && rootScaffold != null) {
-        rootMessenger.showSnackBar(SnackBar(content: Text(message)));
-      }
-    }
+    context.showInfoAlert(message);
   }
 
   bool get _isDesktop =>
@@ -152,7 +144,9 @@ class _SettingsPageState extends State<SettingsPage> {
         await Process.start('xdg-open', [cacheDir.path]);
       }
     } catch (e) {
-      _showSnackBar('Could not open cache folder: $e');
+      if (mounted) {
+        context.showErrorAlert('Could not open cache folder: $e');
+      }
     }
   }
 

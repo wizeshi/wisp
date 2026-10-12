@@ -16,6 +16,7 @@ import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/navigation/router/navigation_service.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 class MobileWelcomeView extends StatefulWidget {
   final AppLinks appLinks;
@@ -201,21 +202,11 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
     try {
       await auth.login();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Connected to ${auth.displayName}!'),
-            backgroundColor: Colors.green[800],
-          ),
-        );
+        context.showSuccessAlert('Connected to ${auth.displayName}!');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Login failed: $e'),
-            backgroundColor: Colors.red[800],
-          ),
-        );
+        context.showErrorAlert('Login failed: $e');
       }
     } finally {
       if (mounted) {
@@ -230,15 +221,11 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
     try {
       await auth.logout();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Logged out from ${auth.displayName}')),
-        );
+        context.showSuccessAlert('Logged out from ${auth.displayName}');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Logout failed: $e')),
-        );
+        context.showErrorAlert('Logout failed: $e');
       }
     }
   }

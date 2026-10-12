@@ -24,6 +24,7 @@ import 'package:wisp/services/system/connectivity_service.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 import 'home_view_data.dart';
 import 'desktop/spotify.dart';
@@ -362,9 +363,7 @@ class HomePageState extends State<HomePage> {
           _isLoading = false;
           _isRefreshing = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load data: $e')),
-        );
+        context.showErrorAlert('Failed to load data: $e');
       }
     } finally {
       _isFetchingData = false;

@@ -28,6 +28,7 @@ import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/menus/adaptive_context_menu.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/menus/inspect_dialog.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
@@ -124,9 +125,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       },
       onError: (e) {
         if (mounted && _artist == null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to load artist: $e')));
+          context.showErrorAlert('Failed to load artist: $e');
         }
       },
     );
@@ -1020,9 +1019,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
           onSelected: (_) async {
             await _loadArtist();
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Artist metadata refreshed')),
-            );
+            context.showSuccessAlert('Artist metadata refreshed');
           },
         ),
         ContextMenuAction(
@@ -1066,12 +1063,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     final metadataManager = context.read<MetadataManager>();
     if (!metadataManager.isAuthenticated) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Provider is not connected.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        context.showWarningAlert('Provider is not connected.');
       }
       return;
     }
@@ -1109,21 +1101,13 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         }
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isFollowed ? 'Artist unfollowed' : 'Artist followed'),
-            duration: const Duration(seconds: 2),
-          ),
+        context.showSuccessAlert(
+          isFollowed ? 'Artist unfollowed' : 'Artist followed',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update follow: $e'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        context.showErrorAlert('Failed to update follow: $e');
       }
     }
   }

@@ -310,37 +310,86 @@ class DesktopAppleMusicListView extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Selector<WispAudioHandler, bool>(
-                          selector: (context, player) =>
-                              player.isPlaying &&
-                              player.currentTrack != null &&
-                              player.playbackContext?.matches(viewContext) ==
-                                  true,
-                          builder: (context, isPlayingList, _) {
-                            return _buildPlaybackButton(
-                              context,
-                              onPressed: isLoading ? null : onPlayAll,
-                              icon: isPlayingList
-                                  ? Icons.pause
-                                  : Icons.play_arrow,
-                              label: isPlayingList ? 'Pause' : 'Play',
-                              isCompact: isCompact,
-                            );
-                          },
+                        Row(
+                          children: [
+                            Selector<WispAudioHandler, bool>(
+                              selector: (context, player) =>
+                                  player.isPlaying &&
+                                  player.currentTrack != null &&
+                                  player.playbackContext?.matches(
+                                        viewContext,
+                                      ) ==
+                                      true,
+                              builder: (context, isPlayingList, _) {
+                                return _buildPlaybackButton(
+                                  context,
+                                  onPressed: isLoading ? null : onPlayAll,
+                                  icon: isPlayingList
+                                      ? context.tokens.pauseIcon
+                                      : context.tokens.playIcon,
+                                  label: isPlayingList ? 'Pause' : 'Play',
+                                  isCompact: isCompact,
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            Selector<WispAudioHandler, bool>(
+                              selector: (context, player) =>
+                                  player.shuffleEnabled,
+                              builder: (context, shuffleActive, _) {
+                                return _buildPlaybackButton(
+                                  context,
+                                  onPressed: isLoading ? null : onShuffle,
+                                  icon: context.tokens.shuffleIcon,
+                                  label: 'Shuffle',
+                                  isCompact: isCompact,
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Selector<WispAudioHandler, bool>(
-                          selector: (context, player) => player.shuffleEnabled,
-                          builder: (context, shuffleActive, _) {
-                            return _buildPlaybackButton(
-                              context,
-                              onPressed: isLoading ? null : onShuffle,
-                              icon: Icons.shuffle,
-                              label: 'Shuffle',
-                              isCompact: isCompact,
-                            );
-                          },
+                        Row(
+                          children: [
+                            GenericIconButton(
+                              onPressed: () {},
+                              icon: Icon(
+                                CupertinoIcons.link,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 26,
+                              ),
+                            ),
+                            GenericIconButton(
+                              onPressed: onDownloadAll,
+                              icon: Icon(
+                                CupertinoIcons.arrow_down_circle,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 26,
+                              ),
+                            ),
+                            Builder(
+                              builder: (buttonContext) {
+                                return GestureDetector(
+                                  onTapDown: (details) => onContextMenu(
+                                    buttonContext,
+                                    details.globalPosition,
+                                  ),
+                                  child: GenericIconButton(
+                                    onPressed: () => onContextMenu(
+                                      buttonContext,
+                                      null,
+                                    ),
+                                    icon: Icon(
+                                      context.tokens.moreIcon,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      size: 26,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ],
                     ),

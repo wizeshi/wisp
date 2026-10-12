@@ -35,6 +35,7 @@ import 'package:wisp/data/cache/metadata_revalidator.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 import 'package:wisp/features/navigation/shell/navigation_state.dart';
 
 import 'desktop/spotify.dart';
@@ -140,12 +141,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final metadataManager = context.read<MetadataManager>();
     if (!metadataManager.isAuthenticated) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Provider is not connected.'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        context.showWarningAlert('Provider is not connected.');
       }
       return;
     }
@@ -159,23 +155,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         if (mounted) context.read<LibraryState>().addAlbum(album);
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isSaved ? 'Album removed from library' : 'Album saved',
-            ),
-            duration: const Duration(seconds: 2),
-          ),
+        context.showSuccessAlert(
+          isSaved ? 'Album removed from library' : 'Album saved',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update album: $e'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        context.showErrorAlert('Failed to update album: $e');
       }
     }
   }
@@ -266,9 +252,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           },
           onError: (e) {
             if (mounted && _playlist == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to load liked songs: $e')),
-              );
+              context.showErrorAlert('Failed to load liked songs: $e');
             }
           },
         );
@@ -299,9 +283,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         },
         onError: (e) {
           if (mounted && _playlist == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to load playlist: $e')),
-            );
+            context.showErrorAlert('Failed to load playlist: $e');
           }
         },
       );
@@ -328,9 +310,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         },
         onError: (e) {
           if (mounted && _album == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to load album: $e')),
-            );
+            context.showErrorAlert('Failed to load album: $e');
           }
         },
       );
@@ -728,12 +708,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final toDownload = tracks.length - alreadyCached;
 
     if (toDownload == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('All tracks are already cached'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      context.showInfoAlert('All tracks are already cached');
       return;
     }
 
@@ -786,15 +761,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               ? 'Downloads blocked by your WiFi/Ethernet-only setting'
               : 'Downloads blocked because Network-only mode is enabled';
         } else if (blockedPolicy > 0 || blockedNetworkOnly > 0) {
-          message += ' â€¢ ${blockedPolicy + blockedNetworkOnly} blocked';
+          message += ' • ${blockedPolicy + blockedNetworkOnly} blocked';
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        context.showSuccessAlert(message);
       }
     }
   }
@@ -823,9 +793,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
 
     if (addedCount == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All tracks are already in queue')),
-      );
+      context.showInfoAlert('All tracks are already in queue');
       return;
     }
 
@@ -859,12 +827,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Added $addedCount track${addedCount == 1 ? '' : 's'} to queue',
-        ),
-      ),
+    context.showSuccessAlert(
+      'Added $addedCount track${addedCount == 1 ? '' : 's'} to queue',
     );
   }
 
@@ -1019,23 +983,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         _addingRecommendationTrackIDs.remove(song.id);
         _addedRecommendationTrackIDs.add(song.id);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Added to playlist'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      context.showSuccessAlert('Added to playlist');
     } catch (e) {
       if (!mounted) return;
       _safeSetState(() {
         _addingRecommendationTrackIDs.remove(song.id);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to add track: $e'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      context.showErrorAlert('Failed to add track: $e');
     }
   }
 
@@ -1511,9 +1465,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       },
     );
     if (confirm != true || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Delete playlist placeholder')),
-    );
+    context.showInfoAlert('Delete playlist placeholder');
   }
 
   Future<void> _showListContextMenu({
@@ -1545,9 +1497,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         label: 'Download Metadata',
         icon: Icons.description_outlined,
         onSelected: (_) async {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Download metadata placeholder')),
-          );
+          context.showInfoAlert('Download metadata placeholder');
         },
       ),
       ContextMenuAction(
@@ -1603,9 +1553,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             final tracks = listSongs.isNotEmpty ? listSongs : _buildQueueSongs();
             if (tracks.isEmpty) {
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('No tracks available in playlist')),
-              );
+              context.showWarningAlert('No tracks available in playlist');
               return;
             }
             await ListeningHabitsService.instance.enqueueTasteIngestion(
@@ -1613,12 +1561,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
               sourceTitle: title,
             );
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Adding ${tracks.length} songs to your tastes in the background...',
-                ),
-              ),
+            context.showInfoAlert(
+              'Adding ${tracks.length} songs to your tastes in the background...',
             );
           },
         ),
@@ -1697,9 +1641,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           final tracks = listSongs.isNotEmpty ? listSongs : _buildQueueSongs();
           if (tracks.isEmpty) {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No tracks available in album')),
-            );
+            context.showWarningAlert('No tracks available in album');
             return;
           }
           await ListeningHabitsService.instance.enqueueTasteIngestion(
@@ -1707,12 +1649,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             sourceTitle: title,
           );
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Adding ${tracks.length} songs to your tastes in the background...',
-              ),
-            ),
+          context.showInfoAlert(
+            'Adding ${tracks.length} songs to your tastes in the background...',
           );
         },
       ),
@@ -1772,9 +1710,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       PlaylistFolderModals.showRenamePlaylistDialog(context, _playlist!);
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit not available for this item')),
-    );
+    context.showWarningAlert('Edit not available for this item');
   }
 }
 

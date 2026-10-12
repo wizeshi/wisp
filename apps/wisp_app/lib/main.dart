@@ -43,6 +43,7 @@ import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
 import 'package:wisp/services/audio/playback_session_store.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/alert/wisp_toast_host.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/services/system/connectivity_service.dart';
 import 'package:go_router/go_router.dart';
@@ -360,6 +361,8 @@ class _WispAppState extends State<WispApp> with WindowListener {
             routerConfig: _router,
             title: 'wisp',
             scrollBehavior: const DesktopSmoothScrollBehavior(),
+            builder: (context, child) =>
+                WispToastHost(child: child ?? const SizedBox.shrink()),
             theme: AppTheme.dark(
               paletteOverride: palette.palette,
               appStyle: preferences.style,

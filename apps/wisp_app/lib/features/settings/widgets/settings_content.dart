@@ -12,6 +12,7 @@ import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/settings/views/providers_marketplace_view.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 class SettingsContent extends StatelessWidget {
   final Widget Function(BuildContext, JsAuthSource, String, IconData, Color)
@@ -25,7 +26,7 @@ class SettingsContent extends StatelessWidget {
   final Widget Function() buildCreditsSection;
   final Widget Function() buildDebugSection;
   final Widget Function(BuildContext) buildPausedBackgroundWidgetsRow;
-  final void Function(String) showSnackBar;
+  final void Function(String)? showSnackBar;
 
   const SettingsContent({
     super.key,
@@ -39,7 +40,7 @@ class SettingsContent extends StatelessWidget {
     required this.buildAllowWritingRow,
     required this.buildCreditsSection,
     required this.buildDebugSection,
-    required this.showSnackBar,
+    this.showSnackBar,
   });
 
   @override
@@ -195,7 +196,9 @@ class SettingsContent extends StatelessWidget {
                             await context
                                 .read<LocalPlaylistState>()
                                 .restorePlaylist(p.id);
-                            showSnackBar('Playlist restored');
+                            if (!context.mounted) return;
+                            context.showSuccessAlert('Playlist restored');
+                            showSnackBar?.call('Playlist restored');
                           },
                         ),
                         GenericIconButton(
@@ -239,7 +242,9 @@ class SettingsContent extends StatelessWidget {
                               await context
                                   .read<LocalPlaylistState>()
                                   .permanentlyDeletePlaylist(p.id);
-                              showSnackBar('Playlist deleted');
+                              if (!context.mounted) return;
+                              context.showSuccessAlert('Playlist deleted');
+                              showSnackBar?.call('Playlist deleted');
                             }
                           },
                         ),
@@ -312,18 +317,22 @@ class SettingsContent extends StatelessWidget {
                   ),
                 );
                 if (ok == true) {
+                  if (!context.mounted) return;
                   final providerId = idController.text.trim();
                   if (providerId.isEmpty) {
-                    showSnackBar('No id entered');
+                    context.showWarningAlert('No id entered');
+                    showSnackBar?.call('No id entered');
                     return;
                   }
                   if (!context.mounted) return;
                   await context
                       .read<LocalPlaylistState>()
                       .unhideProviderPlaylist(providerId);
-                  showSnackBar(
-                    'Provider id unhidden — open provider playlist to restore',
-                  );
+                  if (!context.mounted) return;
+                  const msg =
+                      'Provider id unhidden — open provider playlist to restore';
+                  context.showSuccessAlert(msg);
+                  showSnackBar?.call(msg);
                 }
               },
               child: const Text('Unhide'),

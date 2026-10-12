@@ -13,6 +13,7 @@ import 'package:wisp/data/sources/providers/provider_dependency_validator.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 class ProvidersMarketplaceView extends StatefulWidget {
   const ProvidersMarketplaceView({super.key});
@@ -76,14 +77,10 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
     setState(() => _busyProviderIds.remove(pkg.uniqueKey));
 
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${pkg.name} installed successfully!')),
-      );
+      context.showSuccessAlert('${pkg.name} installed successfully!');
       _loadCatalog();
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to install ${pkg.name}')));
+      context.showErrorAlert('Failed to install ${pkg.name}');
     }
   }
 
@@ -110,9 +107,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
     if (!mounted) return;
     setState(() => _isUpdatingAll = false);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Updated $count of ${updates.length} providers.')),
-    );
+    context.showSuccessAlert('Updated $count of ${updates.length} providers.');
     _loadCatalog();
   }
 
@@ -161,14 +156,10 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
     setState(() => _busyProviderIds.remove(pkg.uniqueKey));
 
     if (success) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${pkg.name} uninstalled.')));
+      context.showSuccessAlert('${pkg.name} uninstalled.');
       _loadCatalog();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to uninstall ${pkg.name}')),
-      );
+      context.showErrorAlert('Failed to uninstall ${pkg.name}');
     }
   }
 

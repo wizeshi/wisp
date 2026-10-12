@@ -16,52 +16,21 @@ import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
-import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 
 class PlaylistFolderModals {
   static OverlayEntry? _activeSubmenu;
   static BuildContext? _submenuParentContext;
 
-  static void _showSnack(BuildContext context, SnackBar snackBar) {
-    if (!context.mounted) return;
-    final localMessenger = ScaffoldMessenger.maybeOf(context);
-    if (localMessenger != null) {
-      try {
-        localMessenger.showSnackBar(snackBar);
-        return;
-      } catch (_) {
-        // Fall through to root messenger.
-      }
-    }
-
-    final rootContext = NavigationHistory.instance.navigatorKey.currentContext;
-    final rootMessenger = rootContext == null
-        ? null
-        : ScaffoldMessenger.maybeOf(rootContext);
-    if (rootMessenger == null) return;
-    try {
-      rootMessenger.showSnackBar(snackBar);
-    } catch (_) {
-      // No scaffold available, ignore.
-    }
-  }
-
   static void _showWriteBlockedSnack(BuildContext context) {
-    _showSnack(
-      context,
-      const SnackBar(
-        content: Text('Spotify writing is disabled in Preferences.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    if (!context.mounted) return;
+    context.showWarningAlert('Spotify writing is disabled in Preferences.');
   }
 
   static void _showSyncErrorSnack(BuildContext context, String message) {
-    _showSnack(
-      context,
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-    );
+    if (!context.mounted) return;
+    context.showErrorAlert(message);
   }
 
   static Future<void> _syncRenameToProvider(
