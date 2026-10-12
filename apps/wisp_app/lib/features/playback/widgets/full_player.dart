@@ -47,14 +47,22 @@ class FullScreenPlayer extends StatelessWidget {
     final style = context.watch<PreferencesProvider>().style;
 
     // Use new desktop fullscreen for Spotify and Original on desktop
-    if (_isDesktop &&
-        (style == AppStyle.Spotify || style == AppStyle.Original)) {
+    if (_isDesktop && style == AppStyle.Spotify) {
       return PopScope(
-        onPopInvoked: (didPop) {
+        onPopInvokedWithResult: (didPop, result) {
           if (!didPop) return;
           unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
         },
         child: const SpotifyDesktopFullScreenPlayer(),
+      );
+    }
+    if (_isDesktop && style == AppStyle.Original) {
+      return PopScope(
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) return;
+          unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
+        },
+        child: const OriginalDesktopFullScreenPlayer(),
       );
     }
 
@@ -69,7 +77,7 @@ class FullScreenPlayer extends StatelessWidget {
     );
     if (_isDesktop) {
       return PopScope(
-        onPopInvoked: (didPop) {
+        onPopInvokedWithResult: (didPop, result) {
           if (!didPop) return;
           unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
         },

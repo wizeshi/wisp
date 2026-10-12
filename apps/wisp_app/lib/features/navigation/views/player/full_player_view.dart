@@ -48,9 +48,10 @@ class FullScreenPlayer extends StatelessWidget {
 
     Widget playerBody;
     // Use new desktop fullscreen for Spotify and Original on desktop
-    if (_isDesktop &&
-        (style == AppStyle.Spotify || style == AppStyle.Original)) {
+    if (_isDesktop && style == AppStyle.Spotify) {
       playerBody = const SpotifyDesktopFullScreenPlayer();
+    } else if (_isDesktop && style == AppStyle.Original) {
+      playerBody = const OriginalDesktopFullScreenPlayer();
     } else {
       playerBody = DraggableScrollableSheet(
         initialChildSize: 1.0,
