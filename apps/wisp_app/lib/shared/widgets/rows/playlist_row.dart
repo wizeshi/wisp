@@ -61,6 +61,7 @@ class PlaylistRow extends StatelessWidget {
       backgroundColor: backgroundColor,
       showSubtitle: showSubtitle,
       isCollapsed: isCollapsed,
+      isPinned: playlist.isPinned,
       title: playlist.title,
       subtitle: playlistSubtitle(playlist),
       artwork: (playlist.title == "Liked Songs" || isLikedSongsPlaylistId(playlist.id))

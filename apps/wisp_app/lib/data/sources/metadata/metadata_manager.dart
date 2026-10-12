@@ -1040,6 +1040,24 @@ class MetadataManager extends ChangeNotifier {
     return provider.removePlaylistFromFolder(playlistId: playlistId);
   }
 
+  Future<void> pinLibraryItem({
+    required String uri,
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    return provider.pinLibraryItem(uri);
+  }
+
+  Future<void> unpinLibraryItem({
+    required String uri,
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    return provider.unpinLibraryItem(uri);
+  }
+
   Future<List<String>> getTrackGenres(String trackId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     return provider.getTrackGenres(trackId);

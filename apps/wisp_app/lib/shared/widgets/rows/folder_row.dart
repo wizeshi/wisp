@@ -60,6 +60,7 @@ class FolderRow extends StatelessWidget {
               padding: padding,
               playPosition: GenericRowPlayPosition.end,
               isCollapsed: isCollapsed,
+              isPinned: folder.isPinned,
               title: folder.title,
               subtitle: '$count playlist${count == 1 ? '' : 's'}',
               artwork: ArtworkThumbnail(

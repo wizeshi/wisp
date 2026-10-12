@@ -13,6 +13,7 @@ import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/cache/folder_thumbnail_store.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
+import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 
 enum LibrarySortMode { recent, recentlyAdded, alphabetical }
 
@@ -48,6 +49,7 @@ class LibraryFolderState extends ChangeNotifier {
   final List<String> _customFolderOrder = [];
   final Map<String, DateTime> _playlistLastPlayed = {};
   final List<String> _originalPlaylistOrder = [];
+  final List<String> _originalFolderOrder = [];
   final Set<String> _collapsedFolderIds = {};
 
   LibrarySortMode _sortMode = LibrarySortMode.recent;
@@ -324,6 +326,25 @@ class LibraryFolderState extends ChangeNotifier {
     }
   }
 
+  Future<void> syncRemoteAssignments({
+    required Map<String, String> remoteAssignments,
+    required Set<String> remotePlaylistIds,
+  }) async {
+    var changed = false;
+    for (final playlistId in remotePlaylistIds) {
+      if (isLikedSongsPlaylistId(playlistId)) continue;
+      final targetFolderId = remoteAssignments[playlistId];
+      if (_playlistFolderIds[playlistId] != targetFolderId) {
+        _playlistFolderIds[playlistId] = targetFolderId;
+        changed = true;
+      }
+    }
+    if (changed) {
+      notifyListeners();
+      await _savePrefs();
+    }
+  }
+
   DateTime? lastPlayedForItem(String id) => _playlistLastPlayed[id];
 
   Future<void> markItemPlayed(String id) async {
@@ -410,21 +431,74 @@ class LibraryFolderState extends ChangeNotifier {
   /// Import remote folders (e.g. from Spotify). Adds any folders that don't
   /// yet exist locally. Uses the remote id as the local `PlaylistFolder.id`.
   Future<void> importRemoteFolders(List<PlaylistFolder> remoteFolders) async {
+    _originalFolderOrder
+      ..clear()
+      ..addAll(remoteFolders.map((f) => f.id));
+
     var changed = false;
     for (final folder in remoteFolders) {
-      final exists = _folders.any((f) => f.id == folder.id);
-      if (!exists) {
+      final index = _folders.indexWhere((f) => f.id == folder.id);
+      if (index < 0) {
         _folders.add(folder);
         if (!_customFolderOrder.contains(folder.id)) {
           _customFolderOrder.add(folder.id);
         }
         changed = true;
+      } else {
+        final existing = _folders[index];
+        if (existing.isPinned != folder.isPinned ||
+            existing.title != folder.title) {
+          _folders[index] = existing.copyWith(
+            title: folder.title,
+            isPinned: folder.isPinned,
+          );
+          changed = true;
+        }
       }
     }
     if (changed) {
       notifyListeners();
       await _savePrefs();
     }
+  }
+
+  /// Toggle or set folder pinned state. Optimistically updates locally and
+  /// calls Spotify API if metadataManager is provided, reverting on failure.
+  Future<bool> toggleFolderPin(
+    String folderId, {
+    bool? pinned,
+    MetadataManager? metadataManager,
+  }) async {
+    final index = _folders.indexWhere((f) => f.id == folderId);
+    if (index < 0) return false;
+
+    final original = _folders[index];
+    final targetPinned = pinned ?? !original.isPinned;
+    if (targetPinned == original.isPinned) return true;
+
+    _folders[index] = original.copyWith(isPinned: targetPinned);
+    notifyListeners();
+    await _savePrefs();
+
+    if (metadataManager != null && metadataManager.isAuthenticated) {
+      try {
+        final uri = folderId;
+        if (targetPinned) {
+          await metadataManager.pinLibraryItem(uri: uri);
+        } else {
+          await metadataManager.unpinLibraryItem(uri: uri);
+        }
+      } catch (_) {
+        final revertIndex = _folders.indexWhere((f) => f.id == folderId);
+        if (revertIndex >= 0) {
+          _folders[revertIndex] = original;
+          notifyListeners();
+          await _savePrefs();
+        }
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<void> movePlaylistIntoFolder(
@@ -485,29 +559,54 @@ class LibraryFolderState extends ChangeNotifier {
   List<PlaylistFolder> _orderFolders(
     Map<String, List<GenericPlaylist>> assigned,
   ) {
+    final folderOrderIndex = <String, int>{};
+    for (var i = 0; i < _originalFolderOrder.length; i++) {
+      folderOrderIndex[_originalFolderOrder[i]] = i;
+    }
+
     final folders = List<PlaylistFolder>.from(_folders);
-    switch (_sortMode) {
-      case LibrarySortMode.recent:
-        folders.sort((a, b) {
+    folders.sort((a, b) {
+      if (a.isPinned != b.isPinned) {
+        return a.isPinned ? -1 : 1;
+      }
+      if (a.isPinned && b.isPinned) {
+        final aIdx = folderOrderIndex[a.id] ?? 999999;
+        final bIdx = folderOrderIndex[b.id] ?? 999999;
+        return aIdx.compareTo(bIdx);
+      }
+
+      switch (_sortMode) {
+        case LibrarySortMode.recent:
           final aTime = _folderLastPlayed(assigned[a.id]);
           final bTime = _folderLastPlayed(assigned[b.id]);
-          if (aTime == null && bTime == null) {
-            return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+          if (aTime != null && bTime != null) {
+            final cmp = bTime.compareTo(aTime);
+            if (cmp != 0) return cmp;
+          } else if (aTime != null) {
+            return -1;
+          } else if (bTime != null) {
+            return 1;
           }
-          if (aTime == null) return 1;
-          if (bTime == null) return -1;
-          return bTime.compareTo(aTime);
-        });
-        return folders;
-      case LibrarySortMode.recentlyAdded:
-        folders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return folders;
-      case LibrarySortMode.alphabetical:
-        folders.sort(
-          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
-        );
-        return folders;
-    }
+          final aIdx = folderOrderIndex[a.id] ?? 999999;
+          final bIdx = folderOrderIndex[b.id] ?? 999999;
+          if (aIdx != bIdx) return aIdx.compareTo(bIdx);
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+
+        case LibrarySortMode.recentlyAdded:
+          final aIdx = folderOrderIndex[a.id] ?? 999999;
+          final bIdx = folderOrderIndex[b.id] ?? 999999;
+          if (aIdx != bIdx) return aIdx.compareTo(bIdx);
+          return b.createdAt.compareTo(a.createdAt);
+
+        case LibrarySortMode.alphabetical:
+          final cmp = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+          if (cmp != 0) return cmp;
+          final aIdx = folderOrderIndex[a.id] ?? 999999;
+          final bIdx = folderOrderIndex[b.id] ?? 999999;
+          return aIdx.compareTo(bIdx);
+      }
+    });
+    return folders;
   }
 
   List<GenericPlaylist> _orderPlaylists(List<GenericPlaylist> playlists) {
@@ -522,10 +621,26 @@ class LibraryFolderState extends ChangeNotifier {
   }
 
   List<GenericPlaylist> _orderByAlphabetical(List<GenericPlaylist> playlists) {
+    final orderIndex = <String, int>{};
+    for (var i = 0; i < _originalPlaylistOrder.length; i++) {
+      orderIndex[_originalPlaylistOrder[i]] = i;
+    }
     final sorted = List<GenericPlaylist>.from(playlists);
-    sorted.sort(
-      (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
-    );
+    sorted.sort((a, b) {
+      if (a.isPinned != b.isPinned) {
+        return a.isPinned ? -1 : 1;
+      }
+      if (a.isPinned && b.isPinned) {
+        final aIndex = orderIndex[a.id] ?? 999999;
+        final bIndex = orderIndex[b.id] ?? 999999;
+        return aIndex.compareTo(bIndex);
+      }
+      final cmp = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      if (cmp != 0) return cmp;
+      final aIndex = orderIndex[a.id] ?? 999999;
+      final bIndex = orderIndex[b.id] ?? 999999;
+      return aIndex.compareTo(bIndex);
+    });
     return sorted;
   }
 
@@ -540,6 +655,9 @@ class LibraryFolderState extends ChangeNotifier {
     }
     final sorted = List<GenericPlaylist>.from(playlists);
     sorted.sort((a, b) {
+      if (a.isPinned != b.isPinned) {
+        return a.isPinned ? -1 : 1;
+      }
       final aIndex = orderIndex[a.id] ?? 999999;
       final bIndex = orderIndex[b.id] ?? 999999;
       return aIndex.compareTo(bIndex);
@@ -557,16 +675,27 @@ class LibraryFolderState extends ChangeNotifier {
 
     final sorted = List<GenericPlaylist>.from(playlists);
     sorted.sort((a, b) {
-      final aTime = _playlistLastPlayed[a.id];
-      final bTime = _playlistLastPlayed[b.id];
-      if (aTime == null && bTime == null) {
+      if (a.isPinned != b.isPinned) {
+        return a.isPinned ? -1 : 1;
+      }
+      if (a.isPinned && b.isPinned) {
         final aIndex = orderIndex[a.id] ?? 999999;
         final bIndex = orderIndex[b.id] ?? 999999;
         return aIndex.compareTo(bIndex);
       }
-      if (aTime == null) return 1;
-      if (bTime == null) return -1;
-      return bTime.compareTo(aTime);
+      final aTime = _playlistLastPlayed[a.id];
+      final bTime = _playlistLastPlayed[b.id];
+      if (aTime != null && bTime != null) {
+        final cmp = bTime.compareTo(aTime);
+        if (cmp != 0) return cmp;
+      } else if (aTime != null) {
+        return -1;
+      } else if (bTime != null) {
+        return 1;
+      }
+      final aIndex = orderIndex[a.id] ?? 999999;
+      final bIndex = orderIndex[b.id] ?? 999999;
+      return aIndex.compareTo(bIndex);
     });
     return sorted;
   }

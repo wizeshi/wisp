@@ -312,16 +312,25 @@ class _WispAppState extends State<WispApp> with WindowListener {
           },
         ),
 
-        ChangeNotifierProxyProvider<LocalPlaylistState, LibraryState>(
+        ChangeNotifierProvider(create: (_) => LibraryFolderState()),
+
+        ChangeNotifierProxyProvider3<
+          MetadataManager,
+          LocalPlaylistState,
+          LibraryFolderState,
+          LibraryState
+        >(
           create: (_) => LibraryState(),
-          update: (_, local, library) {
+          update: (_, metadata, local, folderState, library) {
             final state = library ?? LibraryState();
-            state.setLocalPlaylists(local.genericPlaylists);
-            state.setHiddenRemotePlaylistIds(local.hiddenProviderPlaylistIds);
+            state.bind(
+              metadataManager: metadata,
+              localPlaylistState: local,
+              folderState: folderState,
+            );
             return state;
           },
         ),
-        ChangeNotifierProvider(create: (_) => LibraryFolderState()),
 
         ChangeNotifierProvider.value(value: widget.audioHandler),
         ChangeNotifierProvider.value(value: widget.playbackCoordinator),

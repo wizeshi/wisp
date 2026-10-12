@@ -1184,6 +1184,16 @@ class JsMetadataSource extends MetadataProvider {
   }
 
   @override
+  Future<void> pinLibraryItem(String uri) async {
+    await _invoke('pinLibraryItem', [uri]);
+  }
+
+  @override
+  Future<void> unpinLibraryItem(String uri) async {
+    await _invoke('unpinLibraryItem', [uri]);
+  }
+
+  @override
   Future<List<String>> getTrackGenres(String trackId) async {
     try {
       final cleanId = _cleanId(trackId);

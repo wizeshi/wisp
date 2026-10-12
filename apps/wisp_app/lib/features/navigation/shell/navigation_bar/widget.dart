@@ -122,6 +122,15 @@ class _WispNavigationState extends State<WispNavigation> {
     }
   }
 
+  bool _isPinned(dynamic item) {
+    if (item is PlaylistFolder) return item.isPinned;
+    if (item is GenericPlaylist) return item.isPinned;
+    if (item is Map<String, dynamic>) {
+      return item['is_pinned'] == true;
+    }
+    return false;
+  }
+
   GenericAlbum? _libraryAlbumById(LibraryState library, String id) {
     for (final album in library.albums) {
       if (album.id == id) return album;
@@ -141,44 +150,13 @@ class _WispNavigationState extends State<WispNavigation> {
     LibraryView view,
   ) {
     switch (view) {
-      case LibraryView.playlists:
-        GenericPlaylist? likedPlaylist;
-        for (final playlist in library.playlists) {
-          if (isLikedSongsPlaylistId(playlist.id)) {
-            likedPlaylist = playlist;
-            break;
-          }
-        }
-        final filteredPlaylists = library.playlists
-            .where((p) => !isLikedSongsPlaylistId(p.id))
-            .toList();
-        final groups = folderState.buildPlaylistGroups(filteredPlaylists);
-        final entries = <LibrarySidebarEntry>[];
-        if (likedPlaylist != null) {
-          entries.add(LibrarySidebarEntry.item(likedPlaylist));
-        }
-        for (final group in groups.folders) {
-          entries.add(LibrarySidebarEntry.item(group.folder));
-          if (!folderState.isFolderCollapsed(group.folder.id)) {
-            for (final playlist in group.playlists) {
-              entries.add(
-                LibrarySidebarEntry.item(playlist, folderId: group.folder.id),
-              );
-            }
-          }
-        }
-        if (groups.folders.isNotEmpty) {
-          entries.add(const LibrarySidebarEntry.unassigned());
-        }
-        for (final playlist in groups.unassigned) {
-          entries.add(LibrarySidebarEntry.item(playlist, folderId: null));
-        }
-        return entries;
       case LibraryView.albums:
         return library.albums;
       case LibraryView.artists:
         return library.artists;
+      case LibraryView.playlists:
       case LibraryView.all:
+        final onlyPlaylistsAndFolders = (view == LibraryView.playlists);
         GenericPlaylist? likedPlaylist;
         final folderMap = <String, PlaylistFolder>{
           for (final f in folderState.folders) f.id: f,
@@ -222,6 +200,55 @@ class _WispNavigationState extends State<WispNavigation> {
             return;
           }
 
+          if (onlyPlaylistsAndFolders) {
+            if (raw is Map<String, dynamic>) {
+              final t = raw['__typename'] as String? ?? raw['type'] as String?;
+              final uri = raw['uri'] as String? ?? raw['id'] as String? ?? '';
+              final id = uri.isNotEmpty ? uri : (raw['id'] as String? ?? '');
+
+              if (t == 'Folder' || t == 'folder') {
+                final folder =
+                    folderState.getFolderById(id) ??
+                    PlaylistFolder(
+                      id: id,
+                      title: raw['name'] as String? ?? 'Folder',
+                      isPinned: raw['is_pinned'] as bool? ?? false,
+                      createdAt: DateTime.now(),
+                    );
+                folderMap[folder.id] = folder;
+                if (seenTopLevelIds.add(folder.id)) {
+                  topLevelItems.add(folder);
+                }
+                return;
+              }
+
+              if (t == 'Playlist' ||
+                  t == 'playlist' ||
+                  uri.contains('playlist')) {
+                final p = GenericPlaylist(
+                  id: id,
+                  source: 'spotify',
+                  title: raw['name'] as String? ?? '',
+                  thumbnailUrl: raw['image']?['url'] as String? ?? '',
+                  author: GenericSimpleUser(
+                    id: '',
+                    source: 'spotify',
+                    displayName: '',
+                    avatarUrl: null,
+                    followerCount: null,
+                    profileUrl: null,
+                  ),
+                  songs: null,
+                  durationSecs: 0,
+                  isPinned: raw['is_pinned'] as bool? ?? false,
+                );
+                processItem(p);
+                return;
+              }
+            }
+            return;
+          }
+
           if (raw is GenericAlbum || raw is GenericSimpleAlbum) {
             final id = _itemId(raw);
             if (id != null && seenTopLevelIds.add(id)) {
@@ -249,6 +276,7 @@ class _WispNavigationState extends State<WispNavigation> {
                   PlaylistFolder(
                     id: id,
                     title: raw['name'] as String? ?? 'Folder',
+                    isPinned: raw['is_pinned'] as bool? ?? false,
                     createdAt: DateTime.now(),
                   );
               folderMap[folder.id] = folder;
@@ -276,6 +304,7 @@ class _WispNavigationState extends State<WispNavigation> {
                 ),
                 songs: null,
                 durationSecs: 0,
+                isPinned: raw['is_pinned'] as bool? ?? false,
               );
               processItem(p);
               return;
@@ -323,12 +352,14 @@ class _WispNavigationState extends State<WispNavigation> {
           processItem(playlist);
         }
 
-        for (final album in library.albums) {
-          processItem(album);
-        }
+        if (!onlyPlaylistsAndFolders) {
+          for (final album in library.albums) {
+            processItem(album);
+          }
 
-        for (final artist in library.artists) {
-          processItem(artist);
+          for (final artist in library.artists) {
+            processItem(artist);
+          }
         }
 
         DateTime? itemLastPlayed(dynamic item) {
@@ -348,49 +379,80 @@ class _WispNavigationState extends State<WispNavigation> {
           return id != null ? folderState.lastPlayedForItem(id) : null;
         }
 
-        switch (folderState.sortMode) {
-          case LibrarySortMode.recent:
-            topLevelItems.sort((a, b) {
+        final topLevelIndex = <dynamic, int>{};
+        for (var i = 0; i < topLevelItems.length; i++) {
+          topLevelIndex[topLevelItems[i]] = i;
+        }
+
+        topLevelItems.sort((a, b) {
+          final aPinned = _isPinned(a);
+          final bPinned = _isPinned(b);
+          if (aPinned != bPinned) return aPinned ? -1 : 1;
+          if (aPinned && bPinned) {
+            return (topLevelIndex[a] ?? 0).compareTo(topLevelIndex[b] ?? 0);
+          }
+          switch (folderState.sortMode) {
+            case LibrarySortMode.recent:
               final aTime = itemLastPlayed(a);
               final bTime = itemLastPlayed(b);
               if (aTime != null && bTime != null) {
-                return bTime.compareTo(aTime);
+                final cmp = bTime.compareTo(aTime);
+                if (cmp != 0) return cmp;
+              } else if (aTime != null) {
+                return -1;
+              } else if (bTime != null) {
+                return 1;
               }
-              if (aTime != null) return -1;
-              if (bTime != null) return 1;
-              return 0;
-            });
-            for (final entry in folderPlaylists.entries) {
-              entry.value.sort((a, b) {
+              return (topLevelIndex[a] ?? 0).compareTo(topLevelIndex[b] ?? 0);
+
+            case LibrarySortMode.recentlyAdded:
+              return (topLevelIndex[a] ?? 0).compareTo(topLevelIndex[b] ?? 0);
+
+            case LibrarySortMode.alphabetical:
+              final cmp = _itemTitle(a)
+                  .toLowerCase()
+                  .compareTo(_itemTitle(b).toLowerCase());
+              if (cmp != 0) return cmp;
+              return (topLevelIndex[a] ?? 0).compareTo(topLevelIndex[b] ?? 0);
+          }
+        });
+
+        for (final entry in folderPlaylists.entries) {
+          final childIndex = <String, int>{};
+          for (var i = 0; i < entry.value.length; i++) {
+            childIndex[entry.value[i].id] = i;
+          }
+          entry.value.sort((a, b) {
+            final aPinned = a.isPinned;
+            final bPinned = b.isPinned;
+            if (aPinned != bPinned) return aPinned ? -1 : 1;
+            if (aPinned && bPinned) {
+              return (childIndex[a.id] ?? 0).compareTo(childIndex[b.id] ?? 0);
+            }
+            switch (folderState.sortMode) {
+              case LibrarySortMode.recent:
                 final aTime = folderState.lastPlayedForItem(a.id);
                 final bTime = folderState.lastPlayedForItem(b.id);
                 if (aTime != null && bTime != null) {
-                  return bTime.compareTo(aTime);
+                  final cmp = bTime.compareTo(aTime);
+                  if (cmp != 0) return cmp;
+                } else if (aTime != null) {
+                  return -1;
+                } else if (bTime != null) {
+                  return 1;
                 }
-                if (aTime != null) return -1;
-                if (bTime != null) return 1;
-                return 0;
-              });
+                return (childIndex[a.id] ?? 0).compareTo(childIndex[b.id] ?? 0);
+
+              case LibrarySortMode.recentlyAdded:
+                return (childIndex[a.id] ?? 0).compareTo(childIndex[b.id] ?? 0);
+
+              case LibrarySortMode.alphabetical:
+                final cmp =
+                    a.title.toLowerCase().compareTo(b.title.toLowerCase());
+                if (cmp != 0) return cmp;
+                return (childIndex[a.id] ?? 0).compareTo(childIndex[b.id] ?? 0);
             }
-            break;
-          case LibrarySortMode.recentlyAdded:
-            // Preserve addition order (folders by createdAt descending, items as loaded)
-            for (final entry in folderPlaylists.entries) {
-              entry.value.sort((a, b) => 0);
-            }
-            break;
-          case LibrarySortMode.alphabetical:
-            topLevelItems.sort((a, b) {
-              return _itemTitle(
-                a,
-              ).toLowerCase().compareTo(_itemTitle(b).toLowerCase());
-            });
-            for (final entry in folderPlaylists.entries) {
-              entry.value.sort((a, b) {
-                return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-              });
-            }
-            break;
+          });
         }
 
         final allEntries = <LibrarySidebarEntry>[];

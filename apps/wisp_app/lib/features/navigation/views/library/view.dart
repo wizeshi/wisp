@@ -717,34 +717,244 @@ class LibraryTabViewState extends State<LibraryTabView> {
     final filteredPlaylists = _displayPlaylists
         .where((playlist) => !isLikedSongsPlaylistId(playlist.id))
         .toList();
-    final groups = folderState.buildPlaylistGroups(filteredPlaylists);
-    final entries = <_PlaylistListEntry>[];
+    final library = context.watch<LibraryState>();
+    final allOrganized = library.allOrganized;
 
+    final entries = <_PlaylistListEntry>[];
     if (likedPlaylist != null) {
       entries.add(_PlaylistListEntry.playlist(likedPlaylist, folderId: null));
     }
-    final folderCounts = <String, int>{
-      for (final group in groups.folders)
-        group.folder.id: group.playlists.length,
-    };
 
-    for (final group in groups.folders) {
-      entries.add(_PlaylistListEntry.folder(group.folder));
-      if (!folderState.isFolderCollapsed(group.folder.id)) {
-        for (final playlist in group.playlists) {
-          entries.add(
-            _PlaylistListEntry.playlist(playlist, folderId: group.folder.id),
-          );
+    final folderCounts = <String, int>{};
+
+    if (allOrganized != null && allOrganized.isNotEmpty) {
+      final folderMap = <String, PlaylistFolder>{
+        for (final f in folderState.folders) f.id: f,
+      };
+      final topLevelItems = <dynamic>[];
+      final folderPlaylists = <String, List<GenericPlaylist>>{};
+      final seenPlaylistIds = <String>{};
+      final seenTopLevelIds = <String>{};
+
+      void processItem(dynamic raw) {
+        if (raw == null) return;
+        if (raw is PlaylistFolder) {
+          folderMap[raw.id] = raw;
+          if (seenTopLevelIds.add(raw.id)) {
+            topLevelItems.add(raw);
+          }
+          return;
+        }
+
+        if (raw is GenericPlaylist) {
+          if (isLikedSongsPlaylistId(raw.id)) return;
+          if (!seenPlaylistIds.add(raw.id)) return;
+          final folderId = folderState.folderIdForPlaylist(raw.id);
+          if (folderId != null && folderMap.containsKey(folderId)) {
+            folderPlaylists.putIfAbsent(folderId, () => []).add(raw);
+          } else {
+            if (seenTopLevelIds.add(raw.id)) {
+              topLevelItems.add(raw);
+            }
+          }
+          return;
+        }
+
+        if (raw is Map<String, dynamic>) {
+          final t = raw['__typename'] as String? ?? raw['type'] as String?;
+          final uri = raw['uri'] as String? ?? raw['id'] as String? ?? '';
+          final id = uri.isNotEmpty ? uri : (raw['id'] as String? ?? '');
+
+          if (t == 'Folder' || t == 'folder') {
+            final folder = folderState.getFolderById(id) ??
+                PlaylistFolder(
+                  id: id,
+                  title: raw['name'] as String? ?? 'Folder',
+                  isPinned: raw['is_pinned'] as bool? ?? false,
+                  createdAt: DateTime.now(),
+                );
+            folderMap[folder.id] = folder;
+            if (seenTopLevelIds.add(folder.id)) {
+              topLevelItems.add(folder);
+            }
+            return;
+          }
+
+          if (t == 'Playlist' || t == 'playlist' || uri.contains('playlist')) {
+            final existing = _displayPlaylists.firstWhere(
+              (p) => p.id == id,
+              orElse: () => GenericPlaylist(
+                id: id,
+                source: 'spotify',
+                title: raw['name'] as String? ?? '',
+                thumbnailUrl: raw['image']?['url'] as String? ?? '',
+                author: GenericSimpleUser(
+                  id: '',
+                  source: 'spotify',
+                  displayName: '',
+                  avatarUrl: null,
+                  followerCount: null,
+                  profileUrl: null,
+                ),
+                songs: null,
+                durationSecs: 0,
+                isPinned: raw['is_pinned'] as bool? ?? false,
+              ),
+            );
+            processItem(existing);
+            return;
+          }
         }
       }
-    }
 
-    if (groups.folders.isNotEmpty) {
-      entries.add(const _PlaylistListEntry.unassignedHeader());
-    }
+      for (final item in allOrganized) {
+        processItem(item);
+      }
+      for (final folder in folderState.folders) {
+        processItem(folder);
+      }
+      for (final playlist in filteredPlaylists) {
+        processItem(playlist);
+      }
 
-    for (final playlist in groups.unassigned) {
-      entries.add(_PlaylistListEntry.playlist(playlist, folderId: null));
+      DateTime? itemLastPlayed(dynamic item) {
+        if (item is PlaylistFolder) {
+          final children = folderPlaylists[item.id];
+          if (children == null || children.isEmpty) return null;
+          DateTime? latest;
+          for (final child in children) {
+            final t = folderState.lastPlayedForItem(child.id);
+            if (t != null && (latest == null || t.isAfter(latest))) {
+              latest = t;
+            }
+          }
+          return latest;
+        }
+        if (item is GenericPlaylist) {
+          return folderState.lastPlayedForItem(item.id);
+        }
+        return null;
+      }
+
+      final topLevelIndex = <dynamic, int>{};
+      for (var i = 0; i < topLevelItems.length; i++) {
+        topLevelIndex[topLevelItems[i]] = i;
+      }
+
+      topLevelItems.sort((a, b) {
+        final aPinned = (a is PlaylistFolder)
+            ? a.isPinned
+            : (a is GenericPlaylist && a.isPinned);
+        final bPinned = (b is PlaylistFolder)
+            ? b.isPinned
+            : (b is GenericPlaylist && b.isPinned);
+        if (aPinned != bPinned) return aPinned ? -1 : 1;
+        if (aPinned && bPinned) {
+          return (topLevelIndex[a] ?? 0).compareTo(topLevelIndex[b] ?? 0);
+        }
+        switch (folderState.sortMode) {
+          case LibrarySortMode.recent:
+            final aTime = itemLastPlayed(a);
+            final bTime = itemLastPlayed(b);
+            if (aTime != null && bTime != null) {
+              final cmp = bTime.compareTo(aTime);
+              if (cmp != 0) return cmp;
+            } else if (aTime != null) {
+              return -1;
+            } else if (bTime != null) {
+              return 1;
+            }
+            return (topLevelIndex[a] ?? 0).compareTo(topLevelIndex[b] ?? 0);
+
+          case LibrarySortMode.recentlyAdded:
+            return (topLevelIndex[a] ?? 0).compareTo(topLevelIndex[b] ?? 0);
+
+          case LibrarySortMode.alphabetical:
+            final aTitle = (a is PlaylistFolder)
+                ? a.title
+                : (a is GenericPlaylist ? a.title : '');
+            final bTitle = (b is PlaylistFolder)
+                ? b.title
+                : (b is GenericPlaylist ? b.title : '');
+            final cmp = aTitle.toLowerCase().compareTo(bTitle.toLowerCase());
+            if (cmp != 0) return cmp;
+            return (topLevelIndex[a] ?? 0).compareTo(topLevelIndex[b] ?? 0);
+        }
+      });
+
+      for (final entry in folderPlaylists.entries) {
+        final childIndex = <String, int>{};
+        for (var i = 0; i < entry.value.length; i++) {
+          childIndex[entry.value[i].id] = i;
+        }
+        entry.value.sort((a, b) {
+          if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+          if (a.isPinned && b.isPinned) {
+            return (childIndex[a.id] ?? 0).compareTo(childIndex[b.id] ?? 0);
+          }
+          switch (folderState.sortMode) {
+            case LibrarySortMode.recent:
+              final aTime = folderState.lastPlayedForItem(a.id);
+              final bTime = folderState.lastPlayedForItem(b.id);
+              if (aTime != null && bTime != null) {
+                final cmp = bTime.compareTo(aTime);
+                if (cmp != 0) return cmp;
+              } else if (aTime != null) {
+                return -1;
+              } else if (bTime != null) {
+                return 1;
+              }
+              return (childIndex[a.id] ?? 0).compareTo(childIndex[b.id] ?? 0);
+
+            case LibrarySortMode.recentlyAdded:
+              return (childIndex[a.id] ?? 0).compareTo(childIndex[b.id] ?? 0);
+
+            case LibrarySortMode.alphabetical:
+              final cmp =
+                  a.title.toLowerCase().compareTo(b.title.toLowerCase());
+              if (cmp != 0) return cmp;
+              return (childIndex[a.id] ?? 0).compareTo(childIndex[b.id] ?? 0);
+          }
+        });
+        folderCounts[entry.key] = entry.value.length;
+      }
+
+      for (final item in topLevelItems) {
+        if (item is PlaylistFolder) {
+          entries.add(_PlaylistListEntry.folder(item));
+          if (!folderState.isFolderCollapsed(item.id)) {
+            final children = folderPlaylists[item.id] ?? const [];
+            for (final child in children) {
+              entries.add(
+                _PlaylistListEntry.playlist(child, folderId: item.id),
+              );
+            }
+          }
+        } else if (item is GenericPlaylist) {
+          entries.add(_PlaylistListEntry.playlist(item, folderId: null));
+        }
+      }
+    } else {
+      final groups = folderState.buildPlaylistGroups(filteredPlaylists);
+      for (final group in groups.folders) {
+        folderCounts[group.folder.id] = group.playlists.length;
+        entries.add(_PlaylistListEntry.folder(group.folder));
+        if (!folderState.isFolderCollapsed(group.folder.id)) {
+          for (final playlist in group.playlists) {
+            entries.add(
+              _PlaylistListEntry.playlist(playlist, folderId: group.folder.id),
+            );
+          }
+        }
+      }
+
+      if (groups.folders.isNotEmpty) {
+        entries.add(const _PlaylistListEntry.unassignedHeader());
+      }
+
+      for (final playlist in groups.unassigned) {
+        entries.add(_PlaylistListEntry.playlist(playlist, folderId: null));
+      }
     }
 
     return RefreshIndicator(
@@ -1092,11 +1302,28 @@ class _PlaylistListTile extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          'Playlist • ${playlist.author.displayName}',
-          style: TextStyle(color: Colors.grey[400]),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        subtitle: Row(
+          children: [
+            if (playlist.isPinned) ...[
+              Transform.rotate(
+                angle: 0.5,
+                child: Icon(
+                  Icons.push_pin,
+                  size: 11,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+            Expanded(
+              child: Text(
+                'Playlist • ${playlist.author.displayName}',
+                style: TextStyle(color: Colors.grey[400]),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1281,9 +1508,28 @@ class _FolderListTileState extends State<_FolderListTile> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          '${widget.playlistCount} playlist${widget.playlistCount == 1 ? '' : 's'}',
-          style: TextStyle(color: Colors.grey[400]),
+        subtitle: Row(
+          children: [
+            if (widget.folder.isPinned) ...[
+              Transform.rotate(
+                angle: 0.5,
+                child: Icon(
+                  Icons.push_pin,
+                  size: 11,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+            Expanded(
+              child: Text(
+                '${widget.playlistCount} playlist${widget.playlistCount == 1 ? '' : 's'}',
+                style: TextStyle(color: Colors.grey[400]),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

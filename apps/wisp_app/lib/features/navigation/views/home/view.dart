@@ -8,15 +8,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
-import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
-import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
-import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/library_state.dart';
-import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/features/navigation/router/navigation_service.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
@@ -48,16 +44,10 @@ class HomePageState extends State<HomePage> {
   bool _isRefreshing = false;
   bool _isFetchingData = false;
   final ScrollController _scrollController = ScrollController();
-  List<GenericAlbum> _savedAlbums = [];
-  List<GenericPlaylist> _savedPlaylists = [];
-  List<GenericPlaylist> _remotePlaylists = [];
-  List<GenericSimpleArtist> _followedArtists = [];
   Map<String, List<dynamic>> _homeSections = {};
 
   late final MetadataManager _metadataManager;
-  late final LocalPlaylistState _localPlaylistState;
   bool _wasAuthenticated = false;
-  VoidCallback? _localPlaylistListener;
   VoidCallback? _refreshListener;
   int _lastRefreshTick = 0;
 
@@ -65,21 +55,8 @@ class HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _metadataManager = context.read<MetadataManager>();
-    _localPlaylistState = context.read<LocalPlaylistState>();
     _wasAuthenticated = _metadataManager.isAuthenticated;
     _metadataManager.addListener(_handleAuthChange);
-
-    _localPlaylistListener = () {
-      if (!mounted) return;
-      setState(() {
-        _savedPlaylists = _mergeLocalPlaylists(
-          _remotePlaylists,
-          _localPlaylistState.genericPlaylists,
-          _localPlaylistState.hiddenProviderPlaylistIds,
-        );
-      });
-    };
-    _localPlaylistState.addListener(_localPlaylistListener!);
 
     final refreshSignal = widget.refreshSignal;
     if (refreshSignal != null) {
@@ -106,9 +83,6 @@ class HomePageState extends State<HomePage> {
     if (_refreshListener != null) {
       widget.refreshSignal?.removeListener(_refreshListener!);
     }
-    if (_localPlaylistListener != null) {
-      _localPlaylistState.removeListener(_localPlaylistListener!);
-    }
     _scrollController.dispose();
     super.dispose();
   }
@@ -121,7 +95,10 @@ class HomePageState extends State<HomePage> {
     } else if (!isAuthenticated && _wasAuthenticated) {
       _wasAuthenticated = false;
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _homeSections = {};
+          _isLoading = false;
+        });
       }
     }
   }
@@ -141,10 +118,7 @@ class HomePageState extends State<HomePage> {
         }
         return;
       }
-      final libraryState = context.read<LibraryState>();
-      final hasData = _savedAlbums.isNotEmpty ||
-          _savedPlaylists.isNotEmpty ||
-          _homeSections.isNotEmpty;
+      final hasData = _homeSections.isNotEmpty;
 
       if (mounted) {
         if (!hasData) {
@@ -159,59 +133,23 @@ class HomePageState extends State<HomePage> {
       }
 
       if (!metadataManager.isAuthenticated) {
-        libraryState.clear();
-        if (mounted) setState(() => _isLoading = false);
+        if (mounted) {
+          setState(() {
+            _homeSections = {};
+            _isLoading = false;
+          });
+        }
         return;
       }
 
-      if (_savedAlbums.isEmpty &&
-          _savedPlaylists.isEmpty &&
-          _homeSections.isEmpty) {
+      if (_homeSections.isEmpty) {
         try {
-          final cachedLib = await metadataManager.getUserLibrary(
-            policy: MetadataFetchPolicy.cacheFirst,
-          );
           final cachedHome = await metadataManager.getUserHome(
             policy: MetadataFetchPolicy.cacheFirst,
           );
-          if (cachedLib != null || cachedHome != null) {
-            final lib = cachedLib ??
-                const GenericLibrary(
-                  saved_albums: [],
-                  saved_playlists: [],
-                  saved_artists: [],
-                );
-            final home = cachedHome ?? const GenericHome(sections: {});
-            final initialLikedPlaylist = buildLikedSongsPlaylist(
-              userDisplayName: metadataManager.userDisplayName,
-              total: metadataManager.likedTracksTotalCount,
-            );
-            final intPlaylists = lib.saved_playlists;
-            final plWithLiked = [
-              initialLikedPlaylist,
-              ...intPlaylists.where((p) => p.id != likedSongsPlaylistId),
-            ];
-            if (!mounted) return;
-            final localState = context.read<LocalPlaylistState>();
-            final merged = _mergeLocalPlaylists(
-              plWithLiked,
-              localState.genericPlaylists,
-              localState.hiddenProviderPlaylistIds,
-            );
+          if (cachedHome != null && mounted) {
             setState(() {
-              _savedAlbums = lib.saved_albums;
-              _savedPlaylists = merged;
-              _followedArtists = lib.saved_artists
-                  .map(
-                    (a) => GenericSimpleArtist(
-                      id: a.id,
-                      source: a.source,
-                      name: a.name,
-                      thumbnailUrl: a.thumbnailUrl,
-                    ),
-                  )
-                  .toList();
-              _homeSections = _sanitizeHomeSections(home.sections);
+              _homeSections = _sanitizeHomeSections(cachedHome.sections);
               _isLoading = false;
             });
           }
@@ -229,132 +167,17 @@ class HomePageState extends State<HomePage> {
         return;
       }
 
-      await metadataManager.fetchUserProfile();
-
-      List<PlaylistItem> cachedLiked = const [];
-      if (policy == MetadataFetchPolicy.refreshAlways) {
-        cachedLiked = await metadataManager.getUserSavedTracks(
-          limit: 50,
-          offset: 0,
-          policy: policy,
-        );
-        metadataManager.setLikedTracksFromItems(cachedLiked);
-      } else {
-        cachedLiked = await metadataManager.getUserSavedTracks(
-          limit: 50,
-          offset: 0,
-          policy: MetadataFetchPolicy.refreshIfExpired,
-        );
-        if (cachedLiked.isNotEmpty) {
-          metadataManager.setLikedTracksFromItems(cachedLiked);
-        }
-      }
-      final likedPlaylist = buildLikedSongsPlaylist(
-        userDisplayName: _metadataManager.userDisplayName,
-        total: metadataManager.likedTracksTotalCount ?? cachedLiked.length,
-      );
-
-      final userLibrary = await metadataManager.getUserLibrary(
-            policy: MetadataFetchPolicy.refreshAlways,
-          ) ??
-          const GenericLibrary(
-            saved_albums: [],
-            saved_playlists: [],
-            saved_artists: [],
-          );
       final userHome = await metadataManager.getUserHome(
             policy: MetadataFetchPolicy.refreshAlways,
           ) ??
           const GenericHome(sections: {});
 
-      try {
-        if (mounted) {
-          final folderState = context.read<LibraryFolderState>();
-          final all = userLibrary.all_organized;
-          if (all != null && all.isNotEmpty) {
-            final remoteFolders = <PlaylistFolder>[];
-            for (final e in all) {
-              if (e is Map<String, dynamic>) {
-                final t = e['__typename'] as String? ?? e['type'] as String?;
-                if (t == 'Folder' || t == 'folder') {
-                  final uri = e['uri'] as String? ?? e['id'] as String? ?? '';
-                  final id = uri.isNotEmpty ? uri : (e['id'] as String? ?? '');
-                  final name = e['name'] as String? ?? '';
-                  remoteFolders.add(
-                    PlaylistFolder(
-                      id: id,
-                      title: name,
-                      createdAt: DateTime.now(),
-                    ),
-                  );
-                }
-              }
-            }
-            if (remoteFolders.isNotEmpty) {
-              await folderState.importRemoteFolders(remoteFolders);
-            }
-          }
-
-          if (userLibrary.folderAssignments != null) {
-            await folderState.batchAssignPlaylistsToFolders(
-              userLibrary.folderAssignments!,
-            );
-          }
-        }
-      } catch (e) {
-        logger.w('[Views/Home] Failed to process remote folders: $e');
-      }
-
-      final internalPlaylists = userLibrary.saved_playlists;
-      final playlistsWithLiked = [
-        likedPlaylist,
-        ...internalPlaylists.where((p) => p.id != likedSongsPlaylistId),
-      ];
-      if (!mounted) return;
-      final localState = context.read<LocalPlaylistState>();
-      final localPlaylists = localState.genericPlaylists;
-      _remotePlaylists = playlistsWithLiked;
-      final mergedPlaylists = _mergeLocalPlaylists(
-        _remotePlaylists,
-        localPlaylists,
-        localState.hiddenProviderPlaylistIds,
-      );
-
-      final allWithLiked = [
-        likedPlaylist,
-        ...userLibrary.all_organized?.where((item) => true) ?? [],
-      ];
-
       if (mounted) {
         setState(() {
-          _savedAlbums = userLibrary.saved_albums;
-          _savedPlaylists = mergedPlaylists;
-          _followedArtists = userLibrary.saved_artists
-              .map(
-                (a) => GenericSimpleArtist(
-                  id: a.id,
-                  source: a.source,
-                  name: a.name,
-                  thumbnailUrl: a.thumbnailUrl,
-                ),
-              )
-              .toList();
           _homeSections = _sanitizeHomeSections(userHome.sections);
           _isLoading = false;
           _isRefreshing = false;
         });
-      }
-
-      libraryState.setLibrary(
-        playlists: _savedPlaylists,
-        albums: _savedAlbums,
-        artists: _followedArtists,
-        allOrganized: allWithLiked,
-      );
-      if (mounted) {
-        context.read<LibraryFolderState>().syncPlaylists(
-              libraryState.playlists,
-            );
       }
     } catch (e) {
       logger.e('[Views/Home] Failed to load data', error: e);
@@ -374,38 +197,6 @@ class HomePageState extends State<HomePage> {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
   }) {
     return _loadData(policy: policy);
-  }
-
-  List<GenericPlaylist> _mergeLocalPlaylists(
-    List<GenericPlaylist> remote,
-    List<GenericPlaylist> local,
-    Set<String> hiddenProviderIds,
-  ) {
-    if (local.isEmpty) {
-      if (hiddenProviderIds.isEmpty) return remote;
-      return remote
-          .where((playlist) => !hiddenProviderIds.contains(playlist.id))
-          .toList();
-    }
-    final localById = {for (final p in local) p.id: p};
-    final merged = <GenericPlaylist>[];
-    final seen = <String>{};
-
-    for (final playlist in remote) {
-      if (hiddenProviderIds.contains(playlist.id)) {
-        continue;
-      }
-      merged.add(localById[playlist.id] ?? playlist);
-      seen.add(playlist.id);
-    }
-
-    for (final playlist in local) {
-      if (!seen.contains(playlist.id)) {
-        merged.add(playlist);
-      }
-    }
-
-    return merged;
   }
 
   static const Set<String> _unknownHomeTitles = {
@@ -497,8 +288,13 @@ class HomePageState extends State<HomePage> {
       return _buildUnauthenticatedView();
     }
 
-    final hasData = _savedAlbums.isNotEmpty ||
-        _savedPlaylists.isNotEmpty ||
+    final libraryState = context.watch<LibraryState>();
+    final savedAlbums = libraryState.albums;
+    final savedPlaylists = libraryState.playlists;
+    final followedArtists = libraryState.artists;
+
+    final hasData = savedAlbums.isNotEmpty ||
+        savedPlaylists.isNotEmpty ||
         _homeSections.isNotEmpty;
 
     if (_isLoading && !hasData) {
@@ -508,9 +304,9 @@ class HomePageState extends State<HomePage> {
     final data = HomeViewData(
       isLoading: _isLoading,
       isRefreshing: _isRefreshing,
-      savedAlbums: _savedAlbums,
-      savedPlaylists: _savedPlaylists,
-      followedArtists: _followedArtists,
+      savedAlbums: savedAlbums,
+      savedPlaylists: savedPlaylists,
+      followedArtists: followedArtists,
       homeSections: _homeSections,
       greeting: _getRandomGreeting(),
       scrollController: _scrollController,

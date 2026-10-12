@@ -32,6 +32,7 @@ class GenericRow extends StatelessWidget {
   final Color? backgroundColor;
   final bool showSubtitle;
   final bool isCollapsed;
+  final bool isPinned;
 
   const GenericRow({
     super.key,
@@ -51,6 +52,7 @@ class GenericRow extends StatelessWidget {
     this.backgroundColor,
     this.showSubtitle = true,
     this.isCollapsed = false,
+    this.isPinned = false,
   });
 
   @override
@@ -87,7 +89,7 @@ class GenericRow extends StatelessWidget {
           child: isCollapsed
               ? Center(
                   child: Tooltip(
-                    message: title,
+                    message: isPinned ? '📌 $title' : title,
                     waitDuration: const Duration(milliseconds: 500),
                     child: artworkWidget,
                   ),
@@ -116,14 +118,32 @@ class GenericRow extends StatelessWidget {
                           ),
                           if (showSubtitle && subtitle != null) ...[
                             const SizedBox(height: 2),
-                            Text(
-                              subtitle!,
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 12,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            Row(
+                              children: [
+                                if (isPinned) ...[
+                                  Transform.rotate(
+                                    angle: 0.5,
+                                    child: Icon(
+                                      Icons.push_pin,
+                                      size: 11,
+                                      color:
+                                          Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    subtitle!,
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ],

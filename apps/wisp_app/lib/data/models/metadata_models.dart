@@ -699,6 +699,7 @@ class GenericPlaylist {
   final int durationSecs;
   final int? total;
   final bool? hasMore;
+  final bool isPinned;
 
   GenericPlaylist({
     required this.id,
@@ -711,7 +712,36 @@ class GenericPlaylist {
     this.total,
     this.hasMore,
     this.description,
+    this.isPinned = false,
   });
+
+  GenericPlaylist copyWith({
+    String? id,
+    String? source,
+    String? title,
+    String? description,
+    String? thumbnailUrl,
+    GenericSimpleUser? author,
+    List<PlaylistItem>? songs,
+    int? durationSecs,
+    int? total,
+    bool? hasMore,
+    bool? isPinned,
+  }) {
+    return GenericPlaylist(
+      id: id ?? this.id,
+      source: source ?? this.source,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      author: author ?? this.author,
+      songs: songs ?? this.songs,
+      durationSecs: durationSecs ?? this.durationSecs,
+      total: total ?? this.total,
+      hasMore: hasMore ?? this.hasMore,
+      isPinned: isPinned ?? this.isPinned,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -724,6 +754,7 @@ class GenericPlaylist {
     'duration_secs': durationSecs,
     'total': total,
     'has_more': hasMore,
+    'is_pinned': isPinned,
   };
 
   factory GenericPlaylist.fromJson(Map<String, dynamic> json) {
@@ -744,6 +775,8 @@ class GenericPlaylist {
       durationSecs: json['duration_secs'] as int,
       total: json['total'] as int?,
       hasMore: json['has_more'] as bool?,
+      isPinned:
+          (json['is_pinned'] as bool?) ?? (json['isPinned'] as bool?) ?? false,
     );
   }
 }

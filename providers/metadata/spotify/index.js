@@ -768,7 +768,8 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
     songs: songs,
     duration_secs: songs.reduce((acc, s) => acc + (s.duration_secs || 0), 0),
     total: totalCount,
-    has_more: hasMore
+    has_more: hasMore,
+    is_pinned: !!(data.pinned || (data.item && data.item.pinned))
   };
 }
 
@@ -1436,50 +1437,78 @@ async function getUserLibrary(options = {}) {
   else if (sortMode === 'recentlyAdded') sortOrder = 'Recently Added';
 
   let expanded = options.expandedFolders || [];
-  let data = await queryGraphQL(
-    'libraryV3',
-    '390c78e5b951029bad359785e69b07b536a509c581cbcd0aded5e5067f187455',
-    {
-      expandedFolders: expanded,
-      features: ['LIKED_SONGS'],
-      flatten: false,
-      folderUri: null,
-      includeFoldersWhenFlattening: true,
-      limit: 100,
-      offset: 0,
-      order: sortOrder,
-      textFilter: null
-    }
-  );
 
-  let libraryItems = (data.data && data.data.me && data.data.me.libraryV3 && data.data.me.libraryV3.items) || [];
+  async function fetchAllItems(expandedFolders) {
+    const allItems = [];
+    let offset = 0;
+    const limit = 100;
+    let totalCount = Infinity;
 
-  if ((!options.expandedFolders || options.expandedFolders.length === 0) && libraryItems.length > 0) {
-    const remoteFolderIds = [];
-    for (let i = 0; i < libraryItems.length; i++) {
-      const itemData = (libraryItems[i].item && libraryItems[i].item.data) || libraryItems[i].data || libraryItems[i];
-      if (itemData && (itemData.__typename === 'Folder' || itemData.type === 'folder')) {
-        const uri = itemData.uri || itemData._uri || itemData.id || '';
-        if (uri) remoteFolderIds.push(uri);
-      }
-    }
-    if (remoteFolderIds.length > 0) {
-      data = await queryGraphQL(
+    while (offset < totalCount) {
+      const data = await queryGraphQL(
         'libraryV3',
         '390c78e5b951029bad359785e69b07b536a509c581cbcd0aded5e5067f187455',
         {
-          expandedFolders: remoteFolderIds,
+          expandedFolders: expandedFolders,
           features: ['LIKED_SONGS'],
           flatten: false,
           folderUri: null,
           includeFoldersWhenFlattening: true,
-          limit: 100,
-          offset: 0,
+          limit: limit,
+          offset: offset,
           order: sortOrder,
           textFilter: null
         }
       );
-      libraryItems = (data.data && data.data.me && data.data.me.libraryV3 && data.data.me.libraryV3.items) || [];
+
+      const libData = data && data.data && data.data.me && data.data.me.libraryV3;
+      if (!libData) break;
+      if (typeof libData.totalCount === 'number') {
+        totalCount = libData.totalCount;
+      }
+      const items = libData.items || [];
+      if (items.length === 0) break;
+      allItems.push(...items);
+      offset += items.length;
+      if (items.length < limit) break;
+    }
+    return allItems;
+  }
+
+  let libraryItems = [];
+  if (expanded.length > 0) {
+    libraryItems = await fetchAllItems(expanded);
+  } else {
+    const initialItems = await fetchAllItems([]);
+    const remoteFolderIds = [];
+    for (let i = 0; i < initialItems.length; i++) {
+      const itemData = (initialItems[i].item && initialItems[i].item.data) || initialItems[i].data || initialItems[i];
+      if (itemData && (itemData.__typename === 'Folder' || itemData.type === 'folder')) {
+        const uri = itemData.uri || itemData._uri || itemData.id || '';
+        if (uri && !remoteFolderIds.includes(uri)) remoteFolderIds.push(uri);
+      }
+    }
+
+    if (remoteFolderIds.length > 0) {
+      libraryItems = await fetchAllItems(remoteFolderIds);
+
+      const allFolderIds = [...remoteFolderIds];
+      let hasNewFolders = false;
+      for (let i = 0; i < libraryItems.length; i++) {
+        const itemData = (libraryItems[i].item && libraryItems[i].item.data) || libraryItems[i].data || libraryItems[i];
+        if (itemData && (itemData.__typename === 'Folder' || itemData.type === 'folder')) {
+          const uri = itemData.uri || itemData._uri || itemData.id || '';
+          if (uri && !allFolderIds.includes(uri)) {
+            allFolderIds.push(uri);
+            hasNewFolders = true;
+          }
+        }
+      }
+      if (hasNewFolders) {
+        libraryItems = await fetchAllItems(allFolderIds);
+      }
+    } else {
+      libraryItems = initialItems;
     }
   }
 
@@ -1487,16 +1516,30 @@ async function getUserLibrary(options = {}) {
   const savedAlbums = [];
   const savedPlaylists = [];
   const savedArtists = [];
+  const folderAssignments = {};
+  const folderStack = [];
 
   for (let i = 0; i < libraryItems.length; i++) {
-    const itemData = (libraryItems[i].item && libraryItems[i].item.data) || libraryItems[i].data || libraryItems[i];
+    const wrapper = libraryItems[i];
+    const itemData = (wrapper.item && wrapper.item.data) || wrapper.data || wrapper;
     if (!itemData) continue;
+    const depth = (typeof wrapper.depth === 'number') ? wrapper.depth : 0;
     const typename = itemData.__typename;
+
+    while (folderStack.length > 0 && folderStack[folderStack.length - 1].depth >= depth) {
+      folderStack.pop();
+    }
 
     if (typename === 'Playlist' || typename === 'PlaylistResponseWrapper') {
       const pl = fullPlaylistToGeneric(itemData);
+      if (typeof wrapper.pinned === 'boolean') {
+        pl.is_pinned = wrapper.pinned;
+      }
       savedPlaylists.push(pl);
       allOrganized.push(pl);
+      if (folderStack.length > 0) {
+        folderAssignments[pl.id] = folderStack[folderStack.length - 1].uri;
+      }
     } else if (typename === 'Album' || typename === 'AlbumResponseWrapper') {
       savedAlbums.push(fullAlbumToGeneric(itemData));
       allOrganized.push(simplifiedAlbumToGeneric(itemData));
@@ -1505,12 +1548,14 @@ async function getUserLibrary(options = {}) {
       allOrganized.push(simplifiedArtistToGeneric(itemData));
     } else if (typename === 'Folder') {
       const uri = itemData.uri || itemData._uri || '';
+      folderStack.push({ depth: depth, uri: uri });
       allOrganized.push({
         __typename: 'Folder',
         uri: uri,
         id: uri,
         name: itemData.name || '',
-        playlistCount: itemData.playlistCount || 0
+        playlistCount: itemData.playlistCount || 0,
+        is_pinned: !!wrapper.pinned
       });
     }
   }
@@ -1519,7 +1564,8 @@ async function getUserLibrary(options = {}) {
     all_organized: allOrganized,
     saved_albums: savedAlbums,
     saved_playlists: savedPlaylists,
-    saved_artists: savedArtists
+    saved_artists: savedArtists,
+    folderAssignments: folderAssignments
   };
 }
 
@@ -1839,6 +1885,44 @@ async function removePlaylistFromFolder(playlistId) {
   const json = await res.json();
   if (json && json.changeRequiresResync === true) {
     throw new Error('removePlaylistFromFolder requires resync');
+  }
+  return true;
+}
+
+async function pinLibraryItem(uri) {
+  let targetUri = uri;
+  if (!targetUri.startsWith('spotify:')) {
+    targetUri = 'spotify:playlist:' + uri;
+  }
+  const data = await queryGraphQL(
+    'pinLibraryItem',
+    '896ebcb47815681340860d121cb5d494e157e2a78d3950385cd54e0393c67148',
+    {
+      pinnableItemUri: targetUri
+    }
+  );
+  const result = data && data.data && data.data.pinItemInLibrary && data.data.pinItemInLibrary.pinResult;
+  if (result !== 'SUCCESSFUL') {
+    throw new Error('pinLibraryItem failed: ' + result);
+  }
+  return true;
+}
+
+async function unpinLibraryItem(uri) {
+  let targetUri = uri;
+  if (!targetUri.startsWith('spotify:')) {
+    targetUri = 'spotify:playlist:' + uri;
+  }
+  const data = await queryGraphQL(
+    'unpinLibraryItem',
+    '896ebcb47815681340860d121cb5d494e157e2a78d3950385cd54e0393c67148',
+    {
+      pinnableItemUri: targetUri
+    }
+  );
+  const result = data && data.data && data.data.unpinItemInLibrary && data.data.unpinItemInLibrary.pinResult;
+  if (result !== 'SUCCESSFUL') {
+    throw new Error('unpinLibraryItem failed: ' + result);
   }
   return true;
 }
@@ -2886,6 +2970,8 @@ const SpotifyMetadataProvider = {
   getSimilarTracks,
   addPlaylistToFolder,
   removePlaylistFromFolder,
+  pinLibraryItem,
+  unpinLibraryItem,
   getTrackGenres,
   getTrackIsrc,
   isAuthenticated,

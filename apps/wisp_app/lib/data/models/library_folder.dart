@@ -8,12 +8,14 @@ class PlaylistFolder {
   final String title;
   final String? thumbnailPath;
   final DateTime createdAt;
+  final bool isPinned;
 
   const PlaylistFolder({
     required this.id,
     required this.title,
     required this.createdAt,
     this.thumbnailPath,
+    this.isPinned = false,
   });
 
   PlaylistFolder copyWith({
@@ -21,12 +23,14 @@ class PlaylistFolder {
     String? title,
     String? thumbnailPath,
     DateTime? createdAt,
+    bool? isPinned,
   }) {
     return PlaylistFolder(
       id: id ?? this.id,
       title: title ?? this.title,
       createdAt: createdAt ?? this.createdAt,
       thumbnailPath: thumbnailPath ?? this.thumbnailPath,
+      isPinned: isPinned ?? this.isPinned,
     );
   }
 
@@ -35,6 +39,7 @@ class PlaylistFolder {
     'title': title,
     'thumbnail_path': thumbnailPath,
     'created_at': createdAt.toIso8601String(),
+    'is_pinned': isPinned,
   };
 
   factory PlaylistFolder.fromJson(Map<String, dynamic> json) {
@@ -43,6 +48,8 @@ class PlaylistFolder {
       title: json['title'] as String,
       thumbnailPath: json['thumbnail_path'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
+      isPinned:
+          (json['is_pinned'] as bool?) ?? (json['isPinned'] as bool?) ?? false,
     );
   }
 }

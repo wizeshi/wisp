@@ -23,6 +23,5 @@ Here's the TODOs for version v26.10:
       - [ ] Setup script
       - [ ] Build app script
       - [ ] Build installer script
-  - [ ] Add element pinning to the sidebar/library (client-side)
   - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
   - [ ] Add translation support (start with English & Portuguese)

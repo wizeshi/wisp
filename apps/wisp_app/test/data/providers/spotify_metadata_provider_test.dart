@@ -81,6 +81,8 @@ void main() {
       expect(content.contains('getSimilarTracks'), isTrue);
       expect(content.contains('addPlaylistToFolder'), isTrue);
       expect(content.contains('removePlaylistFromFolder'), isTrue);
+      expect(content.contains('pinLibraryItem'), isTrue);
+      expect(content.contains('unpinLibraryItem'), isTrue);
       expect(content.contains('getUserLibrary'), isTrue);
       expect(content.contains('wisp.auth.getTokens'), isTrue);
       expect(content.contains('all_organized'), isTrue);

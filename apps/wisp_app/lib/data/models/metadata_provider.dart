@@ -230,6 +230,10 @@ abstract class MetadataProvider extends ChangeNotifier {
 
   Future<void> removePlaylistFromFolder({required String playlistId}) async {}
 
+  Future<void> pinLibraryItem(String uri) async {}
+
+  Future<void> unpinLibraryItem(String uri) async {}
+
   Future<GenericUser?> getUserProfile(
     String userId, {
     int playlistLimit = 10,

@@ -567,6 +567,21 @@ class EntityContextMenus {
 
     final actions = <ContextMenuAction>[
       ContextMenuAction(
+        id: 'toggle-pin',
+        label: playlist.isPinned
+            ? 'Unpin from your library'
+            : 'Pin to your library',
+        icon: playlist.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+        onSelected: (_) async {
+          final libraryState = context.read<LibraryState>();
+          final success = await libraryState.togglePlaylistPin(playlist);
+          if (!context.mounted) return;
+          if (!success) {
+            context.showErrorAlert('Failed to update pinned status on Spotify');
+          }
+        },
+      ),
+      ContextMenuAction(
         id: 'add-queue',
         label: 'Add to Queue',
         icon: Icons.queue_music,
@@ -973,6 +988,25 @@ class EntityContextMenus {
     Rect? anchorRect,
   }) async {
     final actions = <ContextMenuAction>[
+      ContextMenuAction(
+        id: 'toggle-pin',
+        label: folder.isPinned
+            ? 'Unpin from your library'
+            : 'Pin to your library',
+        icon: folder.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+        onSelected: (_) async {
+          final folderState = context.read<LibraryFolderState>();
+          final metadataManager = context.read<MetadataManager>();
+          final success = await folderState.toggleFolderPin(
+            folder.id,
+            metadataManager: metadataManager,
+          );
+          if (!context.mounted) return;
+          if (!success) {
+            context.showErrorAlert('Failed to update pinned status on Spotify');
+          }
+        },
+      ),
       ContextMenuAction(
         id: 'rename',
         label: 'Rename',
