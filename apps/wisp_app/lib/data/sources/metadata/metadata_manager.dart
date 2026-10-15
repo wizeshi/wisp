@@ -302,6 +302,68 @@ class MetadataManager extends ChangeNotifier {
     return provider.getCachedTrackInfo(trackId);
   }
 
+  /// Batch get track info for a list of track IDs from a single provider.
+  Future<List<GenericSong>> getTracks(
+    List<String> trackIds, {
+    String? providerId,
+    String? source,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    return provider.getTracks(trackIds, policy: policy);
+  }
+
+  /// Batch get track info for a heterogeneous list of playlist items from multiple providers.
+  /// Automatically groups by item source, queries respective providers concurrently,
+  /// and reconstructs the list preserving original order.
+  Future<List<GenericSong>> getTracksForItems(
+    List<PlaylistItem> items, {
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    if (items.isEmpty) return const [];
+
+    final groupedIndices = <String, List<int>>{};
+    for (var i = 0; i < items.length; i++) {
+      final src = items[i].source.isNotEmpty ? items[i].source : 'spotify';
+      groupedIndices.putIfAbsent(src, () => []).add(i);
+    }
+
+    final resultMap = <int, GenericSong>{};
+
+    await Future.wait(
+      groupedIndices.entries.map((entry) async {
+        final src = entry.key;
+        final indices = entry.value;
+        final trackIds = indices.map((idx) => items[idx].id).toList();
+
+        try {
+          final provider = _resolveProvider(source: src);
+          final tracks = await provider.getTracks(trackIds, policy: policy);
+          final trackMap = {for (final t in tracks) t.id: t};
+          for (final idx in indices) {
+            final id = items[idx].id;
+            final cleanId = id.contains(':') ? id.split(':').last : id;
+            final found = trackMap[id] ?? trackMap[cleanId];
+            if (found != null) {
+              resultMap[idx] = found;
+            }
+          }
+        } catch (e) {
+          logger.w('[MetadataManager] Batch getTracksForItems failed for source "$src": $e');
+        }
+      }),
+    );
+
+    final ordered = <GenericSong>[];
+    for (var i = 0; i < items.length; i++) {
+      final song = resultMap[i];
+      if (song != null) {
+        ordered.add(song);
+      }
+    }
+    return ordered;
+  }
+
   /// Get album info by ID.
   Future<GenericAlbum> getAlbumInfo(
     String albumId, {
@@ -1081,6 +1143,23 @@ class MetadataManager extends ChangeNotifier {
     await provider.renamePlaylist(playlistId, name);
   }
 
+  Future<void> updatePlaylistDetails(
+    String playlistId, {
+    String? name,
+    String? description,
+    bool? isPublic,
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    await provider.updatePlaylistDetails(
+      playlistId,
+      name: name,
+      description: description,
+      isPublic: isPublic,
+    );
+  }
+
   Future<void> deletePlaylist(String playlistId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     await provider.deletePlaylist(playlistId);
@@ -1093,11 +1172,19 @@ class MetadataManager extends ChangeNotifier {
     String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
-    if (provider is JsMetadataSource) {
-      await provider.removeTracksFromPlaylist(playlistId, trackIds);
-    }
+    await provider.removeTracksFromPlaylist(playlistId, trackIds);
   }
 
+  Future<void> reorderPlaylistTracks(
+    String playlistId,
+    int oldIndex,
+    int newIndex, {
+    String? providerId,
+    String? source,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    await provider.reorderPlaylistTracks(playlistId, oldIndex, newIndex);
+  }
 
   Future<GenericLibrary?> fetchUserLibrarySorted({
     required LibrarySortMode sortMode,
@@ -1106,22 +1193,47 @@ class MetadataManager extends ChangeNotifier {
     String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
-    if (provider is JsMetadataSource) {
-      return provider.fetchUserLibrarySorted(sortMode: sortMode, policy: policy);
-    }
-    return null;
+    return provider.fetchUserLibrarySorted(sortMode: sortMode, policy: policy);
   }
 
-  Future<void> reportItemPlayed({
-    required String itemId,
-    required String itemType,
+  Future<GenericSong?> searchByIsrc(
+    String isrc, {
+    String? providerId,
+    String? source,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    return provider.searchByIsrc(isrc, policy: policy);
+  }
+
+  Future<GenericSong?> matchTrack({
+    required String title,
+    required String artist,
+    String? album,
+    Duration? duration,
+    String? isrc,
+    String? providerId,
+    String? source,
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    final provider = _resolveProvider(providerId: providerId, source: source);
+    return provider.matchTrack(
+      title: title,
+      artist: artist,
+      album: album,
+      duration: duration,
+      isrc: isrc,
+      policy: policy,
+    );
+  }
+
+  Future<Map<String, bool>> checkTracksLiked(
+    List<String> trackIds, {
     String? providerId,
     String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
-    if (provider is JsMetadataSource) {
-      await provider.reportItemPlayed(itemId: itemId, itemType: itemType);
-    }
+    return provider.checkTracksLiked(trackIds);
   }
 
   @override

@@ -1011,6 +1011,34 @@ async function getTrack(trackId) {
   };
 }
 
+async function getTracks(trackIds) {
+  if (!Array.isArray(trackIds) || trackIds.length === 0) return [];
+  const cleanIds = trackIds.map(id => id.includes(':') ? id.split(':').pop() : id);
+  const results = [];
+  const chunkSize = 50;
+
+  for (let i = 0; i < cleanIds.length; i += chunkSize) {
+    const chunk = cleanIds.slice(i, i + chunkSize);
+    try {
+      const res = await fetchWebApi('tracks?ids=' + encodeURIComponent(chunk.join(',')));
+      if (res && res.status === 200) {
+        const data = await res.json();
+        if (data && Array.isArray(data.tracks)) {
+          for (const t of data.tracks) {
+            if (t) {
+              const generic = trackToGeneric(t);
+              if (generic) results.push(generic);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Continue next chunk if any error
+    }
+  }
+  return results;
+}
+
 async function getAlbum(albumId, options = {}) {
   const cleanId = albumId.includes(':') ? albumId.split(':').pop() : albumId;
   const offset = options.offset || 0;
@@ -1750,6 +1778,21 @@ async function renamePlaylist(playlistId, name) {
   return res.status === 200;
 }
 
+async function updatePlaylistDetails(playlistId, options = {}) {
+  const cleanId = playlistId.includes(':') ? playlistId.split(':').pop() : playlistId;
+  const payload = {};
+  if (typeof options.name === 'string') payload.name = options.name;
+  if (typeof options.description === 'string') payload.description = options.description;
+  if (typeof options.isPublic === 'boolean') payload.public = options.isPublic;
+  else if (typeof options.public === 'boolean') payload.public = options.public;
+
+  const res = await fetchWebApi('playlists/' + encodeURIComponent(cleanId), {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+  return res.status === 200;
+}
+
 async function deletePlaylist(playlistId) {
   const cleanId = playlistId.includes(':') ? playlistId.split(':').pop() : playlistId;
   const res = await fetchWebApi('playlists/' + encodeURIComponent(cleanId) + '/followers', {
@@ -1776,6 +1819,20 @@ async function removeTracksFromPlaylist(playlistId, trackIds) {
   const res = await fetchWebApi('playlists/' + encodeURIComponent(cleanId) + '/tracks', {
     method: 'DELETE',
     body: JSON.stringify({ tracks: tracks })
+  });
+  return res.status === 200;
+}
+
+async function reorderPlaylistTracks(playlistId, oldIndex, newIndex) {
+  const cleanId = playlistId.includes(':') ? playlistId.split(':').pop() : playlistId;
+  const insertBefore = newIndex > oldIndex ? newIndex + 1 : newIndex;
+  const res = await fetchWebApi('playlists/' + encodeURIComponent(cleanId) + '/tracks', {
+    method: 'PUT',
+    body: JSON.stringify({
+      range_start: oldIndex,
+      insert_before: insertBefore,
+      range_length: 1
+    })
   });
   return res.status === 200;
 }
@@ -2919,6 +2976,16 @@ async function getTrackIsrc(trackId) {
   }
 }
 
+async function searchByIsrc(isrc) {
+  const clean = (isrc || '').trim();
+  if (!clean) return null;
+  const res = await search('isrc:' + clean, { limit: 1 });
+  if (res && res.tracks && res.tracks.length > 0) {
+    return res.tracks[0];
+  }
+  return null;
+}
+
 async function getShareUrl(type, id) {
   if (!type || !id) return null;
   const cleanId = id.includes(':') ? id.split(':').pop() : id;
@@ -2935,12 +3002,14 @@ async function getShareUrl(type, id) {
 // ---------------------------------------------------------------------------
 const SpotifyMetadataProvider = {
   getTrack,
+  getTracks,
   getAlbum,
   getMoreAlbumTracks,
   getPlaylist,
   getMorePlaylistTracks,
   getArtist,
   search,
+  searchByIsrc,
   getCanvasUrl,
   getShareUrl,
   getUserProfile,
@@ -2964,9 +3033,11 @@ const SpotifyMetadataProvider = {
   getCuratedStatus,
   createPlaylist,
   renamePlaylist,
+  updatePlaylistDetails,
   deletePlaylist,
   addTracksToPlaylist,
   removeTracksFromPlaylist,
+  reorderPlaylistTracks,
   getSimilarTracks,
   addPlaylistToFolder,
   removePlaylistFromFolder,

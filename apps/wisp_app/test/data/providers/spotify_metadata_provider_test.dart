@@ -87,18 +87,20 @@ void main() {
       expect(content.contains('wisp.auth.getTokens'), isTrue);
       expect(content.contains('all_organized'), isTrue);
 
+      expect(content.contains('getTracks'), isTrue);
+      expect(content.contains('updatePlaylistDetails'), isTrue);
+      expect(content.contains('reorderPlaylistTracks'), isTrue);
+      expect(content.contains('searchByIsrc'), isTrue);
+
       final authIndexFile = File('../../providers/auth/spotify/index.js');
       expect(authIndexFile.existsSync(), isTrue);
       expect(authIndexFile.readAsStringSync().contains('wisp.service.withRefreshLock'), isTrue);
     });
 
-    test('Deprecated user top tracks and top artists return empty lists', () async {
+    test('Batch getTracks returns empty list for empty track IDs', () async {
       final provider = JsMetadataSource(providerId: 'spotify', serviceId: 'spotify');
-      final topTracks = await provider.getUserTopTracks();
-      final topArtists = await provider.getUserTopArtists();
-
-      expect(topTracks, isEmpty);
-      expect(topArtists, isEmpty);
+      final tracks = await provider.getTracks([]);
+      expect(tracks, isEmpty);
     });
   });
 }

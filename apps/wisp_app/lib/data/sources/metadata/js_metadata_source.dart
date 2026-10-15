@@ -648,6 +648,101 @@ class JsMetadataSource extends MetadataProvider {
   }
 
   @override
+  Future<List<GenericSong>> getTracks(
+    List<String> trackIds, {
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
+  }) async {
+    if (trackIds.isEmpty) return const [];
+    final results = <GenericSong>[];
+    const chunkSize = 50;
+
+    for (var i = 0; i < trackIds.length; i += chunkSize) {
+      final chunk = trackIds.sublist(
+        i,
+        i + chunkSize > trackIds.length ? trackIds.length : i + chunkSize,
+      );
+      final cleanChunk = chunk.map(_cleanId).toList();
+
+      List<GenericSong>? fetchedBatch;
+      try {
+        final res = await _invoke('getTracks', [cleanChunk]);
+        if (res is List) {
+          fetchedBatch = [];
+          for (final item in res) {
+            if (item is Map) {
+              final song = GenericSong.fromJson(item.cast<String, dynamic>());
+              fetchedBatch.add(song);
+              _cache.writeEntry(
+                provider: providerId,
+                type: 'track',
+                id: song.id,
+                payload: song.toJson(),
+              );
+            }
+          }
+        }
+      } catch (e) {
+        logger.d('[JsMetadataSource/$providerId] getTracks batch invoke failed, falling back: $e');
+      }
+
+      if (fetchedBatch != null && fetchedBatch.isNotEmpty) {
+        results.addAll(fetchedBatch);
+      } else {
+        final chunkFutures = cleanChunk.map((id) => getTrackInfo(id, policy: policy));
+        final chunkResults = await Future.wait(
+          chunkFutures.map((f) => f.then<GenericSong?>((s) => s).catchError((_) => null)),
+        );
+        for (final song in chunkResults) {
+          if (song != null) {
+            results.add(song);
+          }
+        }
+      }
+    }
+    return results;
+  }
+
+  @override
+  Future<Map<String, bool>> checkTracksLiked(List<String> trackIds) async {
+    if (trackIds.isEmpty) return const {};
+    final cleanIds = trackIds.map(_cleanId).toList();
+    final result = <String, bool>{};
+
+    try {
+      final res = await _invoke('getCuratedStatus', [cleanIds]);
+      if (res is Map) {
+        for (final entry in res.entries) {
+          final id = entry.key.toString();
+          final isLiked = entry.value == true;
+          result[id] = isLiked;
+          if (isLiked) {
+            _likedTrackIds.add(id);
+          } else {
+            _likedTrackIds.remove(id);
+          }
+        }
+        notifyListeners();
+        return result;
+      } else if (res is List) {
+        for (var i = 0; i < cleanIds.length && i < res.length; i++) {
+          final id = cleanIds[i];
+          final isLiked = res[i] == true;
+          result[id] = isLiked;
+          if (isLiked) {
+            _likedTrackIds.add(id);
+          } else {
+            _likedTrackIds.remove(id);
+          }
+        }
+        notifyListeners();
+        return result;
+      }
+    } catch (_) {}
+
+    return super.checkTracksLiked(trackIds);
+  }
+
+  @override
   Future<GenericAlbum> getAlbumInfo(
     String albumId, {
     int offset = 0,
@@ -984,6 +1079,7 @@ class JsMetadataSource extends MetadataProvider {
     await getUserSavedTracksAll(policy: MetadataFetchPolicy.refreshAlways);
   }
 
+  @override
   Future<GenericLibrary> getUserLibrary({
     LibrarySortMode sortMode = LibrarySortMode.recent,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
@@ -1014,6 +1110,7 @@ class JsMetadataSource extends MetadataProvider {
     );
   }
 
+  @override
   Future<GenericLibrary?> fetchUserLibrarySorted({
     required LibrarySortMode sortMode,
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
@@ -1033,42 +1130,6 @@ class JsMetadataSource extends MetadataProvider {
     } catch (e) {
       logger.w('[JsMetadataSource/$providerId] fetchUserProfile error: $e');
     }
-  }
-
-  @override
-  Future<List<GenericSong>> getUserTopTracks({
-    int limit = 20,
-    String timeRange = 'short_term',
-    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
-  }) async {
-    try {
-      final res = await _invoke('getUserTopTracks', [limit, timeRange]);
-      if (res is List) {
-        return res
-            .whereType<Map>()
-            .map((m) => GenericSong.fromJson(m.cast<String, dynamic>()))
-            .toList();
-      }
-    } catch (_) {}
-    return const [];
-  }
-
-  @override
-  Future<List<GenericSimpleArtist>> getUserTopArtists({
-    int limit = 20,
-    String timeRange = 'short_term',
-    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
-  }) async {
-    try {
-      final res = await _invoke('getUserTopArtists', [limit, timeRange]);
-      if (res is List) {
-        return res
-            .whereType<Map>()
-            .map((m) => GenericSimpleArtist.fromJson(m.cast<String, dynamic>()))
-            .toList();
-      }
-    } catch (_) {}
-    return const [];
   }
 
   @override
@@ -1143,11 +1204,38 @@ class JsMetadataSource extends MetadataProvider {
     await _invoke('addTracksToPlaylist', [playlistId, trackIds]);
   }
 
+  @override
+  Future<void> updatePlaylistDetails(
+    String playlistId, {
+    String? name,
+    String? description,
+    bool? isPublic,
+  }) async {
+    await _invoke('updatePlaylistDetails', [
+      playlistId,
+      {
+        'name': ?name,
+        'description': ?description,
+        'isPublic': ?isPublic,
+      },
+    ]);
+  }
+
+  @override
   Future<void> removeTracksFromPlaylist(
     String playlistId,
     List<String> trackIds,
   ) async {
     await _invoke('removeTracksFromPlaylist', [playlistId, trackIds]);
+  }
+
+  @override
+  Future<void> reorderPlaylistTracks(
+    String playlistId,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    await _invoke('reorderPlaylistTracks', [playlistId, oldIndex, newIndex]);
   }
 
   @override
@@ -1340,11 +1428,20 @@ class JsMetadataSource extends MetadataProvider {
     return null;
   }
 
-  Future<void> reportItemPlayed({
-    required String itemId,
-    required String itemType,
+  @override
+  Future<GenericSong?> searchByIsrc(
+    String isrc, {
+    MetadataFetchPolicy policy = MetadataFetchPolicy.refreshIfExpired,
   }) async {
-    // Stub preserved for interface compatibility
+    final cleanIsrc = isrc.trim();
+    if (cleanIsrc.isEmpty) return null;
+    try {
+      final res = await _invoke('searchByIsrc', [cleanIsrc]);
+      if (res is Map) {
+        return GenericSong.fromJson(res.cast<String, dynamic>());
+      }
+    } catch (_) {}
+    return super.searchByIsrc(cleanIsrc, policy: policy);
   }
 
   @override

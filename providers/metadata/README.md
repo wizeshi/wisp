@@ -89,9 +89,19 @@ async function search(query, types = ['track', 'album', 'artist', 'playlist'], l
   // Returns: { tracks: [...], albums: [...], artists: [...], playlists: [...] }
 }
 
+// Search track by International Standard Recording Code (ISRC)
+async function searchByIsrc(isrc) {
+  // Returns: GenericSong or null
+}
+
 // Track details
 async function getTrack(id) {
   // Returns: GenericSong
+}
+
+// Batch track details (chunked to 50 items)
+async function getTracks(ids) {
+  // Returns: Array of GenericSong
 }
 
 // Album details and tracklist
@@ -129,7 +139,8 @@ async function getUserHome() {
 }
 
 // Capability: "library"
-async function getUserLibrary() {
+async function getUserLibrary(options = {}) {
+  // options: { sortMode: 'recent' | 'alphabetical' | 'recentlyAdded' }
   // Returns: { saved_albums: [...], saved_playlists: [...], saved_artists: [...] }
 }
 
@@ -138,10 +149,13 @@ async function getUserPlaylists() {
 }
 
 // Capability: "playlist_management"
-async function createPlaylist(name, description) { ... }
+async function createPlaylist(options) { ... }
+async function renamePlaylist(playlistId, name) { ... }
+async function updatePlaylistDetails(playlistId, { name, description, isPublic }) { ... }
+async function deletePlaylist(playlistId) { ... }
 async function addTracksToPlaylist(playlistId, trackIds) { ... }
 async function removeTracksFromPlaylist(playlistId, trackIds) { ... }
-async function deletePlaylist(playlistId) { ... }
+async function reorderPlaylistTracks(playlistId, oldIndex, newIndex) { ... }
 
 // Capability: "recommendations"
 async function getRecommended({ seedTracks, seedArtists, limit }) { ... }
@@ -150,6 +164,9 @@ async function getSimilarTracks(trackId, limit) { ... }
 // Track favorites & library mutations
 async function likeTrack(id) { ... }
 async function unlikeTrack(id) { ... }
+async function getCuratedStatus(trackIds) {
+  // Returns: Array of booleans or Map indicating saved/liked status
+}
 ```
 
 ---
