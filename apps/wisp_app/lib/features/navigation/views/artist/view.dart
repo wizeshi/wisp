@@ -18,7 +18,8 @@ import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/utils/text_parser.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
+import 'package:wisp/services/audio/wisp_audio_handler.dart'
+    as global_audio_player;
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
@@ -104,10 +105,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         widget.artistId,
         source: widget.source,
       ),
-      fetchRemote: () => metadataManager.fetchArtist(
-        widget.artistId,
-        source: widget.source,
-      ),
+      fetchRemote: () =>
+          metadataManager.fetchArtist(widget.artistId, source: widget.source),
       hasChanged: (curr, fresh) => MetadataDiff.hasArtistChanged(curr, fresh),
       onData: (artist, {required fromCache}) {
         if (!mounted) return;
@@ -204,7 +203,9 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   Widget build(BuildContext context) {
     final metadataManager = context.watch<MetadataManager>();
     if (!metadataManager.hasEnabledProviders) {
-      return const ProviderDisabledState(message: 'No metadata provider is enabled.');
+      return const ProviderDisabledState(
+        message: 'No metadata provider is enabled.',
+      );
     }
     final preferences = context.watch<PreferencesProvider>();
 
@@ -255,10 +256,9 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     child: LinearProgressIndicator(
                       backgroundColor: Colors.transparent,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.7),
+                        Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.7),
                       ),
                     ),
                   ),
@@ -448,14 +448,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
           track: track,
           globalPosition: details.globalPosition,
         ),
-        onLongPress: () => EntityContextMenus.showTrackMenu(
-          context,
-          track: track,
-        ),
-        onMoreTap: (buttonContext) => EntityContextMenus.showTrackMenu(
-          buttonContext,
-          track: track,
-        ),
+        onLongPress: () =>
+            EntityContextMenus.showTrackMenu(context, track: track),
+        onMoreTap: (buttonContext) =>
+            EntityContextMenus.showTrackMenu(buttonContext, track: track),
         onArtistTap: (artist) => AppNavigation.instance.openArtist(
           context,
           artistId: artist.id,
@@ -464,18 +460,18 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         ),
         onArtistSecondaryTapDown: (artist, details) =>
             EntityContextMenus.showArtistMenu(
-          context,
-          artist: artist,
-          globalPosition: details.globalPosition,
-        ),
+              context,
+              artist: artist,
+              globalPosition: details.globalPosition,
+            ),
         onAlbumTap: track.album?.id.isNotEmpty == true
             ? () => AppNavigation.instance.openSharedList(
-                  context,
-                  id: track.album!.id,
-                  type: SharedListType.album,
-                  initialTitle: track.album!.title,
-                  initialThumbnailUrl: track.album!.thumbnailUrl,
-                )
+                context,
+                id: track.album!.id,
+                type: SharedListType.album,
+                initialTitle: track.album!.title,
+                initialThumbnailUrl: track.album!.thumbnailUrl,
+              )
             : null,
       ),
     );
@@ -601,7 +597,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             },
           ),
           const Spacer(),
-          Selector<global_audio_player.WispAudioHandler, (bool, bool, bool, bool)>(
+          Selector<
+            global_audio_player.WispAudioHandler,
+            (bool, bool, bool, bool)
+          >(
             selector: (context, player) => (
               _isCurrentArtistPlaying(player),
               player.isPlaying,
@@ -659,7 +658,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     final description = _artist?.description?.trim() ?? '';
     final displayDescription = description.isEmpty
         ? 'No description available for this artist yet.'
-        : description;
+        : removeUselessSingleNewlines(description);
     final listeners = _artist?.monthlyListeners;
     final followers = _artist?.followers ?? 0;
 
@@ -790,14 +789,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         track: track,
         globalPosition: details.globalPosition,
       ),
-      onLongPress: () => EntityContextMenus.showTrackMenu(
-        context,
-        track: track,
-      ),
-      onMoreTap: (buttonContext) => EntityContextMenus.showTrackMenu(
-        buttonContext,
-        track: track,
-      ),
+      onLongPress: () =>
+          EntityContextMenus.showTrackMenu(context, track: track),
+      onMoreTap: (buttonContext) =>
+          EntityContextMenus.showTrackMenu(buttonContext, track: track),
       onArtistTap: (artist) => AppNavigation.instance.openArtist(
         context,
         artistId: artist.id,
@@ -806,10 +801,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       ),
       onArtistSecondaryTapDown: (artist, details) =>
           EntityContextMenus.showArtistMenu(
-        context,
-        artist: artist,
-        globalPosition: details.globalPosition,
-      ),
+            context,
+            artist: artist,
+            globalPosition: details.globalPosition,
+          ),
     );
   }
 
@@ -849,7 +844,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            Selector<global_audio_player.WispAudioHandler, (bool, bool, bool, bool)>(
+            Selector<
+              global_audio_player.WispAudioHandler,
+              (bool, bool, bool, bool)
+            >(
               selector: (context, player) => (
                 _isCurrentArtistPlaying(player),
                 player.isPlaying,
@@ -868,8 +866,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   child: GenericFilledButton(
                     onPressed: () async {
                       if (!_isLoading) {
-                        final coordinator = context
-                            .read<PlaybackCoordinator>();
+                        final coordinator = context.read<PlaybackCoordinator>();
                         if (isCurrentPlaying) {
                           if (isPlaying) {
                             await coordinator.pause();
@@ -901,10 +898,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             ),
             const SizedBox(width: 12),
             Selector<global_audio_player.WispAudioHandler, (bool, bool)>(
-              selector: (context, player) => (
-                player.isDJMode,
-                player.shuffleEnabled,
-              ),
+              selector: (context, player) =>
+                  (player.isDJMode, player.shuffleEnabled),
               builder: (context, state, child) {
                 final isDJMode = state.$1;
                 final shuffleEnabled = state.$2;
@@ -921,17 +916,18 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     color: isDJMode
                         ? Colors.grey[600]
                         : (shuffleEnabled
-                            ? colorScheme.primary
-                            : Colors.grey[300]),
+                              ? colorScheme.primary
+                              : Colors.grey[300]),
                   ),
                 );
               },
             ),
-            Selector<global_audio_player.WispAudioHandler, (bool, global_audio_player.RepeatMode)>(
-              selector: (context, player) => (
-                player.isDJMode,
-                player.repeatMode,
-              ),
+            Selector<
+              global_audio_player.WispAudioHandler,
+              (bool, global_audio_player.RepeatMode)
+            >(
+              selector: (context, player) =>
+                  (player.isDJMode, player.repeatMode),
               builder: (context, state, child) {
                 final isDJMode = state.$1;
                 final repeatMode = state.$2;
@@ -954,8 +950,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     color: isDJMode
                         ? Colors.grey[600]
                         : (repeatMode == global_audio_player.RepeatMode.off
-                            ? Colors.grey[300]
-                            : colorScheme.primary),
+                              ? Colors.grey[300]
+                              : colorScheme.primary),
                   ),
                 );
               },
@@ -965,9 +961,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                 return GenericIconButton(
                   onPressed: () => _showArtistOptions(buttonContext),
                   icon: Icon(
-                    useAppleIcons
-                        ? CupertinoIcons.ellipsis
-                        : Icons.more_horiz,
+                    useAppleIcons ? CupertinoIcons.ellipsis : Icons.more_horiz,
                     color: Colors.grey,
                   ),
                 );
@@ -1026,9 +1020,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
           icon: Icons.share,
           onSelected: (_) async {
             final source =
-                _artist?.source ??
-                widget.initialArtist?.source ??
-                'spotify';
+                _artist?.source ?? widget.initialArtist?.source ?? 'spotify';
             await EntityContextMenus.copyShareUrl(
               context,
               source: source,
@@ -1043,7 +1035,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             label: 'Inspect Element',
             icon: Icons.code,
             onSelected: (_) {
-              final artistData = _artist?.toJson() ??
+              final artistData =
+                  _artist?.toJson() ??
                   widget.initialArtist?.toJson() ??
                   {'id': widget.artistId};
               InspectDialog.show(
@@ -1122,109 +1115,112 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       return const SizedBox.shrink();
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isDesktop ? 0 : 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              title,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        if (_isLoading)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(),
-            ),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: tracks.length,
-            itemBuilder: (context, index) {
-              final track = tracks[index];
-              return TrackRow(
-                track: track,
-                index: null,
-                viewContext: PlaybackContext(
-                  type: PlaybackContextType.artist,
-                  name: _artist?.name ?? '',
-                  id: _artist?.id ?? '',
-                  source: _artist?.source ?? 'spotify',
-                ),
-                style: spotifyStyle ? AppStyle.Spotify : null,
-                showAlbumName: false,
-                showDuration: true,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                trailing: isDesktop
-                    ? LikeButton(
-                        track: track,
-                        iconSize: 16,
-                        hoverOnlyWhenUnliked: true,
-                        padding: const EdgeInsets.all(2),
-                        constraints: const BoxConstraints(
-                          minWidth: 24,
-                          minHeight: 24,
-                        ),
-                      )
-                    : null,
-                onTap: () => _playTopTracks(index),
-                onPlayPause: () => _toggleTopTrackPlayback(index),
-                onSecondaryTapDown: isDesktop
-                    ? (details) => EntityContextMenus.showTrackMenu(
+          const SizedBox(height: 12),
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: tracks.length,
+              itemBuilder: (context, index) {
+                final track = tracks[index];
+                return TrackRow(
+                  track: track,
+                  index: null,
+                  viewContext: PlaybackContext(
+                    type: PlaybackContextType.artist,
+                    name: _artist?.name ?? '',
+                    id: _artist?.id ?? '',
+                    source: _artist?.source ?? 'spotify',
+                  ),
+                  style: spotifyStyle ? AppStyle.Spotify : null,
+                  showAlbumName: false,
+                  showDuration: true,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  trailing: isDesktop
+                      ? LikeButton(
+                          track: track,
+                          iconSize: 16,
+                          hoverOnlyWhenUnliked: true,
+                          padding: const EdgeInsets.all(2),
+                          constraints: const BoxConstraints(
+                            minWidth: 24,
+                            minHeight: 24,
+                          ),
+                        )
+                      : null,
+                  onTap: () => _playTopTracks(index),
+                  onPlayPause: () => _toggleTopTrackPlayback(index),
+                  onSecondaryTapDown: isDesktop
+                      ? (details) => EntityContextMenus.showTrackMenu(
                           context,
                           track: track,
                           globalPosition: details.globalPosition,
                         )
-                    : null,
-                onLongPress: isDesktop
-                    ? null
-                    : () => EntityContextMenus.showTrackMenu(
+                      : null,
+                  onLongPress: isDesktop
+                      ? null
+                      : () => EntityContextMenus.showTrackMenu(
                           context,
                           track: track,
                         ),
-                onMoreTap: (buttonContext) =>
-                    EntityContextMenus.showTrackMenu(
-                      buttonContext,
-                      track: track,
-                    ),
-                onArtistTap: (artist) => AppNavigation.instance.openArtist(
-                  context,
-                  artistId: artist.id,
-                  initialArtist: artist,
-                  fallbackName: artist.name,
-                ),
-                onArtistSecondaryTapDown: isDesktop
-                    ? (artist, details) => EntityContextMenus.showArtistMenu(
+                  onMoreTap: (buttonContext) =>
+                      EntityContextMenus.showTrackMenu(
+                        buttonContext,
+                        track: track,
+                      ),
+                  onArtistTap: (artist) => AppNavigation.instance.openArtist(
+                    context,
+                    artistId: artist.id,
+                    initialArtist: artist,
+                    fallbackName: artist.name,
+                  ),
+                  onArtistSecondaryTapDown: isDesktop
+                      ? (artist, details) => EntityContextMenus.showArtistMenu(
                           context,
                           artist: artist,
                           globalPosition: details.globalPosition,
                         )
-                    : null,
-                onAlbumTap: track.album?.id.isNotEmpty == true
-                    ? () => AppNavigation.instance.openSharedList(
+                      : null,
+                  onAlbumTap: track.album?.id.isNotEmpty == true
+                      ? () => AppNavigation.instance.openSharedList(
                           context,
                           id: track.album!.id,
                           type: SharedListType.album,
                           initialTitle: track.album!.title,
                           initialThumbnailUrl: track.album!.thumbnailUrl,
                         )
-                    : null,
-              );
-            },
-          ),
-      ],
+                      : null,
+                );
+              },
+            ),
+        ],
+      ),
     );
   }
 
@@ -1313,9 +1309,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
 
   Widget _buildAboutSection({bool isMobile = false}) {
     final description = _artist?.description?.trim() ?? '';
+
     final displayDescription = description.isEmpty
         ? 'No description available for this artist yet.'
-        : description;
+        : removeUselessSingleNewlines(description);
 
     final artistName = _artist?.name ?? widget.initialArtist?.name ?? 'Artist';
     final listeners = _artist?.monthlyListeners;
@@ -1470,18 +1467,10 @@ class ArtistView extends StatelessWidget {
   final String id;
   final String? source;
 
-  const ArtistView({
-    super.key,
-    required this.id,
-    this.source,
-  });
+  const ArtistView({super.key, required this.id, this.source});
 
   @override
   Widget build(BuildContext context) {
-    return ArtistDetailView(
-      artistId: id,
-      source: source,
-    );
+    return ArtistDetailView(artistId: id, source: source);
   }
 }
-

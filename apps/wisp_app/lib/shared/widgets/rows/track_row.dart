@@ -177,7 +177,8 @@ class TrackRow extends StatelessWidget {
   final double indexColumnWidth;
 
   /// Width of the duration column. Only relevant when [showDuration].
-  /// When null, defaults to 70 for Apple Music style and 80 for Spotify style.
+  /// When null on desktop, defaults to 70 for Apple Music style and 80 for Spotify style.
+  /// When null on mobile, shrink-wraps the duration text to conserve horizontal space.
   final double? durationColumnWidth;
 
   /// Width of the date-added column. Only relevant when [showDateAdded] and
@@ -449,8 +450,8 @@ class TrackRow extends StatelessWidget {
             ? PlayIconLocation.art
             : (index != null ? PlayIconLocation.number : PlayIconLocation.art));
 
-    final effectiveDurationColumnWidth =
-        durationColumnWidth ?? tokens.trackRowDurationWidth;
+    final effectiveDurationColumnWidth = durationColumnWidth ??
+        (isDesktopPlatform ? tokens.trackRowDurationWidth : null);
 
     final isCurrentHere = isCurrentOverride ??
         context.watchIsCurrentTrackHere(
@@ -596,17 +597,26 @@ class TrackRow extends StatelessWidget {
 
                     if (showDuration) ...[
                       const SizedBox(width: 8),
-                      SizedBox(
-                        width: effectiveDurationColumnWidth,
-                        child: Text(
+                      if (effectiveDurationColumnWidth != null)
+                        SizedBox(
+                          width: effectiveDurationColumnWidth,
+                          child: Text(
+                            _formatDuration(track.durationSecs),
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12 * _fontScaling,
+                            ),
+                            textAlign: TextAlign.right,
+                          ),
+                        )
+                      else
+                        Text(
                           _formatDuration(track.durationSecs),
                           style: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 12 * _fontScaling,
                           ),
-                          textAlign: TextAlign.right,
                         ),
-                      ),
                     ],
 
                     if (showSource && !isApple) ...[

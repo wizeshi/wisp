@@ -18,7 +18,7 @@ extension _MobileSpotifyStyle on _ArtistDetailViewState {
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(padding),
+                  padding: const EdgeInsets.fromLTRB(padding, padding, padding, 0),
                   child: _buildMobileHeader(
                     name,
                     imageUrl,

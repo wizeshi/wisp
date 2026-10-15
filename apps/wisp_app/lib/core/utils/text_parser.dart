@@ -270,3 +270,8 @@ Widget buildParsedText(
     maxLines: maxLines,
   );
 }
+
+String removeUselessSingleNewlines(String input) {
+  final RegExp singleNewline = RegExp(r'(?<!\n)\n(?!\n)');
+  return input.replaceAll(singleNewline, ' ');
+}

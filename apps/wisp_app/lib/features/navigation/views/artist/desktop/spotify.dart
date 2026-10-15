@@ -14,9 +14,10 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
     final theme = Theme.of(context);
     final contentSurfaceColor = theme.colorScheme.surface;
     final monthlyListeners = _artist?.monthlyListeners;
+
     final displayDescription = description.isEmpty
         ? 'No description available for this artist yet.'
-        : description;
+        : removeUselessSingleNewlines(description);
     final hasAlbums = (_artist?.albums ?? []).isNotEmpty;
 
     return Stack(

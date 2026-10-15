@@ -530,7 +530,6 @@ class _SearchViewState extends State<SearchView> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         showArtistInline: true,
         showDuration: true,
-        durationColumnWidth: 50,
         onTap: () => _playSearchTrack(track),
         onPlayPause: () => _toggleTrackPlayback(track),
         onSecondaryTapDown: (details) {
