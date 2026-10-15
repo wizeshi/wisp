@@ -510,7 +510,7 @@ class MetadataManager extends ChangeNotifier {
         playlistId,
         offset: offset,
         limit: fetchLimit,
-        policy: MetadataFetchPolicy.refreshIfExpired,
+        policy: MetadataFetchPolicy.refreshAlways,
       );
       final more = morePlaylist.songs ?? const <PlaylistItem>[];
       if (more.isEmpty) break;
@@ -1073,6 +1073,32 @@ class MetadataManager extends ChangeNotifier {
     return provider.createPlaylist(name: name, description: description, isPublic: isPublic);
   }
 
+  Future<void> _invalidatePlaylistCache(String playlistId, String providerId) async {
+    final cleanId = playlistId.contains(':') ? playlistId.split(':').last : playlistId;
+    await MetadataCacheStore.instance.invalidateEntity(
+      provider: providerId,
+      type: 'playlist',
+      id: cleanId,
+    );
+    await MetadataCacheStore.instance.invalidateEntity(
+      provider: providerId,
+      type: 'full_playlist',
+      id: cleanId,
+    );
+    if (cleanId != playlistId) {
+      await MetadataCacheStore.instance.invalidateEntity(
+        provider: providerId,
+        type: 'playlist',
+        id: playlistId,
+      );
+      await MetadataCacheStore.instance.invalidateEntity(
+        provider: providerId,
+        type: 'full_playlist',
+        id: playlistId,
+      );
+    }
+  }
+
   Future<void> addTracksToPlaylist(
     String playlistId,
     List<String> trackIds, {
@@ -1080,7 +1106,8 @@ class MetadataManager extends ChangeNotifier {
     String? source,
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
-    return provider.addTracksToPlaylist(playlistId, trackIds);
+    await provider.addTracksToPlaylist(playlistId, trackIds);
+    await _invalidatePlaylistCache(playlistId, provider.providerId);
   }
 
   Future<void> addPlaylistToFolder({
@@ -1141,6 +1168,7 @@ class MetadataManager extends ChangeNotifier {
   Future<void> renamePlaylist(String playlistId, String name, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     await provider.renamePlaylist(playlistId, name);
+    await _invalidatePlaylistCache(playlistId, provider.providerId);
   }
 
   Future<void> updatePlaylistDetails(
@@ -1158,11 +1186,13 @@ class MetadataManager extends ChangeNotifier {
       description: description,
       isPublic: isPublic,
     );
+    await _invalidatePlaylistCache(playlistId, provider.providerId);
   }
 
   Future<void> deletePlaylist(String playlistId, {String? providerId, String? source}) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     await provider.deletePlaylist(playlistId);
+    await _invalidatePlaylistCache(playlistId, provider.providerId);
   }
 
   Future<void> removeTracksFromPlaylist(
@@ -1173,6 +1203,7 @@ class MetadataManager extends ChangeNotifier {
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     await provider.removeTracksFromPlaylist(playlistId, trackIds);
+    await _invalidatePlaylistCache(playlistId, provider.providerId);
   }
 
   Future<void> reorderPlaylistTracks(
@@ -1184,6 +1215,7 @@ class MetadataManager extends ChangeNotifier {
   }) async {
     final provider = _resolveProvider(providerId: providerId, source: source);
     await provider.reorderPlaylistTracks(playlistId, oldIndex, newIndex);
+    await _invalidatePlaylistCache(playlistId, provider.providerId);
   }
 
   Future<GenericLibrary?> fetchUserLibrarySorted({

@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import 'package:wisp/core/utils/liked_songs.dart';
@@ -365,11 +366,11 @@ class LibraryState extends ChangeNotifier {
     final rIdx = _remotePlaylists.indexWhere((p) => p.id == playlistId);
     if (rIdx != -1) {
       final old = _remotePlaylists[rIdx];
+      final diff = songs.length - (old.songs?.length ?? songs.length);
+      final newTotal = max(0, (old.total ?? songs.length) + diff);
       _remotePlaylists[rIdx] = old.copyWith(
         songs: songs,
-        total: (old.total != null && old.total! > songs.length)
-            ? old.total
-            : songs.length,
+        total: newTotal,
       );
       changed = true;
     }
@@ -378,11 +379,11 @@ class LibraryState extends ChangeNotifier {
       for (var i = 0; i < all.length; i++) {
         final item = all[i];
         if (item is GenericPlaylist && item.id == playlistId) {
+          final diff = songs.length - (item.songs?.length ?? songs.length);
+          final newTotal = max(0, (item.total ?? songs.length) + diff);
           all[i] = item.copyWith(
             songs: songs,
-            total: (item.total != null && item.total! > songs.length)
-                ? item.total
-                : songs.length,
+            total: newTotal,
           );
           changed = true;
         }

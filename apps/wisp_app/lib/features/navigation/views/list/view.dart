@@ -94,6 +94,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   final ScrollController _desktopScrollController = ScrollController();
   final ScrollController _mobileScrollController = ScrollController();
   VoidCallback? _likedTracksListener;
+  VoidCallback? _libraryListener;
+  VoidCallback? _localPlaylistListener;
   late final MetadataManager _metadataManager;
   bool _preShuffleEnabled = false;
   List<GenericSong> _preShuffledQueue = [];
@@ -109,13 +111,64 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     super.initState();
     _metadataManager = context.read<MetadataManager>();
     unawaited(_metadataManager.ensureLikedTracksLoaded());
-    if (widget.type == SharedListType.playlist &&
-        isLikedSongsPlaylistId(widget.id)) {
-      _likedTracksListener = () {
-        if (!mounted) return;
-        setState(_rebuildIndices);
-      };
-      _metadataManager.addListener(_likedTracksListener!);
+    if (widget.type == SharedListType.playlist) {
+      if (isLikedSongsPlaylistId(widget.id)) {
+        _likedTracksListener = () {
+          if (!mounted) return;
+          setState(_rebuildIndices);
+        };
+        _metadataManager.addListener(_likedTracksListener!);
+      } else {
+        _libraryListener = () {
+          if (!mounted) return;
+          final library = context.read<LibraryState>();
+          GenericPlaylist? updated;
+          for (final p in library.playlists) {
+            if (p.id == widget.id) {
+              updated = p;
+              break;
+            }
+          }
+          if (updated != null && updated.songs != null) {
+            final updatedSongs = updated.songs!;
+            if (_playlist == null ||
+                MetadataDiff.hasPlaylistItemListChanged(
+                  _playlist?.songs,
+                  updatedSongs,
+                )) {
+              setState(() {
+                _playlist = _playlist?.copyWith(
+                  songs: updatedSongs,
+                  total: updated?.total ?? updatedSongs.length,
+                  durationSecs:
+                      updatedSongs.fold<int>(0, (acc, s) => acc + s.durationSecs),
+                ) ?? updated;
+                _rebuildIndices();
+              });
+            }
+          }
+        };
+        context.read<LibraryState>().addListener(_libraryListener!);
+
+        _localPlaylistListener = () {
+          if (!mounted) return;
+          final local = context.read<LocalPlaylistState>();
+          final updated = local.getGenericPlaylist(widget.id);
+          if (updated != null) {
+            if (_playlist == null ||
+                MetadataDiff.hasPlaylistItemListChanged(
+                  _playlist?.songs,
+                  updated.songs,
+                )) {
+              setState(() {
+                _playlist = updated;
+                _rebuildIndices();
+              });
+            }
+          }
+        };
+        context.read<LocalPlaylistState>().addListener(_localPlaylistListener!);
+      }
     }
     _loadListDetails();
   }
@@ -173,6 +226,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     _revalidationToken.cancel();
     if (_likedTracksListener != null) {
       _metadataManager.removeListener(_likedTracksListener!);
+    }
+    if (_libraryListener != null) {
+      context.read<LibraryState>().removeListener(_libraryListener!);
+    }
+    if (_localPlaylistListener != null) {
+      context.read<LocalPlaylistState>().removeListener(_localPlaylistListener!);
     }
     _desktopScrollController.dispose();
     _mobileScrollController.dispose();
@@ -981,16 +1040,52 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     if (_addingRecommendationTrackIDs.contains(song.id)) return;
     if (_addedRecommendationTrackIDs.contains(song.id)) return;
 
+    final currentSongs = List<PlaylistItem>.from(playlist.songs ?? const []);
+    final newPlaylistItem = PlaylistItem(
+      id: song.id,
+      source: song.source,
+      title: song.title,
+      artists: song.artists,
+      thumbnailUrl: song.thumbnailUrl,
+      explicit: song.explicit,
+      album: song.album,
+      durationSecs: song.durationSecs,
+      addedAt: DateTime.now(),
+      trackNumber: currentSongs.length + 1,
+    );
+    currentSongs.add(newPlaylistItem);
+
     _safeSetState(() {
       _addingRecommendationTrackIDs.add(song.id);
+      _playlist = playlist.copyWith(
+        songs: currentSongs,
+        total: (playlist.total != null)
+            ? playlist.total! + 1
+            : currentSongs.length,
+        durationSecs:
+            currentSongs.fold<int>(0, (acc, s) => acc + s.durationSecs),
+      );
+      _rebuildIndices();
     });
 
+    final local = context.read<LocalPlaylistState>();
+    final isLocal = local.isLocalPlaylistId(playlist.id);
+
     try {
-      await _metadataManager.addTracksToPlaylist(
-        playlist.id,
-        [song.id],
-        source: playlist.source,
-      );
+      if (isLocal) {
+        await local.addTrackFromSong(playlist.id, song);
+      } else {
+        await _metadataManager.addTracksToPlaylist(
+          playlist.id,
+          [song.id],
+          source: playlist.source,
+        );
+        if (mounted) {
+          context
+              .read<LibraryState>()
+              .updatePlaylistSongs(playlist.id, currentSongs);
+        }
+      }
       if (!mounted) return;
       _safeSetState(() {
         _addingRecommendationTrackIDs.remove(song.id);
@@ -1001,6 +1096,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       if (!mounted) return;
       _safeSetState(() {
         _addingRecommendationTrackIDs.remove(song.id);
+        _playlist = playlist;
+        _rebuildIndices();
       });
       context.showErrorAlert('Failed to add track: $e');
     }
@@ -1706,12 +1803,114 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     GenericSong song, {
     Offset? globalPosition,
     BuildContext? anchorContext,
-  }) => EntityContextMenus.showTrackMenu(
-    context,
-    track: song,
-    globalPosition: globalPosition,
-    anchorRect: _anchorRectFromContext(anchorContext),
-  );
+  }) {
+    final isPlaylist =
+        widget.type == SharedListType.playlist && !isLikedSongsPlaylistId(widget.id);
+    final localPlaylists = context.read<LocalPlaylistState>();
+    final metadataManager = context.read<MetadataManager>();
+    final isLocal = localPlaylists.isLocalPlaylistId(widget.id);
+    final userDisplayName = metadataManager.userDisplayName ?? '';
+    final isOwner = isLocal ||
+        (userDisplayName.isNotEmpty &&
+            _playlist != null &&
+            _playlist!.author.displayName.trim().toLowerCase() ==
+                userDisplayName.trim().toLowerCase());
+
+    final additionalActions = <ContextMenuAction>[];
+    if (isPlaylist && isOwner) {
+      additionalActions.add(
+        ContextMenuAction(
+          id: 'remove-from-current-playlist',
+          label: 'Remove from this playlist',
+          icon: Icons.playlist_remove,
+          destructive: true,
+          onSelected: (ctx) async {
+            await _removeTrackFromCurrentPlaylist(song);
+          },
+        ),
+      );
+    }
+
+    return EntityContextMenus.showTrackMenu(
+      context,
+      track: song,
+      globalPosition: globalPosition,
+      anchorRect: _anchorRectFromContext(anchorContext),
+      additionalActions: additionalActions,
+    );
+  }
+
+  Future<void> _removeTrackFromCurrentPlaylist(GenericSong song) async {
+    final playlist = _playlist;
+    if (playlist == null) return;
+    final local = context.read<LocalPlaylistState>();
+    final isLocal = local.isLocalPlaylistId(playlist.id);
+
+    final cleanSongId =
+        song.id.contains(':') ? song.id.split(':').last : song.id;
+    final currentSongs = List<PlaylistItem>.from(playlist.songs ?? const []);
+
+    PlaylistItem? targetItem;
+    for (final s in currentSongs) {
+      final sClean = s.id.contains(':') ? s.id.split(':').last : s.id;
+      if (s.id == song.id || sClean == cleanSongId) {
+        targetItem = s;
+        break;
+      }
+    }
+
+    currentSongs.removeWhere((s) {
+      final sClean = s.id.contains(':') ? s.id.split(':').last : s.id;
+      return s.id == song.id || sClean == cleanSongId;
+    });
+
+    // Optimistically update UI immediately
+    setState(() {
+      _playlist = playlist.copyWith(
+        songs: currentSongs,
+        total: (playlist.total != null && playlist.total! > 0)
+            ? playlist.total! - 1
+            : currentSongs.length,
+        durationSecs:
+            currentSongs.fold<int>(0, (acc, s) => acc + s.durationSecs),
+      );
+      _rebuildIndices();
+    });
+
+    try {
+      if (isLocal) {
+        await local.removeTrack(playlist.id, song.id);
+      } else {
+        final targetUid = targetItem?.uid;
+        final isUid = targetUid != null &&
+            RegExp(r'^[0-9a-fA-F]{16}$').hasMatch(targetUid);
+        final trackIdOrUid = isUid ? targetUid : song.id;
+
+        await _metadataManager.removeTracksFromPlaylist(
+          playlist.id,
+          [trackIdOrUid],
+          source: playlist.source,
+        );
+        if (mounted) {
+          context
+              .read<LibraryState>()
+              .updatePlaylistSongs(playlist.id, currentSongs);
+        }
+      }
+      if (mounted) {
+        context.showSuccessAlert('Removed from ${playlist.title}');
+      }
+    } catch (e) {
+      if (mounted) {
+        // Revert on error
+        setState(() {
+          _playlist = playlist;
+          _rebuildIndices();
+        });
+        context.showErrorAlert('Failed to remove track: $e');
+      }
+    }
+  }
 
   void _showShareDialog() {
     final effectiveSource =

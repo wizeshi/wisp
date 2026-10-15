@@ -62,6 +62,17 @@ function hexGidToSpotifyId(hex) {
   return chars.reverse().join('').padStart(22, '0');
 }
 
+function generateUuid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Authentication & Session Vault Manager (delegates to auth/spotify provider)
 // ---------------------------------------------------------------------------
@@ -169,7 +180,11 @@ async function queryGraphQL(operationName, sha256Hash, variables = {}) {
     throw new Error('GraphQL ' + operationName + ' failed with status ' + res.status + ': ' + errText);
   }
 
-  return await res.json();
+  const json = await res.json();
+  if (json && json.errors && json.errors.length > 0) {
+    throw new Error('GraphQL ' + operationName + ' error: ' + (json.errors[0].message || JSON.stringify(json.errors[0])));
+  }
+  return json;
 }
 
 async function fetchSpClient(endpoint, options = {}) {
@@ -1801,40 +1816,139 @@ async function deletePlaylist(playlistId) {
   return res.status === 200;
 }
 
+const PLAYLIST_MUTATION_HASH = 'b907ad6b088d5bf7680fa81198996d58398c2d55dfcdf59fcc959e0be98a418a';
+
 async function addTracksToPlaylist(playlistId, trackIds) {
   const cleanId = playlistId.includes(':') ? playlistId.split(':').pop() : playlistId;
   const uris = trackIds.map(id => 'spotify:track:' + (id.includes(':') ? id.split(':').pop() : id));
-  const res = await fetchWebApi('playlists/' + encodeURIComponent(cleanId) + '/tracks', {
-    method: 'POST',
-    body: JSON.stringify({ uris: uris })
-  });
-  return res.status === 200 || res.status === 201;
+  await queryGraphQL(
+    'addToPlaylist',
+    PLAYLIST_MUTATION_HASH,
+    {
+      interactionId: generateUuid(),
+      newPosition: { fromUid: null, moveType: 'BOTTOM_OF_PLAYLIST' },
+      playlistItemUris: uris,
+      playlistUri: 'spotify:playlist:' + cleanId
+    }
+  );
+  return true;
 }
 
 async function removeTracksFromPlaylist(playlistId, trackIds) {
   const cleanId = playlistId.includes(':') ? playlistId.split(':').pop() : playlistId;
-  const tracks = trackIds.map(id => ({
-    uri: 'spotify:track:' + (id.includes(':') ? id.split(':').pop() : id)
-  }));
-  const res = await fetchWebApi('playlists/' + encodeURIComponent(cleanId) + '/tracks', {
-    method: 'DELETE',
-    body: JSON.stringify({ tracks: tracks })
-  });
-  return res.status === 200;
+  const isUid = (id) => typeof id === 'string' && /^[0-9a-fA-F]{16}$/.test(id);
+
+  let uids = [];
+  const needsResolution = trackIds.some(id => !isUid(id));
+
+  if (needsResolution) {
+    const playlist = await getPlaylist(cleanId, { limit: 200 });
+    let songs = playlist.songs || [];
+    const idToUid = new Map();
+    for (const song of songs) {
+      if (song.uid && isUid(song.uid)) {
+        idToUid.set(song.id, song.uid);
+        idToUid.set('spotify:track:' + song.id, song.uid);
+      }
+    }
+
+    let offset = songs.length;
+    const total = playlist.total || songs.length;
+    while (trackIds.some(id => !isUid(id) && !idToUid.has(id.includes(':') ? id.split(':').pop() : id)) && offset < total) {
+      const moreTracks = await getMorePlaylistTracks(cleanId, { offset: offset, limit: 100 });
+      if (!moreTracks || moreTracks.length === 0) break;
+      for (const song of moreTracks) {
+        if (song.uid && isUid(song.uid)) {
+          idToUid.set(song.id, song.uid);
+          idToUid.set('spotify:track:' + song.id, song.uid);
+        }
+      }
+      offset += moreTracks.length;
+    }
+
+    for (const id of trackIds) {
+      if (isUid(id)) {
+        uids.push(id);
+      } else {
+        const cleanTrackId = id.includes(':') ? id.split(':').pop() : id;
+        const resolved = idToUid.get(cleanTrackId) || idToUid.get(id);
+        if (resolved) {
+          uids.push(resolved);
+        } else {
+          console.warn('[Spotify/Metadata] Could not resolve UID for track: ' + id);
+        }
+      }
+    }
+  } else {
+    uids = trackIds;
+  }
+
+  if (uids.length === 0) {
+    throw new Error('removeTracksFromPlaylist: Could not resolve valid Spotify UIDs for: ' + JSON.stringify(trackIds));
+  }
+
+  await queryGraphQL(
+    'removeFromPlaylist',
+    PLAYLIST_MUTATION_HASH,
+    {
+      playlistUri: 'spotify:playlist:' + cleanId,
+      uids: uids
+    }
+  );
+  return true;
 }
 
 async function reorderPlaylistTracks(playlistId, oldIndex, newIndex) {
+  if (oldIndex === newIndex) return true;
   const cleanId = playlistId.includes(':') ? playlistId.split(':').pop() : playlistId;
-  const insertBefore = newIndex > oldIndex ? newIndex + 1 : newIndex;
-  const res = await fetchWebApi('playlists/' + encodeURIComponent(cleanId) + '/tracks', {
-    method: 'PUT',
-    body: JSON.stringify({
-      range_start: oldIndex,
-      insert_before: insertBefore,
-      range_length: 1
-    })
-  });
-  return res.status === 200;
+  const maxNeeded = Math.max(oldIndex, newIndex) + 2;
+  const playlist = await getPlaylist(cleanId, { limit: 200 });
+  let songs = playlist.songs || [];
+
+  let offset = songs.length;
+  const total = playlist.total || songs.length;
+  while (songs.length < maxNeeded && offset < total) {
+    const moreTracks = await getMorePlaylistTracks(cleanId, { offset: offset, limit: 100 });
+    if (!moreTracks || moreTracks.length === 0) break;
+    songs = songs.concat(moreTracks);
+    offset += moreTracks.length;
+  }
+
+  if (!songs[oldIndex] || !songs[oldIndex].uid) {
+    throw new Error('reorderPlaylistTracks: Track at oldIndex ' + oldIndex + ' does not exist or has no UID');
+  }
+
+  const movedUid = songs[oldIndex].uid;
+  let newPosition;
+
+  if (newIndex >= songs.length - 1) {
+    const lastSong = songs[songs.length - 1];
+    newPosition = {
+      fromUid: lastSong.uid,
+      moveType: 'AFTER_UID'
+    };
+  } else {
+    const targetSongIndex = newIndex > oldIndex ? newIndex + 1 : newIndex;
+    const targetSong = songs[targetSongIndex];
+    if (!targetSong || !targetSong.uid) {
+      throw new Error('reorderPlaylistTracks: Target song at index ' + targetSongIndex + ' does not exist');
+    }
+    newPosition = {
+      fromUid: targetSong.uid,
+      moveType: 'BEFORE_UID'
+    };
+  }
+
+  await queryGraphQL(
+    'moveItemsInPlaylist',
+    PLAYLIST_MUTATION_HASH,
+    {
+      newPosition: newPosition,
+      playlistUri: 'spotify:playlist:' + cleanId,
+      uids: [movedUid]
+    }
+  );
+  return true;
 }
 
 async function getSimilarTracks(trackId) {

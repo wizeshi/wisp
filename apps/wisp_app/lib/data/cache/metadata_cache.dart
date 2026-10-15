@@ -262,6 +262,38 @@ class MetadataCacheStore {
     }
   }
 
+  /// Invalidate all cache entries matching [provider], [type], and [id] across all pageKeys.
+  Future<void> invalidateEntity({
+    required String provider,
+    required String type,
+    required String id,
+  }) async {
+    final prefix = '$provider:$type:$id';
+    _l1MemoryCache.removeWhere((k, _) => k == prefix || k.startsWith('$prefix:'));
+
+    await _ensureInitialized();
+    final baseDir = _baseDir;
+    if (baseDir == null) return;
+    final dir = Directory('${baseDir.path}/$provider/$type');
+    if (!await dir.exists()) return;
+
+    try {
+      await for (final entity in dir.list()) {
+        if (entity is File && entity.path.endsWith('.json')) {
+          try {
+            final content = await entity.readAsString();
+            final json = jsonDecode(content) as Map<String, dynamic>;
+            if (json['id'] == id) {
+              await entity.delete();
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      logger.w('[Services/MetadataCache] Failed to invalidate entity $id', error: e);
+    }
+  }
+
   Future<void> writeEntry({
     required String provider,
     required String type,

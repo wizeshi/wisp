@@ -460,10 +460,22 @@ class EntityContextMenus {
         }
 
         if (inPlaylist) {
+          PlaylistItem? targetItem;
+          for (final s in songs) {
+            final sClean = s.id.contains(':') ? s.id.split(':').last : s.id;
+            if (s.id == track.id || sClean == clean) {
+              targetItem = s;
+              break;
+            }
+          }
+          final targetUid = targetItem?.uid;
+          final isUid = targetUid != null && RegExp(r'^[0-9a-fA-F]{16}$').hasMatch(targetUid);
+          final trackIdOrUid = isUid ? targetUid : track.id;
+
           try {
             await metadata.removeTracksFromPlaylist(
               current.id,
-              [track.id],
+              [trackIdOrUid],
               source: current.source,
             );
           } catch (e) {
