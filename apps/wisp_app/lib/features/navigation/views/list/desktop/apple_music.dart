@@ -25,6 +25,7 @@ class DesktopAppleMusicListView extends StatelessWidget {
   final SharedListType type;
   final String title;
   final String? subtitle;
+  final List<GenericSimpleArtist>? subtitleArtists;
   final GenericSimpleUser? subtitleUser;
   final String imageUrl;
   final String? subtitleImageUrl;
@@ -74,6 +75,7 @@ class DesktopAppleMusicListView extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.subtitleUser,
+    this.subtitleArtists,
     required this.imageUrl,
     this.subtitleImageUrl,
     this.description,
@@ -294,11 +296,11 @@ class DesktopAppleMusicListView extends StatelessWidget {
                           shape: ArtworkShape.circle,
                         ),
                         const SizedBox(width: 6),
-                        HoverUnderline(
+                        if (subtitleUser != null) HoverUnderline(
                           cursor: SystemMouseCursors.click,
                           onTap: () => onOpenUser?.call(subtitleUser!),
                           builder: (isHovering) => Text(
-                            subtitleUser?.displayName ?? subtitle ?? '',
+                            subtitleUser!.displayName,
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w500,
@@ -308,6 +310,21 @@ class DesktopAppleMusicListView extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (subtitleArtists != null && subtitleArtists!.isNotEmpty)
+                          ...subtitleArtists!.map((artist) => HoverUnderline(
+                                cursor: SystemMouseCursors.click,
+                                onTap: () => onOpenArtist?.call(artist),
+                                builder: (isHovering) => Text(
+                                  artist.name,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    decoration: isHovering
+                                        ? TextDecoration.underline
+                                        : TextDecoration.none,
+                                  ),
+                                ),
+                              )),
                       ],
                     ),
                     const SizedBox(height: 12),

@@ -1081,6 +1081,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         ? _playlist?.author
         : null;
 
+    final subtitleArtists = widget.type == SharedListType.album
+        ? _album?.artists
+        : null;
+
     final subtitleImageUrl = widget.type == SharedListType.playlist
         ? _playlist?.author.avatarUrl
         : (_album != null && _album!.artists.isNotEmpty)
@@ -1104,6 +1108,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             title: title,
             subtitle: subtitle,
             subtitleUser: subtitleUser,
+            subtitleArtists: subtitleArtists,
             imageUrl: imageUrl,
             subtitleImageUrl: subtitleImageUrl,
             total: total,
@@ -1148,6 +1153,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     required String title,
     required String? subtitle,
     required GenericSimpleUser? subtitleUser,
+    required List<GenericSimpleArtist>? subtitleArtists,
     required String? subtitleImageUrl,
     required String imageUrl,
     required int total,
@@ -1172,6 +1178,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 title: title,
                 subtitle: subtitle,
                 subtitleUser: subtitleUser,
+                subtitleArtists: subtitleArtists,
                 imageUrl: imageUrl,
                 subtitleImageUrl: subtitleImageUrl,
                 description: description,
@@ -1254,6 +1261,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 title: title,
                 subtitle: subtitle,
                 subtitleUser: subtitleUser,
+                subtitleArtists: subtitleArtists,
                 imageUrl: imageUrl,
                 subtitleImageUrl: subtitleImageUrl,
                 description: description,
@@ -1340,6 +1348,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
                 title: title,
                 subtitle: subtitle,
                 subtitleUser: subtitleUser,
+                subtitleArtists: subtitleArtists,
                 imageUrl: imageUrl,
                 subtitleImageUrl: subtitleImageUrl,
                 description: description,

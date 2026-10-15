@@ -25,6 +25,7 @@ class DesktopOriginalListView extends StatefulWidget {
   final SharedListType type;
   final String title;
   final String? subtitle;
+  final List<GenericSimpleArtist>? subtitleArtists;
   final GenericSimpleUser? subtitleUser;
   final String imageUrl;
   final String? subtitleImageUrl;
@@ -74,6 +75,7 @@ class DesktopOriginalListView extends StatefulWidget {
     required this.title,
     this.subtitle,
     this.subtitleUser,
+    this.subtitleArtists,
     required this.imageUrl,
     this.subtitleImageUrl,
     this.description,
