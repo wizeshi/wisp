@@ -23,7 +23,6 @@ import '../views/dj/view.dart';
 import '../views/debug/view.dart';
 import '../views/player/full_player_view.dart';
 import '../views/alternatives/audio_alternatives_view.dart';
-import '../views/alternatives/youtube_alternatives_view.dart';
 import 'package:wisp/features/playback/views/lyrics_view.dart';
 import 'package:wisp/features/playback/views/queue_view.dart';
 import 'package:wisp/features/onboarding/views/mobile_welcome_view.dart';
@@ -237,17 +236,6 @@ class AppRouter {
             state: state,
             isTab: false,
             child: AudioAlternativesPageView(
-              trackId: state.uri.queryParameters[AppRoutes.paramId] ?? '',
-            ),
-          ),
-        ),
-        GoRoute(
-          parentNavigatorKey: rootNavigatorKey,
-          path: AppRoutes.youtubeAlternatives,
-          pageBuilder: (context, state) => _buildAdaptivePage(
-            state: state,
-            isTab: false,
-            child: YouTubeAlternativesPageView(
               trackId: state.uri.queryParameters[AppRoutes.paramId] ?? '',
             ),
           ),

@@ -39,7 +39,6 @@ import 'package:wisp/shared/widgets/rails/card_rail.dart';
 import 'package:wisp/shared/widgets/rows/track_row.dart';
 import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
 import '../list/view.dart';
-import 'package:wisp/features/navigation/shell/navigation_state.dart';
 
 part 'desktop/spotify.dart';
 part 'desktop/apple_music.dart';
@@ -52,22 +51,12 @@ class ArtistDetailView extends StatefulWidget {
   final String artistId;
   final String? source;
   final GenericSimpleArtist? initialArtist;
-  final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
-  final LibraryView initialLibraryView;
-  final int initialNavIndex;
 
   const ArtistDetailView({
     super.key,
     required this.artistId,
     this.source,
     this.initialArtist,
-    required this.playlists,
-    required this.albums,
-    required this.artists,
-    required this.initialLibraryView,
-    required this.initialNavIndex,
   });
 
   @override
@@ -1488,17 +1477,9 @@ class ArtistView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final library = context.watch<LibraryState>();
-    final navState = context.watch<NavigationState>();
-
     return ArtistDetailView(
       artistId: id,
       source: source,
-      playlists: library.playlists,
-      albums: library.albums,
-      artists: library.artists,
-      initialLibraryView: navState.selectedLibraryView,
-      initialNavIndex: navState.selectedNavIndex,
     );
   }
 }

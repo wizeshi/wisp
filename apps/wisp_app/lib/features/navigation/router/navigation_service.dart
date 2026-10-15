@@ -154,14 +154,6 @@ class NavigationService {
     return router.push<T>(uri.toString());
   }
 
-  Future<T?> pushYouTubeAlternatives<T>(String trackId) {
-    final uri = Uri(
-      path: AppRoutes.youtubeAlternatives,
-      queryParameters: {AppRoutes.paramId: trackId},
-    );
-    return router.push<T>(uri.toString());
-  }
-
   bool canPop() => router.canPop();
 
   void pop<T>([T? result]) {

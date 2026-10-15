@@ -2,7 +2,6 @@ Here's the TODOs for version v26.10:
 
 - Bugs:
 - Future changes: 
-  - [ ] Implement submenu on track context menu for adding to playlist
   - [ ] Update installer with new marketplace features
   - [ ] Add special card from the home screen on mobile. 
   - [ ] Make artist name clickable in the full player

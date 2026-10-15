@@ -25,7 +25,6 @@ void main() {
       expect(AppRoutes.lyrics, '/lyrics');
       expect(AppRoutes.queue, '/queue');
       expect(AppRoutes.audioAlternatives, '/audio-alternatives');
-      expect(AppRoutes.youtubeAlternatives, '/youtube-alternatives');
     });
 
     test('query parameters match expected structure', () {

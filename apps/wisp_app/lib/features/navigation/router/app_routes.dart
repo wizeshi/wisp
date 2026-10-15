@@ -18,7 +18,6 @@ class AppRoutes {
   static const String lyrics = '/lyrics';
   static const String queue = '/queue';
   static const String audioAlternatives = '/audio-alternatives';
-  static const String youtubeAlternatives = '/youtube-alternatives';
   static const String onboarding = '/onboarding';
 
   // Query parameter keys

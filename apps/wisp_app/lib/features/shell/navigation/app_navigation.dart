@@ -228,12 +228,6 @@ class AppNavigation {
     );
   }
 
-  /// Opens YouTube alternatives inside the shell navigator so desktop
-  /// navigation chrome remains visible regardless of where it was launched.
-  Future<String?> openYouTubeAlternatives(GenericSong track) {
-    return NavigationService.instance.pushYouTubeAlternatives<String>(track.id);
-  }
-
   Future<AudioAlternativeSelection?> openAudioAlternatives(GenericSong track) {
     return NavigationService.instance.pushAudioAlternatives<AudioAlternativeSelection>(track.id);
   }

@@ -19,7 +19,6 @@ import 'package:wisp/shared/widgets/rows/track_row.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
-import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/search/state/search_state.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
@@ -32,9 +31,6 @@ import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
-
-import 'package:wisp/features/navigation/router/navigation_service.dart';
-import 'package:wisp/features/navigation/shell/navigation_state.dart';
 
 enum SearchTab { tracks, artists, albums, playlists }
 
@@ -50,37 +46,12 @@ class SearchPageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final library = context.watch<LibraryState>();
-    final navState = context.watch<NavigationState>();
-
-    return SearchView(
-      playlists: library.playlists,
-      albums: library.albums,
-      artists: library.artists,
-      initialLibraryView: navState.selectedLibraryView,
-      currentNavIndex: navState.selectedNavIndex,
-      onOpenSettings: () => NavigationService.instance.pushSettings(),
-    );
+    return const SearchView();
   }
 }
 
 class SearchView extends StatefulWidget {
-  final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
-  final LibraryView? initialLibraryView;
-  final int? currentNavIndex;
-  final VoidCallback? onOpenSettings;
-
-  const SearchView({
-    super.key,
-    required this.playlists,
-    required this.albums,
-    required this.artists,
-    this.initialLibraryView,
-    this.currentNavIndex,
-    this.onOpenSettings,
-  });
+  const SearchView({super.key});
 
   @override
   State<SearchView> createState() => _SearchViewState();

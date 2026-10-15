@@ -1022,11 +1022,6 @@ class LibraryTabViewState extends State<LibraryTabView> {
               playlist: playlist,
               horizontalPadding: padding,
               onTap: () => _openPlaylist(playlist),
-              playlists: _displayPlaylists,
-              albums: _albums,
-              artists: _artists,
-              currentLibraryView: _selectedTab,
-              currentNavIndex: 2,
             );
           }
           return _DraggablePlaylistTile(
@@ -1034,11 +1029,6 @@ class LibraryTabViewState extends State<LibraryTabView> {
             horizontalPadding: padding,
             folderId: targetFolderId,
             enableDrag: allowDrag,
-            playlists: _displayPlaylists,
-            albums: _albums,
-            artists: _artists,
-            currentLibraryView: _selectedTab,
-            currentNavIndex: 2,
             onTap: () => _openPlaylist(playlist),
             onPlaylistDrop: (draggedId) {
               folderState.assignPlaylistToFolder(draggedId, targetFolderId);
@@ -1086,11 +1076,6 @@ class LibraryTabViewState extends State<LibraryTabView> {
               album: album,
               horizontalPadding: padding,
               onTap: () => _openAlbum(album),
-              playlists: _displayPlaylists,
-              albums: _albums,
-              artists: _artists,
-              currentLibraryView: _selectedTab,
-              currentNavIndex: 2,
             );
           },
         ),
@@ -1133,11 +1118,6 @@ class LibraryTabViewState extends State<LibraryTabView> {
               artist: artist,
               horizontalPadding: padding,
               onTap: () => _openArtist(artist),
-              playlists: _displayPlaylists,
-              albums: _albums,
-              artists: _artists,
-              currentLibraryView: _selectedTab,
-              currentNavIndex: 2,
             );
           },
         ),
@@ -1241,11 +1221,6 @@ class _PlaylistListTile extends StatelessWidget {
   final GenericPlaylist playlist;
   final double horizontalPadding;
   final VoidCallback onTap;
-  final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
-  final LibraryView? currentLibraryView;
-  final int? currentNavIndex;
   final Widget? trailing;
   final EdgeInsetsGeometry? contentPadding;
 
@@ -1253,11 +1228,6 @@ class _PlaylistListTile extends StatelessWidget {
     required this.playlist,
     required this.horizontalPadding,
     required this.onTap,
-    required this.playlists,
-    required this.albums,
-    required this.artists,
-    this.currentLibraryView,
-    this.currentNavIndex,
     this.trailing,
     this.contentPadding,
   });
@@ -1616,11 +1586,6 @@ class _DraggablePlaylistTile extends StatelessWidget {
   final double horizontalPadding;
   final String? folderId;
   final bool enableDrag;
-  final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
-  final LibraryView? currentLibraryView;
-  final int? currentNavIndex;
   final VoidCallback onTap;
   final ValueChanged<String> onPlaylistDrop;
 
@@ -1629,11 +1594,6 @@ class _DraggablePlaylistTile extends StatelessWidget {
     required this.horizontalPadding,
     required this.folderId,
     required this.enableDrag,
-    required this.playlists,
-    required this.albums,
-    required this.artists,
-    required this.currentLibraryView,
-    required this.currentNavIndex,
     required this.onTap,
     required this.onPlaylistDrop,
   });
@@ -1646,11 +1606,6 @@ class _DraggablePlaylistTile extends StatelessWidget {
       playlist: playlist,
       horizontalPadding: horizontalPadding,
       onTap: onTap,
-      playlists: playlists,
-      albums: albums,
-      artists: artists,
-      currentLibraryView: currentLibraryView,
-      currentNavIndex: currentNavIndex,
       trailing: enableDrag && !isDesktop
           ? const Icon(Icons.drag_handle, color: Colors.grey)
           : null,
@@ -1741,21 +1696,11 @@ class _AlbumListTile extends StatelessWidget {
   final GenericAlbum album;
   final double horizontalPadding;
   final VoidCallback onTap;
-  final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
-  final LibraryView? currentLibraryView;
-  final int? currentNavIndex;
 
   const _AlbumListTile({
     required this.album,
     required this.horizontalPadding,
     required this.onTap,
-    required this.playlists,
-    required this.albums,
-    required this.artists,
-    this.currentLibraryView,
-    this.currentNavIndex,
   });
 
   @override
@@ -1831,21 +1776,11 @@ class _ArtistListTile extends StatelessWidget {
   final GenericSimpleArtist artist;
   final double horizontalPadding;
   final VoidCallback onTap;
-  final List<GenericPlaylist> playlists;
-  final List<GenericAlbum> albums;
-  final List<GenericSimpleArtist> artists;
-  final LibraryView? currentLibraryView;
-  final int? currentNavIndex;
 
   const _ArtistListTile({
     required this.artist,
     required this.horizontalPadding,
     required this.onTap,
-    required this.playlists,
-    required this.albums,
-    required this.artists,
-    this.currentLibraryView,
-    this.currentNavIndex,
   });
 
   @override
