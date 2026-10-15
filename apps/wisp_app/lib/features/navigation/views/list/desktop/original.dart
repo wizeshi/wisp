@@ -294,6 +294,8 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                         : CachedNetworkImage(
                             imageUrl: widget.imageUrl,
                             fit: BoxFit.cover,
+                            memCacheWidth: 480,
+                            memCacheHeight: 480,
                             placeholder: (_, _) =>
                                 Container(color: Colors.grey[850]),
                             errorWidget: (_, _, _) =>

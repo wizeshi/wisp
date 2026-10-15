@@ -94,6 +94,7 @@ class BestMatchCard extends StatelessWidget {
             type: SharedListType.album,
             initialTitle: album.title,
             initialThumbnailUrl: album.thumbnailUrl,
+            source: album.source.isNotEmpty ? album.source : track.source,
           );
         }
       case SearchBestMatchKind.artist:
@@ -103,6 +104,7 @@ class BestMatchCard extends StatelessWidget {
           context,
           artistId: artist.id,
           initialArtist: artist,
+          source: artist.source,
         );
       case SearchBestMatchKind.album:
         final album = bestMatch.album;
@@ -113,6 +115,7 @@ class BestMatchCard extends StatelessWidget {
           type: SharedListType.album,
           initialTitle: album.title,
           initialThumbnailUrl: album.thumbnailUrl,
+          source: album.source,
         );
       case SearchBestMatchKind.playlist:
         final playlist = bestMatch.playlist;
@@ -123,6 +126,7 @@ class BestMatchCard extends StatelessWidget {
           type: SharedListType.playlist,
           initialTitle: playlist.title,
           initialThumbnailUrl: playlist.thumbnailUrl,
+          source: playlist.source,
         );
     }
   }

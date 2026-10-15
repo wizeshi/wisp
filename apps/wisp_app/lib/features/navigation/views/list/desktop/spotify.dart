@@ -326,6 +326,8 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                               : CachedNetworkImage(
                                   imageUrl: widget.imageUrl,
                                   fit: BoxFit.cover,
+                                  memCacheWidth: 480,
+                                  memCacheHeight: 480,
                                   placeholder: (_, _) =>
                                       Container(color: Colors.grey[800]),
                                   errorWidget: (_, _, _) =>

@@ -1132,8 +1132,9 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
         child: imageUrl.isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: imageUrl,
-                filterQuality: FilterQuality.high,
                 fit: BoxFit.cover,
+                memCacheWidth: 138,
+                memCacheHeight: 138,
                 placeholder: (context, url) =>
                     Container(color: Colors.grey[800]),
                 errorWidget: (context, url, error) =>

@@ -228,8 +228,9 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         child: imageUrl.isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: imageUrl,
-                filterQuality: FilterQuality.high,
                 fit: BoxFit.cover,
+                memCacheWidth: 132,
+                memCacheHeight: 132,
                 placeholder: (context, url) =>
                     Container(color: Colors.grey[800]),
                 errorWidget: (context, url, error) =>
@@ -614,7 +615,8 @@ class _SpotifyDesktopTrackInfo extends StatelessWidget {
                 ? CachedNetworkImage(
                     imageUrl: currentTrack!.thumbnailUrl,
                     fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
+                    memCacheWidth: 168,
+                    memCacheHeight: 168,
                     placeholder: (context, url) =>
                         Container(color: Colors.grey[800]),
                     errorWidget: (context, url, error) =>

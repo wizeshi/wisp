@@ -3,14 +3,12 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_js/flutter_js.dart';
 import 'package:wisp/core/utils/logger.dart';
-import 'package:wisp/data/sources/providers/js_provider_bridge.dart';
 import 'package:wisp/data/sources/providers/service_session_manager.dart';
+import 'package:wisp/data/sources/providers/shared_js_runtime.dart';
 
-/// Modular authentication provider powered by a JavaScript runtime.
+/// Modular authentication provider powered by the shared JavaScript runtime.
 class JsAuthSource extends ChangeNotifier {
   final String id;
   final String name;
@@ -22,11 +20,8 @@ class JsAuthSource extends ChangeNotifier {
   String get displayName =>
       name.replaceAll(RegExp(r'\s+Auth$', caseSensitive: false), '');
 
-  JavascriptRuntime? _runtime;
   bool _isInitialized = false;
-  bool _failedInit = false;
-  int _reqCounter = 0;
-  final Map<int, Completer<dynamic>> _pendingRequests = {};
+  bool get isInitialized => _isInitialized;
 
   JsAuthSource({
     required this.id,
@@ -56,94 +51,24 @@ class JsAuthSource extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    if (_isInitialized || _failedInit) return;
-    try {
-      final runtime = getJavascriptRuntime();
-      JsProviderBridge.setupBridge(
-        runtime,
-        providerId: id,
-        providerName: name,
-        serviceId: serviceId,
-      );
-
-      runtime.onMessage('wisp_auth_result', (dynamic args) {
-        try {
-          final map = args is String
-              ? jsonDecode(args) as Map<String, dynamic>
-              : (args as Map).cast<String, dynamic>();
-          final reqId = map['reqId'] as int?;
-          if (reqId != null) {
-            final completer = _pendingRequests.remove(reqId);
-            if (completer != null && !completer.isCompleted) {
-              if (map.containsKey('error') && map['error'] != null) {
-                completer.completeError(Exception(map['error']));
-              } else {
-                completer.complete(map['result']);
-              }
-            }
-          }
-        } catch (e) {
-          logger.e('[JsAuthSource/$id] Error handling auth result: $e');
-        }
-        return '';
-      });
-
-      runtime.evaluate('''
-        globalThis.__wisp_invoke_auth = function(reqId, method, argsJson) {
-          Promise.resolve().then(function() {
-            var fn = globalThis[method];
-            if (typeof fn !== 'function') {
-              throw new Error('Method ' + method + ' is not a function');
-            }
-            var args = argsJson ? JSON.parse(argsJson) : [];
-            return fn.apply(null, args);
-          }).then(function(result) {
-            sendMessage('wisp_auth_result', JSON.stringify({ reqId: reqId, result: result }));
-          }).catch(function(err) {
-            sendMessage('wisp_auth_result', JSON.stringify({ reqId: reqId, error: String(err) }));
-          });
-        };
-      ''');
-
-      final evalResult = runtime.evaluate(script);
-      if (evalResult.isError) {
-        throw Exception('JS eval error: ${evalResult.stringResult}');
-      }
-
-      while (runtime.executePendingJob() > 0) {}
-
-      _runtime = runtime;
-      _isInitialized = true;
-      logger.i('[JsAuthSource/$id] Successfully initialized auth provider');
-    } catch (e) {
-      _failedInit = true;
-      logger.e('[JsAuthSource/$id] Initialization error: $e');
-    }
+    // Eager runtime creation is replaced with lazy evaluation in SharedJsRuntime.
+    _isInitialized = true;
   }
 
+  Future<void> _ensureLoaded() async {
+    await SharedJsRuntime.instance.loadProvider(
+      id: id,
+      name: name,
+      script: script,
+      serviceId: serviceId,
+      type: 'auth',
+    );
+  }
+
+
   Future<dynamic> _invoke(String method, [List<dynamic> args = const []]) async {
-    if (!_isInitialized && !_failedInit) {
-      await initialize();
-    }
-    final runtime = _runtime;
-    if (runtime == null) {
-      throw StateError('[JsAuthSource] JS runtime not available');
-    }
-
-    final reqId = ++_reqCounter;
-    final completer = Completer<dynamic>();
-    _pendingRequests[reqId] = completer;
-
-    final argsJson = jsonEncode(args);
-    final call = 'globalThis.__wisp_invoke_auth($reqId, ${jsonEncode(method)}, ${jsonEncode(argsJson)});';
-    final res = runtime.evaluate(call);
-    if (res.isError) {
-      _pendingRequests.remove(reqId);
-      throw Exception('JS invoke error: ${res.stringResult}');
-    }
-    while (runtime.executePendingJob() > 0) {}
-
-    return await completer.future.timeout(const Duration(seconds: 45));
+    await _ensureLoaded();
+    return await SharedJsRuntime.instance.invokeAuth(id, method, args);
   }
 
   Future<void> login() async {
@@ -195,11 +120,9 @@ class JsAuthSource extends ChangeNotifier {
   @override
   void dispose() {
     ServiceSessionManager.instance.removeListener(serviceId, _onSessionChanged);
-    try {
-      _runtime?.dispose();
-    } catch (_) {}
-    _runtime = null;
+    SharedJsRuntime.instance.unloadProvider(id, type: 'auth');
     _isInitialized = false;
     super.dispose();
   }
 }
+

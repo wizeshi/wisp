@@ -257,11 +257,11 @@ class _AppShellState extends State<AppShell> {
     );
     final searchController = context.read<SearchState>().controller;
     final availableSources = context.select<MetadataManager, List<String>>(
-      (m) => m.availableProviders.map((p) => p.displayName).toList(),
+      (m) => m.availableProviders.map((p) => p.providerId.toLowerCase()).toList(),
     );
     final effectiveSource = availableSources.contains(selectedSource)
         ? selectedSource
-        : (availableSources.isNotEmpty ? availableSources.first : 'Spotify');
+        : (availableSources.isNotEmpty ? availableSources.first : 'spotify');
     final isDesktopImmersive = _isDesktop && navState.desktopImmersiveMode;
     final enableExitPrompt = !_isDesktop;
 

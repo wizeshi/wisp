@@ -22,6 +22,8 @@ extension _DesktopAppleMusicStyle on _ArtistDetailViewState {
                 child: CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.cover,
+                  memCacheWidth: 200,
+                  memCacheHeight: 200,
                   errorWidget: (context, url, error) =>
                       Container(color: Colors.grey[900]),
                 ),
@@ -106,6 +108,7 @@ extension _DesktopAppleMusicStyle on _ArtistDetailViewState {
               CachedNetworkImage(
                 imageUrl: imageUrl,
                 fit: BoxFit.cover,
+                memCacheHeight: 720,
                 errorWidget: (context, url, error) =>
                     Container(color: Colors.grey[900]),
               )

@@ -138,6 +138,8 @@ class _RotatingBlurredCoverBackgroundState
                   child: CachedNetworkImage(
                     imageUrl: widget.imageUrl,
                     fit: BoxFit.cover,
+                    memCacheWidth: 150,
+                    memCacheHeight: 150,
                   ),
                 ),
                 AnimatedBuilder(
@@ -163,7 +165,9 @@ class _RotatingBlurredCoverBackgroundState
                   child: CachedNetworkImage(
                       imageUrl: widget.imageUrl,
                       fit: BoxFit.cover,
-                      filterQuality: FilterQuality.high,
+                      filterQuality: FilterQuality.low,
+                      memCacheWidth: 150,
+                      memCacheHeight: 150,
                   ),
                 ),
               ],

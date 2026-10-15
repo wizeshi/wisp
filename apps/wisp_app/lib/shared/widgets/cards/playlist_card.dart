@@ -14,7 +14,7 @@ import 'generic_card.dart';
 String playlistSubtitle(GenericPlaylist playlist) {
   final author = playlist.author.displayName.trim();
   final description = playlist.description?.trim() ?? '';
-  if (author.toLowerCase() == 'spotify' && description.isNotEmpty) {
+  if (author.toLowerCase() == playlist.source.toLowerCase() && description.isNotEmpty) {
     return description;
   }
   if (author.isEmpty && description.isNotEmpty) {
@@ -71,6 +71,7 @@ class PlaylistCard extends StatelessWidget {
         type: SharedListType.playlist,
         initialTitle: playlist.title,
         initialThumbnailUrl: playlist.thumbnailUrl,
+        source: playlist.source,
       ),
       onPlay: () => PlaylistPlaybackHelper.togglePlaylistPlayback(context, playlist),
       onDoubleTap: () => PlaylistPlaybackHelper.playPlaylist(context, playlist),

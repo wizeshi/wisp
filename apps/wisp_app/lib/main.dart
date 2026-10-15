@@ -25,6 +25,7 @@ import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/sources/metadata/metadata_source_manager.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_source_manager.dart';
+import 'package:wisp/data/sources/providers/shared_js_runtime.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
@@ -56,6 +57,10 @@ void main() async {
   MediaKit.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Clamp image cache size to prevent unbounded memory growth on desktop
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 35 * 1024 * 1024; // 35 MB
+  PaintingBinding.instance.imageCache.maximumSize = 120;
+
   bool isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
   if (isDesktop) {
@@ -70,12 +75,10 @@ void main() async {
 
   initializeWindowsCertificates();
 
-  // Initialize Flutter Video Player (FVP) for Linux platform
-  fvp.registerWith(
-    options: {
-      'platforms': ['windows', 'macos', 'linux'],
-    },
-  );
+  // Initialize Flutter Video Player (FVP) for Linux platform only (Windows uses video_player_win, macOS uses AVFoundation)
+  if (Platform.isLinux) {
+    fvp.registerWith();
+  }
 
   // Initialize audio_service for system media controls (MPRIS on Linux)
   if (Platform.isLinux) {
@@ -263,6 +266,7 @@ class _WispAppState extends State<WispApp> with WindowListener {
       AudioSourceManager.instance.dispose();
       MetadataSourceManager.instance.dispose();
       LyricsSourceManager.instance.dispose();
+      SharedJsRuntime.instance.dispose();
       await logger.close();
     } catch (error, stackTrace) {
       logger.e('[Main] Shutdown failed', error: error, stackTrace: stackTrace);

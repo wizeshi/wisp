@@ -11,6 +11,7 @@ import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/services/notifications/desktop_notification_center.dart';
+import 'package:wisp/shared/widgets/display/provider_icon.dart';
 
 class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onSettingsTap;
@@ -34,15 +35,9 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
     this.onSearchSubmitted,
     this.onSearchCleared,
     this.availableSources = const <String>[],
-    this.selectedSource = 'Spotify',
+    this.selectedSource = 'spotify',
     this.onSourceChanged,
   });
-
-  IconData _sourceIcon(String source) {
-    return source.toLowerCase().contains('youtube')
-        ? Icons.ondemand_video
-        : Icons.music_note;
-  }
 
   bool _isDesktop() {
     return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -198,7 +193,6 @@ class WispTitleBar extends StatelessWidget implements PreferredSizeWidget {
                   availableSources: availableSources,
                   selectedSource: selectedSource,
                   onSourceChanged: onSourceChanged,
-                  sourceIconBuilder: _sourceIcon,
                 ),
               ),
 
@@ -453,18 +447,14 @@ class _TitleBarSearchHistory extends StatefulWidget {
   final String selectedSource;
   final ValueChanged<String>? onSourceChanged;
 
-  /// Icon resolver forwarded from [WispTitleBar._sourceIcon].
-  final IconData Function(String source) sourceIconBuilder;
-
   const _TitleBarSearchHistory({
-    required this.sourceIconBuilder,
     this.controller,
     this.focusNode,
     this.onSearchChanged,
     this.onSearchSubmitted,
     this.onSearchCleared,
     this.availableSources = const <String>[],
-    this.selectedSource = 'Spotify',
+    this.selectedSource = 'spotify',
     this.onSourceChanged,
   });
 
@@ -695,10 +685,11 @@ class _TitleBarSearchHistoryState extends State<_TitleBarSearchHistory> {
           selectedItemBuilder: (_) => sources
               .map(
                 (s) => Center(
-                  child: Icon(
-                    widget.sourceIconBuilder(s),
+                  child: ProviderIcon(
+                    providerId: s,
+                    type: 'metadata',
                     size: 15,
-                    color: Colors.white,
+                    fallbackIcon: Icons.music_note,
                   ),
                 ),
               )
@@ -707,10 +698,11 @@ class _TitleBarSearchHistoryState extends State<_TitleBarSearchHistory> {
               .map(
                 (s) => DropdownMenuItem<String>(
                   value: s,
-                  child: Icon(
-                    widget.sourceIconBuilder(s),
+                  child: ProviderIcon(
+                    providerId: s,
+                    type: 'metadata',
                     size: 15,
-                    color: Colors.white,
+                    fallbackIcon: Icons.music_note,
                   ),
                 ),
               )

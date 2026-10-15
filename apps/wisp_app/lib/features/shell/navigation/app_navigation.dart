@@ -163,10 +163,12 @@ class AppNavigation {
     required SharedListType type,
     String? initialTitle,
     String? initialThumbnailUrl,
+    String? source,
   }) {
     NavigationService.instance.pushList(
       id: id,
       type: type == SharedListType.album ? 'album' : 'playlist',
+      source: source,
     );
   }
 
@@ -179,8 +181,12 @@ class AppNavigation {
     required String artistId,
     GenericSimpleArtist? initialArtist,
     String? fallbackName,
+    String? source,
   }) {
-    NavigationService.instance.pushArtist(id: artistId);
+    NavigationService.instance.pushArtist(
+      id: artistId,
+      source: source,
+    );
   }
 
   void openUser(
@@ -197,9 +203,15 @@ class AppNavigation {
     required PlaybackContextType contextType,
     required String contextId,
     String? contextName,
+    String? source,
   }) {
     if (contextType == PlaybackContextType.artist) {
-      openArtist(context, artistId: contextId, fallbackName: contextName);
+      openArtist(
+        context,
+        artistId: contextId,
+        fallbackName: contextName,
+        source: source,
+      );
       return;
     }
 
@@ -212,6 +224,7 @@ class AppNavigation {
       id: contextId,
       type: type,
       initialTitle: contextName,
+      source: source,
     );
   }
 

@@ -101,8 +101,11 @@ class ArtistCard extends StatelessWidget {
         semanticLabel: 'Photo of ${artist.name}',
       ),
       isPlaying: isPlaying,
-      onTap: () =>
-          AppNavigation.instance.openArtist(context, artistId: artist.id),
+      onTap: () => AppNavigation.instance.openArtist(
+        context,
+        artistId: artist.id,
+        source: artist.source,
+      ),
       onPlay: () => _toggleArtistPlayback(context),
       onDoubleTap: () => _playArtist(context),
       onSecondaryTapDown: (details) {

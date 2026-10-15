@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SearchState extends ChangeNotifier {
   final TextEditingController controller = TextEditingController();
   int _submitSignal = 0;
-  String _selectedSource = 'Spotify';
+  String? _selectedSource;
 
   // ---------------------------------------------------------------------------
   // History
@@ -87,12 +87,13 @@ class SearchState extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   int get submitSignal => _submitSignal;
-  String get query => controller.text;
-  String get selectedSource => _selectedSource;
+  String? get explicitSelectedSource => _selectedSource;
+  String get selectedSource => _selectedSource ?? 'spotify';
 
   void setSelectedSource(String source) {
-    if (_selectedSource == source) return;
-    _selectedSource = source;
+    final clean = source.trim().toLowerCase();
+    if (_selectedSource == clean) return;
+    _selectedSource = clean;
     notifyListeners();
   }
 

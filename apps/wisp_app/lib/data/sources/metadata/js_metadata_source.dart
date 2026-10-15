@@ -3,10 +3,8 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter_js/flutter_js.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:wisp/core/utils/logger.dart';
@@ -14,8 +12,8 @@ import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/models/metadata_provider.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';
-import 'package:wisp/data/sources/providers/js_provider_bridge.dart';
 import 'package:wisp/data/sources/providers/service_session_manager.dart';
+import 'package:wisp/data/sources/providers/shared_js_runtime.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 
 /// Modular metadata provider powered by QuickJS / JSC sandboxed runtime.
@@ -37,11 +35,7 @@ class JsMetadataSource extends MetadataProvider {
   final MetadataCacheStore _cache = MetadataCacheStore.instance;
   final ServiceSessionManager _sessionManager = ServiceSessionManager.instance;
 
-  JavascriptRuntime? _runtime;
   bool _isInitialized = false;
-  bool _failedInit = false;
-  int _reqCounter = 0;
-  final Map<int, Completer<dynamic>> _pendingRequests = {};
 
   final Set<String> _likedTrackIds = {};
   bool _likedTracksLoaded = false;
@@ -203,134 +197,26 @@ class JsMetadataSource extends MetadataProvider {
     return id;
   }
 
-  /// Initialize the JS runtime and load provider scripts.
+  /// Mark provider initialized (actual JS runtime evaluation is lazy via SharedJsRuntime).
   Future<void> initialize() async {
-    if (_isInitialized || _failedInit) return;
-    try {
-      final script = customScript ?? await _loadProviderScript();
-      if (script == null || script.isEmpty) {
-        logger.w('[JsMetadataSource/$providerId] Provider script not found');
-        return;
-      }
-
-      final runtime = getJavascriptRuntime();
-
-      // Setup standard bridges
-      JsProviderBridge.setupBridge(
-        runtime,
-        providerId: providerId,
-        providerName: displayName,
-        serviceId: serviceId,
-      );
-
-      // Result callback channel
-      runtime.onMessage('wisp_metadata_result', (dynamic args) {
-        try {
-          final map = args is String
-              ? jsonDecode(args) as Map<String, dynamic>
-              : (args as Map).cast<String, dynamic>();
-          final reqId = map['reqId'] as int?;
-          if (reqId != null) {
-            final completer = _pendingRequests.remove(reqId);
-            if (completer != null && !completer.isCompleted) {
-              if (map.containsKey('error') && map['error'] != null) {
-                completer.completeError(Exception(map['error']));
-              } else {
-                completer.complete(map['result']);
-              }
-            }
-          }
-        } catch (e) {
-          logger.e(
-            '[JsMetadataSource/$providerId] Error in wisp_metadata_result: $e',
-          );
-        }
-        return '';
-      });
-
-      // Invoker polyfill
-      const invokerPolyfill = '''
-        globalThis.__wisp_invoke_metadata = function(reqId, method, argsJson) {
-          try {
-            var args = typeof argsJson === 'string' ? JSON.parse(argsJson) : (argsJson || []);
-            var fn = globalThis[method];
-            if (!fn && globalThis.__wisp_metadata_provider) {
-              fn = globalThis.__wisp_metadata_provider[method];
-            }
-            if (typeof fn !== 'function') {
-              sendMessage('wisp_metadata_result', JSON.stringify({
-                reqId: reqId,
-                error: 'Method ' + method + ' is not a function'
-              }));
-              return;
-            }
-            Promise.resolve(fn.apply(null, args)).then(function(result) {
-              sendMessage('wisp_metadata_result', JSON.stringify({
-                reqId: reqId,
-                result: result === undefined ? null : result
-              }));
-            }).catch(function(err) {
-              sendMessage('wisp_metadata_result', JSON.stringify({
-                reqId: reqId,
-                error: String(err)
-              }));
-            });
-          } catch (e) {
-            sendMessage('wisp_metadata_result', JSON.stringify({
-              reqId: reqId,
-              error: String(e)
-            }));
-          }
-        };
-      ''';
-      runtime.evaluate(invokerPolyfill);
-      runtime.enableHandlePromises();
-
-      // Wrap and evaluate provider script
-      final wrapped =
-          '''
-        var exports = {};
-        var module = { exports: exports };
-        (function(exports, module) {
-          $script
-        })(exports, module);
-        if (module.exports && typeof module.exports === 'object') {
-          globalThis.__wisp_metadata_provider = module.exports;
-          for (var k in module.exports) {
-            if (typeof module.exports[k] === 'function') {
-              globalThis[k] = module.exports[k];
-            }
-          }
-        }
-      ''';
-      final evalRes = runtime.evaluate(wrapped);
-      if (evalRes.isError) {
-        logger.e(
-          '[JsMetadataSource/$providerId] Script eval error: ${evalRes.stringResult}',
-        );
-        _failedInit = true;
-        return;
-      }
-
-      _drainMicrotasks(runtime);
-      _runtime = runtime;
-      _isInitialized = true;
-      logger.i(
-        '[JsMetadataSource/$providerId] Successfully initialized JS metadata provider',
-      );
-    } catch (e) {
-      _failedInit = true;
-      logger.e('[JsMetadataSource/$providerId] Initialization error: $e');
-    }
+    _isInitialized = true;
   }
 
-  void _drainMicrotasks(JavascriptRuntime runtime) {
-    try {
-      while (runtime.executePendingJob() > 0) {}
-    } catch (e) {
-      logger.d('[JsMetadataSource] Microtask drainage: $e');
+  Future<void> _ensureLoaded() async {
+    if (SharedJsRuntime.instance.isProviderLoaded(providerId, type: 'metadata')) return;
+    final script = customScript ?? await _loadProviderScript();
+    if (script == null || script.isEmpty) {
+      throw StateError('[JsMetadataSource/$providerId] Provider script not found');
     }
+    await SharedJsRuntime.instance.loadProvider(
+      id: providerId,
+      name: displayName,
+      script: script,
+      serviceId: serviceId,
+      type: 'metadata',
+    );
   }
+
 
   Future<String?> _loadProviderScript() async {
     if (scriptPath != null) {
@@ -396,29 +282,12 @@ class JsMetadataSource extends MetadataProvider {
     String method, [
     List<dynamic> args = const [],
   ]) async {
-    if (!_isInitialized && !_failedInit) {
-      await initialize();
-    }
-    final runtime = _runtime;
-    if (runtime == null) {
-      throw StateError('[JsMetadataSource] JS runtime not available');
-    }
-
-    final reqId = ++_reqCounter;
-    final completer = Completer<dynamic>();
-    _pendingRequests[reqId] = completer;
-
-    final argsJson = jsonEncode(args);
-    final call =
-        'globalThis.__wisp_invoke_metadata($reqId, ${jsonEncode(method)}, ${jsonEncode(argsJson)});';
-    final res = runtime.evaluate(call);
-    if (res.isError) {
-      _pendingRequests.remove(reqId);
-      throw Exception('JS invoke error: ${res.stringResult}');
-    }
-    _drainMicrotasks(runtime);
-
-    return await completer.future.timeout(const Duration(seconds: 25));
+    await _ensureLoaded();
+    return await SharedJsRuntime.instance.invokeMetadata(
+      providerId,
+      method,
+      args,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1459,12 +1328,9 @@ class JsMetadataSource extends MetadataProvider {
 
   @override
   void dispose() {
-    for (final completer in _pendingRequests.values) {
-      if (!completer.isCompleted) completer.complete(null);
-    }
-    _pendingRequests.clear();
-    _runtime?.dispose();
-    _runtime = null;
+    SharedJsRuntime.instance.unloadProvider(providerId, type: 'metadata');
+    _isInitialized = false;
     super.dispose();
   }
 }
+

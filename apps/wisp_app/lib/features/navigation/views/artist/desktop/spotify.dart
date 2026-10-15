@@ -46,6 +46,8 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
                               ? CachedNetworkImage(
                                   imageUrl: imageUrl,
                                   fit: BoxFit.cover,
+                                  memCacheWidth: 360,
+                                  memCacheHeight: 360,
                                   errorWidget: (context, url, error) => Icon(
                                     CupertinoIcons.person_fill,
                                     color: Colors.grey[700],

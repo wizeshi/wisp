@@ -206,3 +206,26 @@ async function getCuratedStatus(trackIds) {
 }
 ```
 
+---
+
+## 5. Source Linking Contract & Provider Icons
+
+### The `source` Linking Contract
+Every entity returned by a metadata provider (`GenericSong`, `GenericAlbum`, `GenericArtist`, `GenericPlaylist`, `GenericSimpleUser`) **MUST** set its `"source"` property to match the canonical provider `id` declared in its `manifest.json` (e.g., `"source": "spotify"`):
+
+- **Origin-First Resolution**: When navigating to an album, playlist, or artist detail view, wisp reads the entity's `source` and directs initial fetches and cache lookups to that specific provider first.
+- **Heterogeneous Playlists & Queues**: wisp supports playlists and playback queues composed of tracks from multiple providers. The `source` property on each track item allows `MetadataManager.getTracksForItems` to segment items by origin, query the corresponding metadata providers concurrently, and preserve original ordering.
+- **Audio Matching & Fallback**: Playback coordinators use `source` to identify which metadata catalog owns the track ID and ISRC, ensuring accurate stream resolution against audio providers.
+
+### Provider Icons
+Each provider directory should include an icon asset in its root directory:
+```
+providers/metadata/{id}/
+  ├── manifest.json
+  ├── index.js
+  └── icon.svg (or icon.png)
+```
+- **Vector Preferred**: `icon.svg` is strongly recommended for clean scaling across high-DPI desktop and mobile screens.
+- **Dynamic Resolution**: wisp automatically discovers and displays provider icons via `ProviderIcon(providerId: entity.source, type: 'metadata')` across search bars, source filters, and detail badges. If no icon asset is provided, wisp gracefully falls back to default category icons.
+
+

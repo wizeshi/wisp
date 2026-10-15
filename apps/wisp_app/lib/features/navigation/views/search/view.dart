@@ -29,6 +29,7 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
+import 'package:wisp/shared/widgets/display/provider_icon.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 
@@ -165,14 +166,8 @@ class _SearchViewState extends State<SearchView> {
 
   List<String> _availableSources(MetadataManager metadataManager) {
     return metadataManager.availableProviders
-        .map((p) => p.displayName)
+        .map((p) => p.providerId.toLowerCase())
         .toList();
-  }
-
-  IconData _sourceIcon(String source) {
-    return source.toLowerCase().contains('youtube')
-        ? Icons.ondemand_video
-        : Icons.music_note;
   }
 
   Future<void> _performSearch(String query) async {
@@ -464,11 +459,10 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildMobileTypePills(String effectiveSource) {
-    final isTrackOnly = effectiveSource.toLowerCase().contains('youtube') ||
-        (_tracks.isNotEmpty &&
-            _artists.isEmpty &&
-            _albums.isEmpty &&
-            _playlists.isEmpty);
+    final isTrackOnly = (_tracks.isNotEmpty &&
+        _artists.isEmpty &&
+        _albums.isEmpty &&
+        _playlists.isEmpty);
     final tabs = isTrackOnly ? const [SearchTab.tracks] : SearchTab.values;
 
     if (!tabs.contains(_selectedTab)) {
@@ -508,11 +502,10 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildMobileSelectedTypeList(String effectiveSource) {
-    final isTrackOnly = effectiveSource.toLowerCase().contains('youtube') ||
-        (_tracks.isNotEmpty &&
-            _artists.isEmpty &&
-            _albums.isEmpty &&
-            _playlists.isEmpty);
+    final isTrackOnly = (_tracks.isNotEmpty &&
+        _artists.isEmpty &&
+        _albums.isEmpty &&
+        _playlists.isEmpty);
     if (isTrackOnly) {
       return Column(
         children: _tracks
@@ -586,6 +579,7 @@ class _SearchViewState extends State<SearchView> {
             context,
             artistId: artist.id,
             initialArtist: artist,
+            source: artist.source,
           );
         },
       ),
@@ -811,7 +805,7 @@ class _SearchViewState extends State<SearchView> {
     final visibleSongs = songs.take(maxItems).toList();
     final searchSource = visibleSongs.isNotEmpty
         ? visibleSongs.first.source
-        : 'spotify';
+        : _searchState.selectedSource;
     final searchContext = PlaybackContext(
       type: PlaybackContextType.searchResults,
       name: _lastQuery,
@@ -835,6 +829,7 @@ class _SearchViewState extends State<SearchView> {
               context,
               artistId: artist.id,
               initialArtist: artist,
+              source: artist.source,
             );
           },
           onArtistSecondaryTapDown: (artist, details) {
@@ -893,18 +888,23 @@ class _SearchViewState extends State<SearchView> {
           iconEnabledColor: Colors.grey[400],
           selectedItemBuilder: (_) => availableSources
               .map(
-                (source) =>
-                    Icon(_sourceIcon(source), size: 18, color: Colors.white),
+                (source) => ProviderIcon(
+                  providerId: source,
+                  type: 'metadata',
+                  size: 18,
+                  fallbackIcon: Icons.music_note,
+                ),
               )
               .toList(),
           items: availableSources
               .map(
                 (source) => DropdownMenuItem<String>(
                   value: source,
-                  child: Icon(
-                    _sourceIcon(source),
+                  child: ProviderIcon(
+                    providerId: source,
+                    type: 'metadata',
                     size: 18,
-                    color: Colors.white,
+                    fallbackIcon: Icons.music_note,
                   ),
                 ),
               )

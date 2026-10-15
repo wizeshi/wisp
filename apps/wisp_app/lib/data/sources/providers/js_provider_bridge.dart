@@ -38,6 +38,16 @@ class JsProviderBridge {
     }
   }
 
+  /// Sets up shared host bridges on a centralized JavascriptRuntime.
+  static void setupSharedBridge(JavascriptRuntime runtime) {
+    setupBridge(
+      runtime,
+      providerId: 'shared',
+      providerName: 'Shared',
+      serviceId: 'wisp',
+    );
+  }
+
   /// Sets up all `wisp.*` host bridges (fetch, service vault, crypto, auth, storage, logging).
   static void setupBridge(
     JavascriptRuntime runtime, {
@@ -54,14 +64,17 @@ class JsProviderBridge {
         final map = args is String
             ? jsonDecode(args) as Map<String, dynamic>
             : (args as Map).cast<String, dynamic>();
+        final pName = map['providerName'] as String? ??
+            map['providerId'] as String? ??
+            providerName;
         final level = map['level'] as String? ?? 'info';
         final msg = map['msg'] as String? ?? '';
         if (level == 'error') {
-          logger.e('[JS/$providerName] $msg');
+          logger.e('[JS/$pName] $msg');
         } else if (level == 'warn') {
-          logger.w('[JS/$providerName] $msg');
+          logger.w('[JS/$pName] $msg');
         } else {
-          logger.i('[JS/$providerName] $msg');
+          logger.i('[JS/$pName] $msg');
         }
       } catch (_) {}
       return '';
@@ -120,13 +133,16 @@ class JsProviderBridge {
             }
           }
 
+          final pName = map['providerName'] as String? ??
+              map['providerId'] as String? ??
+              providerName;
           if (operationName != null && operationName.isNotEmpty) {
             descriptor = ' [$operationName]';
           } else if (label != null && label.isNotEmpty) {
             descriptor = ' [$label]';
           }
 
-          logger.d('[JS/$providerName HTTP] -> $method $url$descriptor');
+          logger.d('[JS/$pName HTTP] -> $method $url$descriptor');
           final uri = Uri.parse(url);
           final client = IOClient(CryptoBridgeUtils.createBridgeHttpClient() as dynamic);
           http.Response response;
@@ -141,7 +157,7 @@ class JsProviderBridge {
             final streamedResponse = await client.send(request);
             response = await http.Response.fromStream(streamedResponse);
             logger.d(
-              '[JS/$providerName HTTP] <- $method $url$descriptor: status=${response.statusCode}',
+              '[JS/$pName HTTP] <- $method $url$descriptor: status=${response.statusCode}',
             );
           } finally {
             client.close();
@@ -586,9 +602,10 @@ class JsProviderBridge {
               : (args as Map).cast<String, dynamic>();
           cbId = map['cbId'] as int?;
           final key = map['key'] as String?;
+          final pId = map['providerId'] as String? ?? providerId;
           if (key != null && cbId != null) {
             final prefs = await SharedPreferences.getInstance();
-            final val = prefs.getString('wisp_storage_${providerId}_$key');
+            final val = prefs.getString('wisp_storage_${pId}_$key');
             resolveJsCallback(runtime, cbId, {'value': val});
           }
         } catch (e) {
@@ -610,9 +627,10 @@ class JsProviderBridge {
           cbId = map['cbId'] as int?;
           final key = map['key'] as String?;
           final value = map['value'] as String?;
+          final pId = map['providerId'] as String? ?? providerId;
           if (key != null && value != null && cbId != null) {
             final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('wisp_storage_${providerId}_$key', value);
+            await prefs.setString('wisp_storage_${pId}_$key', value);
             resolveJsCallback(runtime, cbId, {'success': true});
           }
         } catch (e) {
@@ -633,9 +651,10 @@ class JsProviderBridge {
               : (args as Map).cast<String, dynamic>();
           cbId = map['cbId'] as int?;
           final key = map['key'] as String?;
+          final pId = map['providerId'] as String? ?? providerId;
           if (key != null && cbId != null) {
             final prefs = await SharedPreferences.getInstance();
-            await prefs.remove('wisp_storage_${providerId}_$key');
+            await prefs.remove('wisp_storage_${pId}_$key');
             resolveJsCallback(runtime, cbId, {'success': true});
           }
         } catch (e) {
@@ -1167,32 +1186,98 @@ class JsProviderBridge {
           }
         },
 
+        createScope: function(providerId, providerName, serviceId) {
+          var scope = Object.create(globalThis.wisp);
+          scope.storage = {
+            get: function(key) {
+              return globalThis.wisp.storage.get(key, providerId);
+            },
+            set: function(key, val) {
+              return globalThis.wisp.storage.set(key, val, providerId);
+            },
+            delete: function(key) {
+              return globalThis.wisp.storage.delete(key, providerId);
+            }
+          };
+          scope.auth = Object.create(globalThis.wisp.auth);
+          scope.auth.getTokens = function(opts) {
+            opts = opts || {};
+            opts.serviceId = opts.serviceId || serviceId || providerId;
+            return globalThis.wisp.auth.getTokens(opts);
+          };
+          scope.auth.login = function(sId) {
+            return globalThis.wisp.auth.login(sId || serviceId || providerId);
+          };
+          scope.auth.logout = function(sId) {
+            return globalThis.wisp.auth.logout(sId || serviceId || providerId);
+          };
+          scope.service = Object.create(globalThis.wisp.service);
+          scope.service.getSession = function(sId) {
+            return globalThis.wisp.service.getSession(sId || serviceId || providerId);
+          };
+          scope.service.setSession = function(sId, data) {
+            if (typeof sId === 'string' && data !== undefined) {
+              return globalThis.wisp.service.setSession(sId, data);
+            }
+            return globalThis.wisp.service.setSession(serviceId || providerId, sId);
+          };
+          scope.service.clearSession = function(sId) {
+            return globalThis.wisp.service.clearSession(sId || serviceId || providerId);
+          };
+          scope.service.withRefreshLock = function(sId, cb) {
+            if (typeof sId === 'string' && typeof cb === 'function') {
+              return globalThis.wisp.service.withRefreshLock(sId, cb);
+            }
+            return globalThis.wisp.service.withRefreshLock(serviceId || providerId, sId);
+          };
+          scope.service.getTokens = function(sId, opts) {
+            if (typeof sId === 'string' && opts !== undefined) {
+              return globalThis.wisp.service.getTokens(sId, opts);
+            }
+            return globalThis.wisp.service.getTokens(serviceId || providerId, sId);
+          };
+          return scope;
+        },
+
         storage: {
-          get: function(key) {
+          get: function(key, targetProviderId) {
             return new Promise(function(resolve) {
               var cbId = ++globalThis.__wisp_callback_counter;
               globalThis.__wisp_pending_callbacks[cbId] = function(res) {
                 resolve(res ? res.value : null);
               };
-              sendMessage('wisp_storage_get', JSON.stringify({ cbId: cbId, key: key }));
+              sendMessage('wisp_storage_get', JSON.stringify({
+                cbId: cbId,
+                key: key,
+                providerId: targetProviderId || globalThis.__wisp_current_provider || '$providerId'
+              }));
             });
           },
-          set: function(key, value) {
+          set: function(key, value, targetProviderId) {
             return new Promise(function(resolve) {
               var cbId = ++globalThis.__wisp_callback_counter;
               globalThis.__wisp_pending_callbacks[cbId] = function(res) {
                 resolve(res ? res.success : false);
               };
-              sendMessage('wisp_storage_set', JSON.stringify({ cbId: cbId, key: key, value: String(value) }));
+              sendMessage('wisp_storage_set', JSON.stringify({
+                cbId: cbId,
+                key: key,
+                value: String(value),
+                providerId: targetProviderId || globalThis.__wisp_current_provider || '$providerId'
+              }));
             });
           },
-          delete: function(key) {
+          delete: function(key, targetProviderId) {
             return new Promise(function(resolve) {
               var cbId = ++globalThis.__wisp_callback_counter;
               globalThis.__wisp_pending_callbacks[cbId] = function(res) {
                 resolve(res ? res.success : false);
               };
-              sendMessage('wisp_storage_delete', JSON.stringify({ cbId: cbId, key: key }));
+              sendMessage('wisp_storage_delete', JSON.stringify({
+                cbId: cbId,
+                key: key,
+                providerId: targetProviderId || globalThis.__wisp_current_provider || '$providerId'
+              }));
             });
           }
         },

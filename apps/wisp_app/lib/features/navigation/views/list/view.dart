@@ -54,6 +54,7 @@ typedef _ListItem = Object;
 class SharedListDetailView extends StatefulWidget {
   final String id;
   final SharedListType type;
+  final String? source;
   final String? initialTitle;
   final String? initialThumbnailUrl;
   final List<GenericPlaylist> playlists;
@@ -66,6 +67,7 @@ class SharedListDetailView extends StatefulWidget {
     super.key,
     required this.id,
     required this.type,
+    this.source,
     this.initialTitle,
     this.initialThumbnailUrl,
     required this.playlists,
@@ -265,9 +267,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       // Standard remote playlist
       await MetadataRevalidator.revalidate<GenericPlaylist>(
         token: _revalidationToken,
-        loadCache: () => metadataManager.getCachedFullPlaylist(widget.id),
-        fetchRemote: () =>
-            metadataManager.fetchFullPlaylistWithTracks(widget.id),
+        loadCache: () => metadataManager.getCachedFullPlaylist(
+          widget.id,
+          source: widget.source,
+        ),
+        fetchRemote: () => metadataManager.fetchFullPlaylistWithTracks(
+          widget.id,
+          source: widget.source,
+        ),
         hasChanged: (curr, fresh) =>
             MetadataDiff.hasPlaylistChanged(curr, fresh),
         onData: (playlist, {required fromCache}) {
@@ -294,8 +301,14 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       // Album
       await MetadataRevalidator.revalidate<GenericAlbum>(
         token: _revalidationToken,
-        loadCache: () => metadataManager.getCachedFullAlbum(widget.id),
-        fetchRemote: () => metadataManager.fetchFullAlbumWithTracks(widget.id),
+        loadCache: () => metadataManager.getCachedFullAlbum(
+          widget.id,
+          source: widget.source,
+        ),
+        fetchRemote: () => metadataManager.fetchFullAlbumWithTracks(
+          widget.id,
+          source: widget.source,
+        ),
         hasChanged: (curr, fresh) => MetadataDiff.hasAlbumChanged(curr, fresh),
         onData: (album, {required fromCache}) {
           if (!mounted) return;
@@ -1738,6 +1751,7 @@ class ListDetailView extends StatelessWidget {
       key: ValueKey('$listType-$id'),
       id: id,
       type: listType,
+      source: source,
       playlists: library.playlists,
       albums: library.albums,
       artists: library.artists,

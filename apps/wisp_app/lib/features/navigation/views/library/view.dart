@@ -90,6 +90,8 @@ Widget _buildPlaylistThumbnail(GenericPlaylist playlist) {
   return CachedNetworkImage(
     imageUrl: url,
     fit: BoxFit.cover,
+    memCacheWidth: 400,
+    memCacheHeight: 400,
     placeholder: (context, url) => Container(color: Colors.grey[800]),
     errorWidget: (context, url, error) => Container(
       color: Colors.grey[800],
@@ -1790,6 +1792,8 @@ class _AlbumListTile extends StatelessWidget {
                 ? CachedNetworkImage(
                     imageUrl: album.thumbnailUrl,
                     fit: BoxFit.cover,
+                    memCacheWidth: 168,
+                    memCacheHeight: 168,
                     placeholder: (context, url) =>
                         Container(color: Colors.grey[800]),
                     errorWidget: (context, url, error) => Container(
@@ -1877,6 +1881,8 @@ class _ArtistListTile extends StatelessWidget {
                 ? CachedNetworkImage(
                     imageUrl: artist.thumbnailUrl,
                     fit: BoxFit.cover,
+                    memCacheWidth: 168,
+                    memCacheHeight: 168,
                     placeholder: (context, url) =>
                         Container(color: Colors.grey[800]),
                     errorWidget: (context, url, error) => Container(

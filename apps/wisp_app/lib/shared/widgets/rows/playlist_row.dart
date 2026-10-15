@@ -16,7 +16,7 @@ import 'package:wisp/shared/widgets/playback/playback_selectors.dart';
 String playlistSubtitle(GenericPlaylist playlist) {
   final author = playlist.author.displayName.trim();
   final description = playlist.description?.trim() ?? '';
-  if (author.toLowerCase() == 'spotify' && description.isNotEmpty) {
+  if (author.toLowerCase() == playlist.source.toLowerCase() && description.isNotEmpty) {
     return description;
   }
   if (author.isEmpty && description.isNotEmpty) {
@@ -86,6 +86,7 @@ class PlaylistRow extends StatelessWidget {
             type: SharedListType.playlist,
             initialTitle: playlist.title,
             initialThumbnailUrl: playlist.thumbnailUrl,
+            source: playlist.source,
           );
         }
       },

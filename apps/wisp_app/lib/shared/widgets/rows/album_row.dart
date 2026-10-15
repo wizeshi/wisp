@@ -147,6 +147,7 @@ class AlbumRow extends StatelessWidget {
         type: SharedListType.album,
         initialTitle: album.title,
         initialThumbnailUrl: album.thumbnailUrl,
+        source: album.source,
       ),
       onPlay: () => _toggleAlbumPlayback(context),
       onDoubleTap: () => _playAlbum(context),

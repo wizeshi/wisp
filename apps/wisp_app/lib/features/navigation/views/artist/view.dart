@@ -50,6 +50,7 @@ part 'mobile/original.dart';
 
 class ArtistDetailView extends StatefulWidget {
   final String artistId;
+  final String? source;
   final GenericSimpleArtist? initialArtist;
   final List<GenericPlaylist> playlists;
   final List<GenericAlbum> albums;
@@ -60,6 +61,7 @@ class ArtistDetailView extends StatefulWidget {
   const ArtistDetailView({
     super.key,
     required this.artistId,
+    this.source,
     this.initialArtist,
     required this.playlists,
     required this.albums,
@@ -108,8 +110,14 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
 
     await MetadataRevalidator.revalidate<GenericArtist>(
       token: _revalidationToken,
-      loadCache: () => metadataManager.getCachedArtist(widget.artistId),
-      fetchRemote: () => metadataManager.fetchArtist(widget.artistId),
+      loadCache: () => metadataManager.getCachedArtist(
+        widget.artistId,
+        source: widget.source,
+      ),
+      fetchRemote: () => metadataManager.fetchArtist(
+        widget.artistId,
+        source: widget.source,
+      ),
       hasChanged: (curr, fresh) => MetadataDiff.hasArtistChanged(curr, fresh),
       onData: (artist, {required fromCache}) {
         if (!mounted) return;
@@ -1485,6 +1493,7 @@ class ArtistView extends StatelessWidget {
 
     return ArtistDetailView(
       artistId: id,
+      source: source,
       playlists: library.playlists,
       albums: library.albums,
       artists: library.artists,
