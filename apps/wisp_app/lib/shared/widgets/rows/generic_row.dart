@@ -33,6 +33,7 @@ class GenericRow extends StatelessWidget {
   final bool showSubtitle;
   final bool isCollapsed;
   final bool isPinned;
+  final Widget? trailing;
 
   const GenericRow({
     super.key,
@@ -53,6 +54,7 @@ class GenericRow extends StatelessWidget {
     this.showSubtitle = true,
     this.isCollapsed = false,
     this.isPinned = false,
+    this.trailing,
   });
 
   @override
@@ -161,6 +163,11 @@ class GenericRow extends StatelessWidget {
                           );
                         },
                       ),
+
+                    if (trailing != null) ...[
+                      const SizedBox(width: 8),
+                      trailing!,
+                    ],
 
                     const SizedBox(width: 4),
                   ],

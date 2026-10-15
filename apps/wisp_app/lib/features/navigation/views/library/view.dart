@@ -3,12 +3,11 @@
 /// Library view with paginated tabs for playlists, albums, and artists
 library;
 
-import 'dart:io' show Platform, File;
+import 'dart:io' show Platform;
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/library_folder.dart';
@@ -17,18 +16,18 @@ import 'package:wisp/shared/widgets/menus/playlist_folder_modals.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
-import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
-import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
-import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
-import 'package:wisp/features/navigation/views/list/view.dart' show SharedListType;
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/navigation/shell/navigation_state.dart';
+import 'package:wisp/shared/widgets/rows/playlist_row.dart';
+import 'package:wisp/shared/widgets/rows/folder_row.dart';
+import 'package:wisp/shared/widgets/rows/album_row.dart';
+import 'package:wisp/shared/widgets/rows/artist_row.dart';
 
 part 'mobile/spotify.dart';
 part 'mobile/apple_music.dart';
@@ -56,48 +55,6 @@ class LibraryPageView extends StatelessWidget {
       initialArtists: library.artists,
     );
   }
-}
-
-bool _isLocalThumbnailPath(String path) {
-  return path.startsWith('/') || path.startsWith('file://');
-}
-
-Widget _buildPlaylistThumbnail(GenericPlaylist playlist) {
-  if (isLikedSongsPlaylistId(playlist.id)) {
-    return const LikedSongsArt();
-  }
-
-  final url = playlist.thumbnailUrl;
-  if (url.isEmpty) {
-    return Container(
-      color: Colors.grey[800],
-      child: Icon(Icons.playlist_play, color: Colors.grey[600]),
-    );
-  }
-
-  if (_isLocalThumbnailPath(url)) {
-    final path = url.replaceFirst('file://', '');
-    return Image.file(
-      File(path),
-      fit: BoxFit.cover,
-      errorBuilder: (context, url, error) => Container(
-        color: Colors.grey[800],
-        child: Icon(Icons.playlist_play, color: Colors.grey[600]),
-      ),
-    );
-  }
-
-  return CachedNetworkImage(
-    imageUrl: url,
-    fit: BoxFit.cover,
-    memCacheWidth: 400,
-    memCacheHeight: 400,
-    placeholder: (context, url) => Container(color: Colors.grey[800]),
-    errorWidget: (context, url, error) => Container(
-      color: Colors.grey[800],
-      child: Icon(Icons.playlist_play, color: Colors.grey[600]),
-    ),
-  );
 }
 
 class LibraryTabView extends StatefulWidget {
@@ -464,7 +421,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
     }
 
     final isMobile = Platform.isAndroid || Platform.isIOS;
-    final padding = isMobile ? 20.0 : 16.0;
+    final padding = 16.0;
     final folderState = context.watch<LibraryFolderState>();
 
     return SafeArea(
@@ -474,7 +431,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
         children: [
           // Header
           Padding(
-            padding: EdgeInsets.all(padding),
+            padding: EdgeInsets.fromLTRB(padding, padding, padding, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -950,10 +907,6 @@ class LibraryTabViewState extends State<LibraryTabView> {
         }
       }
 
-      if (groups.folders.isNotEmpty) {
-        entries.add(const _PlaylistListEntry.unassignedHeader());
-      }
-
       for (final playlist in groups.unassigned) {
         entries.add(_PlaylistListEntry.playlist(playlist, folderId: null));
       }
@@ -981,25 +934,11 @@ class LibraryTabViewState extends State<LibraryTabView> {
           }
 
           final entry = entries[index];
-          if (entry.type == _PlaylistListEntryType.unassignedHeader) {
-            return _UnassignedHeader(
-              horizontalPadding: padding,
-              enabled: allowDrag,
-              onDrop: (playlistId) {
-                folderState.movePlaylistIntoFolder(playlistId, null);
-              },
-            );
-          }
-
           if (entry.type == _PlaylistListEntryType.folder &&
               entry.folder != null) {
             return _FolderListTile(
               folder: entry.folder!,
               horizontalPadding: padding,
-              playlists: _displayPlaylists,
-              currentLibraryView: _selectedTab,
-              currentNavIndex: 2,
-              playlistCount: folderCounts[entry.folder!.id] ?? 0,
               enableDrag: allowDrag,
               onFolderDrop: (playlistId) {
                 folderState.movePlaylistIntoFolder(
@@ -1018,10 +957,10 @@ class LibraryTabViewState extends State<LibraryTabView> {
           final isLiked = isLikedSongsPlaylistId(playlist.id);
           final targetFolderId = entry.folderId;
           if (isLiked) {
-            return _PlaylistListTile(
+            return PlaylistRow(
               playlist: playlist,
-              horizontalPadding: padding,
-              onTap: () => _openPlaylist(playlist),
+              padding: EdgeInsets.symmetric(horizontal: padding, vertical: 8),
+              height: 64,
             );
           }
           return _DraggablePlaylistTile(
@@ -1029,7 +968,6 @@ class LibraryTabViewState extends State<LibraryTabView> {
             horizontalPadding: padding,
             folderId: targetFolderId,
             enableDrag: allowDrag,
-            onTap: () => _openPlaylist(playlist),
             onPlaylistDrop: (draggedId) {
               folderState.assignPlaylistToFolder(draggedId, targetFolderId);
               folderState.movePlaylistBefore(draggedId, playlist.id);
@@ -1072,10 +1010,10 @@ class LibraryTabViewState extends State<LibraryTabView> {
             }
 
             final album = _albums[index];
-            return _AlbumListTile(
+            return AlbumRow(
               album: album,
-              horizontalPadding: padding,
-              onTap: () => _openAlbum(album),
+              padding: EdgeInsets.symmetric(horizontal: padding, vertical: 8),
+              height: 64,
             );
           },
         ),
@@ -1114,10 +1052,10 @@ class LibraryTabViewState extends State<LibraryTabView> {
             }
 
             final artist = _artists[index];
-            return _ArtistListTile(
+            return ArtistRow(
               artist: artist,
-              horizontalPadding: padding,
-              onTap: () => _openArtist(artist),
+              padding: EdgeInsets.symmetric(horizontal: padding, vertical: 8),
+              height: 64,
             );
           },
         ),
@@ -1187,122 +1125,9 @@ class LibraryTabViewState extends State<LibraryTabView> {
       ),
     );
   }
-
-  void _openPlaylist(GenericPlaylist playlist) {
-    AppNavigation.instance.openSharedList(
-      context,
-      id: playlist.id,
-      type: SharedListType.playlist,
-      initialTitle: playlist.title,
-      initialThumbnailUrl: playlist.thumbnailUrl,
-    );
-  }
-
-  void _openAlbum(GenericAlbum album) {
-    AppNavigation.instance.openSharedList(
-      context,
-      id: album.id,
-      type: SharedListType.album,
-      initialTitle: album.title,
-      initialThumbnailUrl: album.thumbnailUrl,
-    );
-  }
-
-  void _openArtist(GenericSimpleArtist artist) {
-    AppNavigation.instance.openArtist(
-      context,
-      artistId: artist.id,
-      initialArtist: artist,
-    );
-  }
 }
 
-class _PlaylistListTile extends StatelessWidget {
-  final GenericPlaylist playlist;
-  final double horizontalPadding;
-  final VoidCallback onTap;
-  final Widget? trailing;
-  final EdgeInsetsGeometry? contentPadding;
-
-  const _PlaylistListTile({
-    required this.playlist,
-    required this.horizontalPadding,
-    required this.onTap,
-    this.trailing,
-    this.contentPadding,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    return GestureDetector(
-      onSecondaryTapDown: isDesktop
-          ? (details) {
-              EntityContextMenus.showPlaylistMenu(
-                context,
-                playlist: playlist,
-                globalPosition: details.globalPosition,
-              );
-            }
-          : null,
-      onLongPress: isDesktop
-          ? null
-          : () {
-              EntityContextMenus.showPlaylistMenu(context, playlist: playlist);
-            },
-      child: ListTile(
-        onTap: onTap,
-        contentPadding:
-            contentPadding ??
-            EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 0),
-        trailing: trailing,
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: _buildPlaylistThumbnail(playlist),
-          ),
-        ),
-        title: Text(
-          playlist.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Row(
-          children: [
-            if (playlist.isPinned) ...[
-              Transform.rotate(
-                angle: 0.5,
-                child: Icon(
-                  Icons.push_pin,
-                  size: 11,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 4),
-            ],
-            Expanded(
-              child: Text(
-                'Playlist • ${playlist.author.displayName}',
-                style: TextStyle(color: Colors.grey[400]),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-enum _PlaylistListEntryType { folder, playlist, unassignedHeader }
+enum _PlaylistListEntryType { folder, playlist }
 
 class _PlaylistListEntry {
   final _PlaylistListEntryType type;
@@ -1328,9 +1153,6 @@ class _PlaylistListEntry {
          playlist: playlist,
          folderId: folderId,
        );
-
-  const _PlaylistListEntry.unassignedHeader()
-    : this._(type: _PlaylistListEntryType.unassignedHeader);
 }
 
 class _PlaylistDragData {
@@ -1346,63 +1168,9 @@ class _FolderDragData {
   const _FolderDragData(this.folderId);
 }
 
-class _UnassignedHeader extends StatelessWidget {
-  final double horizontalPadding;
-  final bool enabled;
-  final ValueChanged<String> onDrop;
-
-  const _UnassignedHeader({
-    required this.horizontalPadding,
-    required this.enabled,
-    required this.onDrop,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final child = Padding(
-      padding: EdgeInsets.only(
-        left: horizontalPadding,
-        right: horizontalPadding,
-        top: 6,
-        bottom: 6,
-      ),
-      child: Text(
-        'UNASSIGNED',
-        style: TextStyle(
-          color: Colors.grey[500],
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-
-    if (!enabled) return child;
-
-    return DragTarget<_PlaylistDragData>(
-      onWillAccept: (data) => data != null,
-      onAccept: (data) => onDrop(data.playlistId),
-      builder: (context, candidate, rejected) {
-        return Container(
-          decoration: candidate.isNotEmpty
-              ? BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(6),
-                )
-              : null,
-          child: child,
-        );
-      },
-    );
-  }
-}
-
 class _FolderListTile extends StatefulWidget {
   final PlaylistFolder folder;
   final double horizontalPadding;
-  final List<GenericPlaylist> playlists;
-  final LibraryView? currentLibraryView;
-  final int? currentNavIndex;
-  final int playlistCount;
   final bool enableDrag;
   final ValueChanged<String> onFolderDrop;
   final ValueChanged<String> onFolderReorder;
@@ -1410,11 +1178,7 @@ class _FolderListTile extends StatefulWidget {
   const _FolderListTile({
     required this.folder,
     required this.horizontalPadding,
-    required this.playlists,
-    required this.currentLibraryView,
-    required this.currentNavIndex,
     required this.enableDrag,
-    required this.playlistCount,
     required this.onFolderDrop,
     required this.onFolderReorder,
   });
@@ -1432,88 +1196,23 @@ class _FolderListTileState extends State<_FolderListTile> {
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
     final folderState = context.watch<LibraryFolderState>();
     final isCollapsed = folderState.isFolderCollapsed(widget.folder.id);
-    final tile = GestureDetector(
-      onSecondaryTapDown: isDesktop
-          ? (details) {
-              EntityContextMenus.showFolderMenu(
-                context,
-                folder: widget.folder,
-                globalPosition: details.globalPosition,
-              );
-            }
-          : null,
-      onLongPress: isDesktop
-          ? null
-          : () {
-              EntityContextMenus.showFolderMenu(context, folder: widget.folder);
-            },
-      child: ListTile(
-        onTap: () {
-          folderState.toggleFolderCollapsed(widget.folder.id);
-        },
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: widget.horizontalPadding,
-          vertical: 4,
-        ),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: widget.folder.thumbnailPath != null
-                ? Image.file(
-                    File(widget.folder.thumbnailPath!),
-                    fit: BoxFit.cover,
-                  )
-                : Container(
-                    color: Colors.grey[800],
-                    child: Icon(Icons.folder, color: Colors.grey[600]),
-                  ),
+    final tile = FolderRow(
+      folder: widget.folder,
+      height: 64,
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.horizontalPadding,
+        vertical: 8,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.enableDrag && !isDesktop)
+            const Icon(Icons.drag_handle, color: Colors.grey),
+          Icon(
+            isCollapsed ? Icons.chevron_right : Icons.expand_more,
+            color: Colors.grey[500],
           ),
-        ),
-        title: Text(
-          widget.folder.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Row(
-          children: [
-            if (widget.folder.isPinned) ...[
-              Transform.rotate(
-                angle: 0.5,
-                child: Icon(
-                  Icons.push_pin,
-                  size: 11,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 4),
-            ],
-            Expanded(
-              child: Text(
-                '${widget.playlistCount} playlist${widget.playlistCount == 1 ? '' : 's'}',
-                style: TextStyle(color: Colors.grey[400]),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.enableDrag && !isDesktop)
-              const Icon(Icons.drag_handle, color: Colors.grey),
-            Icon(
-              isCollapsed ? Icons.chevron_right : Icons.expand_more,
-              color: Colors.grey[500],
-            ),
-          ],
-        ),
+        ],
       ),
     );
 
@@ -1586,7 +1285,6 @@ class _DraggablePlaylistTile extends StatelessWidget {
   final double horizontalPadding;
   final String? folderId;
   final bool enableDrag;
-  final VoidCallback onTap;
   final ValueChanged<String> onPlaylistDrop;
 
   const _DraggablePlaylistTile({
@@ -1594,7 +1292,6 @@ class _DraggablePlaylistTile extends StatelessWidget {
     required this.horizontalPadding,
     required this.folderId,
     required this.enableDrag,
-    required this.onTap,
     required this.onPlaylistDrop,
   });
 
@@ -1602,19 +1299,18 @@ class _DraggablePlaylistTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    Widget tile = _PlaylistListTile(
+    Widget tile = PlaylistRow(
       playlist: playlist,
-      horizontalPadding: horizontalPadding,
-      onTap: onTap,
+      height: 64,
+      padding: EdgeInsets.only(
+        left: horizontalPadding + (folderId != null ? 20 : 0),
+        right: horizontalPadding,
+        top: 8,
+        bottom: 8,
+      ),
       trailing: enableDrag && !isDesktop
           ? const Icon(Icons.drag_handle, color: Colors.grey)
           : null,
-      contentPadding: EdgeInsets.only(
-        left: horizontalPadding + (folderId != null ? 20 : 0),
-        right: horizontalPadding,
-        top: 4,
-        bottom: 4,
-      ),
     );
 
     if (!enableDrag) {
@@ -1692,156 +1388,3 @@ class _DragFeedback extends StatelessWidget {
   }
 }
 
-class _AlbumListTile extends StatelessWidget {
-  final GenericAlbum album;
-  final double horizontalPadding;
-  final VoidCallback onTap;
-
-  const _AlbumListTile({
-    required this.album,
-    required this.horizontalPadding,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    return GestureDetector(
-      onSecondaryTapDown: isDesktop
-          ? (details) {
-              EntityContextMenus.showAlbumMenu(
-                context,
-                album: album,
-                globalPosition: details.globalPosition,
-              );
-            }
-          : null,
-      onLongPress: isDesktop
-          ? null
-          : () {
-              EntityContextMenus.showAlbumMenu(context, album: album);
-            },
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: horizontalPadding,
-          vertical: 4,
-        ),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: album.thumbnailUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: album.thumbnailUrl,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 168,
-                    memCacheHeight: 168,
-                    placeholder: (context, url) =>
-                        Container(color: Colors.grey[800]),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[800],
-                      child: Icon(Icons.album, color: Colors.grey[600]),
-                    ),
-                  )
-                : Container(
-                    color: Colors.grey[800],
-                    child: Icon(Icons.album, color: Colors.grey[600]),
-                  ),
-          ),
-        ),
-        title: Text(
-          album.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          'Album • ${album.artists.map((a) => a.name).join(', ')}',
-          style: TextStyle(color: Colors.grey[400]),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
-}
-
-class _ArtistListTile extends StatelessWidget {
-  final GenericSimpleArtist artist;
-  final double horizontalPadding;
-  final VoidCallback onTap;
-
-  const _ArtistListTile({
-    required this.artist,
-    required this.horizontalPadding,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-    return GestureDetector(
-      onSecondaryTapDown: isDesktop
-          ? (details) {
-              EntityContextMenus.showArtistMenu(
-                context,
-                artist: artist,
-                globalPosition: details.globalPosition,
-              );
-            }
-          : null,
-      onLongPress: isDesktop
-          ? null
-          : () {
-              EntityContextMenus.showArtistMenu(context, artist: artist);
-            },
-      child: ListTile(
-        onTap: onTap,
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: horizontalPadding,
-          vertical: 4,
-        ),
-        leading: ClipOval(
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: artist.thumbnailUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: artist.thumbnailUrl,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 168,
-                    memCacheHeight: 168,
-                    placeholder: (context, url) =>
-                        Container(color: Colors.grey[800]),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[800],
-                      child: Icon(Icons.person, color: Colors.grey[600]),
-                    ),
-                  )
-                : Container(
-                    color: Colors.grey[800],
-                    child: Icon(Icons.person, color: Colors.grey[600]),
-                  ),
-          ),
-        ),
-        title: Text(
-          artist.name,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text('Artist', style: TextStyle(color: Colors.grey[400])),
-      ),
-    );
-  }
-}

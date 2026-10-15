@@ -4,13 +4,10 @@
 library;
 
 import 'dart:io' show Platform;
-import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/library/state/library_state.dart';
-import 'package:wisp/shared/widgets/display/hover_underline.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
@@ -18,6 +15,7 @@ import 'package:wisp/features/navigation/views/list/view.dart' show SharedListTy
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/rows/track_row.dart';
 
 class QueueView extends StatefulWidget {
   /// If true, only returns the queue content without scaffold (for mobile bottom sheet)
@@ -39,8 +37,6 @@ class QueueView extends StatefulWidget {
 class _QueueViewState extends State<QueueView> {
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
-
-  final Set<String> _hoveredTrackKeys = {};
 
   List<int> _buildWrappedQueueIndices(int queueLength, int currentIndex) {
     if (queueLength <= 0) return const <int>[];
@@ -285,9 +281,6 @@ class _QueueViewState extends State<QueueView> {
   }) {
     final album = track.album;
     final primaryArtist = track.artists.isNotEmpty ? track.artists.first : null;
-    final trackKey = '${track.id}_$queueIndex';
-    final isHovering = _hoveredTrackKeys.contains(trackKey);
-    final showOverlay = isCurrentTrack || isHovering;
 
     // Desktop: drag starts immediately on any pointer-down.
     // Mobile: Flutter's built-in 500 ms delay lets scroll gestures win first;
@@ -295,268 +288,106 @@ class _QueueViewState extends State<QueueView> {
     // user keeps holding without moving, so the two delays never collide.
     Widget makeDragListener({required Widget child}) {
       if (_isDesktop) {
-        return ReorderableDragStartListener(index: listIndex, child: child);
+        return ReorderableDragStartListener(
+          key: key,
+          index: listIndex,
+          child: child,
+        );
       }
       return ReorderableDelayedDragStartListener(
+        key: key,
         index: listIndex,
         child: child,
       );
     }
 
-    return MouseRegion(
-      key: key,
-      cursor: SystemMouseCursors.click,
-      onEnter: _isDesktop
-          ? (_) => setState(() => _hoveredTrackKeys.add(trackKey))
-          : null,
-      onExit: _isDesktop
-          ? (_) => setState(() => _hoveredTrackKeys.remove(trackKey))
-          : null,
-      child: RawGestureDetector(
-        gestures: {
-          if (_isDesktop)
-            TapGestureRecognizer:
-                GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
-                  () => TapGestureRecognizer(),
-                  (TapGestureRecognizer instance) {
-                    instance.onSecondaryTapDown = (details) {
-                      EntityContextMenus.showTrackMenu(
-                        context,
-                        track: track,
-                        globalPosition: details.globalPosition,
-                      );
-                    };
-                  },
-                ),
-          if (!_isDesktop)
-            LongPressGestureRecognizer:
-                GestureRecognizerFactoryWithHandlers<
-                  LongPressGestureRecognizer
-                >(
-                  () => LongPressGestureRecognizer(
-                    duration: const Duration(seconds: 2),
+    return makeDragListener(
+      child: Container(
+        decoration: BoxDecoration(
+          color: isCurrentTrack
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: isCurrentTrack
+              ? Border.all(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.3),
+                )
+              : null,
+        ),
+        child: TrackRow(
+          track: track,
+          isCurrentOverride: isCurrentTrack,
+          isPlayingOverride: isCurrentTrack && player.isPlaying,
+          playIconLocation: PlayIconLocation.art,
+          showAlbumName: _isDesktop && album != null,
+          showDuration: true,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          height: 44,
+          onTap: () {
+            if (isCurrentTrack) {
+              player.isPlaying ? player.pause() : player.play();
+            } else {
+              context.read<PlaybackCoordinator>().playQueueIndex(queueIndex);
+            }
+          },
+          onPlayPause: () {
+            if (isCurrentTrack) {
+              player.isPlaying ? player.pause() : player.play();
+            } else {
+              context.read<PlaybackCoordinator>().playQueueIndex(queueIndex);
+            }
+          },
+          onSecondaryTapDown: (details) {
+            EntityContextMenus.showTrackMenu(
+              context,
+              track: track,
+              globalPosition: details.globalPosition,
+            );
+          },
+          onLongPress: () {
+            EntityContextMenus.showTrackMenu(context, track: track);
+          },
+          onAlbumTap: album != null && album.id.isNotEmpty
+              ? () => _openAlbum(album, libraryState)
+              : null,
+          onAlbumSecondaryTapDown: (details) {
+            EntityContextMenus.showTrackMenu(
+              context,
+              track: track,
+              globalPosition: details.globalPosition,
+            );
+          },
+          onArtistTap: primaryArtist != null
+              ? (artist) => _openArtist(artist, libraryState)
+              : null,
+          onArtistSecondaryTapDown: (artist, details) {
+            EntityContextMenus.showTrackMenu(
+              context,
+              track: track,
+              globalPosition: details.globalPosition,
+            );
+          },
+          trailing: !isCurrentTrack
+              ? GenericIconButton(
+                  icon: Icon(
+                    Icons.close,
+                    color: Colors.grey[400],
+                    size: 20,
                   ),
-                  (LongPressGestureRecognizer instance) {
-                    instance.onLongPress = () {
-                      EntityContextMenus.showTrackMenu(context, track: track);
-                    };
+                  onPressed: () {
+                    context.read<PlaybackCoordinator>().removeFromQueue(
+                      queueIndex,
+                    );
                   },
-                ),
-        },
-        child: makeDragListener(
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                if (isCurrentTrack) {
-                  player.isPlaying ? player.pause() : player.play();
-                } else {
-                  context.read<PlaybackCoordinator>().playQueueIndex(
-                    queueIndex,
-                  );
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: isCurrentTrack
-                      ? Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.1)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: isCurrentTrack
-                      ? Border.all(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.3),
-                        )
-                      : null,
-                ),
-                child: Row(
-                  children: [
-                    // Thumbnail with play/pause overlay
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Container(
-                              color: Colors.grey[900],
-                              child: track.thumbnailUrl.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: track.thumbnailUrl,
-                                      fit: BoxFit.cover,
-                                      filterQuality: FilterQuality.medium,
-                                      errorWidget: (context, url, error) =>
-                                          Icon(
-                                            Icons.music_note,
-                                            color: Colors.grey[700],
-                                          ),
-                                      placeholder: (context, url) =>
-                                          Container(color: Colors.grey[800]),
-                                    )
-                                  : Icon(
-                                      Icons.music_note,
-                                      color: Colors.grey[700],
-                                    ),
-                            ),
-                            AnimatedOpacity(
-                              opacity: showOverlay ? 1.0 : 0.0,
-                              duration: const Duration(milliseconds: 120),
-                              child: Container(
-                                color: Colors.black.withValues(alpha: 0.5),
-                              ),
-                            ),
-                            AnimatedOpacity(
-                              opacity: showOverlay ? 1.0 : 0.0,
-                              duration: const Duration(milliseconds: 120),
-                              child: Center(
-                                child: Icon(
-                                  isCurrentTrack && player.isPlaying
-                                      ? Icons.pause
-                                      : Icons.play_arrow,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Title + artist
-                    Expanded(
-                      flex: 3,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            track.title,
-                            style: TextStyle(
-                              color: isCurrentTrack
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.white,
-                              fontWeight: isCurrentTrack
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          (_isDesktop && primaryArtist != null)
-                              ? HoverUnderline(
-                                  onTap: () =>
-                                      _openArtist(primaryArtist, libraryState),
-                                  onSecondaryTapDown: (details) {
-                                    EntityContextMenus.showTrackMenu(
-                                      context,
-                                      track: track,
-                                      globalPosition: details.globalPosition,
-                                    );
-                                  },
-                                  builder: (isHovering) => Text(
-                                    track.artists.map((a) => a.name).join(', '),
-                                    style: TextStyle(
-                                      color: Colors.grey[500],
-                                      fontSize: 12,
-                                      decoration: isHovering
-                                          ? TextDecoration.underline
-                                          : TextDecoration.none,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                )
-                              : Text(
-                                  track.artists.map((a) => a.name).join(', '),
-                                  style: TextStyle(
-                                    color: Colors.grey[500],
-                                    fontSize: 12,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                        ],
-                      ),
-                    ),
-                    // Album column (desktop only)
-                    if (_isDesktop && album != null) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: album.id.isNotEmpty
-                            ? HoverUnderline(
-                                onTap: () => _openAlbum(album, libraryState),
-                                builder: (isHovering) => Text(
-                                  album.title,
-                                  style: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 12,
-                                    decoration: isHovering
-                                        ? TextDecoration.underline
-                                        : TextDecoration.none,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              )
-                            : Text(
-                                album.title,
-                                style: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 12,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                      ),
-                    ],
-                    // Duration
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 50,
-                      child: Text(
-                        _formatDuration(track.durationSecs),
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                        textAlign: TextAlign.right,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Remove button or spacer
-                    if (!isCurrentTrack)
-                      GenericIconButton(
-                        icon: Icon(
-                          Icons.close,
-                          color: Colors.grey[400],
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          context.read<PlaybackCoordinator>().removeFromQueue(
-                            queueIndex,
-                          );
-                        },
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 32,
-                          minHeight: 32,
-                        ),
-                      )
-                    else
-                      const SizedBox(width: 32),
-                  ],
-                ),
-              ),
-            ),
-          ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                )
+              : const SizedBox(width: 32),
         ),
       ),
     );
@@ -578,12 +409,6 @@ class _QueueViewState extends State<QueueView> {
       artistId: artist.id,
       initialArtist: artist,
     );
-  }
-
-  String _formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final secs = seconds % 60;
-    return '$minutes:${secs.toString().padLeft(2, '0')}';
   }
 }
 

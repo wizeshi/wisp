@@ -192,6 +192,14 @@ class TrackRow extends StatelessWidget {
 
   final bool isCollapsed;
 
+  /// When non-null, overrides [context.watchIsCurrentTrackHere]. Useful for views
+  /// like the playback queue where "current" is determined by queue position
+  /// rather than parent view context.
+  final bool? isCurrentOverride;
+
+  /// When non-null, overrides [context.watchIsPlayingTrackHere].
+  final bool? isPlayingOverride;
+
   const TrackRow({
     super.key,
     required this.track,
@@ -224,6 +232,8 @@ class TrackRow extends StatelessWidget {
     this.dateColumnWidth = 120,
     this.trailing,
     this.isCollapsed = false,
+    this.isCurrentOverride,
+    this.isPlayingOverride,
   }) : assert(
          playIconLocation == null ||
              playIconLocation != PlayIconLocation.number ||
@@ -442,14 +452,16 @@ class TrackRow extends StatelessWidget {
     final effectiveDurationColumnWidth =
         durationColumnWidth ?? tokens.trackRowDurationWidth;
 
-    final isCurrentHere = context.watchIsCurrentTrackHere(
-      trackId: track.id,
-      viewContext: viewContext,
-    );
-    final isPlayingHere = context.watchIsPlayingTrackHere(
-      trackId: track.id,
-      viewContext: viewContext,
-    );
+    final isCurrentHere = isCurrentOverride ??
+        context.watchIsCurrentTrackHere(
+          trackId: track.id,
+          viewContext: viewContext,
+        );
+    final isPlayingHere = isPlayingOverride ??
+        context.watchIsPlayingTrackHere(
+          trackId: track.id,
+          viewContext: viewContext,
+        );
 
     return Material(
       color: Colors.transparent,

@@ -34,6 +34,8 @@ class PlaylistRow extends StatelessWidget {
   final Color? backgroundColor;
   final bool showSubtitle;
   final bool isCollapsed;
+  final Widget? trailing;
+  final VoidCallback? onTap;
 
   const PlaylistRow({
     super.key,
@@ -45,6 +47,8 @@ class PlaylistRow extends StatelessWidget {
     this.backgroundColor,
     this.showSubtitle = true,
     this.isCollapsed = false,
+    this.trailing,
+    this.onTap,
   });
 
   @override
@@ -62,6 +66,7 @@ class PlaylistRow extends StatelessWidget {
       showSubtitle: showSubtitle,
       isCollapsed: isCollapsed,
       isPinned: playlist.isPinned,
+      trailing: trailing,
       title: playlist.title,
       subtitle: playlistSubtitle(playlist),
       artwork: (playlist.title == "Liked Songs" || isLikedSongsPlaylistId(playlist.id))
@@ -76,7 +81,7 @@ class PlaylistRow extends StatelessWidget {
               semanticLabel: 'Artwork for ${playlist.title}',
             ),
       isPlaying: isPlaying,
-      onTap: () {
+      onTap: onTap ?? () {
         if (playlist.source.toLowerCase() == 'spotify' && playlist.title == "DJ" && playlist.author.displayName == "Spotify") {
           AppNavigation.instance.navigateToDJView(context);
         } else {

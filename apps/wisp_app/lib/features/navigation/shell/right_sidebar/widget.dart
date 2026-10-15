@@ -34,6 +34,7 @@ import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
+import 'package:wisp/shared/widgets/rows/track_row.dart';
 
 class RightSidebar extends StatefulWidget {
   final double width;
@@ -1720,8 +1721,7 @@ class _QueuePreviewCardState extends State<_QueuePreviewCard> {
         currentTrackId: player.currentTrack?.id,
       ),
       builder: (context, data, child) {
-        final player = context.read<WispAudioHandler>();
-        final queue = player.queueTracks;
+        final queue = context.select<WispAudioHandler, List<GenericSong>>(((player) => player.queueTracks));
         final currentIndex = data.currentIndex;
         final upcoming = currentIndex + 1 < queue.length
             ? queue.sublist(currentIndex + 1)
@@ -1757,58 +1757,33 @@ class _QueuePreviewCardState extends State<_QueuePreviewCard> {
                       else
                         Column(
                           children: upcoming.take(4).map((track) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              child: Row(
-                                children: [
-                                  _TrackArtwork(
-                                    url: track.thumbnailUrl,
-                                    width: 36,
-                                    height: 36,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          track.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Row(
-                                          children: [
-                                            TrackBadges(
-                                              track: track,
-                                              fontScaling: 0.85,
-                                            ),
-                                            Expanded(
-                                              child: Text(
-                                                track.artists
-                                                    .map((a) => a.name)
-                                                    .join(', '),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: Colors.grey[500],
-                                                  fontSize: 11,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            final queueIndex = queue.indexOf(track);
+                            return TrackRow(
+                              track: track,
+                              height: 38,
+                              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                              playIconLocation: PlayIconLocation.art,
+                              onTap: () {
+                                if (queueIndex != -1) {
+                                  context
+                                      .read<PlaybackCoordinator>()
+                                      .playQueueIndex(queueIndex);
+                                }
+                              },
+                              onPlayPause: null,
+                              onSecondaryTapDown: (details) {
+                                EntityContextMenus.showTrackMenu(
+                                  context,
+                                  track: track,
+                                  globalPosition: details.globalPosition,
+                                );
+                              },
+                              onLongPress: () {
+                                EntityContextMenus.showTrackMenu(
+                                  context,
+                                  track: track,
+                                );
+                              },
                             );
                           }).toList(),
                         ),

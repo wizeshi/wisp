@@ -14,17 +14,23 @@ import 'package:wisp/data/models/metadata_models.dart';
 class FolderRow extends StatelessWidget {
   final PlaylistFolder folder;
   final double width;
+  final double height;
   final EdgeInsetsGeometry padding;
   final GenericRowPlayPosition playPosition;
   final bool isCollapsed;
+  final Widget? trailing;
+  final VoidCallback? onTap;
 
   const FolderRow({
     super.key,
     required this.folder,
     this.width = 160,
+    this.height = 48,
     this.padding = EdgeInsets.zero,
-    this.playPosition = GenericRowPlayPosition.end,
+    this.playPosition = GenericRowPlayPosition.none,
     this.isCollapsed = false,
+    this.trailing,
+    this.onTap,
   });
 
   Future<void> _toggleFolderState(BuildContext context) async {
@@ -57,20 +63,28 @@ class FolderRow extends StatelessWidget {
 
             return GenericRow(
               width: width,
+              height: height,
               padding: padding,
-              playPosition: GenericRowPlayPosition.end,
+              playPosition: playPosition,
               isCollapsed: isCollapsed,
               isPinned: folder.isPinned,
+              trailing: trailing ??
+                  Icon(
+                    collapsed ? Icons.chevron_right : Icons.expand_more,
+                    color: Colors.grey[500],
+                  ),
               title: folder.title,
               subtitle: '$count playlist${count == 1 ? '' : 's'}',
               artwork: ArtworkThumbnail(
-                source: const ArtworkSource.none(),
+                source: folder.thumbnailPath != null
+                    ? ArtworkSource.fromUrl(folder.thumbnailPath)
+                    : const ArtworkSource.none(),
                 size: ArtworkSize.small,
                 fallbackIcon: collapsed ? Icons.folder : Icons.folder_open,
               ),
               // If isPlaying is false, we hide the play button overlay, which is what we want for folders.
               isPlaying: false,
-              onTap: () => _toggleFolderState(context),
+              onTap: onTap ?? () => _toggleFolderState(context),
               onPlay: null,
               onSecondaryTapDown: (details) {
                 EntityContextMenus.showFolderMenu(

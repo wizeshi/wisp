@@ -37,6 +37,8 @@ import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/rows/track_row.dart';
 import '../../components/canvas_video.dart';
 import '../../components/rotating_blurred_cover_background.dart';
 import '../../components/inline_delay_editor.dart';
@@ -560,64 +562,60 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                     return Padding(
                       key: ValueKey('queue-item-${track.id}-$queueIndex'),
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
+                      child: TrackRow(
+                        track: track,
+                        height: 56,
+                        artworkSize: ArtworkSize.large,
+                        isCurrentOverride: isCurrent,
+                        isPlayingOverride: isCurrent && player.isPlaying,
+                        playIconLocation: PlayIconLocation.art,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        trailing: ReorderableDragStartListener(
+                          index: index,
+                          child: Icon(
+                            Icons.drag_handle,
+                            color: Colors.grey[500],
+                            size: 22,
+                          ),
+                        ),
                         onTap: () {
-                          unawaited(
-                            context.read<PlaybackCoordinator>().playQueueIndex(
-                              queueIndex,
-                            ),
+                          if (isCurrent) {
+                            player.isPlaying ? player.pause() : player.play();
+                          } else {
+                            unawaited(
+                              context.read<PlaybackCoordinator>().playQueueIndex(
+                                queueIndex,
+                              ),
+                            );
+                          }
+                        },
+                        onPlayPause: () {
+                          if (isCurrent) {
+                            player.isPlaying ? player.pause() : player.play();
+                          } else {
+                            unawaited(
+                              context.read<PlaybackCoordinator>().playQueueIndex(
+                                queueIndex,
+                              ),
+                            );
+                          }
+                        },
+                        onSecondaryTapDown: (details) {
+                          EntityContextMenus.showTrackMenu(
+                            context,
+                            track: track,
+                            globalPosition: details.globalPosition,
                           );
                         },
-                        child: Row(
-                          children: [
-                            _buildCoverImageBox(
-                              context,
-                              track.thumbnailUrl,
-                              56,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    track.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: isCurrent
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 1),
-                                  Text(
-                                    track.artists.isNotEmpty
-                                        ? track.artists.first.name
-                                        : 'Unknown artist',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.grey[400],
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ReorderableDragStartListener(
-                              index: index,
-                              child: Icon(
-                                Icons.drag_handle,
-                                color: Colors.grey[500],
-                                size: 22,
-                              ),
-                            ),
-                          ],
-                        ),
+                        onLongPress: () {
+                          EntityContextMenus.showTrackMenu(
+                            context,
+                            track: track,
+                          );
+                        },
                       ),
                     );
                   },

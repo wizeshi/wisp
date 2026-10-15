@@ -22,6 +22,9 @@ import '../../components/desktop_lyrics_preview.dart';
 import '../../components/inline_delay_editor.dart';
 import '../../components/mobile_artist_info_card.dart';
 import '../mobile/apple_music_full_player.dart';
+import 'package:wisp/shared/widgets/rows/track_row.dart';
+import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
 
 enum _SpotifyDisplayMode { artwork, canvas, lyrics, queue }
 
@@ -890,75 +893,46 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                 _buildDesktopSpotifyCard(
                   title: 'Next in queue',
                   trailing: Icons.queue_music,
+                  onTrailingPressed: () =>
+                      desktopState.setPreferredMode(_SpotifyDisplayMode.queue),
                   background: const Color(0xFF1A1A1A).withValues(alpha: 0.85),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: SizedBox(
-                          width: 46,
-                          height: 46,
-                          child: CachedNetworkImage(
-                            imageUrl: nextTrack?.thumbnailUrl ?? '',
-                            fit: BoxFit.cover,
-                            errorWidget: (context, url, error) =>
-                                Container(color: Colors.grey[800]),
+                  child: nextTrack == null
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'Queue is empty',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
                           ),
+                        )
+                      : TrackRow(
+                          track: nextTrack,
+                          height: 46,
+                          padding: EdgeInsets.zero,
+                          playIconLocation: PlayIconLocation.art,
+                          onTap: () {
+                            context
+                                .read<PlaybackCoordinator>()
+                                .playQueueIndex(nextIndex);
+                          },
+                          onPlayPause: () {
+                            context
+                                .read<PlaybackCoordinator>()
+                                .playQueueIndex(nextIndex);
+                          },
+                          onSecondaryTapDown: (details) {
+                            EntityContextMenus.showTrackMenu(
+                              context,
+                              track: nextTrack,
+                              globalPosition: details.globalPosition,
+                            );
+                          },
+                          onLongPress: () {
+                            EntityContextMenus.showTrackMenu(
+                              context,
+                              track: nextTrack,
+                            );
+                          },
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              nextTrack?.title ?? 'Queue is empty',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  PageRouteBuilder(
-                                    transitionDuration: Duration.zero,
-                                    reverseTransitionDuration: Duration.zero,
-                                    settings: const RouteSettings(
-                                      name: '/queue',
-                                    ),
-                                    pageBuilder:
-                                        (
-                                          context,
-                                          animation,
-                                          secondaryAnimation,
-                                        ) => const QueueView(),
-                                  ),
-                                );
-                              },
-                              child: Text(
-                                nextTrack == null
-                                    ? 'Open queue'
-                                    : (nextTrack.artists.isNotEmpty
-                                          ? nextTrack.artists.first.name
-                                          : 'Unknown artist'),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.grey[350],
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),

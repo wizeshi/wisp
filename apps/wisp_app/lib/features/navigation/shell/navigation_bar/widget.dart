@@ -24,7 +24,7 @@ import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/features/navigation/shell/navigation_state.dart';
 
-enum LibrarySidebarEntryType { item, unassignedHeader }
+enum LibrarySidebarEntryType { item }
 
 typedef _SidebarPlaybackHighlight = ({
   bool isPlaying,
@@ -48,11 +48,6 @@ class LibrarySidebarEntry {
 
   const LibrarySidebarEntry.item(this.item, {this.folderId})
     : type = LibrarySidebarEntryType.item;
-
-  const LibrarySidebarEntry.unassigned()
-    : type = LibrarySidebarEntryType.unassignedHeader,
-      item = null,
-      folderId = null;
 }
 
 class WispNavigation extends StatefulWidget {
@@ -169,7 +164,6 @@ class _WispNavigationState extends State<WispNavigation> {
         void processItem(dynamic raw) {
           if (raw == null) return;
           if (raw is LibrarySidebarEntry) {
-            if (raw.type == LibrarySidebarEntryType.unassignedHeader) return;
             processItem(raw.item);
             return;
           }
@@ -833,10 +827,6 @@ class _WispNavigationState extends State<WispNavigation> {
     final entry = item is LibrarySidebarEntry
         ? item
         : LibrarySidebarEntry.item(item);
-
-    if (entry.type == LibrarySidebarEntryType.unassignedHeader) {
-      return const SizedBox.shrink();
-    }
 
     final resolvedItem = entry.item;
 
