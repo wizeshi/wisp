@@ -142,111 +142,113 @@ class _DebugViewState extends State<DebugView> {
     final highlightColor = Theme.of(context).colorScheme.primary;
     final isMobile = Platform.isAndroid || Platform.isIOS;
 
-    return SafeArea(
-      top: true,
-      bottom: false,
-      left: false,
-      right: false,
-      child: Container(
-        color: Theme.of(context).colorScheme.surface,
-        padding: isMobile
-            ? const EdgeInsets.fromLTRB(12, 8, 12, 12)
-            : const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: isMobile
-                  ? MainAxisAlignment.spaceBetween
-                  : MainAxisAlignment.start,
-              children: [
-                if (isMobile)
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: GenericIconButton(
-                      padding: EdgeInsets.zero,
-                      icon: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 100),
-                        child: Icon(
-                          _isSidebarExpanded
-                              ? Icons.chevron_left
-                              : Icons.chevron_right,
-                          key: ValueKey(_isSidebarExpanded),
-                          size: 32,
-                        ),
-                      ),
-                      onPressed: _toggleSidebar,
-                    ),
-                  ),
-
-                const SizedBox(width: 8),
-
-                const Text(
-                  "Debug View",
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-
-            const Divider(),
-
-            Expanded(
-              child: Stack(
+    return Scaffold(
+      body: SafeArea(
+        top: true,
+        bottom: false,
+        left: false,
+        right: false,
+        child: Container(
+          color: Theme.of(context).colorScheme.surface,
+          padding: isMobile
+              ? const EdgeInsets.fromLTRB(12, 8, 12, 12)
+              : const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: isMobile
+                    ? MainAxisAlignment.spaceBetween
+                    : MainAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      if (!isMobile)
-                        Expanded(
-                          flex: _sidebarPercentage,
-                          child: _buildSidebar(highlightColor),
+                  if (isMobile)
+                    SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: GenericIconButton(
+                        padding: EdgeInsets.zero,
+                        icon: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 100),
+                          child: Icon(
+                            _isSidebarExpanded
+                                ? Icons.chevron_left
+                                : Icons.chevron_right,
+                            key: ValueKey(_isSidebarExpanded),
+                            size: 32,
+                          ),
                         ),
-
-                      Expanded(
-                        flex: isMobile ? 1 : 100 - _sidebarPercentage,
-                        child: switch (_selectedTab) {
-                          DebugViewTab.NavigationHistory =>
-                            NavigationHistoryView(),
-
-                          DebugViewTab.PlayerState => PlayerStateView(),
-
-                          DebugViewTab.ProviderState => ProviderStateView(),
-
-                          DebugViewTab.Handoff => HandoffView(),
-
-                          DebugViewTab.Genres => const GenresDebugView(),
-                        },
+                        onPressed: _toggleSidebar,
                       ),
-                    ],
+                    ),
+
+                  const SizedBox(width: 8),
+
+                  const Text(
+                    "Debug View",
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-
-                  if (isMobile) ...[
-                    IgnorePointer(
-                      ignoring: !_isSidebarExpanded,
-                      child: AnimatedOpacity(
-                        opacity: _isSidebarExpanded ? 1 : 0,
-                        duration: const Duration(milliseconds: 250),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _toggleSidebar,
-                          child: Container(color: Colors.black54),
-                        ),
-                      ),
-                    ),
-
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOut,
-                      top: 0,
-                      bottom: 0,
-                      left: _isSidebarExpanded ? 0 : -260,
-                      child: _buildSidebar(highlightColor),
-                    ),
-                  ],
                 ],
               ),
-            ),
-          ],
+
+              const Divider(),
+
+              Expanded(
+                child: Stack(
+                  children: [
+                    Row(
+                      children: [
+                        if (!isMobile)
+                          Expanded(
+                            flex: _sidebarPercentage,
+                            child: _buildSidebar(highlightColor),
+                          ),
+
+                        Expanded(
+                          flex: isMobile ? 1 : 100 - _sidebarPercentage,
+                          child: switch (_selectedTab) {
+                            DebugViewTab.NavigationHistory =>
+                              NavigationHistoryView(),
+
+                            DebugViewTab.PlayerState => PlayerStateView(),
+
+                            DebugViewTab.ProviderState => ProviderStateView(),
+
+                            DebugViewTab.Handoff => HandoffView(),
+
+                            DebugViewTab.Genres => const GenresDebugView(),
+                          },
+                        ),
+                      ],
+                    ),
+
+                    if (isMobile) ...[
+                      IgnorePointer(
+                        ignoring: !_isSidebarExpanded,
+                        child: AnimatedOpacity(
+                          opacity: _isSidebarExpanded ? 1 : 0,
+                          duration: const Duration(milliseconds: 250),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _toggleSidebar,
+                            child: Container(color: Colors.black54),
+                          ),
+                        ),
+                      ),
+
+                      AnimatedPositioned(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut,
+                        top: 0,
+                        bottom: 0,
+                        left: _isSidebarExpanded ? 0 : -260,
+                        child: _buildSidebar(highlightColor),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1133,10 +1135,8 @@ class PlayerStateView extends StatelessWidget {
                       label: "Stream URL Cache",
                       value: "Open Stream URL Cache",
                       valueOverride: GenericTextButton(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.primary,
-                        foregroundColor:
-                            Colors.white,
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white,
                         child: const Text("Open Stream URL Cache"),
                         onPressed: () {},
                       ),
@@ -1583,8 +1583,12 @@ class ProviderStateView extends StatelessWidget {
                                           provider.isAuthenticated.toString(),
                                         ),
                                         valueStyle: provider.isAuthenticated
-                                            ? const TextStyle(color: Colors.green)
-                                            : const TextStyle(color: Colors.red),
+                                            ? const TextStyle(
+                                                color: Colors.green,
+                                              )
+                                            : const TextStyle(
+                                                color: Colors.red,
+                                              ),
                                       ),
                                     ),
                                     Expanded(
@@ -1602,7 +1606,9 @@ class ProviderStateView extends StatelessWidget {
                                   ProviderStateViewRow(
                                     label: "Error Message",
                                     value: provider.errorMessage!,
-                                    valueStyle: const TextStyle(color: Colors.red),
+                                    valueStyle: const TextStyle(
+                                      color: Colors.red,
+                                    ),
                                   ),
                                 if (provider.userId != null)
                                   ProviderStateViewRow(
@@ -1908,7 +1914,8 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                 ),
                 _buildStatCard(
                   title: "Languages Detected",
-                  value: "${habits.history.expand((r) => r.languages).toSet().length}",
+                  value:
+                      "${habits.history.expand((r) => r.languages).toSet().length}",
                   icon: Icons.language,
                   color: Colors.blueAccent,
                 ),
@@ -1945,7 +1952,10 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                     const SizedBox(height: 6),
                     Text(
                       "Test any Spotify Track ID or URI to see what genres Spotify returns right now:",
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade400,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -1965,7 +1975,9 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                               fillColor: Colors.black26,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: Colors.grey.shade700),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade700,
+                                ),
                               ),
                             ),
                             onSubmitted: (_) => _performLiveLookup(),
@@ -2008,10 +2020,12 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                                         .map(
                                           (g) => Chip(
                                             label: Text(g),
-                                            backgroundColor: Colors.purple.shade900,
+                                            backgroundColor:
+                                                Colors.purple.shade900,
                                             padding: EdgeInsets.zero,
                                             materialTapTargetSize:
-                                                MaterialTapTargetSize.shrinkWrap,
+                                                MaterialTapTargetSize
+                                                    .shrinkWrap,
                                           ),
                                         )
                                         .toList(),
@@ -2024,7 +2038,10 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                       const SizedBox(height: 8),
                       Text(
                         "Error: $_liveLookupError",
-                        style: const TextStyle(color: Colors.redAccent, fontSize: 13),
+                        style: const TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ],
@@ -2121,7 +2138,11 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                 child: Center(
                   child: Column(
                     children: [
-                      Icon(Icons.music_off, size: 48, color: Colors.grey.shade600),
+                      Icon(
+                        Icons.music_off,
+                        size: 48,
+                        color: Colors.grey.shade600,
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         "No genres logged yet.",
@@ -2134,7 +2155,10 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                       const SizedBox(height: 4),
                       Text(
                         "Genres will appear here automatically as tracks finish playing.",
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     ],
                   ),
@@ -2148,12 +2172,18 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                   final count = frequencyMap[genre] ?? 0;
                   return InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () => _copyToClipboard(context, genre, 'Genre "$genre"'),
+                    onTap: () =>
+                        _copyToClipboard(context, genre, 'Genre "$genre"'),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.purple.withValues(alpha: 0.25),
-                        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.4)),
+                        border: Border.all(
+                          color: Colors.purpleAccent.withValues(alpha: 0.4),
+                        ),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -2170,9 +2200,14 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                           if (count > 0) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
+                              ),
                               decoration: BoxDecoration(
-                                color: Colors.purpleAccent.withValues(alpha: 0.4),
+                                color: Colors.purpleAccent.withValues(
+                                  alpha: 0.4,
+                                ),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
@@ -2256,10 +2291,14 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.purple.withValues(alpha: 0.2),
+                                      color: Colors.purple.withValues(
+                                        alpha: 0.2,
+                                      ),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: Colors.purpleAccent.withValues(alpha: 0.3),
+                                        color: Colors.purpleAccent.withValues(
+                                          alpha: 0.3,
+                                        ),
                                       ),
                                     ),
                                     child: Text(
