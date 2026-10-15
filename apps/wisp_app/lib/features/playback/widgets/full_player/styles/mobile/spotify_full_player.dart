@@ -40,6 +40,14 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     super.key,
   });
 
+  // This method ensures that before navigating to other screens (e.g. albums),
+  // the full player is closed first.
+  void _openScreen(Function openScreenCallback) async {
+    await AppNavigation.instance.closeFullPlayer();
+
+    openScreenCallback();
+  }
+
   Widget _buildArtistInfoSection(dynamic currentTrack) {
     final artist = currentTrack?.artists?.isNotEmpty == true
         ? currentTrack.artists.first
@@ -404,12 +412,14 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
             children: [
               GestureDetector(
                 onTap: () {
-                  AppNavigation.instance.openSharedList(
-                    context,
-                    id: currentTrack?.album?.id,
-                    type: SharedListType.album,
-                    initialTitle: currentTrack?.album?.title,
-                    initialThumbnailUrl: currentTrack?.album?.thumbnailUrl,
+                  _openScreen(
+                    () => AppNavigation.instance.openSharedList(
+                      context,
+                      id: currentTrack?.album?.id,
+                      type: SharedListType.album,
+                      initialTitle: currentTrack?.album?.title,
+                      initialThumbnailUrl: currentTrack?.album?.thumbnailUrl,
+                    ),
                   );
                 },
                 child: SizedBox(
@@ -434,12 +444,14 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                         for (int i = 0; i < artists.length; i++) ...[
                           GestureDetector(
                             onTap: () {
-                              AppNavigation.instance.openArtist(
-                                context,
-                                artistId: artists[i].id,
-                                initialArtist: artists[i],
-                                fallbackName: artists[i].name,
-                                source: artists[i].source,
+                              _openScreen(
+                                () => AppNavigation.instance.openArtist(
+                                  context,
+                                  artistId: artists[i].id,
+                                  initialArtist: artists[i],
+                                  fallbackName: artists[i].name,
+                                  source: artists[i].source,
+                                ),
                               );
                             },
                             child: Text(

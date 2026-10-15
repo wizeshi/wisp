@@ -26,6 +26,7 @@ import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
+import 'package:wisp/features/shell/navigation/navigation_history.dart';
 
 part 'mobile/spotify.dart';
 part 'mobile/apple_music.dart';
@@ -264,6 +265,10 @@ class _UserDetailViewState extends State<UserDetailView> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
+          leading: GenericIconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => NavigationHistory.instance.goBack(),
+          ),
           title: Text(
             title,
             style: const TextStyle(fontWeight: FontWeight.w700),
@@ -276,7 +281,14 @@ class _UserDetailViewState extends State<UserDetailView> {
 
     if (_errorMessage != null && user == null) {
       return Scaffold(
-        appBar: AppBar(backgroundColor: Colors.black, title: Text(title)),
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          leading: GenericIconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => NavigationHistory.instance.goBack(),
+          ),
+          title: Text(title),
+        ),
         body: Center(child: Text(_errorMessage!)),
       );
     }

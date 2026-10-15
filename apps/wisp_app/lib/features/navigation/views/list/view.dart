@@ -97,6 +97,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   VoidCallback? _libraryListener;
   VoidCallback? _localPlaylistListener;
   late final MetadataManager _metadataManager;
+  late final LocalPlaylistState _localPlaylists;
+  late final LibraryState _libraryState;
   bool _preShuffleEnabled = false;
   List<GenericSong> _preShuffledQueue = [];
   String _searchQuery = '';
@@ -110,6 +112,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   void initState() {
     super.initState();
     _metadataManager = context.read<MetadataManager>();
+    _localPlaylists = context.read<LocalPlaylistState>();
+    _libraryState = context.read<LibraryState>();
     unawaited(_metadataManager.ensureLikedTracksLoaded());
     if (widget.type == SharedListType.playlist) {
       if (isLikedSongsPlaylistId(widget.id)) {
@@ -121,9 +125,8 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       } else {
         _libraryListener = () {
           if (!mounted) return;
-          final library = context.read<LibraryState>();
           GenericPlaylist? updated;
-          for (final p in library.playlists) {
+          for (final p in _libraryState.playlists) {
             if (p.id == widget.id) {
               updated = p;
               break;
@@ -148,12 +151,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             }
           }
         };
-        context.read<LibraryState>().addListener(_libraryListener!);
+        _libraryState.addListener(_libraryListener!);
 
         _localPlaylistListener = () {
           if (!mounted) return;
-          final local = context.read<LocalPlaylistState>();
-          final updated = local.getGenericPlaylist(widget.id);
+          final updated = _localPlaylists.getGenericPlaylist(widget.id);
           if (updated != null) {
             if (_playlist == null ||
                 MetadataDiff.hasPlaylistItemListChanged(
@@ -167,7 +169,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             }
           }
         };
-        context.read<LocalPlaylistState>().addListener(_localPlaylistListener!);
+        _localPlaylists.addListener(_localPlaylistListener!);
       }
     }
     _loadListDetails();
@@ -228,10 +230,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       _metadataManager.removeListener(_likedTracksListener!);
     }
     if (_libraryListener != null) {
-      context.read<LibraryState>().removeListener(_libraryListener!);
+      _libraryState.removeListener(_libraryListener!);
     }
     if (_localPlaylistListener != null) {
-      context.read<LocalPlaylistState>().removeListener(_localPlaylistListener!);
+      _localPlaylists.removeListener(_localPlaylistListener!);
     }
     _desktopScrollController.dispose();
     _mobileScrollController.dispose();
@@ -239,12 +241,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   Future<void> _loadListDetails() async {
-    final localPlaylists = context.read<LocalPlaylistState>();
+    final localPlaylists = _localPlaylists;
     final isLocal = widget.type == SharedListType.playlist &&
         !isLikedSongsPlaylistId(widget.id) &&
         localPlaylists.isLocalPlaylistId(widget.id);
 
-    final metadataManager = context.read<MetadataManager>();
+    final metadataManager = _metadataManager;
     if (!isLocal && !metadataManager.hasEnabledProviders) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -317,7 +319,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
             }
           },
         );
-        if (mounted) {
+        if (mounted && !_revalidationToken.isCancelled) {
           unawaited(_loadRecommendationsIfEligible(forceRefresh: true));
         }
         return;
@@ -353,7 +355,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
           }
         },
       );
-      if (mounted) {
+      if (mounted && !_revalidationToken.isCancelled) {
         unawaited(_loadRecommendationsIfEligible(forceRefresh: true));
       }
     } else {
@@ -930,12 +932,12 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   }
 
   bool _shouldShowRecommendations() {
+    if (!mounted || _revalidationToken.isCancelled) return false;
     if (widget.type != SharedListType.playlist) return false;
     if (isLikedSongsPlaylistId(widget.id)) return false;
     if (_playlist == null) return false;
     if (_playlist!.source == 'local') return false;
-    final localPlaylists = context.read<LocalPlaylistState>();
-    if (localPlaylists.isLocalPlaylistId(widget.id)) return false;
+    if (_localPlaylists.isLocalPlaylistId(widget.id)) return false;
     final supportsRecs = _metadataManager.hasCapability(
       MetadataCapability.recommendations,
       source: _playlist!.source,
@@ -973,6 +975,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     bool forceRefresh = false,
     bool markCurrentAsSkipped = false,
   }) async {
+    if (!mounted || _revalidationToken.isCancelled) return;
     if (!_shouldShowRecommendations()) {
       if (!mounted) {
         _clearRecommendationsState();
@@ -992,13 +995,10 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       _markCurrentRecommendationsAsSkipped();
     }
 
-    if (mounted) {
-      _safeSetState(() {
-        _isLoadingRecommendations = true;
-      });
-    } else {
+    if (!mounted || _revalidationToken.isCancelled) return;
+    _safeSetState(() {
       _isLoadingRecommendations = true;
-    }
+    });
 
     try {
       final recommendations = await _metadataManager.getRecommended(
@@ -1007,7 +1007,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         numResults: 20,
         source: _playlist?.source,
       );
-      if (!mounted) {
+      if (!mounted || _revalidationToken.isCancelled) {
         _recommendedSongs = recommendations.take(10).toList();
         _isLoadingRecommendations = false;
         return;
@@ -1017,7 +1017,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         _isLoadingRecommendations = false;
       });
     } catch (e) {
-      if (!mounted) {
+      if (!mounted || _revalidationToken.isCancelled) {
         _isLoadingRecommendations = false;
         return;
       }

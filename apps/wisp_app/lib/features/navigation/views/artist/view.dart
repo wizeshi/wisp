@@ -30,6 +30,7 @@ import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/menus/inspect_dialog.dart';
 import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
+import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
@@ -277,7 +278,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             elevation: 0,
             leading: GenericIconButton(
               icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => NavigationHistory.instance.goBack(),
             ),
             title: Text(
               name,
