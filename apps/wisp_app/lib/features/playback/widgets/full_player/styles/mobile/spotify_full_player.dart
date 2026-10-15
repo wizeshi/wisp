@@ -7,10 +7,13 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/features/navigation/views/list/view.dart';
+import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/connect/widgets/connect_menu.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
+import 'package:wisp/services/audio/wisp_audio_handler.dart'
+    as global_audio_player;
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/metadata_models.dart';
@@ -21,6 +24,7 @@ import 'package:wisp/features/playback/views/lyrics_view.dart';
 import 'package:wisp/features/playback/views/queue_view.dart';
 import 'package:wisp/features/playback/widgets/animated_lyrics_preview.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
+import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 import '../../components/canvas_video.dart';
@@ -31,7 +35,10 @@ import 'apple_music_full_player.dart';
 class SpotifyMobileFullScreenPlayer extends StatelessWidget {
   final ScrollController scrollController;
 
-  const SpotifyMobileFullScreenPlayer({required this.scrollController, super.key});
+  const SpotifyMobileFullScreenPlayer({
+    required this.scrollController,
+    super.key,
+  });
 
   Widget _buildArtistInfoSection(dynamic currentTrack) {
     final artist = currentTrack?.artists?.isNotEmpty == true
@@ -371,6 +378,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
   }
 
   Widget _buildTrackInfo(
+    BuildContext context,
     dynamic currentTrack,
     Color likeColor,
     bool useCoverArt,
@@ -396,7 +404,13 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
             children: [
               GestureDetector(
                 onTap: () {
-                  // TODO: Navigate to track
+                  AppNavigation.instance.openSharedList(
+                    context,
+                    id: currentTrack?.album?.id,
+                    type: SharedListType.album,
+                    initialTitle: currentTrack?.album?.title,
+                    initialThumbnailUrl: currentTrack?.album?.thumbnailUrl,
+                  );
                 },
                 child: SizedBox(
                   width: double.infinity,
@@ -411,38 +425,49 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              if (artists.isNotEmpty)
-                Wrap(
-                  children: [
-                    for (int i = 0; i < artists.length; i++) ...[
-                      GestureDetector(
-                        onTap: () {
-                          // TODO: Navigate to artist
-                        },
-                        child: Text(
-                          artists[i].name,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 16,
+              Row(
+                children: [
+                  TrackBadges(track: currentTrack),
+                  if (artists.isNotEmpty)
+                    Wrap(
+                      children: [
+                        for (int i = 0; i < artists.length; i++) ...[
+                          GestureDetector(
+                            onTap: () {
+                              AppNavigation.instance.openArtist(
+                                context,
+                                artistId: artists[i].id,
+                                initialArtist: artists[i],
+                                fallbackName: artists[i].name,
+                                source: artists[i].source,
+                              );
+                            },
+                            child: Text(
+                              artists[i].name,
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 16,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      if (i < artists.length - 1)
-                        Text(
-                          ', ',
-                          style: TextStyle(
-                            color: Colors.grey[300],
-                            fontSize: 16,
-                          ),
-                        ),
-                    ],
-                  ],
-                )
-              else
-                Text(
-                  'No Artist',
-                  style: TextStyle(color: Colors.grey[300], fontSize: 16),
-                ),
+                          if (i < artists.length - 1)
+                            Text(
+                              ', ',
+                              style: TextStyle(
+                                color: Colors.grey[300],
+                                fontSize: 16,
+                              ),
+                            ),
+                        ],
+                      ],
+                    )
+                  else
+                    Text(
+                      'No Artist',
+                      style: TextStyle(color: Colors.grey[300], fontSize: 16),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -844,8 +869,8 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
           color: player.isDJMode
               ? Colors.grey[600]
               : (player.repeatMode != global_audio_player.RepeatMode.off
-                  ? bgColor
-                  : Colors.grey[300]),
+                    ? bgColor
+                    : Colors.grey[300]),
           padding: const EdgeInsets.all(8),
           tooltip: player.isDJMode ? 'Unavailable in DJ mode' : null,
           onPressed: player.isDJMode
@@ -1073,9 +1098,13 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                                               lyricsProvider,
                                             ),
                                             _buildTrackInfo(
+                                              ctx,
                                               currentTrack,
                                               btnColor,
-                                              (currentTrack?.thumbnailUrl.isNotEmpty == true &&
+                                              (currentTrack
+                                                          ?.thumbnailUrl
+                                                          .isNotEmpty ==
+                                                      true &&
                                                   hasCanvas &&
                                                   useCanvas),
                                             ),
