@@ -16,10 +16,13 @@ import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
+import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/core/utils/song_source_icon.dart';
+import 'package:wisp/core/utils/liked_songs.dart';
+import 'package:wisp/features/library/state/local_playlists.dart';
 import 'adaptive_context_menu.dart';
 import 'playlist_folder_modals.dart';
 import 'inspect_dialog.dart';
@@ -249,6 +252,270 @@ class EntityContextMenus {
     context.showSuccessAlert('Added $added track${added == 1 ? '' : 's'} to queue');
   }
 
+  static List<ContextMenuAction> _buildAddToPlaylistActions(
+    BuildContext context, {
+    required GenericSong track,
+  }) {
+    final localState = context.read<LocalPlaylistState>();
+    final libraryState = context.read<LibraryState>();
+    final metadataManager = context.read<MetadataManager>();
+    final userDisplayName = metadataManager.userDisplayName ?? '';
+    final activeIconColor = Theme.of(context).colorScheme.primary;
+
+    final allPlaylists = libraryState.playlists;
+    final candidates = allPlaylists.where((p) {
+      if (isLikedSongsPlaylistId(p.id)) return false;
+      if (localState.isLocalPlaylistId(p.id)) return true;
+      if (userDisplayName.isNotEmpty &&
+          p.author.displayName.trim().toLowerCase() ==
+              userDisplayName.trim().toLowerCase()) {
+        return true;
+      }
+      return false;
+    }).toList();
+
+    return [
+      ContextMenuAction(
+        id: 'new-playlist',
+        label: 'New playlist',
+        icon: Icons.add,
+        onSelected: (ctx) async {
+          final newPlaylist =
+              await PlaylistFolderModals.showCreatePlaylistDialog(ctx);
+          if (newPlaylist != null && ctx.mounted) {
+            await ctx
+                .read<LocalPlaylistState>()
+                .addTrackFromSong(newPlaylist.id, track);
+            if (ctx.mounted) {
+              ctx.showSuccessAlert('Created and added to ${newPlaylist.title}');
+            }
+          }
+        },
+      ),
+      for (final playlist in candidates)
+        _buildPlaylistItemAction(
+          context,
+          playlist: playlist,
+          track: track,
+          activeIconColor: activeIconColor,
+        ),
+    ];
+  }
+
+  static ContextMenuAction _buildPlaylistItemAction(
+    BuildContext context, {
+    required GenericPlaylist playlist,
+    required GenericSong track,
+    required Color activeIconColor,
+  }) {
+    return ContextMenuAction(
+      id: 'add-to-${playlist.id}',
+      label: playlist.title,
+      keepOpenOnSelect: true,
+      customLeading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: playlist.thumbnailUrl.isNotEmpty
+              ? CachedNetworkImage(
+                  imageUrl: playlist.thumbnailUrl,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, _, _) => const Icon(
+                    Icons.playlist_play,
+                    size: 18,
+                    color: Colors.white70,
+                  ),
+                )
+              : const Icon(
+                  Icons.playlist_play,
+                  size: 18,
+                  color: Colors.white70,
+                ),
+        ),
+      ),
+      customTrailingBuilder: (tileCtx) {
+        final localState = tileCtx.read<LocalPlaylistState>();
+        final isLocal = localState.isLocalPlaylistId(playlist.id);
+        if (isLocal) {
+          final inPlaylist = localState.hasTrack(playlist.id, track.id);
+          return Icon(
+            inPlaylist ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: inPlaylist ? activeIconColor : Colors.grey[600],
+            size: 20,
+          );
+        }
+
+        final libraryState = tileCtx.watch<LibraryState>();
+        final current = libraryState.playlists.firstWhere(
+          (p) => p.id == playlist.id,
+          orElse: () => playlist,
+        );
+
+        final songs = current.songs;
+        final clean =
+            track.id.contains(':') ? track.id.split(':').last : track.id;
+
+        if (songs != null && songs.isNotEmpty) {
+          final inPlaylist = songs.any((s) {
+            final sClean = s.id.contains(':') ? s.id.split(':').last : s.id;
+            return s.id == track.id || sClean == clean;
+          });
+          if (inPlaylist) {
+            return Icon(Icons.check_circle, color: activeIconColor, size: 20);
+          }
+          final total = current.total ?? songs.length;
+          if (total <= songs.length) {
+            return Icon(
+              Icons.radio_button_unchecked,
+              color: Colors.grey[600],
+              size: 20,
+            );
+          }
+          return Icon(
+            Icons.remove_circle_outline,
+            color: Colors.grey[500],
+            size: 20,
+          );
+        }
+
+        return Icon(
+          Icons.radio_button_unchecked,
+          color: Colors.grey[600],
+          size: 20,
+        );
+      },
+      onSelected: (ctx) async {
+        final local = ctx.read<LocalPlaylistState>();
+        final metadata = ctx.read<MetadataManager>();
+        final library = ctx.read<LibraryState>();
+        final isLocal = local.isLocalPlaylistId(playlist.id);
+
+        if (isLocal) {
+          final inPlaylist = local.hasTrack(playlist.id, track.id);
+          if (inPlaylist) {
+            await local.removeTrack(playlist.id, track.id);
+            if (ctx.mounted) {
+              ctx.showSuccessAlert('Removed from ${playlist.title}');
+            }
+          } else {
+            await local.addTrackFromSong(playlist.id, track);
+            if (ctx.mounted) {
+              ctx.showSuccessAlert('Added to ${playlist.title}');
+            }
+          }
+          return;
+        }
+
+        final current = library.playlists.firstWhere(
+          (p) => p.id == playlist.id,
+          orElse: () => playlist,
+        );
+        var songs = current.songs != null
+            ? List<PlaylistItem>.from(current.songs!)
+            : <PlaylistItem>[];
+
+        // If songs have not been hydrated yet, fetch first page
+        if (songs.isEmpty) {
+          try {
+            final fetched = await metadata.getPlaylistInfo(
+              current.id,
+              source: current.source,
+              limit: 100,
+              policy: MetadataFetchPolicy.refreshIfExpired,
+            );
+            if (fetched.songs != null && fetched.songs!.isNotEmpty) {
+              songs = List<PlaylistItem>.from(fetched.songs!);
+              library.updatePlaylistSongs(current.id, songs);
+            }
+          } catch (_) {}
+        }
+
+        final clean =
+            track.id.contains(':') ? track.id.split(':').last : track.id;
+        var inPlaylist = songs.any((s) {
+          final sClean = s.id.contains(':') ? s.id.split(':').last : s.id;
+          return s.id == track.id || sClean == clean;
+        });
+
+        // If not in first page, but playlist has more tracks, check full list before adding
+        if (!inPlaylist &&
+            current.total != null &&
+            current.total! > songs.length) {
+          try {
+            final full = await metadata.fetchFullPlaylistWithTracks(
+              current.id,
+              source: current.source,
+            );
+            if (full.songs != null) {
+              songs = List<PlaylistItem>.from(full.songs!);
+              library.updatePlaylistSongs(current.id, songs);
+              inPlaylist = songs.any((s) {
+                final sClean =
+                    s.id.contains(':') ? s.id.split(':').last : s.id;
+                return s.id == track.id || sClean == clean;
+              });
+            }
+          } catch (_) {}
+        }
+
+        if (inPlaylist) {
+          try {
+            await metadata.removeTracksFromPlaylist(
+              current.id,
+              [track.id],
+              source: current.source,
+            );
+          } catch (e) {
+            if (ctx.mounted) {
+              ctx.showErrorAlert('Failed to remove from ${current.title}: $e');
+            }
+            return;
+          }
+          songs.removeWhere((s) {
+            final sClean = s.id.contains(':') ? s.id.split(':').last : s.id;
+            return s.id == track.id || sClean == clean;
+          });
+          library.updatePlaylistSongs(current.id, songs);
+          if (ctx.mounted) {
+            ctx.showSuccessAlert('Removed from ${current.title}');
+          }
+        } else {
+          try {
+            await metadata.addTracksToPlaylist(
+              current.id,
+              [track.id],
+              source: current.source,
+            );
+          } catch (e) {
+            if (ctx.mounted) {
+              ctx.showErrorAlert('Failed to add to ${current.title}: $e');
+            }
+            return;
+          }
+          songs.add(
+            PlaylistItem(
+              id: track.id,
+              source: track.source,
+              title: track.title,
+              artists: track.artists,
+              thumbnailUrl: track.thumbnailUrl,
+              explicit: track.explicit,
+              album: track.album,
+              durationSecs: track.durationSecs,
+              addedAt: DateTime.now(),
+              trackNumber: (songs.length + 1),
+            ),
+          );
+          library.updatePlaylistSongs(current.id, songs);
+          if (ctx.mounted) {
+            ctx.showSuccessAlert('Added to ${current.title}');
+          }
+        }
+      },
+    );
+  }
+
   static Future<void> showTrackMenu(
     BuildContext context, {
     required GenericSong track,
@@ -302,9 +569,8 @@ class EntityContextMenus {
         id: 'playlist-add',
         label: 'Add to Playlist',
         icon: Icons.playlist_add,
-        onSelected: (_) async {
-          context.showInfoAlert('Add to playlist placeholder');
-        },
+        submenuMaxHeightFactor: 0.25,
+        children: _buildAddToPlaylistActions(context, track: track),
       ),
       ContextMenuAction(
         id: 'cache-toggle',
@@ -613,44 +879,6 @@ class EntityContextMenus {
         },
       ),
       ContextMenuAction(
-        id: 'edit-details',
-        label: 'Edit Details',
-        icon: Icons.edit,
-        onSelected: (_) =>
-            PlaylistFolderModals.showRenamePlaylistDialog(context, playlist),
-      ),
-      ContextMenuAction(
-        id: 'delete',
-        label: 'Delete',
-        icon: Icons.delete_outline,
-        destructive: true,
-        onSelected: (_) async {
-          final confirm = await showDialog<bool>(
-            context: context,
-            builder: (dialogContext) {
-              return AlertDialog(
-                title: const Text('Delete playlist?'),
-                content: const Text(
-                  'Delete confirmation is still a placeholder for now.',
-                ),
-                actions: [
-                  GenericTextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(false),
-                    child: const Text('Cancel'),
-                  ),
-                  GenericFilledButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(true),
-                    child: const Text('Delete'),
-                  ),
-                ],
-              );
-            },
-          );
-          if (confirm != true || !context.mounted) return;
-          context.showInfoAlert('Delete playlist placeholder');
-        },
-      ),
-      ContextMenuAction(
         id: 'download',
         label: 'Download',
         icon: Icons.download,
@@ -660,7 +888,18 @@ class EntityContextMenus {
             label: 'Download Metadata',
             icon: Icons.description_outlined,
             onSelected: (_) async {
-              context.showInfoAlert('Download metadata placeholder');
+              try {
+                final metadataManager = context.read<MetadataManager>();
+                await metadataManager.fetchFullPlaylistWithTracks(
+                  playlist.id,
+                  source: playlist.source,
+                );
+                if (!context.mounted) return;
+                context.showSuccessAlert('Playlist metadata cached');
+              } catch (e) {
+                if (!context.mounted) return;
+                context.showErrorAlert('Failed to cache metadata: $e');
+              }
             },
           ),
           ContextMenuAction(
@@ -686,27 +925,6 @@ class EntityContextMenus {
           ),
         ],
       ),
-      if (currentFolderId != null)
-        ContextMenuAction(
-          id: 'remove-from-folder',
-          label: 'Remove from Folder',
-          icon: Icons.folder_off_outlined,
-          onSelected: (_) async {
-            await folderState.movePlaylistIntoFolder(playlist.id, null);
-            if (context.mounted) {
-              context.read<MetadataManager>().removePlaylistFromFolder(
-                playlistId: playlist.id,
-                source: playlist.source,
-              );
-            }
-          },
-        ),
-      ContextMenuAction(
-        id: 'move-folder',
-        label: 'Move to Folder',
-        icon: Icons.folder_open,
-        children: moveChildren,
-      ),
       ContextMenuAction(
         id: 'share',
         label: 'Share',
@@ -717,6 +935,71 @@ class EntityContextMenus {
           type: 'playlist',
           id: playlist.id,
         ),
+      ),
+      ContextMenuAction(
+        id: 'edit-details',
+        label: 'Edit Details',
+        icon: Icons.edit,
+        onSelected: (_) =>
+            PlaylistFolderModals.showRenamePlaylistDialog(context, playlist),
+      ),
+      ContextMenuAction(
+        id: 'move-folder',
+        label: 'Move to Folder',
+        icon: Icons.folder_open,
+        children: moveChildren,
+      ),
+      ContextMenuAction(
+        id: 'delete',
+        label: 'Delete',
+        icon: Icons.delete_outline,
+        destructive: true,
+        onSelected: (_) async {
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) {
+              return AlertDialog(
+                title: const Text('Delete playlist?'),
+                content: Text(
+                  'Are you sure you want to delete "${playlist.title}"? This cannot be undone.',
+                ),
+                actions: [
+                  GenericTextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  GenericFilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: const Text('Delete'),
+                  ),
+                ],
+              );
+            },
+          );
+          if (confirm != true || !context.mounted) return;
+          final localPlaylists = context.read<LocalPlaylistState>();
+          final metadataManager = context.read<MetadataManager>();
+          final libraryState = context.read<LibraryState>();
+
+          if (localPlaylists.isLocalPlaylistId(playlist.id)) {
+            await localPlaylists.deletePlaylist(playlist.id);
+            if (!context.mounted) return;
+            context.showSuccessAlert('Playlist deleted');
+          } else {
+            try {
+              await metadataManager.deletePlaylist(
+                playlist.id,
+                source: playlist.source,
+              );
+              libraryState.removePlaylist(playlist.id);
+              if (!context.mounted) return;
+              context.showSuccessAlert('Playlist deleted');
+            } catch (e) {
+              if (!context.mounted) return;
+              context.showErrorAlert('Failed to delete playlist: $e');
+            }
+          }
+        },
       ),
       if (context.read<PreferencesProvider>().debugModeEnabled)
         ContextMenuAction(
@@ -832,7 +1115,18 @@ class EntityContextMenus {
             label: 'Download Metadata',
             icon: Icons.description_outlined,
             onSelected: (_) async {
-              context.showInfoAlert('Download metadata placeholder');
+              try {
+                final metadataManager = context.read<MetadataManager>();
+                await metadataManager.fetchFullAlbumWithTracks(
+                  resolvedAlbum.id,
+                  source: resolvedAlbum.source,
+                );
+                if (!context.mounted) return;
+                context.showSuccessAlert('Album metadata cached');
+              } catch (e) {
+                if (!context.mounted) return;
+                context.showErrorAlert('Failed to cache metadata: $e');
+              }
             },
           ),
           ContextMenuAction(

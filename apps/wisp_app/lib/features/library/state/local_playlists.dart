@@ -311,6 +311,16 @@ class LocalPlaylistState extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool hasTrack(String id, String trackId) {
+    final playlist = getById(id);
+    if (playlist == null) return false;
+    final clean = trackId.contains(':') ? trackId.split(':').last : trackId;
+    return playlist.tracks.any((t) {
+      final tClean = t.id.contains(':') ? t.id.split(':').last : t.id;
+      return t.id == trackId || tClean == clean;
+    });
+  }
+
   Future<void> addTrackFromSong(String id, GenericSong song) async {
     final index = _playlists.indexWhere((p) => p.id == id);
     if (index < 0) return;
@@ -333,6 +343,23 @@ class LocalPlaylistState extends ChangeNotifier {
     _playlists[index] = playlist.copyWith(
       tracks: updatedTracks,
       updatedAt: now,
+    );
+    await _savePrefs();
+    notifyListeners();
+  }
+
+  Future<void> removeTrack(String id, String trackId) async {
+    final index = _playlists.indexWhere((p) => p.id == id);
+    if (index < 0) return;
+    final playlist = _playlists[index];
+    final clean = trackId.contains(':') ? trackId.split(':').last : trackId;
+    final updatedTracks = playlist.tracks.where((t) {
+      final tClean = t.id.contains(':') ? t.id.split(':').last : t.id;
+      return t.id != trackId && tClean != clean;
+    }).toList();
+    _playlists[index] = playlist.copyWith(
+      tracks: updatedTracks,
+      updatedAt: DateTime.now(),
     );
     await _savePrefs();
     notifyListeners();

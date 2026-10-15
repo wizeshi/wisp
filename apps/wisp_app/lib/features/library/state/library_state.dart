@@ -282,6 +282,7 @@ class LibraryState extends ChangeNotifier {
       _isRefreshing = false;
       _isFetchingData = false;
       notifyListeners();
+      unawaited(_hydrateEditablePlaylistTracks());
     }
   }
 
@@ -340,6 +341,122 @@ class LibraryState extends ChangeNotifier {
     if (next.length == _albums.length) return;
     _albums = next;
     notifyListeners();
+  }
+
+  void removePlaylist(String playlistId) {
+    _remotePlaylists =
+        _remotePlaylists.where((p) => p.id != playlistId).toList();
+    if (_allOrganized != null) {
+      _allOrganized = _allOrganized!.where((item) {
+        if (item is GenericPlaylist && item.id == playlistId) return false;
+        if (item is Map<String, dynamic> &&
+            (item['id'] == playlistId ||
+                item['uri']?.toString().contains(playlistId) == true)) {
+          return false;
+        }
+        return true;
+      }).toList();
+    }
+    notifyListeners();
+  }
+
+  void updatePlaylistSongs(String playlistId, List<PlaylistItem> songs) {
+    bool changed = false;
+    final rIdx = _remotePlaylists.indexWhere((p) => p.id == playlistId);
+    if (rIdx != -1) {
+      final old = _remotePlaylists[rIdx];
+      _remotePlaylists[rIdx] = old.copyWith(
+        songs: songs,
+        total: (old.total != null && old.total! > songs.length)
+            ? old.total
+            : songs.length,
+      );
+      changed = true;
+    }
+    final all = _allOrganized;
+    if (all != null) {
+      for (var i = 0; i < all.length; i++) {
+        final item = all[i];
+        if (item is GenericPlaylist && item.id == playlistId) {
+          all[i] = item.copyWith(
+            songs: songs,
+            total: (item.total != null && item.total! > songs.length)
+                ? item.total
+                : songs.length,
+          );
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  void _updatePlaylistInState(GenericPlaylist updated) {
+    bool changed = false;
+    final rIdx = _remotePlaylists.indexWhere((p) => p.id == updated.id);
+    if (rIdx != -1) {
+      _remotePlaylists[rIdx] = updated;
+      changed = true;
+    }
+    final all = _allOrganized;
+    if (all != null) {
+      for (var i = 0; i < all.length; i++) {
+        final item = all[i];
+        if (item is GenericPlaylist && item.id == updated.id) {
+          all[i] = updated;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  Future<void> _hydrateEditablePlaylistTracks() async {
+    final manager = _metadataManager;
+    if (manager == null || !manager.isAuthenticated) return;
+    final userDisplayName = manager.userDisplayName?.trim().toLowerCase() ?? '';
+    final userId = manager.userId?.trim().toLowerCase() ?? '';
+    if (userDisplayName.isEmpty && userId.isEmpty) return;
+
+    final editable = _remotePlaylists.where((p) {
+      if (isLikedSongsPlaylistId(p.id)) return false;
+      final authorName = p.author.displayName.trim().toLowerCase();
+      final authorId = p.author.id.trim().toLowerCase();
+      return (userDisplayName.isNotEmpty && authorName == userDisplayName) ||
+          (userId.isNotEmpty && authorId == userId);
+    }).toList();
+
+    for (final pl in editable) {
+      if (pl.songs != null && pl.songs!.isNotEmpty) continue;
+      try {
+        final cached =
+            await manager.getCachedFullPlaylist(pl.id, source: pl.source);
+        if (cached != null &&
+            cached.songs != null &&
+            cached.songs!.isNotEmpty) {
+          _updatePlaylistInState(cached);
+          continue;
+        }
+
+        final fetched = await manager.getPlaylistInfo(
+          pl.id,
+          source: pl.source,
+          limit: 100,
+          policy: MetadataFetchPolicy.refreshIfExpired,
+        );
+        if (fetched.songs != null && fetched.songs!.isNotEmpty) {
+          _updatePlaylistInState(fetched);
+        }
+      } catch (e) {
+        logger.d(
+          '[LibraryState] Background hydration skipped for ${pl.title}: $e',
+        );
+      }
+    }
   }
 
   /// Toggle or set playlist pinned state. Optimistically updates locally and

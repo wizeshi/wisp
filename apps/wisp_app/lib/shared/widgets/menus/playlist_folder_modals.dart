@@ -406,7 +406,7 @@ class PlaylistFolderModals {
     );
   }
 
-  static Future<void> showCreatePlaylistDialog(BuildContext context) async {
+  static Future<LocalPlaylist?> showCreatePlaylistDialog(BuildContext context) async {
     final isMobile = Platform.isAndroid || Platform.isIOS;
     final controller = TextEditingController();
     File? selectedFile;
@@ -432,12 +432,12 @@ class PlaylistFolderModals {
       }
 
       if (modalContext.mounted) {
-        Navigator.of(modalContext).pop();
+        Navigator.of(modalContext).pop(localPlaylist);
       }
     }
 
     if (isMobile) {
-      await showModalBottomSheet(
+      return await showModalBottomSheet<LocalPlaylist>(
         context: context,
         useRootNavigator: true,
         isScrollControlled: true,
@@ -526,10 +526,9 @@ class PlaylistFolderModals {
           );
         },
       );
-      return;
     }
 
-    await showDialog<void>(
+    return await showDialog<LocalPlaylist>(
       context: context,
       useRootNavigator: true,
       builder: (dialogContext) {

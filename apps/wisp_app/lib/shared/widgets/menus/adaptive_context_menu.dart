@@ -17,8 +17,13 @@ class ContextMenuAction {
   final String label;
   final IconData? icon;
   final Color? iconColor;
+  final Widget? customLeading;
+  final Widget? customTrailing;
+  final WidgetBuilder? customTrailingBuilder;
   final bool enabled;
   final bool destructive;
+  final bool keepOpenOnSelect;
+  final double? submenuMaxHeightFactor;
   final List<ContextMenuAction> children;
   final ContextMenuActionCallback? onSelected;
 
@@ -27,8 +32,13 @@ class ContextMenuAction {
     required this.label,
     this.icon,
     this.iconColor,
+    this.customLeading,
+    this.customTrailing,
+    this.customTrailingBuilder,
     this.enabled = true,
     this.destructive = false,
+    this.keepOpenOnSelect = false,
+    this.submenuMaxHeightFactor,
     this.children = const [],
     this.onSelected,
   });
@@ -111,52 +121,61 @@ Future<void> _showMobileContextMenu(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (sheetContext) {
-      return SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[600],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            if (headerBuilder != null) ...[
-              const SizedBox(height: 12),
-              headerBuilder(sheetContext),
-              const SizedBox(height: 8),
-              Divider(height: 1, color: Colors.grey[800]),
-            ],
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                children: [
-                  for (final action in actions)
-                    _MobileMenuTile(
-                      action: action,
-                      onSelected: () async {
-                        if (!action.enabled) return;
-                        if (action.hasChildren) {
-                          Navigator.of(sheetContext).pop();
-                          await _showMobileContextMenu(
-                            context,
-                            actions: action.children,
-                          );
-                          return;
-                        }
-                        Navigator.of(sheetContext).pop();
-                        await action.onSelected?.call(context);
-                      },
-                    ),
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[600],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                if (headerBuilder != null) ...[
+                  const SizedBox(height: 12),
+                  headerBuilder(sheetContext),
+                  const SizedBox(height: 8),
+                  Divider(height: 1, color: Colors.grey[800]),
                 ],
-              ),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    children: [
+                      for (final action in actions)
+                        _MobileMenuTile(
+                          action: action,
+                          onSelected: () async {
+                            if (!action.enabled) return;
+                            if (action.hasChildren) {
+                              Navigator.of(sheetContext).pop();
+                              await _showMobileContextMenu(
+                                context,
+                                actions: action.children,
+                              );
+                              return;
+                            }
+                            if (!action.keepOpenOnSelect) {
+                              Navigator.of(sheetContext).pop();
+                            }
+                            await action.onSelected?.call(context);
+                            if (action.keepOpenOnSelect) {
+                              setSheetState(() {});
+                            }
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       );
     },
   );
@@ -172,21 +191,29 @@ class _MobileMenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = action.destructive ? Colors.redAccent : Colors.white;
     final resolvedIconColor = action.iconColor ?? color;
+
+    final leading = action.customLeading ??
+        (action.icon != null
+            ? Icon(
+                action.icon,
+                color: action.enabled ? resolvedIconColor : Colors.grey[500],
+              )
+            : null);
+
+    final trailing = action.customTrailingBuilder?.call(context) ??
+        action.customTrailing ??
+        (action.hasChildren
+            ? const Icon(Icons.chevron_right, color: Colors.white70)
+            : null);
+
     return ListTile(
       enabled: action.enabled,
-      leading: action.icon != null
-          ? Icon(
-              action.icon,
-              color: action.enabled ? resolvedIconColor : Colors.grey[500],
-            )
-          : null,
+      leading: leading,
       title: Text(
         action.label,
         style: TextStyle(color: action.enabled ? color : Colors.grey[500]),
       ),
-      trailing: action.hasChildren
-          ? const Icon(Icons.chevron_right, color: Colors.white70)
-          : null,
+      trailing: trailing,
       onTap: onSelected,
     );
   }
@@ -218,6 +245,7 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
   final Set<int> _hoveredLevels = <int>{};
 
   Timer? _closeSubmenuTimer;
+  Timer? _pendingHoverTimer;
   Offset _pointerPosition = Offset.zero;
 
   @override
@@ -261,20 +289,29 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
   @override
   void dispose() {
     _closeSubmenuTimer?.cancel();
+    _pendingHoverTimer?.cancel();
     super.dispose();
   }
 
-  Rect _menuRect(Offset position, int itemCount) {
-    final height = _menuHeight(itemCount);
+  Rect _menuRect(Offset position, int itemCount, {double? maxHeight}) {
+    final height = _menuHeight(itemCount, maxHeight: maxHeight);
     return Rect.fromLTWH(position.dx, position.dy, _menuWidth, height);
   }
 
-  double _menuHeight(int itemCount) {
-    return itemCount * _itemHeight + (_menuVerticalPadding * 2);
+  double _menuHeight(int itemCount, {double? maxHeight}) {
+    final naturalHeight = itemCount * _itemHeight + (_menuVerticalPadding * 2);
+    if (maxHeight != null) {
+      return math.min(naturalHeight, maxHeight);
+    }
+    return naturalHeight;
   }
 
-  Offset _clampMenuPosition(Offset proposed, {required int itemCount}) {
-    final height = _menuHeight(itemCount);
+  Offset _clampMenuPosition(
+    Offset proposed, {
+    required int itemCount,
+    double? maxHeight,
+  }) {
+    final height = _menuHeight(itemCount, maxHeight: maxHeight);
     final maxLeft = math.max(
       _screenMargin,
       widget.overlaySize.width - _menuWidth - _screenMargin,
@@ -296,6 +333,45 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
   }) {
     _closeSubmenuTimer?.cancel();
 
+    // If a submenu is currently open at level + 1
+    if (_levels.length > level + 1) {
+      final activeSubmenu = _levels[level + 1];
+      if (activeSubmenu.parentRowRect == rowRect) {
+        _pendingHoverTimer?.cancel();
+        return;
+      }
+
+      final parentRect = activeSubmenu.parentRowRect;
+      if (parentRect != null &&
+          _isPointerInGraceZone(
+            pointer: _pointerPosition,
+            parentRect: parentRect,
+            submenuRect: activeSubmenu.rect,
+          )) {
+        _pendingHoverTimer?.cancel();
+        _pendingHoverTimer = Timer(const Duration(milliseconds: 280), () {
+          if (!mounted) return;
+          if (!_hoveredLevels.contains(level + 1)) {
+            _applyActionHovered(
+              level: level,
+              action: action,
+              rowRect: rowRect,
+            );
+          }
+        });
+        return;
+      }
+    }
+
+    _pendingHoverTimer?.cancel();
+    _applyActionHovered(level: level, action: action, rowRect: rowRect);
+  }
+
+  void _applyActionHovered({
+    required int level,
+    required ContextMenuAction action,
+    required Rect rowRect,
+  }) {
     if (!action.hasChildren) {
       if (_levels.length > level + 1) {
         setState(() {
@@ -308,19 +384,27 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
     final openRightX = rowRect.right + 2;
     final openLeftX = rowRect.left - _menuWidth - 2;
     final submenuItems = action.children;
+    final double? maxHeight = action.submenuMaxHeightFactor != null
+        ? widget.overlaySize.height * action.submenuMaxHeightFactor!
+        : null;
 
     var target = Offset(openRightX, rowRect.top - _menuVerticalPadding);
     if (openRightX + _menuWidth > widget.overlaySize.width - _screenMargin) {
       target = Offset(openLeftX, target.dy);
     }
-    target = _clampMenuPosition(target, itemCount: submenuItems.length);
+    target = _clampMenuPosition(
+      target,
+      itemCount: submenuItems.length,
+      maxHeight: maxHeight,
+    );
 
     final submenu = _DesktopMenuLevelState(
       level: level + 1,
       actions: submenuItems,
       position: target,
       parentRowRect: rowRect,
-      rect: _menuRect(target, submenuItems.length),
+      rect: _menuRect(target, submenuItems.length, maxHeight: maxHeight),
+      maxHeight: maxHeight,
     );
 
     setState(() {
@@ -377,33 +461,40 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
   }) {
     if (submenuRect.contains(pointer)) return true;
 
+    final isSubmenuOnRight = submenuRect.left >= parentRect.right - 10;
+    final parentTop =
+        isSubmenuOnRight ? parentRect.topRight : parentRect.topLeft;
+    final parentBottom =
+        isSubmenuOnRight ? parentRect.bottomRight : parentRect.bottomLeft;
+    final submenuTop =
+        isSubmenuOnRight ? submenuRect.topLeft : submenuRect.topRight;
+    final submenuBottom =
+        isSubmenuOnRight ? submenuRect.bottomLeft : submenuRect.bottomRight;
+
     final bridgeRect = Rect.fromLTRB(
-      math.min(parentRect.right, submenuRect.left) - 10,
+      math.min(parentTop.dx, submenuTop.dx) - 10,
       math.min(parentRect.top, submenuRect.top) - 12,
-      math.max(parentRect.right, submenuRect.left) + 10,
+      math.max(parentTop.dx, submenuTop.dx) + 10,
       math.max(parentRect.bottom, submenuRect.bottom) + 12,
     );
 
     if (bridgeRect.contains(pointer)) return true;
 
-    final upperTriangle = _Triangle(
-      parentRect.topRight,
-      parentRect.bottomRight,
-      submenuRect.topLeft,
-    );
-    final lowerTriangle = _Triangle(
-      parentRect.topRight,
-      parentRect.bottomRight,
-      submenuRect.bottomLeft,
-    );
+    final upperTriangle = _Triangle(parentTop, parentBottom, submenuTop);
+    final lowerTriangle = _Triangle(parentTop, parentBottom, submenuBottom);
 
     return upperTriangle.contains(pointer) || lowerTriangle.contains(pointer);
   }
 
   Future<void> _onActionSelected(ContextMenuAction action) async {
     if (!action.enabled || action.hasChildren) return;
-    Navigator.of(context).pop();
+    if (!action.keepOpenOnSelect) {
+      Navigator.of(context).pop();
+    }
     await action.onSelected?.call(context);
+    if (action.keepOpenOnSelect && mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -429,6 +520,7 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
                 onEnter: (_) {
                   _hoveredLevels.add(levelState.level);
                   _closeSubmenuTimer?.cancel();
+                  _pendingHoverTimer?.cancel();
                 },
                 onExit: (_) {
                   _hoveredLevels.remove(levelState.level);
@@ -437,33 +529,39 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
                   color: const Color(0xFF282828),
                   borderRadius: BorderRadius.circular(8),
                   elevation: 14,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: _menuVerticalPadding,
+                  clipBehavior: Clip.antiAlias,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: levelState.maxHeight ?? double.infinity,
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final action in levelState.actions)
-                          _DesktopActionTile(
-                            action: action,
-                            onHovered: (rowRect) {
-                              _onActionHovered(
-                                level: levelState.level,
-                                action: action,
-                                rowRect: rowRect,
-                              );
-                            },
-                            onExit: (rowRect) {
-                              if (!action.hasChildren) return;
-                              _scheduleSubmenuClose(
-                                level: levelState.level,
-                                parentRowRect: rowRect,
-                              );
-                            },
-                            onTap: () => _onActionSelected(action),
-                          ),
-                      ],
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: _menuVerticalPadding,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final action in levelState.actions)
+                            _DesktopActionTile(
+                              action: action,
+                              onHovered: (rowRect) {
+                                _onActionHovered(
+                                  level: levelState.level,
+                                  action: action,
+                                  rowRect: rowRect,
+                                );
+                              },
+                              onExit: (rowRect) {
+                                if (!action.hasChildren) return;
+                                _scheduleSubmenuClose(
+                                  level: levelState.level,
+                                  parentRowRect: rowRect,
+                                );
+                              },
+                              onTap: () => _onActionSelected(action),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -494,6 +592,21 @@ class _DesktopActionTile extends StatelessWidget {
     final iconColor = action.enabled
         ? (action.iconColor ?? color.withValues(alpha: 0.9))
         : Colors.grey[500];
+
+    final leading = action.customLeading ??
+        (action.icon != null
+            ? Icon(action.icon, color: iconColor, size: 18)
+            : const SizedBox(width: 18));
+
+    final trailing = action.customTrailingBuilder?.call(context) ??
+        action.customTrailing ??
+        (action.hasChildren
+            ? Icon(
+                Icons.chevron_right,
+                color: action.enabled ? Colors.white70 : Colors.grey[600],
+                size: 18,
+              )
+            : null);
 
     return Builder(
       builder: (tileContext) {
@@ -530,10 +643,7 @@ class _DesktopActionTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 child: Row(
                   children: [
-                    if (action.icon != null)
-                      Icon(action.icon, color: iconColor, size: 18)
-                    else
-                      const SizedBox(width: 18),
+                    leading,
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -545,14 +655,10 @@ class _DesktopActionTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (action.hasChildren)
-                      Icon(
-                        Icons.chevron_right,
-                        color: action.enabled
-                            ? Colors.white70
-                            : Colors.grey[600],
-                        size: 18,
-                      ),
+                    if (trailing != null) ...[
+                      const SizedBox(width: 8),
+                      trailing,
+                    ],
                   ],
                 ),
               ),
@@ -570,6 +676,7 @@ class _DesktopMenuLevelState {
   final Offset position;
   final Rect rect;
   final Rect? parentRowRect;
+  final double? maxHeight;
 
   _DesktopMenuLevelState({
     required this.level,
@@ -577,6 +684,7 @@ class _DesktopMenuLevelState {
     required this.position,
     required this.rect,
     this.parentRowRect,
+    this.maxHeight,
   });
 }
 
