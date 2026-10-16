@@ -34,7 +34,7 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
           shadows: i.selected
               ? [
                   Shadow(
-                    color: colorScheme.primary.withValues(alpha: 0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                     blurRadius: 14,
                   ),
                 ]
@@ -50,7 +50,7 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
           shadows: i.selected
               ? [
                   Shadow(
-                    color: colorScheme.primary.withValues(alpha: 0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                     blurRadius: 14,
                   ),
                 ]
@@ -66,7 +66,7 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
           shadows: i.selected
               ? [
                   Shadow(
-                    color: colorScheme.primary.withValues(alpha: 0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                     blurRadius: 14,
                   ),
                 ]
@@ -116,7 +116,7 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
           ),
         ),
         itemStyle: LiquidGlassTabItemStyle(
-          selectedColor: colorScheme.primary,
+          selectedColor: Colors.white,
           unselectedColor: isDark
               ? Colors.white.withValues(alpha: 0.65)
               : Colors.black.withValues(alpha: 0.6),
@@ -142,7 +142,7 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
               cornerStyle: LiquidGlassCornerStyle.continuousRoundedRectangle,
               cornerRadius: 24,
             ),
-            color: colorScheme.primary.withValues(alpha: 0.22),
+            color: Colors.white.withValues(alpha: 0.22),
             blur: 2.0,
             specular: const LiquidGlassLight.specular(
               thickness: 3.5,
@@ -150,7 +150,7 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
               intensity: 1.2,
             ),
             glow: LiquidGlassLight.glow(
-              color: colorScheme.primary.withValues(alpha: 0.35),
+              color: Colors.white.withValues(alpha: 0.35),
             ),
           ),
         ),
