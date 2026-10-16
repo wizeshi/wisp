@@ -23,6 +23,11 @@ import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/features/navigation/shell/navigation_state.dart';
+import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
+import 'mobile/spotify.dart';
+import 'mobile/original.dart';
+import 'mobile/apple_music.dart';
 
 enum LibrarySidebarEntryType { item }
 
@@ -961,62 +966,24 @@ class _WispNavigationState extends State<WispNavigation> {
   }
 
   Widget _buildMobileBottomNav() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final destinations = [
-      NavigationDestination(
-        icon: Icon(Icons.home_outlined),
-        selectedIcon: Icon(Icons.home, color: colorScheme.primary),
-        label: 'Home',
-      ),
-      NavigationDestination(
-        icon: Icon(Icons.search_outlined),
-        selectedIcon: Icon(Icons.search, color: colorScheme.primary),
-        label: 'Search',
-      ),
-      NavigationDestination(
-        icon: Icon(Icons.library_music_outlined),
-        selectedIcon: Icon(Icons.library_music, color: colorScheme.primary),
-        label: 'Library',
-      ),
-    ];
-    final safeIndex = widget.selectedIndex.clamp(0, destinations.length - 1);
-    return MediaQuery(
-      data: MediaQuery.of(context).removePadding(removeTop: true),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0.95),
-              Colors.black.withValues(alpha: 0.75),
-              Colors.black.withValues(alpha: 0.4),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.45, 0.8, 1.0],
-          ),
-        ),
-        child: NavigationBar(
-          maintainBottomViewPadding: true,
-          selectedIndex: safeIndex,
-          onDestinationSelected: widget.onDestinationSelected,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          indicatorColor: colorScheme.primary.withValues(alpha: 0.2),
-          destinations: destinations,
-          height: 56,
-          indicatorShape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          labelPadding: EdgeInsets.all(0),
-          labelTextStyle: WidgetStateProperty.all(
-            TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-          ),
-        ),
-      ),
+    final appStyle = context.select<PreferencesProvider, AppStyle>(
+      (provider) => provider.style,
     );
+
+    return switch (appStyle) {
+      AppStyle.Spotify => WispMobileSpotifyNavBar(
+        selectedIndex: widget.selectedIndex,
+        onDestinationSelected: widget.onDestinationSelected,
+      ),
+      AppStyle.Original => WispMobileOriginalNavBar(
+        selectedIndex: widget.selectedIndex,
+        onDestinationSelected: widget.onDestinationSelected,
+      ),
+      AppStyle.AppleMusic => WispMobileAppleMusicNavBar(
+        selectedIndex: widget.selectedIndex,
+        onDestinationSelected: widget.onDestinationSelected,
+      ),
+    };
   }
 }
 
