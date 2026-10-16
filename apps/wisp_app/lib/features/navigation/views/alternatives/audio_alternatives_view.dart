@@ -12,6 +12,8 @@ import 'package:wisp/data/sources/audio/audio_source_manager.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/rows/generic_row.dart';
 
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
@@ -356,58 +358,45 @@ class _AudioAlternativesViewState extends State<AudioAlternativesView> {
         }
 
         final candidate = _candidates[index - 1];
-        return ListTile(
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              width: 80,
-              height: 45,
-              child: candidate.thumbnailUrl != null
-                  ? Image.network(
-                      candidate.thumbnailUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (ctx, error, stackTrace) => const ColoredBox(
-                        color: Colors.black12,
-                        child: Icon(Icons.music_note),
-                      ),
-                    )
-                  : const ColoredBox(
-                      color: Colors.black12,
-                      child: Icon(Icons.music_note),
-                    ),
-            ),
+        final subtitleText =
+            '${candidate.artist} • ${_formatDuration(candidate.duration)}';
+
+        return GenericRow(
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          playPosition: GenericRowPlayPosition.none,
+          title: candidate.title,
+          subtitle: subtitleText,
+          artwork: ArtworkThumbnail(
+            source: ArtworkSource.fromUrl(candidate.thumbnailUrl),
+            size: ArtworkSize.small,
+            fallbackIcon: Icons.music_note,
+            semanticLabel: 'Artwork for ${candidate.title}',
           ),
-          title: Text(
-            candidate.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Row(
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Text(
-                  '${candidate.artist} • ${_formatDuration(candidate.duration)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
               if (candidate.qualityLabel != null) ...[
-                const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.white12,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     candidate.qualityLabel!,
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
+                const SizedBox(width: 8),
               ],
+              const Icon(Icons.chevron_right, color: Colors.white54, size: 20),
             ],
           ),
-          trailing: const Icon(Icons.chevron_right),
           onTap: () async {
             // Save as manual override in canonical store
             await _mappingStore.setMapping(

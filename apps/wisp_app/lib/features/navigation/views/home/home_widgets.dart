@@ -13,7 +13,7 @@ import 'package:wisp/shared/widgets/rows/album_row.dart';
 import 'package:wisp/shared/widgets/rows/artist_row.dart';
 import 'package:wisp/shared/widgets/rows/generic_row.dart';
 import 'package:wisp/shared/widgets/rows/playlist_row.dart';
-import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
+import 'package:wisp/shared/widgets/rows/song_row.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'home_view_data.dart';
@@ -78,18 +78,12 @@ Widget? buildHomeQuickTile(
       showSubtitle: !isMobile,
       playPosition: playPosition,
     ),
-    GenericSong song => GenericRow(
-      title: song.title,
+    GenericSong song => SongRow(
+      song: song,
       height: height,
-      showSubtitle: !isMobile,
       backgroundColor: tileBg,
+      showSubtitle: !isMobile,
       playPosition: playPosition,
-      artwork: ArtworkThumbnail(
-        source: ArtworkSource.fromUrl(song.thumbnailUrl),
-        size: ArtworkSize.large,
-        fallbackIcon: Icons.music_note,
-        semanticLabel: 'Artwork for ${song.title}',
-      ),
       onTap: () => actions.onPlaySong(song),
       onLongPress: () => actions.onShowTrackMenu(song),
     ),

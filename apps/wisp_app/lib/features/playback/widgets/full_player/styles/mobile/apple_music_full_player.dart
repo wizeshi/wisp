@@ -294,7 +294,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(
                                 currentTrack?.artists?.isNotEmpty == true
-                                    ? currentTrack.artists.map((a) => a.name).join(', ')
+                                    ? currentTrack.artists
+                                          .map((a) => a.name)
+                                          .join(', ')
                                     : 'No Artist',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -586,9 +588,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                             player.isPlaying ? player.pause() : player.play();
                           } else {
                             unawaited(
-                              context.read<PlaybackCoordinator>().playQueueIndex(
-                                queueIndex,
-                              ),
+                              context
+                                  .read<PlaybackCoordinator>()
+                                  .playQueueIndex(queueIndex),
                             );
                           }
                         },
@@ -597,9 +599,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                             player.isPlaying ? player.pause() : player.play();
                           } else {
                             unawaited(
-                              context.read<PlaybackCoordinator>().playQueueIndex(
-                                queueIndex,
-                              ),
+                              context
+                                  .read<PlaybackCoordinator>()
+                                  .playQueueIndex(queueIndex),
                             );
                           }
                         },
@@ -2009,13 +2011,13 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                             color: Colors.black.withValues(alpha: 0.45),
                           ),
                           child: Padding(
-                            padding: EdgeInsets.only(bottom: bottomInset),
+                            padding: EdgeInsets.only(bottom: bottomInset + 16),
                             child: Column(
                               children: [
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 24.0,
-                                  ).add(EdgeInsets.only(top: topInset)),
+                                  ).add(EdgeInsets.only(top: topInset + 8.0)),
                                   child: _buildHeader(context),
                                 ),
                                 SizedBox(height: isNowPlaying ? 56 : 16),
@@ -2027,6 +2029,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                     ),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.max,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceAround,
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
@@ -2037,21 +2041,17 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                           imageUrl,
                                           useNowPlayingCanvas,
                                         ),
-                                        SizedBox(height: isNowPlaying ? 10 : 4),
                                         if (isNowPlaying) ...[
-                                          const Spacer(),
                                           _buildSingleLyricsLine(
                                             context,
                                             player,
                                             lyricsProvider,
                                           ),
-                                          const SizedBox(height: 12),
                                           _buildTrackInfo(
                                             currentTrack,
                                             btnColor,
                                             false,
                                           ),
-                                          const SizedBox(height: 24),
                                         ] else ...[
                                           Expanded(
                                             child: AnimatedSwitcher(
@@ -2091,7 +2091,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                     mode,
                                   ),
                                 ),
-                                const SizedBox(height: 18),
                               ],
                             ),
                           ),

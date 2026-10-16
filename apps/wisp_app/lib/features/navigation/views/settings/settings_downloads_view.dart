@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
+import 'package:wisp/shared/widgets/rows/generic_row.dart';
 
 class DownloadsSettingsPage extends StatelessWidget {
   const DownloadsSettingsPage({super.key});
@@ -77,39 +78,33 @@ class DownloadsSettingsPage extends StatelessWidget {
     final statusLabel = isDownloading ? 'Downloading' : 'Queued';
     final progressPercent = (task.progress * 100).clamp(0, 100).toInt();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF181818),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ListTile(
-        leading: Icon(
-          isDownloading ? Icons.downloading : Icons.schedule,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        title: Text(
-          task.trackTitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              task.artistName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey[400], fontSize: 12),
-            ),
-          ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GenericRow(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        backgroundColor: const Color(0xFF181818),
+        playPosition: GenericRowPlayPosition.none,
+        title: task.trackTitle,
+        subtitle: task.artistName,
+        artwork: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white10,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            isDownloading ? Icons.downloading : Icons.schedule,
+            color: Theme.of(context).colorScheme.primary,
+            size: 24,
+          ),
         ),
         trailing: Text(
           '$statusLabel • $progressPercent%',
           style: TextStyle(color: Colors.grey[500], fontSize: 12),
         ),
+        onTap: () {},
       ),
     );
   }
@@ -122,29 +117,29 @@ class DownloadsSettingsPage extends StatelessWidget {
         ? entry.artistName!
         : 'Unknown artist';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF181818),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ListTile(
-        leading: Icon(
-          Icons.download_done,
-          color: Theme.of(context).colorScheme.primary,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GenericRow(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        backgroundColor: const Color(0xFF181818),
+        playPosition: GenericRowPlayPosition.none,
+        title: title,
+        subtitle: '$artist • ${_formatDateTime(entry.downloadDate)}',
+        artwork: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white10,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            Icons.download_done,
+            color: Theme.of(context).colorScheme.primary,
+            size: 24,
+          ),
         ),
-        title: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white),
-        ),
-        subtitle: Text(
-          '$artist • ${_formatDateTime(entry.downloadDate)}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: Colors.grey[400], fontSize: 12),
-        ),
+        onTap: () {},
       ),
     );
   }

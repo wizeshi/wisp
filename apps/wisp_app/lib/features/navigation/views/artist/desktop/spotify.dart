@@ -38,29 +38,13 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      ClipOval(
-                        child: Container(
-                          width: 180,
-                          height: 180,
-                          color: Colors.black.withValues(alpha: 0.18),
-                          child: imageUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 360,
-                                  memCacheHeight: 360,
-                                  errorWidget: (context, url, error) => Icon(
-                                    CupertinoIcons.person_fill,
-                                    color: Colors.grey[700],
-                                    size: 54,
-                                  ),
-                                )
-                              : Icon(
-                                  CupertinoIcons.person_fill,
-                                  color: Colors.grey[700],
-                                  size: 54,
-                                ),
-                        ),
+                      ArtworkThumbnail(
+                        source: ArtworkSource.fromUrl(imageUrl),
+                        size: ArtworkSize.large,
+                        sizeOverride: 180,
+                        shape: ArtworkShape.circle,
+                        fallbackIcon: CupertinoIcons.person_fill,
+                        semanticLabel: 'Photo of $name',
                       ),
                       const SizedBox(width: 28),
                       Column(

@@ -21,6 +21,7 @@ import 'package:wisp/core/theme/cover_art_palette_provider.dart';
 import 'package:wisp/shared/widgets/cards/artist_card.dart';
 import 'package:wisp/shared/widgets/cards/playlist_card.dart';
 import 'package:wisp/shared/widgets/cards/user_card.dart';
+import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
 import 'package:wisp/shared/widgets/rails/card_rail.dart';
 import 'package:wisp/shared/widgets/display/provider_disabled_state.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
@@ -492,27 +493,13 @@ class _UserDetailViewState extends State<UserDetailView> {
   }
 
   Widget _buildAvatar(String? imageUrl, {required double size}) {
-    final placeholder = Container(
-      color: Colors.white.withValues(alpha: 0.08),
-      child: Icon(
-        CupertinoIcons.person_crop_circle,
-        color: Colors.white.withValues(alpha: 0.55),
-        size: size * 0.42,
-      ),
-    );
-
-    return ClipOval(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: imageUrl == null || imageUrl.isEmpty
-            ? placeholder
-            : CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                errorWidget: (context, url, error) => placeholder,
-              ),
-      ),
+    return ArtworkThumbnail(
+      source: ArtworkSource.fromUrl(imageUrl),
+      size: ArtworkSize.large,
+      sizeOverride: size,
+      shape: ArtworkShape.circle,
+      fallbackIcon: CupertinoIcons.person_crop_circle,
+      semanticLabel: 'User avatar',
     );
   }
 
