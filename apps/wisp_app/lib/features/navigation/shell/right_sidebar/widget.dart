@@ -878,8 +878,6 @@ class _TrackArtwork extends StatelessWidget {
       builder: (context, constraints) {
         final size = constraints.maxWidth.toInt();
 
-        print('Track artwork size: $size, url: $url');
-
         return url.isEmpty
         ? Container(
             color: Colors.grey[850],
