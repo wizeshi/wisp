@@ -3,8 +3,13 @@
 // android/app/build.gradle, and move this file into the matching directory.
 package dev.wizeshi.wisp
 
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -17,10 +22,11 @@ class MainActivity : AudioServiceActivity() {
     // Activity, not audio *device information* the plugin is scoped to.
     // Keeping it here keeps the plugin's public API stable regardless of
     // how (or whether) this feature evolves.
-    //
-    // TODO: pick a channel name namespaced to your actual applicationId if
-    // it differs from the placeholder package above.
     private val systemUiChannelName = "dev.wizeshi.wisp/system_ui"
+    private val backgroundAudioChannelName = "dev.wizeshi.wisp/background_audio"
+
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -32,6 +38,106 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, backgroundAudioChannelName)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "acquireLocks" -> result.success(acquireBackgroundLocks())
+                    "releaseLocks" -> result.success(releaseBackgroundLocks())
+                    "isIgnoringBatteryOptimizations" -> result.success(isIgnoringBatteryOptimizations())
+                    "requestIgnoreBatteryOptimizations" -> result.success(requestIgnoreBatteryOptimizations())
+                    "isDataSaverRestricted" -> result.success(isDataSaverRestricted())
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun acquireBackgroundLocks(): Boolean {
+        return try {
+            if (wakeLock == null) {
+                val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+                wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Wisp:AudioPlayback")?.apply {
+                    setReferenceCounted(false)
+                }
+            }
+            if (wakeLock?.isHeld == false) {
+                wakeLock?.acquire()
+            }
+
+            if (wifiLock == null) {
+                val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                wifiLock = wifiManager?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Wisp:AudioPlayback")?.apply {
+                    setReferenceCounted(false)
+                }
+            }
+            if (wifiLock?.isHeld == false) {
+                wifiLock?.acquire()
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun releaseBackgroundLocks(): Boolean {
+        return try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+            if (wifiLock?.isHeld == true) {
+                wifiLock?.release()
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            return powerManager?.isIgnoringBatteryOptimizations(packageName) ?: true
+        }
+        return true
+    }
+
+    private fun requestIgnoreBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!isIgnoringBatteryOptimizations()) {
+                return try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                    true
+                } catch (e: Exception) {
+                    try {
+                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        startActivity(intent)
+                        true
+                    } catch (e2: Exception) {
+                        false
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    private fun isDataSaverRestricted(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            return when (connectivityManager?.restrictBackgroundStatus) {
+                ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED -> true
+                else -> false
+            }
+        }
+        return false
+    }
+
+    override fun onDestroy() {
+        releaseBackgroundLocks()
+        super.onDestroy()
     }
 
     /**

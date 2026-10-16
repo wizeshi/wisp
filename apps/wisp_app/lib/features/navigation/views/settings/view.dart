@@ -22,6 +22,7 @@ import 'package:wisp/features/settings/widgets/settings_content.dart';
 import 'package:wisp/features/settings/widgets/cache_deletion_dialog.dart';
 import 'package:wisp/features/settings/widgets/trusted_devices_dialog.dart';
 import 'package:wisp/features/settings/widgets/update_widget.dart';
+import 'package:wisp/services/system/android_background_audio_service.dart';
 import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 import 'package:wisp/shared/widgets/display/provider_icon.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
@@ -1176,8 +1177,55 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               ],
+              if (Platform.isAndroid) ...[
+                const SizedBox(height: 16),
+                _buildAndroidBatteryOptimizationRow(),
+              ],
             ],
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAndroidBatteryOptimizationRow() {
+    return FutureBuilder<bool>(
+      future: AndroidBackgroundAudioService.instance.isIgnoringBatteryOptimizations(),
+      builder: (context, snapshot) {
+        final isIgnoring = snapshot.data ?? true;
+        return Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Background Playback',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                  Text(
+                    isIgnoring
+                        ? 'Battery optimization is disabled'
+                        : 'Allow unrestricted battery usage for background streaming',
+                    style: TextStyle(
+                      color: isIgnoring ? Colors.grey : Colors.amber,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (!isIgnoring)
+              GenericButton(
+                child: const Text('Allow'),
+                onPressed: () async {
+                  await AndroidBackgroundAudioService.instance.requestIgnoreBatteryOptimizations();
+                  if (mounted) setState(() {});
+                },
+              )
+            else
+              const Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
+          ],
         );
       },
     );

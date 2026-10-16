@@ -28,6 +28,7 @@ import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/services/audio/streaming_server.dart';
 import 'package:wisp/services/audio/playback_session_store.dart';
+import 'package:wisp/services/system/android_background_audio_service.dart';
 
 enum PlaybackState {
   idle,
@@ -934,6 +935,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return null;
     }
 
+    if (!isDJMode && _repeatMode == RepeatMode.one) {
+      return _currentIndex;
+    }
+
     final nextIndex = _currentIndex + 1;
     if (nextIndex < _queue.length) {
       return nextIndex;
@@ -993,7 +998,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     Duration position,
     Duration trackDuration,
   ) async {
-    if (!_playlistPlaybackEnabled || _currentTrack == null) return;
+    if (!_playlistPlaybackEnabled || _currentTrack == null || _repeatMode == RepeatMode.one) return;
     if (trackDuration <= Duration.zero) return;
 
     final crossfadeWindow = Duration(
@@ -1025,7 +1030,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   Future<void> _scheduleNextTrackPreload() async {
-    if (!_playlistPlaybackEnabled || _queue.isEmpty || _currentIndex < 0) {
+    if (!_playlistPlaybackEnabled || _queue.isEmpty || _currentIndex < 0 || _repeatMode == RepeatMode.one) {
       return;
     }
     if (_isPreloadInProgress) return;
@@ -1086,6 +1091,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   ) async {
     if (_isTrackTransitioning || _engineIsTransitioning) return;
     if (!_crossfadeEnabled || _currentTrack == null || _userPaused) return;
+    if (_repeatMode == RepeatMode.one) return;
     if (trackDuration <= Duration.zero) return;
 
     final crossfadeWindow = Duration(
@@ -1211,6 +1217,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   void _broadcastPlaybackState() {
     try {
+      if (isPlaying || isLoading) {
+        unawaited(AndroidBackgroundAudioService.instance.acquireLocks());
+      } else {
+        unawaited(AndroidBackgroundAudioService.instance.releaseLocks());
+      }
+
       playbackState.add(
         audio_service.PlaybackState(
           playing: isPlaying,
@@ -1331,6 +1343,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         if (token != _trackChangeToken) return;
         ++_trackChangeToken;
         await _engine.play();
+        _broadcastPlaybackState();
         return;
       }
 
@@ -2877,7 +2890,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   @override
+  Future<void> onTaskRemoved() async {
+    unawaited(AndroidBackgroundAudioService.instance.releaseLocks());
+    await super.onTaskRemoved();
+  }
+
+  @override
   void dispose() {
+    unawaited(AndroidBackgroundAudioService.instance.releaseLocks());
     _saveVolumePrefs();
     _saveQueue(immediate: true);
     _engineStateSubscription?.cancel();
