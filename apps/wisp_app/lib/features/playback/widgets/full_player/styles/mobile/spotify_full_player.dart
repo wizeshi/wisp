@@ -26,6 +26,7 @@ import 'package:wisp/features/playback/widgets/animated_lyrics_preview.dart';
 import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/lyrics/word_fill_lyrics_line.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 import '../../components/canvas_video.dart';
 import '../../components/cover_gradient_container.dart';
@@ -289,23 +290,39 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
-    if (!state.isLoading && state.lyrics == null && state.error == null) {
+    final wordState = lyricsProvider.getState(currentTrack, LyricsSyncMode.word);
+    final lineState = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
+    if (!wordState.isLoading && wordState.lyrics == null && wordState.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.word);
       });
     }
 
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
 
-    final lyrics = state.lyrics;
+    final wordLyrics = wordState.lyrics;
+    final lyrics = wordLyrics?.isWordSynced == true
+        ? wordLyrics
+        : wordState.hasFetched && !wordState.isLoading
+            ? lineState.lyrics ?? wordLyrics
+            : null;
+
+    if ((wordLyrics == null || !wordLyrics.isWordSynced) &&
+        !lineState.isLoading &&
+        lineState.lyrics == null &&
+        lineState.error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
+      });
+    }
+
     if (lyrics == null || lyrics.lines.isEmpty || !lyrics.isSynced) {
       return const SizedBox.shrink();
     }
 
     return Consumer<PlaybackCoordinator>(
       builder: (ctx, coordinator, child) {
-        final basePosition = coordinator.effectiveThrottledPosition;
+        final basePosition = coordinator.effectiveInterpolatedPosition;
         final delayMs =
             (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000)
                 .round();
@@ -324,7 +341,8 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
             lyrics.isSynced &&
             timing != null &&
             timing.activeIndex < 0 &&
-            timing.nextIndex != null;
+            timing.nextIndex != null &&
+            line == null;
         if ((line == null || line.content.trim().isEmpty) &&
             !showWaitingPlaceholder) {
           return const SizedBox.shrink();
@@ -368,16 +386,21 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                     width: double.infinity,
                     height: 19,
                   )
-                : Text(
-                    line.content.trim(),
-                    key: ValueKey<String>(line.content.trim()),
+                : WordFillLyricsLine(
+                    key: ValueKey<String>(
+                      '${line.startTimeMs}_${line.content.trim()}',
+                    ),
+                    line: line,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.grey[300],
+                    textStyle: const TextStyle(
+                      color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                     ),
+                    activeColor: Colors.white,
+                    inactiveColor: Colors.grey[400]!,
+                    enableTicker: true,
                   ),
           ),
         );
@@ -507,16 +530,34 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final state = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
-    if (!state.isLoading && state.lyrics == null && state.error == null) {
+    final wordState = lyricsProvider.getState(currentTrack, LyricsSyncMode.word);
+    final lineState = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
+    if (!wordState.isLoading && wordState.lyrics == null && wordState.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.word);
       });
     }
 
     lyricsProvider.ensureDelayLoaded(currentTrack.id);
 
-    final lyrics = state.lyrics;
+    final wordLyrics = wordState.lyrics;
+    final lyrics = wordLyrics?.isWordSynced == true
+        ? wordLyrics
+        : wordState.hasFetched && !wordState.isLoading
+            ? lineState.lyrics ?? wordLyrics
+            : null;
+
+    if ((wordLyrics == null || !wordLyrics.isWordSynced) &&
+        !lineState.isLoading &&
+        lineState.lyrics == null &&
+        lineState.error == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
+      });
+    }
+
+    final isLoading =
+        wordState.isLoading || (wordState.lyrics == null && lineState.isLoading);
 
     return Consumer<PlaybackCoordinator>(
       builder: (ctx, coordinator, child) {
@@ -530,7 +571,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
             ? const <LyricsLine>[]
             : _getPreviewLines(lyrics, effectivePosition);
 
-        if (!state.isLoading && (lyrics == null || previewLines.isEmpty)) {
+        if (!isLoading && (lyrics == null || previewLines.isEmpty)) {
           return const SizedBox.shrink();
         }
 
@@ -571,7 +612,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                   ],
                 ),
               ),
-              if (state.isLoading && lyrics == null)
+              if (isLoading && lyrics == null)
                 const Text(
                   'Loading lyrics…',
                   style: TextStyle(color: Colors.white, fontSize: 13),
@@ -632,10 +673,26 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     final lines = nonEmptyLyricsLines(lyrics.lines);
     if (lines.isEmpty || !lyrics.isSynced) return null;
     final timing = resolveSyncedLyricsTiming(lines, positionMs);
-    if (timing.activeIndex < 0 || timing.activeIndex >= lines.length) {
-      return null;
+    if (timing.activeIndex >= 0 && timing.activeIndex < lines.length) {
+      return lines[timing.activeIndex];
     }
-    return lines[timing.activeIndex];
+    // Lead-in: show next line ahead of time (up to 1800ms) so user can read before singing starts
+    if (timing.nextIndex != null && timing.nextIndex! < lines.length) {
+      final nextLine = lines[timing.nextIndex!];
+      final timeToNext = nextLine.startTimeMs - positionMs;
+      if (timeToNext <= 1800) {
+        return nextLine;
+      }
+    }
+    // Hold previous line briefly (up to 800ms) so it doesn't vanish jarringly
+    if (timing.previousIndex != null && timing.previousIndex! < lines.length) {
+      final prevLine = lines[timing.previousIndex!];
+      final prevEnd = prevLine.endTimeMs ?? (prevLine.startTimeMs + 3000);
+      if (positionMs - prevEnd < 800) {
+        return prevLine;
+      }
+    }
+    return null;
   }
 
   Widget _buildPlayerControls(

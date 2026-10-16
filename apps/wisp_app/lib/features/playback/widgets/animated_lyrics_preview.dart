@@ -1,7 +1,7 @@
-// Copyright © 2026 wizeshi
-
+import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:wisp/data/models/metadata_models.dart';
+import 'package:wisp/shared/widgets/lyrics/word_fill_lyrics_line.dart';
 
 class AnimatedLyricsPreviewList extends StatefulWidget {
   final List<LyricsLine> lines;
@@ -11,6 +11,11 @@ class AnimatedLyricsPreviewList extends StatefulWidget {
   final TextOverflow overflow;
   final Duration duration;
   final String? resetKey;
+  final int? currentPositionMs;
+  final ValueListenable<int>? positionMsListenable;
+  final Color? activeWordColor;
+  final Color? inactiveWordColor;
+  final bool enableWordFill;
 
   const AnimatedLyricsPreviewList({
     super.key,
@@ -21,6 +26,11 @@ class AnimatedLyricsPreviewList extends StatefulWidget {
     this.overflow = TextOverflow.ellipsis,
     this.duration = const Duration(milliseconds: 190),
     this.resetKey,
+    this.currentPositionMs,
+    this.positionMsListenable,
+    this.activeWordColor,
+    this.inactiveWordColor,
+    this.enableWordFill = true,
   });
 
   @override
@@ -129,6 +139,7 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
     LyricsLine line,
     Animation<double> animation, {
     required bool isRemoving,
+    bool isFirst = false,
   }) {
     final progress = isRemoving ? ReverseAnimation(animation) : animation;
 
@@ -162,6 +173,35 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
             end: 1,
           ).animate(CurvedAnimation(parent: progress, curve: Curves.linear));
 
+    final Widget textContent;
+    if (widget.enableWordFill && isFirst && !isRemoving) {
+      textContent = WordFillLyricsLine(
+        line: line,
+        positionMs: widget.currentPositionMs,
+        positionMsListenable: widget.positionMsListenable,
+        textStyle: widget.textStyle,
+        activeColor:
+            widget.activeWordColor ?? widget.textStyle.color ?? Colors.white,
+        inactiveColor: widget.inactiveWordColor,
+        maxLines: widget.maxLines,
+        overflow: widget.overflow,
+        enableTicker: true,
+      );
+    } else {
+      final inactiveStyle = isFirst
+          ? widget.textStyle
+          : widget.textStyle.copyWith(
+              color: (widget.textStyle.color ?? Colors.white)
+                  .withValues(alpha: 0.6),
+            );
+      textContent = Text(
+        line.content,
+        maxLines: widget.maxLines,
+        overflow: widget.overflow,
+        style: inactiveStyle,
+      );
+    }
+
     return SizeTransition(
       sizeFactor: sizeAnimation,
       axisAlignment: -1.0,
@@ -171,12 +211,7 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
           position: slideAnimation,
           child: Padding(
             padding: widget.itemPadding,
-            child: Text(
-              line.content,
-              maxLines: widget.maxLines,
-              overflow: widget.overflow,
-              style: widget.textStyle,
-            ),
+            child: textContent,
           ),
         ),
       ),
@@ -193,7 +228,12 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
       initialItemCount: _items.length,
       itemBuilder: (context, index, animation) {
         return RepaintBoundary(
-          child: _buildAnimatedItem(_items[index], animation, isRemoving: false),
+          child: _buildAnimatedItem(
+            _items[index],
+            animation,
+            isRemoving: false,
+            isFirst: index == 0,
+          ),
         );
       },
     );

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
+import 'package:wisp/shared/widgets/lyrics/word_fill_lyrics_line.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
 
@@ -38,7 +39,6 @@ class LyricsLineItem extends StatefulWidget {
 
 class _LyricsLineItemState extends State<LyricsLineItem> {
   bool _hovered = false;
-  late List<TextSelection> _wordRanges;
   late List<List<TextSelection>> _bgWordRanges;
 
   @override
@@ -64,7 +64,6 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
   }
 
   void _initRanges() {
-    _wordRanges = resolveWordRanges(widget.line.content, widget.line.words);
     _bgWordRanges = widget.line.background
         .map((bg) => resolveWordRanges(_formatBgContent(bg.content), bg.words))
         .toList();
@@ -142,7 +141,6 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
 
         final defaultTextStyle = DefaultTextStyle.of(context).style;
         final effectiveBaseStyle = defaultTextStyle.merge(baseStyle);
-        final textScaler = MediaQuery.textScalerOf(context);
 
         final isRight = widget.line.isRightSpeaker;
         final textAlign = isRight ? TextAlign.right : TextAlign.left;
@@ -152,42 +150,14 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
         if (isActiveLine &&
             widget.syncMode == LyricsSyncMode.word &&
             widget.line.hasWordTiming) {
-          textContent = LayoutBuilder(
-            builder: (context, constraints) {
-              final layoutWidth =
-                  constraints.maxWidth.isFinite && constraints.maxWidth > 0
-                      ? constraints.maxWidth
-                      : null;
-
-              return Stack(
-                alignment: alignment,
-                children: [
-                  Text(
-                    widget.line.content,
-                    style: effectiveBaseStyle.copyWith(color: inactiveWordColor),
-                    textAlign: textAlign,
-                  ),
-                  ClipPath(
-                    clipper: LyricsLineFillClipper(
-                      lineContent: widget.line.content,
-                      words: widget.line.words,
-                      wordRanges: _wordRanges,
-                      lineEndTimeMs: widget.line.endTimeMs,
-                      style: effectiveBaseStyle,
-                      textAlign: textAlign,
-                      textScaler: textScaler,
-                      layoutWidth: layoutWidth,
-                      positionMs: frame.positionMs,
-                    ),
-                    child: Text(
-                      widget.line.content,
-                      style: effectiveBaseStyle.copyWith(color: activeWordColor),
-                      textAlign: textAlign,
-                    ),
-                  ),
-                ],
-              );
-            },
+          textContent = WordFillLyricsLine(
+            line: widget.line,
+            positionMs: frame.positionMs,
+            textStyle: effectiveBaseStyle,
+            activeColor: activeWordColor,
+            inactiveColor: inactiveWordColor,
+            textAlign: textAlign,
+            enableTicker: false,
           );
         } else {
           textContent = Text(
@@ -250,42 +220,20 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
               final activeWordColor = Colors.white.withValues(alpha: bgOpacity);
               final inactiveWordColor = Colors.white.withValues(alpha: 0.45 * bgOpacity);
 
-              phraseWidget = LayoutBuilder(
-                builder: (context, constraints) {
-                  final bgLayoutWidth =
-                      constraints.maxWidth.isFinite && constraints.maxWidth > 0
-                          ? constraints.maxWidth
-                          : null;
-
-                  return Stack(
-                    alignment: alignment,
-                    children: [
-                      Text(
-                        bgFormattedText,
-                        style: bgBaseStyle.copyWith(color: inactiveWordColor),
-                        textAlign: textAlign,
-                      ),
-                      ClipPath(
-                        clipper: LyricsLineFillClipper(
-                          lineContent: bgFormattedText,
-                          words: bg.words,
-                          wordRanges: bgRanges,
-                          lineEndTimeMs: resolvedBgEnd,
-                          style: bgBaseStyle,
-                          textAlign: textAlign,
-                          textScaler: textScaler,
-                          layoutWidth: bgLayoutWidth,
-                          positionMs: frame.positionMs,
-                        ),
-                        child: Text(
-                          bgFormattedText,
-                          style: bgBaseStyle.copyWith(color: activeWordColor),
-                          textAlign: textAlign,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              phraseWidget = WordFillLyricsLine(
+                line: LyricsLine(
+                  content: bgFormattedText,
+                  startTimeMs: bgStart,
+                  endTimeMs: resolvedBgEnd,
+                  words: bg.words,
+                  speaker: widget.line.speaker,
+                ),
+                positionMs: frame.positionMs,
+                textStyle: bgBaseStyle,
+                activeColor: activeWordColor,
+                inactiveColor: inactiveWordColor,
+                textAlign: textAlign,
+                enableTicker: false,
               );
             } else {
               phraseWidget = Text(

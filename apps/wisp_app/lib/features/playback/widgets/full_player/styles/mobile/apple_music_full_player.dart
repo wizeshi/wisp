@@ -37,6 +37,7 @@ import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
+import 'package:wisp/shared/widgets/lyrics/word_fill_lyrics_line.dart';
 import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
 import 'package:wisp/shared/widgets/rows/track_row.dart';
 import '../../components/canvas_video.dart';
@@ -969,7 +970,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         lyrics.syncMode != LyricsSyncMode.unsynced &&
         timing != null &&
         timing.activeIndex < 0 &&
-        timing.nextIndex != null;
+        timing.nextIndex != null &&
+        line == null;
     if ((line == null || line.content.trim().isEmpty) &&
         !showWaitingPlaceholder) {
       return const SizedBox.shrink();
@@ -1007,24 +1009,22 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 width: double.infinity,
                 height: 18,
               )
-            : Text.rich(
-                buildLyricsLineSpan(
-                  line: line,
-                  syncMode: lyrics.syncMode,
-                  positionMs: effectivePosition,
-                  baseStyle: TextStyle(
-                    color: Colors.grey[300],
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  activeWordColor: Colors.white,
-                  inactiveWordColor: Colors.grey[400]!,
-                  highlightWords: true,
+            : WordFillLyricsLine(
+                key: ValueKey<String>(
+                  '${line.startTimeMs}_${line.content.trim()}',
                 ),
-                key: ValueKey<String>(line.content.trim()),
+                line: line,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.left,
+                textStyle: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                activeColor: Colors.white,
+                inactiveColor: Colors.grey[400]!,
+                enableTicker: true,
               ),
       ),
     );
@@ -1121,10 +1121,26 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return lines.first;
     }
     final timing = resolveSyncedLyricsTiming(lines, positionMs);
-    if (timing.activeIndex < 0 || timing.activeIndex >= lines.length) {
-      return null;
+    if (timing.activeIndex >= 0 && timing.activeIndex < lines.length) {
+      return lines[timing.activeIndex];
     }
-    return lines[timing.activeIndex];
+    // Lead-in: show next line ahead of time (up to 1800ms) so user can read before singing starts
+    if (timing.nextIndex != null && timing.nextIndex! < lines.length) {
+      final nextLine = lines[timing.nextIndex!];
+      final timeToNext = nextLine.startTimeMs - positionMs;
+      if (timeToNext <= 1800) {
+        return nextLine;
+      }
+    }
+    // Hold previous line briefly (up to 800ms) so it doesn't vanish jarringly
+    if (timing.previousIndex != null && timing.previousIndex! < lines.length) {
+      final prevLine = lines[timing.previousIndex!];
+      final prevEnd = prevLine.endTimeMs ?? (prevLine.startTimeMs + 3000);
+      if (positionMs - prevEnd < 800) {
+        return prevLine;
+      }
+    }
+    return null;
   }
 
   Widget _buildPlayerControls(
@@ -2602,7 +2618,6 @@ class _AppleMusicLyricsLineItem extends StatefulWidget {
 }
 
 class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
-  late List<TextSelection> _wordRanges;
   late List<List<TextSelection>> _bgWordRanges;
 
   String _formatBgContent(String content) {
@@ -2628,7 +2643,6 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
   }
 
   void _initRanges() {
-    _wordRanges = resolveWordRanges(widget.line.content, widget.line.words);
     _bgWordRanges = widget.line.background
         .map((bg) => resolveWordRanges(_formatBgContent(bg.content), bg.words))
         .toList();
@@ -2686,7 +2700,6 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
         );
         final defaultTextStyle = DefaultTextStyle.of(context).style;
         final effectiveBaseStyle = defaultTextStyle.merge(baseStyle);
-        final textScaler = MediaQuery.textScalerOf(context);
 
         final isRight = widget.line.isRightSpeaker;
         final textAlign = isRight ? TextAlign.right : TextAlign.left;
@@ -2698,50 +2711,14 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
         if (isLineActive &&
             widget.syncMode == LyricsSyncMode.word &&
             widget.line.hasWordTiming) {
-          final activeWordColor = Colors.white.withValues(alpha: opacity);
-          final inactiveWordColor = Colors.white.withValues(
-            alpha: 0.45 * opacity,
-          );
-
-          textContent = LayoutBuilder(
-            builder: (context, constraints) {
-              final layoutWidth = constraints.maxWidth.isFinite
-                  ? constraints.maxWidth
-                  : MediaQuery.sizeOf(context).width;
-
-              return Stack(
-                alignment: alignment,
-                children: [
-                  Text(
-                    widget.line.content,
-                    style: effectiveBaseStyle.copyWith(
-                      color: inactiveWordColor,
-                    ),
-                    textAlign: textAlign,
-                  ),
-                  ClipPath(
-                    clipper: LyricsLineFillClipper(
-                      lineContent: widget.line.content,
-                      words: widget.line.words,
-                      wordRanges: _wordRanges,
-                      lineEndTimeMs: widget.line.endTimeMs,
-                      style: effectiveBaseStyle,
-                      textAlign: textAlign,
-                      textScaler: textScaler,
-                      layoutWidth: layoutWidth,
-                      positionMs: frame.positionMs,
-                    ),
-                    child: Text(
-                      widget.line.content,
-                      style: effectiveBaseStyle.copyWith(
-                        color: activeWordColor,
-                      ),
-                      textAlign: textAlign,
-                    ),
-                  ),
-                ],
-              );
-            },
+          textContent = WordFillLyricsLine(
+            line: widget.line,
+            positionMs: frame.positionMs,
+            textStyle: effectiveBaseStyle,
+            activeColor: Colors.white.withValues(alpha: opacity),
+            inactiveColor: Colors.white.withValues(alpha: 0.45 * opacity),
+            textAlign: textAlign,
+            enableTicker: false,
           );
         } else {
           textContent = Text(
@@ -2816,41 +2793,20 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
                 alpha: 0.45 * bgOpacity,
               );
 
-              phraseWidget = LayoutBuilder(
-                builder: (context, constraints) {
-                  final bgLayoutWidth = constraints.maxWidth.isFinite
-                      ? constraints.maxWidth
-                      : MediaQuery.sizeOf(context).width;
-
-                  return Stack(
-                    alignment: alignment,
-                    children: [
-                      Text(
-                        bgFormattedText,
-                        style: bgBaseStyle.copyWith(color: inactiveWordColor),
-                        textAlign: textAlign,
-                      ),
-                      ClipPath(
-                        clipper: LyricsLineFillClipper(
-                          lineContent: bgFormattedText,
-                          words: bg.words,
-                          wordRanges: bgRanges,
-                          lineEndTimeMs: resolvedBgEnd,
-                          style: bgBaseStyle,
-                          textAlign: textAlign,
-                          textScaler: textScaler,
-                          layoutWidth: bgLayoutWidth,
-                          positionMs: frame.positionMs,
-                        ),
-                        child: Text(
-                          bgFormattedText,
-                          style: bgBaseStyle.copyWith(color: activeWordColor),
-                          textAlign: textAlign,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              phraseWidget = WordFillLyricsLine(
+                line: LyricsLine(
+                  content: bgFormattedText,
+                  startTimeMs: bgStart,
+                  endTimeMs: resolvedBgEnd,
+                  words: bg.words,
+                  speaker: widget.line.speaker,
+                ),
+                positionMs: frame.positionMs,
+                textStyle: bgBaseStyle,
+                activeColor: activeWordColor,
+                inactiveColor: inactiveWordColor,
+                textAlign: textAlign,
+                enableTicker: false,
               );
             } else {
               phraseWidget = Text(
