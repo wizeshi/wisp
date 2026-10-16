@@ -218,12 +218,14 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
                                           alpha: 0.2,
                                         ),
                                         borderRadius: BorderRadius.circular(6),
-                                        border: primaryColor != null ? Border.all(
-                                          color: primaryColor.withValues(
-                                            alpha: 0.35,
-                                          ),
-                                          width: 1,
-                                        ) : null,
+                                        border: primaryColor != null
+                                            ? Border.all(
+                                                color: primaryColor.withValues(
+                                                  alpha: 0.35,
+                                                ),
+                                                width: 1,
+                                              )
+                                            : null,
                                       ),
                                       child: Row(
                                         children: [
@@ -1155,35 +1157,42 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
 
     final GenericSong track = currentTrack;
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        MarqueeText(
-          text: track.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Row(
+    return ConnectDeviceIndicator(
+      builder: (context, showConnectStatus, connectStatusWidget) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TrackBadges(track: track),
-            Expanded(
-              child: MarqueeText(
-                text: track.artists.map((a) => a.name).join(', '),
-                style: TextStyle(
-                  color: Colors.grey[300],
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+            MarqueeText(
+              text: showConnectStatus
+                  ? "${track.title} • ${track.artists.map((a) => a.name).join(', ')}"
+                  : track.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
               ),
             ),
+            Row(
+              children: [
+                TrackBadges(track: track),
+                showConnectStatus
+                    ? connectStatusWidget
+                    : Expanded(
+                        child: MarqueeText(
+                          text: track.artists.map((a) => a.name).join(', '),
+                          style: TextStyle(
+                            color: Colors.grey[250],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }

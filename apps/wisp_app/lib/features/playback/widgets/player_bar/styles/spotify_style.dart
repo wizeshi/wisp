@@ -149,19 +149,20 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                                             ),
                                           ),
                                         ),
-                                        if (previewTrack != null && dragProgress > 0)
+                                        if (previewTrack != null &&
+                                            dragProgress > 0)
                                           Positioned.fill(
                                             child: IgnorePointer(
                                               child: Opacity(
-                                                opacity: (dragProgress * 0.95).clamp(
-                                                  0.0,
-                                                  0.95,
-                                                ),
+                                                opacity: (dragProgress * 0.95)
+                                                    .clamp(0.0, 0.95),
                                                 child: Transform.translate(
                                                   offset: Offset(
                                                     isSwipingLeft
-                                                        ? (1 - dragProgress) * 24
-                                                        : -(1 - dragProgress) * 24,
+                                                        ? (1 - dragProgress) *
+                                                              24
+                                                        : -(1 - dragProgress) *
+                                                              24,
                                                     0,
                                                   ),
                                                   child: _buildMobileTrackInfo(
@@ -251,52 +252,45 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
     final GenericSong track = currentTrack;
 
-    final output = context.select<ConnectSessionProvider, _MobileOutputInfo>(
-      (connect) => _MobileOutputInfo.fromProvider(connect),
+    return ConnectDeviceIndicator(
+      builder: (context, showConnectStatus, connectStatusWidget) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MarqueeText(
+              text: showConnectStatus
+                  ? "${track.title}  •  ${track.artists.map((a) => a.name).join(', ')}"
+                  : track.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Row(
+              children: [
+                TrackBadges(track: track),
+                showConnectStatus
+                    ? connectStatusWidget
+                    : Expanded(
+                        child: MarqueeText(
+                          text: track.artists.map((a) => a.name).join(', '),
+                          style: TextStyle(
+                            color: Colors.grey[250],
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+              ],
+            ),
+          ],
+        );
+      },
     );
 
-    if (output.isExternal) {
-      final artists = track.artists
-          .map((artist) => artist.name)
-          .join(', ');
-      final songLine = artists.isEmpty
-          ? track.title
-          : '${track.title}  ·  $artists';
-
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          MarqueeText(
-            text: songLine,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-            pauseWhenUnfocused: true,
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TrackBadges(track: track),
-              Flexible(
-                child: MarqueeText(
-                  text: output.deviceName,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-
-    return Column(
+    /* return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -311,20 +305,22 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         Row(
           children: [
             TrackBadges(track: track),
-            Expanded(
-              child: MarqueeText(
-                text: track.artists.map((a) => a.name).join(', '),
-                style: TextStyle(
-                  color: Colors.grey[250],
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+            ConnectDeviceLine(
+              child: Expanded(
+                child: MarqueeText(
+                  text: track.artists.map((a) => a.name).join(', '),
+                  style: TextStyle(
+                    color: Colors.grey[250],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
           ],
         ),
       ],
-    );
+    ); */
   }
 
   Widget _buildMobileConnectButton(AppStyle appStyle) {
@@ -438,7 +434,8 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
             ? coordinator.effectiveThrottledPosition
             : player.throttledPosition,
         duration: player.duration,
-        isLoading: !coordinator.useLinkedPlaybackState &&
+        isLoading:
+            !coordinator.useLinkedPlaybackState &&
             (player.isLoading || player.isBuffering),
       ),
       builder: (context, data, _) {
@@ -455,8 +452,10 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         final duration = data.duration;
         final position = data.position;
         final progress = duration.inMilliseconds > 0
-            ? (position.inMilliseconds / duration.inMilliseconds)
-                .clamp(0.0, 1.0)
+            ? (position.inMilliseconds / duration.inMilliseconds).clamp(
+                0.0,
+                1.0,
+              )
             : 0.0;
 
         final shouldFreeze = context.select<PreferencesProvider, bool>(
@@ -472,8 +471,8 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
               final fDuration = frozenData.duration;
               final fProgress = fDuration.inMilliseconds > 0
                   ? (frozenData.position.inMilliseconds /
-                          fDuration.inMilliseconds)
-                      .clamp(0.0, 1.0)
+                            fDuration.inMilliseconds)
+                        .clamp(0.0, 1.0)
                   : 0.0;
               return _buildMiniProgressIndicator(fProgress);
             },
@@ -685,14 +684,18 @@ class _SpotifyDesktopTrackInfo extends StatelessWidget {
                                     child: Text(
                                       label,
                                       style: TextStyle(
-                                        color: Theme.of(context).colorScheme.primary,
-                                        decorationColor: Theme.of(context).colorScheme.primary,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
+                                        decorationColor: Theme.of(
+                                          context,
+                                        ).colorScheme.primary,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                         decoration: isHovered
                                             ? TextDecoration.underline
                                             : TextDecoration.none,
-                                        decorationThickness: 3
+                                        decorationThickness: 3,
                                       ),
                                     ),
                                   );

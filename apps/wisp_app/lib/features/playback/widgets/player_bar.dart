@@ -16,6 +16,7 @@ import 'package:wisp/core/theme/cover_art_palette_provider.dart';
 import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/shared/widgets/connect/connect_device_indicator.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
 import 'package:wisp/shared/widgets/display/focus_freeze_builder.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart'
@@ -1903,19 +1904,4 @@ class _PlayPauseData {
     repeatMode,
     isDJMode,
   );
-}
-
-class _MobileOutputInfo {
-  final bool isExternal;
-  final String deviceName;
-
-  const _MobileOutputInfo({required this.isExternal, required this.deviceName});
-
-  factory _MobileOutputInfo.fromProvider(ConnectSessionProvider connect) {
-    final name = connect.activeOutputDeviceName?.trim();
-    return _MobileOutputInfo(
-      isExternal: connect.hasExternalOutput,
-      deviceName: (name == null || name.isEmpty) ? 'Connected' : name,
-    );
-  }
 }
