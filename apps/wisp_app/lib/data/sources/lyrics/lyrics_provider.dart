@@ -10,6 +10,7 @@ import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'lyrics_source.dart';
 import 'lyrics_source_manager.dart';
+import 'custom_lyrics_storage.dart';
 
 class LyricsFetchState {
   final bool isLoading;
@@ -44,6 +45,7 @@ class LyricsFetchState {
 class LyricsProvider extends ChangeNotifier {
   final LyricsSourceManager _sourceManager = LyricsSourceManager.instance;
   final MetadataCacheStore _cacheStore = MetadataCacheStore.instance;
+  final CustomLyricsStorage _customLyricsStorage = CustomLyricsStorage.instance;
   static const String _cacheProvider = 'lyrics_v2';
   static const String _delayCacheType = 'delay';
   static const Duration _errorRetryCooldown = Duration(seconds: 30);
@@ -51,6 +53,7 @@ class LyricsProvider extends ChangeNotifier {
   LyricsProvider() {
     _sourceManager.initialize();
     _sourceManager.addListener(_onSourcesChanged);
+    _customLyricsStorage.initialize();
   }
 
   void _onSourcesChanged() {
@@ -116,6 +119,37 @@ class LyricsProvider extends ChangeNotifier {
     _lyricsInFlight.add(key);
 
     try {
+      // 0. Check custom locally imported lyrics (highest priority)
+      final customLyrics = await _customLyricsStorage.getCustomLyrics(track);
+      if (customLyrics != null) {
+        logger.i(
+          '[LyricsProvider] Using custom imported lyrics for "${track.title}" (${customLyrics.lines.length} lines, sync: ${customLyrics.syncMode.name})',
+        );
+        final state = LyricsFetchState(
+          isLoading: false,
+          lyrics: _normalizeResult(customLyrics, mode),
+          hasFetched: true,
+        );
+        _cache[key] = state;
+        _cache[_key(track.id, LyricsSyncMode.word)] = LyricsFetchState(
+          isLoading: false,
+          lyrics: _normalizeResult(customLyrics, LyricsSyncMode.word),
+          hasFetched: true,
+        );
+        _cache[_key(track.id, LyricsSyncMode.line)] = LyricsFetchState(
+          isLoading: false,
+          lyrics: _normalizeResult(customLyrics, LyricsSyncMode.line),
+          hasFetched: true,
+        );
+        _cache[_key(track.id, LyricsSyncMode.unsynced)] = LyricsFetchState(
+          isLoading: false,
+          lyrics: _normalizeResult(customLyrics, LyricsSyncMode.unsynced),
+          hasFetched: true,
+        );
+        notifyListeners();
+        return;
+      }
+
       final lastErrorAt = _lastErrorAt[key];
       if (lastErrorAt != null) {
         final sinceError = DateTime.now().difference(lastErrorAt);
@@ -235,6 +269,47 @@ class LyricsProvider extends ChangeNotifier {
     _delayCache[trackId] = seconds;
     notifyListeners();
     await _writeCachedDelay(trackId, seconds);
+  }
+
+  /// Whether [track] has custom imported lyrics saved locally.
+  bool hasCustomLyrics(GenericSong track) {
+    return _customLyricsStorage.hasCustomLyricsSync(track);
+  }
+
+  /// Imports and persists a custom TTML file for [track], immediately updating state.
+  Future<LyricsResult> importCustomLyrics(
+    GenericSong track,
+    String ttmlContent,
+  ) async {
+    final result = await _customLyricsStorage.saveCustomLyrics(
+      song: track,
+      ttmlContent: ttmlContent,
+    );
+
+    for (final m in LyricsSyncMode.values) {
+      _cache[_key(track.id, m)] = LyricsFetchState(
+        isLoading: false,
+        lyrics: _normalizeResult(result, m),
+        hasFetched: true,
+      );
+    }
+    _lastErrorAt.remove(_key(track.id, LyricsSyncMode.word));
+    _lastErrorAt.remove(_key(track.id, LyricsSyncMode.line));
+    _lastErrorAt.remove(_key(track.id, LyricsSyncMode.unsynced));
+
+    notifyListeners();
+    return result;
+  }
+
+  /// Removes custom imported lyrics for [track] and re-fetches from online cascade.
+  Future<void> removeCustomLyrics(GenericSong track) async {
+    await _customLyricsStorage.removeCustomLyrics(track);
+    for (final m in LyricsSyncMode.values) {
+      _cache.remove(_key(track.id, m));
+      _lastErrorAt.remove(_key(track.id, m));
+    }
+    notifyListeners();
+    await ensureLyrics(track, LyricsSyncMode.word);
   }
 
   Future<LyricsResult?> _fetchLyrics(

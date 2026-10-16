@@ -265,5 +265,172 @@ void main() {
       expect(bounds1.bottom, closeTo(firstLineHeight, 1.0));
       expect(bounds1.width, greaterThan(0));
     });
+
+    testWidgets('right aligned text clipper positioning', (tester) async {
+      final line = LyricsLine(
+        content: 'O Cristiano? Então quem?',
+        startTimeMs: 72748,
+        endTimeMs: 74671,
+        speaker: LyricSpeaker.right,
+        words: [
+          const LyricsWord(content: 'O', startTimeMs: 72748, endTimeMs: 72977),
+          const LyricsWord(content: 'Cristiano?', startTimeMs: 72977, endTimeMs: 73674),
+          const LyricsWord(content: 'Então', startTimeMs: 74209, endTimeMs: 74455),
+          const LyricsWord(content: 'quem?', startTimeMs: 74455, endTimeMs: 74671),
+        ],
+      );
+      final ranges = resolveWordRanges(line.content, line.words);
+      const style = TextStyle(fontSize: 42);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final layoutWidth = constraints.maxWidth;
+                        return Stack(
+                          alignment: Alignment.centerRight,
+                          children: [
+                            Text(line.content, style: style, textAlign: TextAlign.right),
+                            ClipPath(
+                              clipper: LyricsLineFillClipper(
+                                lineContent: line.content,
+                                words: line.words,
+                                wordRanges: ranges,
+                                style: style,
+                                textAlign: TextAlign.right,
+                                layoutWidth: layoutWidth,
+                                positionMs: 72850, // halfway through "O"
+                              ),
+                              child: Text(line.content, style: style, textAlign: TextAlign.right),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final textFinder = find.byType(Text).first;
+      final textRenderObject = tester.renderObject<RenderBox>(textFinder);
+      print('text size: ${textRenderObject.size}');
+      print('text global position: ${textRenderObject.localToGlobal(Offset.zero)}');
+
+      final clipFinder = find.byType(ClipPath);
+      final clipRenderObject = tester.renderObject<RenderBox>(clipFinder);
+      print('clip size: ${clipRenderObject.size}');
+      print('clip global position: ${clipRenderObject.localToGlobal(Offset.zero)}');
+
+      final clipper = LyricsLineFillClipper(
+        lineContent: line.content,
+        words: line.words,
+        wordRanges: ranges,
+        style: style,
+        textAlign: TextAlign.right,
+        layoutWidth: 800,
+        positionMs: 72850,
+      );
+      final clipPath = clipper.getClip(clipRenderObject.size);
+      expect(clipPath.getBounds().isEmpty, isFalse);
+
+      final clipperLine2 = LyricsLineFillClipper(
+        lineContent: line.content,
+        words: line.words,
+        wordRanges: ranges,
+        style: style,
+        textAlign: TextAlign.right,
+        layoutWidth: 800,
+        positionMs: 74563, // halfway through "quem?"
+      );
+      final clipPath2 = clipperLine2.getClip(clipRenderObject.size);
+      expect(clipPath2.contains(const Offset(600, 60)), isTrue);
+      expect(clipPath2.contains(const Offset(750, 60)), isFalse);
+    });
+
+    testWidgets('dual-voice right-aligned lyrics from Godzilla wrapped onto multiple lines wipes right-aligned text correctly', (tester) async {
+      final line = LyricsLine(
+        content: "You get in my way, I'ma feed you to the monster",
+        startTimeMs: 37917,
+        endTimeMs: 40687,
+        speaker: LyricSpeaker.right,
+        words: const [
+          LyricsWord(content: "You", startTimeMs: 37917, endTimeMs: 38099),
+          LyricsWord(content: "get", startTimeMs: 38099, endTimeMs: 38316),
+          LyricsWord(content: "in", startTimeMs: 38316, endTimeMs: 38449),
+          LyricsWord(content: "my", startTimeMs: 38449, endTimeMs: 38630),
+          LyricsWord(content: "way,", startTimeMs: 38630, endTimeMs: 38982),
+          LyricsWord(content: "I", startTimeMs: 38982, endTimeMs: 39196, partOfWord: true),
+          LyricsWord(content: "'ma", startTimeMs: 39196, endTimeMs: 39384),
+          LyricsWord(content: "feed", startTimeMs: 39384, endTimeMs: 39558),
+          LyricsWord(content: "you", startTimeMs: 39558, endTimeMs: 39690),
+          LyricsWord(content: "to", startTimeMs: 39690, endTimeMs: 39909),
+          LyricsWord(content: "the", startTimeMs: 39909, endTimeMs: 40060),
+          LyricsWord(content: "mon", startTimeMs: 40060, endTimeMs: 40436, partOfWord: true),
+          LyricsWord(content: "ster", startTimeMs: 40436, endTimeMs: 40657, partOfWord: true),
+        ],
+      );
+      final ranges = resolveWordRanges(line.content, line.words);
+      const style = TextStyle(
+        fontSize: 42,
+        letterSpacing: -1.5,
+        fontWeight: FontWeight.w700,
+        height: 1.4,
+      );
+
+      // Width 650 forces the line to wrap into multiple lines
+      const containerWidth = 650.0;
+      final tp = TextPainter(
+        text: TextSpan(text: line.content, style: style),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.right,
+      )..layout(maxWidth: containerWidth);
+
+      final lineMetrics = tp.computeLineMetrics();
+      expect(lineMetrics.length, greaterThan(1));
+
+      final toBoxes = tp.getBoxesForSelection(ranges[9]);
+      expect(toBoxes.isNotEmpty, isTrue);
+      final toBox = toBoxes.first;
+
+      // Now test the clipper when word 9 ("to") is active (halfway: ~39800ms)
+      final clipperLine2 = LyricsLineFillClipper(
+        lineContent: line.content,
+        words: line.words,
+        wordRanges: ranges,
+        lineEndTimeMs: line.endTimeMs,
+        style: style,
+        textAlign: TextAlign.right,
+        layoutWidth: containerWidth,
+        positionMs: 39800,
+      );
+
+      final clip = clipperLine2.getClip(Size(containerWidth, tp.height));
+
+      // 1. Line 1 should be fully revealed
+      final line1MidY = lineMetrics[0].height / 2;
+      expect(clip.contains(Offset(containerWidth - 50, line1MidY)), isTrue, reason: 'Line 1 is fully revealed');
+
+      // 2. Word "to" halfway point should be covered, but after "to" should NOT be revealed
+      final toMidY = (toBox.top + toBox.bottom) / 2;
+      final toMidX = (toBox.left + toBox.right) / 2;
+      expect(clip.contains(Offset(toMidX - 1, toMidY)), isTrue, reason: 'First half of active word on line 2 is revealed');
+      expect(clip.contains(Offset(toBox.right + 10, toMidY)), isFalse, reason: 'Unsung part on line 2 is NOT revealed');
+
+      // 3. The left margin on line 2 (which has no text) must NOT cause clip leak
+      // And the wipe does not start from x=0 on screen
+    });
   });
 }

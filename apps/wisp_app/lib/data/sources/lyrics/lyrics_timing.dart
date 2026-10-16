@@ -292,6 +292,7 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
   final List<TextSelection> wordRanges;
   final int? lineEndTimeMs;
   final TextStyle style;
+  final TextAlign textAlign;
   final TextScaler? textScaler;
   final double? layoutWidth;
   final int positionMs;
@@ -302,6 +303,7 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
     required this.wordRanges,
     this.lineEndTimeMs,
     required this.style,
+    this.textAlign = TextAlign.left,
     this.textScaler,
     this.layoutWidth,
     required this.positionMs,
@@ -318,6 +320,7 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
     final tp = TextPainter(
       text: TextSpan(text: lineContent, style: style),
       textDirection: TextDirection.ltr,
+      textAlign: textAlign,
       textScaler: textScaler ?? TextScaler.noScaling,
     )..layout(maxWidth: maxW);
 
@@ -463,6 +466,7 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
   bool shouldReclip(LyricsLineFillClipper oldClipper) {
     return oldClipper.positionMs != positionMs ||
         oldClipper.style != style ||
+        oldClipper.textAlign != textAlign ||
         oldClipper.textScaler != textScaler ||
         oldClipper.layoutWidth != layoutWidth ||
         oldClipper.lineContent != lineContent ||

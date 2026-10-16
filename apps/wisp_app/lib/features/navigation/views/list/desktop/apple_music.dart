@@ -296,22 +296,24 @@ class DesktopAppleMusicListView extends StatelessWidget {
                           shape: ArtworkShape.circle,
                         ),
                         const SizedBox(width: 6),
-                        if (subtitleUser != null) HoverUnderline(
-                          cursor: SystemMouseCursors.click,
-                          onTap: () => onOpenUser?.call(subtitleUser!),
-                          builder: (isHovering) => Text(
-                            subtitleUser!.displayName,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                              decoration: isHovering
-                                  ? TextDecoration.underline
-                                  : TextDecoration.none,
+                        if (subtitleUser != null)
+                          HoverUnderline(
+                            cursor: SystemMouseCursors.click,
+                            onTap: () => onOpenUser?.call(subtitleUser!),
+                            builder: (isHovering) => Text(
+                              subtitleUser!.displayName,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                decoration: isHovering
+                                    ? TextDecoration.underline
+                                    : TextDecoration.none,
+                              ),
                             ),
                           ),
-                        ),
-                        if (subtitleArtists != null && subtitleArtists!.isNotEmpty)
-                          ...subtitleArtists!.map((artist) => HoverUnderline(
+                        if (subtitleArtists != null &&
+                            subtitleArtists!.isNotEmpty)
+                          /* ...subtitleArtists!.map((artist) => HoverUnderline(
                                 cursor: SystemMouseCursors.click,
                                 onTap: () => onOpenArtist?.call(artist),
                                 builder: (isHovering) => Text(
@@ -324,7 +326,32 @@ class DesktopAppleMusicListView extends StatelessWidget {
                                         : TextDecoration.none,
                                   ),
                                 ),
-                              )),
+                              )), */
+                          ...subtitleArtists!.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final artist = entry.value;
+                            return [
+                              HoverUnderline(
+                                cursor: SystemMouseCursors.click,
+                                onTap: () => onOpenArtist?.call(artist),
+                                builder: (isHovering) => Text(
+                                  artist.name,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    decoration: isHovering
+                                        ? TextDecoration.underline
+                                        : TextDecoration.none,
+                                  ),
+                                ),
+                              ),
+                              if (index < subtitleArtists!.length - 1)
+                                const Text(
+                                  ', ',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                            ];
+                          }).expand((item) => item).toList(),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -395,13 +422,13 @@ class DesktopAppleMusicListView extends StatelessWidget {
                                     details.globalPosition,
                                   ),
                                   child: GenericIconButton(
-                                    onPressed: () => onContextMenu(
-                                      buttonContext,
-                                      null,
-                                    ),
+                                    onPressed: () =>
+                                        onContextMenu(buttonContext, null),
                                     icon: Icon(
                                       context.tokens.moreIcon,
-                                      color: Theme.of(context).colorScheme.primary,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
                                       size: 26,
                                     ),
                                   ),

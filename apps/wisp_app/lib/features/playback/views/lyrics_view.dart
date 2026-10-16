@@ -3,8 +3,9 @@
 library;
 
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 import 'dart:ui' show ImageFilter;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -22,6 +23,7 @@ import 'package:wisp/services/system/app_focus_service.dart';
 import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 import '_lyrics_line_item.dart';
 
 class LyricsView extends StatefulWidget {
@@ -572,6 +574,72 @@ class _LyricsViewState extends State<LyricsView>
     if (trackId == null) return;
     final provider = context.read<LyricsProvider>();
     await provider.setDelaySeconds(trackId, _lyricsDelaySeconds);
+  }
+
+  Future<void> _handleImportTtmlLyrics(
+    LyricsProvider lyricsProvider,
+    GenericSong track,
+  ) async {
+    try {
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['ttml', 'xml'],
+        dialogTitle: 'Select TTML Lyrics File',
+      );
+      if (files.isEmpty) return;
+
+      final file = files.first;
+      final path = file.path;
+      String? content;
+
+      if (path != null) {
+        final f = File(path);
+        if (await f.exists()) {
+          content = await f.readAsString();
+        }
+      }
+
+      if (content == null || content.trim().isEmpty) {
+        if (!mounted) return;
+        context.showWarningAlert('Selected file is empty or could not be read.');
+        return;
+      }
+
+      final imported = await lyricsProvider.importCustomLyrics(track, content);
+      if (!mounted) return;
+
+      final syncLabel = imported.isWordSynced
+          ? 'Word-synced'
+          : imported.isLineSynced
+              ? 'Line-synced'
+              : 'Unsynced';
+
+      // Automatically switch view sync mode to best match imported lyrics
+      _onSyncModeChanged(imported.syncMode);
+
+      context.showSuccessAlert(
+        'Imported ${imported.lines.length} lines ($syncLabel) for "${track.title}"',
+      );
+    } catch (e) {
+      logger.e('[LyricsView] Error importing TTML file', error: e);
+      if (!mounted) return;
+      context.showErrorAlert('Failed to import TTML: $e');
+    }
+  }
+
+  Future<void> _handleRemoveCustomLyrics(
+    LyricsProvider lyricsProvider,
+    GenericSong track,
+  ) async {
+    try {
+      await lyricsProvider.removeCustomLyrics(track);
+      if (!mounted) return;
+      context.showSuccessAlert('Reverted to online lyrics for "${track.title}"');
+    } catch (e) {
+      logger.e('[LyricsView] Error removing custom lyrics', error: e);
+      if (!mounted) return;
+      context.showErrorAlert('Failed to revert lyrics: $e');
+    }
   }
 
   @override
@@ -1218,6 +1286,7 @@ class _LyricsViewState extends State<LyricsView>
 
     final btnMinSize = isCompact ? 34.0 : 28.0;
     final iconSize = isCompact ? 18.0 : 16.0;
+    final hasCustom = lyricsProvider.hasCustomLyrics(track);
 
     return Material(
       color: Colors.transparent,
@@ -1246,6 +1315,47 @@ class _LyricsViewState extends State<LyricsView>
             lineAvailable: lineAvailable,
             isCompact: isCompact,
           ),
+          if (_isDesktop) ...[
+            SizedBox(width: isCompact ? 4 : 6),
+            if (hasCustom) ...[
+              GenericIconButton(
+                icon: Icon(Icons.delete_outline, size: iconSize),
+                color: Colors.white.withValues(alpha: 0.85),
+                tooltip: 'Revert to online lyrics',
+                splashRadius: isCompact ? 18 : 16,
+                mouseCursor: SystemMouseCursors.click,
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(
+                  minWidth: btnMinSize,
+                  minHeight: btnMinSize,
+                ),
+                onPressed: () =>
+                    _handleRemoveCustomLyrics(lyricsProvider, track),
+              ),
+              const SizedBox(width: 2),
+            ],
+            GenericIconButton(
+              icon: Icon(
+                hasCustom ? Icons.file_upload : Icons.file_upload_outlined,
+                size: iconSize,
+              ),
+              color: hasCustom
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.white.withValues(alpha: 0.85),
+              tooltip: hasCustom
+                  ? 'Replace TTML lyrics'
+                  : 'Import TTML lyrics (.ttml)',
+              splashRadius: isCompact ? 18 : 16,
+              mouseCursor: SystemMouseCursors.click,
+              padding: EdgeInsets.zero,
+              constraints: BoxConstraints(
+                minWidth: btnMinSize,
+                minHeight: btnMinSize,
+              ),
+              onPressed: () =>
+                  _handleImportTtmlLyrics(lyricsProvider, track),
+            ),
+          ],
         ],
       ),
     );

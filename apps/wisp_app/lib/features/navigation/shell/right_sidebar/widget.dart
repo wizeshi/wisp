@@ -874,7 +874,13 @@ class _TrackArtwork extends StatelessWidget {
   }
 
   Widget _buildImage() {
-    return url.isEmpty
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.maxWidth.toInt();
+
+        print('Track artwork size: $size, url: $url');
+
+        return url.isEmpty
         ? Container(
             color: Colors.grey[850],
             child: const Icon(Icons.music_note),
@@ -883,12 +889,16 @@ class _TrackArtwork extends StatelessWidget {
             imageUrl: url,
             fit: BoxFit.cover,
             filterQuality: FilterQuality.medium,
+            memCacheHeight: size,
+            memCacheWidth: size,
             placeholder: (context, url) => Container(color: Colors.grey[850]),
             errorWidget: (context, url, error) => Container(
               color: Colors.grey[850],
               child: const Icon(Icons.music_note),
             ),
           );
+      }
+    );
   }
 }
 
@@ -1292,12 +1302,21 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                               aspectRatio: 1,
                               child: imageUrl.isEmpty
                                   ? Container(color: Colors.grey[850])
-                                  : CachedNetworkImage(
-                                      imageUrl: imageUrl,
-                                      fit: BoxFit.cover,
-                                      errorWidget: (context, url, error) =>
-                                          Container(color: Colors.grey[850]),
-                                    ),
+                                  : LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final size = constraints.maxWidth.toInt();
+                                      
+                                      return CachedNetworkImage(
+                                        imageUrl: imageUrl,
+                                        filterQuality: FilterQuality.medium,
+                                        memCacheHeight: size,
+                                        memCacheWidth: size,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (context, url, error) =>
+                                            Container(color: Colors.grey[850]),
+                                      );
+                                    }
+                                  ),
                             ),
                           ),
                           Positioned(

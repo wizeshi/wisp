@@ -472,6 +472,8 @@ class _DesktopTrackInfo extends StatelessWidget {
                     imageUrl: currentTrack!.thumbnailUrl,
                     fit: BoxFit.cover,
                     filterQuality: FilterQuality.high,
+                    memCacheHeight: 56,
+                    memCacheWidth: 56,
                     placeholder: (context, url) =>
                         Container(color: Colors.grey[800]),
                     errorWidget: (context, url, error) =>
