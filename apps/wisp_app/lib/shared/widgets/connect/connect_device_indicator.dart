@@ -167,7 +167,7 @@ class _ConnectDeviceIndicatorState extends State<ConnectDeviceIndicator> {
           ),
           const SizedBox(width: 4),
           MarqueeText(
-            text: deviceName!,
+            text: deviceName ?? "",
             style: TextStyle(
               color: widget.textColor ?? Colors.white,
               fontSize: textHeightMultiplier,
