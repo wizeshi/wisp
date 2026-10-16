@@ -46,6 +46,9 @@ class WifiConnectService implements ConnectTransport {
   Stream<ConnectUnlinkEvent> get unlinkStream => _inner.unlinkStream;
 
   @override
+  Stream<String> get deviceLeftStream => _inner.deviceLeftStream;
+
+  @override
   Future<void> start({
     required String localDeviceId,
     required String localDeviceName,
@@ -61,6 +64,9 @@ class WifiConnectService implements ConnectTransport {
 
   @override
   Future<void> dispose() => _inner.dispose();
+
+  @override
+  void broadcastDiscovery() => _inner.broadcastDiscovery();
 
   @override
   void requestPair({

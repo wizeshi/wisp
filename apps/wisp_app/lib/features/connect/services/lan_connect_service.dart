@@ -38,6 +38,8 @@ class LanConnectService implements ConnectTransport {
       StreamController.broadcast();
   final StreamController<ConnectUnlinkEvent> _unlinkController =
       StreamController.broadcast();
+  final StreamController<String> _deviceLeftController =
+      StreamController.broadcast();
   final ConnectPacketRouter _packetRouter = const ConnectPacketRouter();
 
   @override
@@ -68,6 +70,8 @@ class LanConnectService implements ConnectTransport {
       _commandAckController.stream;
   @override
   Stream<ConnectUnlinkEvent> get unlinkStream => _unlinkController.stream;
+  @override
+  Stream<String> get deviceLeftStream => _deviceLeftController.stream;
 
   RawDatagramSocket? _discoverySocket;
   RawDatagramSocket? _controlSocket;
@@ -77,10 +81,10 @@ class LanConnectService implements ConnectTransport {
   final Map<String, String> _peerConnectionSourceByAddress = {};
   final Map<String, String> _peerDeviceIdByAddress = {};
   final Map<String, String> _peerAddressByDeviceId = {};
-  Timer? _announceTimer;
+  Timer? _heartbeatTimer;
   final Map<String, DateTime> _lastDiscoveryReplyAt = {};
 
-  static const Duration _discoveryReplyThrottle = Duration(seconds: 10);
+  static const Duration _discoveryReplyThrottle = Duration(seconds: 2);
 
   bool _started = false;
   String? _localDeviceId;
@@ -203,17 +207,17 @@ class LanConnectService implements ConnectTransport {
       );
       logger.i('[Connect/LAN] STARTUP: TCP server listen() callback attached');
 
-      _announceTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _broadcastDiscovery();
+      _heartbeatTimer = Timer.periodic(const Duration(seconds: 5), (_) {
         try {
-          _broadcastDiscovery();
+          _sendHeartbeatsToKnownPeers();
         } catch (error) {
           logger.e(
-            '[Connect/LAN] Failed to broadcast discovery. Stacktrace:',
+            '[Connect/LAN] Failed to send heartbeats. Stacktrace:',
             error: error,
           );
         }
       });
-      _broadcastDiscovery();
       _started = true;
       logger.i(
         '[Connect/LAN] Discovery started on UDP $_discoveryPort, TCP server on $_tcpPort',
@@ -227,9 +231,12 @@ class LanConnectService implements ConnectTransport {
 
   @override
   Future<void> stop() async {
-    _announceTimer?.cancel();
-    _announceTimer = null;
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+    _sendGoodbyeToKnownPeers();
     _lastDiscoveryReplyAt.clear();
+    _peerDeviceIdByAddress.clear();
+    _peerAddressByDeviceId.clear();
 
     _discoverySocket?.close();
     _discoverySocket = null;
@@ -264,6 +271,7 @@ class LanConnectService implements ConnectTransport {
     await _commandApplyController.close();
     await _commandAckController.close();
     await _unlinkController.close();
+    await _deviceLeftController.close();
   }
 
   @override
@@ -426,6 +434,15 @@ class LanConnectService implements ConnectTransport {
     }
     _peerDeviceIdByAddress[address] = normalized;
     _peerAddressByDeviceId[normalized] = address;
+  }
+
+  void _forgetPeerDevice(String? deviceId) {
+    final normalized = (deviceId ?? '').trim();
+    if (normalized.isEmpty) return;
+    final address = _peerAddressByDeviceId.remove(normalized);
+    if (address != null) {
+      _peerDeviceIdByAddress.remove(address);
+    }
   }
 
   bool _shouldKeepIncomingSocket({required String peerAddress}) {
@@ -852,7 +869,14 @@ class LanConnectService implements ConnectTransport {
       final isHelloReply =
           packet.packetType == 'hello_reply' ||
           packet.packetType == 'connect.hello_reply';
-      if (!isHello && !isHelloReply) {
+      final isHeartbeat =
+          packet.packetType == 'heartbeat' ||
+          packet.packetType == 'connect.heartbeat';
+      final isGoodbye =
+          packet.packetType == 'goodbye' ||
+          packet.packetType == 'connect.goodbye';
+
+      if (!isHello && !isHelloReply && !isHeartbeat && !isGoodbye) {
         return;
       }
 
@@ -860,6 +884,15 @@ class LanConnectService implements ConnectTransport {
       final deviceId = (payload['device_id'] as String?) ?? '';
       if (deviceId.isEmpty) return;
       if (_localDeviceId != null && deviceId == _localDeviceId) return;
+
+      if (isGoodbye) {
+        _forgetPeerDevice(deviceId);
+        _deviceLeftController.add(deviceId);
+        logger.d(
+          '[Handoff/LAN] <- goodbye from=$deviceId address=${datagram.address.address}',
+        );
+        return;
+      }
 
       _rememberPeerDevice(datagram.address.address, deviceId);
 
@@ -877,7 +910,7 @@ class LanConnectService implements ConnectTransport {
 
       _discoveredDeviceController.add(device);
       logger.d(
-        '[Handoff/LAN] <- hello from=${device.id} name=${device.name} platform=${device.platform} address=${device.address}',
+        '[Handoff/LAN] <- ${packet.packetType} from=${device.id} name=${device.name} platform=${device.platform} address=${device.address}',
       );
     } catch (error, stackTrace) {
       logger.e(
@@ -982,6 +1015,90 @@ class LanConnectService implements ConnectTransport {
       );
     } catch (error) {
       logger.w('[Handoff/LAN] Failed to parse control datagram', error: error);
+    }
+  }
+
+  @override
+  void broadcastDiscovery() {
+    _broadcastDiscovery();
+  }
+
+  void _sendHeartbeatsToKnownPeers() {
+    final socket = _discoverySocket;
+    final localDeviceId = _localDeviceId;
+    final localDeviceName = _localDeviceName;
+    final localPlatform = _localPlatform;
+    if (socket == null ||
+        localDeviceId == null ||
+        localDeviceName == null ||
+        localPlatform == null) {
+      return;
+    }
+
+    final packet = ConnectPacketEnvelope(
+      packetType: 'connect.heartbeat',
+      payload: {
+        'device_id': localDeviceId,
+        'name': localDeviceName,
+        'platform': localPlatform,
+      },
+      metadata: {'ts': DateTime.now().toIso8601String()},
+    );
+    final payload = packet.toJson()
+      ..addAll({
+        'type': 'heartbeat',
+        'device_id': localDeviceId,
+        'name': localDeviceName,
+        'platform': localPlatform,
+        'ts': DateTime.now().toIso8601String(),
+      });
+
+    final data = utf8.encode(json.encode(payload));
+    final targets = _peerAddressByDeviceId.values.toSet();
+    for (final address in targets) {
+      try {
+        final dest = InternetAddress.tryParse(address);
+        if (dest != null && dest.address != '0.0.0.0') {
+          socket.send(data, dest, _discoveryPort);
+        }
+      } catch (error) {
+        logger.w('[Connect/LAN] Failed to send heartbeat to $address: $error');
+      }
+    }
+  }
+
+  void _sendGoodbyeToKnownPeers() {
+    final socket = _discoverySocket;
+    final localDeviceId = _localDeviceId;
+    if (socket == null || localDeviceId == null) {
+      return;
+    }
+
+    final packet = ConnectPacketEnvelope(
+      packetType: 'connect.goodbye',
+      payload: {
+        'device_id': localDeviceId,
+      },
+      metadata: {'ts': DateTime.now().toIso8601String()},
+    );
+    final payload = packet.toJson()
+      ..addAll({
+        'type': 'goodbye',
+        'device_id': localDeviceId,
+        'ts': DateTime.now().toIso8601String(),
+      });
+
+    final data = utf8.encode(json.encode(payload));
+    final targets = _peerAddressByDeviceId.values.toSet();
+    for (final address in targets) {
+      try {
+        final dest = InternetAddress.tryParse(address);
+        if (dest != null && dest.address != '0.0.0.0') {
+          socket.send(data, dest, _discoveryPort);
+        }
+      } catch (error) {
+        logger.w('[Connect/LAN] Failed to send goodbye to $address: $error');
+      }
     }
   }
 

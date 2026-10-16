@@ -165,6 +165,7 @@ class ConnectSessionProvider extends ChangeNotifier
   StreamSubscription<ConnectCommandApply>? _commandApplySubscription;
   StreamSubscription<ConnectCommandAck>? _commandAckSubscription;
   StreamSubscription<ConnectUnlinkEvent>? _unlinkSubscription;
+  StreamSubscription<String>? _deviceLeftSubscription;
   // legacy playback pulse subscription removed
   Timer? _pruneTimer;
   Timer? _targetPulseTimer;
@@ -914,7 +915,45 @@ class ConnectSessionProvider extends ChangeNotifier
     for (final id in idsToRemove) {
       _discoveredById.remove(id);
     }
+
+    if (_linkedDeviceId != null && idsToRemove.contains(_linkedDeviceId)) {
+      logger.w(
+        '[Handoff] Linked device $_linkedDeviceId timed out (> ${maxAge.inSeconds}s); performing local unlink.',
+      );
+      final audio = _audioHandler;
+      final resumePosition = audio?.throttledPosition ?? _linkedPosition;
+      final resumePlaying = audio?.isPlaying ?? _linkedIsPlaying;
+      unlink(
+        localResumed: true,
+        resumePosition: resumePosition,
+        resumePlaying: resumePlaying,
+        notifyPeer: false,
+      );
+    }
+
     notifyListeners();
+  }
+
+  void _onDeviceLeft(String deviceId) {
+    final removed = _discoveredById.remove(deviceId);
+    if (removed != null) {
+      logger.d('[Handoff] Peer device $deviceId left the network.');
+      if (_linkedDeviceId == deviceId) {
+        logger.i(
+          '[Handoff] Linked peer $deviceId departed; performing local unlink.',
+        );
+        final audio = _audioHandler;
+        final resumePosition = audio?.throttledPosition ?? _linkedPosition;
+        final resumePlaying = audio?.isPlaying ?? _linkedIsPlaying;
+        unlink(
+          localResumed: true,
+          resumePosition: resumePosition,
+          resumePlaying: resumePlaying,
+          notifyPeer: false,
+        );
+      }
+      notifyListeners();
+    }
   }
 
   void beginPairing(
@@ -1257,9 +1296,9 @@ class ConnectSessionProvider extends ChangeNotifier
 
     if (_discoveryStarted) {
       _pruneTimer ??= Timer.periodic(const Duration(seconds: 5), (_) {
-        pruneDiscoveredDevicesOlderThan(const Duration(seconds: 8));
+        pruneDiscoveredDevicesOlderThan(const Duration(seconds: 15));
       });
-      pruneDiscoveredDevicesOlderThan(const Duration(seconds: 8));
+      pruneDiscoveredDevicesOlderThan(const Duration(seconds: 15));
       notifyListeners();
       logger.d('[Handoff] Discovery already running; reusing current session.');
       return;
@@ -1272,6 +1311,9 @@ class ConnectSessionProvider extends ChangeNotifier
 
     _deviceSubscription ??= _transport.discoveredDeviceStream.listen(
       upsertDiscoveredDevice,
+    );
+    _deviceLeftSubscription ??= _transport.deviceLeftStream.listen(
+      _onDeviceLeft,
     );
     _pairRequestSubscription ??= _transport.pairRequestStream.listen(
       _onPairRequest,
@@ -1299,7 +1341,7 @@ class ConnectSessionProvider extends ChangeNotifier
     // legacy playback pulse removed
 
     _pruneTimer ??= Timer.periodic(const Duration(seconds: 5), (_) {
-      pruneDiscoveredDevicesOlderThan(const Duration(seconds: 8));
+      pruneDiscoveredDevicesOlderThan(const Duration(seconds: 15));
     });
 
     final startFuture = _transport.start(
@@ -1330,6 +1372,8 @@ class ConnectSessionProvider extends ChangeNotifier
   Future<void> _stopDiscoveryInternal() async {
     _pruneTimer?.cancel();
     _pruneTimer = null;
+    await _deviceLeftSubscription?.cancel();
+    _deviceLeftSubscription = null;
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
 
@@ -1345,16 +1389,21 @@ class ConnectSessionProvider extends ChangeNotifier
 
   Future<void> _refreshDiscoveryInternal() async {
     logger.d('[Handoff] Refresh discovery requested.');
-    _discoveredById.clear();
+    if (_linkedDeviceId != null &&
+        _discoveredById.containsKey(_linkedDeviceId)) {
+      final linkedDevice = _discoveredById[_linkedDeviceId]!;
+      _discoveredById.clear();
+      _discoveredById[_linkedDeviceId!] = linkedDevice;
+    } else {
+      _discoveredById.clear();
+    }
     notifyListeners();
 
-    if (_discoveryStarted) {
-      await _transport.stop();
-      _discoveryStarted = false;
-      _discoveryStartFuture = null;
+    if (!_discoveryStarted) {
+      await _startDiscoveryInternal();
+    } else {
+      _transport.broadcastDiscovery();
     }
-
-    await _startDiscoveryInternal();
   }
 
   void _onPairRequest(ConnectPairRequest request) {
@@ -2327,8 +2376,17 @@ class ConnectSessionProvider extends ChangeNotifier
     notifyListeners();
   }
 
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (_disposed) return;
+    super.notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     unawaited(shutdown());
     super.dispose();
   }
@@ -2348,6 +2406,7 @@ class ConnectSessionProvider extends ChangeNotifier
     _commandApplySubscription?.cancel();
     _commandAckSubscription?.cancel();
     _unlinkSubscription?.cancel();
+    _deviceLeftSubscription?.cancel();
     // legacy playback pulse subscription removed
     _stopTargetPulseTimer();
     _stopHostInterpolationTimer();
