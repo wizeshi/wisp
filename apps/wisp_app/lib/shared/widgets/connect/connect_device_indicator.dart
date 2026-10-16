@@ -5,24 +5,38 @@ import 'package:wisp/features/connect/state/connect_session_provider.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 
+typedef ConnectDeviceIndicatorBuilder = Widget Function(
+  BuildContext context,
+  bool showConnectStatus,
+  Widget connectStatusWidget,
+);
+
+typedef ConnectDeviceIndicatorDetailedBuilder = Widget Function(
+  BuildContext context,
+  bool showConnectStatus,
+  Widget connectStatusWidget,
+  String? deviceName,
+  IconData? deviceIcon,
+);
+
 class ConnectDeviceIndicator extends StatefulWidget {
-  final Widget Function(
-    BuildContext context,
-    bool showConnectStatus,
-    Widget connectStatusWidget,
-  )
-  builder;
+  final ConnectDeviceIndicatorBuilder? builder;
+  final ConnectDeviceIndicatorDetailedBuilder? detailedBuilder;
   final double? height;
   final Color? iconColor;
   final Color? textColor;
 
   const ConnectDeviceIndicator({
     super.key,
-    required this.builder,
+    this.builder,
+    this.detailedBuilder,
     this.height,
     this.iconColor,
     this.textColor,
-  });
+  }) : assert(
+         builder != null || detailedBuilder != null,
+         'Either builder or detailedBuilder must be provided',
+       );
 
   @override
   State<ConnectDeviceIndicator> createState() => _ConnectDeviceIndicatorState();
@@ -155,27 +169,40 @@ class _ConnectDeviceIndicatorState extends State<ConnectDeviceIndicator> {
     final iconSizeMultiplier = 16 * (height / defaultHeight);
     final textHeightMultiplier = 12 * (height / defaultHeight);
 
-    return widget.builder(
+    final connectStatusWidget = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          deviceIcon,
+          color: widget.iconColor ?? Colors.white,
+          size: iconSizeMultiplier,
+        ),
+        const SizedBox(width: 4),
+        MarqueeText(
+          text: deviceName ?? "",
+          style: TextStyle(
+            color: widget.textColor ?? Colors.white,
+            fontSize: textHeightMultiplier,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+
+    if (widget.detailedBuilder != null) {
+      return widget.detailedBuilder!(
+        context,
+        showConnectStatus,
+        connectStatusWidget,
+        deviceName,
+        deviceIcon,
+      );
+    }
+
+    return widget.builder!(
       context,
       showConnectStatus,
-      Row(
-        children: [
-          Icon(
-            deviceIcon,
-            color: widget.iconColor ?? Colors.white,
-            size: iconSizeMultiplier,
-          ),
-          const SizedBox(width: 4),
-          MarqueeText(
-            text: deviceName ?? "",
-            style: TextStyle(
-              color: widget.textColor ?? Colors.white,
-              fontSize: textHeightMultiplier,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+      connectStatusWidget,
     );
   }
 }

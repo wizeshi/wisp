@@ -134,9 +134,7 @@ class _WordFillLyricsLineState extends State<WordFillLyricsLine>
   }
 
   bool get _needsInternalTicker =>
-      widget.positionMsListenable == null &&
-      widget.enableTicker &&
-      widget.line.hasWordTiming;
+      widget.positionMsListenable == null && widget.enableTicker;
 
   void _syncTickerState() {
     if (!_needsInternalTicker) {
@@ -266,9 +264,35 @@ class _WordFillLyricsLineState extends State<WordFillLyricsLine>
     final hasWords = widget.line.hasWordTiming && _wordRanges.isNotEmpty;
 
     if (!hasWords) {
+      if (widget.isActive == null && effectiveListenable != null) {
+        return ValueListenableBuilder<int>(
+          valueListenable: effectiveListenable,
+          builder: (context, currentPos, _) {
+            final isLineActive = currentPos >= widget.line.startTimeMs &&
+                (widget.line.endTimeMs == null ||
+                    currentPos < widget.line.endTimeMs!);
+            return Text(
+              widget.line.content,
+              style: effectiveBaseStyle.copyWith(
+                color: isLineActive ? activeColor : inactiveColor,
+              ),
+              textAlign: textAlign,
+              maxLines: widget.maxLines,
+              overflow: effectiveOverflow,
+              softWrap: effectiveSoftWrap,
+            );
+          },
+        );
+      }
+
       final isLineActive = widget.isActive ??
-          (pos >= widget.line.startTimeMs &&
-              (widget.line.endTimeMs == null || pos < widget.line.endTimeMs!));
+          (widget.positionMs == null &&
+                  widget.positionMsListenable == null &&
+                  !widget.enableTicker
+              ? true
+              : (pos >= widget.line.startTimeMs &&
+                  (widget.line.endTimeMs == null ||
+                      pos < widget.line.endTimeMs!)));
       return Text(
         widget.line.content,
         style: effectiveBaseStyle.copyWith(

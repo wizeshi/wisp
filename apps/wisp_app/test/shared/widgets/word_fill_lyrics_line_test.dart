@@ -192,5 +192,118 @@ void main() {
     // Line height is 20 * 1.5 = 30. Wrapped across multiple lines, total height must be > 50.
     expect(size.height, greaterThan(50.0));
   });
+
+  testWidgets('WordFillLyricsLine highlights in activeColor when line-synced and active', (tester) async {
+    const line = LyricsLine(
+      content: 'Line-synced lyric line',
+      startTimeMs: 2000,
+      endTimeMs: 5000,
+      words: [],
+    );
+
+    // 1. Explicit isActive: true renders in activeColor (Colors.white)
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: WordFillLyricsLine(
+            line: line,
+            isActive: true,
+            activeColor: Colors.white,
+            inactiveColor: Colors.grey,
+            enableTicker: false,
+          ),
+        ),
+      ),
+    );
+
+    var textWidget = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(WordFillLyricsLine),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(textWidget.style?.color, equals(Colors.white));
+
+    // 2. positionMs >= startTimeMs renders in activeColor
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: WordFillLyricsLine(
+            line: line,
+            positionMs: 3000,
+            activeColor: Colors.white,
+            inactiveColor: Colors.grey,
+            enableTicker: false,
+          ),
+        ),
+      ),
+    );
+
+    textWidget = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(WordFillLyricsLine),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(textWidget.style?.color, equals(Colors.white));
+
+    // 3. positionMs < startTimeMs renders in inactiveColor
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: WordFillLyricsLine(
+            line: line,
+            positionMs: 1000,
+            activeColor: Colors.white,
+            inactiveColor: Colors.grey,
+            enableTicker: false,
+          ),
+        ),
+      ),
+    );
+
+    textWidget = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(WordFillLyricsLine),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(textWidget.style?.color, equals(Colors.grey));
+
+    // 4. positionMsListenable dynamically transitions from inactive to active
+    final positionNotifier = ValueNotifier<int>(1000);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WordFillLyricsLine(
+            line: line,
+            positionMsListenable: positionNotifier,
+            activeColor: Colors.white,
+            inactiveColor: Colors.grey,
+            enableTicker: false,
+          ),
+        ),
+      ),
+    );
+
+    textWidget = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(WordFillLyricsLine),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(textWidget.style?.color, equals(Colors.grey));
+
+    positionNotifier.value = 2500;
+    await tester.pump();
+
+    textWidget = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(WordFillLyricsLine),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(textWidget.style?.color, equals(Colors.white));
+  });
 }
 

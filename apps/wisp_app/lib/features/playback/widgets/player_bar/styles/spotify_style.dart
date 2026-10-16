@@ -252,75 +252,94 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
     final GenericSong track = currentTrack;
 
+    final quality = context
+        .select<global_audio_player.WispAudioHandler, ActiveTrackQualityInfo?>(
+          (player) => player.activeTrackQuality,
+        );
+
+    final qualityLabel = quality == null
+        ? 'Standard'
+        : quality.isHiRes
+        ? 'Hi-Res Lossless'
+        : quality.isLossless
+        ? 'Lossless'
+        : quality.bitrate != null && quality.bitrate! >= 320
+        ? 'High Quality'
+        : 'Standard';
+
     return ConnectDeviceIndicator(
-      builder: (context, showConnectStatus, connectStatusWidget) {
-        return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            MarqueeText(
-              text: showConnectStatus
-                  ? "${track.title}  •  ${track.artists.map((a) => a.name).join(', ')}"
-                  : track.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Row(
+      detailedBuilder:
+          (
+            context,
+            showConnectStatus,
+            connectStatusWidget,
+            deviceName,
+            deviceIcon,
+          ) {
+            final deviceTitle = (deviceName != null && deviceName.isNotEmpty)
+                ? deviceName
+                : 'Connected Device';
+
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TrackBadges(track: track),
-                showConnectStatus
-                    ? connectStatusWidget
-                    : Expanded(
-                        child: MarqueeText(
-                          text: track.artists.map((a) => a.name).join(', '),
-                          style: TextStyle(
-                            color: Colors.grey[250],
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                Row(
+                  children: [
+                    if (showConnectStatus) TrackBadges(track: track),
+                    Expanded(
+                      child: MarqueeText(
+                        text: showConnectStatus
+                            ? "${track.title}  •  ${track.artists.map((a) => a.name).join(', ')}"
+                            : track.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-
-    /* return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        MarqueeText(
-          text: track.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Row(
-          children: [
-            TrackBadges(track: track),
-            ConnectDeviceLine(
-              child: Expanded(
-                child: MarqueeText(
-                  text: track.artists.map((a) => a.name).join(', '),
-                  style: TextStyle(
-                    color: Colors.grey[250],
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    ); */
+                showConnectStatus
+                    ? Row(
+                        children: [
+                          if (deviceIcon != null) ...[
+                            Icon(deviceIcon, color: Colors.white, size: 14),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: MarqueeText(
+                              text: "$deviceTitle • $qualityLabel",
+                              style: TextStyle(
+                                color: Colors.grey[250],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          TrackBadges(track: track),
+                          Expanded(
+                            child: MarqueeText(
+                              text:
+                                  "${track.artists.map((a) => a.name).join(', ')} • $qualityLabel",
+                              style: TextStyle(
+                                color: Colors.grey[250],
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ],
+            );
+          },
+    );
   }
 
   Widget _buildMobileConnectButton(AppStyle appStyle) {

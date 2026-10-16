@@ -1014,6 +1014,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   '${line.startTimeMs}_${line.content.trim()}',
                 ),
                 line: line,
+                positionMs: effectivePosition,
+                isActive: effectivePosition >= line.startTimeMs,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.left,
@@ -2677,6 +2679,7 @@ class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
 
         if (isSynced &&
             timing != null &&
+            !isLineActive &&
             timing.shouldFadePreviousLine &&
             timing.previousIndex == widget.index &&
             timing.nextIndex != null) {

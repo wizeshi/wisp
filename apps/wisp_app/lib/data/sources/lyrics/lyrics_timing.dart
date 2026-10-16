@@ -260,9 +260,13 @@ int resolveLineEndTimeMs(
     effectiveEnd = line.endTimeMs!;
   } else if (nextLineStartTimeMs != null && nextLineStartTimeMs > line.startTimeMs) {
     final span = nextLineStartTimeMs - line.startTimeMs;
-    effectiveEnd = line.startTimeMs + _estimateLineActiveMs(line.content, span);
+    if (span <= kLyricsWaitingGapThresholdMs) {
+      effectiveEnd = nextLineStartTimeMs;
+    } else {
+      effectiveEnd = line.startTimeMs + _estimateLineActiveMs(line.content, span);
+    }
   } else {
-    effectiveEnd = line.startTimeMs + _estimateLineActiveMs(line.content, 4000);
+    effectiveEnd = line.startTimeMs + _estimateLineActiveMs(line.content, 8000);
   }
 
   // Ensure background vocals are fully accommodated if they extend past main vocals
@@ -707,7 +711,7 @@ int _estimateLineActiveMs(String content, int availableSpanMs) {
       520 + (charCount * 36) + (wordCount * 70) + (punctuationCount * 110);
 
   final lowerBound = math.min(availableSpanMs, 700);
-  final upperBound = math.min(availableSpanMs, 3400);
+  final upperBound = math.min(availableSpanMs, 8000);
 
   if (upperBound <= lowerBound) {
     return upperBound;

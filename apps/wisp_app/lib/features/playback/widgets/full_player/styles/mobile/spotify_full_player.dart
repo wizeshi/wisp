@@ -2,15 +2,20 @@
 
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/features/navigation/views/list/view.dart';
+import 'package:wisp/features/playback/widgets/player_bar/components/audio_quality_badge.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/connect/widgets/connect_menu.dart';
+import 'package:wisp/shared/widgets/connect/connect_device_indicator.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart'
     as global_audio_player;
@@ -290,9 +295,17 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final wordState = lyricsProvider.getState(currentTrack, LyricsSyncMode.word);
-    final lineState = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
-    if (!wordState.isLoading && wordState.lyrics == null && wordState.error == null) {
+    final wordState = lyricsProvider.getState(
+      currentTrack,
+      LyricsSyncMode.word,
+    );
+    final lineState = lyricsProvider.getState(
+      currentTrack,
+      LyricsSyncMode.line,
+    );
+    if (!wordState.isLoading &&
+        wordState.lyrics == null &&
+        wordState.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.word);
       });
@@ -304,8 +317,8 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     final lyrics = wordLyrics?.isWordSynced == true
         ? wordLyrics
         : wordState.hasFetched && !wordState.isLoading
-            ? lineState.lyrics ?? wordLyrics
-            : null;
+        ? lineState.lyrics ?? wordLyrics
+        : null;
 
     if ((wordLyrics == null || !wordLyrics.isWordSynced) &&
         !lineState.isLoading &&
@@ -391,6 +404,8 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                       '${line.startTimeMs}_${line.content.trim()}',
                     ),
                     line: line,
+                    positionMs: effectivePosition,
+                    isActive: effectivePosition >= line.startTimeMs,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textStyle: const TextStyle(
@@ -530,9 +545,17 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final wordState = lyricsProvider.getState(currentTrack, LyricsSyncMode.word);
-    final lineState = lyricsProvider.getState(currentTrack, LyricsSyncMode.line);
-    if (!wordState.isLoading && wordState.lyrics == null && wordState.error == null) {
+    final wordState = lyricsProvider.getState(
+      currentTrack,
+      LyricsSyncMode.word,
+    );
+    final lineState = lyricsProvider.getState(
+      currentTrack,
+      LyricsSyncMode.line,
+    );
+    if (!wordState.isLoading &&
+        wordState.lyrics == null &&
+        wordState.error == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.word);
       });
@@ -544,8 +567,8 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     final lyrics = wordLyrics?.isWordSynced == true
         ? wordLyrics
         : wordState.hasFetched && !wordState.isLoading
-            ? lineState.lyrics ?? wordLyrics
-            : null;
+        ? lineState.lyrics ?? wordLyrics
+        : null;
 
     if ((wordLyrics == null || !wordLyrics.isWordSynced) &&
         !lineState.isLoading &&
@@ -557,7 +580,8 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     }
 
     final isLoading =
-        wordState.isLoading || (wordState.lyrics == null && lineState.isLoading);
+        wordState.isLoading ||
+        (wordState.lyrics == null && lineState.isLoading);
 
     return Consumer<PlaybackCoordinator>(
       builder: (ctx, coordinator, child) {
@@ -716,18 +740,110 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            GenericIconButton(
-              style: AppStyle.Spotify,
-              icon: const Icon(Icons.cast_connected),
-              iconSize: 24,
-              color: Colors.grey[400],
-              onPressed: () {
-                unawaited(_openHandoffSheet(context));
+        ConnectDeviceIndicator(
+          detailedBuilder:
+              (
+                context,
+                showConnectStatus,
+                connectStatusWidget,
+                deviceName,
+                deviceIcon,
+              ) {
+                final connectMenuIcon = showConnectStatus
+                    ? deviceIcon
+                    : Icons.cast_connected;
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    GenericIconButton(
+                      style: AppStyle.Spotify,
+                      icon: Icon(connectMenuIcon),
+                      iconSize: 24,
+                      color: showConnectStatus
+                          ? Colors.white
+                          : Colors.grey[400],
+                      onPressed: () {
+                        unawaited(_openHandoffSheet(context));
+                      },
+                    ),
+                    AudioQualityBadge(
+                      preferredColor: Colors.white,
+                      child:
+                          Selector<
+                            global_audio_player.WispAudioHandler,
+                            ActiveTrackQualityInfo?
+                          >(
+                            selector: (context, player) =>
+                                player.activeTrackQuality,
+                            builder: (context, quality, child) {
+                              if (quality == null) {
+                                return const SizedBox.shrink();
+                              }
+
+                              String label = 'Standard';
+
+                              if (quality.isHiRes) {
+                                label = 'Hi-Res Lossless';
+                              } else if (quality.isLossless) {
+                                label = 'Lossless';
+                              } else if (quality.bitrate != null) {
+                                if (quality.bitrate! >= 320) {
+                                  label = 'High Quality';
+                                } else if (quality.bitrate! < 320) {
+                                  label = 'Standard';
+                                }
+                              }
+
+                              Widget? icon;
+
+                              if (quality.isHiRes || quality.isLossless) {
+                                icon = SvgPicture.network(
+                                  "https://upload.wikimedia.org/wikipedia/commons/0/0d/Apple_Lossless_logo.svg",
+                                  fit: BoxFit.fill,
+                                  colorFilter: ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
+                                );
+                              } else if (quality.bitrate != null &&
+                                  quality.bitrate! >= 320) {
+                                icon = Icon(
+                                  CupertinoIcons.checkmark_seal_fill,
+                                  color: Colors.white,
+                                  size: 12,
+                                );
+                              }
+
+                              return Row(
+                                children: [
+                                  Text(
+                                    showConnectStatus ? 
+                                      '$deviceName • $label' 
+                                      : label,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+
+                                  if (icon != null) ...[
+                                    const SizedBox(width: 4),
+                                    icon,
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
+                    ),
+                  ],
+                );
               },
-            ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
             GenericIconButton(
               style: AppStyle.Spotify,
               icon: const Icon(Icons.share),
@@ -735,11 +851,6 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
               color: Colors.grey[400],
               onPressed: () => {},
             ),
-          ],
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
             GenericIconButton(
               style: AppStyle.Spotify,
               icon: const Icon(Icons.queue_music),
@@ -748,13 +859,6 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
               onPressed: () {
                 showMobileQueueSheet(context);
               },
-            ),
-            GenericIconButton(
-              style: AppStyle.Spotify,
-              icon: const Icon(Icons.music_note),
-              iconSize: 24,
-              color: Colors.grey[400],
-              onPressed: () => _openLyrics(context),
             ),
           ],
         ),

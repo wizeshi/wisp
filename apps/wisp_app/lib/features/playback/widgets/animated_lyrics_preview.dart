@@ -179,6 +179,7 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
         line: line,
         positionMs: widget.currentPositionMs,
         positionMsListenable: widget.positionMsListenable,
+        isActive: isFirst,
         textStyle: widget.textStyle,
         activeColor:
             widget.activeWordColor ?? widget.textStyle.color ?? Colors.white,
