@@ -10,6 +10,8 @@ import 'package:provider/provider.dart';
 import 'package:wisp/data/sources/auth/js_auth_source.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/shared/widgets/style/generic_slider.dart';
+import 'package:wisp/shared/widgets/style/generic_switch.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
@@ -50,8 +52,7 @@ class _SettingsPageState extends State<SettingsPage> {
     });
   }
 
-  Future<void> _showCacheDeleteDialog() =>
-      CacheDeletionDialog.show(context);
+  Future<void> _showCacheDeleteDialog() => CacheDeletionDialog.show(context);
 
   Future<void> _handleAuthLogin(JsAuthSource auth) async {
     try {
@@ -173,10 +174,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (isDesktop) {
       return Material(
         color: const Color(0xFF121212),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: content,
-        ),
+        child: Scaffold(backgroundColor: Colors.transparent, body: content),
       );
     }
 
@@ -557,23 +555,19 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         ),
         const SizedBox(height: 8),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            activeTrackColor: Theme.of(context).colorScheme.primary,
-            inactiveTrackColor: Colors.grey[800],
-            thumbColor: Theme.of(context).colorScheme.primary,
-            overlayColor: Theme.of(
-              context,
-            ).colorScheme.primary.withValues(alpha: 0.2),
-            trackHeight: 4,
-          ),
-          child: Slider(
-            value: value.clamp(min, max),
-            min: min,
-            max: max,
-            divisions: divisions,
-            onChanged: onChanged,
-          ),
+        GenericSlider(
+          value: value.clamp(min, max),
+          min: min,
+          max: max,
+          divisions: divisions,
+          onChanged: onChanged,
+          activeTrackColor: Theme.of(context).colorScheme.primary,
+          inactiveTrackColor: Colors.grey[800],
+          thumbColor: Theme.of(context).colorScheme.primary,
+          overlayColor: Theme.of(
+            context,
+          ).colorScheme.primary.withValues(alpha: 0.2),
+          trackHeight: 4,
         ),
       ],
     );
@@ -603,7 +597,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
-        Switch(
+        GenericSwitch(
           value: value,
           onChanged: onChanged,
           activeThumbColor: Theme.of(context).colorScheme.primary,
@@ -906,7 +900,9 @@ class _SettingsPageState extends State<SettingsPage> {
       return;
     }
 
-    await context.read<PreferencesProvider>().setPreferredAudioQuality(selected);
+    await context.read<PreferencesProvider>().setPreferredAudioQuality(
+      selected,
+    );
     if (mounted) {
       context
           .read<global_audio_player.WispAudioHandler>()
@@ -1010,7 +1006,10 @@ class _SettingsPageState extends State<SettingsPage> {
                           }
                         },
                         dropdownColor: const Color(0xFF282828),
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                 ],
@@ -1034,7 +1033,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Switch(
+                  GenericSwitch(
                     value: prefs.keepPositionBetweenRestarts,
                     onChanged: (value) async {
                       await context
@@ -1068,7 +1067,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                   ),
-                  Switch(
+                  GenericSwitch(
                     value: prefs.gaplessPlaybackEnabled,
                     onChanged: (value) async {
                       await context
@@ -1102,7 +1101,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                   ),
-                  Switch(
+                  GenericSwitch(
                     value: crossfadeEnabled,
                     onChanged: (value) async {
                       await context
@@ -1149,32 +1148,24 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ],
                 ),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: Theme.of(context).colorScheme.primary,
-                    inactiveTrackColor: Colors.grey[800],
-                    thumbColor: Theme.of(context).colorScheme.primary,
-                    overlayColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.2),
-                    trackHeight: 4,
-                  ),
-                  child: Slider(
-                    value: crossfadeDurationSeconds.clamp(1.0, 6.0),
-                    min: 1,
-                    max: 6,
-                    divisions: 5,
-                    onChanged: (value) async {
+                GenericSlider(
+                  value: crossfadeDurationSeconds
+                      .clamp(1.0, 6.0)
+                      .toInt()
+                      .toDouble(),
+                  min: 1,
+                  max: 6,
+                  divisions: 5,
+                  onChanged: (value) async {
+                    await context
+                        .read<PreferencesProvider>()
+                        .setCrossfadeDurationSeconds(value);
+                    if (context.mounted) {
                       await context
-                          .read<PreferencesProvider>()
+                          .read<global_audio_player.WispAudioHandler>()
                           .setCrossfadeDurationSeconds(value);
-                      if (context.mounted) {
-                        await context
-                            .read<global_audio_player.WispAudioHandler>()
-                            .setCrossfadeDurationSeconds(value);
-                      }
-                    },
-                  ),
+                    }
+                  },
                 ),
               ],
               if (Platform.isAndroid) ...[
@@ -1190,7 +1181,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildAndroidBatteryOptimizationRow() {
     return FutureBuilder<bool>(
-      future: AndroidBackgroundAudioService.instance.isIgnoringBatteryOptimizations(),
+      future: AndroidBackgroundAudioService.instance
+          .isIgnoringBatteryOptimizations(),
       builder: (context, snapshot) {
         final isIgnoring = snapshot.data ?? true;
         return Row(
@@ -1219,12 +1211,17 @@ class _SettingsPageState extends State<SettingsPage> {
               GenericButton(
                 child: const Text('Allow'),
                 onPressed: () async {
-                  await AndroidBackgroundAudioService.instance.requestIgnoreBatteryOptimizations();
+                  await AndroidBackgroundAudioService.instance
+                      .requestIgnoreBatteryOptimizations();
                   if (mounted) setState(() {});
                 },
               )
             else
-              const Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
+              const Icon(
+                Icons.check_circle_outline,
+                color: Colors.green,
+                size: 20,
+              ),
           ],
         );
       },
@@ -1447,7 +1444,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ],
                 ),
               ),
-              Switch(
+              GenericSwitch(
                 value: enabled,
                 onChanged: (value) {
                   context.read<PreferencesProvider>().setAnimatedCanvasEnabled(
@@ -1598,7 +1595,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ],
                 ),
               ),
-              Switch(
+              GenericSwitch(
                 value: enabled,
                 onChanged: (value) {
                   context.read<PreferencesProvider>().setAllowWriting(value);
@@ -1614,10 +1611,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildDebugSection() {
     return Selector<PreferencesProvider, (bool, bool)>(
-      selector: (context, prefs) => (
-        prefs.debugModeEnabled,
-        prefs.autoRegisterLocalProviders,
-      ),
+      selector: (context, prefs) =>
+          (prefs.debugModeEnabled, prefs.autoRegisterLocalProviders),
       builder: (context, state, child) {
         final (debugModeEnabled, autoRegisterLocalProviders) = state;
         if (_isDesktop && !debugModeEnabled) {
