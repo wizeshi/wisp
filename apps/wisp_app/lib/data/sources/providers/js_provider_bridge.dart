@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_js/flutter_js.dart';
@@ -474,7 +475,11 @@ class JsProviderBridge {
           ciphertextWithTag: ciphertext,
           aad: aad,
         );
-        final decryptedText = utf8.decode(decrypted);
+        Uint8List finalBytes = decrypted;
+        if (finalBytes.length >= 2 && finalBytes[0] == 0x1f && finalBytes[1] == 0x8b) {
+          finalBytes = Uint8List.fromList(gzip.decode(finalBytes));
+        }
+        final decryptedText = utf8.decode(finalBytes);
         final jsonResult = jsonDecode(decryptedText);
 
         if (cbId != null) {

@@ -220,7 +220,7 @@ void main() {
       expect(json['name'], equals('Spotify'));
       expect(json['type'], equals('audio'));
       expect(json['entry'], equals('index.js'));
-      expect(json['priority'], equals(85));
+      expect(json['priority'], equals(75));
       expect(json['service'], equals('spotify'));
       expect(json['dependencies'], contains('auth/spotify'));
       expect(json['supportedQualities'], containsAll(['standard', 'high']));

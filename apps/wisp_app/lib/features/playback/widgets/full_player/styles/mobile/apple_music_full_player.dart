@@ -294,7 +294,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(
                                 currentTrack?.artists?.isNotEmpty == true
-                                    ? currentTrack.artists.first.name
+                                    ? currentTrack.artists.map((a) => a.name).join(', ')
                                     : 'No Artist',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

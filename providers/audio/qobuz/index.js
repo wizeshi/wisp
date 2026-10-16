@@ -1,6 +1,7 @@
 const JUMO_HOST = 'https://jumo-dl.pages.dev';
-const SEARCH_PATH = '/kogbejdsdmzcmwckk';
-const FETCH_PATH = '/rstrvgumvdec';
+const SEARCH_PATH = '/qggybiqvrmvapbsrfrlg';
+const FETCH_PATH = '/wydmcqpplrfjrstcj';
+const REGIONS_PATH = '/symdofufvpjpgkmru';
 
 function getRandomHex(len) {
   let hex = '';
@@ -16,6 +17,9 @@ class JumoClient {
     this.keyPair = null;
     this.sequence = 0;
     this.cachedTracks = new Map();
+    this.activeRegion = null;
+    this.regionsData = null;
+    this._regionsPromise = null;
   }
 
   async _ensureSession() {
@@ -23,6 +27,44 @@ class JumoClient {
     this.sessionId = getRandomHex(32);
     // Use host bridge for ECDH key generation (PointyCastle in Dart)
     this.keyPair = await globalThis.wisp.crypto.generateP256KeyPair();
+  }
+
+  async getActiveRegion() {
+    if (this.activeRegion) return this.activeRegion;
+    if (this._regionsPromise) return await this._regionsPromise;
+
+    this._regionsPromise = (async () => {
+      try {
+        const data = await this.request(REGIONS_PATH);
+        if (data) {
+          this.regionsData = data;
+          if (data.default) {
+            this.activeRegion = data.default;
+          } else if (Array.isArray(data.regions) && data.regions.length > 0) {
+            const available = data.regions.find(r => r.available);
+            this.activeRegion = available ? available.code : data.regions[0].code;
+          }
+        }
+      } catch (e) {
+        console.warn('[Qobuz] Failed to fetch regions, falling back to default:', e);
+      } finally {
+        this._regionsPromise = null;
+      }
+      return this.activeRegion || 'CA';
+    })();
+
+    return await this._regionsPromise;
+  }
+
+  async getAvailableRegions() {
+    if (this.regionsData && Array.isArray(this.regionsData.regions)) {
+      const available = this.regionsData.regions
+        .filter(r => r.available)
+        .map(r => r.code);
+      if (available.length > 0) return available;
+    }
+    const def = await this.getActiveRegion();
+    return [def];
   }
 
   async request(urlStr, extraHeaders = {}) {
@@ -75,11 +117,23 @@ class JumoClient {
       throw new Error('Jumo request failed with status ' + res.status);
     }
 
-    const resHeaders = res.headers || {};
-    const isPayloadEncrypted = resHeaders['x-jumo-payload'] === '1' || (res.headers && typeof res.headers.get === 'function' && res.headers.get('x-jumo-payload') === '1');
+    const getHeader = (name) => {
+      if (!res.headers) return null;
+      if (typeof res.headers.get === 'function') {
+        const val = res.headers.get(name);
+        if (val) return val;
+      }
+      const lower = name.toLowerCase();
+      for (const k of Object.keys(res.headers)) {
+        if (k.toLowerCase() === lower) return res.headers[k];
+      }
+      return null;
+    };
+
+    const isPayloadEncrypted = getHeader('x-jumo-payload') === '1';
 
     if (isEncrypted && isPayloadEncrypted) {
-      const serverPubKey = resHeaders['x-jumo-public-key'] || (res.headers && res.headers.get('x-jumo-public-key'));
+      const serverPubKey = getHeader('x-jumo-public-key');
       const bodyB64 = await res.base64();
 
       // Native Dart ECDH + HKDF + AES-GCM decryption
@@ -92,20 +146,36 @@ class JumoClient {
       });
       return decryptedJson;
     } else {
-      return await res.json();
+      const rawText = await res.text();
+      if (rawText.trim().startsWith('<')) {
+        throw new Error('Jumo returned unexpected HTML response for ' + urlObj.pathname);
+      }
+      return JSON.parse(rawText);
     }
   }
 
   async search(queryStr) {
-    const url = SEARCH_PATH + '?query=' + encodeURIComponent(queryStr) + '&offset=0&limit=10&region=GB&view=ui';
-    const data = await this.request(url);
-    if (data && data.tracks && Array.isArray(data.tracks.items)) {
-      for (const t of data.tracks.items) {
-        if (t && t.id) {
-          this.cachedTracks.set(String(t.id), t);
+    const primaryRegion = await this.getActiveRegion();
+    let items = await this._searchWithRegion(queryStr, primaryRegion);
+    if (items && items.length > 0) return items;
+
+    return [];
+  }
+
+  async _searchWithRegion(queryStr, region) {
+    try {
+      const url = SEARCH_PATH + '?query=' + encodeURIComponent(queryStr) + '&offset=0&limit=10&region=' + encodeURIComponent(region) + '&view=ui';
+      const data = await this.request(url);
+      if (data && data.tracks && Array.isArray(data.tracks.items)) {
+        for (const t of data.tracks.items) {
+          if (t && t.id) {
+            this.cachedTracks.set(String(t.id), t);
+          }
         }
+        return data.tracks.items;
       }
-      return data.tracks.items;
+    } catch (e) {
+      console.warn('[Qobuz] Search error for region ' + region + ': ' + e);
     }
     return [];
   }
