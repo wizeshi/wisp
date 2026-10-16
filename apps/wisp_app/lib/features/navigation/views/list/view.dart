@@ -125,29 +125,58 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       } else {
         _libraryListener = () {
           if (!mounted) return;
-          GenericPlaylist? updated;
+          GenericPlaylist? found;
           for (final p in _libraryState.playlists) {
             if (p.id == widget.id) {
-              updated = p;
+              found = p;
               break;
             }
           }
-          if (updated != null && updated.songs != null) {
-            final updatedSongs = updated.songs!;
-            if (_playlist == null ||
-                MetadataDiff.hasPlaylistItemListChanged(
-                  _playlist?.songs,
-                  updatedSongs,
-                )) {
-              setState(() {
-                _playlist = _playlist?.copyWith(
-                  songs: updatedSongs,
-                  total: updated?.total ?? updatedSongs.length,
-                  durationSecs:
-                      updatedSongs.fold<int>(0, (acc, s) => acc + s.durationSecs),
-                ) ?? updated;
-                _rebuildIndices();
-              });
+          final updated = found;
+          if (updated != null) {
+            final updatedSongs = updated.songs;
+            final hasIncomingTracks =
+                updatedSongs != null && updatedSongs.isNotEmpty;
+            final currentSongs = _playlist?.songs;
+
+            if (hasIncomingTracks) {
+              if (_playlist == null ||
+                  MetadataDiff.hasPlaylistItemListChanged(
+                    currentSongs,
+                    updatedSongs,
+                  )) {
+                setState(() {
+                  _playlist = (_playlist ?? updated).copyWith(
+                    title: updated.title,
+                    description: updated.description,
+                    thumbnailUrl: updated.thumbnailUrl,
+                    isPinned: updated.isPinned,
+                    songs: updatedSongs,
+                    total: updated.total ?? updatedSongs.length,
+                    durationSecs: updatedSongs.fold<int>(
+                      0,
+                      (acc, s) => acc + s.durationSecs,
+                    ),
+                  );
+                  _rebuildIndices();
+                });
+              }
+            } else if (_playlist != null) {
+              // Metadata-only update from library (e.g. pinned state, title)
+              // Preserve currently loaded tracks!
+              if (_playlist!.title != updated.title ||
+                  _playlist!.description != updated.description ||
+                  _playlist!.thumbnailUrl != updated.thumbnailUrl ||
+                  _playlist!.isPinned != updated.isPinned) {
+                setState(() {
+                  _playlist = _playlist!.copyWith(
+                    title: updated.title,
+                    description: updated.description,
+                    thumbnailUrl: updated.thumbnailUrl,
+                    isPinned: updated.isPinned,
+                  );
+                });
+              }
             }
           }
         };

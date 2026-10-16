@@ -111,7 +111,8 @@ class MobileAppleMusicListView extends StatefulWidget {
   });
 
   @override
-  State<MobileAppleMusicListView> createState() => _MobileAppleMusicListViewState();
+  State<MobileAppleMusicListView> createState() =>
+      _MobileAppleMusicListViewState();
 }
 
 class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
@@ -166,7 +167,8 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
   @override
   Widget build(BuildContext context) {
     final isLikedPlaylist =
-        widget.type == SharedListType.playlist && isLikedSongsPlaylistId(widget.id);
+        widget.type == SharedListType.playlist &&
+        isLikedSongsPlaylistId(widget.id);
 
     return SafeArea(
       child: Scaffold(
@@ -240,14 +242,12 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
                       onTap: () => widget.onPlayTrack(rowIndex),
                       onPlayPause: () => widget.onPlayTrack(rowIndex),
                       onAlbumTap: () => widget.onOpenAlbum?.call(song.album),
-                      onArtistTap: (artist) => widget.onOpenArtist?.call(artist),
+                      onArtistTap: (artist) =>
+                          widget.onOpenArtist?.call(artist),
                       onMoreTap: (buttonContext) =>
                           widget.onTrackContextMenu(buttonContext, song, null),
-                      onLongPress: () => widget.onTrackContextMenu(
-                        context,
-                        song,
-                        null,
-                      ),
+                      onLongPress: () =>
+                          widget.onTrackContextMenu(context, song, null),
                     ),
                   ),
                 );
@@ -288,7 +288,9 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
                   : (widget.imageUrl.isNotEmpty
                         ? (_isLocalImagePath(widget.imageUrl)
                               ? Image.file(
-                                  File(widget.imageUrl.replaceFirst('file://', '')),
+                                  File(
+                                    widget.imageUrl.replaceFirst('file://', ''),
+                                  ),
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, _, _) =>
                                       Container(color: Colors.grey[900]),
@@ -427,18 +429,14 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
             const SizedBox(width: 6),
             Builder(
               builder: (buttonContext) {
-                return GestureDetector(
-                  onTapDown: (details) =>
-                      widget.onContextMenu(buttonContext, details.globalPosition),
-                  child: GenericIconButton.filled(
-                    onPressed: () => widget.onContextMenu(buttonContext, null),
-                    icon: const Icon(
-                      CupertinoIcons.ellipsis,
-                      color: Colors.white70,
-                      size: 22,
-                    ),
-                    backgroundColor: Theme.of(context).colorScheme.surface,
+                return GenericIconButton.filled(
+                  onPressed: () => widget.onContextMenu(buttonContext, null),
+                  icon: const Icon(
+                    CupertinoIcons.ellipsis,
+                    color: Colors.white70,
+                    size: 22,
                   ),
+                  backgroundColor: Theme.of(context).colorScheme.surface,
                 );
               },
             ),
@@ -494,14 +492,13 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
         ),
         const SizedBox(height: 10),
         ...widget.recommendedSongs.map((song) {
-          final isAdding = widget.addingRecommendationTrackIDs.contains(song.id);
+          final isAdding = widget.addingRecommendationTrackIDs.contains(
+            song.id,
+          );
           final isAdded = widget.addedRecommendationTrackIDs.contains(song.id);
 
           return Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: 4,
-              horizontal: 8,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
             child: TrackRow(
               track: song,
               style: AppStyle.AppleMusic,
@@ -542,8 +539,7 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
               onPlayPause: () => widget.onAddRecommendedTrack(song),
               onAlbumTap: () => widget.onOpenAlbum?.call(song.album),
               onArtistTap: (artist) => widget.onOpenArtist?.call(artist),
-              onLongPress: () =>
-                  widget.onTrackContextMenu(context, song, null),
+              onLongPress: () => widget.onTrackContextMenu(context, song, null),
             ),
           );
         }),

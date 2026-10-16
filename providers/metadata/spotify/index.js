@@ -556,8 +556,9 @@ function fullAlbumToGeneric(data, offset = 0, limit = 50) {
   const coverUrl = extractImageUrl(album.coverArt || album.images);
 
   const tracksData = album.tracksV2 || album.tracks;
-  const trackItems = (tracksData && tracksData.items) || [];
-  const songs = trackItems.map(item => {
+  const hasTracks = !!(tracksData && (tracksData.items || Array.isArray(tracksData)));
+  const trackItems = hasTracks ? (tracksData.items || (Array.isArray(tracksData) ? tracksData : [])) : [];
+  const songs = hasTracks ? trackItems.map(item => {
     let durationSecs = 0;
     const _albV3dur = item.itemV3 && item.itemV3.data && item.itemV3.data.consumptionExperienceTrait && item.itemV3.data.consumptionExperienceTrait.duration;
     if (_albV3dur && typeof _albV3dur.seconds === 'number' && _albV3dur.seconds > 0) {
@@ -590,9 +591,9 @@ function fullAlbumToGeneric(data, offset = 0, limit = 50) {
       song.thumbnail_url = coverUrl;
     }
     return song;
-  }).filter(Boolean);
+  }).filter(Boolean) : null;
 
-  const totalCount = (tracksData && tracksData.totalCount) || songs.length;
+  const totalCount = (tracksData && (tracksData.totalCount || tracksData.total)) || (songs ? songs.length : (album.totalTracks || album.total || 0));
   const hasMore = (offset + limit) < totalCount;
 
   return {
@@ -605,7 +606,7 @@ function fullAlbumToGeneric(data, offset = 0, limit = 50) {
     release_date: extractReleaseDate(album.date),
     explicit: false,
     songs: songs,
-    duration_secs: songs.reduce((acc, s) => acc + (s.duration_secs || 0), 0),
+    duration_secs: songs ? songs.reduce((acc, s) => acc + (s.duration_secs || 0), 0) : (album.durationSecs || 0),
     total: totalCount,
     has_more: hasMore
   };
@@ -767,10 +768,11 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
     avatar_url: extractImageUrl(ownerAvatar)
   };
 
+  const hasContent = !!((pl.content && pl.content.items) || (pl.tracks && pl.tracks.items));
   const contents = (pl.content && pl.content.items) || (pl.tracks && pl.tracks.items) || [];
-  const songs = extractPlaylistItems(contents, offset);
+  const songs = hasContent ? extractPlaylistItems(contents, offset) : null;
 
-  const totalCount = (pl.content && pl.content.totalCount) || (pl.tracks && pl.tracks.total) || songs.length;
+  const totalCount = (pl.content && pl.content.totalCount) || (pl.tracks && pl.tracks.total) || (songs ? songs.length : (pl.total || 0));
   const hasMore = (offset + limit) < totalCount;
 
   return {
@@ -781,7 +783,7 @@ function fullPlaylistToGeneric(data, offset = 0, limit = 50) {
     thumbnail_url: coverUrl,
     author: author,
     songs: songs,
-    duration_secs: songs.reduce((acc, s) => acc + (s.duration_secs || 0), 0),
+    duration_secs: songs ? songs.reduce((acc, s) => acc + (s.duration_secs || 0), 0) : (pl.durationSecs || 0),
     total: totalCount,
     has_more: hasMore,
     is_pinned: !!(data.pinned || (data.item && data.item.pinned))
