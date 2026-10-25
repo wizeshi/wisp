@@ -113,6 +113,7 @@ class _LyricsViewState extends State<LyricsView>
     _scrollController.dispose();
     _clearLineAllocations();
     _delayController.dispose();
+    PaintingBinding.instance.imageCache.clearLiveImages();
     super.dispose();
   }
 
@@ -503,7 +504,9 @@ class _LyricsViewState extends State<LyricsView>
       maxLines: null,
     )..layout(maxWidth: maxWidth);
 
-    return painter.height + (_isDesktop ? 16.0 : 24.0);
+    final height = painter.height + (_isDesktop ? 16.0 : 24.0);
+    painter.dispose();
+    return height;
   }
 
   void _onSyncModeChanged(LyricsSyncMode mode) {

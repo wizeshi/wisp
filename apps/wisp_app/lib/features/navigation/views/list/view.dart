@@ -13,6 +13,7 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/rows/track_row.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/features/shell/navigation/navigation_history.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
@@ -83,6 +84,8 @@ class SharedListDetailView extends StatefulWidget {
 }
 
 class _SharedListDetailViewState extends State<SharedListDetailView> {
+  bool get _isDesktop =>
+      Platform.isLinux || Platform.isMacOS || Platform.isWindows;
   bool _isLoading = true;
   bool _isRefreshing = false;
   final MetadataRevalidatorToken _revalidationToken =
@@ -113,6 +116,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   final Set<String> _addedRecommendationTrackIDs = {};
   final Set<String> _addingRecommendationTrackIDs = {};
   bool _isLoadingRecommendations = false;
+  bool _restoredScrollOffset = false;
 
   @override
   void initState() {
@@ -250,6 +254,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
         _cachedDatesAdded = const [];
         _cachedTotalDurationSecs = 0;
         _searchQuery = '';
+        _restoredScrollOffset = false;
       });
       _loadListDetails();
     }
@@ -289,6 +294,15 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   @override
   void dispose() {
     _revalidationToken.cancel();
+    final scrollOffset = _isDesktop
+        ? (_desktopScrollController.hasClients ? _desktopScrollController.offset : null)
+        : (_mobileScrollController.hasClients ? _mobileScrollController.offset : null);
+    if (scrollOffset != null) {
+      NavigationHistory.instance.saveScrollOffset(
+        'list_${widget.type}_${widget.id}',
+        scrollOffset,
+      );
+    }
     _evictNonLibraryCacheFor(widget.id, widget.type, widget.source);
     if (_likedTracksListener != null) {
       _metadataManager.removeListener(_likedTracksListener!);
@@ -301,6 +315,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
     _desktopScrollController.dispose();
     _mobileScrollController.dispose();
+    PaintingBinding.instance.imageCache.clearLiveImages();
     super.dispose();
   }
 
@@ -596,6 +611,23 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     });
 
     _sortedIndices = indices;
+    if (!_restoredScrollOffset && indices.isNotEmpty) {
+      _restoredScrollOffset = true;
+      final savedOffset = NavigationHistory.instance.getScrollOffset(
+        'list_${widget.type}_${widget.id}',
+      );
+      if (savedOffset != null && savedOffset > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final ctrl = _isDesktop
+              ? _desktopScrollController
+              : _mobileScrollController;
+          if (ctrl.hasClients) {
+            ctrl.jumpTo(savedOffset.clamp(0.0, ctrl.position.maxScrollExtent));
+          }
+        });
+      }
+    }
   }
 
   bool _matchesQuery(_ListItem item, String query) {

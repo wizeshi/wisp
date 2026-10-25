@@ -22,7 +22,7 @@ class JsMetadataSource extends MetadataProvider {
   @override
   final String providerId;
   final String serviceId;
-  final String? customScript;
+  String? customScript;
   final String? scriptPath;
   final String _name;
   final String _displayName;
@@ -215,6 +215,7 @@ class JsMetadataSource extends MetadataProvider {
       serviceId: serviceId,
       type: 'metadata',
     );
+    customScript = null;
   }
 
 

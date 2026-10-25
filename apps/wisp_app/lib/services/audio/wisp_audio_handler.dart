@@ -1798,6 +1798,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         uri: Uri.file(cachedPath),
         expectedDuration: expectedDuration,
         debugLabel: track.title,
+        isLossless: quality.isLossless,
       );
     }
 
@@ -1827,6 +1828,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
               uri: Uri.file(lateCachedPath),
               expectedDuration: expectedDuration,
               debugLabel: track.title,
+              isLossless: quality.isLossless,
             );
           }
         }
@@ -1878,6 +1880,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           uri: Uri.file(resolvedCachedPath),
           expectedDuration: expectedDuration,
           debugLabel: track.title,
+          isLossless: quality.isLossless,
         );
       }
     }
@@ -1932,6 +1935,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       headers: resolved.stream.headers,
       expectedDuration: expectedDuration,
       debugLabel: track.title,
+      isLossless: quality.isLossless,
     );
   }
 
@@ -1951,11 +1955,17 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         final expectedDuration = nextTrack.durationSecs > 0
             ? Duration(seconds: nextTrack.durationSecs)
             : null;
+        final cachedQuality = cacheManager.getEntry(nextTrack.id)?.qualityInfo ??
+            ActiveTrackQualityInfo.inferFromCachedPath(
+              filePath: cachedPath,
+              trackId: nextTrack.id,
+            );
         unawaited(_engine.preloadNext(
           PlaybackSource(
             uri: Uri.file(cachedPath),
             expectedDuration: expectedDuration,
             debugLabel: nextTrack.title,
+            isLossless: cachedQuality.isLossless,
           ),
         ));
       }

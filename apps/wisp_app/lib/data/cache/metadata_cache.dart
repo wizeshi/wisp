@@ -75,7 +75,12 @@ class MetadataCacheStore {
   /// in-memory state models to keep duplicated in L1 RAM.
   static const Set<String> _l1BypassTypes = {
     'saved_tracks_all',
+    'playlist',
     'full_playlist',
+    'album',
+    'artist',
+    'home',
+    'user_home',
     'library',
     'user_library',
   };
@@ -373,8 +378,8 @@ class MetadataCacheStore {
     );
   }
 
-  /// Prunes playlist and album entries from L1 memory cache if their IDs are
-  /// not part of the user's library (and not in [activeIds]).
+  /// Prunes playlist, album, artist, and home entries from L1 memory cache
+  /// (unless in [activeIds]). L2 disk cache remains intact for fast reloads.
   void pruneNonLibraryFromL1({
     required Set<String> libraryPlaylistIds,
     Set<String> libraryAlbumIds = const {},
@@ -382,11 +387,13 @@ class MetadataCacheStore {
   }) {
     _l1MemoryCache.removeWhere((_, entry) {
       if (activeIds.contains(entry.id)) return false;
-      if (entry.type == 'playlist' || entry.type == 'full_playlist') {
-        return !libraryPlaylistIds.contains(entry.id);
-      }
-      if (entry.type == 'album' && libraryAlbumIds.isNotEmpty) {
-        return !libraryAlbumIds.contains(entry.id);
+      if (entry.type == 'playlist' ||
+          entry.type == 'full_playlist' ||
+          entry.type == 'album' ||
+          entry.type == 'artist' ||
+          entry.type == 'home' ||
+          entry.type == 'user_home') {
+        return true;
       }
       return false;
     });

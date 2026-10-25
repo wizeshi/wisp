@@ -13,7 +13,8 @@ class JsAuthSource extends ChangeNotifier {
   final String id;
   final String name;
   final String serviceId;
-  final String script;
+  String? script;
+  final String? scriptPath;
   bool _isAuthenticated = false;
 
   bool get isAuthenticated => _isAuthenticated;
@@ -28,6 +29,7 @@ class JsAuthSource extends ChangeNotifier {
     required this.name,
     required this.serviceId,
     required this.script,
+    this.scriptPath,
   }) {
     ServiceSessionManager.instance.addListener(serviceId, _onSessionChanged);
     _checkInitialSession();
@@ -56,13 +58,16 @@ class JsAuthSource extends ChangeNotifier {
   }
 
   Future<void> _ensureLoaded() async {
+    final code = script;
+    if (code == null) return;
     await SharedJsRuntime.instance.loadProvider(
       id: id,
       name: name,
-      script: script,
+      script: code,
       serviceId: serviceId,
       type: 'auth',
     );
+    script = null;
   }
 
 

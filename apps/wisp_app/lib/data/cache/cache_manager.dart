@@ -151,6 +151,10 @@ class AudioCacheManager extends ChangeNotifier {
     return _coordinator.watch(trackId, isCached: isTrackCached(trackId));
   }
 
+  void pruneInactiveDownloadNotifiers() {
+    _coordinator.pruneInactiveNotifiers();
+  }
+
   // Storage getters delegated to AudioStorageService
   AudioStorageService get storage => _storage;
   Directory? get cacheDirectory => _storage.cacheDirectory;

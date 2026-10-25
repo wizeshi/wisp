@@ -58,8 +58,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Clamp image cache size to prevent unbounded memory growth on desktop
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 35 * 1024 * 1024; // 35 MB
-  PaintingBinding.instance.imageCache.maximumSize = 120;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 18 * 1024 * 1024; // 18 MB
+  PaintingBinding.instance.imageCache.maximumSize = 80;
 
   bool isDesktop = Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 

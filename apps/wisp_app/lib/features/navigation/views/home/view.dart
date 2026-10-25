@@ -9,6 +9,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
@@ -50,6 +51,7 @@ class HomePageState extends State<HomePage> {
   bool _wasAuthenticated = false;
   VoidCallback? _refreshListener;
   int _lastRefreshTick = 0;
+  bool _restoredScrollOffset = false;
 
   @override
   void initState() {
@@ -82,6 +84,9 @@ class HomePageState extends State<HomePage> {
     _metadataManager.removeListener(_handleAuthChange);
     if (_refreshListener != null) {
       widget.refreshSignal?.removeListener(_refreshListener!);
+    }
+    if (_scrollController.hasClients) {
+      NavigationHistory.instance.saveScrollOffset('home', _scrollController.offset);
     }
     _scrollController.dispose();
     super.dispose();
@@ -152,6 +157,7 @@ class HomePageState extends State<HomePage> {
               _homeSections = _sanitizeHomeSections(cachedHome.sections);
               _isLoading = false;
             });
+            _restoreScrollOffsetIfNeeded();
           }
         } catch (_) {}
       }
@@ -168,7 +174,7 @@ class HomePageState extends State<HomePage> {
       }
 
       final userHome = await metadataManager.getUserHome(
-            policy: MetadataFetchPolicy.refreshAlways,
+            policy: policy,
           ) ??
           const GenericHome(sections: {});
 
@@ -178,6 +184,7 @@ class HomePageState extends State<HomePage> {
           _isLoading = false;
           _isRefreshing = false;
         });
+        _restoreScrollOffsetIfNeeded();
       }
     } catch (e) {
       logger.e('[Views/Home] Failed to load data', error: e);
@@ -197,6 +204,20 @@ class HomePageState extends State<HomePage> {
     MetadataFetchPolicy policy = MetadataFetchPolicy.refreshAlways,
   }) {
     return _loadData(policy: policy);
+  }
+
+  void _restoreScrollOffsetIfNeeded() {
+    if (_restoredScrollOffset) return;
+    final saved = NavigationHistory.instance.getScrollOffset('home');
+    if (saved != null && saved > 0) {
+      _restoredScrollOffset = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(
+          saved.clamp(0.0, _scrollController.position.maxScrollExtent),
+        );
+      });
+    }
   }
 
   static const Set<String> _unknownHomeTitles = {

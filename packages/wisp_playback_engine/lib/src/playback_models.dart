@@ -7,12 +7,14 @@ class PlaybackSource {
   final Map<String, String> headers;
   final Duration? expectedDuration;
   final String debugLabel;
+  final bool isLossless;
 
   PlaybackSource({
     required this.uri,
     Map<String, String>? headers,
     this.expectedDuration,
     this.debugLabel = '',
+    this.isLossless = false,
   }) : assert(
          expectedDuration == null || !expectedDuration.isNegative,
          'Expected duration must be non-negative.',

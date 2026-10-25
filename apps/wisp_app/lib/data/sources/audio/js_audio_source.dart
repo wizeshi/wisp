@@ -28,7 +28,8 @@ class JsAudioSource extends AudioSource {
   final int priority;
 
   final String? serviceId;
-  final String script;
+  String? script;
+  final String? scriptPath;
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
@@ -44,6 +45,7 @@ class JsAudioSource extends AudioSource {
     this.priority = 0,
     this.serviceId,
     required this.script,
+    this.scriptPath,
   });
 
   @override
@@ -53,13 +55,16 @@ class JsAudioSource extends AudioSource {
   }
 
   Future<void> _ensureLoaded() async {
+    final code = script;
+    if (code == null) return;
     await SharedJsRuntime.instance.loadProvider(
       id: id,
       name: name,
-      script: script,
+      script: code,
       serviceId: serviceId,
       type: 'audio',
     );
+    script = null;
   }
 
 

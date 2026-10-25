@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/data/models/metadata_models.dart';
@@ -678,6 +679,7 @@ class LibraryState extends ChangeNotifier {
       libraryAlbumIds: libraryAlbumIds,
       activeIds: activeIds,
     );
+    AudioCacheManager.instance.pruneInactiveDownloadNotifiers();
   }
 
   /// Toggle or set playlist pinned state. Optimistically updates locally and

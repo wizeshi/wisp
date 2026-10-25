@@ -17,6 +17,7 @@ class NavigationHistory {
       ValueNotifier<Route<dynamic>?>(null);
 
   final List<String> _history = [];
+  final Map<String, double> _scrollOffsets = {};
   int _index = -1;
   bool _isNavigatingHistory = false;
 
@@ -25,6 +26,33 @@ class NavigationHistory {
   String? get currentRouteName => currentRoute.value?.settings.name;
   String? get currentLocation =>
       (_index >= 0 && _index < _history.length) ? _history[_index] : null;
+
+  void saveScrollOffset(String location, double offset) {
+    if (location.isEmpty) return;
+    _scrollOffsets[location] = offset;
+  }
+
+  void saveCurrentScrollOffset(double offset) {
+    final loc = currentLocation;
+    if (loc != null && loc.isNotEmpty) {
+      _scrollOffsets[loc] = offset;
+    }
+  }
+
+  double? getScrollOffset(String location) {
+    if (location.isEmpty) return null;
+    return _scrollOffsets[location];
+  }
+
+  double? getCurrentScrollOffset() {
+    final loc = currentLocation;
+    if (loc == null || loc.isEmpty) return null;
+    return _scrollOffsets[loc];
+  }
+
+  void clearScrollOffset(String location) {
+    _scrollOffsets.remove(location);
+  }
 
   void recordLocation(String location) {
     if (location.isEmpty) return;

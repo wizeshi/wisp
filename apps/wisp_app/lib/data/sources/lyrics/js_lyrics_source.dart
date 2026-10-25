@@ -29,7 +29,8 @@ class JsLyricsSource extends LyricsSource {
   final int priority;
 
   final String? serviceId;
-  final String script;
+  String? script;
+  final String? scriptPath;
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
@@ -45,6 +46,7 @@ class JsLyricsSource extends LyricsSource {
     this.priority = 0,
     this.serviceId,
     required this.script,
+    this.scriptPath,
   });
 
   @override
@@ -54,13 +56,16 @@ class JsLyricsSource extends LyricsSource {
   }
 
   Future<void> _ensureLoaded() async {
+    final code = script;
+    if (code == null) return;
     await SharedJsRuntime.instance.loadProvider(
       id: id,
       name: name,
-      script: script,
+      script: code,
       serviceId: serviceId,
       type: 'lyrics',
     );
+    script = null;
   }
 
 

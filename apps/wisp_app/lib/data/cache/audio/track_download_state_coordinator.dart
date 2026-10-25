@@ -30,13 +30,20 @@ class TrackDownloadProgress {
   bool get isQueued => status == TrackDownloadStatus.queued;
 }
 
+/// Dedicated [ValueNotifier] that exposes [hasActiveListeners] for pruning.
+class TrackProgressNotifier extends ValueNotifier<TrackDownloadProgress> {
+  TrackProgressNotifier(super.value);
+
+  bool get hasActiveListeners => hasListeners;
+}
+
 /// Granular coordinator managing per-track download progress.
 ///
 /// Rather than calling global `notifyListeners()` on every Dio progress chunk,
 /// widgets bind directly to `watch(trackId)`. Only the specific track that is
 /// downloading or state-changing rebuilds.
 class TrackDownloadStateCoordinator {
-  final Map<String, ValueNotifier<TrackDownloadProgress>> _notifiers = {};
+  final Map<String, TrackProgressNotifier> _notifiers = {};
 
   /// Returns a `ValueListenable` scoped specifically to [trackId].
   ValueListenable<TrackDownloadProgress> watch(
@@ -46,13 +53,16 @@ class TrackDownloadStateCoordinator {
     return _getOrCreateNotifier(trackId, isCached: isCached);
   }
 
-  ValueNotifier<TrackDownloadProgress> _getOrCreateNotifier(
+  TrackProgressNotifier _getOrCreateNotifier(
     String trackId, {
     bool isCached = false,
   }) {
+    if (_notifiers.length > 80) {
+      pruneInactiveNotifiers();
+    }
     return _notifiers.putIfAbsent(
       trackId,
-      () => ValueNotifier(
+      () => TrackProgressNotifier(
         TrackDownloadProgress(
           trackId: trackId,
           status: isCached ? TrackDownloadStatus.downloaded : TrackDownloadStatus.idle,
@@ -61,6 +71,19 @@ class TrackDownloadStateCoordinator {
         ),
       ),
     );
+  }
+
+  /// Prunes notifiers that have no active widget listeners and are in a terminal/idle state.
+  void pruneInactiveNotifiers() {
+    _notifiers.removeWhere((trackId, notifier) {
+      if (!notifier.hasActiveListeners &&
+          (notifier.value.status == TrackDownloadStatus.idle ||
+              notifier.value.status == TrackDownloadStatus.downloaded)) {
+        notifier.dispose();
+        return true;
+      }
+      return false;
+    });
   }
 
   void setQueued(String trackId) {
@@ -122,7 +145,7 @@ class TrackDownloadStateCoordinator {
     final notifier = _notifiers[trackId];
     final current = notifier?.value;
     if (current == null) {
-      _notifiers[trackId] = ValueNotifier(
+      _notifiers[trackId] = TrackProgressNotifier(
         TrackDownloadProgress(
           trackId: trackId,
           status: isCached ? TrackDownloadStatus.downloaded : TrackDownloadStatus.idle,

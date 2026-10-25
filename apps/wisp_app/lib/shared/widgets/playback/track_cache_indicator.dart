@@ -11,45 +11,52 @@ import 'package:wisp/data/models/metadata_models.dart';
 class TrackCacheIndicator extends StatelessWidget {
   final String trackId;
   final double fontScaling;
+  final TrackDownloadProgress? stateOverride;
 
   const TrackCacheIndicator({
     super.key,
     required this.trackId,
     this.fontScaling = 1.0,
+    this.stateOverride,
   });
+
+  Widget _buildContent(BuildContext context, TrackDownloadProgress state) {
+    final isCached = state.isCached;
+    final isDownloading = state.isDownloading;
+    if (!isCached && !isDownloading) return const SizedBox.shrink();
+    if (isDownloading) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: SizedBox(
+          width: 12 * fontScaling,
+          height: 12 * fontScaling,
+          child: CircularProgressIndicator(
+            value: state.progress,
+            strokeWidth: 2,
+            color: Theme.of(context).colorScheme.primary,
+            backgroundColor: Colors.grey[800],
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: Icon(
+        Icons.offline_pin,
+        size: 12 * fontScaling,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (stateOverride != null) {
+      return _buildContent(context, stateOverride!);
+    }
     return ValueListenableBuilder<TrackDownloadProgress>(
       valueListenable: AudioCacheManager.instance.watchTrack(trackId),
-      builder: (context, state, _) {
-        final isCached = state.isCached;
-        final isDownloading = state.isDownloading;
-        if (!isCached && !isDownloading) return const SizedBox.shrink();
-        if (isDownloading) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: SizedBox(
-              width: 12 * fontScaling,
-              height: 12 * fontScaling,
-              child: CircularProgressIndicator(
-                value: state.progress,
-                strokeWidth: 2,
-                color: Theme.of(context).colorScheme.primary,
-                backgroundColor: Colors.grey[800],
-              ),
-            ),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: Icon(
-            Icons.offline_pin,
-            size: 12 * fontScaling,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        );
-      },
+      builder: (context, state, _) => _buildContent(context, state),
     );
   }
 }
@@ -100,6 +107,7 @@ class TrackBadges extends StatelessWidget {
             TrackCacheIndicator(
               trackId: track.id,
               fontScaling: fontScaling,
+              stateOverride: state,
             ),
           ],
         );

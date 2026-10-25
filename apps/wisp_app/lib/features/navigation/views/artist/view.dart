@@ -72,6 +72,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       MetadataRevalidatorToken();
   GenericArtist? _artist;
   final ScrollController _scrollController = ScrollController();
+  bool _restoredScrollOffset = false;
   final PageController _appleTopSongsPageController = PageController(
     viewportFraction: 0.9,
   );
@@ -85,8 +86,15 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   @override
   void dispose() {
     _revalidationToken.cancel();
+    if (_scrollController.hasClients) {
+      NavigationHistory.instance.saveScrollOffset(
+        'artist_${widget.artistId}',
+        _scrollController.offset,
+      );
+    }
     _appleTopSongsPageController.dispose();
     _scrollController.dispose();
+    PaintingBinding.instance.imageCache.clearLiveImages();
     super.dispose();
   }
 
@@ -112,6 +120,25 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         if (!mounted) return;
         setState(() {
           _artist = artist;
+
+        if (!_restoredScrollOffset) {
+          _restoredScrollOffset = true;
+          final savedOffset = NavigationHistory.instance.getScrollOffset(
+            'artist_${widget.artistId}',
+          );
+          if (savedOffset != null && savedOffset > 0) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || !_scrollController.hasClients) return;
+              _scrollController.jumpTo(
+                savedOffset.clamp(
+                  0.0,
+                  _scrollController.position.maxScrollExtent,
+                ),
+              );
+            });
+          }
+        }
+
           _isLoading = false;
         });
       },

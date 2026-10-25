@@ -322,16 +322,16 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                                     widget.imageUrl.replaceFirst('file://', ''),
                                   ),
                                   fit: BoxFit.cover,
-                                  cacheWidth: 480,
-                                  cacheHeight: 480,
+                                  cacheWidth: 260,
+                                  cacheHeight: 260,
                                   errorBuilder: (_, _, _) =>
                                       Container(color: Colors.grey[800]),
                                 )
                               : CachedNetworkImage(
                                   imageUrl: widget.imageUrl,
                                   fit: BoxFit.cover,
-                                  memCacheWidth: 480,
-                                  memCacheHeight: 480,
+                                  memCacheWidth: 260,
+                                  memCacheHeight: 260,
                                   placeholder: (_, _) =>
                                       Container(color: Colors.grey[800]),
                                   errorWidget: (_, _, _) =>

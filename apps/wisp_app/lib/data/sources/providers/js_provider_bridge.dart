@@ -32,8 +32,9 @@ class JsProviderBridge {
   ) {
     try {
       final jsonStr = jsonEncode(data);
+      final jsonLiteral = jsonEncode(jsonStr);
       final res = runtime.evaluate(
-        'globalThis.__wisp_resolve_callback($cbId, $jsonStr); undefined;',
+        'globalThis.__wisp_resolve_callback($cbId, $jsonLiteral); undefined;',
       );
       JSRef.freeRecursive(res.rawResult);
       runtime.executePendingJob();

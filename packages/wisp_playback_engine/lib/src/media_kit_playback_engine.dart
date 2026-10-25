@@ -61,7 +61,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     log('[MediaKitPlaybackEngine]: initialized with settings: ${_settings.toString()}');
     
     const playerConfig = PlayerConfiguration(
-      bufferSize: 12 * 1024 * 1024,
+      bufferSize: 8 * 1024 * 1024,
     );
     _first = Player(configuration: playerConfig);
     _second = Player(configuration: playerConfig);
@@ -117,6 +117,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
         _preloadedSource = null;
         _activeSource = source;
         await _standby.stop();
+        await _applyBufferForSource(_active, source);
         await _active.open(_media(source), play: false);
         await _active.setVolume(_volume * 100);
         if (position > Duration.zero) await _active.seek(position);
@@ -134,6 +135,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   Future<void> preloadNext(PlaybackSource source) => _enqueue(() async {
         if (!_settings.gaplessEnabled && !_settings.crossfadeEnabled) return;
         try {
+          await _applyBufferForSource(_standby, source);
           await _standby.open(_media(source), play: false);
           await _standby.setVolume(
             _settings.crossfadeEnabled ? 0 : _volume * 100,
@@ -414,6 +416,16 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     _active = _standby;
     _standby = previous;
     _publishState();
+  }
+
+  Future<void> _applyBufferForSource(Player player, PlaybackSource source) async {
+    try {
+      final bufferBytes = source.isLossless ? 12 * 1024 * 1024 : 8 * 1024 * 1024;
+      final platform = player.platform;
+      if (platform is NativePlayer) {
+        await platform.setProperty('demuxer-max-bytes', bufferBytes.toString());
+      }
+    } catch (_) {}
   }
 
   Media _media(PlaybackSource source) => Media(
