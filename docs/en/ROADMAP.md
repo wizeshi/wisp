@@ -1,18 +1,30 @@
-Here's the TODOs for version v26.10:
+TODOs for version v26.10:
 
 - Bugs:
-- Future changes: 
+  - [ ] Previous lyrics lines only get grayed out if they played while the app was focused
+  - [ ] Adding track to playlist resets current track position
+  - [ ] AM full player's lyrics autoscrolls past active lyrics lines if there are multiple
+- Features/Changes:
+  - [ ] Add sort mode headers to mobile playlist view
+  - [ ] Make 
   - [ ] Update installer with new marketplace features
   - [ ] Add special card from the home screen on mobile. 
   - [ ] Make artist name clickable in the full player
-- Planned features:
   - [ ] Audio compressor utility. Since the app now supports multiple file types, we should, at some point, consider having a utility in the settings to compress audio into a standard format.
+  - [ ] Finish styles integration
+    - [ ] Improve user view style
+    - [ ] Add cached metadata preview + refresh to library view
+    - [x] Spotify
+    - [ ] Apple Music
+      - [ ] Mobile Library
+      - [ ] Search
+      - [ ] Mobile Full Player (spacing issues mostly) 
+    - [ ] Original
+      - [ ] Mobile Full Player
+      - [ ] Make buttons based on M3E
   - [ ] Add CI/CD pipeline
     - [x] Replace installer remote download with local extraction
     - [x] Windows
-      - [x] Setup script
-      - [x] Build app script
-      - [x] Build installer script
     - [ ] macOS
       - [ ] Setup script
       - [ ] Build app script
@@ -21,5 +33,9 @@ Here's the TODOs for version v26.10:
       - [ ] Setup script
       - [ ] Build app script
       - [ ] Build installer script
+  - [ ] Support offline-only mode
+    - [ ] Permanent: import playlists, albums and artists at install, then never make requests again. 
+    - [ ] Temporary: allow the user to read/write what metadata they already have when offline, then apply changes when online
+    - [ ] Save all song thumbnails/animated canvases to local disk 
   - [ ] Add minimizing to the tray area (desktop. this should essentially only keep essential services on, like the downloads, permissions, credentials, the player itself, whatever. )
   - [ ] Add translation support (start with English & Portuguese)
