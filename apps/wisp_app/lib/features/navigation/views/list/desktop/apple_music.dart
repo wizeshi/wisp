@@ -218,6 +218,8 @@ class DesktopAppleMusicListView extends StatelessWidget {
                                         imageUrl.replaceFirst('file://', ''),
                                       ),
                                       fit: BoxFit.cover,
+                                      cacheWidth: 480,
+                                      cacheHeight: 480,
                                       errorBuilder: (_, _, _) =>
                                           Container(color: Colors.grey[800]),
                                     )

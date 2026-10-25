@@ -35,6 +35,7 @@ class _PlayerBarTopProgressBarState
     return Selector<global_audio_player.WispAudioHandler, _PositionData>(
       selector: (context, player) => _PositionData(
         position: player.throttledPosition,
+        bufferedPosition: player.bufferedPosition,
         duration: player.duration,
         isLoading: player.isLoading || player.isBuffering,
       ),
@@ -70,6 +71,10 @@ class _PlayerBarTopProgressBarState
     final position = data.position;
     final progress = duration.inMilliseconds > 0
         ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+    final bufferedProgress = duration.inMilliseconds > 0
+        ? (data.bufferedPosition.inMilliseconds / duration.inMilliseconds)
+              .clamp(0.0, 1.0)
         : 0.0;
 
     final barHeight = (_isHovering || _isDragging) ? 6.0 : 3.0;
@@ -124,24 +129,39 @@ class _PlayerBarTopProgressBarState
                 height: barHeight,
                 width: double.infinity,
                 color: Colors.white.withValues(alpha: 0.08),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: FractionallySizedBox(
-                    widthFactor: progress,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: activeColor,
-                        boxShadow: [
-                          if (_isHovering || _isDragging)
-                            BoxShadow(
-                              color: activeColor.withValues(alpha: 0.4),
-                              blurRadius: 6,
-                              spreadRadius: 1,
-                            ),
-                        ],
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (bufferedProgress > progress)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: bufferedProgress,
+                          child: Container(
+                            color: Colors.white.withValues(alpha: 0.24),
+                          ),
+                        ),
+                      ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor: progress,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: activeColor,
+                            boxShadow: [
+                              if (_isHovering || _isDragging)
+                                BoxShadow(
+                                  color: activeColor.withValues(alpha: 0.4),
+                                  blurRadius: 6,
+                                  spreadRadius: 1,
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
 

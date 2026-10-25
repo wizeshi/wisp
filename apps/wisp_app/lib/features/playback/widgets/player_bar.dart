@@ -160,6 +160,7 @@ class _DesktopProgressBar extends StatelessWidget {
       child: Selector<global_audio_player.WispAudioHandler, _PositionData>(
         selector: (context, player) => _PositionData(
           position: player.throttledPosition,
+          bufferedPosition: player.bufferedPosition,
           duration: player.duration,
           isLoading: player.isLoading || player.isBuffering,
         ),
@@ -186,6 +187,10 @@ class _DesktopProgressBar extends StatelessWidget {
           final progress = duration.inMilliseconds > 0
               ? data.position.inMilliseconds / duration.inMilliseconds
               : 0.0;
+          final bufferedProgress = duration.inMilliseconds > 0
+              ? (data.bufferedPosition.inMilliseconds / duration.inMilliseconds)
+                    .clamp(0.0, 1.0)
+              : 0.0;
 
           // Freeze the ticking progress bar (text + slider) while the app or
           // window is unfocused, instead of rebuilding it on every position
@@ -203,16 +208,27 @@ class _DesktopProgressBar extends StatelessWidget {
                     ? frozenData.position.inMilliseconds /
                           frozenDuration.inMilliseconds
                     : 0.0;
+                final frozenBuffered = frozenDuration.inMilliseconds > 0
+                    ? (frozenData.bufferedPosition.inMilliseconds /
+                              frozenDuration.inMilliseconds)
+                          .clamp(0.0, 1.0)
+                    : 0.0;
                 return buildBaseProgressBar(
                   context,
                   frozenDuration,
                   frozenProgress,
+                  frozenBuffered,
                 );
               },
             );
           }
 
-          return buildBaseProgressBar(context, duration, progress);
+          return buildBaseProgressBar(
+            context,
+            duration,
+            progress,
+            bufferedProgress,
+          );
         },
       ),
     );
@@ -222,6 +238,7 @@ class _DesktopProgressBar extends StatelessWidget {
     BuildContext context,
     Duration duration,
     double progress,
+    double bufferedProgress,
   ) {
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
@@ -252,6 +269,9 @@ class _DesktopProgressBar extends StatelessWidget {
                     thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
                     overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
                     activeTrackColor: Theme.of(context).colorScheme.primary,
+                    secondaryActiveTrackColor: Colors.white.withValues(
+                      alpha: 0.28,
+                    ),
                     inactiveTrackColor: Colors.grey[800],
                     thumbColor: Colors.white,
                     overlayColor: (Theme.of(
@@ -260,6 +280,7 @@ class _DesktopProgressBar extends StatelessWidget {
                   ),
                   child: Slider(
                     value: animatedProgress,
+                    secondaryTrackValue: bufferedProgress.clamp(0.0, 1.0),
                     onChanged: (value) {
                       final newPosition = Duration(
                         milliseconds: (value * duration.inMilliseconds).toInt(),
@@ -1823,11 +1844,13 @@ String? _handoffStatusMessage(ConnectSessionProvider connect) {
 
 class _PositionData {
   final Duration position;
+  final Duration bufferedPosition;
   final Duration duration;
   final bool isLoading;
 
   const _PositionData({
     required this.position,
+    this.bufferedPosition = Duration.zero,
     required this.duration,
     this.isLoading = false,
   });
@@ -1836,12 +1859,18 @@ class _PositionData {
   bool operator ==(Object other) =>
       other is _PositionData &&
       other.position.inMilliseconds == position.inMilliseconds &&
+      other.bufferedPosition.inMilliseconds ==
+          bufferedPosition.inMilliseconds &&
       other.duration.inMilliseconds == duration.inMilliseconds &&
       other.isLoading == isLoading;
 
   @override
-  int get hashCode =>
-      Object.hash(position.inMilliseconds, duration.inMilliseconds, isLoading);
+  int get hashCode => Object.hash(
+    position.inMilliseconds,
+    bufferedPosition.inMilliseconds,
+    duration.inMilliseconds,
+    isLoading,
+  );
 }
 
 class _PlayPauseData {

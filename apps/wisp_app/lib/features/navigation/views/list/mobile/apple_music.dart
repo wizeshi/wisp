@@ -292,12 +292,16 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
                                     widget.imageUrl.replaceFirst('file://', ''),
                                   ),
                                   fit: BoxFit.cover,
+                                  cacheWidth: 480,
+                                  cacheHeight: 480,
                                   errorBuilder: (_, _, _) =>
                                       Container(color: Colors.grey[900]),
                                 )
                               : CachedNetworkImage(
                                   imageUrl: widget.imageUrl,
                                   fit: BoxFit.cover,
+                                  memCacheWidth: 480,
+                                  memCacheHeight: 480,
                                   placeholder: (_, _) =>
                                       Container(color: Colors.grey[900]),
                                   errorWidget: (_, _, _) =>

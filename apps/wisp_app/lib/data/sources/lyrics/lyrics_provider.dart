@@ -63,20 +63,47 @@ class LyricsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  static const int _maxCacheEntries = 75; // ~25 tracks across 3 sync modes
+  static const int _maxDelayCacheEntries = 100;
+
   final Map<String, LyricsFetchState> _cache = {};
   final Map<String, DateTime> _lastErrorAt = {};
   final Set<String> _lyricsInFlight = {};
   final Map<String, double> _delayCache = {};
   final Set<String> _delayLoading = {};
 
+  LyricsFetchState? _getFromCache(String key) {
+    final value = _cache.remove(key);
+    if (value != null) {
+      _cache[key] = value;
+    }
+    return value;
+  }
+
+  void _putInCache(String key, LyricsFetchState state) {
+    _cache.remove(key);
+    _cache[key] = state;
+    while (_cache.length > _maxCacheEntries) {
+      _cache.remove(_cache.keys.first);
+    }
+  }
+
+  void _putDelayInCache(String trackId, double delay) {
+    _delayCache.remove(trackId);
+    _delayCache[trackId] = delay;
+    while (_delayCache.length > _maxDelayCacheEntries) {
+      _delayCache.remove(_delayCache.keys.first);
+    }
+  }
+
   bool get hasSources => _sourceManager.allSources.isNotEmpty;
   bool get isInitialized => _sourceManager.isInitialized;
 
   LyricsFetchState getState(GenericSong track, LyricsSyncMode mode) {
-    final direct = _cache[_key(track.id, mode)];
+    final direct = _getFromCache(_key(track.id, mode));
     if (direct != null && direct.lyrics != null) return direct;
     if (mode == LyricsSyncMode.line) {
-      final word = _cache[_key(track.id, LyricsSyncMode.word)];
+      final word = _getFromCache(_key(track.id, LyricsSyncMode.word));
       if (word != null && word.lyrics != null) return word;
     }
     return direct ?? const LyricsFetchState.idle();
@@ -88,7 +115,7 @@ class LyricsProvider extends ChangeNotifier {
 
   Future<void> ensureLyrics(GenericSong track, LyricsSyncMode mode) async {
     final key = _key(track.id, mode);
-    final current = _cache[key];
+    final current = _getFromCache(key);
     if (current?.isLoading == true || _lyricsInFlight.contains(key)) {
       logger.d('[LyricsProvider] Lyrics request in-flight for $key');
       return;
@@ -107,7 +134,10 @@ class LyricsProvider extends ChangeNotifier {
     }
 
     if (_sourceManager.allSources.isEmpty) {
-      _cache[key] = const LyricsFetchState(isLoading: false, hasFetched: true);
+      _putInCache(
+        key,
+        const LyricsFetchState(isLoading: false, hasFetched: true),
+      );
       notifyListeners();
       return;
     }
@@ -130,21 +160,30 @@ class LyricsProvider extends ChangeNotifier {
           lyrics: _normalizeResult(customLyrics, mode),
           hasFetched: true,
         );
-        _cache[key] = state;
-        _cache[_key(track.id, LyricsSyncMode.word)] = LyricsFetchState(
-          isLoading: false,
-          lyrics: _normalizeResult(customLyrics, LyricsSyncMode.word),
-          hasFetched: true,
+        _putInCache(key, state);
+        _putInCache(
+          _key(track.id, LyricsSyncMode.word),
+          LyricsFetchState(
+            isLoading: false,
+            lyrics: _normalizeResult(customLyrics, LyricsSyncMode.word),
+            hasFetched: true,
+          ),
         );
-        _cache[_key(track.id, LyricsSyncMode.line)] = LyricsFetchState(
-          isLoading: false,
-          lyrics: _normalizeResult(customLyrics, LyricsSyncMode.line),
-          hasFetched: true,
+        _putInCache(
+          _key(track.id, LyricsSyncMode.line),
+          LyricsFetchState(
+            isLoading: false,
+            lyrics: _normalizeResult(customLyrics, LyricsSyncMode.line),
+            hasFetched: true,
+          ),
         );
-        _cache[_key(track.id, LyricsSyncMode.unsynced)] = LyricsFetchState(
-          isLoading: false,
-          lyrics: _normalizeResult(customLyrics, LyricsSyncMode.unsynced),
-          hasFetched: true,
+        _putInCache(
+          _key(track.id, LyricsSyncMode.unsynced),
+          LyricsFetchState(
+            isLoading: false,
+            lyrics: _normalizeResult(customLyrics, LyricsSyncMode.unsynced),
+            hasFetched: true,
+          ),
         );
         notifyListeners();
         return;
@@ -166,10 +205,13 @@ class LyricsProvider extends ChangeNotifier {
         logger.i(
           '[LyricsProvider] Cache hit for "${track.title}" (${cached.lyrics.lines.length} lines, sync: ${cached.lyrics.syncMode.name})',
         );
-        _cache[key] = LyricsFetchState(
-          isLoading: false,
-          lyrics: cached.lyrics,
-          hasFetched: true,
+        _putInCache(
+          key,
+          LyricsFetchState(
+            isLoading: false,
+            lyrics: cached.lyrics,
+            hasFetched: true,
+          ),
         );
         notifyListeners();
         if (!cached.isExpired) return;
@@ -177,19 +219,25 @@ class LyricsProvider extends ChangeNotifier {
 
       if (current?.lyrics != null && cached == null) return;
 
-      _cache[key] = LyricsFetchState(
-        isLoading: true,
-        lyrics: current?.lyrics,
-        hasFetched: current?.hasFetched ?? false,
+      _putInCache(
+        key,
+        LyricsFetchState(
+          isLoading: true,
+          lyrics: current?.lyrics,
+          hasFetched: current?.hasFetched ?? false,
+        ),
       );
       notifyListeners();
 
       try {
         final result = await _fetchLyrics(track, mode);
-        _cache[key] = LyricsFetchState(
-          isLoading: false,
-          lyrics: result,
-          hasFetched: true,
+        _putInCache(
+          key,
+          LyricsFetchState(
+            isLoading: false,
+            lyrics: result,
+            hasFetched: true,
+          ),
         );
         _lastErrorAt.remove(key);
         if (result != null) {
@@ -203,8 +251,8 @@ class LyricsProvider extends ChangeNotifier {
               lyrics: result,
               hasFetched: true,
             );
-            _cache[_key(track.id, LyricsSyncMode.word)] = wordState;
-            _cache[_key(track.id, LyricsSyncMode.line)] = wordState;
+            _putInCache(_key(track.id, LyricsSyncMode.word), wordState);
+            _putInCache(_key(track.id, LyricsSyncMode.line), wordState);
             await _writeCachedLyrics(track.id, LyricsSyncMode.word, result);
             await _writeCachedLyrics(track.id, LyricsSyncMode.line, result);
           } else if (result.isLineSynced) {
@@ -213,7 +261,7 @@ class LyricsProvider extends ChangeNotifier {
               lyrics: result,
               hasFetched: true,
             );
-            _cache[_key(track.id, LyricsSyncMode.line)] = lineState;
+            _putInCache(_key(track.id, LyricsSyncMode.line), lineState);
             await _writeCachedLyrics(track.id, LyricsSyncMode.line, result);
           }
         } else {
@@ -227,10 +275,13 @@ class LyricsProvider extends ChangeNotifier {
           error: e,
           stackTrace: stack,
         );
-        _cache[key] = LyricsFetchState(
-          isLoading: false,
-          error: e.toString(),
-          hasFetched: true,
+        _putInCache(
+          key,
+          LyricsFetchState(
+            isLoading: false,
+            error: e.toString(),
+            hasFetched: true,
+          ),
         );
         _lastErrorAt[key] = DateTime.now();
       }
@@ -250,7 +301,7 @@ class LyricsProvider extends ChangeNotifier {
       return _delayCache[trackId] ?? 0;
     }
     final delay = await _readCachedDelay(trackId);
-    _delayCache[trackId] = delay;
+    _putDelayInCache(trackId, delay);
     return delay;
   }
 
@@ -260,13 +311,13 @@ class LyricsProvider extends ChangeNotifier {
     }
     _delayLoading.add(trackId);
     final delay = await _readCachedDelay(trackId);
-    _delayCache[trackId] = delay;
+    _putDelayInCache(trackId, delay);
     _delayLoading.remove(trackId);
     notifyListeners();
   }
 
   Future<void> setDelaySeconds(String trackId, double seconds) async {
-    _delayCache[trackId] = seconds;
+    _putDelayInCache(trackId, seconds);
     notifyListeners();
     await _writeCachedDelay(trackId, seconds);
   }
@@ -287,10 +338,13 @@ class LyricsProvider extends ChangeNotifier {
     );
 
     for (final m in LyricsSyncMode.values) {
-      _cache[_key(track.id, m)] = LyricsFetchState(
-        isLoading: false,
-        lyrics: _normalizeResult(result, m),
-        hasFetched: true,
+      _putInCache(
+        _key(track.id, m),
+        LyricsFetchState(
+          isLoading: false,
+          lyrics: _normalizeResult(result, m),
+          hasFetched: true,
+        ),
       );
     }
     _lastErrorAt.remove(_key(track.id, LyricsSyncMode.word));

@@ -14,6 +14,67 @@ import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
 import 'package:wisp/services/system/connectivity_service.dart';
 
+/// Lightweight, flattened representation of a playlist's track membership:
+/// `{ id: "playlistId", source: "source", tracks: trackIDsList }`.
+/// Avoids retaining thousands of full [PlaylistItem] / [GenericSong] objects in RAM.
+class LightweightPlaylistTracks {
+  final String id;
+  final String source;
+  final List<String> tracks;
+  final Map<String, String> trackUids;
+
+  const LightweightPlaylistTracks({
+    required this.id,
+    required this.source,
+    required this.tracks,
+    this.trackUids = const {},
+  });
+
+  factory LightweightPlaylistTracks.fromItems({
+    required String id,
+    required String source,
+    required Iterable<PlaylistItem> items,
+  }) {
+    final trackIds = <String>[];
+    final uids = <String, String>{};
+    for (final item in items) {
+      if (item.id.isEmpty) continue;
+      final clean = cleanTrackId(item.id);
+      trackIds.add(clean);
+      final uid = item.uid;
+      if (uid != null && uid.isNotEmpty) {
+        uids[clean] = uid;
+      }
+    }
+    return LightweightPlaylistTracks(
+      id: id,
+      source: source,
+      tracks: List.unmodifiable(trackIds),
+      trackUids: Map.unmodifiable(uids),
+    );
+  }
+
+  bool containsTrack(String trackId) {
+    if (trackId.isEmpty) return false;
+    final clean = cleanTrackId(trackId);
+    return tracks.contains(clean) || tracks.contains(trackId);
+  }
+
+  String? uidForTrack(String trackId) {
+    final clean = cleanTrackId(trackId);
+    return trackUids[clean] ?? trackUids[trackId];
+  }
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'source': source,
+    'tracks': tracks,
+  };
+
+  static String cleanTrackId(String id) =>
+      id.contains(':') ? id.split(':').last : id;
+}
+
 class LibraryState extends ChangeNotifier {
   List<GenericPlaylist> _remotePlaylists = [];
   List<GenericPlaylist> _localPlaylists = [];
@@ -21,6 +82,7 @@ class LibraryState extends ChangeNotifier {
   List<GenericAlbum> _albums = [];
   List<GenericSimpleArtist> _artists = [];
   List<dynamic>? _allOrganized;
+  final Map<String, LightweightPlaylistTracks> _playlistTrackIndex = {};
 
   bool _isLoading = false;
   bool _isRefreshing = false;
@@ -140,7 +202,9 @@ class LibraryState extends ChangeNotifier {
             final intPlaylists = cachedLib.saved_playlists;
             final plWithLiked = [
               initialLikedPlaylist,
-              ...intPlaylists.where((p) => p.id != likedSongsPlaylistId),
+              ...intPlaylists
+                  .where((p) => p.id != likedSongsPlaylistId)
+                  .map(_indexAndStripSongs),
             ];
             _remotePlaylists = plWithLiked;
             _albums = cachedLib.saved_albums;
@@ -156,7 +220,12 @@ class LibraryState extends ChangeNotifier {
                 .toList();
             _allOrganized = [
               initialLikedPlaylist,
-              ...cachedLib.all_organized?.where((item) => true) ?? [],
+              ...cachedLib.all_organized?.map(
+                    (item) => item is GenericPlaylist
+                        ? _indexAndStripSongs(item)
+                        : item,
+                  ) ??
+                  [],
             ];
             _isLoading = false;
             notifyListeners();
@@ -253,12 +322,18 @@ class LibraryState extends ChangeNotifier {
       final internalPlaylists = userLibrary.saved_playlists;
       final playlistsWithLiked = [
         likedPlaylist,
-        ...internalPlaylists.where((p) => p.id != likedSongsPlaylistId),
+        ...internalPlaylists
+            .where((p) => p.id != likedSongsPlaylistId)
+            .map(_indexAndStripSongs),
       ];
 
       final allWithLiked = [
         likedPlaylist,
-        ...userLibrary.all_organized?.where((item) => true) ?? [],
+        ...userLibrary.all_organized?.map(
+              (item) =>
+                  item is GenericPlaylist ? _indexAndStripSongs(item) : item,
+            ) ??
+            [],
       ];
 
       _remotePlaylists = playlistsWithLiked;
@@ -301,10 +376,12 @@ class LibraryState extends ChangeNotifier {
     required List<GenericSimpleArtist> artists,
     List<dynamic>? allOrganized,
   }) {
-    _remotePlaylists = playlists;
+    _remotePlaylists = playlists.map(_indexAndStripSongs).toList();
     _albums = albums;
     _artists = artists;
-    _allOrganized = allOrganized;
+    _allOrganized = allOrganized
+        ?.map((item) => item is GenericPlaylist ? _indexAndStripSongs(item) : item)
+        .toList();
     notifyListeners();
   }
 
@@ -345,6 +422,7 @@ class LibraryState extends ChangeNotifier {
   }
 
   void removePlaylist(String playlistId) {
+    _playlistTrackIndex.remove(playlistId);
     _remotePlaylists =
         _remotePlaylists.where((p) => p.id != playlistId).toList();
     if (_allOrganized != null) {
@@ -361,16 +439,55 @@ class LibraryState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Returns the flattened track ID index for [playlistId], if hydrated.
+  LightweightPlaylistTracks? getPlaylistTrackIndex(String playlistId) {
+    return _playlistTrackIndex[playlistId];
+  }
+
+  /// Strips heavy [PlaylistItem] lists from [playlist] while indexing its track IDs.
+  GenericPlaylist _indexAndStripSongs(GenericPlaylist playlist) {
+    final songs = playlist.songs;
+    if (songs != null && songs.isNotEmpty) {
+      _playlistTrackIndex[playlist.id] = LightweightPlaylistTracks.fromItems(
+        id: playlist.id,
+        source: playlist.source,
+        items: songs,
+      );
+    }
+    if (songs == null) return playlist;
+    return GenericPlaylist(
+      id: playlist.id,
+      source: playlist.source,
+      title: playlist.title,
+      description: playlist.description,
+      thumbnailUrl: playlist.thumbnailUrl,
+      author: playlist.author,
+      songs: null,
+      durationSecs: playlist.durationSecs,
+      total: playlist.total ?? songs.length,
+      hasMore: playlist.hasMore,
+      isPinned: playlist.isPinned,
+    );
+  }
+
   void updatePlaylistSongs(String playlistId, List<PlaylistItem> songs) {
     bool changed = false;
+    final previousCount = _playlistTrackIndex[playlistId]?.tracks.length;
     final rIdx = _remotePlaylists.indexWhere((p) => p.id == playlistId);
+    final source = rIdx != -1 ? _remotePlaylists[rIdx].source : 'spotify';
+    _playlistTrackIndex[playlistId] = LightweightPlaylistTracks.fromItems(
+      id: playlistId,
+      source: source,
+      items: songs,
+    );
+
     if (rIdx != -1) {
       final old = _remotePlaylists[rIdx];
-      final diff = songs.length - (old.songs?.length ?? songs.length);
+      final oldCount = previousCount ?? old.songs?.length ?? songs.length;
+      final diff = songs.length - oldCount;
       final newTotal = max(0, (old.total ?? songs.length) + diff);
-      _remotePlaylists[rIdx] = old.copyWith(
-        songs: songs,
-        total: newTotal,
+      _remotePlaylists[rIdx] = _indexAndStripSongs(
+        old.copyWith(total: newTotal),
       );
       changed = true;
     }
@@ -379,12 +496,82 @@ class LibraryState extends ChangeNotifier {
       for (var i = 0; i < all.length; i++) {
         final item = all[i];
         if (item is GenericPlaylist && item.id == playlistId) {
-          final diff = songs.length - (item.songs?.length ?? songs.length);
+          final oldCount = previousCount ?? item.songs?.length ?? songs.length;
+          final diff = songs.length - oldCount;
           final newTotal = max(0, (item.total ?? songs.length) + diff);
-          all[i] = item.copyWith(
-            songs: songs,
-            total: newTotal,
-          );
+          all[i] = _indexAndStripSongs(item.copyWith(total: newTotal));
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  void addTrackIdToPlaylist(
+    String playlistId,
+    String trackId, {
+    String? source,
+    String? uid,
+  }) {
+    final clean = LightweightPlaylistTracks.cleanTrackId(trackId);
+    final existing = _playlistTrackIndex[playlistId];
+    if (existing != null && existing.containsTrack(clean)) return;
+
+    final nextTracks = <String>[...?existing?.tracks, clean];
+    final nextUids = <String, String>{...?existing?.trackUids};
+    if (uid != null && uid.isNotEmpty) {
+      nextUids[clean] = uid;
+    }
+    _playlistTrackIndex[playlistId] = LightweightPlaylistTracks(
+      id: playlistId,
+      source: source ?? existing?.source ?? 'spotify',
+      tracks: List.unmodifiable(nextTracks),
+      trackUids: Map.unmodifiable(nextUids),
+    );
+    _adjustPlaylistTotal(playlistId, 1);
+  }
+
+  void removeTrackIdFromPlaylist(String playlistId, String trackId) {
+    final clean = LightweightPlaylistTracks.cleanTrackId(trackId);
+    final existing = _playlistTrackIndex[playlistId];
+    if (existing == null || !existing.containsTrack(clean)) return;
+
+    final nextTracks = existing.tracks
+        .where((id) => id != clean && id != trackId)
+        .toList(growable: false);
+    final nextUids = Map<String, String>.from(existing.trackUids)
+      ..remove(clean)
+      ..remove(trackId);
+    _playlistTrackIndex[playlistId] = LightweightPlaylistTracks(
+      id: playlistId,
+      source: existing.source,
+      tracks: nextTracks,
+      trackUids: Map.unmodifiable(nextUids),
+    );
+    _adjustPlaylistTotal(playlistId, -1);
+  }
+
+  void _adjustPlaylistTotal(String playlistId, int delta) {
+    bool changed = false;
+    final rIdx = _remotePlaylists.indexWhere((p) => p.id == playlistId);
+    if (rIdx != -1) {
+      final old = _remotePlaylists[rIdx];
+      final currentCount = _playlistTrackIndex[playlistId]?.tracks.length ?? 0;
+      final newTotal = max(0, (old.total ?? currentCount) + delta);
+      _remotePlaylists[rIdx] = old.copyWith(total: newTotal);
+      changed = true;
+    }
+    final all = _allOrganized;
+    if (all != null) {
+      for (var i = 0; i < all.length; i++) {
+        final item = all[i];
+        if (item is GenericPlaylist && item.id == playlistId) {
+          final currentCount =
+              _playlistTrackIndex[playlistId]?.tracks.length ?? 0;
+          final newTotal = max(0, (item.total ?? currentCount) + delta);
+          all[i] = item.copyWith(total: newTotal);
           changed = true;
         }
       }
@@ -395,18 +582,19 @@ class LibraryState extends ChangeNotifier {
   }
 
   void _updatePlaylistInState(GenericPlaylist updated) {
+    final stripped = _indexAndStripSongs(updated);
     bool changed = false;
-    final rIdx = _remotePlaylists.indexWhere((p) => p.id == updated.id);
+    final rIdx = _remotePlaylists.indexWhere((p) => p.id == stripped.id);
     if (rIdx != -1) {
-      _remotePlaylists[rIdx] = updated;
+      _remotePlaylists[rIdx] = stripped;
       changed = true;
     }
     final all = _allOrganized;
     if (all != null) {
       for (var i = 0; i < all.length; i++) {
         final item = all[i];
-        if (item is GenericPlaylist && item.id == updated.id) {
-          all[i] = updated;
+        if (item is GenericPlaylist && item.id == stripped.id) {
+          all[i] = stripped;
           changed = true;
         }
       }
@@ -432,7 +620,12 @@ class LibraryState extends ChangeNotifier {
     }).toList();
 
     for (final pl in editable) {
-      if (pl.songs != null && pl.songs!.isNotEmpty) continue;
+      final existingIndex = _playlistTrackIndex[pl.id];
+      if (existingIndex != null && existingIndex.tracks.isNotEmpty) continue;
+      if (pl.songs != null && pl.songs!.isNotEmpty) {
+        _updatePlaylistInState(pl);
+        continue;
+      }
       try {
         final cached =
             await manager.getCachedFullPlaylist(pl.id, source: pl.source);
@@ -440,6 +633,11 @@ class LibraryState extends ChangeNotifier {
             cached.songs != null &&
             cached.songs!.isNotEmpty) {
           _updatePlaylistInState(cached);
+          MetadataCacheStore.instance.evictL1Entity(
+            provider: pl.source,
+            type: 'full_playlist',
+            id: pl.id,
+          );
           continue;
         }
 
@@ -451,6 +649,11 @@ class LibraryState extends ChangeNotifier {
         );
         if (fetched.songs != null && fetched.songs!.isNotEmpty) {
           _updatePlaylistInState(fetched);
+          MetadataCacheStore.instance.evictL1Entity(
+            provider: pl.source,
+            type: 'playlist',
+            id: pl.id,
+          );
         }
       } catch (e) {
         logger.d(
@@ -458,6 +661,23 @@ class LibraryState extends ChangeNotifier {
         );
       }
     }
+
+    pruneUnusedPlaylists();
+  }
+
+  /// Prunes non-library playlists and albums from L1 memory cache and strips
+  /// any lingering full song lists on library playlists.
+  void pruneUnusedPlaylists({Set<String> activeIds = const {}}) {
+    final libraryPlaylistIds = _remotePlaylists.map((p) => p.id).toSet();
+    final libraryAlbumIds = _albums.map((a) => a.id).toSet();
+    _playlistTrackIndex.removeWhere(
+      (id, _) => !libraryPlaylistIds.contains(id) && !activeIds.contains(id),
+    );
+    MetadataCacheStore.instance.pruneNonLibraryFromL1(
+      libraryPlaylistIds: libraryPlaylistIds,
+      libraryAlbumIds: libraryAlbumIds,
+      activeIds: activeIds,
+    );
   }
 
   /// Toggle or set playlist pinned state. Optimistically updates locally and
@@ -530,6 +750,7 @@ class LibraryState extends ChangeNotifier {
     _albums = [];
     _artists = [];
     _allOrganized = null;
+    _playlistTrackIndex.clear();
     notifyListeners();
   }
 

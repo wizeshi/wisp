@@ -45,7 +45,12 @@ class SharedJsRuntime {
   void _initSync() {
     if (_runtime != null) return;
     try {
-      final rt = getJavascriptRuntime();
+      final rt = getJavascriptRuntime(xhr: false);
+      if (rt is QuickJsRuntime2) {
+        try {
+          rt.port.listen((_) {});
+        } catch (_) {}
+      }
       _runtime = rt;
       _setupHostRuntime(rt);
     } catch (e) {
@@ -365,7 +370,8 @@ class SharedJsRuntime {
         })(globalThis.wisp.createScope($encodedKey, $encodedName, $encodedServiceId));
       ''';
 
-      final res = rt.evaluate(wrappedScript);
+      final res = rt.evaluate('$wrappedScript; undefined;');
+      JSRef.freeRecursive(res.rawResult);
       if (res.isError) {
         throw Exception('Failed to evaluate provider "$providerKey": ${res.stringResult}');
       }
@@ -419,20 +425,25 @@ class SharedJsRuntime {
     _pendingRequests[reqId] = completer;
 
     final formattedCall = call.replaceFirst('__REQ_ID__', reqId.toString());
-    final res = rt.evaluate(formattedCall);
+    final res = rt.evaluate('$formattedCall undefined;');
+    JSRef.freeRecursive(res.rawResult);
     if (res.isError) {
       _pendingRequests.remove(reqId);
       throw Exception('JS invocation error: ${res.stringResult}');
     }
     drainMicrotasks();
 
-    return await completer.future.timeout(
-      timeout,
-      onTimeout: () {
-        _pendingRequests.remove(reqId);
-        throw TimeoutException('JS operation timed out after $timeout');
-      },
-    );
+    try {
+      return await completer.future.timeout(
+        timeout,
+        onTimeout: () {
+          _pendingRequests.remove(reqId);
+          throw TimeoutException('JS operation timed out after $timeout');
+        },
+      );
+    } finally {
+      drainMicrotasks();
+    }
   }
 
   Future<dynamic> searchAudio(String providerId, Map<String, dynamic> query) {

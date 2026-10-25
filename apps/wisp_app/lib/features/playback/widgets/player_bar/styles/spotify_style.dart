@@ -452,6 +452,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         position: coordinator.useLinkedPlaybackState
             ? coordinator.effectiveThrottledPosition
             : player.throttledPosition,
+        bufferedPosition: coordinator.effectiveBufferedPosition,
         duration: player.duration,
         isLoading:
             !coordinator.useLinkedPlaybackState &&
@@ -476,6 +477,10 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                 1.0,
               )
             : 0.0;
+        final bufferedProgress = duration.inMilliseconds > 0
+            ? (data.bufferedPosition.inMilliseconds / duration.inMilliseconds)
+                  .clamp(0.0, 1.0)
+            : 0.0;
 
         final shouldFreeze = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
@@ -493,23 +498,40 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                             fDuration.inMilliseconds)
                         .clamp(0.0, 1.0)
                   : 0.0;
-              return _buildMiniProgressIndicator(fProgress);
+              final fBuffered = fDuration.inMilliseconds > 0
+                  ? (frozenData.bufferedPosition.inMilliseconds /
+                            fDuration.inMilliseconds)
+                        .clamp(0.0, 1.0)
+                  : 0.0;
+              return _buildMiniProgressIndicator(fProgress, fBuffered);
             },
           );
         }
 
-        return _buildMiniProgressIndicator(progress);
+        return _buildMiniProgressIndicator(progress, bufferedProgress);
       },
     );
   }
 
-  Widget _buildMiniProgressIndicator(double progress) {
+  Widget _buildMiniProgressIndicator(double progress, double bufferedProgress) {
     return SizedBox(
       height: 3,
-      child: LinearProgressIndicator(
-        value: progress,
-        backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
-        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          LinearProgressIndicator(
+            value: bufferedProgress,
+            backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Colors.white.withValues(alpha: 0.28),
+            ),
+          ),
+          LinearProgressIndicator(
+            value: progress,
+            backgroundColor: Colors.transparent,
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+          ),
+        ],
       ),
     );
   }

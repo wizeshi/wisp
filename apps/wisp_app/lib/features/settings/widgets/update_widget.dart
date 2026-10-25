@@ -10,6 +10,10 @@ import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 
+String removeAlphabetFromString(String input) {
+  return input.replaceAll(RegExp(r'[A-Za-z-]'), '');
+}
+
 class UpdateWidget extends StatefulWidget {
   const UpdateWidget({super.key});
 
@@ -57,7 +61,8 @@ class _UpdateWidgetState extends State<UpdateWidget> {
       latestVersion.split('.').skip(2).first,
     );
 
-    final currentVersion = WispInfo.version;
+    final currentVersion = removeAlphabetFromString(WispInfo.version);
+
     final currentVersionMajor = int.parse(currentVersion.split('.').first);
     final currentVersionMinor = int.parse(
       currentVersion.split('.').skip(1).first,
@@ -92,6 +97,14 @@ class _UpdateWidgetState extends State<UpdateWidget> {
     return FutureBuilder<bool>(
       future: _isUpdated,
       builder: (context, snapshot) {
+        final isPreRelease = WispInfo.version.startsWith('pre-');
+
+        final updateText = snapshot.data == true
+          ? isPreRelease
+            ? 'Pre-Release version'
+            : 'Up to date'
+          : 'Update available';
+
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SizedBox(
             width: iconSize,
@@ -135,7 +148,7 @@ class _UpdateWidgetState extends State<UpdateWidget> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    isUpdated ? 'Up to date' : 'Update available',
+                    updateText,
                     style: TextStyle(
                       color: isUpdated ? Colors.green : Colors.orange,
                       fontSize: 14,
@@ -143,7 +156,7 @@ class _UpdateWidgetState extends State<UpdateWidget> {
                     ),
                   ),
                   Text(
-                    'v${WispInfo.version}',
+                    removeAlphabetFromString(WispInfo.version),
                     style: TextStyle(color: Colors.grey[400], fontSize: 12),
                   ),
                 ],

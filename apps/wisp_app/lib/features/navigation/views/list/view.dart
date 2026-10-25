@@ -30,6 +30,7 @@ import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/menus/inspect_dialog.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
+import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/data/cache/metadata_diff.dart';
 import 'package:wisp/data/cache/metadata_revalidator.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
@@ -103,6 +104,11 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   List<GenericSong> _preShuffledQueue = [];
   String _searchQuery = '';
   List<PlaylistItem> _recommendedSongs = [];
+  List<GenericSong> _cachedRecSongs = const [];
+  List<_ListItem> _cachedItems = const [];
+  List<GenericSong> _cachedSongsList = const [];
+  List<DateTime?> _cachedDatesAdded = const [];
+  int _cachedTotalDurationSecs = 0;
   final List<String> _skippedRecommendationTrackIDs = [];
   final Set<String> _addedRecommendationTrackIDs = {};
   final Set<String> _addingRecommendationTrackIDs = {};
@@ -204,17 +210,45 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     _loadListDetails();
   }
 
+  void _evictNonLibraryCacheFor(String id, SharedListType type, String? source) {
+    if (type == SharedListType.playlist) {
+      if (!isLikedSongsPlaylistId(id) &&
+          !_localPlaylists.isLocalPlaylistId(id)) {
+        _libraryState.pruneUnusedPlaylists();
+      }
+    } else {
+      if (!_libraryState.isAlbumSaved(id)) {
+        final effectiveSource = source ?? _album?.source;
+        MetadataCacheStore.instance.evictL1Entity(
+          provider: effectiveSource,
+          type: 'album',
+          id: id,
+        );
+        MetadataCacheStore.instance.evictL1Entity(
+          provider: effectiveSource,
+          type: 'full_album',
+          id: id,
+        );
+      }
+    }
+  }
+
   @override
   void didUpdateWidget(covariant SharedListDetailView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.id != widget.id || oldWidget.type != widget.type) {
       _revalidationToken.cancel();
+      _evictNonLibraryCacheFor(oldWidget.id, oldWidget.type, oldWidget.source);
       _clearRecommendationsState();
       setState(() {
         _isLoading = true;
         _playlist = null;
         _album = null;
         _sortedIndices = [];
+        _cachedItems = const [];
+        _cachedSongsList = const [];
+        _cachedDatesAdded = const [];
+        _cachedTotalDurationSecs = 0;
         _searchQuery = '';
       });
       _loadListDetails();
@@ -255,6 +289,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
   @override
   void dispose() {
     _revalidationToken.cancel();
+    _evictNonLibraryCacheFor(widget.id, widget.type, widget.source);
     if (_likedTracksListener != null) {
       _metadataManager.removeListener(_likedTracksListener!);
     }
@@ -467,22 +502,40 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     );
   }
 
-  List<_ListItem> get _items {
+  List<_ListItem> _computeItems() {
     if (widget.type == SharedListType.playlist) {
       if (isLikedSongsPlaylistId(widget.id)) {
         final items = _playlist?.songs ?? [];
-        final metadataManager = context.read<MetadataManager>();
         return items
-            .where((item) => metadataManager.isTrackLiked(item.id))
-            .toList();
+            .where((item) => _metadataManager.isTrackLiked(item.id))
+            .toList(growable: false);
       }
-      return _playlist?.songs ?? [];
+      return _playlist?.songs ?? const [];
     }
-    return _album?.songs ?? [];
+    return _album?.songs ?? const [];
   }
 
+  List<_ListItem> get _items => _cachedItems;
+
   void _rebuildIndices() {
-    final items = _items;
+    final items = _computeItems();
+    _cachedItems = items;
+    _cachedSongsList = List<GenericSong>.generate(
+      items.length,
+      (i) => _toGenericSong(items[i]),
+      growable: false,
+    );
+    _cachedDatesAdded = List<DateTime?>.generate(
+      items.length,
+      (i) => _getAddedAt(items[i]),
+      growable: false,
+    );
+    var totalSecs = 0;
+    for (var i = 0; i < items.length; i++) {
+      totalSecs += _getDuration(items[i]);
+    }
+    _cachedTotalDurationSecs = totalSecs;
+
     final indices = List<int>.generate(items.length, (i) => i);
 
     final query = _searchQuery.trim().toLowerCase();
@@ -937,9 +990,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
 
 
-  int _totalDurationSecs() {
-    return _items.fold<int>(0, (sum, item) => sum + _getDuration(item));
-  }
+  int _totalDurationSecs() => _cachedTotalDurationSecs;
 
   void _openUser(GenericSimpleUser user) {
     AppNavigation.instance.openUser(
@@ -977,6 +1028,7 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
 
   void _clearRecommendationsState() {
     _recommendedSongs = [];
+    _cachedRecSongs = const [];
     _isLoadingRecommendations = false;
     _skippedRecommendationTrackIDs.clear();
     _addedRecommendationTrackIDs.clear();
@@ -1038,11 +1090,13 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
       );
       if (!mounted || _revalidationToken.isCancelled) {
         _recommendedSongs = recommendations.take(10).toList();
+        _cachedRecSongs = _recommendedSongs.map(_toGenericSong).toList(growable: false);
         _isLoadingRecommendations = false;
         return;
       }
       _safeSetState(() {
         _recommendedSongs = recommendations.take(10).toList();
+        _cachedRecSongs = _recommendedSongs.map(_toGenericSong).toList(growable: false);
         _isLoadingRecommendations = false;
       });
     } catch (e) {
@@ -1289,9 +1343,9 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     final totalDurationSecs = _totalDurationSecs();
     final isLiked = _isListLiked;
     final showRecs = _shouldShowRecommendations();
-    final recSongs = _recommendedSongs.map(_toGenericSong).toList();
-    final songsList = _items.map(_toGenericSong).toList();
-    final datesAdded = _items.map(_getAddedAt).toList();
+    final recSongs = _cachedRecSongs;
+    final songsList = _cachedSongsList;
+    final datesAdded = _cachedDatesAdded;
     final scrollController =
         isDesktop ? _desktopScrollController : _mobileScrollController;
 

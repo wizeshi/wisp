@@ -973,7 +973,14 @@ class _CanvasVideoState extends State<_CanvasVideo> {
       await controller.initialize();
       await controller.setLooping(true);
       await controller.setVolume(0);
-      await controller.play();
+      if (!mounted || !identical(_controller, controller)) return;
+      final shouldPlay =
+          context.read<PlaybackCoordinator>().effectiveIsPlaying &&
+          (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
+      _lastShouldPlay = shouldPlay;
+      if (shouldPlay) {
+        await controller.play();
+      }
       if (mounted) setState(() {});
     } catch (_) {
       _initFailed = true;
@@ -1003,9 +1010,7 @@ class _CanvasVideoState extends State<_CanvasVideo> {
           await controller.play();
         }
       } else {
-        if (controller.value.isPlaying) {
-          await controller.pause();
-        }
+        await controller.pause();
       }
     } catch (_) {}
   }
@@ -1124,7 +1129,14 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
       await controller.initialize();
       await controller.setLooping(true);
       await controller.setVolume(0);
-      await controller.play();
+      if (!mounted || !identical(_controller, controller)) return;
+      final shouldPlay =
+          context.read<PlaybackCoordinator>().effectiveIsPlaying &&
+          (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
+      _lastShouldPlay = shouldPlay;
+      if (shouldPlay) {
+        await controller.play();
+      }
       if (mounted) setState(() {});
     } catch (_) {
       _initFailed = true;
@@ -1154,9 +1166,7 @@ class _CanvasBackgroundState extends State<_CanvasBackground> {
           await controller.play();
         }
       } else {
-        if (controller.value.isPlaying) {
-          await controller.pause();
-        }
+        await controller.pause();
       }
     } catch (_) {}
   }
@@ -1732,17 +1742,27 @@ class _QueuePreviewCardState extends State<_QueuePreviewCard> {
   @override
   Widget build(BuildContext context) {
     return Selector<WispAudioHandler, _QueuePreviewData>(
-      selector: (context, player) => _QueuePreviewData(
-        queueLength: player.queueTracks.length,
-        currentIndex: player.currentIndex,
-        currentTrackId: player.currentTrack?.id,
-      ),
+      selector: (context, player) {
+        final queue = player.queueTracks;
+        final currentIndex = player.currentIndex;
+        final upcoming = <(int, GenericSong)>[];
+        if (currentIndex + 1 < queue.length) {
+          final end = (currentIndex + 5 < queue.length)
+              ? currentIndex + 5
+              : queue.length;
+          for (var i = currentIndex + 1; i < end; i++) {
+            upcoming.add((i, queue[i]));
+          }
+        }
+        return _QueuePreviewData(
+          queueLength: queue.length,
+          currentIndex: currentIndex,
+          currentTrackId: player.currentTrack?.id,
+          upcoming: upcoming,
+        );
+      },
       builder: (context, data, child) {
-        final queue = context.select<WispAudioHandler, List<GenericSong>>(((player) => player.queueTracks));
-        final currentIndex = data.currentIndex;
-        final upcoming = currentIndex + 1 < queue.length
-            ? queue.sublist(currentIndex + 1)
-            : <GenericSong>[];
+        final upcoming = data.upcoming;
 
         final btnColor = Theme.of(context).colorScheme.primary;
 
@@ -1773,19 +1793,18 @@ class _QueuePreviewCardState extends State<_QueuePreviewCard> {
                         )
                       else
                         Column(
-                          children: upcoming.take(4).map((track) {
-                            final queueIndex = queue.indexOf(track);
+                          children: upcoming.map((entry) {
+                            final queueIndex = entry.$1;
+                            final track = entry.$2;
                             return TrackRow(
                               track: track,
                               height: 38,
                               padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
                               playIconLocation: PlayIconLocation.art,
                               onTap: () {
-                                if (queueIndex != -1) {
-                                  context
-                                      .read<PlaybackCoordinator>()
-                                      .playQueueIndex(queueIndex);
-                                }
+                                context
+                                    .read<PlaybackCoordinator>()
+                                    .playQueueIndex(queueIndex);
                               },
                               onPlayPause: null,
                               onSecondaryTapDown: (details) {
@@ -1882,20 +1901,39 @@ class _QueuePreviewData {
   final int queueLength;
   final int currentIndex;
   final String? currentTrackId;
+  final List<(int, GenericSong)> upcoming;
 
   const _QueuePreviewData({
     required this.queueLength,
     required this.currentIndex,
     required this.currentTrackId,
+    required this.upcoming,
   });
+
+  static bool _sameUpcoming(
+    List<(int, GenericSong)> a,
+    List<(int, GenericSong)> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].$1 != b[i].$1 || a[i].$2.id != b[i].$2.id) return false;
+    }
+    return true;
+  }
 
   @override
   bool operator ==(Object other) =>
       other is _QueuePreviewData &&
       other.queueLength == queueLength &&
       other.currentIndex == currentIndex &&
-      other.currentTrackId == currentTrackId;
+      other.currentTrackId == currentTrackId &&
+      _sameUpcoming(other.upcoming, upcoming);
 
   @override
-  int get hashCode => Object.hash(queueLength, currentIndex, currentTrackId);
+  int get hashCode => Object.hash(
+    queueLength,
+    currentIndex,
+    currentTrackId,
+    Object.hashAll(upcoming.map((e) => Object.hash(e.$1, e.$2.id))),
+  );
 }

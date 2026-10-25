@@ -69,7 +69,16 @@ class MetadataCacheStore {
   static final MetadataCacheStore instance = MetadataCacheStore._();
 
   static const Duration _defaultTtl = Duration(days: 7);
-  static const int _maxL1Entries = 250;
+  static const int _maxL1Entries = 40;
+
+  /// Entry types whose raw JSON payloads are too large or redundant with
+  /// in-memory state models to keep duplicated in L1 RAM.
+  static const Set<String> _l1BypassTypes = {
+    'saved_tracks_all',
+    'full_playlist',
+    'library',
+    'user_library',
+  };
 
   final Map<String, MetadataCacheEntry> _l1MemoryCache = {};
   Directory? _baseDir;
@@ -167,8 +176,9 @@ class MetadataCacheStore {
     );
 
     // 1. Check in-memory L1 cache first
-    final memoryEntry = _l1MemoryCache[key];
+    final memoryEntry = _l1MemoryCache.remove(key);
     if (memoryEntry != null) {
+      _l1MemoryCache[key] = memoryEntry;
       return memoryEntry;
     }
 
@@ -334,10 +344,52 @@ class MetadataCacheStore {
   }
 
   void _putInL1Cache(String key, MetadataCacheEntry entry) {
-    if (_l1MemoryCache.length >= _maxL1Entries) {
+    if (_l1BypassTypes.contains(entry.type)) {
+      _l1MemoryCache.remove(key);
+      return;
+    }
+    _l1MemoryCache.remove(key);
+    while (_l1MemoryCache.length >= _maxL1Entries) {
       _l1MemoryCache.remove(_l1MemoryCache.keys.first);
     }
     _l1MemoryCache[key] = entry;
+  }
+
+  /// Evicts an entity from the in-memory L1 cache while preserving L2 disk cache.
+  void evictL1Entity({
+    String? provider,
+    required String type,
+    required String id,
+  }) {
+    if (provider != null && provider.isNotEmpty) {
+      final prefix = '$provider:$type:$id';
+      _l1MemoryCache.removeWhere(
+        (k, _) => k == prefix || k.startsWith('$prefix:'),
+      );
+      return;
+    }
+    _l1MemoryCache.removeWhere(
+      (_, entry) => entry.type == type && entry.id == id,
+    );
+  }
+
+  /// Prunes playlist and album entries from L1 memory cache if their IDs are
+  /// not part of the user's library (and not in [activeIds]).
+  void pruneNonLibraryFromL1({
+    required Set<String> libraryPlaylistIds,
+    Set<String> libraryAlbumIds = const {},
+    Set<String> activeIds = const {},
+  }) {
+    _l1MemoryCache.removeWhere((_, entry) {
+      if (activeIds.contains(entry.id)) return false;
+      if (entry.type == 'playlist' || entry.type == 'full_playlist') {
+        return !libraryPlaylistIds.contains(entry.id);
+      }
+      if (entry.type == 'album' && libraryAlbumIds.isNotEmpty) {
+        return !libraryAlbumIds.contains(entry.id);
+      }
+      return false;
+    });
   }
 
   /// Calculates total size of metadata files on disk in bytes.

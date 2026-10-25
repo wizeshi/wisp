@@ -290,6 +290,8 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                         ? Image.file(
                             File(widget.imageUrl.replaceFirst('file://', '')),
                             fit: BoxFit.cover,
+                            cacheWidth: 480,
+                            cacheHeight: 480,
                             errorBuilder: (_, _, _) =>
                                 Container(color: Colors.grey[850]),
                           )

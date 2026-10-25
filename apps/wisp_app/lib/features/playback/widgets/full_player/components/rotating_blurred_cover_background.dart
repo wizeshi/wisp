@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/services/system/app_focus_service.dart';
 
@@ -33,6 +34,7 @@ class _RotatingBlurredCoverBackgroundState
   );
 
   bool _isMinimized = false;
+  bool _isPlaying = false;
 
   // Whether the "freeze while unfocused" behavior is turned on for this
   // widget, per the user's preference. Kept in sync from build().
@@ -41,18 +43,17 @@ class _RotatingBlurredCoverBackgroundState
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
-  /// Whether the rotation should be running: not minimized, and either the
-  /// freeze-when-unfocused preference is off or the app/window currently has
-  /// focus (covers window blur on desktop and backgrounding on mobile,
-  /// freezing this expensive blurred background whenever it isn't visible).
+  /// Whether the rotation should be running: actively playing, not minimized,
+  /// and either the freeze-when-unfocused preference is off or the app/window
+  /// currently has focus.
   bool get _shouldAnimate =>
+      _isPlaying &&
       !_isMinimized &&
       (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
 
   @override
   void initState() {
     super.initState();
-    _rotationController.repeat();
     AppFocusService.instance.isFocused.addListener(_syncAnimationState);
     if (_isDesktop) {
       windowManager.addListener(this);
@@ -104,13 +105,17 @@ class _RotatingBlurredCoverBackgroundState
 
   @override
   Widget build(BuildContext context) {
+    final isPlaying = context.select<PlaybackCoordinator, bool>(
+      (coordinator) => coordinator.effectiveIsPlaying,
+    );
     final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
       (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
         PausedBackgroundWidget.rotatingAlbumArtFullScreen,
       ),
     );
-    if (freezeWhenUnfocused != _freezeWhenUnfocused) {
+    if (freezeWhenUnfocused != _freezeWhenUnfocused || isPlaying != _isPlaying) {
       _freezeWhenUnfocused = freezeWhenUnfocused;
+      _isPlaying = isPlaying;
       _syncAnimationState();
     }
 

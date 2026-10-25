@@ -43,6 +43,13 @@ class PlaybackCoordinator extends ChangeNotifier {
     return _audioHandler?.throttledPosition ?? Duration.zero;
   }
 
+  Duration get effectiveBufferedPosition {
+    if (useLinkedPlaybackState) {
+      return Duration.zero;
+    }
+    return _audioHandler?.bufferedPosition ?? Duration.zero;
+  }
+
   void bindAudioHandler(WispAudioHandler audioHandler) {
     if (identical(_audioHandler, audioHandler)) return;
     _audioHandler?.removeListener(_notifyFromSource);

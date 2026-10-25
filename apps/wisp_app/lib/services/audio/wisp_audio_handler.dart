@@ -293,6 +293,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   bool get _playlistPlaybackEnabled =>
       _gaplessPlaybackEnabled || _crossfadeEnabled;
   Duration get position => _engine.state.position;
+  Duration get bufferedPosition => _engine.state.bufferedPosition;
   Duration get throttledPosition => _lastNotifiedPosition;
   Duration get interpolatedPosition => _getInterpolatedPosition();
   Duration get duration {

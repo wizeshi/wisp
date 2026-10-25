@@ -60,8 +60,11 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     
     log('[MediaKitPlaybackEngine]: initialized with settings: ${_settings.toString()}');
     
-    _first = Player();
-    _second = Player();
+    const playerConfig = PlayerConfiguration(
+      bufferSize: 12 * 1024 * 1024,
+    );
+    _first = Player(configuration: playerConfig);
+    _second = Player(configuration: playerConfig);
     _active = _first;
     _standby = _second;
 
@@ -423,6 +426,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
       _subscriptions.add(player.stream.playing.listen((_) => _publishState()));
       _subscriptions.add(player.stream.buffering.listen((_) => _publishState()));
       _subscriptions.add(player.stream.position.listen((_) => _publishState()));
+      _subscriptions.add(player.stream.buffer.listen((_) => _publishState()));
       _subscriptions.add(player.stream.duration.listen((_) => _publishState()));
       _subscriptions.add(player.stream.completed.listen((didComplete) {
         if (didComplete && identical(player, _active) && !_disposed) {
@@ -456,6 +460,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
       isPlaying: reportingPlayer.state.playing,
       isBuffering: reportingPlayer.state.buffering,
       position: reportingPlayer.state.position,
+      bufferedPosition: reportingPlayer.state.buffer,
       duration: _reportedDuration(reportingPlayer),
       volume: _volume,
       source: _activeSource,

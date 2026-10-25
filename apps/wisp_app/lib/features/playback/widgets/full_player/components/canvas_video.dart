@@ -81,7 +81,14 @@ class _CanvasVideoState extends State<CanvasVideo> {
       await controller.initialize();
       await controller.setLooping(true);
       await controller.setVolume(0);
-      await controller.play();
+      if (!mounted || !identical(_controller, controller)) return;
+      final shouldPlay =
+          context.read<PlaybackCoordinator>().effectiveIsPlaying &&
+          (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
+      _lastShouldPlay = shouldPlay;
+      if (shouldPlay) {
+        await controller.play();
+      }
       if (mounted) setState(() {});
     } catch (_) {
       _initFailed = true;
@@ -111,9 +118,7 @@ class _CanvasVideoState extends State<CanvasVideo> {
           await controller.play();
         }
       } else {
-        if (controller.value.isPlaying) {
-          await controller.pause();
-        }
+        await controller.pause();
       }
     } catch (_) {}
   }

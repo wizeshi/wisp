@@ -1033,7 +1033,12 @@ class _ThumbnailPreview extends StatelessWidget {
         color: Colors.grey[850],
         child: file == null
             ? const Icon(Icons.folder, color: Colors.grey)
-            : Image.file(file!, fit: BoxFit.cover),
+            : Image.file(
+                file!,
+                fit: BoxFit.cover,
+                cacheWidth: 112,
+                cacheHeight: 112,
+              ),
       ),
     );
   }

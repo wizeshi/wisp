@@ -62,6 +62,8 @@ class _LyricsViewState extends State<LyricsView>
   Ticker? _positionTicker;
   LyricsResult? _activeLyrics;
   WispAudioHandler? _playerRef;
+  PlaybackCoordinator? _coordinatorRef;
+  int _lastPausedPositionMs = -1;
 
   bool _syncedLyricsAvailable = true;
   bool _didInitialCenter = false;
@@ -90,23 +92,86 @@ class _LyricsViewState extends State<LyricsView>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    try {
+      final coordinator = context.read<PlaybackCoordinator>();
+      if (!identical(_coordinatorRef, coordinator)) {
+        _coordinatorRef?.removeListener(_handleCoordinatorChanged);
+        _coordinatorRef = coordinator;
+        _coordinatorRef?.addListener(_handleCoordinatorChanged);
+      }
+    } catch (_) {}
+  }
+
+  @override
   void dispose() {
     _resumeAutoScrollTimer?.cancel();
     AppFocusService.instance.isFocused.removeListener(_handleFocusChanged);
+    _coordinatorRef?.removeListener(_handleCoordinatorChanged);
     _positionTicker?.dispose();
     _scrollController.dispose();
+    _clearLineAllocations();
+    _delayController.dispose();
+    super.dispose();
+  }
+
+  void _clearLineAllocations() {
     for (final notifier in _lineTimingNotifiers) {
       notifier.dispose();
     }
-    _delayController.dispose();
-    super.dispose();
+    _lineTimingNotifiers = [];
+    _lineKeys = [];
+  }
+
+  bool get _shouldRunPositionTicker {
+    final lyrics = _activeLyrics;
+    if (_playerRef == null ||
+        lyrics == null ||
+        lyrics.syncMode == LyricsSyncMode.unsynced) {
+      return false;
+    }
+    final isPlaying =
+        _coordinatorRef?.effectiveIsPlaying ?? _playerRef?.isPlaying ?? false;
+    if (!isPlaying) return false;
+    if (_freezeWhenUnfocused && !AppFocusService.instance.isFocused.value) {
+      return false;
+    }
+    return true;
+  }
+
+  void _handleCoordinatorChanged() {
+    if (!mounted) return;
+    _syncPositionTickerState();
+    final isPlaying =
+        _coordinatorRef?.effectiveIsPlaying ?? _playerRef?.isPlaying ?? false;
+    if (!isPlaying && _activeLyrics != null) {
+      final posMs = _effectivePositionMs();
+      if (posMs != _lastPausedPositionMs) {
+        _lastPausedPositionMs = posMs;
+        _updateCurrentLine(_activeLyrics!, posMs);
+      }
+    }
+  }
+
+  void _syncPositionTickerState() {
+    if (_shouldRunPositionTicker) {
+      if (_positionTicker != null && !_positionTicker!.isActive) {
+        _positionTicker!.start();
+      }
+    } else {
+      if (_positionTicker != null && _positionTicker!.isActive) {
+        _positionTicker!.stop();
+      }
+    }
   }
 
   void _handleFocusChanged() {
     final isFocused = AppFocusService.instance.isFocused.value;
     if (isFocused) {
-      if (_freezeWhenUnfocused && _positionTicker != null && !_positionTicker!.isActive) {
-        _positionTicker!.start();
+      _syncPositionTickerState();
+      if (_activeLyrics != null) {
+        _updateCurrentLine(_activeLyrics!, _effectivePositionMs());
       }
       if (_wasAutoScrollEnabledBeforeUnfocus &&
           _currentLineIndex >= 0 &&
@@ -122,9 +187,7 @@ class _LyricsViewState extends State<LyricsView>
     } else {
       _resumeAutoScrollTimer?.cancel();
       _wasAutoScrollEnabledBeforeUnfocus = _autoScrollEnabled;
-      if (_freezeWhenUnfocused && _positionTicker != null && _positionTicker!.isActive) {
-        _positionTicker!.stop();
-      }
+      _syncPositionTickerState();
     }
   }
 
@@ -255,26 +318,21 @@ class _LyricsViewState extends State<LyricsView>
   void _ensurePositionTimer() {
     _positionTicker ??= createTicker((_) {
       if (!mounted) return;
-      if (_freezeWhenUnfocused && !AppFocusService.instance.isFocused.value) {
+      if (!_shouldRunPositionTicker) {
+        _positionTicker?.stop();
         return;
       }
-      final player = _playerRef;
       final lyrics = _activeLyrics;
-      if (player == null || lyrics == null) return;
+      if (lyrics == null) return;
       final positionMs = _effectivePositionMs();
       _updateCurrentLine(lyrics, positionMs);
     });
 
-    if (!_positionTicker!.isActive) {
-      if (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value) {
-        _positionTicker!.start();
-      }
-    }
+    _syncPositionTickerState();
   }
 
   int _effectivePositionMs() {
-    return context
-        .read<PlaybackCoordinator>()
+    return (_coordinatorRef ?? context.read<PlaybackCoordinator>())
         .effectiveInterpolatedPosition
         .inMilliseconds;
   }
@@ -283,6 +341,7 @@ class _LyricsViewState extends State<LyricsView>
     _positionTicker?.stop();
     _activeLyrics = null;
     _playerRef = null;
+    _clearLineAllocations();
   }
 
   void _scrollToLine(int index) {
@@ -765,6 +824,7 @@ class _LyricsViewState extends State<LyricsView>
           _autoScrollEnabled = true;
           _syncedLyricsAvailable = true;
           _didInitialCenter = false;
+          _clearLineAllocations();
           lyricsProvider.ensureDelayLoaded(track.id);
           _loadLyricsDelay(lyricsProvider, track.id);
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -883,6 +943,9 @@ class _LyricsViewState extends State<LyricsView>
         _activeLyrics = lyrics;
         _playerRef = player;
         _ensurePositionTimer();
+        if (!_shouldRunPositionTicker) {
+          _updateCurrentLine(lyrics, _effectivePositionMs());
+        }
         _centerCurrentLineOnOpen(player, lyrics);
 
         return Column(

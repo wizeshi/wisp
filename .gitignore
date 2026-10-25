@@ -2,3 +2,4 @@ temp/
 dist/
 build/
 .dart_tool/
+**/.DS_Store

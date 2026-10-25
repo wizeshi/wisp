@@ -32,11 +32,42 @@ class JsProviderBridge {
   ) {
     try {
       final jsonStr = jsonEncode(data);
-      runtime.evaluate('globalThis.__wisp_resolve_callback($cbId, $jsonStr);');
+      final res = runtime.evaluate(
+        'globalThis.__wisp_resolve_callback($cbId, $jsonStr); undefined;',
+      );
+      JSRef.freeRecursive(res.rawResult);
       runtime.executePendingJob();
     } catch (e) {
       logger.e('[JsProviderBridge] Error resolving callback $cbId: $e');
     }
+  }
+
+  static bool _shouldIncludeBase64({
+    required String? responseType,
+    required Map<String, String> headers,
+  }) {
+    final rt = responseType?.trim().toLowerCase();
+    if (rt == 'base64' ||
+        rt == 'bytes' ||
+        rt == 'arraybuffer' ||
+        rt == 'binary') {
+      return true;
+    }
+    if (rt == 'json' || rt == 'text') {
+      return false;
+    }
+    final contentType =
+        (headers['content-type'] ?? headers['Content-Type'] ?? '')
+            .toLowerCase();
+    if (contentType.contains('json') ||
+        contentType.contains('text/') ||
+        contentType.contains('xml') ||
+        contentType.contains('javascript') ||
+        contentType.contains('html') ||
+        contentType.contains('urlencoded')) {
+      return false;
+    }
+    return true;
   }
 
   /// Sets up shared host bridges on a centralized JavascriptRuntime.
@@ -98,6 +129,7 @@ class JsProviderBridge {
               (map['headers'] as Map?)?.cast<String, String>() ?? {};
           final body = map['body'] as String?;
           final bodyBase64 = map['bodyBase64'] as String?;
+          final responseType = map['responseType'] as String?;
           final label = map['label'] as String?;
 
           if (url == null || cbId == null) {
@@ -164,10 +196,18 @@ class JsProviderBridge {
             client.close();
           }
 
+          final includeBase64 = _shouldIncludeBase64(
+            responseType: responseType,
+            headers: response.headers,
+          );
+          final onlyBinary = responseType?.trim().toLowerCase() == 'bytes' ||
+              responseType?.trim().toLowerCase() == 'base64' ||
+              responseType?.trim().toLowerCase() == 'arraybuffer';
+
           resolveJsCallback(runtime, cbId, {
             'status': response.statusCode,
-            'body': response.body,
-            'bodyBase64': base64Encode(response.bodyBytes),
+            'body': onlyBinary ? '' : response.body,
+            if (includeBase64) 'bodyBase64': base64Encode(response.bodyBytes),
             'headers': response.headers,
           });
         } catch (e) {
@@ -996,11 +1036,22 @@ class JsProviderBridge {
                 status: res.status || 500,
                 ok: (res.status >= 200 && res.status < 300),
                 headers: res.headers || {},
-                text: async function() { return res.body || ''; },
-                json: async function() { return JSON.parse(res.body || '{}'); },
-                base64: async function() { return res.bodyBase64 || ''; },
+                text: async function() {
+                  if (res.body) return res.body;
+                  if (res.bodyBase64) return atob(res.bodyBase64);
+                  return '';
+                },
+                json: async function() {
+                  var txt = res.body || (res.bodyBase64 ? atob(res.bodyBase64) : '{}');
+                  return JSON.parse(txt || '{}');
+                },
+                base64: async function() {
+                  if (res.bodyBase64) return res.bodyBase64;
+                  if (res.body) return btoa(res.body);
+                  return '';
+                },
                 bytes: async function() {
-                  var b64 = res.bodyBase64 || '';
+                  var b64 = res.bodyBase64 || (res.body ? btoa(res.body) : '');
                   if (!b64) return new Uint8Array(0);
                   var raw = atob(b64);
                   var arr = new Uint8Array(raw.length);
@@ -1024,6 +1075,7 @@ class JsProviderBridge {
               headers: (options && options.headers) || {},
               body: body,
               bodyBase64: bodyBase64,
+              responseType: (options && options.responseType) || null,
               label: (options && options.label) || null
             };
             sendMessage('wisp_fetch', JSON.stringify(payload));

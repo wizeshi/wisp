@@ -23,8 +23,9 @@ class CoverArtKMeans {
     int maxIterations = 10,
   }) async {
     ui.Image? image;
+    ResizeImage? sampleProvider;
     try {
-      final sampleProvider = ResizeImage(provider, width: 100, height: 100);
+      sampleProvider = ResizeImage(provider, width: 100, height: 100);
       image = await _loadImage(sampleProvider);
       final byteData = await image.toByteData(
         format: ui.ImageByteFormat.rawRgba,
@@ -52,6 +53,9 @@ class CoverArtKMeans {
       return null;
     } finally {
       image?.dispose();
+      if (sampleProvider != null) {
+        unawaited(sampleProvider.evict());
+      }
     }
   }
 
@@ -126,7 +130,7 @@ class CoverArtKMeans {
     listener = ImageStreamListener(
       (info, _) {
         stream.removeListener(listener);
-        completer.complete(info.image);
+        completer.complete(info.image.clone());
       },
       onError: (error, stackTrace) {
         stream.removeListener(listener);

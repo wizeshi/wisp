@@ -352,9 +352,29 @@ class EntityContextMenus {
           orElse: () => playlist,
         );
 
+        final trackIndex = libraryState.getPlaylistTrackIndex(current.id);
         final songs = current.songs;
         final clean =
             track.id.contains(':') ? track.id.split(':').last : track.id;
+
+        if (trackIndex != null && trackIndex.tracks.isNotEmpty) {
+          if (trackIndex.containsTrack(track.id)) {
+            return Icon(Icons.check_circle, color: activeIconColor, size: 20);
+          }
+          final total = current.total ?? trackIndex.tracks.length;
+          if (total <= trackIndex.tracks.length) {
+            return Icon(
+              Icons.radio_button_unchecked,
+              color: Colors.grey[600],
+              size: 20,
+            );
+          }
+          return Icon(
+            Icons.remove_circle_outline,
+            color: Colors.grey[500],
+            size: 20,
+          );
+        }
 
         if (songs != null && songs.isNotEmpty) {
           final inPlaylist = songs.any((s) {
@@ -411,12 +431,10 @@ class EntityContextMenus {
           (p) => p.id == playlist.id,
           orElse: () => playlist,
         );
-        var songs = current.songs != null
-            ? List<PlaylistItem>.from(current.songs!)
-            : <PlaylistItem>[];
+        var trackIndex = library.getPlaylistTrackIndex(current.id);
 
         // If songs have not been hydrated yet, fetch first page
-        if (songs.isEmpty) {
+        if (trackIndex == null || trackIndex.tracks.isEmpty) {
           try {
             final fetched = await metadata.getPlaylistInfo(
               current.id,
@@ -425,51 +443,37 @@ class EntityContextMenus {
               policy: MetadataFetchPolicy.refreshIfExpired,
             );
             if (fetched.songs != null && fetched.songs!.isNotEmpty) {
-              songs = List<PlaylistItem>.from(fetched.songs!);
-              library.updatePlaylistSongs(current.id, songs);
+              library.updatePlaylistSongs(current.id, fetched.songs!);
+              trackIndex = library.getPlaylistTrackIndex(current.id);
             }
           } catch (_) {}
         }
 
-        final clean =
-            track.id.contains(':') ? track.id.split(':').last : track.id;
-        var inPlaylist = songs.any((s) {
-          final sClean = s.id.contains(':') ? s.id.split(':').last : s.id;
-          return s.id == track.id || sClean == clean;
-        });
+        var inPlaylist = trackIndex?.containsTrack(track.id) ?? false;
+        final hydratedCount = trackIndex?.tracks.length ?? 0;
 
         // If not in first page, but playlist has more tracks, check full list before adding
         if (!inPlaylist &&
             current.total != null &&
-            current.total! > songs.length) {
+            current.total! > hydratedCount) {
           try {
             final full = await metadata.fetchFullPlaylistWithTracks(
               current.id,
               source: current.source,
             );
             if (full.songs != null) {
-              songs = List<PlaylistItem>.from(full.songs!);
-              library.updatePlaylistSongs(current.id, songs);
-              inPlaylist = songs.any((s) {
-                final sClean =
-                    s.id.contains(':') ? s.id.split(':').last : s.id;
-                return s.id == track.id || sClean == clean;
-              });
+              library.updatePlaylistSongs(current.id, full.songs!);
+              trackIndex = library.getPlaylistTrackIndex(current.id);
+              inPlaylist = trackIndex?.containsTrack(track.id) ?? false;
             }
           } catch (_) {}
         }
 
         if (inPlaylist) {
-          PlaylistItem? targetItem;
-          for (final s in songs) {
-            final sClean = s.id.contains(':') ? s.id.split(':').last : s.id;
-            if (s.id == track.id || sClean == clean) {
-              targetItem = s;
-              break;
-            }
-          }
-          final targetUid = targetItem?.uid;
-          final isUid = targetUid != null && RegExp(r'^[0-9a-fA-F]{16}$').hasMatch(targetUid);
+          final targetUid = trackIndex?.uidForTrack(track.id);
+          final isUid =
+              targetUid != null &&
+              RegExp(r'^[0-9a-fA-F]{16}$').hasMatch(targetUid);
           final trackIdOrUid = isUid ? targetUid : track.id;
 
           try {
@@ -484,11 +488,7 @@ class EntityContextMenus {
             }
             return;
           }
-          songs.removeWhere((s) {
-            final sClean = s.id.contains(':') ? s.id.split(':').last : s.id;
-            return s.id == track.id || sClean == clean;
-          });
-          library.updatePlaylistSongs(current.id, songs);
+          library.removeTrackIdFromPlaylist(current.id, track.id);
           if (ctx.mounted) {
             ctx.showSuccessAlert('Removed from ${current.title}');
           }
@@ -505,21 +505,11 @@ class EntityContextMenus {
             }
             return;
           }
-          songs.add(
-            PlaylistItem(
-              id: track.id,
-              source: track.source,
-              title: track.title,
-              artists: track.artists,
-              thumbnailUrl: track.thumbnailUrl,
-              explicit: track.explicit,
-              album: track.album,
-              durationSecs: track.durationSecs,
-              addedAt: DateTime.now(),
-              trackNumber: (songs.length + 1),
-            ),
+          library.addTrackIdToPlaylist(
+            current.id,
+            track.id,
+            source: current.source,
           );
-          library.updatePlaylistSongs(current.id, songs);
           if (ctx.mounted) {
             ctx.showSuccessAlert('Added to ${current.title}');
           }

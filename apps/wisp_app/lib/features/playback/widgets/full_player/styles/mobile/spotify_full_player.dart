@@ -879,10 +879,19 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     final position = context.select<PlaybackCoordinator, Duration>(
       (coordinator) => coordinator.effectiveInterpolatedPosition,
     );
+    final bufferedPosition = context.select<PlaybackCoordinator, Duration>(
+      (coordinator) => coordinator.effectiveBufferedPosition,
+    );
     final duration = player.duration;
     final clampedPosition = position > duration ? duration : position;
     final progress = duration.inMilliseconds > 0
         ? position.inMilliseconds / duration.inMilliseconds
+        : 0.0;
+    final bufferedProgress = duration.inMilliseconds > 0
+        ? (bufferedPosition.inMilliseconds / duration.inMilliseconds).clamp(
+            0.0,
+            1.0,
+          )
         : 0.0;
 
     if (isLoading) {
@@ -941,12 +950,16 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                   ),
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 6),
                   activeTrackColor: bgColor,
+                  secondaryActiveTrackColor: Colors.white.withValues(
+                    alpha: 0.28,
+                  ),
                   inactiveTrackColor: Colors.grey[800],
                   thumbColor: Colors.white,
                   overlayColor: colorScheme.primary.withValues(alpha: 0.2),
                 ),
                 child: Slider(
                   value: animatedProgress,
+                  secondaryTrackValue: bufferedProgress,
                   onChanged: (value) {
                     final newPosition = Duration(
                       milliseconds: (value * duration.inMilliseconds).toInt(),

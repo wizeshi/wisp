@@ -67,6 +67,7 @@ class PlaybackEngineState {
   final bool isPlaying;
   final bool isBuffering;
   final Duration position;
+  final Duration bufferedPosition;
   final Duration duration;
   final double volume;
   /// The source currently audible (or paused) in the active slot.
@@ -87,6 +88,7 @@ class PlaybackEngineState {
     required this.isPlaying,
     required this.isBuffering,
     required this.position,
+    this.bufferedPosition = Duration.zero,
     required this.duration,
     required this.volume,
     this.source,
@@ -101,6 +103,7 @@ class PlaybackEngineState {
     bool? isPlaying,
     bool? isBuffering,
     Duration? position,
+    Duration? bufferedPosition,
     Duration? duration,
     double? volume,
     PlaybackSource? source,
@@ -111,6 +114,7 @@ class PlaybackEngineState {
     isPlaying: isPlaying ?? this.isPlaying,
     isBuffering: isBuffering ?? this.isBuffering,
     position: position ?? this.position,
+    bufferedPosition: bufferedPosition ?? this.bufferedPosition,
     duration: duration ?? this.duration,
     volume: volume ?? this.volume,
     source: source ?? this.source,
@@ -123,6 +127,7 @@ class PlaybackEngineState {
     isPlaying: false,
     isBuffering: false,
     position: Duration.zero,
+    bufferedPosition: Duration.zero,
     duration: Duration.zero,
     volume: 1,
   );

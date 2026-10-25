@@ -1593,10 +1593,19 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     final position = context.select<PlaybackCoordinator, Duration>(
       (coordinator) => coordinator.effectiveInterpolatedPosition,
     );
+    final bufferedPosition = context.select<PlaybackCoordinator, Duration>(
+      (coordinator) => coordinator.effectiveBufferedPosition,
+    );
     final duration = player.duration;
     final clampedPosition = position > duration ? duration : position;
     final progress = duration.inMilliseconds > 0
         ? position.inMilliseconds / duration.inMilliseconds
+        : 0.0;
+    final bufferedProgress = duration.inMilliseconds > 0
+        ? (bufferedPosition.inMilliseconds / duration.inMilliseconds).clamp(
+            0.0,
+            1.0,
+          )
         : 0.0;
 
     if (isLoading) {
@@ -1655,12 +1664,16 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   ),
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 2),
                   activeTrackColor: Colors.grey[300],
+                  secondaryActiveTrackColor: Colors.white.withValues(
+                    alpha: 0.45,
+                  ),
                   inactiveTrackColor: Colors.grey[400],
                   thumbColor: Colors.white,
                   overlayColor: colorScheme.primary.withValues(alpha: 0.2),
                 ),
                 child: Slider(
                   value: animatedProgress,
+                  secondaryTrackValue: bufferedProgress,
                   onChanged: (value) {
                     final newPosition = Duration(
                       milliseconds: (value * duration.inMilliseconds).toInt(),
@@ -2156,6 +2169,7 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
   late List<ValueNotifier<LyricsFrame>> _lineTimingNotifiers;
   Ticker? _positionTicker;
   VoidCallback? _focusListener;
+  PlaybackCoordinator? _coordinatorRef;
   bool _freezeWhenUnfocused = false;
   int _currentLineIndex = -1;
   Set<int> _currentActiveIndices = {};
@@ -2178,22 +2192,55 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    try {
+      final coordinator = context.read<PlaybackCoordinator>();
+      if (!identical(_coordinatorRef, coordinator)) {
+        _coordinatorRef?.removeListener(_handleCoordinatorChanged);
+        _coordinatorRef = coordinator;
+        _coordinatorRef?.addListener(_handleCoordinatorChanged);
+      }
+    } catch (_) {}
+    _syncTickerState();
+  }
+
+  void _handleCoordinatorChanged() {
+    if (!mounted) return;
+    _syncTickerState();
+    if (!(_coordinatorRef?.effectiveIsPlaying ?? false)) {
+      _updateCurrentLine();
+    }
+  }
+
+  void _syncTickerState() {
+    final isPlaying = _coordinatorRef?.effectiveIsPlaying ?? false;
+    final canTick =
+        isPlaying &&
+        widget.lyricsRenderMode != LyricsSyncMode.unsynced &&
+        (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
+    if (canTick) {
+      if (_positionTicker != null && !_positionTicker!.isActive) {
+        _positionTicker!.start();
+      }
+    } else {
+      _positionTicker?.stop();
+    }
+  }
+
   void _setupFocusListener() {
     _focusListener = () {
       if (!mounted) return;
       final isFocused = AppFocusService.instance.isFocused.value;
+      _syncTickerState();
       if (isFocused) {
-        if (_positionTicker != null && !_positionTicker!.isActive) {
-          _positionTicker!.start();
-        }
         _updateCurrentLine();
         if (!_userInteracting &&
             _lastFocusIndex >= 0 &&
             widget.lyricsRenderMode != LyricsSyncMode.unsynced) {
           _scrollToLine(_lastFocusIndex);
         }
-      } else if (_freezeWhenUnfocused) {
-        _positionTicker?.stop();
       }
     };
     AppFocusService.instance.isFocused.addListener(_focusListener!);
@@ -2254,6 +2301,7 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
       AppFocusService.instance.isFocused.removeListener(_focusListener!);
       _focusListener = null;
     }
+    _coordinatorRef?.removeListener(_handleCoordinatorChanged);
     _resumeAutoScrollTimer?.cancel();
     _positionTicker?.dispose();
     _disposeLines();
@@ -2268,11 +2316,13 @@ class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
       if (_freezeWhenUnfocused && !AppFocusService.instance.isFocused.value) {
         return;
       }
+      if (!(_coordinatorRef?.effectiveIsPlaying ?? true)) {
+        _positionTicker?.stop();
+        return;
+      }
       _updateCurrentLine();
     });
-    if (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value) {
-      _positionTicker!.start();
-    }
+    _syncTickerState();
   }
 
   int _effectivePositionMs(int delayMs) {
