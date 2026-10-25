@@ -101,7 +101,7 @@ class _UpdateWidgetState extends State<UpdateWidget> {
 
         final updateText = snapshot.data == true
           ? isPreRelease
-            ? 'Pre-Release version'
+            ? 'Pre-Release'
             : 'Up to date'
           : 'Update available';
 
