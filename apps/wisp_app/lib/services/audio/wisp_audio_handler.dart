@@ -18,6 +18,7 @@ import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/services/discord/discord_rpc_service.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
+import 'package:wisp/features/connect/services/spotify_web_player_service.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/sources/youtube/youtube_audio.dart';
@@ -726,6 +727,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
     _handlePositionUpdate(engineState.position);
     _handleRpcPositionTick();
+    _handleSpotifyReportTick();
 
     // Don't let a mid-transition buffering/playing blip flip our
     // higher-level state — _transitionToNext()/_loadTrackAtIndex() already
@@ -742,6 +744,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       } else if (_state == PlaybackState.playing ||
           _state == PlaybackState.loading) {
         _setState(PlaybackState.paused);
+    if (_currentTrack != null) {
+      SpotifyWebPlayerService.instance.reportPlaybackState(
+        track: _currentTrack!,
+        isPlaying: false,
+        position: position,
+        volume: volume,
+      );
+    }
       }
     }
 
@@ -856,6 +866,23 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     });
   }
 
+  int _spotifyLastReportSecond = -1;
+
+  void _handleSpotifyReportTick() {
+    final track = _currentTrack;
+    if (track == null || !isPlaying) return;
+    final seconds = position.inSeconds;
+    if (seconds == 30 || _spotifyLastReportSecond == -1 || (seconds - _spotifyLastReportSecond).abs() >= 5) {
+      _spotifyLastReportSecond = seconds;
+      SpotifyWebPlayerService.instance.reportPlaybackState(
+        track: track,
+        isPlaying: isPlaying,
+        position: position,
+        volume: volume,
+      );
+    }
+  }
+
   void _handleRpcPositionTick() {
     if (_currentTrack == null) return;
     if (!isPlaying) return;
@@ -916,6 +943,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
           _stopMprisTimer();
         }
         _updateDiscordPresence(force: true);
+    if (_currentTrack != null) {
+      SpotifyWebPlayerService.instance.reportPlaybackState(
+        track: _currentTrack!,
+        isPlaying: true,
+        position: position,
+        volume: volume,
+      );
+    }
       }
     }
   }
@@ -1523,6 +1558,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _setTrackTransitioning(true);
     _setState(PlaybackState.loading);
     _updateMediaItem();
+    _spotifyLastReportSecond = -1;
+    SpotifyWebPlayerService.instance.onTrackChanged();
 
     try {
       final source = await _getPlaybackSourceWithRetry(track);

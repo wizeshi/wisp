@@ -20,6 +20,10 @@ import 'package:wisp/features/connect/services/lan_connect_service.dart';
 import 'package:wisp/features/connect/services/connect_transport.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/core/utils/logger.dart';
+import 'package:wisp/data/sources/auth/auth_source_manager.dart';
+import 'package:wisp/features/connect/services/spotify_connect_api_client.dart';
+import 'package:wisp/features/connect/services/spotify_connect_models.dart';
+import 'package:wisp/features/connect/services/spotify_web_player_service.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 
 // Structured error codes so the UI can react without brittle string matching.
@@ -88,6 +92,9 @@ class ConnectSessionProvider extends ChangeNotifier
   Duration get linkedPosition => _linkedPosition;
   @override
   Duration get linkedInterpolatedPosition {
+    if (_activeConnectionKind == ConnectionKind.spotifyConnect) {
+      return _spotifyPlaybackPosition;
+    }
     final updatedAt = _linkedPositionUpdatedAt;
     if (!_linkedIsPlaying || updatedAt == null) {
       return _linkedPosition;
@@ -101,7 +108,10 @@ class ConnectSessionProvider extends ChangeNotifier
 
   bool _linkedIsPlaying = false;
   @override
-  bool get linkedIsPlaying => _linkedIsPlaying;
+  bool get linkedIsPlaying =>
+      _activeConnectionKind == ConnectionKind.spotifyConnect
+          ? _spotifyPlaybackIsPlaying
+          : _linkedIsPlaying;
 
   ConnectLinkMode _activeLinkMode = ConnectLinkMode.fullHandoff;
   ConnectLinkMode get activeLinkMode => _activeLinkMode;
@@ -123,6 +133,18 @@ class ConnectSessionProvider extends ChangeNotifier
   HandoffDeviceType? _linkedDeviceType;
   HandoffDeviceType? get linkedDeviceType => _linkedDeviceType;
 
+  List<SpotifyConnectDevice> _spotifyConnectDevices = const [];
+  List<SpotifyConnectDevice> get spotifyConnectDevices =>
+      List.unmodifiable(_spotifyConnectDevices);
+
+  SpotifyConnectDevice? _activeSpotifyDevice;
+  SpotifyConnectDevice? get activeSpotifyDevice => _activeSpotifyDevice;
+
+  Timer? _spotifyDiscoveryTimer;
+  Timer? _spotifyPollingTimer;
+  bool _spotifyPlaybackIsPlaying = false;
+  Duration _spotifyPlaybackPosition = Duration.zero;
+
   /// Convenience label for whichever destination (audio device or handoff
   /// peer) is currently active, or null if neither is.
   String? get activeOutputDeviceName {
@@ -131,6 +153,8 @@ class ConnectSessionProvider extends ChangeNotifier
         return _activeAudioOutputDevice?.name;
       case ConnectionKind.handoff:
         return _linkedPeerName;
+      case ConnectionKind.spotifyConnect:
+        return _activeSpotifyDevice?.name;
       case ConnectionKind.none:
         return null;
     }
@@ -299,6 +323,37 @@ class ConnectSessionProvider extends ChangeNotifier
       '[Handoff] Initialized local device id=$_localDeviceId name=$_localDeviceName platform=$localPlatform',
     );
     await _startOutputRouteMonitoring();
+    unawaited(() async {
+      await SpotifyWebPlayerService.instance.initialize(localDeviceName: _localDeviceName);
+
+      SpotifyWebPlayerService.instance.onRemoteSongReceived = (song, {seekTo, isPaused = false}) async {
+        logger.i('[ConnectSession] Remote song received from Spotify Connect: "${song.title}"');
+        final audio = _audioHandler;
+        if (audio != null) {
+          await audio.playTrack(song);
+          if (seekTo != null && seekTo > Duration.zero) {
+            await audio.seek(seekTo);
+          }
+          if (isPaused) {
+            await audio.pause();
+          }
+        }
+      };
+      SpotifyWebPlayerService.instance.onRemotePlay = () => _audioHandler?.play();
+      SpotifyWebPlayerService.instance.onRemotePause = () => _audioHandler?.pause();
+      SpotifyWebPlayerService.instance.onRemoteNext = () => _audioHandler?.skipToNext();
+      SpotifyWebPlayerService.instance.onRemotePrevious = () => _audioHandler?.skipToPrevious();
+      SpotifyWebPlayerService.instance.onRemoteSeek = (pos) => _audioHandler?.seek(pos);
+      SpotifyWebPlayerService.instance.onRemoteVolume = (vol) => _audioHandler?.setVolume(vol);
+
+      SpotifyWebPlayerService.instance.onDevicesChanged = (devices) {
+        final localName = SpotifyWebPlayerService.instance.publishedName.toLowerCase();
+        _spotifyConnectDevices = devices.where((d) => d.name.toLowerCase() != localName).toList();
+        notifyListeners();
+      };
+
+      await SpotifyWebPlayerService.instance.start();
+    }());
     notifyListeners();
   }
 
@@ -323,10 +378,14 @@ class ConnectSessionProvider extends ChangeNotifier
   }
 
   @override
-  bool get isLinked => _linkedDeviceId != null;
+  bool get isLinked =>
+      _linkedDeviceId != null ||
+      _activeConnectionKind == ConnectionKind.spotifyConnect;
 
   @override
-  bool get isHost => _role == ConnectRole.host;
+  bool get isHost =>
+      _role == ConnectRole.host ||
+      _activeConnectionKind == ConnectionKind.spotifyConnect;
 
   @override
   bool get isTarget => _role == ConnectRole.target;
@@ -620,6 +679,10 @@ class ConnectSessionProvider extends ChangeNotifier
     Map<String, dynamic> payload = const {},
   }) async {
     if (!isLinked) return;
+    if (_activeConnectionKind == ConnectionKind.spotifyConnect) {
+      await _sendSpotifyCommand(command, payload: payload);
+      return;
+    }
     await _requestCommand(command, payload: payload);
   }
 
@@ -1371,6 +1434,10 @@ class ConnectSessionProvider extends ChangeNotifier
 
   Future<void> _stopDiscoveryInternal() async {
     _pruneTimer?.cancel();
+    _spotifyDiscoveryTimer?.cancel();
+    _spotifyDiscoveryTimer = null;
+    _spotifyPollingTimer?.cancel();
+    _spotifyPollingTimer = null;
     _pruneTimer = null;
     await _deviceLeftSubscription?.cancel();
     _deviceLeftSubscription = null;
@@ -2412,6 +2479,92 @@ class ConnectSessionProvider extends ChangeNotifier
     _stopHostInterpolationTimer();
     await _transport.dispose();
   }
+  // ---------------------------------------------------------------------------
+  // Spotify Connect Integration
+  // ---------------------------------------------------------------------------
+
+  Future<void> _sendSpotifyCommand(
+    String command, {
+    Map<String, dynamic> payload = const {},
+  }) async {
+    final deviceId = _activeSpotifyDevice?.id;
+    switch (command) {
+      case _cmdPlay:
+        await SpotifyConnectApiClient.instance.resume(deviceId: deviceId);
+        _spotifyPlaybackIsPlaying = true;
+        notifyListeners();
+        break;
+      case _cmdPause:
+        await SpotifyConnectApiClient.instance.pause(deviceId: deviceId);
+        _spotifyPlaybackIsPlaying = false;
+        notifyListeners();
+        break;
+      case _cmdSeek:
+        final posMs = payload['position_ms'] as int? ?? 0;
+        await SpotifyConnectApiClient.instance.seek(Duration(milliseconds: posMs), deviceId: deviceId);
+        _spotifyPlaybackPosition = Duration(milliseconds: posMs);
+        notifyListeners();
+        break;
+      case _cmdSkipNext:
+        await SpotifyConnectApiClient.instance.next(deviceId: deviceId);
+        break;
+      case _cmdSkipPrevious:
+        await SpotifyConnectApiClient.instance.previous(deviceId: deviceId);
+        break;
+    }
+  }
+
+  Future<void> startSpotifyDeviceDiscovery() async {
+    final auth = AuthSourceManager.instance.getAuthSource('spotify');
+    if (auth == null || !auth.isAuthenticated) {
+      if (_spotifyConnectDevices.isNotEmpty) {
+        _spotifyConnectDevices = const [];
+        notifyListeners();
+      }
+      return;
+    }
+    final devices = await SpotifyWebPlayerService.instance.refreshDevices();
+    final localName = SpotifyWebPlayerService.instance.publishedName.toLowerCase();
+    _spotifyConnectDevices = devices.where((d) => d.name.toLowerCase() != localName).toList();
+    notifyListeners();
+  }
+
+  void stopSpotifyDeviceDiscovery() {
+    // Real-time device updates arrive via Spotify Dealer WebSocket push events
+  }
+
+  Future<void> transferToSpotifyDevice(SpotifyConnectDevice device) async {
+    final audio = _audioHandler;
+    if (audio == null) return;
+
+    if (_activeConnectionKind == ConnectionKind.handoff) {
+      unlink(localResumed: false);
+    }
+
+    _activeSpotifyDevice = device;
+    _activeConnectionKind = ConnectionKind.spotifyConnect;
+    audio.setIsHandoffHost(true);
+    notifyListeners();
+
+    await SpotifyConnectApiClient.instance.transferPlayback(device.id, play: audio.isPlaying);
+  }
+
+  Future<void> unlinkSpotifyDevice({bool resumeLocal = true}) async {
+    if (_activeConnectionKind != ConnectionKind.spotifyConnect) return;
+    final deviceId = _activeSpotifyDevice?.id;
+    _activeSpotifyDevice = null;
+    _activeConnectionKind = ConnectionKind.none;
+    _audioHandler?.setIsHandoffHost(false);
+
+    if (deviceId != null) {
+      await SpotifyConnectApiClient.instance.pause(deviceId: deviceId);
+    }
+    if (resumeLocal) {
+      await _audioHandler?.play();
+    }
+    notifyListeners();
+  }
+
 }
 
 class SystemUi {

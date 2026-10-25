@@ -33,6 +33,9 @@ enum ConnectionKind {
 
   /// A full Connect handoff/control link to another device on the network.
   handoff,
+
+  /// Playback handed off to an external Spotify Connect device (Echo, TV, etc.).
+  spotifyConnect,
 }
 
 /// The kind of peer device a handoff link is connected to, used purely for

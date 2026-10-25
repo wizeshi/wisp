@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
+import 'package:wisp/features/connect/services/spotify_connect_models.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 
@@ -155,10 +156,24 @@ class _ConnectDeviceIndicatorState extends State<ConnectDeviceIndicator> {
 
         showConnectStatus = true;
       } else {
-        // User is not using Handoff or alternative audio output.
-        deviceName = null;
-        deviceIcon = null;
-        showConnectStatus = false;
+        final isSpotifyConnect = context.select<ConnectSessionProvider, bool>(
+          (provider) => provider.activeConnectionKind == ConnectionKind.spotifyConnect,
+        );
+        if (isSpotifyConnect) {
+          final spotifyDevice = context.select<ConnectSessionProvider, SpotifyConnectDevice?>(
+            (provider) => provider.activeSpotifyDevice,
+          );
+          if (spotifyDevice != null) {
+            deviceName = spotifyDevice.name;
+            deviceIcon = spotifyDevice.type.icon;
+            showConnectStatus = true;
+          }
+        } else {
+          // User is not using Handoff or alternative audio output.
+          deviceName = null;
+          deviceIcon = null;
+          showConnectStatus = false;
+        }
       }
     }
 

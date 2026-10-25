@@ -10,10 +10,12 @@ import 'package:wisp_audio_output_info/models/types.dart';
 
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/data/sources/auth/auth_source_manager.dart';
+import 'package:wisp/features/connect/services/spotify_connect_models.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
-class ConnectMenu extends StatelessWidget {
+class ConnectMenu extends StatefulWidget {
   final VoidCallback onClose;
   final ScrollController? scrollController;
   final bool compact;
@@ -24,6 +26,27 @@ class ConnectMenu extends StatelessWidget {
     this.scrollController,
     this.compact = false,
   });
+
+  @override
+  State<ConnectMenu> createState() => _ConnectMenuState();
+}
+
+class _ConnectMenuState extends State<ConnectMenu> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<ConnectSessionProvider>().startSpotifyDeviceDiscovery();
+      }
+    });
+  }
+
+  @override
+  void deactivate() {
+    context.read<ConnectSessionProvider>().stopSpotifyDeviceDiscovery();
+    super.deactivate();
+  }
 
   Future<void> _showSecurityRetryDialog(
     BuildContext context,
@@ -57,6 +80,9 @@ class ConnectMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onClose = widget.onClose;
+    final scrollController = widget.scrollController;
+    final compact = widget.compact;
     final accent = Theme.of(context).colorScheme.primary;
 
     final isMobile = Platform.isAndroid || Platform.isIOS;
@@ -216,6 +242,37 @@ class ConnectMenu extends StatelessWidget {
                           ),
                         );
                       }),
+                    if (AuthSourceManager.instance.getAuthSource('spotify')?.isAuthenticated ?? false) ...[
+                      const SizedBox(height: 12),
+                      const _ListSectionLabel(text: 'Spotify Connect Devices'),
+                      const SizedBox(height: 8),
+                      if (connect.spotifyConnectDevices.isEmpty)
+                        _ListInlineEmpty(
+                          accent: accent,
+                          text: 'No Spotify Connect devices found.',
+                        )
+                      else
+                        ...connect.spotifyConnectDevices.map((spotifyDev) {
+                          final isSelected =
+                              connect.activeConnectionKind == ConnectionKind.spotifyConnect &&
+                              connect.activeSpotifyDevice?.id == spotifyDev.id;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _SpotifyConnectDeviceCard(
+                              device: spotifyDev,
+                              selected: isSelected,
+                              accent: accent,
+                              onTap: () {
+                                if (isSelected) {
+                                  connect.unlinkSpotifyDevice(resumeLocal: true);
+                                } else {
+                                  connect.transferToSpotifyDevice(spotifyDev);
+                                }
+                              },
+                            ),
+                          );
+                        }),
+                    ],
                   ],
                 ),
               ),
@@ -336,6 +393,16 @@ class _CurrentOutputCard extends StatelessWidget {
             ? 'Handoff on mobile'
             : 'Handoff on desktop';
         title = connect.activeOutputDeviceName ?? 'Handoff device';
+        break;
+      case ConnectionKind.spotifyConnect:
+        final spotifyDev = connect.activeSpotifyDevice;
+        icon = Icon(
+          spotifyDev?.type.icon ?? Icons.speaker,
+          color: accent,
+          size: 24,
+        );
+        subtitle = 'Spotify Connect';
+        title = spotifyDev?.name ?? 'Spotify Device';
         break;
     }
 
@@ -970,5 +1037,97 @@ class _HandoffIcon extends StatelessWidget {
         ? Symbols.smartphone
         : Symbols.computer;
     return _OutputIconShell(icon: icon, accent: accent);
+  }
+}
+
+class _SpotifyConnectDeviceCard extends StatelessWidget {
+  final SpotifyConnectDevice device;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  const _SpotifyConnectDeviceCard({
+    required this.device,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected
+          ? accent.withValues(alpha: 0.18)
+          : const Color(0xFF1B1B1B),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? accent.withValues(alpha: 0.6) : Colors.white10,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? accent.withValues(alpha: 0.25)
+                      : Colors.white10,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  device.type.icon,
+                  color: selected ? accent : Colors.white70,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      selected
+                          ? 'Connected • Spotify Connect'
+                          : 'Spotify Connect • ${device.type.label}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected ? accent : Colors.grey[400],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                selected ? Icons.check_circle : Icons.cast,
+                color: selected ? accent : Colors.white70,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
