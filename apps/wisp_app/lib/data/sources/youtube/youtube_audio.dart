@@ -65,6 +65,18 @@ class YouTubeResult {
   });
 }
 
+class YouTubeStreamResult {
+  final String url;
+  final String format;
+  final int bitrate;
+
+  const YouTubeStreamResult({
+    required this.url,
+    this.format = 'm4a',
+    this.bitrate = 160,
+  });
+}
+
 class NativeAndroidNewPipeDelegate implements NewPipeAndroidDelegate {
   @override
   Future<String> getStreamUrl(String videoId, {Duration? timeout}) async {
@@ -384,13 +396,19 @@ class YouTubeProvider {
 
   /// Get audio stream URL for a video ID
   Future<String> getStreamUrl(String videoId) async {
+    final result = await getStreamResult(videoId);
+    return result.url;
+  }
+
+  /// Get audio stream details (URL, format, bitrate) for a video ID
+  Future<YouTubeStreamResult> getStreamResult(String videoId) async {
     final isDesktop =
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 
     final isNewPipeDesktopAvaliable =
         (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
-    final isYouTubeKitAvailable = Platform.isIOS /* || TODO Platform.isMacOS */;
+    final isYouTubeKitAvailable = Platform.isIOS || Platform.isMacOS;
     final isNewPipeAvailable = Platform.isAndroid || isNewPipeDesktopAvaliable;
 
     final isYTDLPAvailable =
@@ -401,6 +419,7 @@ class YouTubeProvider {
 
     for (YouTubeEngine engine in preferredEngineOrder) {
       String streamURL = '';
+      YouTubeStreamResult? streamResult;
 
       switch (engine) {
         case YouTubeEngine.YouTubeKit:
@@ -412,19 +431,19 @@ class YouTubeProvider {
             '[YouTube/YouTubeKit] Attempting to get stream URL for video ID: $videoId',
           );
           try {
-            final url = await _getStreamUrlUsingYoutubeKitIOS(videoId);
+            final result = await _getStreamDetailsUsingYouTubeKit(videoId);
+            streamResult = result;
+            streamURL = result.url;
 
             const chunkSize = 200;
-            for (int i = 0; i < url.length; i += chunkSize) {
-              final end = (i + chunkSize < url.length)
+            for (int i = 0; i < streamURL.length; i += chunkSize) {
+              final end = (i + chunkSize < streamURL.length)
                   ? i + chunkSize
-                  : url.length;
+                  : streamURL.length;
               logger.d(
-                '[YouTube/YouTubeKit] URL part ${(i ~/ chunkSize) + 1}: ${url.substring(i, end)}',
+                '[YouTube/YouTubeKit] URL part ${(i ~/ chunkSize) + 1}: ${streamURL.substring(i, end)}',
               );
             }
-
-            streamURL = url;
           } catch (e) {
             logger.w('[YouTube/YouTubeKit] YouTubeKit failed.', error: e);
           }
@@ -438,6 +457,7 @@ class YouTubeProvider {
           if (isDesktop) {
             try {
               streamURL = await _getStreamUrlUsingNewPipeDesktop(videoId);
+              streamResult = YouTubeStreamResult(url: streamURL, format: 'm4a', bitrate: 160);
             } catch (e) {
               logger.w(
                 "[YouTube/NewPipe] NewPipeExtractor (desktop) failed, falling back",
@@ -447,6 +467,7 @@ class YouTubeProvider {
           } else {
             try {
               streamURL = await _getStreamUrlUsingNewPipeAndroid(videoId);
+              streamResult = YouTubeStreamResult(url: streamURL, format: 'm4a', bitrate: 160);
             } catch (e) {
               logger.w(
                 "[YouTube/NewPipe] NewPipeExtractor failed, falling back to YT-DLP",
@@ -469,6 +490,7 @@ class YouTubeProvider {
           try {
             final url = await WispYtdlpManager.instance.getStreamUrl(videoId);
             streamURL = url;
+            streamResult = YouTubeStreamResult(url: streamURL, format: 'm4a', bitrate: 160);
             logger.d(
               '[YouTube/YT-DLP] ✓ Got stream URL via YT-DLP (${streamURL.length} chars)',
             );
@@ -490,7 +512,9 @@ class YouTubeProvider {
           break;
         case YouTubeEngine.YoutubeExplode:
           try {
-            streamURL = await _getStreamUrlUsingYoutubeExplode(videoId);
+            final result = await _getStreamUsingYoutubeExplode(videoId);
+            streamURL = result.url;
+            streamResult = result;
           } catch (e) {
             logger.w('[YouTube/Explode] Fallback failed', error: e);
           }
@@ -505,7 +529,7 @@ class YouTubeProvider {
           );
           continue;
         }
-        return streamURL;
+        return streamResult ?? YouTubeStreamResult(url: streamURL, format: 'm4a', bitrate: 160);
       }
     }
 
@@ -567,19 +591,44 @@ class YouTubeProvider {
     }
   }
 
-  Future<String> _getStreamUrlUsingYoutubeKitIOS(String videoID) async {
-    logger.d("[YouTube/YouTubeKit] Fetching stream URL for video ID: $videoID");
-    final String url = await _platform.invokeMethod(
-      'getStreamUrlYoutubeKitIOS',
+  Future<YouTubeStreamResult> _getStreamDetailsUsingYouTubeKit(String videoID) async {
+    logger.d("[YouTube/YouTubeKit] Fetching stream details for video ID: $videoID");
+    final dynamic res = await _platform.invokeMethod(
+      'getStreamUrlYoutubeKit',
       {'videoId': videoID},
     );
-    logger.d(
-      '[YouTube/YouTubeKit] ✓ Got stream URL via YouTubeKit (${url.length} chars)',
-    );
-    return url;
+
+    if (res is Map) {
+      final rawBitrate = res['bitrate'];
+      final int bitrateKbps = rawBitrate is num
+          ? (rawBitrate > 1000 ? rawBitrate ~/ 1000 : rawBitrate.toInt())
+          : 160;
+      final rawFormat = (res['format'] as String?)?.toLowerCase() ?? 'm4a';
+      final format = (rawFormat == 'webm' || rawFormat == 'opus') ? 'opus' : rawFormat;
+      final url = res['url'] as String;
+      logger.d(
+        '[YouTube/YouTubeKit] ✓ Got stream URL via YouTubeKit (${url.length} chars, format: $format, bitrate: ${bitrateKbps}k)',
+      );
+      return YouTubeStreamResult(
+        url: url,
+        format: format,
+        bitrate: bitrateKbps,
+      );
+    } else if (res is String) {
+      logger.d(
+        '[YouTube/YouTubeKit] ✓ Got stream URL via YouTubeKit (${res.length} chars)',
+      );
+      return YouTubeStreamResult(
+        url: res,
+        format: 'm4a',
+        bitrate: 160,
+      );
+    }
+
+    throw YouTubeException('Unexpected response from YouTubeKit: $res');
   }
 
-  Future<String> _getStreamUrlUsingYoutubeExplode(String videoId) async {
+  Future<YouTubeStreamResult> _getStreamUsingYoutubeExplode(String videoId) async {
     try {
       logger.d('[YouTube/Explode] Fetching manifest for video ID: $videoId');
       final manifest = await _youtube.videos.streamsClient.getManifest(
@@ -605,8 +654,17 @@ class YouTubeProvider {
       for (final stream in sortedStreams) {
         final url = stream.url.toString();
         if (await isStreamUrlValid(url)) {
-          logger.d('[YouTube/Explode] ✓ Got stream URL (${url.length} chars)');
-          return url;
+          final containerName = stream.container.name.toLowerCase();
+          final format = (containerName == 'webm' || containerName == 'opus') ? 'opus' : 'm4a';
+          final bitrateKbps = stream.bitrate.kiloBitsPerSecond.round();
+          logger.d(
+            '[YouTube/Explode] ✓ Got stream URL (${url.length} chars, format: $format, bitrate: ${bitrateKbps}k)',
+          );
+          return YouTubeStreamResult(
+            url: url,
+            format: format,
+            bitrate: bitrateKbps > 0 ? bitrateKbps : 160,
+          );
         }
         logger.w(
           '[YouTube/Explode] Stream candidate returned non-200, trying next',

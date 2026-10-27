@@ -73,12 +73,12 @@ class YouTubeAudioSource extends AudioSource {
     String mediaId, {
     AudioQuality? preferredQuality,
   }) async {
-    final streamUrl = await _youtube.getStreamUrl(mediaId);
+    final streamResult = await _youtube.getStreamResult(mediaId);
     return AudioStreamResult(
-      url: streamUrl,
+      url: streamResult.url,
       headers: {'User-Agent': YouTubeProvider.userAgentForPlatform()},
-      format: 'm4a',
-      bitrate: 160,
+      format: streamResult.format,
+      bitrate: streamResult.bitrate,
       expiresAt: DateTime.now().add(const Duration(hours: 4)),
     );
   }

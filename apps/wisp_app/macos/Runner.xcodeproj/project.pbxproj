@@ -29,6 +29,7 @@
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		5C0412183016C4CF00047062 /* YouTubeKit in Frameworks */ = {isa = PBXBuildFile; productRef = 5C0412173016C4CF00047062 /* YouTubeKit */; };
 		9DBC9DEF256F97F4C6BD709B /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1747812F04D91B9DD859F6C5 /* Pods_RunnerTests.framework */; };
 /* End PBXBuildFile section */
 
@@ -107,6 +108,7 @@
 			files = (
 				78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */,
 				00AA158435D0FF5115A8802C /* Pods_Runner.framework in Frameworks */,
+				5C0412183016C4CF00047062 /* YouTubeKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -253,6 +255,7 @@
 			name = Runner;
 			packageProductDependencies = (
 				78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */,
+				5C0412173016C4CF00047062 /* YouTubeKit */,
 			);
 			productName = Runner;
 			productReference = 33CC10ED2044A3C60003C045 /* wisp.app */;
@@ -300,6 +303,7 @@
 			mainGroup = 33CC10E42044A3C60003C045;
 			packageReferences = (
 				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "FlutterGeneratedPluginSwiftPackage" */,
+				5C0412133016BE1700047062 /* XCRemoteSwiftPackageReference "YouTubeKit" */,
 			);
 			productRefGroup = 33CC10EE2044A3C60003C045 /* Products */;
 			projectDirPath = "";
@@ -822,7 +826,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		5C0412133016BE1700047062 /* XCRemoteSwiftPackageReference "YouTubeKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/alexeichhorn/YouTubeKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.8;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		5C0412173016C4CF00047062 /* YouTubeKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5C0412133016BE1700047062 /* XCRemoteSwiftPackageReference "YouTubeKit" */;
+			productName = YouTubeKit;
+		};
 		78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FlutterGeneratedPluginSwiftPackage;

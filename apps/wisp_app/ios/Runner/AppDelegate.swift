@@ -27,14 +27,14 @@ import YouTubeKit
       guard let self else { return }
 
       switch call.method {
-      case "getStreamUrlYoutubeKitIOS":
+      case "getStreamUrlYoutubeKit", "getStreamUrlYoutubeKitIOS":
         guard
           let args = call.arguments as? [String: Any],
           let videoId = args["videoId"] as? String
         else {
           result(FlutterError(
             code: "INVALID_ARGUMENTS",
-            message: "Invalid arguments for getStreamUrlYoutubeKitIOS",
+            message: "Invalid arguments for \(call.method)",
             details: nil
           ))
           return
@@ -45,8 +45,8 @@ import YouTubeKit
         // once that finishes.
         Task {
           do {
-            let streamUrl = try await self.getStreamUrlUsingYouTubeKit(videoId: videoId)
-            result(streamUrl)
+            let streamDetails = try await self.getStreamDetailsUsingYouTubeKit(videoId: videoId)
+            result(streamDetails)
           } catch {
             result(FlutterError(
               code: "STREAM_FETCH_FAILED",
@@ -62,7 +62,7 @@ import YouTubeKit
     }
   }
 
-  private func getStreamUrlUsingYouTubeKit(videoId: String) async throws -> String {
+  private func getStreamDetailsUsingYouTubeKit(videoId: String) async throws -> [String: Any] {
     let video = YouTube(videoID: videoId, methods: [.local, .remote])
 
     // AVPlayer can only decode M4A/AAC audio containers — it cannot open
@@ -84,6 +84,10 @@ import YouTubeKit
       )
     }
 
-    return audioStream.url.absoluteString
+    return [
+      "url": audioStream.url.absoluteString,
+      "format": audioStream.fileExtension.rawValue,
+      "bitrate": audioStream.bitrate ?? 160000
+    ]
   }
 }
