@@ -1,12 +1,30 @@
 TODOs for version v26.10:
 
 - Bugs:
+  - [ ] Fix spacing between progress bar and song info in full player
+  - [ ] Fix lyrics highlighting when lines overflow
+  - [ ] Fix library view:
+    - [ ] Pinning an item does not correctly update the UI
+    - [ ] Folders are showing before playlists, regardless of pinned status.
+    - [ ] Show all items by default: pills should be optional
+    - [ ] Remove the enable drag button: make draggable default 
   - [ ] Previous lyrics lines only get grayed out if they played while the app was focused
   - [ ] Adding track to playlist resets current track position
-  - [ ] AM full player's lyrics autoscrolls past active lyrics lines if there are multiple
+  - [ ] AM full player's lyrics autoscrolls past active lyrics lines if there are multiple 
+  - [ ] Fix mobile DJ view spacing
+  - [ ] Shuffle button in original style plays the playlist
 - Features/Changes:
+  - [x] Make fullplayer button see through
+  - [x] Move GitHub url to wisp icon
+  - [ ] Improve player bar swipe gesture and appearance
+  - [ ] Improve marketplace appearance on mobile
+  - [ ] Add heros between player bar and full player on mobile. Also change the AM animation to a hero.
   - [ ] Add sort mode headers to mobile playlist view
-  - [ ] Make 
+  - [ ] Change search view history to show both queries and selected/played items
+  - [ ] Mobile Context Menu
+    - [ ] Add new source icon
+    - [ ] Add playlist/album/artist preview 
+    - [ ] Add proper scrolling
   - [ ] Update installer with new marketplace features
   - [ ] Add special card from the home screen on mobile. 
   - [ ] Make artist name clickable in the full player

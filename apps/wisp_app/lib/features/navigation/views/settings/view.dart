@@ -7,6 +7,8 @@ import 'dart:io' show Directory, Platform, Process;
 import 'package:material_ui/material_ui.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/sources/auth/js_auth_source.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/core/theme/app_theme.dart';
@@ -1674,6 +1676,15 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildCreditsSection() {
+    // ignore: no_leading_underscores_for_local_identifiers
+    Future<void> _launchUrl(String url) async {
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url));
+      } else {
+        logger.e("[Settings/Update]: Could not launch $url");
+      }
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF181818),
@@ -1686,11 +1697,17 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Row(
               spacing: 16,
               children: [
-                Image.asset(
-                  WispIcons.logo,
-                  width: _isDesktop ? 96 : 32,
-                  height: _isDesktop ? 96 : 32,
-                  filterQuality: FilterQuality.high,
+                GenericIconButton(
+                  padding: EdgeInsets.zero,
+                  icon: Image.asset(
+                    WispIcons.logo,
+                    width: _isDesktop ? 96 : 32,
+                    height: _isDesktop ? 96 : 32,
+                    filterQuality: FilterQuality.high,
+                  ),
+                  onPressed: () {
+                    _launchUrl(WispInfo.github);
+                  },
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

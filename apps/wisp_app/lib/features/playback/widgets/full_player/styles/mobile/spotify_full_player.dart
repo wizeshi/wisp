@@ -818,9 +818,9 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                               return Row(
                                 children: [
                                   Text(
-                                    showConnectStatus ? 
-                                      '$deviceName • $label' 
-                                      : label,
+                                    showConnectStatus
+                                        ? '$deviceName • $label'
+                                        : label,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 12,
@@ -1099,30 +1099,42 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
       (coordinator) => coordinator.effectiveIsPlaying,
     );
 
-    return Container(
+    return SizedBox(
       width: 64,
       height: 64,
-      decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
-      child: GenericIconButton(
-        style: AppStyle.Spotify,
-        icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-        iconSize: 36,
-        color: Colors.black,
-        padding: EdgeInsets.zero,
-        onPressed: () {
-          if (isPlaying) {
-            context.read<PlaybackCoordinator>().pause();
-          } else {
-            final audio = context.read<global_audio_player.WispAudioHandler>();
-            if (!useHandoffState &&
-                (audio.isLoading ||
-                    audio.isBuffering ||
-                    audio.isTrackTransitioning)) {
-              return;
-            }
-            context.read<PlaybackCoordinator>().play();
-          }
-        },
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CustomPaint(
+            painter: _CutoutCircleIconPainter(
+              color: bgColor,
+              icon: isPlaying ? Icons.pause : Icons.play_arrow,
+              iconSize: 36,
+            ),
+          ),
+          // Interactive ripple overlay for taps
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () {
+                if (isPlaying) {
+                  context.read<PlaybackCoordinator>().pause();
+                } else {
+                  final audio = context
+                      .read<global_audio_player.WispAudioHandler>();
+                  if (!useHandoffState &&
+                      (audio.isLoading ||
+                          audio.isBuffering ||
+                          audio.isTrackTransitioning)) {
+                    return;
+                  }
+                  context.read<PlaybackCoordinator>().play();
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1375,5 +1387,63 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
   }
 }
 
-/// Apple Music variant — currently uses the Spotify layout but is a separate
-/// class to allow future customization.
+class _CutoutCircleIconPainter extends CustomPainter {
+  final Color color;
+  final IconData icon;
+  final double iconSize;
+
+  const _CutoutCircleIconPainter({
+    required this.color,
+    required this.icon,
+    required this.iconSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide / 2;
+
+    // 1. Isolate drawing in a layer so dstOut punches through the circle
+    // without cutting into widgets rendered behind this button.
+    canvas.saveLayer(rect, Paint());
+
+    // 2. Draw the circular background (guaranteed circle, not a square)
+    canvas.drawCircle(center, radius, Paint()..color = color);
+
+    // 3. Render the icon text span
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
+          inherit: false,
+          color: Colors.white,
+          fontSize: iconSize,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final textOffset = Offset(
+      center.dx - textPainter.width / 2,
+      center.dy - textPainter.height / 2,
+    );
+
+    // 4. Punch out the icon from the circle using dstOut
+    canvas.saveLayer(rect, Paint()..blendMode = BlendMode.dstOut);
+    textPainter.paint(canvas, textOffset);
+    canvas.restore();
+
+    // 5. Restore the circle-with-cutout layer onto the canvas
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _CutoutCircleIconPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.icon != icon ||
+        oldDelegate.iconSize != iconSize;
+  }
+}

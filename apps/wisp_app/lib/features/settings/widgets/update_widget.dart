@@ -3,11 +3,8 @@
 import 'dart:io' show Platform;
 import 'package:material_ui/material_ui.dart';
 import 'package:http/http.dart' as http;
-import 'package:simple_icons/simple_icons.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:wisp/core/utils/json.dart';
 import 'package:wisp/core/utils/logger.dart';
-import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp_assets/wisp_assets.dart';
 
 String removeAlphabetFromString(String input) {
@@ -82,14 +79,6 @@ class _UpdateWidgetState extends State<UpdateWidget> {
     return isUpdated;
   }
 
-  Future<void> _launchUrl(String url) async {
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
-    } else {
-      logger.e("[Settings/Update]: Could not launch $url");
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     const iconSize = 32.0;
@@ -118,31 +107,6 @@ class _UpdateWidgetState extends State<UpdateWidget> {
           return Row(
             spacing: _isDesktop ? 8 : 0,
             children: [
-              if (isUpdated)
-                GenericIconButton(
-                  icon: Center(
-                    child: OverflowBox(
-                      minWidth: 0,
-                      minHeight: 0,
-                      maxWidth: double.infinity,
-                      maxHeight: double.infinity,
-                      child: Icon(
-                        SimpleIcons.github,
-                        color: Colors.grey[700],
-                        size: 32,
-                      ),
-                    ),
-                  ),
-                  onPressed: () {
-                    _launchUrl(WispInfo.github);
-                  },
-                  constraints: BoxConstraints(
-                    minWidth: iconSize,
-                    minHeight: iconSize,
-                    maxWidth: iconSize,
-                    maxHeight: iconSize,
-                  ),
-                ),
               if (_isDesktop) const SizedBox.shrink(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
