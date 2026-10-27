@@ -126,6 +126,24 @@ void main() {
       expect(generic.songs?.first.id, 'p1');
       expect(generic.durationSecs, 200);
     });
+
+    test('parseCookieString parses both header format and multi-line formats', () {
+      const headerCookie = 'SAPISID=test_sapi; SID=test_sid; LOGIN_INFO=test_login';
+      final parsedHeader = YouTubeMetadataProvider.parseCookieString(headerCookie);
+      expect(parsedHeader['SAPISID'], 'test_sapi');
+      expect(parsedHeader['SID'], 'test_sid');
+      expect(parsedHeader['LOGIN_INFO'], 'test_login');
+
+      const multilineCookie = '''
+SAPISID: test_sapi_2
+SID: test_sid_2
+LOGIN_INFO: test_login_2
+''';
+      final parsedMultiline = YouTubeMetadataProvider.parseCookieString(multilineCookie);
+      expect(parsedMultiline['SAPISID'], 'test_sapi_2');
+      expect(parsedMultiline['SID'], 'test_sid_2');
+      expect(parsedMultiline['LOGIN_INFO'], 'test_login_2');
+    });
   });
 }
 

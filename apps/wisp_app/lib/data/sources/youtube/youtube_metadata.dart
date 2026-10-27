@@ -84,31 +84,78 @@ class YouTubeMetadataProvider extends MetadataProvider {
 
   @override
   Future<void> login(BuildContext context) async {
+    final nextUrl = Uri.encodeComponent('https://music.youtube.com/login?cbrd=1&feature=__FEATURE__&hl=en-GB');
+    final continueComponent = Uri.encodeComponent('https://www.youtube.com/signin?action_handle_signin=true&app=desktop&hl=en-GB&next=$nextUrl');
+    final loginUrl = 'https://accounts.google.com/ServiceLogin?ltmpl=music&service=youtube&uilel=3&passive=true&continue=$continueComponent';
+
     try {
       final result = await Navigator.of(context).push<Map<String, dynamic>?>(
         MaterialPageRoute(
           fullscreenDialog: true,
-          builder: (_) => const AuthWebviewDialog(
-            initialUrl: 'https://music.youtube.com',
+          builder: (_) => AuthWebviewDialog(
+            initialUrl: loginUrl,
             title: 'YouTube Music Login',
-            targetCookies: ['SAPISID'],
+            targetCookies: const ['SAPISID'],
+            requiredHost: 'youtube.com',
+            cookieUrls: const [
+              'https://music.youtube.com',
+              'https://www.youtube.com',
+            ],
           ),
         ),
       );
 
       if (result != null && result['cookies'] != null) {
         final cookies = Map<String, String>.from(result['cookies'] as Map);
-        await ServiceSessionManager.instance.setSession('youtube', {'cookies': cookies});
-        final authStatus = await WispInnerTubeXMetadataExtractor.instance.setSessionCookies(cookies);
-        _isAuthenticated = authStatus.authenticated;
-        _userDisplayName = authStatus.userDisplayName;
-        _userId = authStatus.userId;
-        notifyListeners();
+        await setCookies(cookies);
         logger.i('[YouTubeMetadataProvider] Successfully logged into YouTube Music');
       }
     } catch (e) {
       logger.e('[YouTubeMetadataProvider] Login failed', error: e);
     }
+  }
+
+  Future<bool> setCookies(Map<String, String> cookies) async {
+    try {
+      await ServiceSessionManager.instance.setSession('youtube', {'cookies': cookies});
+      final authStatus = await WispInnerTubeXMetadataExtractor.instance.setSessionCookies(cookies);
+      _isAuthenticated = authStatus.authenticated;
+      _userDisplayName = authStatus.userDisplayName;
+      _userId = authStatus.userId;
+      notifyListeners();
+      return _isAuthenticated;
+    } catch (e) {
+      logger.e('[YouTubeMetadataProvider] setCookies failed', error: e);
+      return false;
+    }
+  }
+
+  static Map<String, String> parseCookieString(String raw) {
+    final Map<String, String> result = {};
+    final lines = raw.split(RegExp(r'[\r\n]+'));
+    for (final line in lines) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+      if (trimmed.contains('=')) {
+        final parts = trimmed.split(';');
+        for (final p in parts) {
+          final eqIdx = p.indexOf('=');
+          if (eqIdx > 0) {
+            final k = p.substring(0, eqIdx).trim();
+            final v = p.substring(eqIdx + 1).trim();
+            if (k.isNotEmpty && v.isNotEmpty) result[k] = v;
+          }
+        }
+      } else if (trimmed.contains(':')) {
+        final colonIdx = trimmed.indexOf(':');
+        if (colonIdx > 0) {
+          final k = trimmed.substring(0, colonIdx).trim();
+          final v = trimmed.substring(colonIdx + 1).trim();
+          if (k.isNotEmpty && v.isNotEmpty) result[k] = v;
+        }
+      }
+    }
+    return result;
   }
 
   @override

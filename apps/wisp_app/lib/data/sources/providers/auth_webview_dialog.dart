@@ -14,6 +14,8 @@ class AuthWebviewDialog extends StatefulWidget {
   final String title;
   final List<String> targetCookies;
   final String? redirectUrlPrefix;
+  final String? requiredHost;
+  final List<String> cookieUrls;
 
   const AuthWebviewDialog({
     super.key,
@@ -21,6 +23,8 @@ class AuthWebviewDialog extends StatefulWidget {
     this.title = 'Login',
     this.targetCookies = const [],
     this.redirectUrlPrefix,
+    this.requiredHost,
+    this.cookieUrls = const [],
   });
 
   @override
@@ -37,14 +41,16 @@ class _AuthWebviewDialogState extends State<AuthWebviewDialog> {
     if (_hasPopped || !mounted) return;
     _hasPopped = true;
 
-    try {
-      _controller?.stopLoading();
-    } catch (_) {}
-
-    final route = ModalRoute.of(context);
-    if (route != null && route.isCurrent) {
-      Navigator.of(context).pop(result);
-    }
+    // Do NOT invoke _controller?.stopLoading() here, as calling Stop() during native
+    // NavigationCompleted event handlers can corrupt WebView2 COM state on Windows.
+    // Defer the Navigator pop so that the native event callback completes before disposal.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route != null && route.isCurrent) {
+        Navigator.of(context).pop(result);
+      }
+    });
   }
 
   Future<Map<String, String>> _collectCookiesForCurrentUrl() async {
@@ -52,11 +58,24 @@ class _AuthWebviewDialogState extends State<AuthWebviewDialog> {
     try {
       final uri = await _controller?.getUrl();
       if (_hasPopped) return {};
-      final url = uri ?? WebUri(widget.initialUrl);
-      final cookies = await _cookieManager.getCookies(url: url);
+      final urlsToQuery = <WebUri>[];
+      if (uri != null) {
+        urlsToQuery.add(uri);
+      } else {
+        urlsToQuery.add(WebUri(widget.initialUrl));
+      }
+      for (final extra in widget.cookieUrls) {
+        urlsToQuery.add(WebUri(extra));
+      }
+
       final Map<String, String> map = {};
-      for (final c in cookies) {
-        if (c.value != null) map[c.name] = c.value!.trim();
+      for (final u in urlsToQuery) {
+        final cookies = await _cookieManager.getCookies(url: u);
+        for (final c in cookies) {
+          if (c.value != null && c.name.isNotEmpty) {
+            map[c.name] = c.value!.trim();
+          }
+        }
       }
       return map;
     } catch (e) {
@@ -67,6 +86,17 @@ class _AuthWebviewDialogState extends State<AuthWebviewDialog> {
 
   void _checkConditions(Map<String, String> cookies, String? currentUrl) {
     if (_hasPopped || !mounted) return;
+
+    if (widget.requiredHost != null && currentUrl != null) {
+      try {
+        final uri = Uri.parse(currentUrl);
+        if (!uri.host.toLowerCase().contains(widget.requiredHost!.toLowerCase())) {
+          return;
+        }
+      } catch (_) {
+        return;
+      }
+    }
 
     // 1. Check target cookies condition
     if (widget.targetCookies.isNotEmpty) {
@@ -93,9 +123,6 @@ class _AuthWebviewDialogState extends State<AuthWebviewDialog> {
   @override
   void dispose() {
     _hasPopped = true;
-    try {
-      _controller?.stopLoading();
-    } catch (_) {}
     super.dispose();
   }
 
@@ -106,9 +133,6 @@ class _AuthWebviewDialogState extends State<AuthWebviewDialog> {
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) {
           _hasPopped = true;
-          try {
-            _controller?.stopLoading();
-          } catch (_) {}
         }
       },
       child: Scaffold(

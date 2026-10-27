@@ -544,7 +544,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
         Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.end,
-          spacing: 10,
+          spacing: 0,
           children: [
             Builder(
               builder: (buttonContext) {
@@ -564,6 +564,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                 );
               },
             ),
+            const SizedBox(width: 2),
             GenericIconButton(
               onPressed: widget.onDownloadAll,
               icon: Icon(
@@ -575,33 +576,39 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
             Selector<WispAudioHandler, RepeatMode>(
               selector: (context, player) => player.repeatMode,
               builder: (context, repeatMode, _) {
-                return GenericIconButton.filled(
+                return GenericFilledButton(
                   onPressed: widget.onToggleLoop,
-                  icon: Icon(
-                    repeatMode == RepeatMode.one
-                        ? Icons.repeat_one
-                        : Icons.repeat,
-                    color: Colors.white,
-                    size: 24,
-                  ),
                   backgroundColor: repeatMode != RepeatMode.off
                       ? colorScheme.primary
                       : Colors.transparent,
+                  foregroundColor: colorScheme.onPrimary,
+                  padding: EdgeInsets.all(16),
+                  shape: const CircleBorder(),
+                  child: Icon(
+                    repeatMode == RepeatMode.one
+                        ? Icons.repeat_one
+                        : Icons.repeat,
+                    size: 24,
+                  ),
                 );
               },
             ),
             Selector<WispAudioHandler, bool>(
               selector: (context, player) => player.shuffleEnabled,
               builder: (context, shuffleActive, _) {
-                return GenericIconButton.filled(
+                return GenericFilledButton(
                   onPressed: widget.onShuffle,
-                  icon: Icon(Icons.shuffle, color: Colors.white, size: 24),
                   backgroundColor: shuffleActive
                       ? colorScheme.primary
                       : Colors.transparent,
+                  foregroundColor: colorScheme.onPrimary,
+                  padding: EdgeInsets.all(16),
+                  shape: const CircleBorder(),
+                  child: Icon(Icons.shuffle, size: 24),
                 );
               },
             ),
+            const SizedBox(width: 6),
             Selector<WispAudioHandler, bool>(
               selector: (context, player) =>
                   player.isPlaying &&

@@ -22,6 +22,7 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart'
 import 'package:wisp/data/sources/audio/audio_source.dart';
 import 'settings_downloads_view.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
+import 'package:wisp/data/sources/youtube/youtube_metadata.dart';
 import 'package:wisp/features/settings/widgets/settings_content.dart';
 import 'package:wisp/features/settings/widgets/cache_deletion_dialog.dart';
 import 'package:wisp/features/settings/widgets/trusted_devices_dialog.dart';
@@ -76,6 +77,126 @@ class _SettingsPageState extends State<SettingsPage> {
       await auth.logout();
       if (mounted) {
         context.showSuccessAlert('Logged out successfully');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorAlert('Logout failed: $e');
+      }
+    }
+  }
+
+  Future<void> _handleYouTubeLogin(YouTubeMetadataProvider yt) async {
+    final option = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF282828),
+        title: const Text('YouTube Music Login', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Choose how you want to sign in to YouTube Music:',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            GenericElevatedButton(
+              onPressed: () => Navigator.pop(ctx, 'webview'),
+              child: const Text('Sign in with Webview'),
+            ),
+            const SizedBox(height: 12),
+            GenericOutlinedButton(
+              onPressed: () => Navigator.pop(ctx, 'cookies'),
+              child: const Text('Import Cookies / Session'),
+            ),
+          ],
+        ),
+        actions: [
+          GenericTextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (option == 'webview') {
+      try {
+        await yt.login(context);
+        if (mounted && yt.isAuthenticated) {
+          context.showSuccessAlert('Successfully connected to YouTube Music!');
+        }
+      } catch (e) {
+        if (mounted) context.showErrorAlert('YouTube login failed: $e');
+      }
+    } else if (option == 'cookies') {
+      final controller = TextEditingController();
+      final bool? ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF282828),
+          title: const Text('Import YouTube Cookies', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Paste your YouTube cookies (e.g. "SAPISID=...; SID=..." or multi-line "SAPISID: ..."):',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: controller,
+                maxLines: 6,
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+                decoration: InputDecoration(
+                  hintText: 'SAPISID=...\nSID=...\nLOGIN_INFO=...',
+                  hintStyle: TextStyle(color: Colors.grey[600]),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            GenericTextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+            ),
+            GenericElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (ok == true) {
+        final cookies = YouTubeMetadataProvider.parseCookieString(controller.text);
+        if (cookies.isEmpty) {
+          context.showWarningAlert('No valid cookies found in text');
+          return;
+        }
+        final success = await yt.setCookies(cookies);
+        if (mounted) {
+          if (success) {
+            context.showSuccessAlert('Successfully connected to YouTube Music!');
+          } else {
+            context.showErrorAlert('Could not authenticate with provided cookies');
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _handleYouTubeLogout(YouTubeMetadataProvider yt) async {
+    try {
+      await yt.logout();
+      if (mounted) {
+        context.showSuccessAlert('Disconnected from YouTube Music');
       }
     } catch (e) {
       if (mounted) {
@@ -160,6 +281,7 @@ class _SettingsPageState extends State<SettingsPage> {
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
     final content = SettingsContent(
+      buildYouTubeCard: _buildYouTubeCard,
       buildProviderCard: _buildProviderCard,
       buildCacheSettingsCard: _buildCacheSettingsCard,
       buildStylePreferenceRow: _buildStylePreferenceRow,
@@ -690,6 +812,110 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 12),
                 Text(
                   'Log in to sync your library and lyrics',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildYouTubeCard(BuildContext context) {
+    return Consumer<YouTubeMetadataProvider?>(
+      builder: (context, yt, _) {
+        if (yt == null) return const SizedBox.shrink();
+
+        final isConnected = yt.isAuthenticated;
+        const accentColor = Color(0xFFFF0000);
+
+        return Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF181818),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accentColor,
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'YouTube Music',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            if (isConnected) ...[
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                                size: 16,
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (isConnected && yt.userDisplayName != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            yt.userDisplayName!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isConnected) ...[
+                        GenericIconButton(
+                          icon: Icon(Icons.logout, color: Colors.grey[400]),
+                          onPressed: () => _handleYouTubeLogout(yt),
+                          tooltip: 'Logout',
+                        ),
+                      ] else ...[
+                        GenericIconButton(
+                          icon: const Icon(Icons.login, color: accentColor),
+                          onPressed: () => _handleYouTubeLogin(yt),
+                          tooltip: 'Login',
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+              if (!isConnected) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Log in to sync your YouTube Music library and liked tracks',
                   style: TextStyle(color: Colors.grey[500], fontSize: 13),
                 ),
               ],

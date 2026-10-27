@@ -17,6 +17,7 @@ import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
 class SettingsContent extends StatelessWidget {
   final Widget Function(BuildContext, JsAuthSource, String, IconData, Color)
   buildProviderCard;
+  final Widget Function(BuildContext)? buildYouTubeCard;
   final Widget Function(BuildContext) buildCacheSettingsCard;
   final Widget Function() buildStylePreferenceRow;
   final Widget Function() buildAudioPreferenceRow;
@@ -31,6 +32,7 @@ class SettingsContent extends StatelessWidget {
   const SettingsContent({
     super.key,
     required this.buildProviderCard,
+    this.buildYouTubeCard,
     required this.buildCacheSettingsCard,
     required this.buildStylePreferenceRow,
     required this.buildAudioPreferenceRow,
@@ -80,6 +82,10 @@ class SettingsContent extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            if (buildYouTubeCard != null) ...[
+              buildYouTubeCard!(context),
+              const SizedBox(height: 16),
+            ],
             ...providerCards,
             _buildMarketplaceRow(context),
         const SizedBox(height: 16),
