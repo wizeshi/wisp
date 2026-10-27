@@ -8,6 +8,7 @@ enum InstallTaskId {
   integrateOs,
   downloadJavaRuntime,
   downloadNewPipe,
+  downloadInnerTubeX,
   downloadYtDlp,
 }
 
@@ -19,6 +20,7 @@ String labelForTask(InstallTaskId task) {
     InstallTaskId.integrateOs => 'Integrating with OS',
     InstallTaskId.downloadJavaRuntime => 'Installing Java 21 Runtime (JVM)',
     InstallTaskId.downloadNewPipe => 'Installing NewPipeExtractor',
+    InstallTaskId.downloadInnerTubeX => 'Installing InnerTubeX',
     InstallTaskId.downloadYtDlp => 'Installing YT-DLP + Node.js',
   };
 }
@@ -30,6 +32,7 @@ String categoryForTask(InstallTaskId task) {
     InstallTaskId.integrateOs => 'Install/OS',
     InstallTaskId.downloadJavaRuntime => 'Install/Java',
     InstallTaskId.downloadNewPipe => 'Install/NewPipe',
+    InstallTaskId.downloadInnerTubeX => 'Install/InnerTubeX',
     InstallTaskId.downloadYtDlp => 'Install/YT-DLP',
   };
 }
@@ -46,7 +49,8 @@ List<InstallTaskId> buildTaskPlan(Map<InstallationComponent, bool> selected) {
   }
 
   final needsJava = selected[InstallationComponent.JavaRuntime] == true ||
-      selected[InstallationComponent.NewPipeExtractor] == true;
+      selected[InstallationComponent.NewPipeExtractor] == true ||
+      selected[InstallationComponent.InnerTubeX] == true;
 
   if (needsJava) {
     tasks.add(InstallTaskId.downloadJavaRuntime);
@@ -54,6 +58,9 @@ List<InstallTaskId> buildTaskPlan(Map<InstallationComponent, bool> selected) {
 
   if (selected[InstallationComponent.NewPipeExtractor] == true) {
     tasks.add(InstallTaskId.downloadNewPipe);
+  }
+  if (selected[InstallationComponent.InnerTubeX] == true) {
+    tasks.add(InstallTaskId.downloadInnerTubeX);
   }
   if (selected[InstallationComponent.YT_DLP] == true) {
     tasks.add(InstallTaskId.downloadYtDlp);

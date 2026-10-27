@@ -9,6 +9,7 @@ workspace:
   - packages/wisp_assets
   - packages/wisp_jvm
   - packages/wisp_newpipe_manager
+  - packages/wisp_innertubex_manager
   - packages/wisp_ytdlp_manager
   - packages/wisp_playback_engine
   - packages/wisp_audio_output_info

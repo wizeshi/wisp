@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:wisp_jvm/wisp_jvm.dart';
 import 'package:wisp_newpipe_manager/installer/newpipe_installer.dart';
+import 'package:wisp_innertubex_manager/installer/innertubex_installer.dart';
 import 'package:wisp_ytdlp_manager/installer/ytdlp_installer.dart';
 import 'package:wisp_installer/installation/install_controller.dart';
 import 'package:wisp_installer/installation/models/install_session.dart';
@@ -34,6 +35,8 @@ class InstallOrchestrator {
             await _installJavaRuntime();
           case InstallTaskId.downloadNewPipe:
             await _installNewPipeExtractor();
+          case InstallTaskId.downloadInnerTubeX:
+            await _installInnerTubeX();
           case InstallTaskId.downloadYtDlp:
             await _installYtDlpAndNode();
         }
@@ -556,6 +559,32 @@ Categories=AudioVideo;Audio;Player;
       _controller.log(
         category,
         'NewPipeStreamExtractor installed successfully.',
+      );
+    } finally {
+      await installer.cleanup();
+    }
+  }
+
+  Future<void> _installInnerTubeX() async {
+    const category = 'Install/InnerTubeX';
+
+    final installer = InnerTubeXInstaller();
+    try {
+      await for (final progress in installer.installJarOnly()) {
+        _controller.log(category, progress.stage);
+
+        if (progress.totalBytes != null && progress.totalBytes! > 0) {
+          _controller.logTaskProgress(
+            category,
+            progress.bytesReceived ?? 0,
+            progress.totalBytes,
+          );
+        }
+      }
+      _controller.setTaskProgress(1.0);
+      _controller.log(
+        category,
+        'InnerTubeXStreamExtractor installed successfully.',
       );
     } finally {
       await installer.cleanup();

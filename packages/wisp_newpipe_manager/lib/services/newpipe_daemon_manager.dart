@@ -63,7 +63,7 @@ class NewPipeDaemonManager {
 
       final process = await Process.start(
         javaExec,
-        ['-jar', jar],
+        ['-Djava.net.preferIPv6Addresses=true', '-jar', jar],
       );
 
       _process = process;

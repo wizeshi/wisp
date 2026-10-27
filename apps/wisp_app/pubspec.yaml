@@ -4,7 +4,7 @@ publish_to: 'none'
 
 resolution: workspace
 
-version: 26.10.2+448
+version: 26.10.2+455
 
 environment:
   sdk: ^3.10.7
@@ -70,6 +70,7 @@ dependencies:
       url: https://github.com/Hexer10/youtube_explode_dart.git
       ref: master
   wisp_newpipe_manager: any
+  wisp_innertubex_manager: any
   wisp_ytdlp_manager: any
   newpipeextractor_dart: ^2.0.2
 

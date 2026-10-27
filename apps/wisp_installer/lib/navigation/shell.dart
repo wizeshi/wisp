@@ -32,6 +32,8 @@ enum InstallationComponent {
   // ignore: constant_identifier_names
   NewPipeExtractor,
   // ignore: constant_identifier_names
+  InnerTubeX,
+  // ignore: constant_identifier_names
   YT_DLP,
 }
 
@@ -50,6 +52,7 @@ class _AppShellState extends State<AppShell> {
     InstallationComponent.EdgeWebView2: true,
     InstallationComponent.JavaRuntime: true,
     InstallationComponent.NewPipeExtractor: true,
+    InstallationComponent.InnerTubeX: true,
     InstallationComponent.YT_DLP: true,
   };
   bool installationInProgress = false;
@@ -109,14 +112,16 @@ class _AppShellState extends State<AppShell> {
       final selected = value ?? false;
       selectedComponents[component] = selected;
 
-      // If NewPipe is enabled, JavaRuntime must be enabled
-      if (selectedComponents[InstallationComponent.NewPipeExtractor] == true) {
+      // If NewPipe or InnerTubeX is enabled, JavaRuntime must be enabled
+      if (selectedComponents[InstallationComponent.NewPipeExtractor] == true ||
+          selectedComponents[InstallationComponent.InnerTubeX] == true) {
         selectedComponents[InstallationComponent.JavaRuntime] = true;
       }
 
-      // If JavaRuntime is disabled, NewPipe cannot be enabled
+      // If JavaRuntime is disabled, JVM engines cannot be enabled
       if (component == InstallationComponent.JavaRuntime && !selected) {
         selectedComponents[InstallationComponent.NewPipeExtractor] = false;
+        selectedComponents[InstallationComponent.InnerTubeX] = false;
       }
     });
   }

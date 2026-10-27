@@ -11,6 +11,7 @@ import 'package:wisp_newpipe_manager/services/android_extractor_delegate.dart';
 import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:wisp_ytdlp_manager/wisp_ytdlp_manager.dart';
+import 'package:wisp_innertubex_manager/wisp_innertubex_manager.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/cache/youtube/youtube_mapping_store.dart';
 
@@ -23,6 +24,8 @@ enum YouTubeEngine {
   YouTubeKit,
   // ignore: constant_identifier_names
   YoutubeExplode,
+  // ignore: constant_identifier_names
+  InnerTubeX,
 }
 
 class YouTubeException implements Exception {
@@ -105,6 +108,7 @@ class YouTubeProvider {
   List<YouTubeEngine> preferredEngineOrder = [
     YouTubeEngine.YouTubeKit,
     YouTubeEngine.NewPipeExtractor,
+    YouTubeEngine.InnerTubeX,
     YouTubeEngine.YT_DLP,
     YouTubeEngine.YoutubeExplode,
   ];
@@ -416,6 +420,7 @@ class YouTubeProvider {
         Platform.isWindows ||
         Platform.isMacOS ||
         Platform.isAndroid;
+    final isInnerTubeXAvailable = !Platform.isIOS;
 
     for (YouTubeEngine engine in preferredEngineOrder) {
       String streamURL = '';
@@ -474,6 +479,36 @@ class YouTubeProvider {
                 error: e,
               );
             }
+          }
+
+          break;
+        case YouTubeEngine.InnerTubeX:
+          if (!isInnerTubeXAvailable) {
+            break;
+          }
+
+          logger.d(
+            '[YouTube/InnerTubeX] Attempting to get stream details for video ID: $videoId',
+          );
+          try {
+            final details = await WispInnerTubeXEngine.instance.getStreamDetails(videoId);
+            final url = details['url'] as String?;
+            if (url != null && url.isNotEmpty) {
+              streamURL = url;
+              final format = (details['format'] as String?) ?? 'opus';
+              final rawBitrate = (details['bitrate'] as num?)?.toInt() ?? 160;
+              final bitrate = rawBitrate > 1000 ? (rawBitrate ~/ 1000) : rawBitrate;
+              streamResult = YouTubeStreamResult(
+                url: streamURL,
+                format: format,
+                bitrate: bitrate,
+              );
+              logger.d(
+                '[YouTube/InnerTubeX] ✓ Got stream URL via InnerTubeX ($format @ $bitrate kbps)',
+              );
+            }
+          } catch (e) {
+            logger.w('[YouTube/InnerTubeX] InnerTubeX failed.', error: e);
           }
 
           break;

@@ -121,7 +121,8 @@ class ComponentSelectStep extends StatelessWidget {
                     onChanged: (value) {
                       toggleComponentSelection(InstallationComponent.JavaRuntime, value);
                     },
-                    isRequired: isComponentSelected(InstallationComponent.NewPipeExtractor),
+                    isRequired: isComponentSelected(InstallationComponent.NewPipeExtractor) ||
+        isComponentSelected(InstallationComponent.InnerTubeX),
                   ),
 
                   buildComponentSelectionItem(
@@ -134,6 +135,20 @@ class ComponentSelectStep extends StatelessWidget {
                     isSelected: isComponentSelected(InstallationComponent.NewPipeExtractor),
                     onChanged: (value) {
                       toggleComponentSelection(InstallationComponent.NewPipeExtractor, value);
+                    },
+                    isRequired: false,
+                  ),
+
+                  buildComponentSelectionItem(
+                    context,
+                    title: 'InnerTubeX',
+                    description: 
+                      "Metrolist InnerTubeX streaming engine and metadata extractor.\n"
+                      "Supports SABR/UMP audio streams, rich metadata, and user authentication.\n\n"
+                      "Requires the Java Virtual Machine (JVM 21) to run.",
+                    isSelected: isComponentSelected(InstallationComponent.InnerTubeX),
+                    onChanged: (value) {
+                      toggleComponentSelection(InstallationComponent.InnerTubeX, value);
                     },
                     isRequired: false,
                   ),
