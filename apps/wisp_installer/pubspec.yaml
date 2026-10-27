@@ -1,7 +1,7 @@
 name: wisp_installer
 description: "A simple installer."
 publish_to: 'none'
-version: 26.10.2+21
+version: 26.10.2+23
 
 resolution: workspace
 
@@ -19,6 +19,7 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.5
   wisp_assets: any
+  wisp_jvm: any
   wisp_newpipe_manager: any
   wisp_ytdlp_manager: any
 

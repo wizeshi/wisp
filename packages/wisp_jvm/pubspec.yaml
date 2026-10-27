@@ -1,0 +1,23 @@
+name: wisp_jvm
+description: "Shared JVM runtime manager and daemon process supervisor for wisp."
+version: 26.10.2+1
+
+resolution: workspace
+
+environment:
+  sdk: ^3.13.0
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  archive: ^4.0.9
+  http: ^1.6.0
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  wisp_shared: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

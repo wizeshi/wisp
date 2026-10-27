@@ -1,6 +1,6 @@
 // SpicyLyrics Provider for wisp
 // Fetches word-synced and syllable-synced lyrics using the SpicyLyrics Public v1 API.
-// Normalizes responses into the universal Wisp Lyrics Format (WLF).
+// Normalizes responses into the universal wisp Lyrics Format (WLF).
 
 const ZeroWidthRegex = /[\u200B\u200E\u200F\u2060\uFEFF]/g;
 
@@ -76,7 +76,7 @@ function resolveAttribution(body) {
 }
 
 /**
- * Converts SpicyLyrics API payload into Wisp Lyrics Format (WLF).
+ * Converts SpicyLyrics API payload into wisp Lyrics Format (WLF).
  */
 function parseSpicyLyricsToWlf(data) {
     if (!data || !data.Body) {

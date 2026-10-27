@@ -70,78 +70,97 @@ class ComponentSelectStep extends StatelessWidget {
               ]
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 8,
-            children: [
-              buildComponentSelectionItem(
-                context, 
-                title: 'Core ($detectedPlatform)',
-                description: "This is the app's core functionality. Not optional.",
-                isSelected: true,
-                onChanged: (value) {
-                  toggleComponentSelection(InstallationComponent.Core, value);
-                },
-                isRequired: true,
-              ),
-              if (isWindows)
-                buildComponentSelectionItem(
-                  context,
-                  title: 'Edge WebView2',
-                  description:
-                      "Microsoft Edge's WebView2 Runtime.\nWon't install if already detected on your system.",
-                  isSelected: true,
-                  onChanged: (value) {
-                    toggleComponentSelection(
-                      InstallationComponent.EdgeWebView2,
-                      value,
-                    );
-                  },
-                  isRequired: true,
-                ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 8,
+                children: [
+                  buildComponentSelectionItem(
+                    context, 
+                    title: 'Core ($detectedPlatform)',
+                    description: "This is the app's core functionality. Not optional.",
+                    isSelected: true,
+                    onChanged: (value) {
+                      toggleComponentSelection(InstallationComponent.Core, value);
+                    },
+                    isRequired: true,
+                  ),
+                  if (isWindows)
+                    buildComponentSelectionItem(
+                      context,
+                      title: 'Edge WebView2',
+                      description:
+                          "Microsoft Edge's WebView2 Runtime.\nWon't install if already detected on your system.",
+                      isSelected: true,
+                      onChanged: (value) {
+                        toggleComponentSelection(
+                          InstallationComponent.EdgeWebView2,
+                          value,
+                        );
+                      },
+                      isRequired: true,
+                    ),
 
-              buildComponentSelectionSection(
-                title: 'YouTube Engines',
-                description: 
-                  'These components are used to extract streams from YouTube.\n'
-                  'It is recommended to install at least one of these, as the app will not work without one of them installed.',
-              ),
+                  buildComponentSelectionSection(
+                    title: 'Runtimes & YouTube Engines',
+                    description: 
+                      'These components provide the background runtimes and audio engines for streaming from YouTube.\n'
+                      'It is recommended to install at least one engine, as the app will not stream YouTube audio without one.',
+                  ),
 
-              buildComponentSelectionItem(
-                context,
-                title: 'NewPipeExtractor + JVM',
-                description: 
-                  "The NewPipeExtractor is a library that allows extracting YouTube stream URLs.\n"
-                  "This component is a small program that runs this library, allowing for fast stream extraction.\n\n"
-                  "It requires the Java Virtual Machine (JVM) to run, which is included in this component.",
-                isSelected: isComponentSelected(InstallationComponent.NewPipeExtractor),
-                onChanged: (value) {
-                  toggleComponentSelection(InstallationComponent.NewPipeExtractor, value);
-                },
-                isRequired: false,
+                  buildComponentSelectionItem(
+                    context,
+                    title: 'Java Runtime (JVM 21)',
+                    description: 
+                      "Eclipse Adoptium OpenJDK 21 JRE.\n"
+                      "Required to run JVM-based engines like NewPipeExtractor.\n"
+                      "Automatically required when any JVM-dependent engine is selected.",
+                    isSelected: isComponentSelected(InstallationComponent.JavaRuntime),
+                    onChanged: (value) {
+                      toggleComponentSelection(InstallationComponent.JavaRuntime, value);
+                    },
+                    isRequired: isComponentSelected(InstallationComponent.NewPipeExtractor),
+                  ),
+
+                  buildComponentSelectionItem(
+                    context,
+                    title: 'NewPipeExtractor',
+                    description: 
+                      "The NewPipeExtractor is a library that allows extracting YouTube stream URLs.\n"
+                      "This component runs the library in the background, allowing for fast stream extraction.\n\n"
+                      "Requires the Java Virtual Machine (JVM 21) to run.",
+                    isSelected: isComponentSelected(InstallationComponent.NewPipeExtractor),
+                    onChanged: (value) {
+                      toggleComponentSelection(InstallationComponent.NewPipeExtractor, value);
+                    },
+                    isRequired: false,
+                  ),
+
+                  buildComponentSelectionItem(
+                    context,
+                    title: 'YT-DLP + Node.js',
+                    description: 
+                      "YT-DLP is a command-line program for downloading videos from YouTube and other sites.\n"
+                      "While slower, it supports automatic updates, which may prove useful if wisp doesn't get updated.\n\n"
+                      "It requires a JS Runtime (Node.js) to run, which is included in this component.",
+                    isSelected: isComponentSelected(InstallationComponent.YT_DLP),
+                    onChanged: (value) {
+                      toggleComponentSelection(InstallationComponent.YT_DLP, value);
+                    },
+                    isRequired: false,
+                  ),
+                ],
               ),
-              buildComponentSelectionItem(
-                context,
-                title: 'YT-DLP + NodeJS',
-                description: 
-                  "YT-DLP is a command-line program for downloading videos from YouTube and other sites.\n"
-                  "While slower, it supports automatic updates, which may prove useful if wisp doesn't get updated.\n\n"
-                  "It requires a JS Runtime (Node.JS) to run, which is included in this component.",
-                isSelected: isComponentSelected(InstallationComponent.YT_DLP),
-                onChanged: (value) {
-                  toggleComponentSelection(InstallationComponent.YT_DLP, value);
-                },
-                isRequired: false,
-              ),
-            ]
+            ),
           ),
-          Spacer(),
           Container(
-            padding: EdgeInsets.only(bottom: 8.0),
+            padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
             child: FilledButton(
               onPressed: showConfirmationDialog,
-              child: Text('Continue', style: TextStyle(color: Colors.white)),
-            )
+              child: const Text('Continue', style: TextStyle(color: Colors.white)),
+            ),
           )
         ]
       )

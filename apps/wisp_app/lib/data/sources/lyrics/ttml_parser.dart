@@ -6,7 +6,7 @@ import 'package:xml/xml.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 
 /// Comprehensive TTML (Timed Text Markup Language) parser that converts
-/// TTML XML documents into Wisp [LyricsResult] structures.
+/// TTML XML documents into wisp [LyricsResult] structures.
 class TtmlParser {
   const TtmlParser._();
 

@@ -1,6 +1,7 @@
 TODOs for version v26.10:
 
 - Bugs:
+  - [ ] Qobuz lossless streams are not seekable according to media_kit (files are tho)
   - [ ] Fix spacing between progress bar and song info in full player
   - [ ] Fix lyrics highlighting when lines overflow
   - [ ] Fix library view:

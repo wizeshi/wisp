@@ -6,6 +6,7 @@ enum InstallTaskId {
   installCore,
   installEdgeWebView2,
   integrateOs,
+  downloadJavaRuntime,
   downloadNewPipe,
   downloadYtDlp,
 }
@@ -13,9 +14,11 @@ enum InstallTaskId {
 String labelForTask(InstallTaskId task) {
   return switch (task) {
     InstallTaskId.installCore => 'Downloading App Core',
-    InstallTaskId.installEdgeWebView2 => 'Installing Edge WebView2 (may take a while)',
+    InstallTaskId.installEdgeWebView2 =>
+      'Installing Edge WebView2 (may take a while)',
     InstallTaskId.integrateOs => 'Integrating with OS',
-    InstallTaskId.downloadNewPipe => 'Installing NewPipeExtractor + Java',
+    InstallTaskId.downloadJavaRuntime => 'Installing Java 21 Runtime (JVM)',
+    InstallTaskId.downloadNewPipe => 'Installing NewPipeExtractor',
     InstallTaskId.downloadYtDlp => 'Installing YT-DLP + Node.js',
   };
 }
@@ -25,6 +28,7 @@ String categoryForTask(InstallTaskId task) {
     InstallTaskId.installCore => 'Install/Core',
     InstallTaskId.installEdgeWebView2 => 'Install/WebView2',
     InstallTaskId.integrateOs => 'Install/OS',
+    InstallTaskId.downloadJavaRuntime => 'Install/Java',
     InstallTaskId.downloadNewPipe => 'Install/NewPipe',
     InstallTaskId.downloadYtDlp => 'Install/YT-DLP',
   };
@@ -39,6 +43,13 @@ List<InstallTaskId> buildTaskPlan(Map<InstallationComponent, bool> selected) {
   if (Platform.isWindows &&
       selected[InstallationComponent.EdgeWebView2] == true) {
     tasks.add(InstallTaskId.installEdgeWebView2);
+  }
+
+  final needsJava = selected[InstallationComponent.JavaRuntime] == true ||
+      selected[InstallationComponent.NewPipeExtractor] == true;
+
+  if (needsJava) {
+    tasks.add(InstallTaskId.downloadJavaRuntime);
   }
 
   if (selected[InstallationComponent.NewPipeExtractor] == true) {

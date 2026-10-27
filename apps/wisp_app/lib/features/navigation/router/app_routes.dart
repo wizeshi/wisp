@@ -1,6 +1,6 @@
 // Copyright © 2026 wizeshi
 
-/// Route path and query parameter constants for Wisp
+/// Route path and query parameter constants for wisp
 class AppRoutes {
   AppRoutes._();
 

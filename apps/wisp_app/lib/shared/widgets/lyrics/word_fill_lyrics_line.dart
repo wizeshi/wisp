@@ -13,7 +13,7 @@ import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/services/system/app_focus_service.dart';
 
 /// Renders a single lyrics line with word/syllable-level fill animations (karaoke style)
-/// based on the Wisp Lyrics Format.
+/// based on the wisp Lyrics Format.
 ///
 /// Dual-layer text rendering ensures zero layout shift while syllables fill continuously
 /// from left to right at display VSYNC framerate via [LyricsLineFillClipper].

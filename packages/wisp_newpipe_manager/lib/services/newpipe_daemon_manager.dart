@@ -6,7 +6,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import 'package:wisp_newpipe_manager/services/wisp_support_directory.dart';
+import 'package:wisp_jvm/wisp_jvm.dart';
 
 class NewPipeDaemonException implements Exception {
   final String message;
@@ -37,9 +37,7 @@ class NewPipeDaemonManager {
   bool get isRunning => _process != null;
 
   Future<String> _javaExecutable() async {
-    final supportDir = await WispSupportDirectory().get();
-    final binName = Platform.isWindows ? 'java.exe' : 'java';
-    return p.join(supportDir.path, 'java', 'bin', binName);
+    return JvmRuntimeManager.instance.getJavaExecutablePath();
   }
 
   Future<String> _jarPath() async {
@@ -148,35 +146,41 @@ class NewPipeDaemonManager {
       },
     );
 
-    if (response['ok'] != true) {
+    if (response['error'] != null) {
       throw NewPipeDaemonException(
-        response['error']?.toString() ?? 'unknown daemon error',
+        'daemon error for video $videoId: ${response['error']}',
       );
     }
 
-    final streamUrl = response['streamUrl']?.toString();
-    if (streamUrl == null || streamUrl.isEmpty) {
-      throw NewPipeDaemonException('daemon returned no streamUrl');
+    final audioUrl = response['url'] as String?;
+    if (audioUrl == null || audioUrl.isEmpty) {
+      throw NewPipeDaemonException(
+        'daemon returned no stream URL for video $videoId',
+      );
     }
-    return streamUrl;
+
+    return audioUrl;
   }
 
-  /// Gracefully stops the daemon. Call this on app shutdown; not required
-  /// between individual requests — the process is meant to stay resident.
+  /// Shuts down the running daemon process, if any. Safe to call when already stopped.
   Future<void> shutdown() async {
     final process = _process;
     if (process == null) return;
 
+    _process = null;
+    await _stdoutSub?.cancel();
+    _stdoutSub = null;
+    await _stderrSub?.cancel();
+    _stderrSub = null;
+
     try {
-      process.stdin.close();
-      await process.exitCode.timeout(const Duration(seconds: 5));
-    } catch (e) {
       process.kill();
-    } finally {
-      await _stdoutSub?.cancel();
-      await _stderrSub?.cancel();
-      _process = null;
-      _starting = null;
+      await process.exitCode.timeout(const Duration(seconds: 2));
+    } catch (_) {
+      // Best-effort shutdown; ignore timeouts or signals already delivered
     }
+
+    _pending.clear();
+    _starting = null;
   }
 }

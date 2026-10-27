@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import 'package:wisp_jvm/wisp_jvm.dart';
 import 'package:wisp_newpipe_manager/installer/newpipe_installer.dart';
 import 'package:wisp_ytdlp_manager/installer/ytdlp_installer.dart';
 import 'package:wisp_installer/installation/install_controller.dart';
@@ -29,6 +30,8 @@ class InstallOrchestrator {
             await _installEdgeWebView2();
           case InstallTaskId.integrateOs:
             await _integrateOs();
+          case InstallTaskId.downloadJavaRuntime:
+            await _installJavaRuntime();
           case InstallTaskId.downloadNewPipe:
             await _installNewPipeExtractor();
           case InstallTaskId.downloadYtDlp:
@@ -507,36 +510,52 @@ Categories=AudioVideo;Audio;Player;
     return Directory(p.join(appDir, 'usr', 'wisp_app_payload'));
   }
 
-  Future<void> _installNewPipeExtractor() async {
-    const category = 'Install/NewPipe';
+  Future<void> _installJavaRuntime() async {
+    const category = 'Install/Java';
 
-    final installer = NewPipeInstaller();
-    var isDownloadingNewPipe = false;
     try {
-      await for (final progress in installer.installNewPipeExtractor()) {
+      await for (final progress in JvmRuntimeManager.instance.installJre()) {
         _controller.log(category, progress.stage);
-
-        if (progress.stage.startsWith('Downloading NewPipeStreamExtractor')) {
-          isDownloadingNewPipe = true;
-        }
 
         if (progress.totalBytes != null && progress.totalBytes! > 0) {
           _controller.logTaskProgress(
             category,
             progress.bytesReceived ?? 0,
             progress.totalBytes,
-            // The Java runtime and extractor each represent half of this
-            // single task. Mapping their independent download percentages
-            // keeps overall progress monotonic between the two downloads.
-            taskProgressStart: isDownloadingNewPipe ? 0.5 : 0.0,
-            taskProgressEnd: isDownloadingNewPipe ? 1.0 : 0.5,
           );
         }
       }
       _controller.setTaskProgress(1.0);
       _controller.log(
         category,
-        'NewPipeExtractor and Java runtime installed successfully.',
+        'Java 21 runtime installed successfully.',
+      );
+    } catch (e) {
+      _controller.log(category, 'Failed to install Java 21 runtime: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _installNewPipeExtractor() async {
+    const category = 'Install/NewPipe';
+
+    final installer = NewPipeInstaller();
+    try {
+      await for (final progress in installer.installJarOnly()) {
+        _controller.log(category, progress.stage);
+
+        if (progress.totalBytes != null && progress.totalBytes! > 0) {
+          _controller.logTaskProgress(
+            category,
+            progress.bytesReceived ?? 0,
+            progress.totalBytes,
+          );
+        }
+      }
+      _controller.setTaskProgress(1.0);
+      _controller.log(
+        category,
+        'NewPipeStreamExtractor installed successfully.',
       );
     } finally {
       await installer.cleanup();

@@ -28,6 +28,8 @@ enum InstallationComponent {
   // ignore: constant_identifier_names
   EdgeWebView2,
   // ignore: constant_identifier_names
+  JavaRuntime,
+  // ignore: constant_identifier_names
   NewPipeExtractor,
   // ignore: constant_identifier_names
   YT_DLP,
@@ -46,6 +48,7 @@ class _AppShellState extends State<AppShell> {
   Map<InstallationComponent, bool> selectedComponents = {
     InstallationComponent.Core: true,
     InstallationComponent.EdgeWebView2: true,
+    InstallationComponent.JavaRuntime: true,
     InstallationComponent.NewPipeExtractor: true,
     InstallationComponent.YT_DLP: true,
   };
@@ -103,7 +106,18 @@ class _AppShellState extends State<AppShell> {
 
   void toggleComponentSelection(InstallationComponent component, bool? value) {
     setState(() {
-      selectedComponents[component] = value ?? false;
+      final selected = value ?? false;
+      selectedComponents[component] = selected;
+
+      // If NewPipe is enabled, JavaRuntime must be enabled
+      if (selectedComponents[InstallationComponent.NewPipeExtractor] == true) {
+        selectedComponents[InstallationComponent.JavaRuntime] = true;
+      }
+
+      // If JavaRuntime is disabled, NewPipe cannot be enabled
+      if (component == InstallationComponent.JavaRuntime && !selected) {
+        selectedComponents[InstallationComponent.NewPipeExtractor] = false;
+      }
     });
   }
 
@@ -148,8 +162,10 @@ class _AppShellState extends State<AppShell> {
     return InstallationCompleteStep(
       installedComponents: [
         'wisp',
+        if (isComponentSelected(InstallationComponent.JavaRuntime))
+          'Java 21 Runtime (JVM)',
         if (isComponentSelected(InstallationComponent.NewPipeExtractor))
-          'NewPipeExtractor + Java',
+          'NewPipeExtractor',
         if (isComponentSelected(InstallationComponent.YT_DLP))
           'yt-dlp + Node.js',
         ...installedProviders.map((p) => 'Provider: $p'),

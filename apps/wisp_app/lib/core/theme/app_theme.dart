@@ -50,7 +50,7 @@ enum AppStyle {
 }
 
 /// Design tokens capturing platform-specific styles for Spotify, Apple Music,
-/// and future Wisp Original (M3E/Liquid Glass).
+/// and future wisp Original (M3E/Liquid Glass).
 @immutable
 class WispStyleTokens extends ThemeExtension<WispStyleTokens> {
   final AppStyle style;

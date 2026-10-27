@@ -1,10 +1,10 @@
 import "dart:async";
 import "dart:io";
 import "package:path/path.dart" as p;
+import "package:wisp_jvm/wisp_jvm.dart";
 import "package:wisp_newpipe_manager/services/android_extractor_delegate.dart";
 import "package:wisp_shared/models/youtube_engine.dart";
 import "package:wisp_newpipe_manager/installer/newpipe_installer.dart";
-import "package:wisp_newpipe_manager/services/wisp_support_directory.dart";
 import "package:wisp_newpipe_manager/services/newpipe_daemon_manager.dart";
 
 class NewPipeManager implements YoutubeEngine {
@@ -123,11 +123,7 @@ class NewPipeManager implements YoutubeEngine {
     }
 
     try {
-      final supportDirectory = await _supportDirectory.get();
-      final jdkDir = Directory(
-        p.join(supportDirectory.path, 'java'),
-      );
-      jdkExists = await jdkDir.exists();
+      jdkExists = await JvmRuntimeManager.instance.isInstalled();
     } catch (e) {
       return false;
     }
