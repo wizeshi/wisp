@@ -554,14 +554,17 @@ class JsProviderBridge {
             throw ArgumentError('url and cbId are required for wisp_auth_open_login');
           }
 
-          final navContext =
-              NavigationHistory.instance.rootNavigatorKey.currentContext ??
-              NavigationHistory.instance.navigatorKey.currentContext;
-          if (navContext == null) {
-            throw StateError('No navigation context available for login modal');
+          final isMobile = Platform.isAndroid || Platform.isIOS;
+          final navigator = isMobile
+              ? (NavigationHistory.instance.rootNavigatorKey.currentState ??
+                  NavigationHistory.instance.navigatorKey.currentState)
+              : (NavigationHistory.instance.navigatorKey.currentState ??
+                  NavigationHistory.instance.rootNavigatorKey.currentState);
+          if (navigator == null) {
+            throw StateError('No navigator available for login modal');
           }
 
-          final result = await Navigator.of(navContext, rootNavigator: true).push<Map<String, dynamic>>(
+          final result = await navigator.push<Map<String, dynamic>>(
             MaterialPageRoute(
               fullscreenDialog: true,
               builder: (_) => AuthWebviewDialog(

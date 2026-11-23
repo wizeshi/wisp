@@ -18,6 +18,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   video_player_win
   window_manager
   wisp_audio_output_info
+  zikzak_webview_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

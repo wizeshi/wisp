@@ -17,12 +17,12 @@ dependencies:
   logger: ^2.6.2
 
   # UI
-  cupertino_ui: ^1.1.2
+  cupertino_ui: ^1.1.7
   cupertino_icons: ^2.0.0
   liquid_glass_easy: ^5.0.0
   material_symbols_icons: ^4.2960.0
-  material_ui: ^1.6.0
-  material_3_expressive: ^1.1.6
+  material_ui: ^1.11.1
+  material_3_expressive: ^1.2.3
   simple_icons: ^16.23.0
 
   # Media Playback
@@ -91,7 +91,7 @@ dependencies:
 
   # Modular Provider Utilities
   flutter_js: ^0.8.7
-  flutter_inappwebview: ^6.2.0-beta.3
+  zikzak_inappwebview: ^6.4.1
   xml: ^6.0.0
 
   # Other local packages

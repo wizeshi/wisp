@@ -14,6 +14,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   url_launcher_linux
   window_manager
   wisp_audio_output_info
+  zikzak_inappwebview_linux
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
