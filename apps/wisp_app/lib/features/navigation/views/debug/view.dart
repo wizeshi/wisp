@@ -11,6 +11,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
@@ -127,7 +128,7 @@ class _DebugViewState extends State<DebugView> {
               SizedBox(
                 width: 1,
                 child: DecoratedBox(
-                  decoration: BoxDecoration(color: Colors.grey.shade800),
+                  decoration: BoxDecoration(color: context.colors.border),
                 ),
               ),
             ],
@@ -1136,7 +1137,7 @@ class PlayerStateView extends StatelessWidget {
                       value: "Open Stream URL Cache",
                       valueOverride: GenericTextButton(
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Colors.white,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
                         child: const Text("Open Stream URL Cache"),
                         onPressed: () {},
                       ),
@@ -1412,7 +1413,7 @@ class PlayerStateViewRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Colors.white.withValues(alpha: 0.1),
+        color: context.colors.surfaceSubtle,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1458,7 +1459,7 @@ class PlayerStateViewElement extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: Colors.white.withValues(alpha: 0.1),
+          color: context.colors.surfaceSubtle,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.max,
@@ -1510,7 +1511,9 @@ class PlayerStateViewSection extends StatelessWidget {
               title,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const Expanded(child: Divider(color: Colors.white, thickness: 1)),
+            Expanded(
+              child: Divider(color: context.colors.border, thickness: 1),
+            ),
           ],
         ),
         ...children,
@@ -1542,8 +1545,8 @@ class ProviderStateView extends StatelessWidget {
                   children: [
                     Row(
                       spacing: 8,
-                      children: const [
-                        Text(
+                      children: [
+                        const Text(
                           "Metadata Providers",
                           style: TextStyle(
                             fontSize: 20,
@@ -1551,7 +1554,10 @@ class ProviderStateView extends StatelessWidget {
                           ),
                         ),
                         Expanded(
-                          child: Divider(color: Colors.white, thickness: 1),
+                          child: Divider(
+                            color: context.colors.border,
+                            thickness: 1,
+                          ),
                         ),
                       ],
                     ),
@@ -1660,7 +1666,7 @@ class ProviderStateViewSection extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: Colors.white.withValues(alpha: 0.1),
+                color: context.colors.surfaceSubtle,
               ),
 
               child: Row(
@@ -1684,7 +1690,9 @@ class ProviderStateViewSection extends StatelessWidget {
               ),
             ),
 
-            const Expanded(child: Divider(color: Colors.white, thickness: 1)),
+            Expanded(
+              child: Divider(color: context.colors.border, thickness: 1),
+            ),
           ],
         ),
 
@@ -1716,7 +1724,7 @@ class ProviderStateViewRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Colors.white.withValues(alpha: 0.1),
+        color: context.colors.surfaceSubtle,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1768,7 +1776,7 @@ class ProviderStateViewElement extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: Colors.white.withValues(alpha: 0.1),
+          color: context.colors.surfaceSubtle,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.max,
@@ -1904,20 +1912,26 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                   title: "Unique Genres",
                   value: "${uniqueGenresSet.length}",
                   icon: Icons.category,
-                  color: Colors.purpleAccent,
+                  color: context.colors.isDark
+                      ? Colors.purpleAccent
+                      : Colors.purple[700]!,
                 ),
                 _buildStatCard(
                   title: "Tracks Finished",
                   value: "${habits.history.length}",
                   icon: Icons.check_circle_outline,
-                  color: Colors.greenAccent,
+                  color: context.colors.isDark
+                      ? Colors.greenAccent
+                      : Colors.green[700]!,
                 ),
                 _buildStatCard(
                   title: "Languages Detected",
                   value:
                       "${habits.history.expand((r) => r.languages).toSet().length}",
                   icon: Icons.language,
-                  color: Colors.blueAccent,
+                  color: context.colors.isDark
+                      ? Colors.blueAccent
+                      : Colors.blue[700]!,
                 ),
               ],
             ),
@@ -1926,21 +1940,27 @@ class _GenresDebugViewState extends State<GenresDebugView> {
 
             // Live Test / Lookup Box
             Card(
-              color: Colors.grey.shade900,
+              color: context.colors.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.grey.shade800),
+                side: BorderSide(color: context.colors.border),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.bolt, color: Colors.amberAccent, size: 20),
-                        SizedBox(width: 8),
-                        Text(
+                        Icon(
+                          Icons.bolt,
+                          color: context.colors.isDark
+                              ? Colors.amberAccent
+                              : Colors.amber[800],
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
                           "Live Track Genre Lookup",
                           style: TextStyle(
                             fontSize: 16,
@@ -1954,7 +1974,7 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                       "Test any Spotify Track ID or URI to see what genres Spotify returns right now:",
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade400,
+                        color: context.colors.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1965,18 +1985,20 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                             controller: _lookupController,
                             decoration: InputDecoration(
                               hintText: "e.g. 3I0w0pdn5s2W44gGmBxsa0",
-                              hintStyle: TextStyle(color: Colors.grey.shade600),
+                              hintStyle: TextStyle(
+                                color: context.colors.textMuted,
+                              ),
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                                 vertical: 10,
                               ),
                               filled: true,
-                              fillColor: Colors.black26,
+                              fillColor: context.colors.inputFill,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide(
-                                  color: Colors.grey.shade700,
+                                  color: context.colors.border,
                                 ),
                               ),
                             ),
@@ -2009,9 +2031,13 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                           ),
                           Expanded(
                             child: _liveLookupGenres!.isEmpty
-                                ? const Text(
+                                ? Text(
                                     "No genres tagged by Spotify for this track",
-                                    style: TextStyle(color: Colors.amberAccent),
+                                    style: TextStyle(
+                                      color: context.colors.isDark
+                                          ? Colors.amberAccent
+                                          : Colors.amber[800],
+                                    ),
                                   )
                                 : Wrap(
                                     spacing: 6,
@@ -2021,7 +2047,9 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                                           (g) => Chip(
                                             label: Text(g),
                                             backgroundColor:
-                                                Colors.purple.shade900,
+                                                context.colors.isDark
+                                                ? Colors.purple.shade900
+                                                : Colors.purple.shade50,
                                             padding: EdgeInsets.zero,
                                             materialTapTargetSize:
                                                 MaterialTapTargetSize
@@ -2121,10 +2149,10 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                     : null,
                 isDense: true,
                 filled: true,
-                fillColor: Colors.grey.shade900,
+                fillColor: context.colors.inputFill,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey.shade800),
+                  borderSide: BorderSide(color: context.colors.border),
                 ),
               ),
             ),
@@ -2141,14 +2169,14 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                       Icon(
                         Icons.music_off,
                         size: 48,
-                        color: Colors.grey.shade600,
+                        color: context.colors.textMuted,
                       ),
                       const SizedBox(height: 12),
                       Text(
                         "No genres logged yet.",
                         style: TextStyle(
                           fontSize: 16,
-                          color: Colors.grey.shade400,
+                          color: context.colors.textSecondary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -2157,7 +2185,7 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                         "Genres will appear here automatically as tracks finish playing.",
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade600,
+                          color: context.colors.textMuted,
                         ),
                       ),
                     ],
@@ -2170,6 +2198,9 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                 runSpacing: 8,
                 children: displayGenres.map((genre) {
                   final count = frequencyMap[genre] ?? 0;
+                  final badgeTint = context.colors.isDark
+                      ? Colors.purpleAccent
+                      : Colors.purple[700]!;
                   return InkWell(
                     borderRadius: BorderRadius.circular(20),
                     onTap: () =>
@@ -2180,9 +2211,11 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.purple.withValues(alpha: 0.25),
+                        color: Colors.purple.withValues(
+                          alpha: context.colors.isDark ? 0.25 : 0.12,
+                        ),
                         border: Border.all(
-                          color: Colors.purpleAccent.withValues(alpha: 0.4),
+                          color: badgeTint.withValues(alpha: 0.4),
                         ),
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -2191,10 +2224,10 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                         children: [
                           Text(
                             genre,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white,
+                              color: context.colors.textPrimary,
                             ),
                           ),
                           if (count > 0) ...[
@@ -2205,17 +2238,17 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                                 vertical: 1,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.purpleAccent.withValues(
-                                  alpha: 0.4,
+                                color: badgeTint.withValues(
+                                  alpha: context.colors.isDark ? 0.4 : 0.2,
                                 ),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 "$count",
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                  color: context.colors.textPrimary,
                                 ),
                               ),
                             ),
@@ -2243,18 +2276,24 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                   ),
                   Text(
                     "Most recent first",
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.colors.textMuted,
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               ...habits.history.reversed.take(50).map((record) {
+                final chipColor = context.colors.isDark
+                    ? Colors.purpleAccent
+                    : Colors.purple[700]!;
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
-                  color: Colors.grey.shade900,
+                  color: context.colors.surface,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(color: Colors.grey.shade800),
+                    side: BorderSide(color: context.colors.border),
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
@@ -2275,7 +2314,7 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                           "${record.languages.isNotEmpty ? '• Lang: ${record.languages.join(', ')}' : ''}",
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade400,
+                            color: context.colors.textSecondary,
                           ),
                         ),
                         if (record.genres.isNotEmpty) ...[
@@ -2292,20 +2331,20 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: Colors.purple.withValues(
-                                        alpha: 0.2,
+                                        alpha: context.colors.isDark
+                                            ? 0.2
+                                            : 0.12,
                                       ),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: Colors.purpleAccent.withValues(
-                                          alpha: 0.3,
-                                        ),
+                                        color: chipColor.withValues(alpha: 0.3),
                                       ),
                                     ),
                                     child: Text(
                                       g,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 11,
-                                        color: Colors.purpleAccent,
+                                        color: chipColor,
                                       ),
                                     ),
                                   ),
@@ -2319,7 +2358,7 @@ class _GenresDebugViewState extends State<GenresDebugView> {
                       _formatCompletedTime(record.completedAt),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade500,
+                        color: context.colors.textMuted,
                       ),
                     ),
                   ),
@@ -2342,9 +2381,9 @@ class _GenresDebugViewState extends State<GenresDebugView> {
       width: 180,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.grey.shade900,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade800),
+        border: Border.all(color: context.colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2356,7 +2395,10 @@ class _GenresDebugViewState extends State<GenresDebugView> {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: context.colors.textSecondary,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -2416,11 +2458,12 @@ class SimpleTrackRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Colors.grey[900],
+        color: colors.surface,
       ),
       clipBehavior: Clip.antiAliasWithSaveLayer,
       child: Row(
@@ -2448,7 +2491,7 @@ class SimpleTrackRow extends StatelessWidget {
                   ),
                   Text(
                     track.artists.map((artist) => artist.name).join(", "),
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    style: TextStyle(fontSize: 14, color: colors.textSecondary),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -2461,7 +2504,7 @@ class SimpleTrackRow extends StatelessWidget {
           // Track Duration
           Text(
             _formatDuration(track.durationSecs),
-            style: const TextStyle(fontSize: 14, color: Colors.grey),
+            style: TextStyle(fontSize: 14, color: colors.textSecondary),
           ),
         ],
       ),

@@ -2,6 +2,7 @@
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/library_state.dart';
@@ -71,7 +72,7 @@ class FolderRow extends StatelessWidget {
               trailing: trailing ??
                   Icon(
                     collapsed ? Icons.chevron_right : Icons.expand_more,
-                    color: Colors.grey[500],
+                    color: context.colors.textMuted,
                   ),
               title: folder.title,
               subtitle: '$count playlist${count == 1 ? '' : 's'}',

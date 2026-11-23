@@ -11,8 +11,10 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
     required Color headerColor,
     required Color actionsRowColor,
   }) {
-    final theme = Theme.of(context);
-    final contentSurfaceColor = theme.colorScheme.surface;
+    final colors = context.colors;
+    final contentSurfaceColor = colors.canvas;
+    final headerInk = colors.onColor(headerColor);
+    final headerSubtleInk = headerInk.withValues(alpha: 0.82);
     final monthlyListeners = _artist?.monthlyListeners;
 
     final displayDescription = description.isEmpty
@@ -53,8 +55,8 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
                         children: [
                           Text(
                             name,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: headerInk,
                               fontSize: 58,
                               height: 0.95,
                               fontWeight: FontWeight.w800,
@@ -68,7 +70,7 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
                                 ? '${_formatNumber(monthlyListeners)} monthly listeners'
                                 : '${_formatNumber(followers)} followers',
                             style: TextStyle(
-                              color: Colors.grey[200],
+                              color: headerSubtleInk,
                               fontSize: 15,
                             ),
                           ),
@@ -106,7 +108,7 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.22),
+                        color: colors.surfaceSubtle,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       padding: const EdgeInsets.all(24),
@@ -115,10 +117,10 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
                         children: [
                           Text(
                             'About $name',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 31,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              color: colors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 18),
@@ -131,7 +133,7 @@ extension _DesktopSpotifyStyle on _ArtistDetailViewState {
                                    context,
                                   displayDescription,
                                   style: TextStyle(
-                                    color: Colors.grey[300],
+                                    color: colors.textSecondary,
                                     fontSize: 15,
                                     height: 1.45,
                                   ),

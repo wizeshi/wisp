@@ -115,10 +115,15 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
                 timing.shouldFadePreviousLine &&
                 timing.fadeOutProgress > 0 &&
                 timing.previousIndex == widget.index);
+        final ink =
+            ThemeData.estimateBrightnessForColor(widget.backgroundColor) ==
+                Brightness.dark
+            ? Colors.white
+            : const Color(0xFF141416);
         final inactiveColor =
-            Color.lerp(Colors.white, widget.backgroundColor, 0.6) ??
-            Colors.white70;
-        final baseColor = isActiveLine ? Colors.white : inactiveColor;
+            Color.lerp(ink, widget.backgroundColor, 0.58) ??
+            ink.withValues(alpha: 0.6);
+        final baseColor = isActiveLine ? ink : inactiveColor;
         final baseStyle = TextStyle(
           color: baseColor.withValues(
             alpha: (baseColor.a * opacity).clamp(0.0, 1.0),
@@ -128,13 +133,13 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
           fontWeight: widget.isDesktop ? FontWeight.w700 : FontWeight.w800,
           height: widget.isDesktop ? 1.4 : 1.1,
           decoration: _hovered ? TextDecoration.underline : TextDecoration.none,
-          decorationColor: Colors.white70.withValues(
-            alpha: (Colors.white70.a * opacity).clamp(0.0, 1.0),
+          decorationColor: ink.withValues(
+            alpha: (0.7 * opacity).clamp(0.0, 1.0),
           ),
         );
-        final activeWordColor = Colors.white.withValues(alpha: opacity);
+        final activeWordColor = ink.withValues(alpha: opacity);
         final inactiveWordColor = isActiveLine
-            ? Colors.white.withValues(alpha: 0.45 * opacity)
+            ? ink.withValues(alpha: 0.45 * opacity)
             : inactiveColor.withValues(
                 alpha: (inactiveColor.a * opacity).clamp(0.0, 1.0),
               );
@@ -210,15 +215,15 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
             final bgBaseStyle = effectiveBaseStyle.copyWith(
               fontSize: baseBgFontSize,
               fontStyle: FontStyle.italic,
-              color: (isBgActive ? Colors.white : inactiveColor).withValues(
+              color: (isBgActive ? ink : inactiveColor).withValues(
                 alpha: (isBgActive ? bgOpacity : (inactiveColor.a * bgOpacity)).clamp(0.0, 1.0),
               ),
             );
 
             Widget phraseWidget;
             if (isBgActive && bg.hasWordTiming && bgRanges.isNotEmpty) {
-              final activeWordColor = Colors.white.withValues(alpha: bgOpacity);
-              final inactiveWordColor = Colors.white.withValues(alpha: 0.45 * bgOpacity);
+              final activeWordColor = ink.withValues(alpha: bgOpacity);
+              final inactiveWordColor = ink.withValues(alpha: 0.45 * bgOpacity);
 
               phraseWidget = WordFillLyricsLine(
                 line: LyricsLine(
@@ -328,6 +333,11 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
     required double progress,
     required bool isDesktop,
   }) {
+    final dotColor =
+        ThemeData.estimateBrightnessForColor(widget.backgroundColor) ==
+            Brightness.dark
+        ? Colors.white
+        : const Color(0xFF141416);
     final dotSize = isDesktop ? 12.0 : 10.0;
     final dots = List<Widget>.generate(3, (index) {
       final start = index / 3;
@@ -342,7 +352,7 @@ class _LyricsLineItemState extends State<LyricsLineItem> {
           width: dotSize,
           height: dotSize,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: opacity),
+            color: dotColor.withValues(alpha: opacity),
             shape: BoxShape.circle,
           ),
         ),

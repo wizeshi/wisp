@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/material.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 import '../home_view_data.dart';
@@ -40,6 +41,7 @@ class MobileAppleMusicHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final dynamicSections = _buildDynamicSections();
 
     return SafeArea(
@@ -57,13 +59,13 @@ class MobileAppleMusicHome extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Home',
                           style: TextStyle(
                             fontSize: 34,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: colors.textPrimary,
                             letterSpacing: -0.5,
                           ),
                         ),
@@ -76,7 +78,7 @@ class MobileAppleMusicHome extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  const Divider(color: Colors.white12, height: 1),
+                  Divider(color: colors.borderSubtle, height: 1),
                 ],
               ),
             ),

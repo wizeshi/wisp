@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/overlay/cover_play_button.dart';
 import 'package:wisp/shared/widgets/overlay/hover.dart';
 
@@ -110,9 +111,9 @@ class GenericRow extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: context.colors.textPrimary,
                               fontSize: 14,
                             ),
                             maxLines: 1,
@@ -138,7 +139,7 @@ class GenericRow extends StatelessWidget {
                                   child: Text(
                                     subtitle!,
                                     style: TextStyle(
-                                      color: Colors.grey[400],
+                                      color: context.colors.textSecondary,
                                       fontSize: 12,
                                     ),
                                     maxLines: 1,

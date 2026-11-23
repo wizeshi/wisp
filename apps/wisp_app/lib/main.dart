@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:app_links/app_links.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:provider/provider.dart';
@@ -374,17 +375,32 @@ class _WispAppState extends State<WispApp> with WindowListener {
             routerConfig: _router,
             title: 'wisp',
             scrollBehavior: const DesktopSmoothScrollBehavior(),
-            builder: (context, child) =>
-                WispToastHost(child: child ?? const SizedBox.shrink()),
-            theme: AppTheme.dark(
-              paletteOverride: palette.palette,
+            builder: (context, child) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final overlayStyle = SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness:
+                    isDark ? Brightness.light : Brightness.dark,
+                statusBarBrightness:
+                    isDark ? Brightness.dark : Brightness.light,
+                systemNavigationBarColor: Colors.transparent,
+                systemNavigationBarIconBrightness:
+                    isDark ? Brightness.light : Brightness.dark,
+              );
+              return AnnotatedRegion<SystemUiOverlayStyle>(
+                value: overlayStyle,
+                child: WispToastHost(child: child ?? const SizedBox.shrink()),
+              );
+            },
+            theme: AppTheme.light(
+              paletteOverride: palette.lightPalette,
               appStyle: preferences.style,
             ),
             darkTheme: AppTheme.dark(
-              paletteOverride: palette.palette,
+              paletteOverride: palette.darkPalette,
               appStyle: preferences.style,
             ),
-            themeMode: ThemeMode.dark,
+            themeMode: preferences.themeMode,
           );
         },
       ),

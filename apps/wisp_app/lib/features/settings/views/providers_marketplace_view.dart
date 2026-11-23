@@ -4,6 +4,7 @@ library;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/sources/audio/audio_source_manager.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/sources/providers/provider_package_model.dart';
@@ -125,7 +126,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF242424),
+        backgroundColor: ctx.colors.surfaceElevated,
         title: Text('Uninstall ${pkg.name}?'),
         content: Text(
           activeDependents.isNotEmpty
@@ -137,6 +138,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
         actions: [
           GenericFilledButton(
             backgroundColor: Colors.red[700],
+            foregroundColor: Colors.white,
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Uninstall'),
           ),
@@ -166,7 +168,9 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = context.colors;
     final primaryColor = theme.colorScheme.primary;
+    final amberAccent = colors.isDark ? Colors.amber : Colors.amber[800]!;
 
     final updateCount = _packages.where((pkg) => pkg.hasUpdate).length;
 
@@ -196,7 +200,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
     filterTabs.addAll(['Metadata', 'Audio', 'Lyrics', 'Auth', 'Installed']);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: colors.canvas,
       appBar: AppBar(
         title: const Text('Providers Marketplace'),
         backgroundColor: Colors.transparent,
@@ -225,13 +229,13 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
             child: Column(
               children: [
                 TextField(
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Search providers...',
-                    hintStyle: TextStyle(color: Colors.grey[500]),
-                    prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
+                    hintStyle: TextStyle(color: colors.textMuted),
+                    prefixIcon: Icon(Icons.search, color: colors.textSecondary),
                     filled: true,
-                    fillColor: const Color(0xFF1E1E1E),
+                    fillColor: colors.inputFill,
                     contentPadding: const EdgeInsets.symmetric(vertical: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -248,26 +252,26 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                         (_selectedFilter.startsWith('Updates') &&
                             filter.startsWith('Updates'));
                     final isUpdateTab = filter.startsWith('Updates');
-                    final chipColor = isUpdateTab ? Colors.amber : primaryColor;
+                    final chipColor = isUpdateTab ? amberAccent : primaryColor;
 
                     return Padding(
                       padding: const EdgeInsets.only(right: 8.0),
                       child: ChoiceChip(
                         label: Text(filter),
                         selected: isSelected,
-                        selectedColor: chipColor.withValues(alpha: 0.3),
+                        selectedColor: chipColor.withValues(alpha: 0.22),
                         labelStyle: TextStyle(
                           color: isSelected
-                              ? (isUpdateTab ? Colors.amber : Colors.white)
-                              : Colors.grey[400],
+                              ? (isUpdateTab ? amberAccent : colors.textPrimary)
+                              : colors.textSecondary,
                           fontWeight: isSelected
                               ? FontWeight.bold
                               : FontWeight.normal,
                           fontSize: 12,
                         ),
-                        backgroundColor: const Color(0xFF1E1E1E),
+                        backgroundColor: colors.surface,
                         side: BorderSide(
-                          color: isSelected ? chipColor : Colors.transparent,
+                          color: isSelected ? chipColor : colors.borderSubtle,
                         ),
                         onSelected: (_) =>
                             setState(() => _selectedFilter = filter),
@@ -278,7 +282,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
               ],
             ),
           ),
-          const Divider(color: Color(0xFF282828), height: 1),
+          Divider(color: colors.borderSubtle, height: 1),
 
           // Content
           Expanded(
@@ -291,7 +295,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                       children: [
                         Text(
                           _errorMessage!,
-                          style: TextStyle(color: Colors.grey[400]),
+                          style: TextStyle(color: colors.textSecondary),
                         ),
                         const SizedBox(height: 12),
                         GenericFilledButton.icon(
@@ -308,7 +312,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                       _selectedFilter.startsWith('Updates')
                           ? 'All installed providers are up to date.'
                           : 'No providers found.',
-                      style: TextStyle(color: Colors.grey[500]),
+                      style: TextStyle(color: colors.textMuted),
                     ),
                   )
                 : WispListView.separated(
@@ -341,13 +345,15 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
   }
 
   Widget _buildUpdatesBanner(int updateCount) {
+    final colors = context.colors;
+    final amberAccent = colors.isDark ? Colors.amber : Colors.amber[800]!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.12),
+        color: amberAccent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: Colors.amber.withValues(alpha: 0.4),
+          color: amberAccent.withValues(alpha: 0.4),
           width: 1.2,
         ),
       ),
@@ -356,12 +362,12 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.amber.withValues(alpha: 0.2),
+              color: amberAccent.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.system_update_alt,
-              color: Colors.amber,
+              color: amberAccent,
               size: 20,
             ),
           ),
@@ -372,8 +378,8 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
               children: [
                 Text(
                   '$updateCount ${updateCount == 1 ? "provider update" : "provider updates"} available',
-                  style: const TextStyle(
-                    color: Colors.amber,
+                  style: TextStyle(
+                    color: amberAccent,
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                   ),
@@ -381,7 +387,10 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                 const SizedBox(height: 2),
                 Text(
                   'Install updates to get the latest lyrics sources and fixes.',
-                  style: TextStyle(color: Colors.amber[200], fontSize: 11),
+                  style: TextStyle(
+                    color: colors.isDark ? Colors.amber[200] : Colors.amber[900],
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -416,17 +425,19 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
   Widget _buildProviderCard(ProviderPackage pkg, Color primaryColor) {
     final isBusy = _busyProviderIds.contains(pkg.uniqueKey);
     final prefs = context.watch<PreferencesProvider>();
+    final colors = context.colors;
+    final amberAccent = colors.isDark ? Colors.amber : Colors.amber[800]!;
     final isEnabled = prefs.isProviderEnabled(pkg.id, type: pkg.type);
     final hasUpdate = pkg.hasUpdate;
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: hasUpdate
-              ? Colors.amber.withValues(alpha: 0.7)
-              : Colors.white.withValues(alpha: 0.06),
+              ? amberAccent.withValues(alpha: 0.7)
+              : colors.borderSubtle,
           width: hasUpdate ? 1.5 : 1.0,
         ),
       ),
@@ -444,7 +455,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: (hasUpdate ? Colors.amber : primaryColor)
+                      color: (hasUpdate ? amberAccent : primaryColor)
                           .withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -460,7 +471,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                               : pkg.type == 'audio'
                                   ? Icons.graphic_eq
                                   : Icons.extension,
-                      color: hasUpdate ? Colors.amber : primaryColor,
+                      color: hasUpdate ? amberAccent : primaryColor,
                     ),
                   ),
                   if (hasUpdate)
@@ -471,10 +482,10 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          color: Colors.amber,
+                          color: amberAccent,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFF1E1E1E),
+                            color: colors.surface,
                             width: 2,
                           ),
                         ),
@@ -492,10 +503,10 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                         Flexible(
                           child: Text(
                             pkg.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: colors.textPrimary,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -507,7 +518,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
+                            color: colors.surfaceSubtle,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -516,7 +527,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                                 : 'v${pkg.version}',
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey[400],
+                              color: colors.textSecondary,
                             ),
                           ),
                         ),
@@ -528,27 +539,27 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.amber.withValues(alpha: 0.2),
+                              color: amberAccent.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                color: Colors.amber.withValues(alpha: 0.5),
+                                color: amberAccent.withValues(alpha: 0.5),
                               ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.arrow_upward,
                                   size: 10,
-                                  color: Colors.amber,
+                                  color: amberAccent,
                                 ),
                                 const SizedBox(width: 2),
                                 Text(
                                   'v${pkg.version} available',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.amber,
+                                    color: amberAccent,
                                   ),
                                 ),
                               ],
@@ -578,7 +589,9 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.blue[200],
+                                color: colors.isDark
+                                    ? Colors.blue[200]
+                                    : Colors.blue[800],
                               ),
                             ),
                           ),
@@ -588,7 +601,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                     const SizedBox(height: 2),
                     Text(
                       'by ${pkg.author}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      style: TextStyle(fontSize: 12, color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -642,7 +655,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                             final proceed = await showDialog<bool>(
                               context: context,
                               builder: (ctx) => AlertDialog(
-                                backgroundColor: const Color(0xFF242424),
+                                backgroundColor: ctx.colors.surfaceElevated,
                                 title: Text('Disable ${pkg.name}?'),
                                 content: Text(
                                   'The following active providers depend on ${pkg.name} and will also be disabled:\n\n'
@@ -652,6 +665,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
                                 actions: [
                                   GenericFilledButton(
                                     backgroundColor: Colors.red[700],
+                                    foregroundColor: Colors.white,
                                     onPressed: () =>
                                         Navigator.of(ctx).pop(true),
                                     child: const Text('Disable All'),
@@ -700,7 +714,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
             pkg.description,
             style: TextStyle(
               fontSize: 13,
-              color: Colors.grey[300],
+              color: colors.textSecondary,
               height: 1.3,
             ),
           ),
@@ -729,10 +743,11 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
   }
 
   Widget _buildBadge(String label, MaterialColor color) {
+    final isDark = context.colors.isDark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
+        color: color.withValues(alpha: isDark ? 0.18 : 0.12),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
@@ -741,7 +756,7 @@ class _ProvidersMarketplaceViewState extends State<ProvidersMarketplaceView> {
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,
-          color: color[200],
+          color: isDark ? color[200] : color[800],
         ),
       ),
     );
@@ -784,8 +799,9 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Dialog(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: colors.surfaceElevated,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 500, maxHeight: 550),
@@ -797,20 +813,24 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Provider Priority & Fallbacks',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: colors.textPrimary,
+                    ),
                   ),
                   GenericIconButton(
-                    icon: const Icon(Icons.close, color: Colors.grey),
+                    icon: Icon(Icons.close, color: colors.textSecondary),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Drag items to set priority order. The top provider is the active one; subsequent providers act as fallbacks.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(fontSize: 12, color: colors.textSecondary),
               ),
               const SizedBox(height: 12),
               TabBar(
@@ -914,7 +934,7 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
       return Center(
         child: Text(
           'No installed $type providers found.',
-          style: const TextStyle(color: Colors.grey),
+          style: TextStyle(color: context.colors.textSecondary),
         ),
       );
     }
@@ -948,16 +968,17 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
             itemBuilder: (context, index) {
               final item = items[index];
               final isActive = index == 0;
+              final colors = context.colors;
               return Container(
                 key: ValueKey(item.uniqueKey),
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF282828),
+                  color: colors.surface,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isActive
                         ? Colors.green.withValues(alpha: 0.6)
-                        : Colors.white10,
+                        : colors.borderSubtle,
                   ),
                 ),
                 child: ListTile(
@@ -974,8 +995,8 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
                   ),
                   title: Text(
                     item.name,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: colors.textPrimary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -983,16 +1004,20 @@ class _ProviderPriorityDialogState extends State<_ProviderPriorityDialog>
                     isActive ? 'Active / Primary' : 'Fallback #$index',
                     style: TextStyle(
                       fontSize: 11,
-                      color: isActive ? Colors.greenAccent : Colors.grey,
+                      color: isActive
+                          ? (colors.isDark
+                              ? Colors.greenAccent
+                              : Colors.green[700])
+                          : colors.textMuted,
                       fontWeight:
                           isActive ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                   trailing: ReorderableDragStartListener(
                     index: index,
-                    child: const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Icon(Icons.drag_handle, color: Colors.grey),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Icon(Icons.drag_handle, color: colors.textMuted),
                     ),
                   ),
                 ),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/shared/widgets/cards/album_card.dart';
 import 'package:wisp/shared/widgets/cards/artist_card.dart';
@@ -47,11 +48,12 @@ Widget buildHomeSection(
 }
 
 Widget? buildHomeQuickTile(
+  BuildContext context,
   dynamic item, {
   bool isMobile = false,
   required HomeViewActions actions,
 }) {
-  const tileBg = Color(0x0DFFFFFF);
+  final tileBg = context.colors.surfaceSubtle;
   final height = isMobile ? 56.0 : 48.0;
   final playPosition =
       isMobile ? GenericRowPlayPosition.none : GenericRowPlayPosition.end;
@@ -98,9 +100,9 @@ List<Widget> buildHomeMobileHeaderActions(
 }) {
   return [
     GenericIconButton(
-      icon: const Icon(
+      icon: Icon(
         Symbols.headphones,
-        color: Colors.white,
+        color: context.colors.textPrimary,
         size: 24,
       ),
       padding: EdgeInsets.zero,
@@ -114,9 +116,9 @@ List<Widget> buildHomeMobileHeaderActions(
           return const SizedBox.shrink();
         }
         return GenericIconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.bug_report_outlined,
-            color: Colors.white,
+            color: context.colors.textPrimary,
             size: 24,
           ),
           padding: EdgeInsets.zero,
@@ -128,7 +130,7 @@ List<Widget> buildHomeMobileHeaderActions(
     GenericIconButton(
       icon: Icon(
         useAppleIcon ? CupertinoIcons.settings : Icons.settings_outlined,
-        color: Colors.white,
+        color: context.colors.textPrimary,
         size: useAppleIcon ? 26 : 24,
       ),
       padding: EdgeInsets.zero,

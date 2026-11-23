@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 
 class WispMobileSpotifyNavBar extends StatelessWidget {
   final int selectedIndex;
@@ -33,6 +34,7 @@ class WispMobileSpotifyNavBar extends StatelessWidget {
       ),
     ];
     final safeIndex = selectedIndex.clamp(0, destinations.length - 1);
+    final canvas = context.colors.canvas;
 
     return MediaQuery(
       data: MediaQuery.of(context).removePadding(removeTop: true),
@@ -42,9 +44,9 @@ class WispMobileSpotifyNavBar extends StatelessWidget {
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
             colors: [
-              Colors.black.withValues(alpha: 0.95),
-              Colors.black.withValues(alpha: 0.75),
-              Colors.black.withValues(alpha: 0.4),
+              canvas.withValues(alpha: 0.96),
+              canvas.withValues(alpha: 0.78),
+              canvas.withValues(alpha: 0.40),
               Colors.transparent,
             ],
             stops: const [0.0, 0.45, 0.8, 1.0],

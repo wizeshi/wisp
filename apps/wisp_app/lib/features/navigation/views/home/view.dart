@@ -497,15 +497,16 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildUnauthenticatedView() {
+    final colors = context.colors;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.music_note, size: 64, color: Colors.grey),
+          Icon(Icons.music_note, size: 64, color: colors.textMuted),
           const SizedBox(height: 16),
           Text(
             'Not connected to ${context.read<MetadataManager>().activeCatalogProvider?.displayName ?? 'music service'}',
-            style: const TextStyle(fontSize: 18, color: Colors.grey),
+            style: TextStyle(fontSize: 18, color: colors.textMuted),
           ),
           const SizedBox(height: 24),
           GenericElevatedButton.icon(

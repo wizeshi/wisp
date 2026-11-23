@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
@@ -169,19 +170,20 @@ class _ConnectDeviceIndicatorState extends State<ConnectDeviceIndicator> {
     final iconSizeMultiplier = 16 * (height / defaultHeight);
     final textHeightMultiplier = 12 * (height / defaultHeight);
 
+    final colors = context.colors;
     final connectStatusWidget = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
           deviceIcon,
-          color: widget.iconColor ?? Colors.white,
+          color: widget.iconColor ?? colors.textPrimary,
           size: iconSizeMultiplier,
         ),
         const SizedBox(width: 4),
         MarqueeText(
           text: deviceName ?? "",
           style: TextStyle(
-            color: widget.textColor ?? Colors.white,
+            color: widget.textColor ?? colors.textPrimary,
             fontSize: textHeightMultiplier,
             fontWeight: FontWeight.w500,
           ),

@@ -121,6 +121,7 @@ class _HandoffStatusIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fgColor = context.colors.onColor(backgroundColor);
     return IgnorePointer(
       child: Container(
         padding: EdgeInsets.symmetric(
@@ -134,12 +135,12 @@ class _HandoffStatusIndicator extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cast, size: 14, color: Colors.white),
+            Icon(Icons.cast, size: 14, color: fgColor),
             const SizedBox(width: 6),
             Text(
               message,
               style: TextStyle(
-                color: Colors.white,
+                color: fgColor,
                 fontSize: mobile ? 10 : 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -167,17 +168,19 @@ class _DesktopProgressBar extends StatelessWidget {
         builder: (context, data, child) {
           if (data.isLoading) {
             return Center(
-              child: const Column(
+              child: Column(
                 children: [
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   SizedBox(
                     height: 4,
                     child: LinearProgressIndicator(
                       backgroundColor: Colors.transparent,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        context.colors.textPrimary,
+                      ),
                     ),
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                 ],
               ),
             );
@@ -240,6 +243,7 @@ class _DesktopProgressBar extends StatelessWidget {
     double progress,
     double bufferedProgress,
   ) {
+    final colors = context.colors;
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
       duration: const Duration(milliseconds: 200),
@@ -257,7 +261,7 @@ class _DesktopProgressBar extends StatelessWidget {
                   width: 56,
                   child: Text(
                     _formatDuration(animatedPosition),
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -266,14 +270,18 @@ class _DesktopProgressBar extends StatelessWidget {
                 child: SliderTheme(
                   data: SliderThemeData(
                     trackHeight: 4,
-                    thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: RoundSliderOverlayShape(overlayRadius: 12),
-                    activeTrackColor: Theme.of(context).colorScheme.primary,
-                    secondaryActiveTrackColor: Colors.white.withValues(
-                      alpha: 0.28,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
                     ),
-                    inactiveTrackColor: Colors.grey[800],
-                    thumbColor: Colors.white,
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 12,
+                    ),
+                    activeTrackColor: Theme.of(context).colorScheme.primary,
+                    secondaryActiveTrackColor: colors.textPrimary.withValues(
+                      alpha: 0.25,
+                    ),
+                    inactiveTrackColor: colors.trackInactive,
+                    thumbColor: colors.textPrimary,
                     overlayColor: (Theme.of(
                       context,
                     ).colorScheme.primary).withValues(alpha: 0.2),
@@ -296,7 +304,7 @@ class _DesktopProgressBar extends StatelessWidget {
                   width: 56,
                   child: Text(
                     _formatDuration(duration),
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
                     textAlign: TextAlign.left,
                   ),
                 ),
@@ -331,7 +339,7 @@ class _DesktopTrackName extends StatelessWidget {
     final album = track.album;
     final hasAlbum = album != null && album.id.isNotEmpty;
     final style = TextStyle(
-      color: Colors.white,
+      color: context.colors.textPrimary,
       fontSize: 14,
       fontWeight: FontWeight.w500,
     );
@@ -383,7 +391,7 @@ class _DesktopTrackArtists extends StatelessWidget {
     if (artists.isEmpty) return const SizedBox.shrink();
 
     final joinedText = artists.map((a) => a.name).join(', ');
-    final style = TextStyle(color: Colors.grey[400], fontSize: 12);
+    final style = TextStyle(color: context.colors.textSecondary, fontSize: 12);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -446,6 +454,7 @@ class _DesktopTrackInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     if (currentTrack == null) {
       return SizedBox(
         width: 200,
@@ -455,12 +464,12 @@ class _DesktopTrackInfo extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.grey[900],
+                color: colors.artworkPlaceholder,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Icon(Icons.music_note, color: Colors.grey[700]),
+              child: Icon(Icons.music_note, color: colors.textMuted),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -468,7 +477,7 @@ class _DesktopTrackInfo extends StatelessWidget {
                 children: [
                   Text(
                     'No track playing',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    style: TextStyle(color: colors.textMuted, fontSize: 14),
                   ),
                 ],
               ),
@@ -488,7 +497,7 @@ class _DesktopTrackInfo extends StatelessWidget {
           child: Container(
             width: 56,
             height: 56,
-            color: Colors.grey[900],
+            color: colors.artworkPlaceholder,
             child: currentTrack!.thumbnailUrl.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: currentTrack!.thumbnailUrl,
@@ -497,11 +506,11 @@ class _DesktopTrackInfo extends StatelessWidget {
                     memCacheHeight: 56,
                     memCacheWidth: 56,
                     placeholder: (context, url) =>
-                        Container(color: Colors.grey[800]),
+                        Container(color: colors.artworkPlaceholder),
                     errorWidget: (context, url, error) =>
-                        Icon(Icons.music_note, color: Colors.grey[700]),
+                        Icon(Icons.music_note, color: colors.textMuted),
                   )
-                : Icon(Icons.music_note, color: Colors.grey[700]),
+                : Icon(Icons.music_note, color: colors.textMuted),
           ),
         ),
         SizedBox(width: 12),
@@ -570,6 +579,7 @@ class _DesktopPlaybackControls extends StatelessWidget {
       },
       builder: (context, data, child) {
         final tokens = context.tokens;
+        final colors = context.colors;
         final controlSpacing = tokens.playerControlSpacing;
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -584,10 +594,10 @@ class _DesktopPlaybackControls extends StatelessWidget {
               icon: Icon(
                 tokens.shuffleIcon,
                 color: data.isDJMode
-                    ? Colors.grey[600]
+                    ? colors.textMuted
                     : (data.shuffleEnabled
                           ? Theme.of(context).colorScheme.primary
-                          : Colors.grey[400]),
+                          : colors.textSecondary),
                 size: 20,
               ),
               onPressed: data.isDJMode
@@ -604,7 +614,11 @@ class _DesktopPlaybackControls extends StatelessWidget {
               style: appStyle,
               padding: const EdgeInsets.all(4),
               constraints: const BoxConstraints(),
-              icon: Icon(tokens.playPrevIcon, color: Colors.white, size: 24),
+              icon: Icon(
+                tokens.playPrevIcon,
+                color: colors.textPrimary,
+                size: 24,
+              ),
               onPressed: data.queueNotEmpty
                   ? () {
                       context.read<PlaybackCoordinator>().skipPrevious();
@@ -624,7 +638,11 @@ class _DesktopPlaybackControls extends StatelessWidget {
               style: appStyle,
               padding: const EdgeInsets.all(4),
               constraints: const BoxConstraints(),
-              icon: Icon(tokens.playNextIcon, color: Colors.white, size: 24),
+              icon: Icon(
+                tokens.playNextIcon,
+                color: colors.textPrimary,
+                size: 24,
+              ),
               onPressed: data.queueNotEmpty
                   ? () {
                       context.read<PlaybackCoordinator>().skipNext();
@@ -645,10 +663,10 @@ class _DesktopPlaybackControls extends StatelessWidget {
                     ? tokens.repeatOneIcon
                     : tokens.repeatIcon,
                 color: data.isDJMode
-                    ? Colors.grey[600]
+                    ? colors.textMuted
                     : (data.repeatMode != global_audio_player.RepeatMode.off
                           ? Theme.of(context).colorScheme.primary
-                          : Colors.grey[400]),
+                          : colors.textSecondary),
                 size: 20,
               ),
               onPressed: data.isDJMode
@@ -741,7 +759,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
         style: appStyle,
         padding: const EdgeInsets.all(4),
         constraints: const BoxConstraints(),
-        icon: Icon(icon, color: Colors.grey[700], size: 40),
+        icon: Icon(icon, color: context.colors.textMuted, size: 40),
         onPressed: null,
       );
     }
@@ -753,7 +771,7 @@ class _DesktopPlayPauseButton extends StatelessWidget {
       icon: Icon(
         icon,
         color: tokens.isApple
-            ? Colors.white
+            ? context.colors.textPrimary
             : Theme.of(context).colorScheme.primary,
         size: 40,
       ),
@@ -788,7 +806,7 @@ class _DesktopRightControls extends StatelessWidget {
         final hasTrack = currentTrack != null;
         final isSidebarOpen = hasTrack && navState.rightSidebarVisible;
         final activeColor = Theme.of(context).colorScheme.primary;
-        final inactiveColor = Colors.grey[400];
+        final inactiveColor = context.colors.textSecondary;
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -984,7 +1002,7 @@ class _DesktopRightControls extends StatelessWidget {
                                 : volume < 0.5
                                 ? tokens.volumeDownIcon
                                 : tokens.volumeUpIcon,
-                            color: Colors.grey[400],
+                            color: inactiveColor,
                             size: 20,
                           ),
                         ),
@@ -1080,7 +1098,7 @@ Future<void> _openConnectMenuWithAccent(BuildContext context) async {
           child: Container(
             height: maxHeight,
             decoration: BoxDecoration(
-              color: const Color(0xFF171717),
+              color: sheetContext.colors.surfaceElevated,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
               ),
@@ -1148,7 +1166,7 @@ class _ConnectQuickPanel extends StatelessWidget {
           width: panelWidth,
           height: panelHeight,
           child: Material(
-            color: const Color(0xFF171717),
+            color: context.colors.surfaceElevated,
             borderRadius: BorderRadius.circular(14),
             elevation: 14,
             child: Container(
@@ -1185,6 +1203,7 @@ class _ConnectPanelContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Consumer<ConnectSessionProvider>(
       builder: (context, connect, child) {
         final linkedLabel = _linkedDeviceLabel(connect);
@@ -1205,7 +1224,7 @@ class _ConnectPanelContent extends StatelessWidget {
                   Text(
                     'Handoff',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: colors.textPrimary,
                       fontSize: isMobileSheet ? 18 : 15,
                       fontWeight: FontWeight.w700,
                     ),
@@ -1229,7 +1248,7 @@ class _ConnectPanelContent extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF212121),
+                    color: colors.surface,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: accentColor.withValues(alpha: 0.4),
@@ -1245,7 +1264,7 @@ class _ConnectPanelContent extends StatelessWidget {
                           linkedLabel,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: colors.textPrimary,
                             fontWeight: FontWeight.w600,
                             fontSize: isMobileSheet ? 14 : null,
                           ),
@@ -1271,7 +1290,7 @@ class _ConnectPanelContent extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF212121),
+                    color: colors.surface,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: accentColor.withValues(alpha: 0.4),
@@ -1284,7 +1303,7 @@ class _ConnectPanelContent extends StatelessWidget {
                       Text(
                         '${pendingRequest.fromDeviceName} wants to pair via Handoff',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: colors.textPrimary,
                           fontWeight: FontWeight.w600,
                           fontSize: isMobileSheet ? 14 : 13,
                         ),
@@ -1295,7 +1314,7 @@ class _ConnectPanelContent extends StatelessWidget {
                           Expanded(
                             child: GenericOutlinedButton(
                               onPressed: connect.rejectIncomingPair,
-                              side: BorderSide(color: Colors.grey[700]!),
+                              side: BorderSide(color: colors.border),
                               child: const Text('Decline'),
                             ),
                           ),
@@ -1325,7 +1344,7 @@ class _ConnectPanelContent extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF212121),
+                  color: colors.surface,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: accentColor.withValues(alpha: 0.4),
@@ -1340,7 +1359,7 @@ class _ConnectPanelContent extends StatelessWidget {
                         Text(
                           'Next link mode:',
                           style: TextStyle(
-                            color: Colors.grey[300],
+                            color: colors.textSecondary,
                             fontSize: isMobileSheet ? 13 : 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1357,10 +1376,10 @@ class _ConnectPanelContent extends StatelessWidget {
                                     : Colors.transparent,
                               ),
                               foregroundColor: WidgetStateProperty.all<Color>(
-                                Colors.white,
+                                colors.textPrimary,
                               ),
                               side: WidgetStatePropertyAll(
-                                BorderSide(color: Colors.grey[700]!),
+                                BorderSide(color: colors.border),
                               ),
                             ),
                             segments: const [
@@ -1395,7 +1414,7 @@ class _ConnectPanelContent extends StatelessWidget {
                           child: Text(
                             'Remember for next session',
                             style: TextStyle(
-                              color: Colors.grey[400],
+                              color: colors.textSecondary,
                               fontSize: isMobileSheet ? 12 : 11,
                             ),
                           ),
@@ -1416,7 +1435,7 @@ class _ConnectPanelContent extends StatelessWidget {
               child: Text(
                 'Available devices',
                 style: TextStyle(
-                  color: Colors.grey[300],
+                  color: colors.textSecondary,
                   fontSize: isMobileSheet ? 14 : 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1428,7 +1447,7 @@ class _ConnectPanelContent extends StatelessWidget {
                       child: Text(
                         'No devices found on this network.',
                         style: TextStyle(
-                          color: Colors.grey[500],
+                          color: colors.textMuted,
                           fontSize: isMobileSheet ? 14 : 13,
                         ),
                       ),
@@ -1443,7 +1462,7 @@ class _ConnectPanelContent extends StatelessWidget {
                         final isLinkedDevice =
                             connect.linkedDeviceId == device.id;
                         return Material(
-                          color: const Color(0xFF202020),
+                          color: colors.surface,
                           borderRadius: BorderRadius.circular(10),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(10),
@@ -1465,10 +1484,10 @@ class _ConnectPanelContent extends StatelessWidget {
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.devices,
                                     size: 16,
-                                    color: Colors.white,
+                                    color: colors.textPrimary,
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
@@ -1480,7 +1499,7 @@ class _ConnectPanelContent extends StatelessWidget {
                                           device.name,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            color: Colors.white,
+                                            color: colors.textPrimary,
                                             fontWeight: FontWeight.w600,
                                             fontSize: isMobileSheet ? 15 : null,
                                           ),
@@ -1489,7 +1508,7 @@ class _ConnectPanelContent extends StatelessWidget {
                                         Text(
                                           device.platform,
                                           style: TextStyle(
-                                            color: Colors.grey[500],
+                                            color: colors.textMuted,
                                             fontSize: isMobileSheet ? 13 : 12,
                                           ),
                                         ),
@@ -1506,9 +1525,9 @@ class _ConnectPanelContent extends StatelessWidget {
                                       ),
                                     )
                                   else
-                                    const Icon(
+                                    Icon(
                                       Icons.chevron_right,
-                                      color: Colors.white70,
+                                      color: colors.textSecondary,
                                       size: 18,
                                     ),
                                 ],
@@ -1550,7 +1569,9 @@ class _ConnectMenuButton extends StatelessWidget {
         style: appStyle,
         icon: Icon(
           icon,
-          color: isActive ? activeColor : (inactiveColor ?? Colors.grey[400]),
+          color: isActive
+              ? activeColor
+              : (inactiveColor ?? context.colors.textSecondary),
           size: iconSize,
         ),
         tooltip: 'Handoff',
@@ -1605,7 +1626,7 @@ class _VolumePopupButton extends StatelessWidget {
                 : volume < 0.5
                 ? Icons.volume_down
                 : Icons.volume_up,
-            color: inactiveColor ?? Colors.grey[400],
+            color: inactiveColor ?? context.colors.textSecondary,
             size: 20,
           ),
         );
@@ -1682,12 +1703,13 @@ class _VolumeQuickPanel extends StatelessWidget {
           width: panelWidth,
           height: panelHeight,
           child: Material(
-            color: const Color(0xFF171717),
+            color: context.colors.surfaceElevated,
             borderRadius: BorderRadius.circular(12),
             elevation: 10,
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: context.colors.borderSubtle),
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -1699,6 +1721,7 @@ class _VolumeQuickPanel extends StatelessWidget {
                   builder: (context, volume, child) {
                     final player = context
                         .read<global_audio_player.WispAudioHandler>();
+                    final colors = context.colors;
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1708,13 +1731,13 @@ class _VolumeQuickPanel extends StatelessWidget {
                             '${(volume * 100).round()}%',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Colors.grey[300],
+                              color: colors.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Expanded(
                           child: RotatedBox(
                             quarterTurns: 3,
@@ -1734,7 +1757,7 @@ class _VolumeQuickPanel extends StatelessWidget {
                                 : volume < 0.5
                                 ? Icons.volume_down
                                 : Icons.volume_up,
-                            color: Colors.grey[300],
+                            color: colors.textSecondary,
                             size: 18,
                           ),
                           constraints: const BoxConstraints(
@@ -1776,7 +1799,8 @@ class _HoverVolumeSliderState extends State<_HoverVolumeSlider> {
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = _isHovering ? widget.primaryColor : Colors.grey[500]!;
+    final colors = context.colors;
+    final activeColor = _isHovering ? widget.primaryColor : colors.textMuted;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovering = true),
@@ -1788,8 +1812,8 @@ class _HoverVolumeSliderState extends State<_HoverVolumeSlider> {
           thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
           overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
           activeTrackColor: activeColor,
-          inactiveTrackColor: Colors.grey[800],
-          thumbColor: Colors.white,
+          inactiveTrackColor: colors.trackInactive,
+          thumbColor: colors.textPrimary,
           overlayColor: widget.primaryColor.withValues(alpha: 0.2),
         ),
         child: Slider(

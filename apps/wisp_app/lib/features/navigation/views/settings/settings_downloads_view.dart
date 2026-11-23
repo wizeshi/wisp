@@ -4,6 +4,7 @@ library;
 
 import 'package:material_ui/material_ui.dart';
 
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/rows/generic_row.dart';
@@ -13,11 +14,12 @@ class DownloadsSettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: colors.canvas,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF121212),
-        foregroundColor: Colors.white,
+        backgroundColor: colors.canvas,
+        foregroundColor: colors.textPrimary,
         title: const Text('Downloads'),
       ),
       body: ListenableBuilder(
@@ -31,7 +33,7 @@ class DownloadsSettingsPage extends StatelessWidget {
             return Center(
               child: Text(
                 'No downloads yet',
-                style: TextStyle(color: Colors.grey[500]),
+                style: TextStyle(color: colors.textMuted),
               ),
             );
           }
@@ -67,13 +69,14 @@ class DownloadsSettingsPage extends StatelessWidget {
       style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.bold,
-        color: Colors.grey[600],
+        color: context.colors.textMuted,
         letterSpacing: 1.5,
       ),
     );
   }
 
   Widget _buildActiveTile(BuildContext context, DownloadTask task) {
+    final colors = context.colors;
     final isDownloading = task.status == DownloadStatus.downloading;
     final statusLabel = isDownloading ? 'Downloading' : 'Queued';
     final progressPercent = (task.progress * 100).clamp(0, 100).toInt();
@@ -83,7 +86,7 @@ class DownloadsSettingsPage extends StatelessWidget {
       child: GenericRow(
         height: 56,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        backgroundColor: const Color(0xFF181818),
+        backgroundColor: colors.surface,
         playPosition: GenericRowPlayPosition.none,
         title: task.trackTitle,
         subtitle: task.artistName,
@@ -91,7 +94,7 @@ class DownloadsSettingsPage extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white10,
+            color: colors.surfaceSubtle,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Icon(
@@ -102,7 +105,7 @@ class DownloadsSettingsPage extends StatelessWidget {
         ),
         trailing: Text(
           '$statusLabel • $progressPercent%',
-          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+          style: TextStyle(color: colors.textMuted, fontSize: 12),
         ),
         onTap: () {},
       ),
@@ -110,6 +113,7 @@ class DownloadsSettingsPage extends StatelessWidget {
   }
 
   Widget _buildCompletedTile(BuildContext context, CacheEntry entry) {
+    final colors = context.colors;
     final title = (entry.trackTitle?.trim().isNotEmpty ?? false)
         ? entry.trackTitle!
         : entry.trackId;
@@ -122,7 +126,7 @@ class DownloadsSettingsPage extends StatelessWidget {
       child: GenericRow(
         height: 56,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        backgroundColor: const Color(0xFF181818),
+        backgroundColor: colors.surface,
         playPosition: GenericRowPlayPosition.none,
         title: title,
         subtitle: '$artist • ${_formatDateTime(entry.downloadDate)}',
@@ -130,7 +134,7 @@ class DownloadsSettingsPage extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: Colors.white10,
+            color: colors.surfaceSubtle,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Icon(

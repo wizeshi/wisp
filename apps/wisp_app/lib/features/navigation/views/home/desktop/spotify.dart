@@ -2,6 +2,7 @@
 
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import '../home_view_data.dart';
 import '../home_widgets.dart';
@@ -25,7 +26,14 @@ class DesktopSpotifyHome extends StatelessWidget {
         final itemsPerRow = (maxWidth / 220).floor().clamp(1, 4);
         final maxItems = min(itemsPerRow * 2, 8);
         final cards = firstSection.value
-            .map<Widget?>((item) => buildHomeQuickTile(item, isMobile: false, actions: actions))
+            .map<Widget?>(
+              (item) => buildHomeQuickTile(
+                context,
+                item,
+                isMobile: false,
+                actions: actions,
+              ),
+            )
             .whereType<Widget>()
             .take(maxItems)
             .toList();
@@ -164,10 +172,10 @@ class DesktopSpotifyHome extends StatelessWidget {
       children: [
         Text(
           data.greeting,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: context.colors.textPrimary,
           ),
         ),
         const SizedBox(height: 16),

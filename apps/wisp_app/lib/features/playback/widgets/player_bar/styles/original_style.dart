@@ -103,6 +103,7 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
+    final colors = context.colors;
 
     final handoffMessage = context.select<ConnectSessionProvider, String?>(
       (connect) => _handoffStatusMessage(connect),
@@ -111,11 +112,10 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
     final barContent = Container(
       height: 88,
       decoration: BoxDecoration(
-        // Neutral dark surface background (not primary tinted)
-        color: const Color(0xFF141414),
+        color: colors.playerBar,
         border: Border(
           top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.06),
+            color: colors.borderSubtle,
             width: 1,
           ),
         ),
@@ -153,7 +153,7 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
                       ),
 
                       AudioQualityBadge(
-                        preferredColor: Colors.white,
+                        preferredColor: colors.textPrimary,
                         child:
                             Selector<
                               global_audio_player.WispAudioHandler,
@@ -187,7 +187,7 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
                                     "https://upload.wikimedia.org/wikipedia/commons/0/0d/Apple_Lossless_logo.svg",
                                     fit: BoxFit.fill,
                                     colorFilter: ColorFilter.mode(
-                                      Colors.white,
+                                      colors.textPrimary,
                                       BlendMode.srcIn,
                                     ),
                                   );
@@ -196,7 +196,7 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
                                   icon = Icon(
                                     Symbols.check_circle_filled,
                                     fill: 1,
-                                    color: Colors.white,
+                                    color: colors.textPrimary,
                                     size: 12,
                                   );
                                 }
@@ -206,7 +206,11 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
                                   Color?
                                 >(
                                   selector: (context, palette) =>
-                                      palette.primaryColor,
+                                      palette
+                                          .paletteForBrightness(
+                                            colors.brightness,
+                                          )
+                                          ?.primary,
                                   builder: (context, primaryColor, child) {
                                     return Container(
                                       padding: const EdgeInsets.symmetric(
@@ -215,7 +219,7 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
                                       ),
                                       decoration: BoxDecoration(
                                         color: primaryColor?.withValues(
-                                          alpha: 0.2,
+                                          alpha: 0.18,
                                         ),
                                         borderRadius: BorderRadius.circular(6),
                                         border: primaryColor != null
@@ -236,8 +240,8 @@ class _OriginalDesktopPlayerBar extends StatelessWidget {
 
                                           Text(
                                             label,
-                                            style: const TextStyle(
-                                              color: Colors.white,
+                                            style: TextStyle(
+                                              color: colors.textPrimary,
                                               fontSize: 12,
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -335,27 +339,28 @@ class _OriginalDesktopPlaybackControls extends StatelessWidget {
       },
       builder: (context, data, child) {
         final coordinator = context.read<PlaybackCoordinator>();
+        final colors = context.colors;
 
         // Shuffle button
         final shuffleActive = data.shuffleEnabled;
         final shuffleColor = shuffleActive
             ? Theme.of(context).colorScheme.onPrimary
-            : Colors.grey[400];
+            : colors.textSecondary;
 
         // Repeat button
         final repeatActive =
             data.repeatMode != global_audio_player.RepeatMode.off;
         final repeatColor = repeatActive
             ? Theme.of(context).colorScheme.onPrimary
-            : Colors.grey[400];
+            : colors.textSecondary;
 
         final repeatIcon = data.repeatMode == global_audio_player.RepeatMode.one
             ? tokens.repeatOneIcon
             : tokens.repeatIcon;
 
         const navBtnVariant = M3EIconButtonVariant.tonal;
-        const navBtnDecoration = M3EIconButtonDecoration(
-          backgroundColor: WidgetStatePropertyAll(Color(0xFF26262A)),
+        final navBtnDecoration = M3EIconButtonDecoration(
+          backgroundColor: WidgetStatePropertyAll(colors.inputFill),
         );
 
         // Active toggles use the filled variant (primary background).
@@ -392,7 +397,11 @@ class _OriginalDesktopPlaybackControls extends StatelessWidget {
               shape: M3EIconButtonShapeVariant.round,
               size: M3EIconButtonSize.sm,
               tooltip: 'Previous',
-              icon: Icon(tokens.playPrevIcon, color: Colors.white, size: 22),
+              icon: Icon(
+                tokens.playPrevIcon,
+                color: colors.textPrimary,
+                size: 22,
+              ),
               onPressed: coordinator.skipPrevious,
             ),
             const SizedBox(width: 12),
@@ -408,7 +417,11 @@ class _OriginalDesktopPlaybackControls extends StatelessWidget {
               shape: M3EIconButtonShapeVariant.round,
               size: M3EIconButtonSize.sm,
               tooltip: 'Next',
-              icon: Icon(tokens.playNextIcon, color: Colors.white, size: 22),
+              icon: Icon(
+                tokens.playNextIcon,
+                color: colors.textPrimary,
+                size: 22,
+              ),
               onPressed: coordinator.skipNext,
             ),
             const SizedBox(width: 8),
@@ -532,7 +545,8 @@ class _OriginalDesktopRightControls extends StatelessWidget {
         final isSidebarOpen = hasTrack && navState.rightSidebarVisible;
         final primaryColor = Theme.of(context).colorScheme.primary;
         final onPrimaryColor = Theme.of(context).colorScheme.onPrimary;
-        final inactiveColor = Colors.grey[400];
+        final colors = context.colors;
+        final inactiveColor = colors.textSecondary;
         final tokens = context.tokens;
 
         return LayoutBuilder(
@@ -572,6 +586,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                               primaryColor: primaryColor,
                               onPrimaryColor: onPrimaryColor,
                               inactiveColor: inactiveColor,
+                              colors: colors,
                               borderRadius: radius,
                               onPressed: () {
                                 NavigationHistory
@@ -600,6 +615,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                       primaryColor: primaryColor,
                       onPrimaryColor: onPrimaryColor,
                       inactiveColor: inactiveColor,
+                      colors: colors,
                       borderRadius: radius,
                       onPressed: hasTrack ? navState.toggleRightSidebar : null,
                     ),
@@ -616,6 +632,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                       primaryColor: primaryColor,
                       onPrimaryColor: onPrimaryColor,
                       inactiveColor: inactiveColor,
+                      colors: colors,
                       borderRadius: radius,
                       onPressed: currentTrack == null
                           ? null
@@ -659,6 +676,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                       primaryColor: primaryColor,
                       onPrimaryColor: onPrimaryColor,
                       inactiveColor: inactiveColor,
+                      colors: colors,
                       borderRadius: radius,
                       onPressed: () {
                         if (isFullScreenOpen) {
@@ -706,6 +724,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                             primaryColor: primaryColor,
                             onPrimaryColor: onPrimaryColor,
                             inactiveColor: inactiveColor,
+                            colors: colors,
                             borderRadius: radius,
                             onPressed: () =>
                                 _openConnectMenuWithAccent(context),
@@ -724,6 +743,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                       primaryColor: primaryColor,
                       onPrimaryColor: onPrimaryColor,
                       inactiveColor: inactiveColor,
+                      colors: colors,
                       borderRadius: radius,
                       onPressed: () async {
                         final currentScreen = NavigationHistory
@@ -759,7 +779,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
 
                   segmentWidgets.add(segments[i](radius));
                   if (!isLast) {
-                    segmentWidgets.add(_buildSegmentDivider());
+                    segmentWidgets.add(_buildSegmentDivider(colors));
                   }
                 }
 
@@ -774,10 +794,10 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF26262A),
+                        color: colors.inputFill,
                         borderRadius: BorderRadius.circular(19),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
+                          color: colors.borderSubtle,
                           width: 0.8,
                         ),
                       ),
@@ -801,10 +821,10 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                             height: 38,
                             padding: const EdgeInsets.symmetric(horizontal: 4),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF26262A),
+                              color: colors.inputFill,
                               borderRadius: BorderRadius.circular(19),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
+                                color: colors.borderSubtle,
                                 width: 0.8,
                               ),
                             ),
@@ -819,10 +839,10 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                           height: 38,
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF26262A),
+                            color: colors.inputFill,
                             borderRadius: BorderRadius.circular(19),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.12),
+                              color: colors.borderSubtle,
                               width: 0.8,
                             ),
                           ),
@@ -842,7 +862,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                                       : volume < 0.5
                                       ? tokens.volumeDownIcon
                                       : tokens.volumeUpIcon,
-                                  color: Colors.grey[400],
+                                  color: inactiveColor,
                                   size: 18,
                                 ),
                               ),
@@ -876,6 +896,7 @@ class _OriginalDesktopRightControls extends StatelessWidget {
     required Color primaryColor,
     required Color onPrimaryColor,
     required Color? inactiveColor,
+    required WispColors colors,
     required VoidCallback? onPressed,
     BorderRadius borderRadius = BorderRadius.zero,
   }) {
@@ -902,8 +923,8 @@ class _OriginalDesktopRightControls extends StatelessWidget {
                 color: isActive
                     ? onPrimaryColor
                     : (isClickable
-                          ? (inactiveColor ?? Colors.grey[400])
-                          : Colors.grey[600]),
+                          ? (inactiveColor ?? colors.textSecondary)
+                          : colors.textMuted),
                 size: 18,
               ),
             ),
@@ -913,11 +934,11 @@ class _OriginalDesktopRightControls extends StatelessWidget {
     );
   }
 
-  static Widget _buildSegmentDivider() {
+  static Widget _buildSegmentDivider(WispColors colors) {
     return Container(
       width: 1,
       margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 1),
-      color: Colors.white.withValues(alpha: 0.12),
+      color: colors.borderSubtle,
     );
   }
 }
@@ -996,21 +1017,40 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
       (connect) => _handoffStatusMessage(connect),
     );
 
-    final tintedPrimary = _originalTintedPrimary(
-      Theme.of(context).colorScheme.primary,
-    );
+    final colors = context.colors;
+    final isDark = colors.isDark;
+    final primary = Theme.of(context).colorScheme.primary;
+    final surfaceColor = isDark
+        ? _originalTintedPrimary(primary).withValues(alpha: 0.78)
+        : (Color.lerp(Colors.white, primary, 0.16) ?? Colors.white)
+              .withValues(alpha: 0.90);
+    final fgPrimary = isDark ? Colors.white : colors.textPrimary;
+    final fgSecondary = isDark
+        ? Colors.white.withValues(alpha: 0.78)
+        : colors.textSecondary;
 
     Widget cardBody = Container(
       width: MediaQuery.of(context).size.width - 32,
       height: 60,
       decoration: BoxDecoration(
         // Blurred, tinted primary surface (like the Spotify style).
-        color: tintedPrimary.withValues(alpha: 0.78),
+        color: surfaceColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.12),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : colors.borderSubtle,
           width: 0.8,
         ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: colors.shadow,
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
@@ -1031,7 +1071,11 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
                       duration: Duration.zero,
                       child: Opacity(
                         opacity: (1.0 - dragProgress).clamp(0.3, 1.0),
-                        child: _buildMobileTrackInfo(widget.currentTrack),
+                        child: _buildMobileTrackInfo(
+                          widget.currentTrack,
+                          fgPrimary: fgPrimary,
+                          fgSecondary: fgSecondary,
+                        ),
                       ),
                     ),
                     if (previewTrack != null && dragProgress > 0)
@@ -1046,7 +1090,11 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
                                     : -(1 - dragProgress) * 24,
                                 0,
                               ),
-                              child: _buildMobileTrackInfo(previewTrack),
+                              child: _buildMobileTrackInfo(
+                                previewTrack,
+                                fgPrimary: fgPrimary,
+                                fgSecondary: fgSecondary,
+                              ),
                             ),
                           ),
                         ),
@@ -1060,8 +1108,8 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
             _ConnectMenuButton(
               iconSize: 22,
               appStyle: AppStyle.Original,
-              inactiveColor: Colors.grey[400],
-              activeColorOverride: Colors.white,
+              inactiveColor: fgSecondary,
+              activeColorOverride: fgPrimary,
             ),
 
             // Like button
@@ -1070,7 +1118,7 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
               iconSize: 22,
               padding: const EdgeInsets.all(2),
               constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              color: Colors.white,
+              color: isDark ? Colors.white : primary,
             ),
             const SizedBox(width: 4),
 
@@ -1114,7 +1162,7 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
             child: Center(
               child: _HandoffStatusIndicator(
                 message: handoffMessage,
-                backgroundColor: const Color(0xFF2C2C2E),
+                backgroundColor: colors.surfaceElevated,
                 mobile: true,
               ),
             ),
@@ -1125,12 +1173,13 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
 
   Widget _buildMobileArt(dynamic currentTrack) {
     final imageUrl = currentTrack?.thumbnailUrl ?? '';
+    final colors = context.colors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Container(
         width: 46,
         height: 46,
-        color: Colors.grey[900],
+        color: colors.artworkPlaceholder,
         child: imageUrl.isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: imageUrl,
@@ -1138,20 +1187,24 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
                 memCacheWidth: 138,
                 memCacheHeight: 138,
                 placeholder: (context, url) =>
-                    Container(color: Colors.grey[800]),
+                    Container(color: colors.artworkPlaceholder),
                 errorWidget: (context, url, error) =>
-                    Icon(Icons.music_note, color: Colors.grey[700]),
+                    Icon(Icons.music_note, color: colors.textMuted),
               )
-            : Icon(Icons.music_note, color: Colors.grey[700]),
+            : Icon(Icons.music_note, color: colors.textMuted),
       ),
     );
   }
 
-  Widget _buildMobileTrackInfo(dynamic currentTrack) {
+  Widget _buildMobileTrackInfo(
+    dynamic currentTrack, {
+    required Color fgPrimary,
+    required Color fgSecondary,
+  }) {
     if (currentTrack == null || currentTrack is! GenericSong) {
       return Text(
         'No track playing',
-        style: TextStyle(color: Colors.grey[600], fontSize: 14),
+        style: TextStyle(color: context.colors.textMuted, fontSize: 14),
       );
     }
 
@@ -1167,8 +1220,8 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
               text: showConnectStatus
                   ? "${track.title} • ${track.artists.map((a) => a.name).join(', ')}"
                   : track.title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: fgPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
@@ -1182,7 +1235,7 @@ class _OriginalMobilePlayerBarState extends State<_OriginalMobilePlayerBar> {
                         child: MarqueeText(
                           text: track.artists.map((a) => a.name).join(', '),
                           style: TextStyle(
-                            color: Colors.grey[250],
+                            color: fgSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),

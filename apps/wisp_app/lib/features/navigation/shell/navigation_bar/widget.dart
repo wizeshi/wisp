@@ -498,7 +498,7 @@ class _WispNavigationState extends State<WispNavigation> {
       duration: const Duration(milliseconds: 200),
       width: _isCollapsed ? widget.collapsedWidth : widget.expandedWidth,
       clipBehavior: Clip.hardEdge,
-      color: Colors.grey[900]?.withValues(alpha: 0.3),
+      color: context.colors.sidebar,
       onEnd: () {
         if (_layoutCollapsed != _isCollapsed) {
           setState(() => _layoutCollapsed = _isCollapsed);
@@ -569,8 +569,9 @@ class _WispNavigationState extends State<WispNavigation> {
                   behavior: HitTestBehavior.translucent,
                   onTap: () {},
                   child: Material(
-                    color: const Color(0xFF282828),
+                    color: dialogContext.colors.surfaceElevated,
                     borderRadius: BorderRadius.circular(8),
+                    elevation: 6,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
                         minWidth: 220,
@@ -623,6 +624,7 @@ class _WispNavigationState extends State<WispNavigation> {
     required String label,
     required VoidCallback onTap,
   }) {
+    final colors = dialogContext.colors;
     return InkWell(
       mouseCursor: SystemMouseCursors.click,
       onTap: () {
@@ -633,9 +635,9 @@ class _WispNavigationState extends State<WispNavigation> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
-            Icon(icon, color: Colors.grey[300], size: 20),
+            Icon(icon, color: colors.textSecondary, size: 20),
             const SizedBox(width: 12),
-            Text(label, style: const TextStyle(color: Colors.white)),
+            Text(label, style: TextStyle(color: colors.textPrimary)),
           ],
         ),
       ),
@@ -644,6 +646,7 @@ class _WispNavigationState extends State<WispNavigation> {
 
   Widget _buildExpandedViewSelector() {
     final folderState = context.watch<LibraryFolderState>();
+    final colors = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -680,9 +683,9 @@ class _WispNavigationState extends State<WispNavigation> {
                                   maxWidth: 24,
                                 ),
                                 tooltip: 'Collapse Sidebar',
-                                icon: const Icon(
+                                icon: Icon(
                                   Symbols.left_panel_close,
-                                  color: Colors.white,
+                                  color: colors.textPrimary,
                                   size: 20,
                                 ),
                                 onPressed: () {
@@ -699,7 +702,7 @@ class _WispNavigationState extends State<WispNavigation> {
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: Colors.white,
+                        color: colors.textPrimary,
                       ),
                     ),
                   ],
@@ -714,7 +717,7 @@ class _WispNavigationState extends State<WispNavigation> {
                 child: PopupMenuButton<LibrarySortMode>(
                   padding: EdgeInsets.zero,
                   tooltip: 'Sort',
-                  color: const Color(0xFF282828),
+                  color: colors.surfaceElevated,
                   onSelected: (mode) {
                     folderState.setSortMode(mode);
                     context
@@ -724,30 +727,30 @@ class _WispNavigationState extends State<WispNavigation> {
                   style: const ButtonStyle(
                     visualDensity: VisualDensity.comfortable,
                   ),
-                  itemBuilder: (context) => const [
+                  itemBuilder: (context) => [
                     PopupMenuItem(
                       value: LibrarySortMode.recent,
                       child: Text(
                         'Recent',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: context.colors.textPrimary),
                       ),
                     ),
                     PopupMenuItem(
                       value: LibrarySortMode.recentlyAdded,
                       child: Text(
                         'Recently added',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: context.colors.textPrimary),
                       ),
                     ),
                     PopupMenuItem(
                       value: LibrarySortMode.alphabetical,
                       child: Text(
                         'Alphabetical',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(color: context.colors.textPrimary),
                       ),
                     ),
                   ],
-                  icon: Icon(Icons.sort, color: Colors.grey[500], size: 16),
+                  icon: Icon(Icons.sort, color: colors.textMuted, size: 16),
                 ),
               ),
             ),
@@ -755,20 +758,20 @@ class _WispNavigationState extends State<WispNavigation> {
             Builder(
               builder: (buttonContext) {
                 return GenericFilledButton.icon(
-                  label: const Text(
+                  label: Text(
                     "Create",
                     style: TextStyle(
-                      color: Colors.white,
+                      color: colors.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  backgroundColor: Colors.black38,
+                  backgroundColor: colors.inputFill,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 6,
                   ),
-                  icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                  icon: Icon(Icons.add, color: colors.textPrimary, size: 20),
                   onPressed: () => _showCreateMenu(buttonContext),
                 );
               },
@@ -780,6 +783,7 @@ class _WispNavigationState extends State<WispNavigation> {
   }
 
   Widget _buildCollapsedViewSelector() {
+    final colors = context.colors;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHoveringHeader = true),
       onExit: (_) => setState(() => _isHoveringHeader = false),
@@ -796,9 +800,9 @@ class _WispNavigationState extends State<WispNavigation> {
                     maxWidth: 32,
                   ),
                   tooltip: 'Expand Sidebar',
-                  icon: const Icon(
+                  icon: Icon(
                     Symbols.left_panel_open,
-                    color: Colors.white,
+                    color: colors.textPrimary,
                     size: 28,
                   ),
                   onPressed: () => setState(() => _isCollapsed = !_isCollapsed),
@@ -813,7 +817,7 @@ class _WispNavigationState extends State<WispNavigation> {
                   ),
                   child: Icon(
                     Symbols.library_music,
-                    color: Colors.white,
+                    color: colors.textPrimary,
                     size: 28,
                   ),
                 ),
@@ -907,7 +911,7 @@ class _WispNavigationState extends State<WispNavigation> {
           decoration: candidate.isNotEmpty
               ? BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white24),
+                  border: Border.all(color: context.colors.border),
                 )
               : null,
           child: tile,
@@ -953,7 +957,7 @@ class _WispNavigationState extends State<WispNavigation> {
         builder: (context, candidate, rejected) => Container(
           decoration: candidate.isNotEmpty
               ? BoxDecoration(
-                  color: Colors.white10,
+                  color: context.colors.hoverOverlay,
                   borderRadius: BorderRadius.circular(8),
                 )
               : null,
@@ -1036,15 +1040,16 @@ class _SidebarDragFeedback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Material(
-      color: const Color(0xFF1E1E1E),
+      color: colors.surfaceElevated,
       elevation: 6,
       borderRadius: BorderRadius.circular(8),
       child: Container(
         width: width,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white24),
+          border: Border.all(color: colors.border),
         ),
         clipBehavior: Clip.antiAlias,
         child: child,

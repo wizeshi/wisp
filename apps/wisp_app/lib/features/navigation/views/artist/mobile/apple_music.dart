@@ -25,7 +25,7 @@ extension _MobileAppleMusicStyle on _ArtistDetailViewState {
           delegate: _StickyActionBarDelegate(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              color: const Color(0xFF121212),
+              color: context.colors.canvas,
               child: _buildMobileActionsRow(useAppleIcons: true),
             ),
           ),
@@ -39,14 +39,14 @@ extension _MobileAppleMusicStyle on _ArtistDetailViewState {
                 const SizedBox(height: 20),
                 _buildMobileAppleAlbumsRow(),
                 const SizedBox(height: 24),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Information',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: context.colors.textPrimary,
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                       ),

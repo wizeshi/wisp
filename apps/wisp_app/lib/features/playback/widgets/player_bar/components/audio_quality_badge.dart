@@ -6,6 +6,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 
@@ -191,17 +192,18 @@ class _QualityInfoBubble extends StatelessWidget {
           engineKbps = '${(engineBitrate / 1000).floor()} kbps';
         }
 
+        final colors = context.colors;
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
+            color: colors.surfaceElevated,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: colors.borderSubtle,
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.55),
+                color: colors.shadow,
                 blurRadius: 16,
                 offset: const Offset(0, 4),
               ),
@@ -223,7 +225,7 @@ class _QualityInfoBubble extends StatelessWidget {
                       Text(
                         'AUDIO FIDELITY',
                         style: TextStyle(
-                          color: Colors.grey[400],
+                          color: colors.textSecondary,
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.8,
@@ -238,29 +240,30 @@ class _QualityInfoBubble extends StatelessWidget {
                       child: Icon(
                         Icons.close,
                         size: 14,
-                        color: Colors.grey[500],
+                        color: colors.textMuted,
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+              Divider(height: 1, color: colors.borderSubtle),
               const SizedBox(height: 10),
 
               // Source Stream Section
               Text(
                 'Source Stream ($providerName)',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 6),
-              _buildMetricRow(label: 'Container / Codec', value: sourceFormat),
+              _buildMetricRow(context, label: 'Container / Codec', value: sourceFormat),
               if (sourceBitDepth != null && sourceBitDepth > 0)
                 _buildMetricRow(
+                  context,
                   label: 'Bit Depth',
                   value: '$sourceBitDepth-bit',
                   accent: sourceBitDepth >= 24,
@@ -268,6 +271,7 @@ class _QualityInfoBubble extends StatelessWidget {
                 ),
               if (sourceKHz != null)
                 _buildMetricRow(
+                  context,
                   label: 'Sample Rate',
                   value: sourceKHz,
                   accent: (sourceSampleRate ?? 0) > 48000,
@@ -275,34 +279,35 @@ class _QualityInfoBubble extends StatelessWidget {
                 ),
               if (quality?.bitrate != null && quality!.bitrate! > 0)
                 _buildMetricRow(
+                  context,
                   label: 'Nominal Bitrate',
                   value: '${quality.bitrate} kbps',
                 ),
 
               const SizedBox(height: 10),
-              Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+              Divider(height: 1, color: colors.borderSubtle),
               const SizedBox(height: 10),
 
               // Engine Output Section
-              const Text(
+              Text(
                 'Playback Engine Output',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: colors.textPrimary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 6),
               if (engineKbps != null)
-                _buildMetricRow(label: 'Rendered Bitrate', value: engineKbps),
+                _buildMetricRow(context, label: 'Rendered Bitrate', value: engineKbps),
               if (engineKHz != null)
-                _buildMetricRow(label: 'Output Rate', value: engineKHz),
+                _buildMetricRow(context, label: 'Output Rate', value: engineKHz),
 
               if (engineKbps == null && engineKHz == null)
                 Text(
                   'Engine telemetry syncing...',
                   style: TextStyle(
-                    color: Colors.grey[500],
+                    color: colors.textMuted,
                     fontSize: 11,
                     fontStyle: FontStyle.italic,
                   ),
@@ -314,12 +319,14 @@ class _QualityInfoBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricRow({
+  Widget _buildMetricRow(
+    BuildContext context, {
     required String label,
     required String value,
     bool accent = false,
     Color? accentColor,
   }) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
@@ -327,12 +334,14 @@ class _QualityInfoBubble extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(color: Colors.grey[400], fontSize: 11.5),
+            style: TextStyle(color: colors.textSecondary, fontSize: 11.5),
           ),
           Text(
             value,
             style: TextStyle(
-              color: accent ? (accentColor ?? Colors.white) : Colors.white,
+              color: accent
+                  ? (accentColor ?? colors.textPrimary)
+                  : colors.textPrimary,
               fontSize: 11.5,
               fontWeight: accent ? FontWeight.w600 : FontWeight.w500,
             ),
@@ -364,7 +373,7 @@ class QualityInfoSheet extends StatelessWidget {
       isScrollControlled: true,
       isDismissible: true,
       enableDrag: true,
-      backgroundColor: const Color(0xFF282828),
+      backgroundColor: context.colors.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -375,12 +384,14 @@ class QualityInfoSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricRow({
+  Widget _buildMetricRow(
+    BuildContext context, {
     required String label,
     required String value,
     bool accent = false,
     Color? accentColor,
   }) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -388,12 +399,14 @@ class QualityInfoSheet extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(color: Colors.grey[400], fontSize: 13),
+            style: TextStyle(color: colors.textSecondary, fontSize: 13),
           ),
           Text(
             value,
             style: TextStyle(
-              color: accent ? (accentColor ?? Colors.white) : Colors.white,
+              color: accent
+                  ? (accentColor ?? colors.textPrimary)
+                  : colors.textPrimary,
               fontSize: 13,
               fontWeight: accent ? FontWeight.w600 : FontWeight.w500,
             ),
@@ -405,6 +418,7 @@ class QualityInfoSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Selector<WispAudioHandler, (ActiveTrackQualityInfo?, double?, int?)>(
       selector: (_, handler) => (
         handler.activeTrackQuality,
@@ -455,7 +469,7 @@ class QualityInfoSheet extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey[600],
+                      color: colors.border,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -471,7 +485,7 @@ class QualityInfoSheet extends StatelessWidget {
                         Text(
                           'AUDIO FIDELITY',
                           style: TextStyle(
-                            color: Colors.grey[400],
+                            color: colors.textSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.8,
@@ -489,29 +503,30 @@ class QualityInfoSheet extends StatelessWidget {
                         child: Icon(
                           Icons.close,
                           size: 16,
-                          color: Colors.grey[500],
+                          color: colors.textMuted,
                         ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+                Divider(height: 1, color: colors.borderSubtle),
                 const SizedBox(height: 12),
 
                 // Source Stream Section
                 Text(
                   'Source Stream ($providerName)',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildMetricRow(label: 'Container / Codec', value: sourceFormat),
+                _buildMetricRow(context, label: 'Container / Codec', value: sourceFormat),
                 if (sourceBitDepth != null && sourceBitDepth > 0)
                   _buildMetricRow(
+                    context,
                     label: 'Bit Depth',
                     value: '$sourceBitDepth-bit',
                     accent: sourceBitDepth >= 24,
@@ -519,6 +534,7 @@ class QualityInfoSheet extends StatelessWidget {
                   ),
                 if (sourceKHz != null)
                   _buildMetricRow(
+                    context,
                     label: 'Sample Rate',
                     value: sourceKHz,
                     accent: (sourceSampleRate ?? 0) > 48000,
@@ -526,34 +542,35 @@ class QualityInfoSheet extends StatelessWidget {
                   ),
                 if (quality?.bitrate != null && quality!.bitrate! > 0)
                   _buildMetricRow(
+                    context,
                     label: 'Nominal Bitrate',
                     value: '${quality.bitrate} kbps',
                   ),
 
                 const SizedBox(height: 12),
-                Divider(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+                Divider(height: 1, color: colors.borderSubtle),
                 const SizedBox(height: 12),
 
                 // Playback Engine Output Section
-                const Text(
+                Text(
                   'Playback Engine Output',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: colors.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 8),
                 if (engineKbps != null)
-                  _buildMetricRow(label: 'Rendered Bitrate', value: engineKbps),
+                  _buildMetricRow(context, label: 'Rendered Bitrate', value: engineKbps),
                 if (engineKHz != null)
-                  _buildMetricRow(label: 'Output Rate', value: engineKHz),
+                  _buildMetricRow(context, label: 'Output Rate', value: engineKHz),
 
                 if (engineKbps == null && engineKHz == null)
                   Text(
                     'Engine telemetry syncing...',
                     style: TextStyle(
-                      color: Colors.grey[500],
+                      color: colors.textMuted,
                       fontSize: 12,
                       fontStyle: FontStyle.italic,
                     ),

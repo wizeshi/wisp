@@ -197,11 +197,27 @@ class _UserDetailViewState extends State<UserDetailView> {
   Future<List<Color>> _getActionsRowColor(
     CoverArtPaletteProvider paletteProvider,
     String imageUrl,
+    Brightness brightness,
+    WispColors colors,
   ) async {
-    final palette = await paletteProvider.paletteForImageUrl(imageUrl);
-    final fakeColor = HSLColor.fromColor(
-      palette?.primary ?? const Color(0xFF1E1E1E),
+    final palette = await paletteProvider.paletteForImageUrl(
+      imageUrl,
+      brightness: brightness,
     );
+    final rawPrimary = palette?.primary;
+    if (rawPrimary == null) {
+      final fallback = colors.isDark
+          ? const Color(0xFF1E1E1E)
+          : colors.surfaceElevated;
+      return [fallback, colors.isDark ? fallback : colors.surface];
+    }
+    if (!colors.isDark) {
+      return [
+        colors.tintedHeader(rawPrimary),
+        colors.tintedSubtle(rawPrimary),
+      ];
+    }
+    final fakeColor = HSLColor.fromColor(rawPrimary);
     final color = fakeColor
         .withLightness(log(fakeColor.lightness + 1) / log(3))
         .toColor();
@@ -267,7 +283,7 @@ class _UserDetailViewState extends State<UserDetailView> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: GenericIconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: context.colors.textPrimary),
             onPressed: () => NavigationHistory.instance.goBack(),
           ),
           title: Text(
@@ -281,11 +297,13 @@ class _UserDetailViewState extends State<UserDetailView> {
     }();
 
     if (_errorMessage != null && user == null) {
+      final colors = context.colors;
       return Scaffold(
+        backgroundColor: colors.canvas,
         appBar: AppBar(
-          backgroundColor: Colors.black,
+          backgroundColor: colors.canvas,
           leading: GenericIconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: colors.textPrimary),
             onPressed: () => NavigationHistory.instance.goBack(),
           ),
           title: Text(title),
@@ -358,7 +376,7 @@ class _UserDetailViewState extends State<UserDetailView> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: context.colors.textPrimary,
                             fontSize: useAppleChrome ? 28 : 28,
                             height: 1.05,
                             fontWeight: FontWeight.w800,
@@ -368,13 +386,16 @@ class _UserDetailViewState extends State<UserDetailView> {
                         Text(
                           '$followerLabel • $followingLabel',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.82),
+                            color: context.colors.textSecondary,
                             fontSize: 14,
                           ),
                         ),
                       ],
                     ),
-                    _buildFollowButton(),
+                    _buildFollowButton(
+                      foregroundColor: context.colors.textPrimary,
+                      borderColor: context.colors.border,
+                    ),
                   ],
                 ),
               ),
@@ -384,12 +405,25 @@ class _UserDetailViewState extends State<UserDetailView> {
       );
     }
 
+    final colors = context.colors;
+    final brightness = Theme.of(context).brightness;
     final paletteProvider = context.watch<CoverArtPaletteProvider>();
     return FutureBuilder<List<Color>>(
-      future: _getActionsRowColor(paletteProvider, user.avatarUrl ?? ''),
+      future: _getActionsRowColor(
+        paletteProvider,
+        user.avatarUrl ?? '',
+        brightness,
+        colors,
+      ),
       builder: (context, snapshot) {
-        final headerColor = snapshot.data?[0] ?? Color(0xFF1E1E1E);
-        final actionsRowColor = snapshot.data?[1] ?? const Color(0xFF1E1E1E);
+        final fallbackHeader = colors.isDark
+            ? const Color(0xFF1E1E1E)
+            : colors.surfaceElevated;
+        final headerColor = snapshot.data?[0] ?? fallbackHeader;
+        final actionsRowColor =
+            snapshot.data?[1] ??
+            (colors.isDark ? fallbackHeader : colors.surface);
+        final headerInk = colors.onColor(headerColor);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,7 +434,9 @@ class _UserDetailViewState extends State<UserDetailView> {
                 color: headerColor,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.6),
+                    color: colors.shadow.withValues(
+                      alpha: colors.isDark ? 0.6 : 0.14,
+                    ),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -422,7 +458,7 @@ class _UserDetailViewState extends State<UserDetailView> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.white,
+                              color: headerInk,
                               fontSize: useAppleChrome ? 36 : 38,
                               height: 1.05,
                               fontWeight: FontWeight.w800,
@@ -432,7 +468,7 @@ class _UserDetailViewState extends State<UserDetailView> {
                           Text(
                             '$followerLabel • $followingLabel',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.82),
+                              color: headerInk.withValues(alpha: 0.82),
                               fontSize: 14,
                             ),
                           ),
@@ -457,7 +493,12 @@ class _UserDetailViewState extends State<UserDetailView> {
               ),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: IntrinsicWidth(child: _buildFollowButton()),
+                child: IntrinsicWidth(
+                  child: _buildFollowButton(
+                    foregroundColor: colors.textPrimary,
+                    borderColor: colors.border,
+                  ),
+                ),
               ),
             ),
           ],
@@ -466,7 +507,10 @@ class _UserDetailViewState extends State<UserDetailView> {
     );
   }
 
-  Widget _buildFollowButton() {
+  Widget _buildFollowButton({
+    required Color foregroundColor,
+    required Color borderColor,
+  }) {
     final tokens = WispStyleTokens.fromStyle(widget.style);
     final isFollowing = _isFollowedByCurrentUser;
     final label = isFollowing ? 'Following' : 'Follow';
@@ -476,8 +520,8 @@ class _UserDetailViewState extends State<UserDetailView> {
       onPressed: null,
       icon: Icon(icon, size: 18),
       label: Text(label),
-      foregroundColor: Colors.white,
-      side: BorderSide(color: Colors.white.withValues(alpha: 0.22)),
+      foregroundColor: foregroundColor,
+      side: BorderSide(color: borderColor),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
     );
@@ -504,11 +548,12 @@ class _UserDetailViewState extends State<UserDetailView> {
   }
 
   Widget _buildHeaderImage(String? imageUrl) {
+    final colors = context.colors;
     final placeholder = Container(
-      color: Colors.grey[900],
+      color: colors.artworkPlaceholder,
       child: Icon(
         CupertinoIcons.person_crop_circle,
-        color: Colors.grey[600],
+        color: colors.textMuted,
         size: 64,
       ),
     );
@@ -521,7 +566,7 @@ class _UserDetailViewState extends State<UserDetailView> {
       imageUrl: imageUrl,
       fit: BoxFit.cover,
       placeholder: (context, url) => Container(
-        color: Colors.grey[800],
+        color: colors.artworkPlaceholder,
         child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
       errorWidget: (context, url, error) => placeholder,

@@ -3,6 +3,7 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
@@ -52,15 +53,16 @@ class InspectDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Material(
       color: Colors.transparent,
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
+          color: colors.surfaceElevated,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[800]!, width: 1),
+          border: Border.all(color: colors.border, width: 1),
         ),
         constraints: const BoxConstraints(maxHeight: 580),
         child: Column(
@@ -86,7 +88,7 @@ class InspectDialog extends StatelessWidget {
                     ),
                   ),
                   GenericIconButton(
-                    icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                    icon: Icon(Icons.close, size: 18, color: colors.textMuted),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
                       minWidth: 32,
@@ -97,17 +99,20 @@ class InspectDialog extends StatelessWidget {
                 ],
               ),
             ),
-            Divider(color: Colors.grey[800], height: 1),
+            Divider(color: colors.border, height: 1),
 
             // Fields list with recursive subsections
             Flexible(
               child: data.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.all(24),
+                  ? Padding(
+                      padding: const EdgeInsets.all(24),
                       child: Center(
                         child: Text(
                           '(No data)',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     )
@@ -117,7 +122,7 @@ class InspectDialog extends StatelessWidget {
                     ),
             ),
 
-            Divider(color: Colors.grey[800], height: 1),
+            Divider(color: colors.border, height: 1),
 
             // Copy all button
             Padding(
@@ -125,7 +130,7 @@ class InspectDialog extends StatelessWidget {
               child: GenericTextButton.icon(
                 icon: const Icon(Icons.copy, size: 14),
                 label: const Text('Copy all as JSON'),
-                foregroundColor: Colors.grey[400],
+                foregroundColor: colors.textSecondary,
                 textStyle: const TextStyle(fontSize: 12),
                 onPressed: () async {
                   final json = _formatJson(data);
@@ -312,7 +317,7 @@ class _CollapsibleSectionState extends State<_CollapsibleSection> {
                         ? Icons.keyboard_arrow_down
                         : Icons.keyboard_arrow_right,
                     size: 16,
-                    color: Colors.grey[500],
+                    color: context.colors.textMuted,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -331,21 +336,28 @@ class _CollapsibleSectionState extends State<_CollapsibleSection> {
                     vertical: 1,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.grey[850],
+                    color: context.colors.surfaceSubtle,
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
-                      color: Colors.grey[750] ?? Colors.grey[800]!,
+                      color: context.colors.border,
                       width: 0.8,
                     ),
                   ),
                   child: Text(
                     widget.badge,
-                    style: TextStyle(color: Colors.grey[400], fontSize: 10),
+                    style: TextStyle(
+                      color: context.colors.textSecondary,
+                      fontSize: 10,
+                    ),
                   ),
                 ),
                 const Spacer(),
                 GenericIconButton(
-                  icon: Icon(Icons.copy, size: 12, color: Colors.grey[600]),
+                  icon: Icon(
+                    Icons.copy,
+                    size: 12,
+                    color: context.colors.textMuted,
+                  ),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
                     minWidth: 24,
@@ -406,17 +418,20 @@ class _FieldRow extends StatelessWidget {
     final isNull = value == null;
     final isBool = value is bool;
 
+    final colors = context.colors;
     Color? textColor;
     if (isUrl) {
-      textColor = Colors.blue[300];
+      textColor = colors.isDark ? Colors.blue[300] : Colors.blue[700];
     } else if (isNull) {
-      textColor = Colors.grey[600];
+      textColor = colors.textMuted;
     } else if (isBool) {
-      textColor = value ? Colors.tealAccent[400] : Colors.red[300];
+      textColor = colors.isDark
+          ? (value ? Colors.tealAccent[400] : Colors.red[300])
+          : (value ? Colors.teal[700] : Colors.red[700]);
     } else if (value is num) {
-      textColor = Colors.amber[200];
+      textColor = colors.isDark ? Colors.amber[200] : Colors.amber[900];
     } else {
-      textColor = Colors.grey[300];
+      textColor = colors.isDark ? Colors.grey[300] : colors.textPrimary;
     }
 
     return GestureDetector(
@@ -462,7 +477,7 @@ class _FieldRow extends StatelessWidget {
             const SizedBox(width: 8),
             MouseRegion(
               cursor: SystemMouseCursors.click,
-              child: Icon(Icons.copy, size: 12, color: Colors.grey[700]),
+              child: Icon(Icons.copy, size: 12, color: colors.textMuted),
             ),
           ],
         ),

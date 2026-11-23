@@ -4,6 +4,7 @@ library;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 
 import 'package:wisp/data/cache/audio/audio_mapping_store.dart';
 import 'package:wisp/data/models/metadata_models.dart';
@@ -243,8 +244,11 @@ class _AudioAlternativesViewState extends State<AudioAlternativesView> {
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _selectedProviderId,
-                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
-                  dropdownColor: Theme.of(context).cardColor,
+                  icon: Icon(
+                    Icons.arrow_drop_down,
+                    color: context.colors.textSecondary,
+                  ),
+                  dropdownColor: context.colors.surfaceElevated,
                   items: availableSources.map((s) {
                     return DropdownMenuItem<String>(
                       value: s.id,
@@ -282,7 +286,7 @@ class _AudioAlternativesViewState extends State<AudioAlternativesView> {
             ),
             trailing: _buildCurrentMappingBadge(),
           ),
-          Divider(height: 1, color: Colors.grey[700]),
+          Divider(height: 1, color: context.colors.border),
           Expanded(child: _buildBody()),
         ],
       ),
@@ -290,6 +294,7 @@ class _AudioAlternativesViewState extends State<AudioAlternativesView> {
   }
 
   Widget? _buildCurrentMappingBadge() {
+    final colors = context.colors;
     final mappings = _mappingStore.getMappings(_canonicalKey);
     final currentProviderId = _selectedProviderId;
     final currentMapping = mappings.where((m) => m.providerID == currentProviderId).firstOrNull;
@@ -299,10 +304,12 @@ class _AudioAlternativesViewState extends State<AudioAlternativesView> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: currentMapping.manualOverride ? Colors.green.withValues(alpha: 0.2) : Colors.white10,
+        color: currentMapping.manualOverride
+            ? Colors.green.withValues(alpha: 0.2)
+            : colors.surfaceSubtle,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: currentMapping.manualOverride ? Colors.green : Colors.white24,
+          color: currentMapping.manualOverride ? Colors.green : colors.border,
           width: 1,
         ),
       ),
@@ -310,7 +317,9 @@ class _AudioAlternativesViewState extends State<AudioAlternativesView> {
         currentMapping.manualOverride ? 'Manual Override' : 'Mapped',
         style: TextStyle(
           fontSize: 11,
-          color: currentMapping.manualOverride ? Colors.green : Colors.white70,
+          color: currentMapping.manualOverride
+              ? (colors.isDark ? Colors.green : Colors.green[700])
+              : colors.textSecondary,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -346,7 +355,7 @@ class _AudioAlternativesViewState extends State<AudioAlternativesView> {
       ),
       itemCount: _candidates.length + 1,
       separatorBuilder: (ctx, index) =>
-          Divider(height: 1, color: Colors.grey[900]),
+          Divider(height: 1, color: ctx.colors.borderSubtle),
       itemBuilder: (context, index) {
         if (index == 0) {
           return ListTile(
@@ -381,7 +390,7 @@ class _AudioAlternativesViewState extends State<AudioAlternativesView> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.white12,
+                    color: context.colors.surfaceSubtle,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -394,7 +403,11 @@ class _AudioAlternativesViewState extends State<AudioAlternativesView> {
                 ),
                 const SizedBox(width: 8),
               ],
-              const Icon(Icons.chevron_right, color: Colors.white54, size: 20),
+              Icon(
+                Icons.chevron_right,
+                color: context.colors.textMuted,
+                size: 20,
+              ),
             ],
           ),
           onTap: () async {

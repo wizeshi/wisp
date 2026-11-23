@@ -13,6 +13,7 @@ import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/data/sources/metadata/metadata_manager.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
@@ -308,6 +309,7 @@ class EntityContextMenus {
     required GenericSong track,
     required Color activeIconColor,
   }) {
+    final colors = context.colors;
     return ContextMenuAction(
       id: 'add-to-${playlist.id}',
       label: playlist.title,
@@ -321,27 +323,28 @@ class EntityContextMenus {
               ? CachedNetworkImage(
                   imageUrl: playlist.thumbnailUrl,
                   fit: BoxFit.cover,
-                  errorWidget: (_, _, _) => const Icon(
+                  errorWidget: (_, _, _) => Icon(
                     Icons.playlist_play,
                     size: 18,
-                    color: Colors.white70,
+                    color: colors.textSecondary,
                   ),
                 )
-              : const Icon(
+              : Icon(
                   Icons.playlist_play,
                   size: 18,
-                  color: Colors.white70,
+                  color: colors.textSecondary,
                 ),
         ),
       ),
       customTrailingBuilder: (tileCtx) {
+        final mutedColor = tileCtx.colors.textMuted;
         final localState = tileCtx.read<LocalPlaylistState>();
         final isLocal = localState.isLocalPlaylistId(playlist.id);
         if (isLocal) {
           final inPlaylist = localState.hasTrack(playlist.id, track.id);
           return Icon(
             inPlaylist ? Icons.check_circle : Icons.radio_button_unchecked,
-            color: inPlaylist ? activeIconColor : Colors.grey[600],
+            color: inPlaylist ? activeIconColor : mutedColor,
             size: 20,
           );
         }
@@ -365,13 +368,13 @@ class EntityContextMenus {
           if (total <= trackIndex.tracks.length) {
             return Icon(
               Icons.radio_button_unchecked,
-              color: Colors.grey[600],
+              color: mutedColor,
               size: 20,
             );
           }
           return Icon(
             Icons.remove_circle_outline,
-            color: Colors.grey[500],
+            color: mutedColor,
             size: 20,
           );
         }
@@ -388,20 +391,20 @@ class EntityContextMenus {
           if (total <= songs.length) {
             return Icon(
               Icons.radio_button_unchecked,
-              color: Colors.grey[600],
+              color: mutedColor,
               size: 20,
             );
           }
           return Icon(
             Icons.remove_circle_outline,
-            color: Colors.grey[500],
+            color: mutedColor,
             size: 20,
           );
         }
 
         return Icon(
           Icons.radio_button_unchecked,
-          color: Colors.grey[600],
+          color: mutedColor,
           size: 20,
         );
       },
@@ -732,7 +735,8 @@ class EntityContextMenus {
       actions: actions,
       anchorRect: effectiveAnchorRect,
       globalPosition: globalPosition,
-      mobileHeaderBuilder: (_) {
+      mobileHeaderBuilder: (headerContext) {
+        final colors = headerContext.colors;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
@@ -746,11 +750,11 @@ class EntityContextMenus {
                     imageUrl: track.thumbnailUrl,
                     fit: BoxFit.cover,
                     errorWidget: (context, url, error) => Container(
-                      color: Colors.grey[900],
-                      child: Icon(Icons.music_note, color: Colors.grey[600]),
+                      color: colors.artworkPlaceholder,
+                      child: Icon(Icons.music_note, color: colors.textMuted),
                     ),
                     placeholder: (context, url) =>
-                        Container(color: Colors.grey[850]),
+                        Container(color: colors.artworkPlaceholder),
                   ),
                 ),
               ),
@@ -761,8 +765,8 @@ class EntityContextMenus {
                   children: [
                     Text(
                       track.title,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: colors.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -772,7 +776,7 @@ class EntityContextMenus {
                     const SizedBox(height: 2),
                     Text(
                       track.artists.map((artist) => artist.name).join(', '),
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      style: TextStyle(color: colors.textSecondary, fontSize: 12),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -780,7 +784,7 @@ class EntityContextMenus {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(_sourceIcon(track.source), color: Colors.grey[300]),
+              Icon(_sourceIcon(track.source), color: colors.textSecondary),
             ],
           ),
         );

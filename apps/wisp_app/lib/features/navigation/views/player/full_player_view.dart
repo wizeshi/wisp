@@ -2,9 +2,11 @@
 
 import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/core/theme/cover_art_palette_provider.dart';
 import 'package:wisp/features/playback/widgets/full_player/styles/desktop/original_full_player.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
@@ -45,6 +47,13 @@ class FullScreenPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = context.watch<PreferencesProvider>().style;
+    final darkPalette = context.select<CoverArtPaletteProvider, ColorScheme?>(
+      (p) => p.darkPalette,
+    );
+    final darkTheme = AppTheme.dark(
+      paletteOverride: darkPalette,
+      appStyle: style,
+    );
 
     Widget playerBody;
     // Use new desktop fullscreen for Spotify and Original on desktop
@@ -72,16 +81,23 @@ class FullScreenPlayer extends StatelessWidget {
       ),
     );
 
-    if (_isDesktop) {
-      return PopScope(
-        onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) return;
-          unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
-        },
-        child: content,
-      );
-    }
-    return content;
+    final wrapped = _isDesktop
+        ? PopScope(
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop) return;
+              unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
+            },
+            child: content,
+          )
+        : content;
+
+    return Theme(
+      data: darkTheme,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: wrapped,
+      ),
+    );
   }
 
   Widget _buildSheet(

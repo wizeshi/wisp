@@ -2,6 +2,7 @@
 
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 
 class WispMobileAppleMusicNavBar extends StatelessWidget {
   final int selectedIndex;
@@ -15,13 +16,23 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.colors;
+    final isDark = colors.isDark;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final barWidth = (screenWidth - 44).clamp(260.0, 360.0);
     const double barHeight = 62.0;
     const double bottomMargin = 12.0;
     final double totalHeight = barHeight + bottomMargin + bottomInset;
+
+    final selectedShadows = isDark
+        ? [
+            Shadow(
+              color: Colors.white.withValues(alpha: 0.85),
+              blurRadius: 14,
+            ),
+          ]
+        : null;
 
     final items = [
       LiquidGlassTabBarItem(
@@ -30,14 +41,7 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
           i.selected ? Icons.home : Icons.home_outlined,
           size: i.size,
           color: i.color,
-          shadows: i.selected
-              ? [
-                  Shadow(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    blurRadius: 14,
-                  ),
-                ]
-              : null,
+          shadows: i.selected ? selectedShadows : null,
         ),
       ),
       LiquidGlassTabBarItem(
@@ -46,14 +50,7 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
           i.selected ? Icons.search : Icons.search_outlined,
           size: i.size,
           color: i.color,
-          shadows: i.selected
-              ? [
-                  Shadow(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    blurRadius: 14,
-                  ),
-                ]
-              : null,
+          shadows: i.selected ? selectedShadows : null,
         ),
       ),
       LiquidGlassTabBarItem(
@@ -62,14 +59,7 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
           i.selected ? Icons.library_music : Icons.library_music_outlined,
           size: i.size,
           color: i.color,
-          shadows: i.selected
-              ? [
-                  Shadow(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    blurRadius: 14,
-                  ),
-                ]
-              : null,
+          shadows: i.selected ? selectedShadows : null,
         ),
       ),
     ];
@@ -103,22 +93,22 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
           ),
           color: isDark
               ? const Color(0x1EFFFFFF)
-              : const Color(0x38FFFFFF),
+              : Colors.white.withValues(alpha: 0.72),
           blur: 3.5,
           refractionIndex: 1.2,
           refractionWidth: 16.0,
           magnification: 1.02,
           dispersion: 2.5,
-          shadow: const LiquidGlassShadow(
+          shadow: LiquidGlassShadow(
             blur: 16,
-            opacity: 0.35,
+            opacity: isDark ? 0.35 : 0.14,
           ),
         ),
         itemStyle: LiquidGlassTabItemStyle(
-          selectedColor: Colors.white,
+          selectedColor: isDark ? Colors.white : colors.textPrimary,
           unselectedColor: isDark
               ? Colors.white.withValues(alpha: 0.65)
-              : Colors.black.withValues(alpha: 0.6),
+              : colors.textSecondary,
           iconSize: 22,
           underGlassIconSize: 26,
           labelFontSize: 10.5,
@@ -141,7 +131,9 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
               cornerStyle: LiquidGlassCornerStyle.continuousRoundedRectangle,
               cornerRadius: 24,
             ),
-            color: Colors.white.withValues(alpha: 0.22),
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.22)
+                : Colors.black.withValues(alpha: 0.08),
             blur: 2.0,
             specular: const LiquidGlassLight.specular(
               thickness: 3.5,
@@ -149,7 +141,9 @@ class WispMobileAppleMusicNavBar extends StatelessWidget {
               intensity: 1.2,
             ),
             glow: LiquidGlassLight.glow(
-              color: Colors.white.withValues(alpha: 0.35),
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.35)
+                  : Colors.black.withValues(alpha: 0.06),
             ),
           ),
         ),

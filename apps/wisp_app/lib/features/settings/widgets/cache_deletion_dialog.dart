@@ -3,6 +3,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/data/cache/metadata_cache.dart';
@@ -137,11 +138,12 @@ class _CacheDeletionDialogState extends State<CacheDeletionDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return AlertDialog(
-      backgroundColor: const Color(0xFF282828),
-      title: const Text(
+      backgroundColor: colors.surfaceElevated,
+      title: Text(
         'Clear Storage & Cache',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.bold),
       ),
       content: SizedBox(
         width: 520,
@@ -150,17 +152,17 @@ class _CacheDeletionDialogState extends State<CacheDeletionDialog> {
             mainAxisSize: MainAxisSize.min,
             children: _categories.map((cat) {
               return SwitchListTile.adaptive(
-                secondary: Icon(cat.icon, color: Colors.grey[400]),
+                secondary: Icon(cat.icon, color: colors.textSecondary),
                 title: Text(
                   cat.title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 subtitle: Text(
                   cat.subtitle,
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
                 value: _cacheDeleteEnabled[cat.key] ?? false,
                 onChanged: (value) {
@@ -176,7 +178,7 @@ class _CacheDeletionDialogState extends State<CacheDeletionDialog> {
       actions: [
         GenericTextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+          child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
         ),
         GenericElevatedButton(
           onPressed: _cacheDeleteEnabled.values.any((v) => v)

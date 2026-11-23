@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_links/app_links.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
@@ -40,9 +41,11 @@ class AppRouter {
     required Widget child,
     bool isTab = false,
   }) {
-    final wrappedChild = Material(
-      color: const Color(0xFF121212),
-      child: child,
+    final wrappedChild = Builder(
+      builder: (context) => Material(
+        color: context.colors.canvas,
+        child: child,
+      ),
     );
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;

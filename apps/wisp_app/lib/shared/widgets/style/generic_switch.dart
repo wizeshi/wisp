@@ -31,28 +31,36 @@ class GenericSwitch extends StatelessWidget {
           (provider) => provider.style,
         );
 
+    final colors = context.colors;
+    final defaultActive = colors.isDark
+        ? Colors.greenAccent
+        : const Color(0xFF1DB954);
+
     switch (style) {
       case AppStyle.Original:
         return M3ESwitch(
-          value: value, 
+          value: value,
           onChanged: onChanged,
-          selectedIcon: Icon(Icons.check, color: Colors.white),
+          selectedIcon: Icon(
+            Icons.check,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         );
       case AppStyle.Spotify:
         return Switch(
           value: value,
           onChanged: onChanged,
-          activeThumbColor: activeThumbColor ?? Colors.greenAccent,
-          inactiveThumbColor: inactiveThumbColor ?? Colors.grey,
-          inactiveTrackColor: inactiveTrackColor ?? Colors.grey.shade400,
+          activeThumbColor: activeThumbColor ?? defaultActive,
+          inactiveThumbColor: inactiveThumbColor ?? colors.textMuted,
+          inactiveTrackColor: inactiveTrackColor ?? colors.trackInactive,
         );
       case AppStyle.AppleMusic:
         return LiquidGlassSwitch(
           value: value,
           onChanged: onChanged,
-          activeColor: activeThumbColor ?? Colors.greenAccent,
-          inactiveColor: inactiveThumbColor ?? Colors.grey,
-          thumbColor: inactiveTrackColor ?? Colors.grey.shade400,
+          activeColor: activeThumbColor ?? defaultActive,
+          inactiveColor: inactiveThumbColor ?? colors.textMuted,
+          thumbColor: inactiveTrackColor ?? colors.trackInactive,
         );
       case null:
         return SizedBox.shrink();

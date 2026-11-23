@@ -35,7 +35,7 @@ extension _MobileSpotifyStyle on _ArtistDetailViewState {
                       horizontal: padding,
                       vertical: padding / 2,
                     ),
-                    color: const Color(0xFF121212),
+                    color: context.colors.canvas,
                     child: _buildMobileActionsRow(useAppleIcons: false),
                   ),
                 ),

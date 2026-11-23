@@ -77,6 +77,7 @@ class _PlayerBarTopProgressBarState
               .clamp(0.0, 1.0)
         : 0.0;
 
+    final colors = context.colors;
     final barHeight = (_isHovering || _isDragging) ? 6.0 : 3.0;
 
     return MouseRegion(
@@ -128,7 +129,7 @@ class _PlayerBarTopProgressBarState
                 curve: Curves.easeOutCubic,
                 height: barHeight,
                 width: double.infinity,
-                color: Colors.white.withValues(alpha: 0.08),
+                color: colors.borderSubtle,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -138,7 +139,7 @@ class _PlayerBarTopProgressBarState
                         child: FractionallySizedBox(
                           widthFactor: bufferedProgress,
                           child: Container(
-                            color: Colors.white.withValues(alpha: 0.24),
+                            color: colors.textPrimary.withValues(alpha: 0.22),
                           ),
                         ),
                       ),
@@ -181,15 +182,15 @@ class _PlayerBarTopProgressBarState
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF222222),
+                        color: colors.surfaceElevated,
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.15),
+                          color: colors.borderSubtle,
                           width: 0.6,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.5),
+                            color: colors.shadow,
                             blurRadius: 4,
                           ),
                         ],
@@ -202,8 +203,8 @@ class _PlayerBarTopProgressBarState
                                 .round(),
                           ),
                         ),
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -230,13 +231,14 @@ class _PlayerBarCircularProgressRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final trackColor = context.colors.borderSubtle;
     if (isLoading) {
       return SizedBox(
         width: 40,
         height: 40,
         child: CircularProgressIndicator(
           strokeWidth: 2.5,
-          backgroundColor: Colors.white.withValues(alpha: 0.16),
+          backgroundColor: trackColor,
           valueColor: AlwaysStoppedAnimation<Color>(ringColor),
         ),
       );
@@ -278,24 +280,24 @@ class _PlayerBarCircularProgressRing extends StatelessWidget {
                           fDuration.inMilliseconds)
                       .clamp(0.0, 1.0)
                   : 0.0;
-              return _buildRing(fProgress);
+              return _buildRing(fProgress, trackColor);
             },
           );
         }
 
-        return _buildRing(progress);
+        return _buildRing(progress, trackColor);
       },
     );
   }
 
-  Widget _buildRing(double progress) {
+  Widget _buildRing(double progress, Color trackColor) {
     return SizedBox(
       width: 40,
       height: 40,
       child: CircularProgressIndicator(
         value: progress,
         strokeWidth: 2.5,
-        backgroundColor: Colors.white.withValues(alpha: 0.16),
+        backgroundColor: trackColor,
         valueColor: AlwaysStoppedAnimation<Color>(ringColor),
       ),
     );

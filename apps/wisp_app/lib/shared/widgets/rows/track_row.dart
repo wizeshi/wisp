@@ -297,7 +297,7 @@ class TrackRow extends StatelessWidget {
         fontSize: 14 * _fontScaling,
         color: isCurrentHere
             ? Theme.of(context).colorScheme.primary
-            : Colors.white,
+            : context.colors.textPrimary,
       ),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -323,7 +323,8 @@ class TrackRow extends StatelessWidget {
     required bool foldAlbum,
     required bool isApple,
   }) {
-    final artistWidget = _buildArtistWrap();
+    final colors = context.colors;
+    final artistWidget = _buildArtistWrap(colors);
     final Widget artistArea = foldAlbum && track.album?.title.isNotEmpty == true
         ? Row(
             mainAxisSize: MainAxisSize.min,
@@ -332,11 +333,11 @@ class TrackRow extends StatelessWidget {
               Text(
                 ' \u2022 ',
                 style: TextStyle(
-                  color: Colors.grey[400],
+                  color: colors.textSecondary,
                   fontSize: 12 * _fontScaling,
                 ),
               ),
-              Flexible(child: _buildAlbumText()),
+              Flexible(child: _buildAlbumText(colors)),
             ],
           )
         : artistWidget;
@@ -353,14 +354,14 @@ class TrackRow extends StatelessWidget {
     );
   }
 
-  Widget _buildArtistWrap() {
+  Widget _buildArtistWrap(WispColors colors) {
     if (track.artists.isEmpty) {
       return const SizedBox.shrink();
     }
     if (onArtistTap == null) {
       return Text(
         _artistNames,
-        style: TextStyle(color: Colors.grey[500], fontSize: 12 * _fontScaling),
+        style: TextStyle(color: colors.textMuted, fontSize: 12 * _fontScaling),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       );
@@ -379,7 +380,7 @@ class TrackRow extends StatelessWidget {
               builder: (hovering) => Text(
                 track.artists[i].name,
                 style: TextStyle(
-                  color: Colors.grey[500],
+                  color: colors.textMuted,
                   fontSize: 12 * _fontScaling,
                   decoration: hovering
                       ? TextDecoration.underline
@@ -393,7 +394,7 @@ class TrackRow extends StatelessWidget {
               Text(
                 ', ',
                 style: TextStyle(
-                  color: Colors.grey[500],
+                  color: colors.textMuted,
                   fontSize: 12 * _fontScaling,
                 ),
               ),
@@ -403,14 +404,14 @@ class TrackRow extends StatelessWidget {
     );
   }
 
-  Widget _buildAlbumText() {
+  Widget _buildAlbumText(WispColors colors) {
     final album = track.album;
     if (album == null || album.title.isEmpty) {
       return const SizedBox.shrink();
     }
     final title = album.title;
     final style = TextStyle(
-      color: Colors.grey[400],
+      color: colors.textSecondary,
       fontSize: 12 * _fontScaling,
     );
     if (onAlbumTap == null && onAlbumSecondaryTapDown == null) {
@@ -443,6 +444,7 @@ class TrackRow extends StatelessWidget {
         ? WispStyleTokens.fromStyle(style!)
         : context.tokens;
     final isApple = tokens.isApple;
+    final colors = context.colors;
 
     final effectivePlayIconLocation =
         playIconLocation ??
@@ -572,10 +574,10 @@ class TrackRow extends StatelessWidget {
                     ),
 
                     if (isApple && showArtistColumn)
-                      Expanded(flex: 2, child: _buildArtistWrap()),
+                      Expanded(flex: 2, child: _buildArtistWrap(colors)),
 
                     if (showAlbumColumn)
-                      Expanded(flex: 2, child: _buildAlbumText()),
+                      Expanded(flex: 2, child: _buildAlbumText(colors)),
 
                     if (showDateColumn)
                       SizedBox(
@@ -584,7 +586,7 @@ class TrackRow extends StatelessWidget {
                             ? Text(
                                 _formatDateAdded(dateAdded!),
                                 style: TextStyle(
-                                  color: Colors.grey[400],
+                                  color: colors.textSecondary,
                                   fontSize: 12 * _fontScaling,
                                 ),
                                 maxLines: 1,
@@ -603,7 +605,7 @@ class TrackRow extends StatelessWidget {
                           child: Text(
                             _formatDuration(track.durationSecs),
                             style: TextStyle(
-                              color: Colors.grey[400],
+                              color: colors.textSecondary,
                               fontSize: 12 * _fontScaling,
                             ),
                             textAlign: TextAlign.right,
@@ -613,7 +615,7 @@ class TrackRow extends StatelessWidget {
                         Text(
                           _formatDuration(track.durationSecs),
                           style: TextStyle(
-                            color: Colors.grey[400],
+                            color: colors.textSecondary,
                             fontSize: 12 * _fontScaling,
                           ),
                         ),
@@ -628,7 +630,7 @@ class TrackRow extends StatelessWidget {
                           child: Icon(
                             songSourceIcon(track.source),
                             size: 16,
-                            color: Colors.grey[500],
+                            color: colors.textMuted,
                           ),
                         ),
                       ),
@@ -651,12 +653,12 @@ class TrackRow extends StatelessWidget {
                               splashRadius: 16,
                               color: isApple
                                   ? Theme.of(context).colorScheme.primary
-                                  : Colors.grey[400],
+                                  : colors.textSecondary,
                               icon: Icon(
                                 tokens.moreIcon,
                                 color: isApple
                                     ? Theme.of(context).colorScheme.primary
-                                    : Colors.grey[400],
+                                    : colors.textSecondary,
                                 size: 18,
                               ),
                               onPressed: () => onMoreTap!(buttonContext),
@@ -700,10 +702,11 @@ class _IndexOrPlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final number = Text(
       '${index + 1}',
       textAlign: TextAlign.center,
-      style: TextStyle(color: Colors.grey[400], fontSize: 12 * fontScaling),
+      style: TextStyle(color: colors.textSecondary, fontSize: 12 * fontScaling),
     );
 
     if (!canTogglePlay) {
@@ -742,7 +745,7 @@ class _IndexOrPlayButton extends StatelessWidget {
               minimumSize: const Size(32, 32),
               iconSize: 18,
               icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-              color: Colors.white,
+              color: colors.textPrimary,
               onPressed: onPressed,
             ),
           ),

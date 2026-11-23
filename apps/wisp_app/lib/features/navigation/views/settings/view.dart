@@ -88,36 +88,42 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _handleYouTubeLogin(YouTubeMetadataProvider yt) async {
     final option = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF282828),
-        title: const Text('YouTube Music Login', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Choose how you want to sign in to YouTube Music:',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            GenericElevatedButton(
-              onPressed: () => Navigator.pop(ctx, 'webview'),
-              child: const Text('Sign in with Webview'),
-            ),
-            const SizedBox(height: 12),
-            GenericOutlinedButton(
-              onPressed: () => Navigator.pop(ctx, 'cookies'),
-              child: const Text('Import Cookies / Session'),
+      builder: (ctx) {
+        final colors = ctx.colors;
+        return AlertDialog(
+          backgroundColor: colors.surfaceElevated,
+          title: Text(
+            'YouTube Music Login',
+            style: TextStyle(color: colors.textPrimary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose how you want to sign in to YouTube Music:',
+                style: TextStyle(color: colors.textSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              GenericElevatedButton(
+                onPressed: () => Navigator.pop(ctx, 'webview'),
+                child: const Text('Sign in with Webview'),
+              ),
+              const SizedBox(height: 12),
+              GenericOutlinedButton(
+                onPressed: () => Navigator.pop(ctx, 'cookies'),
+                child: const Text('Import Cookies / Session'),
+              ),
+            ],
+          ),
+          actions: [
+            GenericTextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
             ),
           ],
-        ),
-        actions: [
-          GenericTextButton(
-            onPressed: () => Navigator.pop(ctx, null),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (!mounted) return;
@@ -135,41 +141,47 @@ class _SettingsPageState extends State<SettingsPage> {
       final controller = TextEditingController();
       final bool? ok = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF282828),
-          title: const Text('Import YouTube Cookies', style: TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Paste your YouTube cookies (e.g. "SAPISID=...; SID=..." or multi-line "SAPISID: ..."):',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: controller,
-                maxLines: 6,
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-                decoration: InputDecoration(
-                  hintText: 'SAPISID=...\nSID=...\nLOGIN_INFO=...',
-                  hintStyle: TextStyle(color: Colors.grey[600]),
-                  border: const OutlineInputBorder(),
+        builder: (ctx) {
+          final colors = ctx.colors;
+          return AlertDialog(
+            backgroundColor: colors.surfaceElevated,
+            title: Text(
+              'Import YouTube Cookies',
+              style: TextStyle(color: colors.textPrimary),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Paste your YouTube cookies (e.g. "SAPISID=...; SID=..." or multi-line "SAPISID: ..."):',
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  maxLines: 6,
+                  style: TextStyle(color: colors.textPrimary, fontSize: 12),
+                  decoration: InputDecoration(
+                    hintText: 'SAPISID=...\nSID=...\nLOGIN_INFO=...',
+                    hintStyle: TextStyle(color: colors.textMuted),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              GenericTextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
+              ),
+              GenericElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save'),
               ),
             ],
-          ),
-          actions: [
-            GenericTextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
-            ),
-            GenericElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
+          );
+        },
       );
 
       if (!mounted) return;
@@ -285,6 +297,7 @@ class _SettingsPageState extends State<SettingsPage> {
       buildProviderCard: _buildProviderCard,
       buildCacheSettingsCard: _buildCacheSettingsCard,
       buildStylePreferenceRow: _buildStylePreferenceRow,
+      buildThemePreferenceRow: _buildThemePreferenceRow,
       buildAudioPreferenceRow: _buildAudioPreferenceRow,
       buildHandoffPreferenceRow: _buildHandoffPreferenceRow,
       buildAnimatedCanvasRow: _buildAnimatedCanvasPreferenceRow,
@@ -296,13 +309,11 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     if (isDesktop) {
-      return Material(
-        color: const Color(0xFF121212),
-        child: Scaffold(backgroundColor: Colors.transparent, body: content),
-      );
+      return Scaffold(backgroundColor: Colors.transparent, body: content);
     }
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('Settings'),
         backgroundColor: Colors.transparent,
@@ -317,11 +328,14 @@ class _SettingsPageState extends State<SettingsPage> {
       listenable: AudioCacheManager.instance,
       builder: (context, _) {
         final cacheManager = AudioCacheManager.instance;
+        final colors = context.colors;
         final isDesktop = _isDesktop;
         final userMB = cacheManager.userDownloadsSizeMB;
         final autoMB = cacheManager.autoCacheSizeMB;
         final maxMB = cacheManager.maxCacheSizeMB;
         final freeMB = (maxMB - (userMB + autoMB)).clamp(0, maxMB);
+        final autoCacheLegendColor =
+            colors.isDark ? Colors.purpleAccent[100]! : Colors.purple[400]!;
 
         Color statusColor;
         String statusLabel;
@@ -331,7 +345,7 @@ class _SettingsPageState extends State<SettingsPage> {
             statusLabel = 'Cache full (Auto-cache paused)';
             break;
           case StorageStatus.warning:
-            statusColor = Colors.amberAccent;
+            statusColor = colors.isDark ? Colors.amberAccent : Colors.amber[800]!;
             statusLabel = 'Near limit';
             break;
           case StorageStatus.normal:
@@ -342,7 +356,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.all(20),
@@ -359,12 +373,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       children: [
                         Row(
                           children: [
-                            const Text(
+                            Text(
                               'Storage & Audio Cache',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                                color: colors.textPrimary,
                               ),
                             ),
                             const Spacer(),
@@ -396,7 +410,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           '${cacheManager.currentCacheSizeMB} MB of $maxMB MB used '
                           '• ${cacheManager.cachedTrackCount} tracks total',
                           style: TextStyle(
-                            color: Colors.grey[400],
+                            color: colors.textSecondary,
                             fontSize: 12,
                           ),
                         ),
@@ -423,12 +437,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       if (autoMB > 0)
                         Expanded(
                           flex: autoMB,
-                          child: Container(color: Colors.purpleAccent[100]),
+                          child: Container(color: autoCacheLegendColor),
                         ),
                       if (freeMB > 0)
                         Expanded(
                           flex: freeMB,
-                          child: Container(color: const Color(0xFF333333)),
+                          child: Container(color: colors.trackInactive),
                         ),
                     ],
                   ),
@@ -446,11 +460,11 @@ class _SettingsPageState extends State<SettingsPage> {
                         '${cacheManager.userDownloadCount} downloaded ($userMB MB)',
                   ),
                   _buildLegendItem(
-                    color: Colors.purpleAccent[100]!,
+                    color: autoCacheLegendColor,
                     label: '${cacheManager.autoCacheCount} cached ($autoMB MB)',
                   ),
                   _buildLegendItem(
-                    color: Colors.grey[600]!,
+                    color: colors.textMuted,
                     label: '$freeMB MB free',
                   ),
                 ],
@@ -478,7 +492,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         child: Text(
                           'Storage limit reached. Playback auto-caching is paused to protect your downloaded music. Clear cache or raise limit to resume.',
                           style: TextStyle(
-                            color: Colors.red[200],
+                            color: colors.isDark
+                                ? Colors.red[200]
+                                : Colors.red[900],
                             fontSize: 12,
                             height: 1.3,
                           ),
@@ -495,14 +511,19 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: Colors.amber.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: Colors.amberAccent.withValues(alpha: 0.3),
+                      color: (colors.isDark
+                              ? Colors.amberAccent
+                              : Colors.amber[800]!)
+                          .withValues(alpha: 0.35),
                     ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.info_outline,
-                        color: Colors.amberAccent,
+                        color: colors.isDark
+                            ? Colors.amberAccent
+                            : Colors.amber[800],
                         size: 20,
                       ),
                       const SizedBox(width: 10),
@@ -510,7 +531,9 @@ class _SettingsPageState extends State<SettingsPage> {
                         child: Text(
                           'Storage is nearly full. Oldest auto-cached tracks will be pruned when new music is streamed.',
                           style: TextStyle(
-                            color: Colors.amber[200],
+                            color: colors.isDark
+                                ? Colors.amber[200]
+                                : Colors.amber[900],
                             fontSize: 12,
                             height: 1.3,
                           ),
@@ -555,7 +578,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
                 divisions: 4,
               ),
-              Divider(color: Colors.grey[800], height: 32),
+              Divider(color: colors.borderSubtle, height: 32),
               _buildToggleSetting(
                 'Auto-cache while playing',
                 'Download tracks as you play them',
@@ -582,7 +605,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   cacheManager.setNetworkOnlyMode(value);
                 },
               ),
-              Divider(color: Colors.grey[800], height: 32),
+              Divider(color: colors.borderSubtle, height: 32),
               Row(
                 children: [
                   if (isDesktop) ...[
@@ -591,8 +614,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         onPressed: _openAudioCacheFolder,
                         icon: const Icon(Icons.folder_open_outlined, size: 18),
                         label: const Text('Go to Folder'),
-                        foregroundColor: Colors.grey[400],
-                        side: BorderSide(color: Colors.grey[700]!),
+                        foregroundColor: colors.textSecondary,
+                        side: BorderSide(color: colors.border),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
@@ -609,8 +632,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       },
                       icon: const Icon(Icons.download_outlined, size: 18),
                       label: const Text('Downloads'),
-                      foregroundColor: Colors.grey[400],
-                      side: BorderSide(color: Colors.grey[700]!),
+                      foregroundColor: colors.textSecondary,
+                      side: BorderSide(color: colors.border),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
@@ -644,7 +667,10 @@ class _SettingsPageState extends State<SettingsPage> {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 11)),
+        Text(
+          label,
+          style: TextStyle(color: context.colors.textSecondary, fontSize: 11),
+        ),
       ],
     );
   }
@@ -658,6 +684,7 @@ class _SettingsPageState extends State<SettingsPage> {
     ValueChanged<double> onChanged, {
     int? divisions,
   }) {
+    final colors = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -666,7 +693,7 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             Text(
               label,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(color: colors.textPrimary, fontSize: 14),
             ),
             Text(
               valueLabel,
@@ -686,7 +713,7 @@ class _SettingsPageState extends State<SettingsPage> {
           divisions: divisions,
           onChanged: onChanged,
           activeTrackColor: Theme.of(context).colorScheme.primary,
-          inactiveTrackColor: Colors.grey[800],
+          inactiveTrackColor: colors.trackInactive,
           thumbColor: Theme.of(context).colorScheme.primary,
           overlayColor: Theme.of(
             context,
@@ -703,6 +730,7 @@ class _SettingsPageState extends State<SettingsPage> {
     bool value,
     ValueChanged<bool> onChanged,
   ) {
+    final colors = context.colors;
     return Row(
       children: [
         Expanded(
@@ -711,12 +739,12 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               Text(
                 label,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: colors.textPrimary, fontSize: 14),
               ),
               const SizedBox(height: 2),
               Text(
                 description,
-                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
               ),
             ],
           ),
@@ -741,10 +769,11 @@ class _SettingsPageState extends State<SettingsPage> {
       listenable: auth,
       builder: (context, _) {
         final isConnected = auth.isAuthenticated;
+        final colors = context.colors;
 
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.all(20),
@@ -769,10 +798,10 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             Text(
                               name,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: colors.textPrimary,
                               ),
                             ),
                             if (isConnected) ...[
@@ -793,7 +822,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       if (isConnected) ...[
                         GenericIconButton(
-                          icon: Icon(Icons.logout, color: Colors.grey[400]),
+                          icon: Icon(Icons.logout, color: colors.textSecondary),
                           onPressed: () => _handleAuthLogout(auth),
                           tooltip: 'Logout',
                         ),
@@ -812,7 +841,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 12),
                 Text(
                   'Log in to sync your library and lyrics',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
                 ),
               ],
             ],
@@ -828,11 +857,12 @@ class _SettingsPageState extends State<SettingsPage> {
         if (yt == null) return const SizedBox.shrink();
 
         final isConnected = yt.isAuthenticated;
+        final colors = context.colors;
         const accentColor = Color(0xFFFF0000);
 
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.all(20),
@@ -861,12 +891,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       children: [
                         Row(
                           children: [
-                            const Text(
+                            Text(
                               'YouTube Music',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: colors.textPrimary,
                               ),
                             ),
                             if (isConnected) ...[
@@ -885,7 +915,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             yt.userDisplayName!,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey[400],
+                              color: colors.textSecondary,
                             ),
                           ),
                         ],
@@ -897,7 +927,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       if (isConnected) ...[
                         GenericIconButton(
-                          icon: Icon(Icons.logout, color: Colors.grey[400]),
+                          icon: Icon(Icons.logout, color: colors.textSecondary),
                           onPressed: () => _handleYouTubeLogout(yt),
                           tooltip: 'Logout',
                         ),
@@ -916,7 +946,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 12),
                 Text(
                   'Log in to sync your YouTube Music library and liked tracks',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
                 ),
               ],
             ],
@@ -928,26 +958,27 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildStylePreferenceRow() {
     final options = [AppStyle.Spotify, AppStyle.AppleMusic, AppStyle.Original];
+    final colors = context.colors;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Style',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
                 ),
                 Text(
                   "Replicates a style you're familiar with",
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
               ],
             ),
@@ -969,15 +1000,15 @@ class _SettingsPageState extends State<SettingsPage> {
                       children: [
                         Text(
                           selectedStyle.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: colors.textPrimary,
                             fontSize: 14,
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Icon(
+                        Icon(
                           Icons.keyboard_arrow_down,
-                          color: Colors.white,
+                          color: colors.textPrimary,
                           size: 18,
                         ),
                       ],
@@ -997,7 +1028,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           value: style,
                           child: Text(
                             style.toString(),
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(color: colors.textPrimary),
                           ),
                         ),
                       )
@@ -1006,8 +1037,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     if (value == null) return;
                     context.read<PreferencesProvider>().setStyle(value);
                   },
-                  dropdownColor: const Color(0xFF282828),
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  dropdownColor: colors.surfaceElevated,
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
                 ),
               );
             },
@@ -1017,19 +1048,118 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _showStyleSelectionSheet(
-    AppStyle selectedStyle,
-    List<AppStyle> options,
+  String _themeModeLabel(ThemeMode mode) => switch (mode) {
+    ThemeMode.system => 'System',
+    ThemeMode.light => 'Light',
+    ThemeMode.dark => 'Dark',
+  };
+
+  Widget _buildThemePreferenceRow() {
+    const options = [ThemeMode.system, ThemeMode.light, ThemeMode.dark];
+    final colors = context.colors;
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Theme',
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
+                ),
+                Text(
+                  'Choose Light, Dark, or match your system',
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Selector<PreferencesProvider, ThemeMode>(
+            selector: (context, prefs) => prefs.themeMode,
+            builder: (context, selectedMode, child) {
+              if (_isMobile) {
+                return InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _showThemeSelectionSheet(selectedMode, options),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _themeModeLabel(selectedMode),
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.keyboard_arrow_down,
+                          color: colors.textPrimary,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: DropdownButton<ThemeMode>(
+                  value: selectedMode,
+                  mouseCursor: SystemMouseCursors.click,
+                  items: options
+                      .map(
+                        (mode) => DropdownMenuItem(
+                          value: mode,
+                          child: Text(
+                            _themeModeLabel(mode),
+                            style: TextStyle(color: colors.textPrimary),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    context.read<PreferencesProvider>().setThemeMode(value);
+                  },
+                  dropdownColor: colors.surfaceElevated,
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showThemeSelectionSheet(
+    ThemeMode selectedMode,
+    List<ThemeMode> options,
   ) async {
-    final selected = await showModalBottomSheet<AppStyle>(
+    final selected = await showModalBottomSheet<ThemeMode>(
       context: context,
       isDismissible: true,
       enableDrag: true,
-      backgroundColor: const Color(0xFF282828),
+      backgroundColor: context.colors.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (sheetContext) {
+        final sheetColors = sheetContext.colors;
         return SafeArea(
           top: false,
           child: Column(
@@ -1040,7 +1170,65 @@ class _SettingsPageState extends State<SettingsPage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[600],
+                  color: sheetColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...options.map(
+                (mode) => ListTile(
+                  title: Text(
+                    _themeModeLabel(mode),
+                    style: TextStyle(color: sheetColors.textPrimary),
+                  ),
+                  trailing: mode == selectedMode
+                      ? Icon(
+                          Icons.check,
+                          color: Theme.of(sheetContext).colorScheme.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.of(sheetContext).pop(mode),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || selected == null || selected == selectedMode) {
+      return;
+    }
+
+    await context.read<PreferencesProvider>().setThemeMode(selected);
+  }
+
+  Future<void> _showStyleSelectionSheet(
+    AppStyle selectedStyle,
+    List<AppStyle> options,
+  ) async {
+    final selected = await showModalBottomSheet<AppStyle>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: context.colors.surfaceElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) {
+        final sheetColors = sheetContext.colors;
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: sheetColors.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1049,12 +1237,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 (style) => ListTile(
                   title: Text(
                     style.toString(),
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: sheetColors.textPrimary),
                   ),
                   trailing: style == selectedStyle
                       ? Icon(
                           Icons.check,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: Theme.of(sheetContext).colorScheme.primary,
                         )
                       : null,
                   onTap: () => Navigator.of(sheetContext).pop(style),
@@ -1082,11 +1270,12 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       isDismissible: true,
       enableDrag: true,
-      backgroundColor: const Color(0xFF282828),
+      backgroundColor: context.colors.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (sheetContext) {
+        final sheetColors = sheetContext.colors;
         return SafeArea(
           top: false,
           child: Column(
@@ -1097,7 +1286,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[600],
+                  color: sheetColors.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1106,12 +1295,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 (q) => ListTile(
                   title: Text(
                     q.label,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: sheetColors.textPrimary),
                   ),
                   trailing: q == selectedQuality
                       ? Icon(
                           Icons.check,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: Theme.of(sheetContext).colorScheme.primary,
                         )
                       : null,
                   onTap: () => Navigator.of(sheetContext).pop(q),
@@ -1145,10 +1334,11 @@ class _SettingsPageState extends State<SettingsPage> {
         final crossfadeDurationSeconds = prefs.crossfadeDurationSeconds;
         final selectedQuality = prefs.preferredAudioQuality;
         const qualityOptions = AudioQuality.values;
+        final colors = context.colors;
 
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -1157,17 +1347,23 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Streaming Quality',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                          ),
                         ),
                         Text(
                           'Preferred audio stream quality (cascades to highest available if unsupported)',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -1190,15 +1386,15 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             Text(
                               selectedQuality.label,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: colors.textPrimary,
                                 fontSize: 14,
                               ),
                             ),
                             const SizedBox(width: 6),
-                            const Icon(
+                            Icon(
                               Icons.keyboard_arrow_down,
-                              color: Colors.white,
+                              color: colors.textPrimary,
                               size: 18,
                             ),
                           ],
@@ -1217,7 +1413,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 value: q,
                                 child: Text(
                                   q.label,
-                                  style: const TextStyle(color: Colors.white),
+                                  style: TextStyle(color: colors.textPrimary),
                                 ),
                               ),
                             )
@@ -1233,9 +1429,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                 .setPreferredAudioQuality(value);
                           }
                         },
-                        dropdownColor: const Color(0xFF282828),
-                        style: const TextStyle(
-                          color: Colors.white,
+                        dropdownColor: colors.surfaceElevated,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 14,
                         ),
                       ),
@@ -1245,17 +1441,23 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Keep position between restarts',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                          ),
                         ),
                         Text(
                           'Resume playback from the exact position where you left off',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -1280,17 +1482,23 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Gapless Playback',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                          ),
                         ),
                         Text(
                           'Minimizes empty space between tracks',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -1314,17 +1522,23 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Crossfade',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                          ),
                         ),
                         Text(
                           'Seamlessly transition between songs',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -1350,17 +1564,23 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'Crossfade Duration',
-                            style: TextStyle(color: Colors.white, fontSize: 14),
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: 14,
+                            ),
                           ),
                           Text(
                             'How long the crossfade lasts',
-                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: 12,
+                            ),
                           ),
                         ],
                       ),
@@ -1408,6 +1628,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildAndroidBatteryOptimizationRow() {
+    final colors = context.colors;
     return FutureBuilder<bool>(
       future: AndroidBackgroundAudioService.instance
           .isIgnoringBatteryOptimizations(),
@@ -1419,16 +1640,18 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Background Playback',
-                    style: TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: colors.textPrimary, fontSize: 14),
                   ),
                   Text(
                     isIgnoring
                         ? 'Battery optimization is disabled'
                         : 'Allow unrestricted battery usage for background streaming',
                     style: TextStyle(
-                      color: isIgnoring ? Colors.grey : Colors.amber,
+                      color: isIgnoring
+                          ? colors.textSecondary
+                          : (colors.isDark ? Colors.amber : Colors.amber[800]),
                       fontSize: 12,
                     ),
                   ),
@@ -1464,10 +1687,11 @@ class _SettingsPageState extends State<SettingsPage> {
           HandoffSecurityLevel.pinBased,
         ];
         final selectedLevel = prefs.handoffSecurityLevel;
+        final colors = context.colors;
 
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -1476,17 +1700,23 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Security Level',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                          ),
                         ),
                         Text(
                           'Determines how securely devices are authenticated for handoff',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -1508,15 +1738,15 @@ class _SettingsPageState extends State<SettingsPage> {
                           children: [
                             Text(
                               _handoffSecurityPageLabel(selectedLevel),
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: colors.textPrimary,
                                 fontSize: 14,
                               ),
                             ),
                             const SizedBox(width: 6),
-                            const Icon(
+                            Icon(
                               Icons.keyboard_arrow_down,
-                              color: Colors.white,
+                              color: colors.textPrimary,
                               size: 18,
                             ),
                           ],
@@ -1553,17 +1783,23 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 14),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Trusted Devices',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                          ),
                         ),
                         Text(
                           'Devices that are auto-allowed for handoff',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -1589,11 +1825,12 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       isDismissible: true,
       enableDrag: true,
-      backgroundColor: const Color(0xFF282828),
+      backgroundColor: context.colors.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (sheetContext) {
+        final sheetColors = sheetContext.colors;
         return SafeArea(
           top: false,
           child: Column(
@@ -1604,7 +1841,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[600],
+                  color: sheetColors.border,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1613,19 +1850,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 (level) => ListTile(
                   title: Text(
                     _handoffSecurityPageLabel(level),
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: sheetColors.textPrimary),
                   ),
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       _handoffSecuritySheetDescription(level),
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      style: TextStyle(
+                        color: sheetColors.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                   trailing: level == selectedLevel
                       ? Icon(
                           Icons.check,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: Theme.of(sheetContext).colorScheme.primary,
                         )
                       : null,
                   onTap: () => Navigator.of(sheetContext).pop(level),
@@ -1646,28 +1886,32 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildAnimatedCanvasPreferenceRow() {
+    final colors = context.colors;
     return Selector<PreferencesProvider, bool>(
       selector: (context, prefs) => prefs.animatedCanvasEnabled,
       builder: (context, enabled, child) {
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Animated Canvas',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
+                      style: TextStyle(color: colors.textPrimary, fontSize: 14),
                     ),
                     Text(
                       'Enable animated canvas rendering. This increases CPU usage, but looks better.',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -1689,25 +1933,26 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildPausedBackgroundWidgetsRow(BuildContext context) {
+    final colors = context.colors;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Paused Background Widgets',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14),
                 ),
                 Text(
                   'Widgets paused when app is in the background',
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
               ],
             ),
@@ -1716,7 +1961,10 @@ class _SettingsPageState extends State<SettingsPage> {
             onPressed: () {
               showDialog(
                 context: context,
-                builder: (context) {
+                builder: (dialogContext) {
+                  final dialogColors = dialogContext.colors;
+                  final onPrimary =
+                      Theme.of(dialogContext).colorScheme.onPrimary;
                   return AlertDialog(
                     title: const Text('Paused Background Widgets'),
                     content: Column(
@@ -1745,7 +1993,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                 return CheckboxListTile(
                                   title: Text(
                                     widget.displayName,
-                                    style: const TextStyle(color: Colors.white),
+                                    style: TextStyle(
+                                      color: dialogColors.textPrimary,
+                                    ),
                                   ),
                                   value: isSelected,
                                   onChanged: (value) {
@@ -1762,7 +2012,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   activeColor: Theme.of(
                                     context,
                                   ).colorScheme.primary,
-                                  checkColor: Colors.white,
+                                  checkColor: onPrimary,
                                 );
                               }).toList(),
                             );
@@ -1772,11 +2022,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     actions: [
                       GenericFilledButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () => Navigator.of(dialogContext).pop(),
                         child: const Text('Cancel'),
                       ),
                       GenericFilledButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () => Navigator.of(dialogContext).pop(),
                         child: const Text('Save'),
                       ),
                     ],
@@ -1786,9 +2036,12 @@ class _SettingsPageState extends State<SettingsPage> {
             },
             backgroundColor: Theme.of(context).colorScheme.primary,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: const Text(
+            child: Text(
               'Manage',
-              style: TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onPrimary,
+                fontSize: 14,
+              ),
             ),
           ),
         ],
@@ -1797,28 +2050,32 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildAllowWritingPreferenceRow() {
+    final colors = context.colors;
     return Selector<PreferencesProvider, bool>(
       selector: (context, prefs) => prefs.allowWriting,
       builder: (context, enabled, child) {
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Allow Writing',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
+                      style: TextStyle(color: colors.textPrimary, fontSize: 14),
                     ),
                     Text(
                       'Allow modifications to playlists/library',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -1838,6 +2095,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildDebugSection() {
+    final colors = context.colors;
     return Selector<PreferencesProvider, (bool, bool)>(
       selector: (context, prefs) =>
           (prefs.debugModeEnabled, prefs.autoRegisterLocalProviders),
@@ -1856,14 +2114,14 @@ class _SettingsPageState extends State<SettingsPage> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[600],
+                color: colors.textMuted,
                 letterSpacing: 1.5,
               ),
             ),
             const SizedBox(height: 16),
             Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF181818),
+                color: colors.surface,
                 borderRadius: BorderRadius.circular(8),
               ),
               padding: const EdgeInsets.all(12),
@@ -1880,7 +2138,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                   if ((!_isDesktop && debugModeEnabled) || _isDesktop) ...[
-                    const Divider(color: Color(0xFF282828), height: 24),
+                    Divider(color: colors.borderSubtle, height: 24),
                     _buildToggleSetting(
                       'Enable automatic provider registration',
                       'Registers all providers found from the local repo. When disabled, they are only shown as available for install.',
@@ -1911,9 +2169,11 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     }
 
+    final colors = context.colors;
+
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.all(12),
@@ -1941,14 +2201,17 @@ class _SettingsPageState extends State<SettingsPage> {
                     Text(
                       'wisp',
                       style: TextStyle(
-                        color: Colors.grey[400],
+                        color: colors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
                       'made with <3 by wizeshi',
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),

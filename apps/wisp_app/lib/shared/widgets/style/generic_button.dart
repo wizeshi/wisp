@@ -183,6 +183,7 @@ class GenericIconButton extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (isApple) {
+      final colors = context.colors;
       final effectiveBgColor = backgroundColor ??
           (_isFilled
               ? (isEnabled
@@ -191,11 +192,11 @@ class GenericIconButton extends StatelessWidget {
               : null);
       final effectiveColor = isEnabled
           ? (color ??
-              (_isFilled ? theme.colorScheme.onPrimary : Colors.white))
+              (_isFilled ? theme.colorScheme.onPrimary : colors.textPrimary))
           : (disabledColor ??
               (color != null
                   ? color!.withValues(alpha: 0.38)
-                  : Colors.grey[600]!));
+                  : colors.textMuted));
 
       final activeIcon =
           (isSelected == true && selectedIcon != null) ? selectedIcon! : icon;
@@ -599,7 +600,7 @@ class GenericFilledButton extends StatelessWidget {
       final effectiveDisabledBg = disabledBackgroundColor ??
           CupertinoColors.quaternarySystemFill;
       final effectiveDisabledFg = disabledForegroundColor ??
-          Colors.white38;
+          context.colors.textMuted;
 
       Widget button = CupertinoButton(
         color: effectiveBgColor,
@@ -1441,12 +1442,12 @@ class GenericButton extends StatelessWidget {
         onLongPress: onLongPress,
         child: DefaultTextStyle.merge(
           style: TextStyle(
-            color: isEnabled ? fg : Colors.white38,
+            color: isEnabled ? fg : context.colors.textMuted,
             fontWeight: FontWeight.w600,
           ).merge(textStyle),
           child: IconTheme.merge(
             data: IconThemeData(
-              color: isEnabled ? fg : Colors.white38,
+              color: isEnabled ? fg : context.colors.textMuted,
               size: 18,
             ),
             child: buttonContent,
@@ -1463,7 +1464,7 @@ class GenericButton extends StatelessWidget {
                 : Border.all(
                     color: isEnabled
                         ? (foregroundColor ?? theme.colorScheme.outline)
-                        : Colors.white24,
+                        : context.colors.border,
                   ),
           ),
           child: button,

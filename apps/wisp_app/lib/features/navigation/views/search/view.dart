@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/cards/album_card.dart';
 import 'package:wisp/shared/widgets/cards/artist_card.dart';
 import 'package:wisp/shared/widgets/cards/best_match_card.dart';
@@ -330,21 +331,22 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildSearchField() {
+    final colors = context.colors;
     return TextField(
       controller: _searchController,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: colors.textPrimary),
       decoration: InputDecoration(
         hintText: 'What do you want to listen to?',
-        hintStyle: TextStyle(color: Colors.grey[500]),
-        prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
+        hintStyle: TextStyle(color: colors.textMuted),
+        prefixIcon: Icon(Icons.search, color: colors.textSecondary),
         suffixIcon: _searchController.text.isNotEmpty
             ? GenericIconButton(
-                icon: Icon(Icons.clear, color: Colors.grey[400]),
+                icon: Icon(Icons.clear, color: colors.textSecondary),
                 onPressed: _clearSearch,
               )
             : null,
         filled: true,
-        fillColor: const Color(0xFF282828),
+        fillColor: colors.inputFill,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
@@ -360,6 +362,7 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildMobileContent(String effectiveSource) {
+    final colors = context.colors;
     return WispListView(
       controller: _scrollController,
       padding: EdgeInsets.fromLTRB(
@@ -372,7 +375,7 @@ class _SearchViewState extends State<SearchView> {
         Text(
           'Best Match',
           style: TextStyle(
-            color: Colors.grey[300],
+            color: colors.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -440,6 +443,7 @@ class _SearchViewState extends State<SearchView> {
       _selectedTab = tabs.first;
     }
 
+    final colors = context.colors;
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -453,13 +457,15 @@ class _SearchViewState extends State<SearchView> {
                 style: TextStyle(
                   color: isSelected
                       ? Theme.of(context).colorScheme.onPrimary
-                      : Colors.white,
+                      : colors.textPrimary,
                 ),
               ),
               selected: isSelected,
               showCheckmark: false,
               onSelected: (_) => setState(() => _selectedTab = tab),
-              backgroundColor: const Color(0xFF282828),
+              backgroundColor: colors.isDark
+                  ? colors.surfaceElevated
+                  : colors.surfaceSubtle,
               selectedColor: Theme.of(context).colorScheme.primary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -721,8 +727,8 @@ class _SearchViewState extends State<SearchView> {
   Widget _buildSectionTitle(String label) {
     return Text(
       label,
-      style: const TextStyle(
-        color: Colors.white,
+      style: TextStyle(
+        color: context.colors.textPrimary,
         fontSize: 28,
         fontWeight: FontWeight.w700,
         height: 1,
@@ -844,18 +850,19 @@ class _SearchViewState extends State<SearchView> {
     List<String> availableSources,
     String selectedSource,
   ) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF181818),
+        color: colors.surfaceElevated,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: colors.borderSubtle),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: selectedSource,
-          dropdownColor: const Color(0xFF181818),
-          iconEnabledColor: Colors.grey[400],
+          dropdownColor: colors.surfaceElevated,
+          iconEnabledColor: colors.textSecondary,
           selectedItemBuilder: (_) => availableSources
               .map(
                 (source) => ProviderIcon(
@@ -918,7 +925,7 @@ class _SearchViewState extends State<SearchView> {
                   child: Text(
                     'Recent searches',
                     style: TextStyle(
-                      color: Colors.grey[300],
+                      color: context.colors.textSecondary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -926,7 +933,7 @@ class _SearchViewState extends State<SearchView> {
                 ),
                 GenericTextButton(
                   onPressed: _searchState.clearHistory,
-                  foregroundColor: Colors.grey[500],
+                  foregroundColor: context.colors.textMuted,
                   textStyle: const TextStyle(fontSize: 12),
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(
@@ -959,12 +966,15 @@ class _SearchViewState extends State<SearchView> {
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
         child: Row(
           children: [
-            Icon(Icons.history, size: 18, color: Colors.grey[600]),
+            Icon(Icons.history, size: 18, color: context.colors.textMuted),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
                 query,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(
+                  color: context.colors.textPrimary,
+                  fontSize: 14,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -973,7 +983,11 @@ class _SearchViewState extends State<SearchView> {
               onTap: () => _searchState.removeFromHistory(query),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                child: Icon(Icons.close, size: 16, color: Colors.grey[600]),
+                child: Icon(
+                  Icons.close,
+                  size: 16,
+                  color: context.colors.textMuted,
+                ),
               ),
             ),
           ],
@@ -983,15 +997,16 @@ class _SearchViewState extends State<SearchView> {
   }
 
   Widget _buildPromptState() {
+    final colors = context.colors;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search, size: 64, color: Colors.grey[700]),
+          Icon(Icons.search, size: 64, color: colors.textMuted),
           const SizedBox(height: 14),
           Text(
             'Search for songs, artists, albums, or playlists',
-            style: TextStyle(color: Colors.grey[500], fontSize: 16),
+            style: TextStyle(color: colors.textMuted, fontSize: 16),
           ),
         ],
       ),
@@ -1000,21 +1015,22 @@ class _SearchViewState extends State<SearchView> {
 
 
   Widget _buildErrorState() {
+    final colors = context.colors;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.grey[700]),
+          Icon(Icons.error_outline, size: 64, color: colors.textMuted),
           const SizedBox(height: 16),
           Text(
             'Something went wrong',
-            style: TextStyle(color: Colors.grey[400], fontSize: 18),
+            style: TextStyle(color: colors.textSecondary, fontSize: 18),
           ),
           const SizedBox(height: 8),
           Text(
             _error ?? '',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[500]),
+            style: TextStyle(color: colors.textMuted),
           ),
           const SizedBox(height: 20),
           GenericFilledButton.icon(
@@ -1031,20 +1047,21 @@ class _SearchViewState extends State<SearchView> {
     return Center(
       child: Text(
         label,
-        style: TextStyle(color: Colors.grey[500], fontSize: 16),
+        style: TextStyle(color: context.colors.textMuted, fontSize: 16),
       ),
     );
   }
 
   Widget _buildEmptyCard(String label) {
+    final colors = context.colors;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: colors.surfaceSubtle,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(label, style: TextStyle(color: Colors.grey[400])),
+      child: Text(label, style: TextStyle(color: colors.textSecondary)),
     );
   }
 

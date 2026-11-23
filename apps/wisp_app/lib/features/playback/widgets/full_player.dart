@@ -2,9 +2,11 @@
 
 import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
+import 'package:wisp/core/theme/cover_art_palette_provider.dart';
 import 'package:wisp/features/playback/widgets/full_player/styles/desktop/original_full_player.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
@@ -45,46 +47,62 @@ class FullScreenPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = context.watch<PreferencesProvider>().style;
+    final darkPalette = context.select<CoverArtPaletteProvider, ColorScheme?>(
+      (p) => p.darkPalette,
+    );
+    final darkTheme = AppTheme.dark(
+      paletteOverride: darkPalette,
+      appStyle: style,
+    );
 
+    final Widget body;
     // Use new desktop fullscreen for Spotify and Original on desktop
     if (_isDesktop && style == AppStyle.Spotify) {
-      return PopScope(
+      body = PopScope(
         onPopInvokedWithResult: (didPop, result) {
           if (!didPop) return;
           unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
         },
         child: const SpotifyDesktopFullScreenPlayer(),
       );
-    }
-    if (_isDesktop && style == AppStyle.Original) {
-      return PopScope(
+    } else if (_isDesktop && style == AppStyle.Original) {
+      body = PopScope(
         onPopInvokedWithResult: (didPop, result) {
           if (!didPop) return;
           unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
         },
         child: const OriginalDesktopFullScreenPlayer(),
       );
+    } else {
+      final sheet = DraggableScrollableSheet(
+        initialChildSize: 1.0,
+        minChildSize: 0.5,
+        maxChildSize: 1.0,
+        snap: true,
+        snapSizes: const [0.5, 1.0],
+        builder: (context, scrollController) =>
+            _buildSheet(context, scrollController, style),
+      );
+      body = _isDesktop
+          ? PopScope(
+              onPopInvokedWithResult: (didPop, result) {
+                if (!didPop) return;
+                unawaited(
+                  AppNavigation.instance.disableFullPlayerDesktopMode(),
+                );
+              },
+              child: sheet,
+            )
+          : sheet;
     }
 
-    final sheet = DraggableScrollableSheet(
-      initialChildSize: 1.0,
-      minChildSize: 0.5,
-      maxChildSize: 1.0,
-      snap: true,
-      snapSizes: const [0.5, 1.0],
-      builder: (context, scrollController) =>
-          _buildSheet(context, scrollController, style),
+    return Theme(
+      data: darkTheme,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: body,
+      ),
     );
-    if (_isDesktop) {
-      return PopScope(
-        onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) return;
-          unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
-        },
-        child: sheet,
-      );
-    }
-    return sheet;
   }
 
   Widget _buildSheet(

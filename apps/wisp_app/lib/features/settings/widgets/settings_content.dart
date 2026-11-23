@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/data/sources/auth/js_auth_source.dart';
 import 'package:wisp/data/sources/providers/providers_repository_service.dart';
@@ -20,6 +21,7 @@ class SettingsContent extends StatelessWidget {
   final Widget Function(BuildContext)? buildYouTubeCard;
   final Widget Function(BuildContext) buildCacheSettingsCard;
   final Widget Function() buildStylePreferenceRow;
+  final Widget Function() buildThemePreferenceRow;
   final Widget Function() buildAudioPreferenceRow;
   final Widget Function() buildHandoffPreferenceRow;
   final Widget Function() buildAnimatedCanvasRow;
@@ -35,6 +37,7 @@ class SettingsContent extends StatelessWidget {
     this.buildYouTubeCard,
     required this.buildCacheSettingsCard,
     required this.buildStylePreferenceRow,
+    required this.buildThemePreferenceRow,
     required this.buildAudioPreferenceRow,
     required this.buildHandoffPreferenceRow,
     required this.buildAnimatedCanvasRow,
@@ -48,6 +51,7 @@ class SettingsContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final prefs = context.watch<PreferencesProvider>();
+    final colors = context.colors;
 
     return ListenableBuilder(
       listenable: AuthSourceManager.instance,
@@ -77,7 +81,7 @@ class SettingsContent extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[600],
+                color: colors.textMuted,
                 letterSpacing: 1.5,
               ),
             ),
@@ -94,12 +98,14 @@ class SettingsContent extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: Colors.grey[600],
+            color: colors.textMuted,
             letterSpacing: 1.5,
           ),
         ),
         const SizedBox(height: 16),
         buildStylePreferenceRow(),
+        const SizedBox(height: 16),
+        buildThemePreferenceRow(),
         const SizedBox(height: 16),
         buildAnimatedCanvasRow(),
         const SizedBox(height: 16),
@@ -114,7 +120,7 @@ class SettingsContent extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: Colors.grey[600],
+            color: colors.textMuted,
             letterSpacing: 1.5,
           ),
         ),
@@ -126,7 +132,7 @@ class SettingsContent extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: Colors.grey[600],
+            color: colors.textMuted,
             letterSpacing: 1.5,
           ),
         ),
@@ -138,7 +144,7 @@ class SettingsContent extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: Colors.grey[600],
+            color: colors.textMuted,
             letterSpacing: 1.5,
           ),
         ),
@@ -150,7 +156,7 @@ class SettingsContent extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: Colors.grey[600],
+            color: colors.textMuted,
             letterSpacing: 1.5,
           ),
         ),
@@ -161,19 +167,19 @@ class SettingsContent extends StatelessWidget {
             if (trashed.isEmpty) {
               return Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF181818),
+                  color: colors.surface,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   'No trashed playlists',
-                  style: TextStyle(color: Colors.grey[500]),
+                  style: TextStyle(color: colors.textMuted),
                 ),
               );
             }
             return Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF181818),
+                color: colors.surface,
                 borderRadius: BorderRadius.circular(8),
               ),
               padding: const EdgeInsets.all(12),
@@ -183,11 +189,11 @@ class SettingsContent extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     title: Text(
                       p.title,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: colors.textPrimary),
                     ),
                     subtitle: Text(
                       p.authorName,
-                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                      style: TextStyle(color: colors.textMuted, fontSize: 12),
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -216,32 +222,42 @@ class SettingsContent extends StatelessWidget {
                           onPressed: () async {
                             final confirm = await showDialog<bool>(
                               context: context,
-                              builder: (ctx) => AlertDialog(
-                                backgroundColor: const Color(0xFF282828),
-                                title: const Text(
-                                  'Delete permanently',
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                                content: Text(
-                                  'This will permanently delete the playlist and its thumbnail. '
-                                  'This cannot be undone.',
-                                  style: TextStyle(color: Colors.grey[400]),
-                                ),
-                                actions: [
-                                  GenericTextButton(
-                                    onPressed: () => Navigator.pop(ctx, false),
-                                    child: Text(
-                                      'Cancel',
-                                      style: TextStyle(color: Colors.grey[400]),
+                              builder: (ctx) {
+                                final dialogColors = ctx.colors;
+                                return AlertDialog(
+                                  backgroundColor: dialogColors.surfaceElevated,
+                                  title: Text(
+                                    'Delete permanently',
+                                    style: TextStyle(
+                                      color: dialogColors.textPrimary,
                                     ),
                                   ),
-                                  GenericElevatedButton(
-                                    onPressed: () => Navigator.pop(ctx, true),
-                                    backgroundColor: Colors.red[700],
-                                    child: const Text('Delete'),
+                                  content: Text(
+                                    'This will permanently delete the playlist and its thumbnail. '
+                                    'This cannot be undone.',
+                                    style: TextStyle(
+                                      color: dialogColors.textSecondary,
+                                    ),
                                   ),
-                                ],
-                              ),
+                                  actions: [
+                                    GenericTextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: Text(
+                                        'Cancel',
+                                        style: TextStyle(
+                                          color: dialogColors.textSecondary,
+                                        ),
+                                      ),
+                                    ),
+                                    GenericElevatedButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      backgroundColor: Colors.red[700],
+                                      foregroundColor: Colors.white,
+                                      child: const Text('Delete'),
+                                    ),
+                                  ],
+                                );
+                              },
                             );
                             if (confirm == true) {
                               if (!context.mounted) return;
@@ -265,23 +281,23 @@ class SettingsContent extends StatelessWidget {
         const SizedBox(height: 12),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Recover a provider playlist by ID',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
+                      style: TextStyle(color: colors.textPrimary, fontSize: 14),
                     ),
                     Text(
                       'If you accidentally hid (not deleted) a playlist, and you know its provider ID, you can unhide it here. This is inteded for advanced users.',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(color: colors.textSecondary, fontSize: 12),
                     ),
                   ],
                 ),
@@ -292,36 +308,43 @@ class SettingsContent extends StatelessWidget {
                   final idController = TextEditingController();
                   final bool? ok = await showDialog<bool>(
                     context: context,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: const Color(0xFF282828),
-                      title: const Text(
-                        'Unhide Provider Playlist',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      content: TextField(
-                        controller: idController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: 'Provider playlist id',
-                          labelStyle: TextStyle(color: Colors.grey[400]),
-                          hintText: 'e.g. spotify:playlist:... or playlist id',
+                    builder: (ctx) {
+                      final dialogColors = ctx.colors;
+                      return AlertDialog(
+                        backgroundColor: dialogColors.surfaceElevated,
+                        title: Text(
+                          'Unhide Provider Playlist',
+                          style: TextStyle(color: dialogColors.textPrimary),
                         ),
-                      ),
-                      actions: [
-                      GenericTextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(color: Colors.grey[400]),
+                        content: TextField(
+                          controller: idController,
+                          style: TextStyle(color: dialogColors.textPrimary),
+                          decoration: InputDecoration(
+                            labelText: 'Provider playlist id',
+                            labelStyle: TextStyle(
+                              color: dialogColors.textSecondary,
+                            ),
+                            hintText: 'e.g. spotify:playlist:... or playlist id',
+                          ),
                         ),
-                      ),
-                      GenericElevatedButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Unhide'),
-                      ),
-                    ],
-                  ),
-                );
+                        actions: [
+                          GenericTextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: dialogColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                          GenericElevatedButton(
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Unhide'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
                 if (ok == true) {
                   if (!context.mounted) return;
                   final providerId = idController.text.trim();
@@ -355,7 +378,7 @@ class SettingsContent extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: Colors.grey[600],
+            color: colors.textMuted,
             letterSpacing: 1.5,
           ),
         ),
@@ -369,19 +392,21 @@ class SettingsContent extends StatelessWidget {
   }
 
   Widget _buildMarketplaceRow(BuildContext context) {
+    final colors = context.colors;
     return ValueListenableBuilder<int>(
       valueListenable: ProvidersRepositoryService.instance.updatesAvailableCount,
       builder: (context, updateCount, child) {
         final hasUpdates = updateCount > 0;
         final primaryColor = Theme.of(context).colorScheme.primary;
+        final amberAccent = colors.isDark ? Colors.amber : Colors.amber[800]!;
 
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF181818),
+            color: colors.surface,
             borderRadius: BorderRadius.circular(8),
             border: hasUpdates
                 ? Border.all(
-                    color: Colors.amber.withValues(alpha: 0.5),
+                    color: amberAccent.withValues(alpha: 0.5),
                     width: 1.2,
                   )
                 : null,
@@ -396,7 +421,7 @@ class SettingsContent extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: (hasUpdates ? Colors.amber : primaryColor)
+                      color: (hasUpdates ? amberAccent : primaryColor)
                           .withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -404,7 +429,7 @@ class SettingsContent extends StatelessWidget {
                       hasUpdates
                           ? Icons.system_update_alt
                           : Icons.storefront_outlined,
-                      color: hasUpdates ? Colors.amber : primaryColor,
+                      color: hasUpdates ? amberAccent : primaryColor,
                       size: 22,
                     ),
                   ),
@@ -416,10 +441,10 @@ class SettingsContent extends StatelessWidget {
                         width: 10,
                         height: 10,
                         decoration: BoxDecoration(
-                          color: Colors.amber,
+                          color: amberAccent,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFF181818),
+                            color: colors.surface,
                             width: 2,
                           ),
                         ),
@@ -434,10 +459,10 @@ class SettingsContent extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Text(
+                        Text(
                           'Marketplace',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: colors.textPrimary,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -450,25 +475,25 @@ class SettingsContent extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.amber.withValues(alpha: 0.2),
+                              color: amberAccent.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: Colors.amber.withValues(alpha: 0.6),
+                                color: amberAccent.withValues(alpha: 0.6),
                               ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.arrow_upward,
                                   size: 10,
-                                  color: Colors.amber,
+                                  color: amberAccent,
                                 ),
                                 const SizedBox(width: 3),
                                 Text(
                                   '$updateCount ${updateCount == 1 ? "update" : "updates"} available',
-                                  style: const TextStyle(
-                                    color: Colors.amber,
+                                  style: TextStyle(
+                                    color: amberAccent,
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -485,7 +510,9 @@ class SettingsContent extends StatelessWidget {
                           ? 'New version available for installed providers'
                           : 'Browse, install, and update custom metadata & lyrics providers',
                       style: TextStyle(
-                        color: hasUpdates ? Colors.amber[200] : Colors.grey[400],
+                        color: hasUpdates
+                            ? (colors.isDark ? Colors.amber[200] : Colors.amber[900])
+                            : colors.textSecondary,
                         fontSize: 12,
                       ),
                     ),
@@ -500,9 +527,9 @@ class SettingsContent extends StatelessWidget {
                   size: 16,
                 ),
                 label: Text(hasUpdates ? 'Updates ($updateCount)' : 'Browse'),
-                backgroundColor: (hasUpdates ? Colors.amber : primaryColor)
+                backgroundColor: (hasUpdates ? amberAccent : primaryColor)
                     .withValues(alpha: 0.2),
-                foregroundColor: hasUpdates ? Colors.amber : primaryColor,
+                foregroundColor: hasUpdates ? amberAccent : primaryColor,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 10,

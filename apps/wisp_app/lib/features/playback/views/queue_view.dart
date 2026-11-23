@@ -6,6 +6,7 @@ library;
 import 'dart:io' show Platform;
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/data/models/metadata_models.dart';
@@ -21,13 +22,13 @@ class QueueView extends StatefulWidget {
   /// If true, only returns the queue content without scaffold (for mobile bottom sheet)
   final bool contentOnly;
   final bool hideHeader;
-  final Color backgroundColor;
+  final Color? backgroundColor;
 
   const QueueView({
     super.key,
     this.contentOnly = false,
     this.hideHeader = false,
-    this.backgroundColor = const Color(0xFF121212),
+    this.backgroundColor,
   });
 
   @override
@@ -62,17 +63,23 @@ class _QueueViewState extends State<QueueView> {
       return _buildQueueContent();
     }
 
+    final colors = context.colors;
     return Scaffold(
+      backgroundColor: widget.backgroundColor ?? colors.canvas,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF121212),
+        backgroundColor: widget.backgroundColor ?? colors.canvas,
         elevation: 0,
         leading: GenericIconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back, color: colors.textPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           'Queue',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
         actions: [
           Selector<WispAudioHandler, bool>(
@@ -110,7 +117,7 @@ class _QueueViewState extends State<QueueView> {
         final player = context.read<WispAudioHandler>();
 
         return Container(
-          color: widget.backgroundColor,
+          color: widget.backgroundColor ?? Colors.transparent,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -134,6 +141,7 @@ class _QueueViewState extends State<QueueView> {
     int queueLength,
     WispAudioHandler player,
   ) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -149,22 +157,25 @@ class _QueueViewState extends State<QueueView> {
                       contextName != null && contextName.isNotEmpty
                           ? 'Next up from:'
                           : 'Next up',
-                      style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 14,
+                      ),
                     ),
                     if (contextName != null && contextName.isNotEmpty)
                       Text(
                         contextName,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                         ),
                       )
                     else
-                      const Text(
+                      Text(
                         'Queue',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: colors.textPrimary,
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                         ),
@@ -179,14 +190,14 @@ class _QueueViewState extends State<QueueView> {
                   },
                   icon: const Icon(Icons.delete_outline, size: 20),
                   label: const Text('Clear queue'),
-                  foregroundColor: Colors.grey[400],
+                  foregroundColor: colors.textSecondary,
                 ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             '$queueLength ${queueLength == 1 ? 'track' : 'tracks'}',
-            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+            style: TextStyle(color: colors.textMuted, fontSize: 14),
           ),
         ],
       ),
@@ -194,20 +205,21 @@ class _QueueViewState extends State<QueueView> {
   }
 
   Widget _buildEmptyState() {
+    final colors = context.colors;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.queue_music, size: 64, color: Colors.grey[700]),
+          Icon(Icons.queue_music, size: 64, color: colors.textMuted),
           const SizedBox(height: 16),
           Text(
             'queue is empty',
-            style: TextStyle(color: Colors.grey[500], fontSize: 18),
+            style: TextStyle(color: colors.textMuted, fontSize: 18),
           ),
           const SizedBox(height: 8),
           Text(
             'Play some music to start your queue',
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+            style: TextStyle(color: colors.textMuted, fontSize: 14),
           ),
         ],
       ),
@@ -244,10 +256,13 @@ class _QueueViewState extends State<QueueView> {
         );
       },
       proxyDecorator: (child, index, animation) {
+        final colors = context.colors;
         return Material(
           color: Colors.transparent,
           elevation: 4,
-          shadowColor: Colors.black.withValues(alpha: 0.5),
+          shadowColor: colors.shadow.withValues(
+            alpha: colors.isDark ? 0.5 : 0.18,
+          ),
           borderRadius: BorderRadius.circular(8),
           child: child,
         );
@@ -373,7 +388,7 @@ class _QueueViewState extends State<QueueView> {
               ? GenericIconButton(
                   icon: Icon(
                     Icons.close,
-                    color: Colors.grey[400],
+                    color: context.colors.textSecondary,
                     size: 20,
                   ),
                   onPressed: () {
@@ -423,10 +438,11 @@ void showMobileQueueSheet(BuildContext context) {
       minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (context, scrollController) {
+        final colors = context.colors;
         return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF121212),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          decoration: BoxDecoration(
+            color: colors.canvas,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           ),
           child: Column(
             children: [
@@ -436,7 +452,7 @@ void showMobileQueueSheet(BuildContext context) {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[600],
+                  color: colors.textMuted,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -450,9 +466,9 @@ void showMobileQueueSheet(BuildContext context) {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     GenericIconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.keyboard_arrow_down,
-                        color: Colors.white,
+                        color: colors.textPrimary,
                       ),
                       onPressed: () => Navigator.pop(context),
                     ),

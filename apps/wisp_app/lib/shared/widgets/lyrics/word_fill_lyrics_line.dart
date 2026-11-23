@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
@@ -199,7 +200,10 @@ class _WordFillLyricsLineState extends State<WordFillLyricsLine>
         ? Alignment.centerRight
         : Alignment.centerLeft;
 
-    final activeColor = widget.activeColor ?? effectiveBaseStyle.color ?? Colors.white;
+    final activeColor =
+        widget.activeColor ??
+        effectiveBaseStyle.color ??
+        context.colors.textPrimary;
     final inactiveColor = widget.inactiveColor ??
         activeColor.withValues(alpha: (activeColor.a * 0.45).clamp(0.0, 1.0));
 

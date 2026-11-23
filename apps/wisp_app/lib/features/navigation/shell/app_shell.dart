@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/alert/wisp_alert_extensions.dart';
@@ -379,7 +380,7 @@ class _AppShellState extends State<AppShell> {
     }
 
     final shell = Material(
-      color: const Color(0xFF121212),
+      color: context.colors.canvas,
       child: shellBody,
     );
 
@@ -442,7 +443,7 @@ class _LeftResizeHandle extends StatelessWidget {
           child: Center(
             child: Container(
               width: 1,
-              color: Colors.white.withValues(alpha: 0.08),
+              color: context.colors.borderSubtle,
             ),
           ),
         ),

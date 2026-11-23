@@ -5,6 +5,7 @@ library;
 import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:zikzak_inappwebview/zikzak_inappwebview.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
@@ -146,7 +147,10 @@ class _AuthWebviewDialogState extends State<AuthWebviewDialog> {
                 if (!context.mounted) return;
                 _popWithResult(cookies.isNotEmpty ? {'cookies': cookies} : null);
               },
-              child: const Text('Done', style: TextStyle(color: Colors.white)),
+              child: Text(
+                'Done',
+                style: TextStyle(color: context.colors.textPrimary),
+              ),
             ),
           ],
         ),

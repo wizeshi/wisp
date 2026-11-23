@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 
 /// Where an artwork image should be loaded from.
 ///
@@ -195,8 +196,8 @@ class ArtworkThumbnail extends StatelessWidget {
           fit: BoxFit.cover,
           memCacheWidth: cacheDimension,
           memCacheHeight: cacheDimension,
-          placeholder: (context, url) => _placeholder(),
-          errorWidget: (context, url, error) => _fallback(renderSize),
+          placeholder: (context, url) => _placeholder(context),
+          errorWidget: (context, url, error) => _fallback(context, renderSize),
         ),
       _FileArtwork(:final file) => Image.file(
           file,
@@ -205,9 +206,9 @@ class ArtworkThumbnail extends StatelessWidget {
           cacheHeight: cacheDimension,
           filterQuality: FilterQuality.medium,
           errorBuilder: (context, error, stackTrace) =>
-              _fallback(renderSize),
+              _fallback(context, renderSize),
         ),
-      _NoArtwork() => _fallback(renderSize),
+      _NoArtwork() => _fallback(context, renderSize),
     };
 
     return Semantics(
@@ -224,18 +225,19 @@ class ArtworkThumbnail extends StatelessWidget {
     );
   }
 
-  Widget _placeholder() {
-    return Container(color: Colors.grey[900]);
+  Widget _placeholder(BuildContext context) {
+    return Container(color: context.colors.artworkPlaceholder);
   }
 
-  Widget _fallback([double? size]) {
+  Widget _fallback(BuildContext context, [double? size]) {
     final iconScale = size ?? _renderSize;
+    final colors = context.colors;
     return Container(
-      color: Colors.grey[900],
+      color: colors.artworkPlaceholder,
       alignment: Alignment.center,
       child: Icon(
         fallbackIcon,
-        color: Colors.grey[600],
+        color: colors.textMuted,
         size: iconScale * 0.4,
       ),
     );

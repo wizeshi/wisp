@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/shared/widgets/lyrics/word_fill_lyrics_line.dart';
 
@@ -182,7 +183,9 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
         isActive: isFirst,
         textStyle: widget.textStyle,
         activeColor:
-            widget.activeWordColor ?? widget.textStyle.color ?? Colors.white,
+            widget.activeWordColor ??
+            widget.textStyle.color ??
+            context.colors.textPrimary,
         inactiveColor: widget.inactiveWordColor,
         maxLines: widget.maxLines,
         overflow: widget.overflow,
@@ -192,7 +195,7 @@ class _AnimatedLyricsPreviewListState extends State<AnimatedLyricsPreviewList> {
       final inactiveStyle = isFirst
           ? widget.textStyle
           : widget.textStyle.copyWith(
-              color: (widget.textStyle.color ?? Colors.white)
+              color: (widget.textStyle.color ?? context.colors.textPrimary)
                   .withValues(alpha: 0.6),
             );
       textContent = Text(

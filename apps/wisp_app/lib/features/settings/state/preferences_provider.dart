@@ -3,6 +3,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:material_ui/material_ui.dart' show ThemeMode;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/sources/audio/audio_source.dart';
@@ -43,6 +44,7 @@ extension PausedBackgroundWidgetNames on PausedBackgroundWidget {
 
 class PreferencesProvider extends ChangeNotifier {
   static const _keyStyle = 'preferred_style';
+  static const _keyThemeMode = 'preferred_theme_mode';
   static const _keyAnimatedCanvas = 'animated_canvas_enabled';
   static const _keyAllowWriting = 'allow_writing';
   static const _keyAudioYouTubeEnabled = 'audio_youtube_enabled';
@@ -79,11 +81,15 @@ class PreferencesProvider extends ChangeNotifier {
       HandoffSecurityLevel.keyExchange;
   static const List<PausedBackgroundWidget>
   _defaultPausedBackgroundWidgetsEnabled = PausedBackgroundWidget.values;
+  static const ThemeMode _defaultThemeMode = ThemeMode.dark;
   static const bool _defaultDebugModeEnabled = false;
   static const bool _defaultAutoRegisterLocalProviders = false;
 
   AppStyle _style = AppStyle.platformDefault;
   AppStyle get style => _style;
+
+  ThemeMode _themeMode = _defaultThemeMode;
+  ThemeMode get themeMode => _themeMode;
 
   bool _animatedCanvasEnabled = false;
   bool get animatedCanvasEnabled => _animatedCanvasEnabled;
@@ -167,6 +173,7 @@ class PreferencesProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       _style = AppStyle.fromStorage(prefs.getString(_keyStyle));
+      _themeMode = _parseThemeMode(prefs.getString(_keyThemeMode));
       _animatedCanvasEnabled =
           prefs.getBool(_keyAnimatedCanvas) ?? _animatedCanvasEnabled;
       _allowWriting = prefs.getBool(_keyAllowWriting) ?? _defaultAllowWriting;
@@ -389,6 +396,31 @@ class PreferencesProvider extends ChangeNotifier {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  static ThemeMode _parseThemeMode(String? raw) {
+    switch (raw?.trim().toLowerCase()) {
+      case 'system':
+        return ThemeMode.system;
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      default:
+        return _defaultThemeMode;
+    }
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    if (mode == _themeMode) return;
+    _themeMode = mode;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyThemeMode, mode.name);
+    } catch (_) {
+      // Ignore save errors
     }
   }
 

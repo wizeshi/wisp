@@ -2,6 +2,7 @@
 
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
@@ -37,11 +38,12 @@ class TrustedDevicesDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return AlertDialog(
-      backgroundColor: const Color(0xFF282828),
-      title: const Text(
+      backgroundColor: colors.surfaceElevated,
+      title: Text(
         'Trusted Devices',
-        style: TextStyle(color: Colors.white),
+        style: TextStyle(color: colors.textPrimary),
       ),
       content: SizedBox(
         width: 620,
@@ -49,11 +51,11 @@ class TrustedDevicesDialog extends StatelessWidget {
           builder: (context, prefs, child) {
             final devices = prefs.trustedDevices;
             if (devices.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(
                   'No trusted devices yet.',
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(color: colors.textSecondary),
                 ),
               );
             }
@@ -70,9 +72,9 @@ class TrustedDevicesDialog extends StatelessWidget {
                   final device = devices[index];
                   return Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1F1F1F),
+                      color: colors.surface,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white10),
+                      border: Border.all(color: colors.borderSubtle),
                     ),
                     padding: const EdgeInsets.all(14),
                     child: Row(
@@ -102,8 +104,8 @@ class TrustedDevicesDialog extends StatelessWidget {
                                 device.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: colors.textPrimary,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -112,7 +114,7 @@ class TrustedDevicesDialog extends StatelessWidget {
                               Text(
                                 device.platform,
                                 style: TextStyle(
-                                  color: Colors.grey[400],
+                                  color: colors.textSecondary,
                                   fontSize: 12,
                                 ),
                               ),
@@ -120,14 +122,14 @@ class TrustedDevicesDialog extends StatelessWidget {
                               Text(
                                 'Trusted: ${_formatDateTime(context, device.trustedAt)}',
                                 style: TextStyle(
-                                  color: Colors.grey[350],
+                                  color: colors.textSecondary,
                                   fontSize: 11,
                                 ),
                               ),
                               Text(
                                 'Last connection: ${_formatDateTime(context, device.lastConnectionAt)}',
                                 style: TextStyle(
-                                  color: Colors.grey[350],
+                                  color: colors.textSecondary,
                                   fontSize: 11,
                                 ),
                               ),
@@ -141,20 +143,20 @@ class TrustedDevicesDialog extends StatelessWidget {
                                 await showDialog<bool>(
                                   context: context,
                                   builder: (confirmContext) {
+                                    final confirmColors = confirmContext.colors;
                                     return AlertDialog(
-                                      backgroundColor: const Color(
-                                        0xFF282828,
-                                      ),
-                                      title: const Text(
+                                      backgroundColor:
+                                          confirmColors.surfaceElevated,
+                                      title: Text(
                                         'Forget device?',
                                         style: TextStyle(
-                                          color: Colors.white,
+                                          color: confirmColors.textPrimary,
                                         ),
                                       ),
                                       content: Text(
                                         'Remove ${device.name} from trusted devices?',
-                                        style: const TextStyle(
-                                          color: Colors.white70,
+                                        style: TextStyle(
+                                          color: confirmColors.textSecondary,
                                         ),
                                       ),
                                       actions: [

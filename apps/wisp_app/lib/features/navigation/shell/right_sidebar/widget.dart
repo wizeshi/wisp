@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/utils/text_parser.dart';
 import 'package:wisp/shared/widgets/display/marquee_text.dart';
 
@@ -59,6 +60,7 @@ class _RightSidebarState extends State<RightSidebar> {
     }
 
     final navState = context.watch<NavigationState>();
+    final colors = context.colors;
 
     return SizedBox(
       width: widget.width,
@@ -72,11 +74,11 @@ class _RightSidebarState extends State<RightSidebar> {
             _ResizeHandle(onResize: widget.onResize),
             Expanded(
               child: Material(
-                color: const Color(0xFF0F0F0F),
+                color: colors.sidebar,
                 child: Container(
                   decoration: BoxDecoration(
                     border: Border(
-                      left: BorderSide(color: Colors.grey[900]!, width: 1),
+                      left: BorderSide(color: colors.borderSubtle, width: 1),
                     ),
                   ),
                   child: SafeArea(
@@ -169,13 +171,14 @@ class _ResizeHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return MouseRegion(
       cursor: SystemMouseCursors.resizeLeftRight,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragUpdate: (details) => onResize(details.delta.dx),
         child: Container(
-          color: Colors.black,
+          color: colors.chrome,
           width: 8,
           child: Align(
             alignment: Alignment.center,
@@ -183,7 +186,7 @@ class _ResizeHandle extends StatelessWidget {
               width: 2,
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.grey[800],
+                color: colors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -201,7 +204,7 @@ class _SectionCard extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final double borderRadius;
   final bool showBottomFade;
-  final Color bottomFadeColor;
+  final Color? bottomFadeColor;
   final double bottomFadeHeight;
 
   const _SectionCard({
@@ -211,17 +214,19 @@ class _SectionCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(14),
     this.borderRadius = 14,
     this.showBottomFade = false,
-    this.bottomFadeColor = const Color(0xFF0F0F0F),
+    this.bottomFadeColor,
     this.bottomFadeHeight = 24,
   });
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = backgroundColor ?? const Color(0xFF1A1A1A);
+    final colors = context.colors;
+    final baseColor = backgroundColor ?? colors.surface;
+    final fadeColor = bottomFadeColor ?? colors.sidebar;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: colors.borderSubtle),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
@@ -246,8 +251,8 @@ class _SectionCard extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          bottomFadeColor.withValues(alpha: 0),
-                          bottomFadeColor.withValues(alpha: 0.75),
+                          fadeColor.withValues(alpha: 0),
+                          fadeColor.withValues(alpha: 0.75),
                         ],
                       ),
                     ),
@@ -335,13 +340,18 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
 
             Widget buildCard({String? canvasUrl}) {
               final hasCanvas = canvasUrl != null && canvasUrl.isNotEmpty;
+              final colors = context.colors;
+              final primaryText = hasCanvas ? Colors.white : colors.textPrimary;
+              final secondaryText =
+                  hasCanvas ? Colors.white70 : colors.textSecondary;
               return _SectionCard(
                 background: hasCanvas
                     ? _CanvasBackground(url: canvasUrl)
                     : null,
+                backgroundColor: hasCanvas ? null : colors.sidebar,
                 borderRadius: 0,
                 showBottomFade: hasCanvas,
-                bottomFadeColor: const Color(0xFF0F0F0F),
+                bottomFadeColor: colors.sidebar,
                 bottomFadeHeight: 6,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,7 +376,10 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                                   ignoring: !showHoverControls,
                                   child: GenericIconButton(
                                     tooltip: 'Hide sidebar',
-                                    icon: const Icon(Symbols.right_panel_close),
+                                    icon: Icon(
+                                      Symbols.right_panel_close,
+                                      color: primaryText,
+                                    ),
                                     iconSize: 20,
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(
@@ -386,7 +399,7 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                             ),
                           ),
                         ),
-                        SizedBox(width: 6),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: HoverUnderline(
                             cursor: canOpenContext
@@ -413,7 +426,7 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                             builder: (isHovering) => Text(
                               headerText,
                               style: TextStyle(
-                                color: Colors.white,
+                                color: primaryText,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 decoration: isHovering
@@ -436,7 +449,10 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                                 builder: (buttonContext) {
                                   return GenericIconButton(
                                     tooltip: 'More',
-                                    icon: const Icon(Icons.more_horiz),
+                                    icon: Icon(
+                                      Icons.more_horiz,
+                                      color: primaryText,
+                                    ),
                                     iconSize: 18,
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(
@@ -483,9 +499,9 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                     ),
                     const SizedBox(height: 12),
                     if (track == null)
-                      const Text(
+                      Text(
                         'Nothing playing',
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                        style: TextStyle(color: secondaryText, fontSize: 13),
                       )
                     else
                       Column(
@@ -505,9 +521,17 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildTrackTitle(context, track),
+                                    _buildTrackTitle(
+                                      context,
+                                      track,
+                                      textColor: primaryText,
+                                    ),
                                     const SizedBox(height: 2),
-                                    _buildTrackArtists(context, track),
+                                    _buildTrackArtists(
+                                      context,
+                                      track,
+                                      textColor: secondaryText,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -529,7 +553,10 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                                           ignoring: !showHoverControls,
                                           child: GenericIconButton(
                                             tooltip: 'Share',
-                                            icon: const Icon(Icons.share),
+                                            icon: Icon(
+                                              Icons.share,
+                                              color: primaryText,
+                                            ),
                                             iconSize: 18,
                                             padding: EdgeInsets.zero,
                                             constraints: const BoxConstraints(
@@ -553,6 +580,7 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                                   LikeButton(
                                     track: track,
                                     iconSize: 20,
+                                    color: secondaryText,
                                     padding: const EdgeInsets.all(2),
                                     constraints: const BoxConstraints(
                                       minWidth: 28,
@@ -639,11 +667,15 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
         normalized != 'unknown artist';
   }
 
-  Widget _buildTrackTitle(BuildContext context, GenericSong track) {
+  Widget _buildTrackTitle(
+    BuildContext context,
+    GenericSong track, {
+    required Color textColor,
+  }) {
     final album = track.album;
     final hasAlbum = album != null && album.id.isNotEmpty;
-    const style = TextStyle(
-      color: Colors.white,
+    final style = TextStyle(
+      color: textColor,
       fontSize: 18,
       fontWeight: FontWeight.w700,
     );
@@ -674,13 +706,17 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
     );
   }
 
-  Widget _buildTrackArtists(BuildContext context, GenericSong track) {
+  Widget _buildTrackArtists(
+    BuildContext context,
+    GenericSong track, {
+    required Color textColor,
+  }) {
     final artists = track.artists;
     if (artists.isEmpty) return const SizedBox.shrink();
 
     final joinedText = artists.map((a) => a.name).join(', ');
     final style = TextStyle(
-      color: Colors.grey[200],
+      color: textColor,
       fontSize: 13,
       fontWeight: FontWeight.w500,
     );
@@ -877,11 +913,12 @@ class _TrackArtwork extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = constraints.maxWidth.toInt();
+        final placeholderColor = context.colors.artworkPlaceholder;
 
         return url.isEmpty
         ? Container(
-            color: Colors.grey[850],
-            child: const Icon(Icons.music_note),
+            color: placeholderColor,
+            child: Icon(Icons.music_note, color: context.colors.textMuted),
           )
         : CachedNetworkImage(
             imageUrl: url,
@@ -889,10 +926,10 @@ class _TrackArtwork extends StatelessWidget {
             filterQuality: FilterQuality.medium,
             memCacheHeight: size,
             memCacheWidth: size,
-            placeholder: (context, url) => Container(color: Colors.grey[850]),
+            placeholder: (context, url) => Container(color: placeholderColor),
             errorWidget: (context, url, error) => Container(
-              color: Colors.grey[850],
-              child: const Icon(Icons.music_note),
+              color: placeholderColor,
+              child: Icon(Icons.music_note, color: context.colors.textMuted),
             ),
           );
       }
@@ -1262,22 +1299,23 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
         _wasAuthenticated = isAuthenticated;
 
         if (artist == null) {
+          final colors = context.colors;
           return _SectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 Text(
                   'About the artist',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: colors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
                   'No artist info available',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                  style: TextStyle(color: colors.textMuted, fontSize: 13),
                 ),
               ],
             ),
@@ -1288,6 +1326,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
           future: _artistFuture,
           builder: (context, snapshot) {
             final data = snapshot.data;
+            final colors = context.colors;
             final isLoading =
                 snapshot.connectionState == ConnectionState.waiting ||
                 snapshot.connectionState == ConnectionState.active;
@@ -1309,7 +1348,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                             child: AspectRatio(
                               aspectRatio: 1,
                               child: imageUrl.isEmpty
-                                  ? Container(color: Colors.grey[850])
+                                  ? Container(color: colors.artworkPlaceholder)
                                   : LayoutBuilder(
                                     builder: (context, constraints) {
                                       final size = constraints.maxWidth.toInt();
@@ -1321,13 +1360,30 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                                         memCacheWidth: size,
                                         fit: BoxFit.cover,
                                         errorWidget: (context, url, error) =>
-                                            Container(color: Colors.grey[850]),
+                                            Container(
+                                              color: colors.artworkPlaceholder,
+                                            ),
                                       );
                                     }
                                   ),
                             ),
                           ),
-                          Positioned(
+                          Positioned.fill(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.center,
+                                  colors: [
+                                    Colors.black.withValues(alpha: 0.45),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const Positioned(
                             left: 12,
                             top: 12,
                             child: Text(
@@ -1368,7 +1424,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: colors.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
                                   decoration: isHovering
@@ -1387,7 +1443,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                                   ? '${_formatNumber(data.monthlyListeners!)} monthly listeners'
                                   : '${_formatNumber(data.followers)} followers',
                               style: TextStyle(
-                                color: Colors.grey[400],
+                                color: colors.textSecondary,
                                 fontSize: 13,
                               ),
                             ),
@@ -1399,7 +1455,7 @@ class _ArtistInfoCardState extends State<_ArtistInfoCard> {
                                   data.description!,
                                   maxLines: 3,
                                   style: TextStyle(
-                                    color: Colors.grey[500],
+                                    color: colors.textMuted,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -1496,6 +1552,7 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
     final track = context.select<WispAudioHandler, GenericSong?>(
       (p) => p.currentTrack,
     );
+    final colors = context.colors;
 
     if (track == null) {
       return _SectionCard(
@@ -1503,19 +1560,19 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
           width: double.infinity,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 'Lyrics Preview',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: colors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               Text(
                 'Play a song to see lyrics',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(color: colors.textMuted, fontSize: 13),
               ),
             ],
           ),
@@ -1523,8 +1580,13 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
       );
     }
 
-    final bgColor = _tintedDominantColor(Theme.of(context).colorScheme.primary);
-    final btnColor = Theme.of(context).colorScheme.primary;
+    final primary = Theme.of(context).colorScheme.primary;
+    final bgColor = colors.isDark
+        ? _tintedDominantColor(primary)
+        : (Color.lerp(colors.surface, primary, 0.18) ?? colors.surface);
+    final fgPrimary = colors.onColor(bgColor);
+    final fgSecondary = fgPrimary.withValues(alpha: 0.72);
+    final btnColor = primary;
 
     return Consumer<LyricsProvider>(
       builder: (context, lyricsProvider, child) {
@@ -1580,20 +1642,20 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'Lyrics Preview',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: fgPrimary,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               const SizedBox(height: 10),
                               if (isLoading && lyrics == null)
-                                const Text(
+                                Text(
                                   'Loading lyrics…',
                                   style: TextStyle(
-                                    color: Colors.grey,
+                                    color: fgSecondary,
                                     fontSize: 13,
                                   ),
                                 )
@@ -1652,8 +1714,11 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                             lines: previewLines,
                                             resetKey: track.id,
                                             maxLines: 1,
-                                            textStyle: const TextStyle(
-                                              color: Colors.white,
+                                            activeWordColor: fgPrimary,
+                                            inactiveWordColor:
+                                                fgPrimary.withValues(alpha: 0.45),
+                                            textStyle: TextStyle(
+                                              color: fgPrimary,
                                               fontSize: 15,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -1663,13 +1728,13 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                                     },
                                   ),
                                 ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
                               Text(
                                 lyrics == null
                                     ? ''
                                     : 'Lyrics provided by ${lyrics.providerLabel}',
                                 style: TextStyle(
-                                  color: Colors.grey[200],
+                                  color: fgSecondary,
                                   fontSize: 11,
                                 ),
                               ),
@@ -1777,19 +1842,22 @@ class _QueuePreviewCardState extends State<_QueuePreviewCard> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Up next',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.colors.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 10),
                       if (upcoming.isEmpty)
-                        const Text(
+                        Text(
                           'Queue is empty',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                          style: TextStyle(
+                            color: context.colors.textMuted,
+                            fontSize: 13,
+                          ),
                         )
                       else
                         Column(

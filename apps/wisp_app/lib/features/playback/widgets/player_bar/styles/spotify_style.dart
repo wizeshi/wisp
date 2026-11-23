@@ -83,11 +83,22 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         ? swipePreview.nextTrack
         : swipePreview.previousTrack;
 
-    var bgColor = _tintedDominantColor(Theme.of(context).colorScheme.primary);
+    final colors = context.colors;
+    final isDark = colors.isDark;
+    final primary = Theme.of(context).colorScheme.primary;
+    final bgColor = isDark
+        ? _tintedDominantColor(primary)
+        : (Color.lerp(Colors.white, primary, 0.16) ?? Colors.white);
+    final fgPrimary = isDark ? Colors.white : colors.textPrimary;
+    final fgSecondary = isDark
+        ? Colors.white.withValues(alpha: 0.78)
+        : colors.textSecondary;
 
-    var btnColor = HSLColor.fromColor(
-      bgColor,
-    ).withLightness(0.7).withSaturation(1).toColor();
+    final btnColor = isDark
+        ? HSLColor.fromColor(
+            bgColor,
+          ).withLightness(0.7).withSaturation(1).toColor()
+        : primary;
 
     final handoffMessage = context.select<ConnectSessionProvider, String?>(
       (connect) => _handoffStatusMessage(connect),
@@ -115,12 +126,23 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                           32, // 16px padding each side
                       height: 56,
                       decoration: BoxDecoration(
-                        color: bgColor.withValues(alpha: 0.78),
+                        color: bgColor.withValues(alpha: isDark ? 0.78 : 0.90),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : colors.borderSubtle,
                           width: 0.8,
                         ),
                         borderRadius: BorderRadius.circular(10),
+                        boxShadow: isDark
+                            ? null
+                            : [
+                                BoxShadow(
+                                  color: colors.shadow,
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -146,6 +168,8 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                                             ),
                                             child: _buildMobileTrackInfo(
                                               widget.currentTrack,
+                                              fgPrimary: fgPrimary,
+                                              fgSecondary: fgSecondary,
                                             ),
                                           ),
                                         ),
@@ -167,6 +191,8 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                                                   ),
                                                   child: _buildMobileTrackInfo(
                                                     previewTrack,
+                                                    fgPrimary: fgPrimary,
+                                                    fgSecondary: fgSecondary,
                                                   ),
                                                 ),
                                               ),
@@ -176,7 +202,11 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                                     ),
                                   ),
                                 ),
-                                _buildMobileConnectButton(widget.appStyle),
+                                _buildMobileConnectButton(
+                                  widget.appStyle,
+                                  fgPrimary: fgPrimary,
+                                  fgSecondary: fgSecondary,
+                                ),
                                 LikeButton(
                                   track: widget.currentTrack as GenericSong?,
                                   iconSize: 24,
@@ -187,11 +217,20 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                                   ),
                                   color: btnColor,
                                 ),
-                                _buildMobilePlayPauseButton(widget.appStyle),
+                                _buildMobilePlayPauseButton(
+                                  widget.appStyle,
+                                  fgPrimary: fgPrimary,
+                                ),
                               ],
                             ),
                           ),
-                          _buildMiniProgressBar(),
+                          _buildMiniProgressBar(
+                            progressColor: isDark ? Colors.white : primary,
+                            trackBg: isDark
+                                ? Colors.grey[850]!.withValues(alpha: 0.4)
+                                : colors.borderSubtle,
+                            bufferedColor: fgPrimary.withValues(alpha: 0.25),
+                          ),
                         ],
                       ),
                     ),
@@ -220,12 +259,13 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
   Widget _buildMobileAlbumArt(dynamic currentTrack) {
     final imageUrl = currentTrack?.thumbnailUrl ?? '';
+    final colors = context.colors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
       child: Container(
         width: 44,
         height: 44,
-        color: Colors.grey[900],
+        color: colors.artworkPlaceholder,
         child: imageUrl.isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: imageUrl,
@@ -233,20 +273,24 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                 memCacheWidth: 132,
                 memCacheHeight: 132,
                 placeholder: (context, url) =>
-                    Container(color: Colors.grey[800]),
+                    Container(color: colors.artworkPlaceholder),
                 errorWidget: (context, url, error) =>
-                    Icon(Icons.music_note, color: Colors.grey[700]),
+                    Icon(Icons.music_note, color: colors.textMuted),
               )
-            : Icon(Icons.music_note, color: Colors.grey[700]),
+            : Icon(Icons.music_note, color: colors.textMuted),
       ),
     );
   }
 
-  Widget _buildMobileTrackInfo(dynamic currentTrack) {
+  Widget _buildMobileTrackInfo(
+    dynamic currentTrack, {
+    required Color fgPrimary,
+    required Color fgSecondary,
+  }) {
     if (currentTrack == null || currentTrack is! GenericSong) {
       return Text(
         'No track playing',
-        style: TextStyle(color: Colors.grey[600], fontSize: 14),
+        style: TextStyle(color: context.colors.textMuted, fontSize: 14),
       );
     }
 
@@ -292,8 +336,8 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                         text: showConnectStatus
                             ? "${track.title}  •  ${track.artists.map((a) => a.name).join(', ')}"
                             : track.title,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: fgPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
@@ -305,14 +349,14 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                     ? Row(
                         children: [
                           if (deviceIcon != null) ...[
-                            Icon(deviceIcon, color: Colors.white, size: 14),
+                            Icon(deviceIcon, color: fgPrimary, size: 14),
                             const SizedBox(width: 4),
                           ],
                           Expanded(
                             child: MarqueeText(
                               text: "$deviceTitle • $qualityLabel",
                               style: TextStyle(
-                                color: Colors.grey[250],
+                                color: fgSecondary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -328,7 +372,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                               text:
                                   "${track.artists.map((a) => a.name).join(', ')} • $qualityLabel",
                               style: TextStyle(
-                                color: Colors.grey[250],
+                                color: fgSecondary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -342,16 +386,23 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     );
   }
 
-  Widget _buildMobileConnectButton(AppStyle appStyle) {
+  Widget _buildMobileConnectButton(
+    AppStyle appStyle, {
+    required Color fgPrimary,
+    required Color fgSecondary,
+  }) {
     return _ConnectMenuButton(
       iconSize: 24,
       appStyle: appStyle,
-      inactiveColor: Colors.grey[300],
-      activeColorOverride: Colors.white,
+      inactiveColor: fgSecondary,
+      activeColorOverride: fgPrimary,
     );
   }
 
-  Widget _buildMobilePlayPauseButton(AppStyle appStyle) {
+  Widget _buildMobilePlayPauseButton(
+    AppStyle appStyle, {
+    required Color fgPrimary,
+  }) {
     return Selector<global_audio_player.WispAudioHandler, _PlayPauseData>(
       selector: (context, player) {
         final track = player.currentTrack;
@@ -380,13 +431,13 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           (coordinator) => coordinator.effectiveIsPlaying,
         );
         if (data.isLoading || data.isBuffering || data.isTransitioning) {
-          return const SizedBox(
+          return SizedBox(
             width: 40,
             height: 40,
             child: Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                valueColor: AlwaysStoppedAnimation<Color>(fgPrimary),
               ),
             ),
           );
@@ -435,14 +486,18 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
         return GenericIconButton(
           style: AppStyle.Spotify,
-          icon: Icon(icon, size: 28, color: Colors.white),
+          icon: Icon(icon, size: 28, color: fgPrimary),
           onPressed: onPressed,
         );
       },
     );
   }
 
-  Widget _buildMiniProgressBar() {
+  Widget _buildMiniProgressBar({
+    required Color progressColor,
+    required Color trackBg,
+    required Color bufferedColor,
+  }) {
     return Selector2<
       global_audio_player.WispAudioHandler,
       PlaybackCoordinator,
@@ -460,11 +515,11 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       ),
       builder: (context, data, _) {
         if (data.isLoading) {
-          return const SizedBox(
+          return SizedBox(
             height: 3,
             child: LinearProgressIndicator(
               backgroundColor: Colors.transparent,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor: AlwaysStoppedAnimation<Color>(progressColor),
             ),
           );
         }
@@ -503,17 +558,35 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                             fDuration.inMilliseconds)
                         .clamp(0.0, 1.0)
                   : 0.0;
-              return _buildMiniProgressIndicator(fProgress, fBuffered);
+              return _buildMiniProgressIndicator(
+                fProgress,
+                fBuffered,
+                progressColor: progressColor,
+                trackBg: trackBg,
+                bufferedColor: bufferedColor,
+              );
             },
           );
         }
 
-        return _buildMiniProgressIndicator(progress, bufferedProgress);
+        return _buildMiniProgressIndicator(
+          progress,
+          bufferedProgress,
+          progressColor: progressColor,
+          trackBg: trackBg,
+          bufferedColor: bufferedColor,
+        );
       },
     );
   }
 
-  Widget _buildMiniProgressIndicator(double progress, double bufferedProgress) {
+  Widget _buildMiniProgressIndicator(
+    double progress,
+    double bufferedProgress, {
+    required Color progressColor,
+    required Color trackBg,
+    required Color bufferedColor,
+  }) {
     return SizedBox(
       height: 3,
       child: Stack(
@@ -521,15 +594,13 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
         children: [
           LinearProgressIndicator(
             value: bufferedProgress,
-            backgroundColor: Colors.grey[850]?.withValues(alpha: 0.4),
-            valueColor: AlwaysStoppedAnimation<Color>(
-              Colors.white.withValues(alpha: 0.28),
-            ),
+            backgroundColor: trackBg,
+            valueColor: AlwaysStoppedAnimation<Color>(bufferedColor),
           ),
           LinearProgressIndicator(
             value: progress,
             backgroundColor: Colors.transparent,
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            valueColor: AlwaysStoppedAnimation<Color>(progressColor),
           ),
         ],
       ),
@@ -546,6 +617,7 @@ class _DesktopPlayerBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final buttonColor = Theme.of(context).colorScheme.primary;
+    final colors = context.colors;
 
     final handoffMessage = context.select<ConnectSessionProvider, String?>(
       (connect) => _handoffStatusMessage(connect),
@@ -559,9 +631,9 @@ class _DesktopPlayerBar extends StatelessWidget {
           Container(
             height: 90,
             decoration: BoxDecoration(
-              color: Colors.black,
+              color: colors.playerBar,
               border: Border(
-                top: BorderSide(color: Colors.grey[900]!, width: 1),
+                top: BorderSide(color: colors.borderSubtle, width: 1),
               ),
             ),
             child: Padding(
@@ -641,6 +713,7 @@ class _SpotifyDesktopTrackInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final track = currentTrack!;
+    final colors = context.colors;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -650,7 +723,7 @@ class _SpotifyDesktopTrackInfo extends StatelessWidget {
           child: Container(
             width: 56,
             height: 56,
-            color: Colors.grey[900],
+            color: colors.artworkPlaceholder,
             child: currentTrack!.thumbnailUrl.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: currentTrack!.thumbnailUrl,
@@ -658,11 +731,11 @@ class _SpotifyDesktopTrackInfo extends StatelessWidget {
                     memCacheWidth: 168,
                     memCacheHeight: 168,
                     placeholder: (context, url) =>
-                        Container(color: Colors.grey[800]),
+                        Container(color: colors.artworkPlaceholder),
                     errorWidget: (context, url, error) =>
-                        Icon(Icons.music_note, color: Colors.grey[700]),
+                        Icon(Icons.music_note, color: colors.textMuted),
                   )
-                : Icon(Icons.music_note, color: Colors.grey[700]),
+                : Icon(Icons.music_note, color: colors.textMuted),
           ),
         ),
         SizedBox(width: 12),

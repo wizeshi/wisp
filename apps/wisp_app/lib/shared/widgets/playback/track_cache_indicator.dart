@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/cache/cache_manager.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 
@@ -34,7 +35,7 @@ class TrackCacheIndicator extends StatelessWidget {
             value: state.progress,
             strokeWidth: 2,
             color: Theme.of(context).colorScheme.primary,
-            backgroundColor: Colors.grey[800],
+            backgroundColor: context.colors.trackInactive,
           ),
         ),
       );
@@ -100,7 +101,7 @@ class TrackBadges extends StatelessWidget {
               Icon(
                 Icons.explicit,
                 size: 14 * fontScaling,
-                color: Colors.grey[600],
+                color: context.colors.textMuted,
               ),
               const SizedBox(width: 4),
             ],

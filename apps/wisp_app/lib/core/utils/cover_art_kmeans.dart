@@ -8,6 +8,19 @@ import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
 
+@immutable
+class CoverArtPaletteColors {
+  final Color primary;
+  final Color? secondary;
+  final Color? tertiary;
+
+  const CoverArtPaletteColors({
+    required this.primary,
+    this.secondary,
+    this.tertiary,
+  });
+}
+
 class CoverArtKMeans {
   static const double _scoreColorfulness = 4.923;
   static const double _scoreDarkness = 1.406;
@@ -16,7 +29,25 @@ class CoverArtKMeans {
   static const double _maxLuminance = 0.92;
   static const double _saturationBoost = 1.1;
   static const double _brightnessFactor = 0.9;
+
   static Future<ColorScheme?> fromImageProvider({
+    required ImageProvider provider,
+    Brightness brightness = Brightness.dark,
+    int maxSamples = 1200,
+    int clusterCount = 5,
+    int maxIterations = 10,
+  }) async {
+    final colors = await extractColorsFromImageProvider(
+      provider: provider,
+      maxSamples: maxSamples,
+      clusterCount: clusterCount,
+      maxIterations: maxIterations,
+    );
+    if (colors == null) return null;
+    return buildColorScheme(colors, brightness: brightness);
+  }
+
+  static Future<CoverArtPaletteColors?> extractColorsFromImageProvider({
     required ImageProvider provider,
     int maxSamples = 1200,
     int clusterCount = 5,
@@ -48,7 +79,12 @@ class CoverArtKMeans {
       if (colorValues == null) {
         return null;
       }
-      return _buildSchemeFromValues(colorValues);
+      final (primaryValue, secondaryValue, tertiaryValue) = colorValues;
+      return CoverArtPaletteColors(
+        primary: Color(primaryValue),
+        secondary: secondaryValue != null ? Color(secondaryValue) : null,
+        tertiary: tertiaryValue != null ? Color(tertiaryValue) : null,
+      );
     } catch (_) {
       return null;
     } finally {
@@ -92,18 +128,21 @@ class CoverArtKMeans {
     return (a << 24) | (r << 16) | (g << 8) | b;
   }
 
-  static ColorScheme _buildSchemeFromValues(
-    (int, int?, int?) values,
-  ) {
-    final (primaryValue, secondaryValue, tertiaryValue) = values;
-    final primary = Color(primaryValue);
-    final secondary =
-        secondaryValue != null ? Color(secondaryValue) : null;
-    final tertiary = tertiaryValue != null ? Color(tertiaryValue) : null;
+  static ColorScheme buildColorScheme(
+    CoverArtPaletteColors colors, {
+    Brightness brightness = Brightness.dark,
+  }) {
+    final primary = _tuneForBrightness(colors.primary, brightness);
+    final secondary = colors.secondary != null
+        ? _tuneForBrightness(colors.secondary!, brightness)
+        : null;
+    final tertiary = colors.tertiary != null
+        ? _tuneForBrightness(colors.tertiary!, brightness)
+        : null;
 
     var scheme = ColorScheme.fromSeed(
       seedColor: primary,
-      brightness: Brightness.dark,
+      brightness: brightness,
     ).copyWith(primary: primary, onPrimary: _bestOnColor(primary));
 
     if (secondary != null) {
@@ -121,6 +160,29 @@ class CoverArtKMeans {
     }
 
     return scheme;
+  }
+
+  static Color _tuneForBrightness(Color color, Brightness brightness) {
+    if (brightness == Brightness.dark) {
+      return _tuneColor(color);
+    }
+    var hsl = HSLColor.fromColor(color);
+    var lightness = hsl.lightness.clamp(0.26, 0.48);
+    final saturation = hsl.saturation.clamp(0.42, 0.92);
+    var tuned = hsl
+        .withLightness(lightness)
+        .withSaturation(saturation)
+        .toColor();
+
+    // Ensure readable contrast on light backgrounds for bright yellow/cyan/lime hues.
+    while (tuned.computeLuminance() > 0.34 && lightness > 0.20) {
+      lightness = (lightness - 0.04).clamp(0.20, 0.48);
+      tuned = hsl
+          .withLightness(lightness)
+          .withSaturation(saturation)
+          .toColor();
+    }
+    return tuned;
   }
 
   static Future<ui.Image> _loadImage(ImageProvider provider) {
@@ -375,7 +437,9 @@ class CoverArtKMeans {
   }
 
   static Color _bestOnColor(Color color) {
-    return color.computeLuminance() > 0.6 ? Colors.black : Colors.white;
+    return color.computeLuminance() > 0.48
+        ? const Color(0xFF141416)
+        : Colors.white;
   }
 }
 

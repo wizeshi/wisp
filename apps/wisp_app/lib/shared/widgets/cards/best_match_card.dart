@@ -241,7 +241,7 @@ class BestMatchCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
+            color: context.colors.surfaceSubtle,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -271,8 +271,8 @@ class BestMatchCard extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: context.colors.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
@@ -282,7 +282,10 @@ class BestMatchCard extends StatelessWidget {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                      style: TextStyle(
+                        color: context.colors.textSecondary,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -308,6 +311,7 @@ class BestMatchCard extends StatelessWidget {
     required VoidCallback onLongPress,
   }) {
     final theme = Theme.of(context);
+    final colors = context.colors;
 
     return HoverRegion(
       onTap: onTap,
@@ -324,13 +328,9 @@ class BestMatchCard extends StatelessWidget {
             width: double.infinity,
             height: height ?? double.infinity,
             decoration: BoxDecoration(
-              color: isHovered
-                  ? Colors.white.withValues(alpha: isApple ? 0.08 : 0.075)
-                  : Colors.white.withValues(alpha: 0.045),
+              color: isHovered ? colors.hoverOverlay : colors.surfaceSubtle,
               borderRadius: BorderRadius.circular(14),
-              border: isApple
-                  ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-                  : null,
+              border: isApple ? Border.all(color: colors.borderSubtle) : null,
             ),
             child: Stack(
               fit: StackFit.expand,
@@ -365,8 +365,8 @@ class BestMatchCard extends StatelessWidget {
                         title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 30,
                           fontWeight: FontWeight.w700,
                           height: 1.05,
@@ -381,13 +381,15 @@ class BestMatchCard extends StatelessWidget {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.4),
+                              color: colors.isDark
+                                  ? Colors.black.withValues(alpha: 0.4)
+                                  : colors.surfaceElevated,
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Text(
                               kindLabel,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: colors.textPrimary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -400,7 +402,7 @@ class BestMatchCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: Colors.grey[400],
+                                color: colors.textSecondary,
                                 fontSize: 13,
                               ),
                             ),

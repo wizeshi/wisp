@@ -94,7 +94,7 @@ class _LikeButtonState extends State<LikeButton> {
         final icon = isLiked ? likedIcon : notLikedIcon;
         final color = isLiked
             ? (widget.color ?? Theme.of(context).colorScheme.primary)
-            : Colors.white;
+            : context.colors.textPrimary;
 
         Widget button = GenericIconButton(
           style: effectiveStyle,

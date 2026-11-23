@@ -170,11 +170,13 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
         widget.type == SharedListType.playlist &&
         isLikedSongsPlaylistId(widget.id);
 
+    final colors = context.colors;
     return SafeArea(
       child: Scaffold(
+        backgroundColor: colors.canvas,
         appBar: AppBar(
           leading: GenericIconButton(
-            icon: const Icon(CupertinoIcons.back, color: Colors.white),
+            icon: Icon(CupertinoIcons.back, color: colors.textPrimary),
             onPressed: () => NavigationHistory.instance.goBack(),
           ),
           title: AnimatedOpacity(
@@ -182,8 +184,8 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
             duration: const Duration(milliseconds: 200),
             child: Text(
               widget.title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: colors.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -192,7 +194,7 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
             ),
           ),
           centerTitle: true,
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          backgroundColor: colors.canvas,
           elevation: _showTitle ? 1 : 0,
         ),
         body: CustomScrollView(
@@ -273,7 +275,9 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
     final descriptionText = widget.description?.trim();
     final hasDescription =
         descriptionText != null && descriptionText.isNotEmpty;
-    final primaryColor = Theme.of(context).colorScheme.primary;
+    final colors = context.colors;
+    final colorScheme = Theme.of(context).colorScheme;
+    final primaryColor = colorScheme.primary;
 
     return Column(
       children: [
@@ -294,26 +298,29 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
                                   fit: BoxFit.cover,
                                   cacheWidth: 280,
                                   cacheHeight: 280,
-                                  errorBuilder: (_, _, _) =>
-                                      Container(color: Colors.grey[900]),
+                                  errorBuilder: (_, _, _) => Container(
+                                    color: colors.artworkPlaceholder,
+                                  ),
                                 )
                               : CachedNetworkImage(
                                   imageUrl: widget.imageUrl,
                                   fit: BoxFit.cover,
                                   memCacheWidth: 280,
                                   memCacheHeight: 280,
-                                  placeholder: (_, _) =>
-                                      Container(color: Colors.grey[900]),
-                                  errorWidget: (_, _, _) =>
-                                      Container(color: Colors.grey[900]),
+                                  placeholder: (_, _) => Container(
+                                    color: colors.artworkPlaceholder,
+                                  ),
+                                  errorWidget: (_, _, _) => Container(
+                                    color: colors.artworkPlaceholder,
+                                  ),
                                 ))
                         : Container(
-                            color: Colors.grey[900],
+                            color: colors.artworkPlaceholder,
                             child: Icon(
                               widget.type == SharedListType.playlist
                                   ? Icons.playlist_play
                                   : Icons.album,
-                              color: Colors.grey[600],
+                              color: colors.textMuted,
                               size: 64,
                             ),
                           )),
@@ -323,8 +330,8 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
         const SizedBox(height: 18),
         Text(
           widget.title,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: colors.textPrimary,
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
@@ -358,17 +365,17 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
                 ),
               ),
             if (widget.totalTracks > 0) ...[
-              const Text(' • ', style: TextStyle(color: Colors.grey)),
+              Text(' • ', style: TextStyle(color: colors.textSecondary)),
               Text(
                 '${widget.totalTracks} songs',
-                style: const TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(color: colors.textSecondary, fontSize: 13),
               ),
             ],
             if (widget.totalDurationSecs > 0) ...[
-              const Text(', ', style: TextStyle(color: Colors.grey)),
+              Text(', ', style: TextStyle(color: colors.textSecondary)),
               Text(
                 _formatDuration(widget.totalDurationSecs),
-                style: const TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(color: colors.textSecondary, fontSize: 13),
               ),
             ],
           ],
@@ -378,7 +385,7 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
           buildParsedText(
             context,
             descriptionText,
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
+            style: TextStyle(color: colors.textSecondary, fontSize: 12),
             textAlign: TextAlign.center,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
@@ -395,11 +402,11 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
                   icon: Icon(
                     CupertinoIcons.shuffle,
                     size: 18,
-                    color: shuffleActive ? Colors.white : primaryColor,
+                    color: shuffleActive ? colorScheme.onPrimary : primaryColor,
                   ),
                   backgroundColor: shuffleActive
                       ? primaryColor
-                      : Theme.of(context).colorScheme.surface,
+                      : (colors.isDark ? colors.surface : colors.surfaceElevated),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 );
               },
@@ -421,7 +428,7 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
                   ),
                   label: Text(isPlayingList ? 'Pause' : 'Play'),
                   backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
+                  foregroundColor: colorScheme.onPrimary,
                   padding: const EdgeInsets.symmetric(
                     vertical: 12,
                     horizontal: 24,
@@ -435,12 +442,13 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
               builder: (buttonContext) {
                 return GenericIconButton.filled(
                   onPressed: () => widget.onContextMenu(buttonContext, null),
-                  icon: const Icon(
+                  icon: Icon(
                     CupertinoIcons.ellipsis,
-                    color: Colors.white70,
+                    color: colors.textSecondary,
                     size: 22,
                   ),
-                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  backgroundColor:
+                      colors.isDark ? colors.surface : colors.surfaceElevated,
                 );
               },
             ),
@@ -451,10 +459,11 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
   }
 
   Widget _buildRecommendations(BuildContext context) {
+    final colors = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(color: Colors.white12),
+        Divider(color: colors.borderSubtle),
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -464,10 +473,10 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Recommended',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: colors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),
@@ -475,7 +484,7 @@ class _MobileAppleMusicListViewState extends State<MobileAppleMusicListView> {
                   const SizedBox(height: 2),
                   Text(
                     "Based on what's in this playlist",
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    style: TextStyle(color: colors.textMuted, fontSize: 12),
                   ),
                 ],
               ),

@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
@@ -24,7 +25,10 @@ class ProviderDisabledState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey[300]),
+              style: TextStyle(
+                fontSize: 16,
+                color: context.colors.textSecondary,
+              ),
             ),
             const SizedBox(height: 16),
             GenericElevatedButton.icon(

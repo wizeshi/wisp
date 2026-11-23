@@ -4,6 +4,7 @@ library;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
 /// Modal dialog for user-provided text inputs (e.g. API keys, personal access tokens, custom server URLs).
@@ -65,16 +66,17 @@ class _AuthInputDialogState extends State<AuthInputDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return AlertDialog(
-      backgroundColor: const Color(0xFF242424),
+      backgroundColor: colors.surfaceElevated,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
       contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
       actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
       title: Text(
         widget.title,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: colors.textPrimary,
           fontSize: 18,
           fontWeight: FontWeight.bold,
         ),
@@ -88,7 +90,7 @@ class _AuthInputDialogState extends State<AuthInputDialog> {
               Text(
                 widget.description!,
                 style: TextStyle(
-                  color: Colors.grey[400],
+                  color: colors.textSecondary,
                   fontSize: 13,
                   height: 1.4,
                 ),
@@ -99,22 +101,22 @@ class _AuthInputDialogState extends State<AuthInputDialog> {
               controller: _controller,
               obscureText: _obscured,
               autofocus: true,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(color: colors.textPrimary, fontSize: 14),
               decoration: InputDecoration(
                 labelText: widget.label,
-                labelStyle: TextStyle(color: Colors.grey[400]),
+                labelStyle: TextStyle(color: colors.textSecondary),
                 hintText: widget.hint,
-                hintStyle: TextStyle(color: Colors.grey[600]),
+                hintStyle: TextStyle(color: colors.textMuted),
                 filled: true,
-                fillColor: const Color(0xFF181818),
+                fillColor: colors.inputFill,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[800]!),
+                  borderSide: BorderSide(color: colors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.grey[800]!),
+                  borderSide: BorderSide(color: colors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -124,7 +126,7 @@ class _AuthInputDialogState extends State<AuthInputDialog> {
                     ? IconButton(
                         icon: Icon(
                           _obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          color: Colors.grey[400],
+                          color: colors.textSecondary,
                           size: 20,
                         ),
                         onPressed: () => setState(() => _obscured = !_obscured),
@@ -168,7 +170,7 @@ class _AuthInputDialogState extends State<AuthInputDialog> {
       actions: [
         GenericTextButton(
           onPressed: () => Navigator.of(context).pop(null),
-          child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+          child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
         ),
         GenericElevatedButton(
           onPressed: _submit,

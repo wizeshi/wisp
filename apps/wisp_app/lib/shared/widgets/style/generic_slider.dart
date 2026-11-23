@@ -55,7 +55,8 @@ class GenericSlider extends StatelessWidget {
           data: SliderTheme.of(context).copyWith(
             activeTrackColor:
                 activeTrackColor ?? Theme.of(context).colorScheme.primary,
-            inactiveTrackColor: inactiveTrackColor ?? Colors.grey[800],
+            inactiveTrackColor:
+                inactiveTrackColor ?? context.colors.trackInactive,
             thumbColor: thumbColor ?? Theme.of(context).colorScheme.primary,
             overlayColor:
                 overlayColor ??
@@ -79,8 +80,9 @@ class GenericSlider extends StatelessWidget {
             onChanged: (value) {},
             onChangeEnd: onChanged,
             activeColor: activeTrackColor ?? Theme.of(context).colorScheme.primary,
-            inactiveColor: inactiveTrackColor ?? Colors.grey,
-            thumbColor: thumbColor ?? Colors.grey.shade400,
+            inactiveColor:
+                inactiveTrackColor ?? context.colors.trackInactive,
+            thumbColor: thumbColor ?? context.colors.textSecondary,
             isContinuous: false,
             width: constraints.maxWidth,
             height: trackHeight ?? 4,

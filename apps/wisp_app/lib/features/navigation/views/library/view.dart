@@ -438,13 +438,13 @@ class LibraryTabViewState extends State<LibraryTabView> {
                 if (isMobile)
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Your Library',
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: context.colors.textPrimary,
                           ),
                         ),
                       ),
@@ -495,49 +495,51 @@ class LibraryTabViewState extends State<LibraryTabView> {
     LibraryFolderState folderState, {
     required bool isMobile,
   }) {
+    final colors = context.colors;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: PopupMenuButton<LibrarySortMode>(
         tooltip: 'Sort',
         icon: Icon(
           Icons.sort,
-          color: Colors.grey[400],
+          color: colors.textSecondary,
           size: isMobile ? 22 : 18,
         ),
-        color: const Color(0xFF282828),
+        color: colors.surfaceElevated,
         onSelected: (mode) {
           folderState.setSortMode(mode);
           context.read<MetadataManager>().fetchUserLibrarySorted(
             sortMode: mode,
           );
         },
-        itemBuilder: (context) => const [
-          PopupMenuItem(
-            value: LibrarySortMode.recent,
-            child: Text('Recent', style: TextStyle(color: Colors.white)),
-          ),
-          PopupMenuItem(
-            value: LibrarySortMode.recentlyAdded,
-            child: Text(
-              'Recently added',
-              style: TextStyle(color: Colors.white),
+        itemBuilder: (menuContext) {
+          final menuText = TextStyle(color: menuContext.colors.textPrimary);
+          return [
+            PopupMenuItem(
+              value: LibrarySortMode.recent,
+              child: Text('Recent', style: menuText),
             ),
-          ),
-          PopupMenuItem(
-            value: LibrarySortMode.alphabetical,
-            child: Text('Alphabetical', style: TextStyle(color: Colors.white)),
-          ),
-        ],
+            PopupMenuItem(
+              value: LibrarySortMode.recentlyAdded,
+              child: Text('Recently added', style: menuText),
+            ),
+            PopupMenuItem(
+              value: LibrarySortMode.alphabetical,
+              child: Text('Alphabetical', style: menuText),
+            ),
+          ];
+        },
       ),
     );
   }
 
   Widget _buildDragToggleButton() {
+    final colors = context.colors;
     return GenericIconButton(
       tooltip: _dragModeEnabled ? 'Disable drag' : 'Enable drag',
       icon: Icon(
         Icons.drag_handle,
-        color: _dragModeEnabled ? Colors.white : Colors.grey[500],
+        color: _dragModeEnabled ? colors.textPrimary : colors.textMuted,
       ),
       onPressed: () {
         setState(() => _dragModeEnabled = !_dragModeEnabled);
@@ -548,7 +550,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
   Widget _buildCreateMenuButton() {
     return GenericIconButton(
       tooltip: 'Create',
-      icon: Icon(Icons.add, color: Colors.grey[300]),
+      icon: Icon(Icons.add, color: context.colors.textSecondary),
       onPressed: _showCreateMenu,
     );
   }
@@ -557,39 +559,40 @@ class LibraryTabViewState extends State<LibraryTabView> {
     await showModalBottomSheet(
       context: context,
       useRootNavigator: true,
-      backgroundColor: const Color(0xFF1B1B1B),
+      backgroundColor: context.colors.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
+        final colors = sheetContext.colors;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.create_new_folder_outlined,
-                  color: Colors.white,
+                  color: colors.textPrimary,
                 ),
-                title: const Text(
+                title: Text(
                   'Create folder',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(color: colors.textPrimary),
                 ),
                 onTap: () async {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   await PlaylistFolderModals.showCreateFolderDialog(
                     this.context,
                   );
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.playlist_add, color: Colors.white),
-                title: const Text(
+                leading: Icon(Icons.playlist_add, color: colors.textPrimary),
+                title: Text(
                   'Create playlist',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(color: colors.textPrimary),
                 ),
                 onTap: () async {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   await PlaylistFolderModals.showCreatePlaylistDialog(
                     this.context,
                   );
@@ -604,6 +607,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
 
   Widget _buildTabChip(LibraryView tab, String label, int count) {
     final isSelected = _selectedTab == tab;
+    final colors = context.colors;
     final colorScheme = Theme.of(context).colorScheme;
 
     return AnimatedContainer(
@@ -612,7 +616,7 @@ class LibraryTabViewState extends State<LibraryTabView> {
         label: Text(
           '$label ($count)',
           style: TextStyle(
-            color: isSelected ? colorScheme.onPrimary : Colors.white,
+            color: isSelected ? colorScheme.onPrimary : colors.textPrimary,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -626,7 +630,9 @@ class LibraryTabViewState extends State<LibraryTabView> {
             }
           });
         },
-        backgroundColor: const Color(0xFF282828),
+        backgroundColor: colors.isDark
+            ? colors.surfaceElevated
+            : colors.surfaceSubtle,
         selectedColor: colorScheme.primary,
         showCheckmark: false,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -1081,20 +1087,21 @@ class LibraryTabViewState extends State<LibraryTabView> {
   }
 
   Widget _buildErrorWidget(String error, VoidCallback onRetry) {
+    final colors = context.colors;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.grey[700]),
+          Icon(Icons.error_outline, size: 64, color: colors.textMuted),
           const SizedBox(height: 16),
           Text(
             'Something went wrong',
-            style: TextStyle(color: Colors.grey[400], fontSize: 18),
+            style: TextStyle(color: colors.textSecondary, fontSize: 18),
           ),
           const SizedBox(height: 8),
           Text(
             error,
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+            style: TextStyle(color: colors.textMuted, fontSize: 14),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -1111,15 +1118,16 @@ class LibraryTabViewState extends State<LibraryTabView> {
   }
 
   Widget _buildEmptyState(String message) {
+    final colors = context.colors;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.library_music_outlined, size: 64, color: Colors.grey[700]),
+          Icon(Icons.library_music_outlined, size: 64, color: colors.textMuted),
           const SizedBox(height: 16),
           Text(
             message,
-            style: TextStyle(color: Colors.grey[500], fontSize: 16),
+            style: TextStyle(color: colors.textMuted, fontSize: 16),
           ),
         ],
       ),
@@ -1207,10 +1215,10 @@ class _FolderListTileState extends State<_FolderListTile> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (widget.enableDrag && !isDesktop)
-            const Icon(Icons.drag_handle, color: Colors.grey),
+            Icon(Icons.drag_handle, color: context.colors.textMuted),
           Icon(
             isCollapsed ? Icons.chevron_right : Icons.expand_more,
-            color: Colors.grey[500],
+            color: context.colors.textMuted,
           ),
         ],
       ),
@@ -1251,7 +1259,7 @@ class _FolderListTileState extends State<_FolderListTile> {
         return Container(
           decoration: _isHovered
               ? BoxDecoration(
-                  color: Colors.white10,
+                  color: context.colors.hoverOverlay,
                   borderRadius: BorderRadius.circular(8),
                 )
               : null,
@@ -1268,7 +1276,7 @@ class _FolderListTileState extends State<_FolderListTile> {
           decoration: candidate.isNotEmpty
               ? BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white24),
+                  border: Border.all(color: context.colors.border),
                 )
               : null,
           child: reorderTarget,
@@ -1309,7 +1317,7 @@ class _DraggablePlaylistTile extends StatelessWidget {
         bottom: 8,
       ),
       trailing: enableDrag && !isDesktop
-          ? const Icon(Icons.drag_handle, color: Colors.grey)
+          ? Icon(Icons.drag_handle, color: context.colors.textMuted)
           : null,
     );
 
@@ -1341,7 +1349,7 @@ class _DraggablePlaylistTile extends StatelessWidget {
         return Container(
           decoration: candidate.isNotEmpty
               ? BoxDecoration(
-                  color: Colors.white10,
+                  color: context.colors.hoverOverlay,
                   borderRadius: BorderRadius.circular(8),
                 )
               : null,
@@ -1362,22 +1370,23 @@ class _DragFeedback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: colors.surfaceElevated,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white24),
+        border: Border.all(color: colors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white, size: 18),
+          Icon(icon, color: colors.textPrimary, size: 18),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
               title,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: colors.textPrimary),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

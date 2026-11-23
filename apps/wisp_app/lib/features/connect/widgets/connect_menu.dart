@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/features/connect/services/connect_packet_models.dart';
 import 'package:wisp_audio_output_info/models/types.dart';
 
@@ -84,7 +85,7 @@ class ConnectMenu extends StatelessWidget {
             .toList();
 
         return Container(
-          color: const Color(0xFF111111),
+          color: context.colors.canvas,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -255,7 +256,7 @@ class _ConnectMenuHeader extends StatelessWidget {
                 width: 42,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: context.colors.textMuted,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -272,7 +273,7 @@ class _ConnectMenuHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: context.colors.textPrimary,
                     fontSize: compact ? 18 : 20,
                     fontWeight: FontWeight.w800,
                   ),
@@ -282,7 +283,7 @@ class _ConnectMenuHeader extends StatelessWidget {
                 GenericIconButton(
                   tooltip: 'Close',
                   onPressed: onClose,
-                  icon: const Icon(Icons.close, color: Colors.white70),
+                  icon: Icon(Icons.close, color: context.colors.textSecondary),
                 ),
             ],
           ),
@@ -339,12 +340,13 @@ class _CurrentOutputCard extends StatelessWidget {
         break;
     }
 
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1C),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: colors.borderSubtle),
       ),
       child: Row(
         children: [
@@ -358,8 +360,8 @@ class _CurrentOutputCard extends StatelessWidget {
                   title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -367,7 +369,7 @@ class _CurrentOutputCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
                 ),
               ],
             ),
@@ -376,12 +378,12 @@ class _CurrentOutputCard extends StatelessWidget {
             GenericIconButton(
               tooltip: 'Switch System Output',
               onPressed: SystemUi.showOutputSwitcher,
-              icon: Icon(Icons.output, color: Colors.grey[200], size: 20),
+              icon: Icon(Icons.output, color: colors.textSecondary, size: 20),
             ),
           GenericIconButton(
             tooltip: 'Refresh devices',
             onPressed: connect.refreshConnectMenuData,
-            icon: Icon(Icons.refresh, color: Colors.grey[200], size: 20),
+            icon: Icon(Icons.refresh, color: colors.textSecondary, size: 20),
           ),
           if (connectionKind == ConnectionKind.handoff)
             GenericTextButton(
@@ -404,7 +406,7 @@ class _ListSectionLabel extends StatelessWidget {
     return Text(
       text,
       style: TextStyle(
-        color: Colors.grey[350],
+        color: context.colors.textSecondary,
         fontSize: 12,
         fontWeight: FontWeight.w700,
       ),
@@ -420,12 +422,13 @@ class _ListInlineEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1B1B1B),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: colors.borderSubtle),
       ),
       child: Row(
         children: [
@@ -434,7 +437,7 @@ class _ListInlineEmpty extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(color: Colors.grey[400], fontSize: 12),
+              style: TextStyle(color: colors.textSecondary, fontSize: 12),
             ),
           ),
         ],
@@ -489,7 +492,10 @@ class _ConnectNoticeCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   message,
-                  style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                  style: TextStyle(
+                    color: context.colors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Align(
@@ -533,10 +539,11 @@ class _OutputDeviceCard extends StatelessWidget {
     final name = device.name?.trim();
     final title = (name == null || name.isEmpty) ? subtitle : name;
 
+    final colors = context.colors;
     return Material(
       color: selected
           ? accent.withValues(alpha: 0.18)
-          : const Color(0xFF1B1B1B),
+          : colors.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -546,7 +553,9 @@ class _OutputDeviceCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? accent.withValues(alpha: 0.6) : Colors.white10,
+              color: selected
+                  ? accent.withValues(alpha: 0.6)
+                  : colors.borderSubtle,
             ),
           ),
           child: Row(
@@ -561,8 +570,8 @@ class _OutputDeviceCard extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: colors.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -573,7 +582,7 @@ class _OutputDeviceCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: selected ? accent : Colors.grey[400],
+                        color: selected ? accent : colors.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -583,7 +592,7 @@ class _OutputDeviceCard extends StatelessWidget {
               ),
               Icon(
                 selected ? Icons.check_circle : Icons.chevron_right,
-                color: selected ? accent : Colors.white70,
+                color: selected ? accent : colors.textSecondary,
               ),
             ],
           ),
@@ -601,20 +610,22 @@ class _HandoffModeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final onAccent = colors.onColor(accent);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF171717),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: colors.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Handoff mode',
             style: TextStyle(
-              color: Colors.white,
+              color: colors.textPrimary,
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
@@ -626,13 +637,13 @@ class _HandoffModeSection extends StatelessWidget {
                 (states) => BorderSide(
                   color: states.contains(WidgetState.selected)
                       ? accent
-                      : Colors.white24,
+                      : colors.border,
                 ),
               ),
               foregroundColor: WidgetStateProperty.resolveWith(
                 (states) => states.contains(WidgetState.selected)
-                    ? Colors.white
-                    : Colors.grey[300],
+                    ? onAccent
+                    : colors.textSecondary,
               ),
               backgroundColor: WidgetStateProperty.resolveWith(
                 (states) => states.contains(WidgetState.selected)
@@ -676,10 +687,11 @@ class _DeviceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Material(
       color: selected
           ? accent.withValues(alpha: 0.18)
-          : const Color(0xFF1B1B1B),
+          : colors.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -689,7 +701,9 @@ class _DeviceCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? accent.withValues(alpha: 0.6) : Colors.white10,
+              color: selected
+                  ? accent.withValues(alpha: 0.6)
+                  : colors.borderSubtle,
             ),
           ),
           child: Row(
@@ -707,8 +721,8 @@ class _DeviceCard extends StatelessWidget {
                       device.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: colors.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -719,7 +733,7 @@ class _DeviceCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: selected ? accent : Colors.grey[400],
+                        color: selected ? accent : colors.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -735,7 +749,7 @@ class _DeviceCard extends StatelessWidget {
                   if (!isPairingThisDevice) {
                     return Icon(
                       selected ? Icons.check_circle : Icons.chevron_right,
-                      color: selected ? accent : Colors.white70,
+                      color: selected ? accent : colors.textSecondary,
                     );
                   }
 
@@ -748,13 +762,13 @@ class _DeviceCard extends StatelessWidget {
                         child: CircularProgressIndicator(
                           strokeWidth: 2.2,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white70,
+                            colors.textSecondary,
                           ),
                         ),
                       ),
                       GenericIconButton(
                         icon: const Icon(Icons.close, size: 18),
-                        color: Colors.white70,
+                        color: colors.textSecondary,
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         onPressed: () {
@@ -821,7 +835,10 @@ class _PendingPairRequestCard extends StatelessWidget {
                       'from ${request.fromDeviceName}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      style: TextStyle(
+                        color: context.colors.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -832,13 +849,13 @@ class _PendingPairRequestCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white10,
+              color: context.colors.surfaceSubtle,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
               modeLabel,
-              style: const TextStyle(
-                color: Colors.white70,
+              style: TextStyle(
+                color: context.colors.textSecondary,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -850,12 +867,12 @@ class _PendingPairRequestCard extends StatelessWidget {
               Expanded(
                 child: GenericOutlinedButton(
                   onPressed: connect.rejectIncomingPair,
-                  side: const BorderSide(color: Colors.white24),
+                  side: BorderSide(color: context.colors.border),
                   padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: const Text(
+                  child: Text(
                     'Decline',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: context.colors.textSecondary,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),

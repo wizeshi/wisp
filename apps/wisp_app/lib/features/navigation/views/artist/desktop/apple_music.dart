@@ -8,6 +8,7 @@ extension _DesktopAppleMusicStyle on _ArtistDetailViewState {
     required String name,
     required int followers,
   }) {
+    final colors = context.colors;
     final hasTopSongs = (_artist?.topSongs ?? []).isNotEmpty;
     final hasAlbums = (_artist?.albums ?? []).isNotEmpty;
 
@@ -18,14 +19,17 @@ extension _DesktopAppleMusicStyle on _ArtistDetailViewState {
             child: ImageFiltered(
               imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Opacity(
-                opacity: 0.35,
+                opacity: colors.isDark ? 0.35 : 0.25,
                 child: CachedNetworkImage(
                   imageUrl: imageUrl,
                   fit: BoxFit.cover,
                   memCacheWidth: 200,
                   memCacheHeight: 200,
-                  errorWidget: (context, url, error) =>
-                      Container(color: Colors.grey[900]),
+                  errorWidget: (context, url, error) => Container(
+                    color: colors.isDark
+                        ? colors.artworkPlaceholder
+                        : colors.canvas,
+                  ),
                 ),
               ),
             ),
@@ -36,10 +40,15 @@ extension _DesktopAppleMusicStyle on _ArtistDetailViewState {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.5),
-                  Colors.black.withValues(alpha: 0.9),
-                ],
+                colors: colors.isDark
+                    ? [
+                        Colors.black.withValues(alpha: 0.5),
+                        Colors.black.withValues(alpha: 0.9),
+                      ]
+                    : [
+                        colors.canvas.withValues(alpha: 0.68),
+                        colors.canvas.withValues(alpha: 0.96),
+                      ],
               ),
             ),
           ),
@@ -151,7 +160,7 @@ extension _DesktopAppleMusicStyle on _ArtistDetailViewState {
                     style: TextStyle(color: Colors.grey[300], fontSize: 14),
                   ),
                   const SizedBox(height: 18),
-                  _buildActionsRow(useAppleIcons: true),
+                  _buildActionsRow(useAppleIcons: true, onDarkMedia: true),
                 ],
               ),
             ),

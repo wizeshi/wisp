@@ -12,21 +12,24 @@ class _AppleGlassLens extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = context.colors.isDark;
     return LiquidGlassLens(
       style: LiquidGlassStyle(
         shape: LiquidGlassShape.continuousRoundedRectangle(
           cornerRadius: cornerRadius,
         ),
         blur: 6,
-        color: Colors.black.withValues(alpha: 0.18),
+        color: isDark
+            ? Colors.black.withValues(alpha: 0.18)
+            : Colors.white.withValues(alpha: 0.72),
       ),
       child: child,
     );
   }
 }
 
-/// Apple Music desktop player bar: opaque surface, white accents (primary color
-/// is disregarded), top-margin scrubbing bar.
+/// Apple Music desktop player bar: opaque surface, monochrome accents (primary
+/// color is disregarded), top-margin scrubbing bar.
 class _AppleMusicDesktopPlayerBar extends StatelessWidget {
   final GenericSong? currentTrack;
 
@@ -34,6 +37,7 @@ class _AppleMusicDesktopPlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final handoffMessage = context.select<ConnectSessionProvider, String?>(
       (connect) => _handoffStatusMessage(connect),
     );
@@ -41,10 +45,10 @@ class _AppleMusicDesktopPlayerBar extends StatelessWidget {
     final barContent = Container(
       height: 88,
       decoration: BoxDecoration(
-        color: const Color(0xFF141414),
+        color: colors.playerBar,
         border: Border(
           top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.06),
+            color: colors.borderSubtle,
             width: 1,
           ),
         ),
@@ -52,11 +56,11 @@ class _AppleMusicDesktopPlayerBar extends StatelessWidget {
       child: Stack(
         children: [
           // Top margin progress bar sits on the border between bar & content
-          const Positioned(
+          Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: _PlayerBarTopProgressBar(accentColor: Colors.white),
+            child: _PlayerBarTopProgressBar(accentColor: colors.textPrimary),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(
@@ -115,7 +119,7 @@ class _AppleMusicDesktopPlayerBar extends StatelessWidget {
               right: 16,
               child: _HandoffStatusIndicator(
                 message: handoffMessage,
-                backgroundColor: Colors.grey[800]!,
+                backgroundColor: colors.surfaceElevated,
               ),
             ),
         ],
@@ -128,19 +132,21 @@ class _AppleMusicDesktopPlayerBar extends StatelessWidget {
 class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
   const _AppleMusicDesktopPlaybackControls();
 
-  static Widget _controlButton({
+  static Widget _controlButton(
+    BuildContext context, {
     required IconData icon,
     required String tooltip,
     required VoidCallback? onPressed,
     required double size,
     bool active = false,
   }) {
+    final colors = context.colors;
     return Container(
       width: 36,
       height: 36,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: active ? Colors.white : Colors.transparent,
+        color: active ? colors.textPrimary : Colors.transparent,
       ),
       child: GenericIconButton(
         style: AppStyle.AppleMusic,
@@ -150,7 +156,10 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
         padding: EdgeInsets.zero,
         tooltip: tooltip,
         iconSize: size,
-        icon: Icon(icon, color: active ? Colors.black : Colors.grey[400]),
+        icon: Icon(
+          icon,
+          color: active ? colors.canvas : colors.textSecondary,
+        ),
         onPressed: onPressed,
       ),
     );
@@ -159,6 +168,7 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
+    final colors = context.colors;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -201,6 +211,7 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
               spacing: 24,
               children: [
                 _controlButton(
+                  context,
                   icon: tokens.shuffleIcon,
                   tooltip: 'Shuffle',
                   size: 20,
@@ -218,7 +229,7 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
                           tooltip: 'Previous',
                           icon: Icon(
                             tokens.playPrevIcon,
-                            color: Colors.white,
+                            color: colors.textPrimary,
                             size: 22,
                           ),
                           onPressed: coordinator.skipPrevious,
@@ -230,7 +241,7 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
                           tooltip: 'Next',
                           icon: Icon(
                             tokens.playNextIcon,
-                            color: Colors.white,
+                            color: colors.textPrimary,
                             size: 22,
                           ),
                           onPressed: coordinator.skipNext,
@@ -241,7 +252,7 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
                     const SizedBox(height: 4),
 
                     AudioQualityBadge(
-                      preferredColor: Colors.white,
+                      preferredColor: colors.textPrimary,
                       child:
                           Selector<
                             global_audio_player.WispAudioHandler,
@@ -275,7 +286,7 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
                                   "https://upload.wikimedia.org/wikipedia/commons/0/0d/Apple_Lossless_logo.svg",
                                   fit: BoxFit.fill,
                                   colorFilter: ColorFilter.mode(
-                                    Colors.white,
+                                    colors.textPrimary,
                                     BlendMode.srcIn,
                                   ),
                                 );
@@ -283,7 +294,7 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
                                   quality.bitrate! >= 320) {
                                 icon = Icon(
                                   CupertinoIcons.checkmark_seal_fill,
-                                  color: Colors.white,
+                                  color: colors.textPrimary,
                                   size: 12,
                                 );
                               }
@@ -294,10 +305,10 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
+                                  color: colors.inputFill,
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.35),
+                                    color: colors.borderSubtle,
                                     width: 1,
                                   ),
                                 ),
@@ -310,8 +321,8 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
 
                                     Text(
                                       label,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -325,6 +336,7 @@ class _AppleMusicDesktopPlaybackControls extends StatelessWidget {
                   ],
                 ),
                 _controlButton(
+                  context,
                   icon: repeatIcon,
                   tooltip: data.isDJMode ? 'Unavailable in DJ mode' : 'Repeat',
                   size: 20,
@@ -347,6 +359,7 @@ class _AppleMusicDesktopPlayPauseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
+    final colors = context.colors;
 
     return Selector2<
       global_audio_player.WispAudioHandler,
@@ -389,7 +402,7 @@ class _AppleMusicDesktopPlayPauseButton extends StatelessWidget {
             : tokens.playIcon;
 
         if (isLoading) {
-          return const SizedBox(
+          return SizedBox(
             width: 44,
             height: 44,
             child: Center(
@@ -398,7 +411,7 @@ class _AppleMusicDesktopPlayPauseButton extends StatelessWidget {
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(colors.textPrimary),
                 ),
               ),
             ),
@@ -410,7 +423,7 @@ class _AppleMusicDesktopPlayPauseButton extends StatelessWidget {
           mouseCursor: SystemMouseCursors.click,
           padding: EdgeInsets.zero,
           iconSize: 44,
-          icon: Icon(icon, color: Colors.white),
+          icon: Icon(icon, color: colors.textPrimary),
           onPressed: onPressed,
         );
       },
@@ -424,6 +437,7 @@ class _AppleMusicCircularPlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Selector2<
       global_audio_player.WispAudioHandler,
       PlaybackCoordinator,
@@ -471,7 +485,7 @@ class _AppleMusicCircularPlayButton extends StatelessWidget {
             alignment: Alignment.center,
             children: [
               _PlayerBarCircularProgressRing(
-                ringColor: Colors.white,
+                ringColor: colors.textPrimary,
                 isLoading: isLoading,
               ),
               Container(
@@ -479,13 +493,15 @@ class _AppleMusicCircularPlayButton extends StatelessWidget {
                 height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.15),
+                  color: colors.isDark
+                      ? Colors.white.withValues(alpha: 0.15)
+                      : Colors.black.withValues(alpha: 0.08),
                 ),
                 child: GenericIconButton(
                   style: AppStyle.AppleMusic,
                   padding: EdgeInsets.zero,
                   iconSize: 20,
-                  icon: Icon(icon, color: Colors.white),
+                  icon: Icon(icon, color: colors.textPrimary),
                   onPressed: onPressed,
                 ),
               ),
@@ -622,15 +638,15 @@ class _AppleMusicMobilePlayerBarState
             _ConnectMenuButton(
               iconSize: 22,
               appStyle: AppStyle.AppleMusic,
-              inactiveColor: Colors.grey[400],
-              activeColorOverride: Colors.white,
+              inactiveColor: context.colors.textSecondary,
+              activeColorOverride: context.colors.textPrimary,
             ),
             LikeButton(
               track: widget.currentTrack as GenericSong?,
               iconSize: 22,
               padding: const EdgeInsets.all(2),
               constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              color: Colors.white,
+              color: context.colors.textPrimary,
             ),
             const SizedBox(width: 4),
 
@@ -669,7 +685,7 @@ class _AppleMusicMobilePlayerBarState
             child: Center(
               child: _HandoffStatusIndicator(
                 message: handoffMessage,
-                backgroundColor: const Color(0xFF2C2C2E),
+                backgroundColor: context.colors.surfaceElevated,
                 mobile: true,
               ),
             ),
@@ -680,12 +696,13 @@ class _AppleMusicMobilePlayerBarState
 
   Widget _buildMobileArt(dynamic currentTrack) {
     final imageUrl = currentTrack?.thumbnailUrl ?? '';
+    final colors = context.colors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Container(
         width: 46,
         height: 46,
-        color: Colors.grey[900],
+        color: colors.artworkPlaceholder,
         child: imageUrl.isNotEmpty
             ? CachedNetworkImage(
                 imageUrl: imageUrl,
@@ -693,20 +710,21 @@ class _AppleMusicMobilePlayerBarState
                 memCacheWidth: 138,
                 memCacheHeight: 138,
                 placeholder: (context, url) =>
-                    Container(color: Colors.grey[800]),
+                    Container(color: colors.artworkPlaceholder),
                 errorWidget: (context, url, error) =>
-                    Icon(Icons.music_note, color: Colors.grey[700]),
+                    Icon(Icons.music_note, color: colors.textMuted),
               )
-            : Icon(Icons.music_note, color: Colors.grey[700]),
+            : Icon(Icons.music_note, color: colors.textMuted),
       ),
     );
   }
 
   Widget _buildMobileTrackInfo(dynamic currentTrack) {
+    final colors = context.colors;
     if (currentTrack == null || currentTrack is! GenericSong) {
       return Text(
         'No track playing',
-        style: TextStyle(color: Colors.grey[600], fontSize: 14),
+        style: TextStyle(color: colors.textMuted, fontSize: 14),
       );
     }
 
@@ -722,8 +740,8 @@ class _AppleMusicMobilePlayerBarState
               text: showConnectStatus
                   ? "${track.title}  •  ${track.artists.map((a) => a.name).join(', ')}"
                   : track.title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: colors.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
@@ -737,7 +755,7 @@ class _AppleMusicMobilePlayerBarState
                         child: MarqueeText(
                           text: track.artists.map((a) => a.name).join(', '),
                           style: TextStyle(
-                            color: Colors.grey[250],
+                            color: colors.textSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),

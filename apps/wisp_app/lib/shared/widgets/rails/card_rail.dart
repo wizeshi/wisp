@@ -3,6 +3,7 @@
 import 'dart:io' show Platform;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
@@ -141,10 +142,10 @@ class _CardRailState<T> extends State<CardRail<T>> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               widget.title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: context.colors.textPrimary,
               ),
             ),
           ),
@@ -199,9 +200,7 @@ class _CardRailState<T> extends State<CardRail<T>> {
                                 end: Alignment.centerRight,
                                 colors: [
                                   Colors.transparent,
-                                  const Color(
-                                    0xFF121212,
-                                  ).withValues(alpha: 0.78),
+                                  context.colors.canvas.withValues(alpha: 0.78),
                                 ],
                               ),
                             ),
@@ -252,15 +251,18 @@ class _ScrollArrowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Material(
-      color: Colors.black.withValues(alpha: 0.5),
+      color: colors.isDark
+          ? Colors.black.withValues(alpha: 0.5)
+          : colors.surfaceElevated.withValues(alpha: 0.92),
       shape: const CircleBorder(),
       child: GenericIconButton(
         constraints: const BoxConstraints.tightFor(width: 40, height: 40),
         minimumSize: const Size(40, 40),
         padding: EdgeInsets.zero,
         iconSize: 24,
-        icon: Icon(icon, color: Colors.white),
+        icon: Icon(icon, color: colors.textPrimary),
         onPressed: onPressed,
         splashRadius: 18,
       ),

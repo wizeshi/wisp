@@ -120,18 +120,28 @@ class DesktopOriginalListView extends StatefulWidget {
 
 class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
   bool _showStickyBar = false;
-  Color _stickyBarColor = const Color(0xFF1E1E1E);
+  Color? _stickyBarColor;
   bool _searchExpanded = false;
   final TextEditingController _searchController = TextEditingController();
   Future<ColorScheme?>? _paletteFuture;
+  Brightness? _lastBrightness;
 
   @override
   void initState() {
     super.initState();
     widget.scrollController.addListener(_onScroll);
-    _paletteFuture = context.read<CoverArtPaletteProvider>().paletteForImageUrl(
-      widget.imageUrl,
-    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final brightness = Theme.of(context).brightness;
+    if (_paletteFuture == null || _lastBrightness != brightness) {
+      _lastBrightness = brightness;
+      _paletteFuture = context
+          .read<CoverArtPaletteProvider>()
+          .paletteForImageUrl(widget.imageUrl, brightness: brightness);
+    }
   }
 
   @override
@@ -142,9 +152,10 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
       widget.scrollController.addListener(_onScroll);
     }
     if (oldWidget.imageUrl != widget.imageUrl) {
+      final brightness = _lastBrightness ?? Theme.of(context).brightness;
       _paletteFuture = context
           .read<CoverArtPaletteProvider>()
-          .paletteForImageUrl(widget.imageUrl);
+          .paletteForImageUrl(widget.imageUrl, brightness: brightness);
     }
   }
 
@@ -182,15 +193,19 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final isLikedPlaylist =
         widget.type == SharedListType.playlist &&
         isLikedSongsPlaylistId(widget.id);
-    final contentSurfaceColor = Theme.of(context).colorScheme.surface;
+    final contentSurfaceColor = colors.canvas;
 
     return FutureBuilder<ColorScheme?>(
       future: _paletteFuture,
       builder: (context, snapshot) {
-        final headerColor = snapshot.data?.primary ?? const Color(0xFF222222);
+        final rawPrimary = snapshot.data?.primary;
+        final headerColor = rawPrimary != null
+            ? colors.tintedHeader(rawPrimary)
+            : (colors.isDark ? const Color(0xFF222222) : colors.surfaceElevated);
         _stickyBarColor = headerColor;
 
         return Stack(
@@ -203,8 +218,8 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                     end: Alignment.bottomCenter,
                     stops: const [0, 0.35, 1],
                     colors: [
-                      headerColor.withValues(alpha: 0.35),
-                      contentSurfaceColor.withValues(alpha: 0.8),
+                      headerColor.withValues(alpha: colors.isDark ? 0.35 : 0.65),
+                      contentSurfaceColor.withValues(alpha: 0.85),
                       contentSurfaceColor,
                     ],
                   ),
@@ -232,10 +247,13 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                       padding: const EdgeInsets.symmetric(horizontal: 28),
                       sliver: SliverToBoxAdapter(
                         child: LayoutBuilder(
-                          builder: (context, constraints) {
+                          builder: (layoutContext, constraints) {
                             return Column(
                               children: [
-                                _buildTableHeader(constraints.maxWidth),
+                                _buildTableHeader(
+                                  layoutContext,
+                                  constraints.maxWidth,
+                                ),
                                 const SizedBox(height: 4),
                                 const Divider(),
                               ],
@@ -277,7 +295,8 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
     );
   }
 
-  Widget _buildArtwork(bool isLikedPlaylist) {
+  Widget _buildArtwork(BuildContext context, bool isLikedPlaylist) {
+    final colors = context.colors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
@@ -292,26 +311,29 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                             fit: BoxFit.cover,
                             cacheWidth: 260,
                             cacheHeight: 260,
-                            errorBuilder: (_, _, _) =>
-                                Container(color: Colors.grey[850]),
+                            errorBuilder: (_, _, _) => Container(
+                              color: colors.artworkPlaceholder,
+                            ),
                           )
                         : CachedNetworkImage(
                             imageUrl: widget.imageUrl,
                             fit: BoxFit.cover,
                             memCacheWidth: 260,
                             memCacheHeight: 260,
-                            placeholder: (_, _) =>
-                                Container(color: Colors.grey[850]),
-                            errorWidget: (_, _, _) =>
-                                Container(color: Colors.grey[850]),
+                            placeholder: (_, _) => Container(
+                              color: colors.artworkPlaceholder,
+                            ),
+                            errorWidget: (_, _, _) => Container(
+                              color: colors.artworkPlaceholder,
+                            ),
                           ))
                   : Container(
-                      color: Colors.grey[850],
+                      color: colors.artworkPlaceholder,
                       child: Icon(
                         widget.type == SharedListType.playlist
                             ? Icons.playlist_play
                             : Icons.album,
-                        color: Colors.grey[600],
+                        color: colors.textMuted,
                         size: 56,
                       ),
                     )),
@@ -320,6 +342,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
   }
 
   Widget _buildHeader(BuildContext context, bool isLikedPlaylist) {
+    final colors = context.colors;
     final descriptionText = widget.description?.trim();
     final hasDescription =
         descriptionText != null && descriptionText.isNotEmpty;
@@ -327,7 +350,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        _buildArtwork(isLikedPlaylist),
+        _buildArtwork(context, isLikedPlaylist),
         const SizedBox(width: 24),
         Expanded(
           child: Column(
@@ -336,8 +359,8 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
             children: [
               Text(
                 widget.type == SharedListType.playlist ? 'PLAYLIST' : 'ALBUM',
-                style: const TextStyle(
-                  color: Colors.grey,
+                style: TextStyle(
+                  color: colors.textMuted,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 1.2,
@@ -346,8 +369,8 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
               const SizedBox(height: 6),
               Text(
                 widget.title,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontSize: 38,
                   fontWeight: FontWeight.bold,
                   height: 1.05,
@@ -360,7 +383,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                 buildParsedText(
                   context,
                   descriptionText,
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -385,7 +408,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                       builder: (hovering) => Text(
                         widget.subtitleUser!.displayName,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: colors.textPrimary,
                           fontWeight: FontWeight.w600,
                           decoration: hovering
                               ? TextDecoration.underline
@@ -397,23 +420,23 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                       widget.subtitle!.isNotEmpty)
                     Text(
                       widget.subtitle!,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: colors.textPrimary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   if (widget.totalTracks > 0) ...[
-                    const Text(' • ', style: TextStyle(color: Colors.grey)),
+                    Text(' • ', style: TextStyle(color: colors.textMuted)),
                     Text(
                       '${widget.totalTracks} songs',
-                      style: const TextStyle(color: Colors.grey),
+                      style: TextStyle(color: colors.textMuted),
                     ),
                   ],
                   if (widget.totalDurationSecs > 0) ...[
-                    const Text(', ', style: TextStyle(color: Colors.grey)),
+                    Text(', ', style: TextStyle(color: colors.textMuted)),
                     Text(
                       _formatDuration(widget.totalDurationSecs),
-                      style: const TextStyle(color: Colors.grey),
+                      style: TextStyle(color: colors.textMuted),
                     ),
                   ],
                 ],
@@ -428,6 +451,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
   }
 
   Widget _buildHeaderActions(BuildContext context) {
+    final colors = context.colors;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -447,33 +471,33 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
               height: 36,
               decoration: _searchExpanded
                   ? BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: colors.hoverOverlay,
                       borderRadius: BorderRadius.circular(4),
                     )
                   : null,
               child: _searchExpanded
                   ? Row(
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: Icon(
                             Icons.search,
                             size: 18,
-                            color: Colors.white70,
+                            color: colors.textSecondary,
                           ),
                         ),
                         Expanded(
                           child: TextField(
                             controller: _searchController,
                             autofocus: true,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: colors.textPrimary,
                               fontSize: 13,
                             ),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               hintText: 'Search in list...',
                               hintStyle: TextStyle(
-                                color: Colors.white38,
+                                color: colors.textMuted,
                                 fontSize: 13,
                               ),
                               border: InputBorder.none,
@@ -484,10 +508,10 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                           ),
                         ),
                         GenericIconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.close,
                             size: 16,
-                            color: Colors.white70,
+                            color: colors.textSecondary,
                           ),
                           onPressed: () {
                             _searchController.clear();
@@ -501,7 +525,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                       onPressed: () => setState(() => _searchExpanded = true),
                       icon: Icon(
                         Icons.search,
-                        color: Colors.grey[400],
+                        color: colors.textSecondary,
                         size: 22,
                       ),
                     ),
@@ -509,7 +533,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
             const SizedBox(width: 8),
             PopupMenuButton<ListSortMethod>(
               tooltip: 'Sort by',
-              color: const Color(0xFF282828),
+              color: colors.surfaceElevated,
               onSelected: widget.onSort,
               itemBuilder: (context) => [
                 _buildSortMenuItem('Index', ListSortMethod.position),
@@ -527,13 +551,13 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                   Text(
                     _sortMethodLabel(widget.sortMethod),
                     style: TextStyle(
-                      color: Colors.grey[300],
+                      color: colors.textSecondary,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Icon(Icons.arrow_drop_down, color: Colors.grey[400]),
+                  Icon(Icons.arrow_drop_down, color: colors.textSecondary),
                 ],
               ),
             ),
@@ -557,7 +581,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                     onPressed: () => widget.onContextMenu(buttonContext, null),
                     icon: Icon(
                       Icons.more_horiz,
-                      color: Colors.grey[400],
+                      color: colors.textSecondary,
                       size: 24,
                     ),
                   ),
@@ -569,7 +593,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
               onPressed: widget.onDownloadAll,
               icon: Icon(
                 Icons.download_for_offline_outlined,
-                color: Colors.grey[400],
+                color: colors.textSecondary,
                 size: 24,
               ),
             ),
@@ -672,7 +696,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
               style: TextStyle(
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
-                    : Colors.white,
+                    : context.colors.textPrimary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -688,35 +712,44 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
     );
   }
 
-  Widget _buildTableHeader(double availableWidth) {
+  Widget _buildTableHeader(BuildContext context, double availableWidth) {
+    final colors = context.colors;
     final isPlaylist = widget.type == SharedListType.playlist;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 40,
             child: Text(
               '#',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+              style: TextStyle(color: colors.textMuted, fontSize: 13),
               textAlign: TextAlign.center,
             ),
           ),
           const SizedBox(width: 60),
           Expanded(
             flex: 3,
-            child: _buildSortableColumn('Title', ListSortMethod.title),
+            child: _buildSortableColumn(context, 'Title', ListSortMethod.title),
           ),
           if (isPlaylist && availableWidth > 600)
             Expanded(
               flex: 2,
-              child: _buildSortableColumn('Album', ListSortMethod.album),
+              child: _buildSortableColumn(
+                context,
+                'Album',
+                ListSortMethod.album,
+              ),
             ),
           if (isPlaylist && availableWidth > 800)
             SizedBox(
               width: 120,
-              child: _buildSortableColumn('Date added', ListSortMethod.addedAt),
+              child: _buildSortableColumn(
+                context,
+                'Date added',
+                ListSortMethod.addedAt,
+              ),
             ),
           const SizedBox(width: 36),
           SizedBox(
@@ -724,12 +757,13 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
             child: Align(
               alignment: Alignment.centerRight,
               child: _buildSortableColumn(
+                context,
                 '',
                 ListSortMethod.duration,
-                icon: const Icon(
+                icon: Icon(
                   Icons.access_time,
                   size: 16,
-                  color: Colors.grey,
+                  color: colors.textMuted,
                 ),
               ),
             ),
@@ -741,10 +775,12 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
   }
 
   Widget _buildSortableColumn(
+    BuildContext context,
     String label,
     ListSortMethod method, {
     Widget? icon,
   }) {
+    final colors = context.colors;
     final isSelected = widget.sortMethod == method;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -758,7 +794,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.grey[400],
+                  color: isSelected ? colors.textPrimary : colors.textSecondary,
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
@@ -769,7 +805,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
                 widget.sortAscending
                     ? Icons.arrow_drop_up
                     : Icons.arrow_drop_down,
-                color: Colors.white,
+                color: colors.textPrimary,
                 size: 16,
               ),
             ],
@@ -848,17 +884,20 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Recommended',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   Text(
                     "based on what's in this playlist",
-                    style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: context.colors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -929,7 +968,10 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
   }
 
   Widget _buildStickyBar(BuildContext context) {
+    final colors = context.colors;
     final colorScheme = Theme.of(context).colorScheme;
+    final stickyBg = _stickyBarColor ?? colors.chrome;
+    final stickyInk = colors.onColor(stickyBg);
 
     return AnimatedSlide(
       offset: _showStickyBar ? Offset.zero : const Offset(0, -1),
@@ -941,7 +983,7 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
         child: Container(
           height: 56,
           decoration: BoxDecoration(
-            color: _stickyBarColor.withValues(alpha: 0.95),
+            color: stickyBg.withValues(alpha: 0.95),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
@@ -973,8 +1015,8 @@ class _DesktopOriginalListViewState extends State<DesktopOriginalListView> {
               Expanded(
                 child: Text(
                   widget.title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: stickyInk,
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),

@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'package:flutter/material.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
@@ -40,7 +41,12 @@ class MobileSpotifyHome extends StatelessWidget {
       if (key == null || seen.contains(key)) continue;
       seen.add(key);
 
-      final tile = buildHomeQuickTile(item, isMobile: true, actions: actions);
+      final tile = buildHomeQuickTile(
+        context,
+        item,
+        isMobile: true,
+        actions: actions,
+      );
       if (tile != null) {
         tiles.add(
           Padding(padding: const EdgeInsets.only(bottom: 12), child: tile),
@@ -55,10 +61,10 @@ class MobileSpotifyHome extends StatelessWidget {
 
     return [
       for (final playlist in data.savedPlaylists.take(4))
-        if (buildHomeQuickTile(playlist, isMobile: true, actions: actions) case final tile?)
+        if (buildHomeQuickTile(context, playlist, isMobile: true, actions: actions) case final tile?)
           Padding(padding: const EdgeInsets.only(bottom: 12), child: tile),
       for (final album in data.savedAlbums.take(4))
-        if (buildHomeQuickTile(album, isMobile: true, actions: actions) case final tile?)
+        if (buildHomeQuickTile(context, album, isMobile: true, actions: actions) case final tile?)
           Padding(padding: const EdgeInsets.only(bottom: 12), child: tile),
     ];
   }
@@ -121,10 +127,10 @@ class MobileSpotifyHome extends StatelessWidget {
                   Expanded(
                     child: Text(
                       data.greeting,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: context.colors.textPrimary,
                       ),
                     ),
                   ),

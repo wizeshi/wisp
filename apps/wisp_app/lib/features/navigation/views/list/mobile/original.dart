@@ -159,20 +159,21 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
     final isLikedPlaylist =
         widget.type == SharedListType.playlist &&
         isLikedSongsPlaylistId(widget.id);
+    final colors = context.colors;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: const Color(0xFF141414),
+          backgroundColor: colors.canvas,
           extendBodyBehindAppBar: true,
           appBar: AppBar(
             backgroundColor: _showStickyBar
-                ? const Color(0xFF1E1E1E)
+                ? colors.chrome
                 : Colors.transparent,
             elevation: _showStickyBar ? 2 : 0,
             leading: GenericIconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: Icon(Icons.arrow_back, color: colors.textPrimary),
               onPressed: () => NavigationHistory.instance.goBack(),
             ),
             title: AnimatedOpacity(
@@ -180,8 +181,8 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
               duration: const Duration(milliseconds: 200),
               child: Text(
                 widget.title,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
@@ -291,7 +292,9 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.45),
+                        color: colors.shadow.withValues(
+                          alpha: colors.isDark ? 0.45 : 0.18,
+                        ),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -331,6 +334,7 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
   }
 
   Widget _buildHeader(BuildContext context, bool isLikedPlaylist) {
+    final colors = context.colors;
     final width = MediaQuery.of(context).size.width;
     final artWidth = (width * 0.68).clamp(150.0, 260.0);
     final descriptionText = widget.description?.trim();
@@ -357,26 +361,29 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
                                   fit: BoxFit.cover,
                                   cacheWidth: 280,
                                   cacheHeight: 280,
-                                  errorBuilder: (_, _, _) =>
-                                      Container(color: Colors.grey[850]),
+                                  errorBuilder: (_, _, _) => Container(
+                                    color: colors.artworkPlaceholder,
+                                  ),
                                 )
                               : CachedNetworkImage(
                                   imageUrl: widget.imageUrl,
                                   fit: BoxFit.cover,
                                   memCacheWidth: 280,
                                   memCacheHeight: 280,
-                                  placeholder: (_, _) =>
-                                      Container(color: Colors.grey[850]),
-                                  errorWidget: (_, _, _) =>
-                                      Container(color: Colors.grey[850]),
+                                  placeholder: (_, _) => Container(
+                                    color: colors.artworkPlaceholder,
+                                  ),
+                                  errorWidget: (_, _, _) => Container(
+                                    color: colors.artworkPlaceholder,
+                                  ),
                                 ))
                         : Container(
-                            color: Colors.grey[850],
+                            color: colors.artworkPlaceholder,
                             child: Icon(
                               widget.type == SharedListType.playlist
                                   ? Icons.playlist_play
                                   : Icons.album,
-                              color: Colors.grey[600],
+                              color: colors.textMuted,
                               size: 60,
                             ),
                           )),
@@ -386,8 +393,8 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
         const SizedBox(height: 16),
         Text(
           widget.title,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: colors.textPrimary,
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
@@ -399,7 +406,7 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
           buildParsedText(
             context,
             descriptionText,
-            style: const TextStyle(color: Colors.grey, fontSize: 13),
+            style: TextStyle(color: colors.textSecondary, fontSize: 13),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
@@ -411,8 +418,8 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
                 onTap: () => widget.onOpenUser?.call(widget.subtitleUser!),
                 child: Text(
                   widget.subtitleUser!.displayName,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
                   ),
@@ -421,24 +428,24 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
             else if (widget.subtitle != null && widget.subtitle!.isNotEmpty)
               Text(
                 widget.subtitle!,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),
               ),
             if (widget.totalTracks > 0) ...[
-              const Text(' • ', style: TextStyle(color: Colors.grey)),
+              Text(' • ', style: TextStyle(color: colors.textMuted)),
               Text(
                 '${widget.totalTracks} songs',
-                style: const TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(color: colors.textMuted, fontSize: 13),
               ),
             ],
             if (widget.totalDurationSecs > 0) ...[
-              const Text(', ', style: TextStyle(color: Colors.grey)),
+              Text(', ', style: TextStyle(color: colors.textMuted)),
               Text(
                 _formatDuration(widget.totalDurationSecs),
-                style: const TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(color: colors.textMuted, fontSize: 13),
               ),
             ],
           ],
@@ -448,6 +455,7 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
   }
 
   Widget _buildActionsRow(BuildContext context) {
+    final colors = context.colors;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Row(
@@ -459,7 +467,9 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
               onPressed: widget.onShuffle,
               icon: Icon(
                 Icons.shuffle,
-                color: shuffleActive ? colorScheme.primary : Colors.grey[400],
+                color: shuffleActive
+                    ? colorScheme.primary
+                    : colors.textSecondary,
                 size: 24,
               ),
             );
@@ -473,7 +483,11 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
                   widget.onContextMenu(buttonContext, details.globalPosition),
               child: GenericIconButton(
                 onPressed: () => widget.onContextMenu(buttonContext, null),
-                icon: Icon(Icons.more_horiz, color: Colors.grey[400], size: 24),
+                icon: Icon(
+                  Icons.more_horiz,
+                  color: colors.textSecondary,
+                  size: 24,
+                ),
               ),
             );
           },
@@ -522,18 +536,21 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Recommended',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     "Based on what's in this playlist",
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    style: TextStyle(
+                      color: context.colors.textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -548,7 +565,7 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.refresh, size: 16),
-                backgroundColor: const Color(0xFF282828),
+                backgroundColor: context.colors.surfaceElevated,
               ),
             ],
           ),
@@ -590,7 +607,7 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
                                 : Icons.add_circle_outline,
                             color: isAdded
                                 ? colorScheme.primary
-                                : Colors.white70,
+                                : context.colors.textSecondary,
                             size: 22,
                           ),
                   ),

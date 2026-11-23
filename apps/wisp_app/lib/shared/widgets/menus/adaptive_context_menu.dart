@@ -7,6 +7,7 @@ import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 
 typedef ContextMenuActionCallback =
     FutureOr<void> Function(BuildContext context);
@@ -116,13 +117,14 @@ Future<void> _showMobileContextMenu(
     useRootNavigator: true,
     isDismissible: true,
     enableDrag: true,
-    backgroundColor: const Color(0xFF282828),
+    backgroundColor: context.colors.surfaceElevated,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (sheetContext) {
       return StatefulBuilder(
         builder: (context, setSheetState) {
+          final colors = context.colors;
           return SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -132,7 +134,7 @@ Future<void> _showMobileContextMenu(
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey[600],
+                    color: colors.textMuted,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -140,7 +142,7 @@ Future<void> _showMobileContextMenu(
                   const SizedBox(height: 12),
                   headerBuilder(sheetContext),
                   const SizedBox(height: 8),
-                  Divider(height: 1, color: Colors.grey[800]),
+                  Divider(height: 1, color: colors.borderSubtle),
                 ],
                 Flexible(
                   child: ListView(
@@ -189,21 +191,22 @@ class _MobileMenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = action.destructive ? Colors.redAccent : Colors.white;
+    final colors = context.colors;
+    final color = action.destructive ? Colors.redAccent : colors.textPrimary;
     final resolvedIconColor = action.iconColor ?? color;
 
     final leading = action.customLeading ??
         (action.icon != null
             ? Icon(
                 action.icon,
-                color: action.enabled ? resolvedIconColor : Colors.grey[500],
+                color: action.enabled ? resolvedIconColor : colors.textMuted,
               )
             : null);
 
     final trailing = action.customTrailingBuilder?.call(context) ??
         action.customTrailing ??
         (action.hasChildren
-            ? const Icon(Icons.chevron_right, color: Colors.white70)
+            ? Icon(Icons.chevron_right, color: colors.textSecondary)
             : null);
 
     return ListTile(
@@ -211,7 +214,7 @@ class _MobileMenuTile extends StatelessWidget {
       leading: leading,
       title: Text(
         action.label,
-        style: TextStyle(color: action.enabled ? color : Colors.grey[500]),
+        style: TextStyle(color: action.enabled ? color : colors.textMuted),
       ),
       trailing: trailing,
       onTap: onSelected,
@@ -526,8 +529,11 @@ class _DesktopContextMenuDialogState extends State<_DesktopContextMenuDialog> {
                   _hoveredLevels.remove(levelState.level);
                 },
                 child: Material(
-                  color: const Color(0xFF282828),
-                  borderRadius: BorderRadius.circular(8),
+                  color: context.colors.surfaceElevated,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: context.colors.borderSubtle),
+                  ),
                   elevation: 14,
                   clipBehavior: Clip.antiAlias,
                   child: ConstrainedBox(
@@ -588,10 +594,11 @@ class _DesktopActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = action.destructive ? Colors.redAccent : Colors.white;
+    final colors = context.colors;
+    final color = action.destructive ? Colors.redAccent : colors.textPrimary;
     final iconColor = action.enabled
         ? (action.iconColor ?? color.withValues(alpha: 0.9))
-        : Colors.grey[500];
+        : colors.textMuted;
 
     final leading = action.customLeading ??
         (action.icon != null
@@ -603,7 +610,7 @@ class _DesktopActionTile extends StatelessWidget {
         (action.hasChildren
             ? Icon(
                 Icons.chevron_right,
-                color: action.enabled ? Colors.white70 : Colors.grey[600],
+                color: action.enabled ? colors.textSecondary : colors.textMuted,
                 size: 18,
               )
             : null);
@@ -649,7 +656,7 @@ class _DesktopActionTile extends StatelessWidget {
                       child: Text(
                         action.label,
                         style: TextStyle(
-                          color: action.enabled ? color : Colors.grey[500],
+                          color: action.enabled ? color : colors.textMuted,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

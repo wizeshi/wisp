@@ -119,7 +119,7 @@ class DesktopSpotifyListView extends StatefulWidget {
 
 class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
   bool _showStickyBar = false;
-  Color _stickyBarColor = const Color(0xFF1E1E1E);
+  Color? _stickyBarColor;
   bool _searchExpanded = false;
   final TextEditingController _searchController = TextEditingController();
 
@@ -173,7 +173,9 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
 
   @override
   Widget build(BuildContext context) {
-    final contentSurfaceColor = Theme.of(context).colorScheme.surface;
+    final colors = context.colors;
+    final brightness = Theme.of(context).brightness;
+    final contentSurfaceColor = colors.canvas;
     final isLikedPlaylist =
         widget.type == SharedListType.playlist &&
         isLikedSongsPlaylistId(widget.id);
@@ -181,34 +183,22 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
     return FutureBuilder<ColorScheme?>(
       future: context.read<CoverArtPaletteProvider>().paletteForImageUrl(
         widget.imageUrl,
+        brightness: brightness,
       ),
       builder: (context, snapshot) {
-        final headerColor = snapshot.data?.primary ?? const Color(0xFF2A2A2A);
+        final extractedPrimary = snapshot.data?.primary;
+        final headerColor = extractedPrimary != null
+            ? colors.tintedHeader(extractedPrimary)
+            : (colors.isDark ? const Color(0xFF2A2A2A) : colors.surfaceElevated);
         _stickyBarColor = headerColor;
 
-        final headerColorHSL = HSLColor.fromColor(headerColor);
-        final actionsRowColor = headerColorHSL
-            .withLightness((headerColorHSL.lightness * 0.5).clamp(0.0, 1.0))
-            .toColor();
+        final actionsRowColor = extractedPrimary != null
+            ? colors.tintedSubtle(extractedPrimary)
+            : (colors.isDark ? const Color(0xFF1A1A1A) : colors.surface);
+        final headerInk = colors.onColor(headerColor);
 
         return Stack(
           children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0, 0.2, 1],
-                    colors: [
-                      Colors.black.withValues(alpha: 0.82),
-                      Colors.black.withValues(alpha: 0.36),
-                      Colors.black.withValues(alpha: 0.82),
-                    ],
-                  ),
-                ),
-              ),
-            ),
             SafeArea(
               bottom: false,
               child: WispSmoothScroll(
@@ -226,7 +216,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                         decoration: BoxDecoration(color: headerColor),
                         child: Column(
                           children: [
-                            _buildHeader(context, isLikedPlaylist),
+                            _buildHeader(context, isLikedPlaylist, headerInk),
                             _buildActionsRow(
                               context,
                               actionsRowColor,
@@ -245,7 +235,10 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                             builder: (layoutContext, constraints) {
                               return Column(
                                 children: [
-                                  _buildTableHeader(constraints.maxWidth),
+                                  _buildTableHeader(
+                                    layoutContext,
+                                    constraints.maxWidth,
+                                  ),
                                   const SizedBox(height: 2),
                                   const Divider(),
                                 ],
@@ -294,7 +287,13 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, bool isLikedPlaylist) {
+  Widget _buildHeader(
+    BuildContext context,
+    bool isLikedPlaylist,
+    Color headerInk,
+  ) {
+    final colors = context.colors;
+    final headerSubtleInk = headerInk.withValues(alpha: 0.72);
     final width = MediaQuery.of(context).size.width;
     final headerHeight = (width * 0.125).clamp(200.0, 340.0);
     final baseFontSize = (width * 0.00075).clamp(1.0, 1.4);
@@ -324,24 +323,27 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                                   fit: BoxFit.cover,
                                   cacheWidth: 260,
                                   cacheHeight: 260,
-                                  errorBuilder: (_, _, _) =>
-                                      Container(color: Colors.grey[800]),
+                                  errorBuilder: (_, _, _) => Container(
+                                    color: colors.artworkPlaceholder,
+                                  ),
                                 )
                               : CachedNetworkImage(
                                   imageUrl: widget.imageUrl,
                                   fit: BoxFit.cover,
                                   memCacheWidth: 260,
                                   memCacheHeight: 260,
-                                  placeholder: (_, _) =>
-                                      Container(color: Colors.grey[800]),
-                                  errorWidget: (_, _, _) =>
-                                      Container(color: Colors.grey[800]),
+                                  placeholder: (_, _) => Container(
+                                    color: colors.artworkPlaceholder,
+                                  ),
+                                  errorWidget: (_, _, _) => Container(
+                                    color: colors.artworkPlaceholder,
+                                  ),
                                 ))
                         : Icon(
                             widget.type == SharedListType.playlist
                                 ? Icons.playlist_play
                                 : Icons.album,
-                            color: Colors.grey[600],
+                            color: colors.textMuted,
                             size: 48,
                           )),
             ),
@@ -354,8 +356,8 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
               children: [
                 Text(
                   widget.type == SharedListType.playlist ? 'PLAYLIST' : 'ALBUM',
-                  style: const TextStyle(
-                    color: Colors.white70,
+                  style: TextStyle(
+                    color: headerSubtleInk,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.1,
@@ -365,7 +367,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                 Text(
                   widget.title,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: headerInk,
                     fontSize: 52 * baseFontSize,
                     height: 0.95,
                     fontWeight: FontWeight.w700,
@@ -378,7 +380,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                   buildParsedText(
                     context,
                     descriptionText,
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(color: headerSubtleInk, fontSize: 13),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -403,7 +405,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                         builder: (hovering) => Text(
                           widget.subtitleUser!.displayName,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: headerInk,
                             fontWeight: FontWeight.w600,
                             decoration: hovering
                                 ? TextDecoration.underline
@@ -415,26 +417,23 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                         widget.subtitle!.isNotEmpty)
                       Text(
                         widget.subtitle!,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: headerInk,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     if (widget.totalTracks > 0) ...[
-                      const Text(
-                        ' • ',
-                        style: TextStyle(color: Colors.white70),
-                      ),
+                      Text(' • ', style: TextStyle(color: headerSubtleInk)),
                       Text(
                         '${widget.totalTracks} ${widget.totalTracks == 1 ? "song" : "songs"}',
-                        style: const TextStyle(color: Colors.white70),
+                        style: TextStyle(color: headerSubtleInk),
                       ),
                     ],
                     if (widget.totalDurationSecs > 0) ...[
-                      const Text(', ', style: TextStyle(color: Colors.white70)),
+                      Text(', ', style: TextStyle(color: headerSubtleInk)),
                       Text(
                         _formatDuration(widget.totalDurationSecs),
-                        style: const TextStyle(color: Colors.white70),
+                        style: TextStyle(color: headerSubtleInk),
                       ),
                     ],
                   ],
@@ -452,6 +451,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
     Color actionsRowColor,
     Color contentSurfaceColor,
   ) {
+    final colors = context.colors;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -498,7 +498,9 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                 onPressed: widget.onShuffle,
                 icon: Icon(
                   Icons.shuffle,
-                  color: shuffleActive ? colorScheme.primary : Colors.grey[400],
+                  color: shuffleActive
+                      ? colorScheme.primary
+                      : colors.textSecondary,
                   size: 24,
                 ),
               );
@@ -516,7 +518,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                       : Icons.repeat,
                   color: repeatMode != RepeatMode.off
                       ? colorScheme.primary
-                      : Colors.grey[400],
+                      : colors.textSecondary,
                   size: 24,
                 ),
               );
@@ -527,7 +529,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
             onPressed: widget.onDownloadAll,
             icon: Icon(
               Icons.download_for_offline_outlined,
-              color: Colors.grey[400],
+              color: colors.textSecondary,
               size: 26,
             ),
           ),
@@ -541,7 +543,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                   onPressed: () => widget.onContextMenu(buttonContext, null),
                   icon: Icon(
                     Icons.more_horiz,
-                    color: Colors.grey[400],
+                    color: colors.textSecondary,
                     size: 26,
                   ),
                 ),
@@ -556,33 +558,33 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
             height: 36,
             decoration: _searchExpanded
                 ? BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: colors.hoverOverlay,
                     borderRadius: BorderRadius.circular(4),
                   )
                 : null,
             child: _searchExpanded
                 ? Row(
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Icon(
                           Icons.search,
                           size: 18,
-                          color: Colors.white70,
+                          color: colors.textSecondary,
                         ),
                       ),
                       Expanded(
                         child: TextField(
                           controller: _searchController,
                           autofocus: true,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: colors.textPrimary,
                             fontSize: 13,
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'Search in list...',
                             hintStyle: TextStyle(
-                              color: Colors.white38,
+                              color: colors.textMuted,
                               fontSize: 13,
                             ),
                             border: InputBorder.none,
@@ -598,10 +600,10 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                           minWidth: 28,
                           minHeight: 28,
                         ),
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.close,
                           size: 16,
-                          color: Colors.white70,
+                          color: colors.textSecondary,
                         ),
                         onPressed: () {
                           _searchController.clear();
@@ -613,13 +615,17 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                   )
                 : GenericIconButton(
                     onPressed: () => setState(() => _searchExpanded = true),
-                    icon: Icon(Icons.search, color: Colors.grey[400], size: 22),
+                    icon: Icon(
+                      Icons.search,
+                      color: colors.textSecondary,
+                      size: 22,
+                    ),
                   ),
           ),
           const SizedBox(width: 12),
           PopupMenuButton<ListSortMethod>(
             tooltip: 'Sort by',
-            color: const Color(0xFF282828),
+            color: colors.surfaceElevated,
             onSelected: widget.onSort,
             itemBuilder: (context) => [
               _buildSortMenuItem('Index', ListSortMethod.position),
@@ -637,13 +643,13 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                 Text(
                   _sortMethodLabel(widget.sortMethod),
                   style: TextStyle(
-                    color: Colors.grey[300],
+                    color: colors.textSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.arrow_drop_down, color: Colors.grey[400]),
+                Icon(Icons.arrow_drop_down, color: colors.textSecondary),
               ],
             ),
           ),
@@ -686,7 +692,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
               style: TextStyle(
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
-                    : Colors.white,
+                    : context.colors.textPrimary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -702,35 +708,44 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
     );
   }
 
-  Widget _buildTableHeader(double availableWidth) {
+  Widget _buildTableHeader(BuildContext context, double availableWidth) {
+    final colors = context.colors;
     final isPlaylist = widget.type == SharedListType.playlist;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 40,
             child: Text(
               '#',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+              style: TextStyle(color: colors.textMuted, fontSize: 13),
               textAlign: TextAlign.center,
             ),
           ),
           const SizedBox(width: 60),
           Expanded(
             flex: 3,
-            child: _buildSortableColumn('Title', ListSortMethod.title),
+            child: _buildSortableColumn(context, 'Title', ListSortMethod.title),
           ),
           if (isPlaylist && availableWidth > 600)
             Expanded(
               flex: 2,
-              child: _buildSortableColumn('Album', ListSortMethod.album),
+              child: _buildSortableColumn(
+                context,
+                'Album',
+                ListSortMethod.album,
+              ),
             ),
           if (isPlaylist && availableWidth > 800)
             SizedBox(
               width: 120,
-              child: _buildSortableColumn('Date added', ListSortMethod.addedAt),
+              child: _buildSortableColumn(
+                context,
+                'Date added',
+                ListSortMethod.addedAt,
+              ),
             ),
           const SizedBox(width: 36),
           SizedBox(
@@ -738,12 +753,13 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
             child: Align(
               alignment: Alignment.centerRight,
               child: _buildSortableColumn(
+                context,
                 '',
                 ListSortMethod.duration,
-                icon: const Icon(
+                icon: Icon(
                   Icons.access_time,
                   size: 16,
-                  color: Colors.grey,
+                  color: colors.textMuted,
                 ),
               ),
             ),
@@ -755,10 +771,12 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
   }
 
   Widget _buildSortableColumn(
+    BuildContext context,
     String label,
     ListSortMethod method, {
     Widget? icon,
   }) {
+    final colors = context.colors;
     final isSelected = widget.sortMethod == method;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -772,7 +790,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.grey[400],
+                  color: isSelected ? colors.textPrimary : colors.textSecondary,
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
@@ -783,7 +801,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
                 widget.sortAscending
                     ? Icons.arrow_drop_up
                     : Icons.arrow_drop_down,
-                color: Colors.white,
+                color: colors.textPrimary,
                 size: 16,
               ),
             ],
@@ -864,17 +882,20 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Recommended',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                     ),
                   ),
                   Text(
                     "based on what's in this playlist",
-                    style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: context.colors.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -940,7 +961,10 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
   }
 
   Widget _buildStickyBar(BuildContext context) {
+    final colors = context.colors;
     final colorScheme = Theme.of(context).colorScheme;
+    final stickyBg = _stickyBarColor ?? colors.chrome;
+    final stickyInk = colors.onColor(stickyBg);
 
     return AnimatedSlide(
       offset: _showStickyBar ? Offset.zero : const Offset(0, -1),
@@ -952,7 +976,7 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
         child: Container(
           height: 58,
           decoration: BoxDecoration(
-            color: _stickyBarColor.withValues(alpha: 0.96),
+            color: stickyBg.withValues(alpha: 0.96),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
@@ -984,8 +1008,8 @@ class _DesktopSpotifyListViewState extends State<DesktopSpotifyListView> {
               Expanded(
                 child: Text(
                   widget.title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: stickyInk,
                     fontWeight: FontWeight.bold,
                     fontSize: 20,
                   ),

@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/models/local_playlist.dart';
 
 import 'package:wisp/data/models/library_folder.dart';
@@ -164,8 +165,12 @@ class PlaylistFolderModals {
           left: position.dx,
           top: position.dy,
           child: Material(
-            color: const Color(0xFF282828),
-            borderRadius: BorderRadius.circular(8),
+            color: overlayContext.colors.surfaceElevated,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: overlayContext.colors.borderSubtle),
+            ),
+            elevation: 10,
             child: ConstrainedBox(
               constraints: const BoxConstraints(minWidth: 220, maxWidth: 280),
               child: IntrinsicWidth(
@@ -255,13 +260,14 @@ class PlaylistFolderModals {
         context: context,
         useRootNavigator: true,
         isScrollControlled: true,
-        backgroundColor: const Color(0xFF1B1B1B),
+        backgroundColor: context.colors.surfaceElevated,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         builder: (modalContext) {
           return StatefulBuilder(
             builder: (context, setModalState) {
+              final colors = context.colors;
               return Padding(
                 padding: EdgeInsets.only(
                   left: 20,
@@ -273,10 +279,10 @@ class PlaylistFolderModals {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Create folder',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: colors.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                       ),
@@ -284,12 +290,12 @@ class PlaylistFolderModals {
                     const SizedBox(height: 16),
                     TextField(
                       controller: controller,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: colors.textPrimary),
                       decoration: InputDecoration(
                         hintText: 'Folder title',
-                        hintStyle: TextStyle(color: Colors.grey[500]),
+                        hintStyle: TextStyle(color: colors.textMuted),
                         filled: true,
-                        fillColor: const Color(0xFF2A2A2A),
+                        fillColor: colors.inputFill,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -306,8 +312,8 @@ class PlaylistFolderModals {
                             onPressed: () => pickThumbnail(setModalState),
                             icon: const Icon(Icons.image_outlined),
                             label: const Text('Choose thumbnail'),
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white24),
+                            foregroundColor: colors.textPrimary,
+                            side: BorderSide(color: colors.border),
                           ),
                         ),
                       ],
@@ -320,7 +326,7 @@ class PlaylistFolderModals {
                             onPressed: () => Navigator.pop(context),
                             child: Text(
                               'Cancel',
-                              style: TextStyle(color: Colors.grey[400]),
+                              style: TextStyle(color: colors.textSecondary),
                             ),
                           ),
                         ),
@@ -346,11 +352,12 @@ class PlaylistFolderModals {
       context: context,
       useRootNavigator: true,
       builder: (dialogContext) {
+        final colors = dialogContext.colors;
         return AlertDialog(
-          backgroundColor: const Color(0xFF1B1B1B),
-          title: const Text(
+          backgroundColor: colors.surfaceElevated,
+          title: Text(
             'Create folder',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: colors.textPrimary),
           ),
           content: StatefulBuilder(
             builder: (context, setModalState) {
@@ -359,12 +366,12 @@ class PlaylistFolderModals {
                 children: [
                   TextField(
                     controller: controller,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: colors.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'Folder title',
-                      hintStyle: TextStyle(color: Colors.grey[500]),
+                      hintStyle: TextStyle(color: colors.textMuted),
                       filled: true,
-                      fillColor: const Color(0xFF2A2A2A),
+                      fillColor: colors.inputFill,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: BorderSide.none,
@@ -381,8 +388,8 @@ class PlaylistFolderModals {
                           onPressed: () => pickThumbnail(setModalState),
                           icon: const Icon(Icons.image_outlined),
                           label: const Text('Choose thumbnail'),
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white24),
+                          foregroundColor: colors.textPrimary,
+                          side: BorderSide(color: colors.border),
                         ),
                       ),
                     ],
@@ -394,7 +401,7 @@ class PlaylistFolderModals {
           actions: [
             GenericTextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+              child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
             ),
             GenericElevatedButton(
               onPressed: () => save(dialogContext),
@@ -441,13 +448,14 @@ class PlaylistFolderModals {
         context: context,
         useRootNavigator: true,
         isScrollControlled: true,
-        backgroundColor: const Color(0xFF1B1B1B),
+        backgroundColor: context.colors.surfaceElevated,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         builder: (modalContext) {
           return StatefulBuilder(
             builder: (context, setModalState) {
+              final colors = context.colors;
               return Padding(
                 padding: EdgeInsets.only(
                   left: 20,
@@ -459,10 +467,10 @@ class PlaylistFolderModals {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Create playlist',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: colors.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                       ),
@@ -471,12 +479,12 @@ class PlaylistFolderModals {
                     TextField(
                       controller: controller,
                       autofocus: true,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: colors.textPrimary),
                       decoration: InputDecoration(
                         hintText: 'Playlist name',
-                        hintStyle: TextStyle(color: Colors.grey[600]),
+                        hintStyle: TextStyle(color: colors.textMuted),
                         filled: true,
-                        fillColor: const Color(0xFF2A2A2A),
+                        fillColor: colors.inputFill,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -493,8 +501,8 @@ class PlaylistFolderModals {
                             onPressed: () => pickThumbnail(setModalState),
                             icon: const Icon(Icons.image_outlined),
                             label: const Text('Choose thumbnail'),
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white24),
+                            foregroundColor: colors.textPrimary,
+                            side: BorderSide(color: colors.border),
                           ),
                         ),
                       ],
@@ -507,7 +515,7 @@ class PlaylistFolderModals {
                             onPressed: () => Navigator.pop(context),
                             child: Text(
                               'Cancel',
-                              style: TextStyle(color: Colors.grey[400]),
+                              style: TextStyle(color: colors.textSecondary),
                             ),
                           ),
                         ),
@@ -532,11 +540,12 @@ class PlaylistFolderModals {
       context: context,
       useRootNavigator: true,
       builder: (dialogContext) {
+        final colors = dialogContext.colors;
         return AlertDialog(
-          backgroundColor: const Color(0xFF1B1B1B),
-          title: const Text(
+          backgroundColor: colors.surfaceElevated,
+          title: Text(
             'Create playlist',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: colors.textPrimary),
           ),
           content: StatefulBuilder(
             builder: (context, setModalState) {
@@ -546,12 +555,12 @@ class PlaylistFolderModals {
                   TextField(
                     controller: controller,
                     autofocus: true,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: colors.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'Playlist name',
-                      hintStyle: TextStyle(color: Colors.grey[600]),
+                      hintStyle: TextStyle(color: colors.textMuted),
                       filled: true,
-                      fillColor: const Color(0xFF2A2A2A),
+                      fillColor: colors.inputFill,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide.none,
@@ -568,8 +577,8 @@ class PlaylistFolderModals {
                           onPressed: () => pickThumbnail(setModalState),
                           icon: const Icon(Icons.image_outlined),
                           label: const Text('Choose thumbnail'),
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white24),
+                          foregroundColor: colors.textPrimary,
+                          side: BorderSide(color: colors.border),
                         ),
                       ),
                     ],
@@ -581,11 +590,11 @@ class PlaylistFolderModals {
           actions: [
             GenericTextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+              child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
             ),
             GenericTextButton(
               onPressed: () => save(dialogContext),
-              child: Text('Create', style: TextStyle(color: Colors.white)),
+              child: Text('Create', style: TextStyle(color: colors.textPrimary)),
             ),
           ],
         );
@@ -603,21 +612,22 @@ class PlaylistFolderModals {
       context: context,
       useRootNavigator: true,
       builder: (dialogContext) {
+        final colors = dialogContext.colors;
         return AlertDialog(
-          backgroundColor: const Color(0xFF1B1B1B),
-          title: const Text(
+          backgroundColor: colors.surfaceElevated,
+          title: Text(
             'Rename playlist',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: colors.textPrimary),
           ),
           content: TextField(
             controller: controller,
             autofocus: true,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Playlist name',
-              hintStyle: TextStyle(color: Colors.grey[600]),
+              hintStyle: TextStyle(color: colors.textMuted),
               filled: true,
-              fillColor: const Color(0xFF2A2A2A),
+              fillColor: colors.inputFill,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide.none,
@@ -627,7 +637,7 @@ class PlaylistFolderModals {
           actions: [
             GenericTextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+              child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
             ),
             GenericTextButton(
               onPressed: () async {
@@ -643,7 +653,7 @@ class PlaylistFolderModals {
                   Navigator.of(dialogContext).pop();
                 }
               },
-              child: Text('Save', style: TextStyle(color: Colors.white)),
+              child: Text('Save', style: TextStyle(color: colors.textPrimary)),
             ),
           ],
         );
@@ -676,11 +686,12 @@ class PlaylistFolderModals {
         context: context,
         useRootNavigator: true,
         isScrollControlled: true,
-        backgroundColor: const Color(0xFF1B1B1B),
+        backgroundColor: context.colors.surfaceElevated,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         builder: (modalContext) {
+          final colors = modalContext.colors;
           return Padding(
             padding: EdgeInsets.only(
               left: 20,
@@ -691,10 +702,10 @@ class PlaylistFolderModals {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   'Rename folder',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: colors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
@@ -702,12 +713,12 @@ class PlaylistFolderModals {
                 const SizedBox(height: 16),
                 TextField(
                   controller: controller,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: colors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'Folder title',
-                    hintStyle: TextStyle(color: Colors.grey[500]),
+                    hintStyle: TextStyle(color: colors.textMuted),
                     filled: true,
-                    fillColor: const Color(0xFF2A2A2A),
+                    fillColor: colors.inputFill,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -722,7 +733,7 @@ class PlaylistFolderModals {
                         onPressed: () => Navigator.pop(modalContext),
                         child: Text(
                           'Cancel',
-                          style: TextStyle(color: Colors.grey[400]),
+                          style: TextStyle(color: colors.textSecondary),
                         ),
                       ),
                     ),
@@ -746,20 +757,21 @@ class PlaylistFolderModals {
       context: context,
       useRootNavigator: true,
       builder: (dialogContext) {
+        final colors = dialogContext.colors;
         return AlertDialog(
-          backgroundColor: const Color(0xFF1B1B1B),
-          title: const Text(
+          backgroundColor: colors.surfaceElevated,
+          title: Text(
             'Rename folder',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: colors.textPrimary),
           ),
           content: TextField(
             controller: controller,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Folder title',
-              hintStyle: TextStyle(color: Colors.grey[500]),
+              hintStyle: TextStyle(color: colors.textMuted),
               filled: true,
-              fillColor: const Color(0xFF2A2A2A),
+              fillColor: colors.inputFill,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
@@ -769,7 +781,7 @@ class PlaylistFolderModals {
           actions: [
             GenericTextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: Text('Cancel', style: TextStyle(color: Colors.grey[400])),
+              child: Text('Cancel', style: TextStyle(color: colors.textSecondary)),
             ),
             GenericElevatedButton(
               onPressed: () => submit(dialogContext),
@@ -825,11 +837,12 @@ class PlaylistFolderModals {
       await showModalBottomSheet(
         context: context,
         useRootNavigator: true,
-        backgroundColor: const Color(0xFF1B1B1B),
+        backgroundColor: context.colors.surfaceElevated,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
         builder: (modalContext) {
+          final colors = modalContext.colors;
           return SafeArea(
             child: ListView(
               shrinkWrap: true,
@@ -837,13 +850,13 @@ class PlaylistFolderModals {
               children: [
                 if (currentFolderId != null)
                   ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.folder_off_outlined,
-                      color: Colors.white,
+                      color: colors.textPrimary,
                     ),
-                    title: const Text(
+                    title: Text(
                       'Remove from folder',
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: colors.textPrimary),
                     ),
                     onTap: () async {
                       Navigator.pop(modalContext);
@@ -855,13 +868,18 @@ class PlaylistFolderModals {
                   ),
                 ...folders.map(
                   (folder) => ListTile(
-                    leading: const Icon(Icons.folder, color: Colors.white),
+                    leading: Icon(Icons.folder, color: colors.textPrimary),
                     title: Text(
                       folder.title,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: colors.textPrimary),
                     ),
                     trailing: currentFolderId == folder.id
-                        ? const Icon(Icons.check, color: Colors.greenAccent)
+                        ? Icon(
+                            Icons.check,
+                            color: colors.isDark
+                                ? Colors.greenAccent
+                                : Theme.of(modalContext).colorScheme.primary,
+                          )
                         : null,
                     onTap: () async {
                       Navigator.pop(modalContext);
@@ -873,13 +891,13 @@ class PlaylistFolderModals {
                   ),
                 ),
                 ListTile(
-                  leading: const Icon(
+                  leading: Icon(
                     Icons.create_new_folder_outlined,
-                    color: Colors.white,
+                    color: colors.textPrimary,
                   ),
-                  title: const Text(
+                  title: Text(
                     'Create folder…',
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: colors.textPrimary),
                   ),
                   onTap: () async {
                     Navigator.pop(modalContext);
@@ -916,8 +934,12 @@ class PlaylistFolderModals {
                   behavior: HitTestBehavior.translucent,
                   onTap: () {},
                   child: Material(
-                    color: const Color(0xFF282828),
-                    borderRadius: BorderRadius.circular(8),
+                    color: dialogContext.colors.surfaceElevated,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(color: dialogContext.colors.borderSubtle),
+                    ),
+                    elevation: 10,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
                         minWidth: 220,
@@ -947,9 +969,13 @@ class PlaylistFolderModals {
                                   icon: Icons.folder,
                                   label: folder.title,
                                   trailing: currentFolderId == folder.id
-                                      ? const Icon(
+                                      ? Icon(
                                           Icons.check,
-                                          color: Colors.greenAccent,
+                                          color: dialogContext.colors.isDark
+                                              ? Colors.greenAccent
+                                              : Theme.of(
+                                                  dialogContext,
+                                                ).colorScheme.primary,
                                           size: 18,
                                         )
                                       : null,
@@ -1005,10 +1031,13 @@ class PlaylistFolderModals {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
-            Icon(icon, color: Colors.grey[300], size: 20),
+            Icon(icon, color: context.colors.textSecondary, size: 20),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(label, style: const TextStyle(color: Colors.white)),
+              child: Text(
+                label,
+                style: TextStyle(color: context.colors.textPrimary),
+              ),
             ),
             ?trailing,
           ],
@@ -1025,14 +1054,15 @@ class _ThumbnailPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Container(
         width: 56,
         height: 56,
-        color: Colors.grey[850],
+        color: colors.surfaceSubtle,
         child: file == null
-            ? const Icon(Icons.folder, color: Colors.grey)
+            ? Icon(Icons.folder, color: colors.textMuted)
             : Image.file(
                 file!,
                 fit: BoxFit.cover,

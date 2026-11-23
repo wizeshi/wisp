@@ -155,9 +155,9 @@ class DesktopAppleMusicListView extends StatelessWidget {
                   builder: (context, constraints) {
                     return Column(
                       children: [
-                        _buildTableHeader(constraints.maxWidth),
+                        _buildTableHeader(context, constraints.maxWidth),
                         const SizedBox(height: 6),
-                        const Divider(height: 1, color: Colors.white12),
+                        Divider(height: 1, color: context.colors.borderSubtle),
                       ],
                     );
                   },
@@ -187,6 +187,7 @@ class DesktopAppleMusicListView extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context, bool isLikedPlaylist) {
+    final colors = context.colors;
     final width = MediaQuery.of(context).size.width;
     final headerHeight = (width * 0.125).clamp(240.0, 340.0);
     final baseFontSize = (width * 0.00075).clamp(1.0, 1.4);
@@ -220,24 +221,27 @@ class DesktopAppleMusicListView extends StatelessWidget {
                                       fit: BoxFit.cover,
                                       cacheWidth: 260,
                                       cacheHeight: 260,
-                                      errorBuilder: (_, _, _) =>
-                                          Container(color: Colors.grey[800]),
+                                      errorBuilder: (_, _, _) => Container(
+                                        color: colors.artworkPlaceholder,
+                                      ),
                                     )
                                   : CachedNetworkImage(
                                       imageUrl: imageUrl,
                                       fit: BoxFit.cover,
                                       memCacheWidth: 260,
                                       memCacheHeight: 260,
-                                      placeholder: (_, _) =>
-                                          Container(color: Colors.grey[800]),
-                                      errorWidget: (_, _, _) =>
-                                          Container(color: Colors.grey[800]),
+                                      placeholder: (_, _) => Container(
+                                        color: colors.artworkPlaceholder,
+                                      ),
+                                      errorWidget: (_, _, _) => Container(
+                                        color: colors.artworkPlaceholder,
+                                      ),
                                     ))
                             : Icon(
                                 type == SharedListType.playlist
                                     ? Icons.playlist_play
                                     : Icons.album,
-                                color: Colors.grey[600],
+                                color: colors.textMuted,
                                 size: 48,
                               )),
                 ),
@@ -252,7 +256,7 @@ class DesktopAppleMusicListView extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        color: Colors.white,
+                        color: colors.textPrimary,
                         fontSize: 52 * baseFontSize,
                         height: 0.95,
                         fontWeight: FontWeight.w700,
@@ -265,8 +269,8 @@ class DesktopAppleMusicListView extends StatelessWidget {
                       buildParsedText(
                         context,
                         descriptionText,
-                        style: const TextStyle(
-                          color: Colors.white70,
+                        style: TextStyle(
+                          color: colors.textSecondary,
                           fontSize: 13,
                         ),
                         maxLines: 2,
@@ -277,12 +281,12 @@ class DesktopAppleMusicListView extends StatelessWidget {
                       children: [
                         Text(
                           '$totalTracks ${totalTracks == 1 ? "item" : "items"}',
-                          style: TextStyle(color: Colors.white70),
+                          style: TextStyle(color: colors.textSecondary),
                         ),
-                        Text(' • ', style: TextStyle(color: Colors.white70)),
+                        Text(' • ', style: TextStyle(color: colors.textSecondary)),
                         Text(
                           _formatDuration(totalDurationSecs),
-                          style: TextStyle(color: Colors.white70),
+                          style: TextStyle(color: colors.textSecondary),
                         ),
                       ],
                     ),
@@ -305,7 +309,7 @@ class DesktopAppleMusicListView extends StatelessWidget {
                             builder: (isHovering) => Text(
                               subtitleUser!.displayName,
                               style: TextStyle(
-                                color: Colors.white,
+                                color: colors.textPrimary,
                                 fontWeight: FontWeight.w500,
                                 decoration: isHovering
                                     ? TextDecoration.underline
@@ -315,20 +319,6 @@ class DesktopAppleMusicListView extends StatelessWidget {
                           ),
                         if (subtitleArtists != null &&
                             subtitleArtists!.isNotEmpty)
-                          /* ...subtitleArtists!.map((artist) => HoverUnderline(
-                                cursor: SystemMouseCursors.click,
-                                onTap: () => onOpenArtist?.call(artist),
-                                builder: (isHovering) => Text(
-                                  artist.name,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w500,
-                                    decoration: isHovering
-                                        ? TextDecoration.underline
-                                        : TextDecoration.none,
-                                  ),
-                                ),
-                              )), */
                           ...subtitleArtists!.asMap().entries.map((entry) {
                             final index = entry.key;
                             final artist = entry.value;
@@ -339,7 +329,7 @@ class DesktopAppleMusicListView extends StatelessWidget {
                                 builder: (isHovering) => Text(
                                   artist.name,
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: colors.textPrimary,
                                     fontWeight: FontWeight.w500,
                                     decoration: isHovering
                                         ? TextDecoration.underline
@@ -348,9 +338,9 @@ class DesktopAppleMusicListView extends StatelessWidget {
                                 ),
                               ),
                               if (index < subtitleArtists!.length - 1)
-                                const Text(
+                                Text(
                                   ', ',
-                                  style: TextStyle(color: Colors.white),
+                                  style: TextStyle(color: colors.textPrimary),
                                 ),
                             ];
                           }).expand((item) => item).toList(),
@@ -482,36 +472,45 @@ class DesktopAppleMusicListView extends StatelessWidget {
     );
   }
 
-  Widget _buildTableHeader(double availableWidth) {
+  Widget _buildTableHeader(BuildContext context, double availableWidth) {
+    final colors = context.colors;
     final isPlaylist = type == SharedListType.playlist;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 48,
             child: Center(
               child: Icon(
                 CupertinoIcons.music_note,
                 size: 16,
-                color: Colors.grey,
+                color: colors.textMuted,
               ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             flex: 3,
-            child: _buildSortableColumn('Title', ListSortMethod.title),
+            child: _buildSortableColumn(context, 'Title', ListSortMethod.title),
           ),
           Expanded(
             flex: 2,
-            child: _buildSortableColumn('Artist', ListSortMethod.author),
+            child: _buildSortableColumn(
+              context,
+              'Artist',
+              ListSortMethod.author,
+            ),
           ),
           if (isPlaylist && availableWidth > 600)
             Expanded(
               flex: 2,
-              child: _buildSortableColumn('Album', ListSortMethod.album),
+              child: _buildSortableColumn(
+                context,
+                'Album',
+                ListSortMethod.album,
+              ),
             ),
           const SizedBox(width: 36),
           SizedBox(
@@ -519,12 +518,13 @@ class DesktopAppleMusicListView extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerRight,
               child: _buildSortableColumn(
+                context,
                 '',
                 ListSortMethod.duration,
-                icon: const Icon(
+                icon: Icon(
                   CupertinoIcons.time,
                   size: 16,
-                  color: Colors.grey,
+                  color: colors.textMuted,
                 ),
               ),
             ),
@@ -536,10 +536,12 @@ class DesktopAppleMusicListView extends StatelessWidget {
   }
 
   Widget _buildSortableColumn(
+    BuildContext context,
     String label,
     ListSortMethod method, {
     Widget? icon,
   }) {
+    final colors = context.colors;
     final isSelected = sortMethod == method;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -553,7 +555,7 @@ class DesktopAppleMusicListView extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.grey[400],
+                  color: isSelected ? colors.textPrimary : colors.textSecondary,
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
@@ -562,7 +564,7 @@ class DesktopAppleMusicListView extends StatelessWidget {
               const SizedBox(width: 4),
               Icon(
                 sortAscending ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-                color: Colors.white,
+                color: colors.textPrimary,
                 size: 16,
               ),
             ],
@@ -622,10 +624,11 @@ class DesktopAppleMusicListView extends StatelessWidget {
   }
 
   Widget _buildRecommendations(BuildContext context) {
+    final colors = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(color: Colors.white12),
+        Divider(color: colors.borderSubtle),
         const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -635,17 +638,17 @@ class DesktopAppleMusicListView extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Recommended',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: colors.textPrimary,
                     ),
                   ),
                   Text(
                     "based on what's in this playlist",
-                    style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
                   ),
                 ],
               ),

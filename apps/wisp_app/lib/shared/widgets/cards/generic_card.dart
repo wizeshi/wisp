@@ -56,9 +56,9 @@ class GenericCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: context.colors.textPrimary,
               fontSize: 15,
             ),
             maxLines: 1,
@@ -73,12 +73,12 @@ class GenericCard extends StatelessWidget {
                 ? buildParsedText(
                     context,
                     subtitle!,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: context.colors.textSecondary,
                       fontSize: 13,
                     ),
-                    linkStyle: const TextStyle(
-                      color: Colors.white70,
+                    linkStyle: TextStyle(
+                      color: context.colors.textSecondary,
                       fontSize: 13,
                       decoration: TextDecoration.underline,
                     ),
@@ -87,8 +87,8 @@ class GenericCard extends StatelessWidget {
                   )
                 : Text(
                     subtitle!,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: context.colors.textSecondary,
                       fontSize: 13,
                     ),
                     maxLines: 1,

@@ -5,6 +5,7 @@ library;
 import 'package:app_links/app_links.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/data/sources/auth/js_auth_source.dart';
@@ -264,7 +265,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFF121212),
+        backgroundColor: context.colors.canvas,
         appBar: (_isFinalizing || _isInstalling)
             ? null
             : AppBar(
@@ -272,12 +273,18 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                 elevation: 0,
                 leading: _currentStep > 0
                     ? GenericIconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: Icon(
+                          Icons.arrow_back,
+                          color: context.colors.textPrimary,
+                        ),
                         onPressed: () => _goToStep(_currentStep - 1),
                       )
                     : widget.isFromSettings
                         ? GenericIconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
+                            icon: Icon(
+                              Icons.close,
+                              color: context.colors.textPrimary,
+                            ),
                             onPressed: () => Navigator.of(context).pop(),
                           )
                         : null,
@@ -290,8 +297,9 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                       height: 8,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(4),
-                        color:
-                            _currentStep == 0 ? primaryColor : Colors.grey[700],
+                        color: _currentStep == 0
+                            ? primaryColor
+                            : context.colors.border,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -301,8 +309,9 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                       height: 8,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(4),
-                        color:
-                            _currentStep == 1 ? primaryColor : Colors.grey[700],
+                        color: _currentStep == 1
+                            ? primaryColor
+                            : context.colors.border,
                       ),
                     ),
                   ],
@@ -321,7 +330,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
             ),
             if (_isFinalizing || _isInstalling)
               Container(
-                color: const Color(0xFF121212),
+                color: context.colors.canvas,
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -333,8 +342,8 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                             ? _installProgressMessage
                             : _finalizingMessage,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: context.colors.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
@@ -344,7 +353,10 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                         _isInstalling
                             ? 'Downloading and configuring extensions'
                             : 'Getting everything ready for you',
-                        style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                        style: TextStyle(
+                          color: context.colors.textSecondary,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -385,13 +397,13 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'Welcome to wisp',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: context.colors.textPrimary,
                 letterSpacing: -0.4,
               ),
             ),
@@ -401,7 +413,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.grey[400],
+                color: context.colors.textSecondary,
                 height: 1.35,
               ),
             ),
@@ -414,9 +426,12 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                     children: [
                       CircularProgressIndicator(color: primaryColor),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'Discovering available extensions...',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                        style: TextStyle(
+                          color: context.colors.textSecondary,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
@@ -430,19 +445,25 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                     children: [
                       Icon(
                         Icons.cloud_off_rounded,
-                        color: Colors.grey[600],
+                        color: context.colors.textMuted,
                         size: 48,
                       ),
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'No online extensions found.',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
+                        style: TextStyle(
+                          color: context.colors.textPrimary,
+                          fontSize: 16,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'You can still stream music using the built-in YouTube engine.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        style: TextStyle(
+                          color: context.colors.textSecondary,
+                          fontSize: 12,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       GenericOutlinedButton.icon(
@@ -462,7 +483,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey[500],
+                      color: context.colors.textMuted,
                       letterSpacing: 1.2,
                     ),
                   ),
@@ -499,12 +520,12 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFF181818),
+                            color: context.colors.surface,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: isSelected
                                   ? primaryColor.withValues(alpha: 0.5)
-                                  : Colors.white12,
+                                  : context.colors.borderSubtle,
                               width: isSelected ? 1.5 : 1,
                             ),
                           ),
@@ -534,8 +555,8 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                       children: [
                                         Text(
                                           pkg.name,
-                                          style: const TextStyle(
-                                            color: Colors.white,
+                                          style: TextStyle(
+                                            color: context.colors.textPrimary,
                                             fontSize: 14,
                                             fontWeight: FontWeight.w600,
                                           ),
@@ -543,19 +564,27 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                         const SizedBox(width: 6),
                                         Builder(
                                           builder: (context) {
+                                            final colors = context.colors;
                                             Color badgeColor;
                                             switch (pkg.type.toLowerCase()) {
                                               case 'metadata':
-                                                badgeColor = Colors.purpleAccent;
+                                                badgeColor = colors.isDark
+                                                    ? Colors.purpleAccent
+                                                    : Colors.purple[700]!;
                                                 break;
                                               case 'lyrics':
-                                                badgeColor = Colors.cyanAccent;
+                                                badgeColor = colors.isDark
+                                                    ? Colors.cyanAccent
+                                                    : Colors.teal[700]!;
                                                 break;
                                               case 'auth':
-                                                badgeColor = Colors.amberAccent;
+                                                badgeColor = colors.isDark
+                                                    ? Colors.amberAccent
+                                                    : Colors.amber[800]!;
                                                 break;
                                               default:
-                                                badgeColor = Colors.grey[400]!;
+                                                badgeColor =
+                                                    colors.textSecondary;
                                             }
                                             return Container(
                                               padding: const EdgeInsets.symmetric(
@@ -585,7 +614,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                           'v${pkg.version}',
                                           style: TextStyle(
                                             fontSize: 10,
-                                            color: Colors.grey[500],
+                                            color: context.colors.textMuted,
                                           ),
                                         ),
                                       ],
@@ -596,7 +625,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        color: Colors.grey[400],
+                                        color: context.colors.textSecondary,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -619,9 +648,9 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                                   ? primaryColor.withValues(
                                                       alpha: 0.15,
                                                     )
-                                                  : Colors.white.withValues(
-                                                      alpha: 0.06,
-                                                    ),
+                                                  : context
+                                                        .colors
+                                                        .surfaceSubtle,
                                               borderRadius:
                                                   BorderRadius.circular(3),
                                             ),
@@ -631,7 +660,9 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                                 fontSize: 9,
                                                 color: isWord
                                                     ? primaryColor
-                                                    : Colors.grey[300],
+                                                    : context
+                                                          .colors
+                                                          .textSecondary,
                                                 fontWeight: isWord
                                                     ? FontWeight.w600
                                                     : FontWeight.normal,
@@ -650,7 +681,8 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                 onChanged: (_) =>
                                     _toggleSelection(pkg.uniqueKey),
                                 activeColor: primaryColor,
-                                checkColor: Colors.white,
+                                checkColor:
+                                    Theme.of(context).colorScheme.onPrimary,
                               ),
                             ],
                           ),
@@ -675,7 +707,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                 ),
               ),
               backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
               minimumSize: const Size.fromHeight(48),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -687,7 +719,10 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                 onPressed: () => _goToStep(1),
                 child: Text(
                   'Skip extension installation',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                  style: TextStyle(
+                    color: context.colors.textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ),
@@ -741,13 +776,13 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    const Text(
+                    Text(
                       'Connect Your Accounts',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: context.colors.textPrimary,
                         letterSpacing: -0.4,
                       ),
                     ),
@@ -757,7 +792,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey[400],
+                        color: context.colors.textSecondary,
                         height: 1.35,
                       ),
                     ),
@@ -767,24 +802,28 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                           ? Center(
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF181818),
+                                  color: context.colors.surface,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.white12),
+                                  border: Border.all(
+                                    color: context.colors.borderSubtle,
+                                  ),
                                 ),
                                 padding: const EdgeInsets.all(24),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.check_circle_outline_rounded,
-                                      color: Colors.greenAccent,
+                                      color: context.colors.isDark
+                                          ? Colors.greenAccent
+                                          : Colors.green[600],
                                       size: 46,
                                     ),
                                     const SizedBox(height: 14),
-                                    const Text(
+                                    Text(
                                       'No Accounts Required',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: context.colors.textPrimary,
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -794,7 +833,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                       'Your installed extensions stream music and lyrics anonymously without an account login.',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
-                                        color: Colors.grey[400],
+                                        color: context.colors.textSecondary,
                                         fontSize: 13,
                                         height: 1.4,
                                       ),
@@ -813,13 +852,14 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                 return ListenableBuilder(
                                   listenable: auth,
                                   builder: (context, _) {
+                                    final colors = context.colors;
                                     final isConnected = auth.isAuthenticated;
                                     final isLoggingIn =
                                         _loginInProgress[auth.id] == true;
 
                                     return Container(
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF181818),
+                                        color: colors.surface,
                                         borderRadius:
                                             BorderRadius.circular(12),
                                         border: Border.all(
@@ -827,7 +867,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                               ? Colors.green.withValues(
                                                   alpha: 0.4,
                                                 )
-                                              : Colors.white12,
+                                              : colors.borderSubtle,
                                           width: 1,
                                         ),
                                       ),
@@ -854,8 +894,9 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                                       children: [
                                                         Text(
                                                           auth.displayName,
-                                                          style: const TextStyle(
-                                                            color: Colors.white,
+                                                          style: TextStyle(
+                                                            color: colors
+                                                                .textPrimary,
                                                             fontSize: 16,
                                                             fontWeight:
                                                                 FontWeight.bold,
@@ -880,8 +921,13 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                                           : 'Import playlists, library, and lyrics',
                                                       style: TextStyle(
                                                         color: isConnected
-                                                            ? Colors.green[400]
-                                                            : Colors.grey[400],
+                                                            ? (colors.isDark
+                                                                  ? Colors
+                                                                        .green[400]
+                                                                  : Colors
+                                                                        .green[700])
+                                                            : colors
+                                                                  .textSecondary,
                                                         fontSize: 12,
                                                       ),
                                                     ),
@@ -903,9 +949,9 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                                 'Disconnect / Switch Account',
                                               ),
                                               foregroundColor:
-                                                  Colors.grey[400],
+                                                  colors.textSecondary,
                                               side: BorderSide(
-                                                color: Colors.grey[700]!,
+                                                color: colors.border,
                                               ),
                                               minimumSize:
                                                   const Size.fromHeight(42),
@@ -916,13 +962,18 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                                   ? null
                                                   : () => _handleLogin(auth),
                                               icon: isLoggingIn
-                                                  ? const SizedBox(
+                                                  ? SizedBox(
                                                       width: 16,
                                                       height: 16,
                                                       child:
                                                           CircularProgressIndicator(
                                                         strokeWidth: 2,
-                                                        color: Colors.white,
+                                                        color: auth.id ==
+                                                                'spotify'
+                                                            ? Colors.white
+                                                            : Theme.of(context)
+                                                                  .colorScheme
+                                                                  .onPrimary,
                                                       ),
                                                     )
                                                   : const Icon(
@@ -938,7 +989,12 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                                                   auth.id == 'spotify'
                                                       ? const Color(0xFF1DB954)
                                                       : primaryColor,
-                                              foregroundColor: Colors.white,
+                                              foregroundColor:
+                                                  auth.id == 'spotify'
+                                                      ? Colors.white
+                                                      : Theme.of(context)
+                                                            .colorScheme
+                                                            .onPrimary,
                                               minimumSize:
                                                   const Size.fromHeight(44),
                                               shape: RoundedRectangleBorder(
@@ -959,7 +1015,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                     GenericFilledButton(
                       onPressed: _completeOnboarding,
                       backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       minimumSize: const Size.fromHeight(48),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -980,7 +1036,7 @@ class _MobileWelcomeViewState extends State<MobileWelcomeView> {
                           child: Text(
                             'Skip for now',
                             style: TextStyle(
-                              color: Colors.grey[400],
+                              color: context.colors.textSecondary,
                               fontSize: 13,
                             ),
                           ),

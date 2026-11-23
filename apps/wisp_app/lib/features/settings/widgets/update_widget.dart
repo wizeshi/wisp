@@ -3,6 +3,7 @@
 import 'dart:io' show Platform;
 import 'package:material_ui/material_ui.dart';
 import 'package:http/http.dart' as http;
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/utils/json.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp_assets/wisp_assets.dart';
@@ -121,7 +122,10 @@ class _UpdateWidgetState extends State<UpdateWidget> {
                   ),
                   Text(
                     removeAlphabetFromString(WispInfo.version),
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    style: TextStyle(
+                      color: context.colors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),

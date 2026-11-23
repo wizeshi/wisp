@@ -12,6 +12,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
+import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
@@ -715,11 +716,13 @@ class _LyricsViewState extends State<LyricsView>
     );
     _freezeWhenUnfocused = freezeWhenUnfocused;
 
+    final colors = context.colors;
     final theme = Theme.of(context);
     final dominantColor = theme.colorScheme.primary;
-    final backgroundColor = _tintedDominantColor(dominantColor);
+    final backgroundColor = _tintedDominantColor(dominantColor, colors);
+    final ink = colors.onColor(backgroundColor);
 
-    final content = _buildLyricsContent(backgroundColor);
+    final content = _buildLyricsContent(backgroundColor, ink);
 
     return Selector<WispAudioHandler, GenericSong?>(
       selector: (context, player) => player.currentTrack,
@@ -727,10 +730,10 @@ class _LyricsViewState extends State<LyricsView>
         final player = context.read<WispAudioHandler>();
         if (track == null) {
           _stopPositionTimer();
-          return const Center(
+          return Center(
             child: Text(
               'No track playing',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: ink.withValues(alpha: 0.6)),
             ),
           );
         }
@@ -742,6 +745,13 @@ class _LyricsViewState extends State<LyricsView>
           child: ColoredBox(color: backgroundColor),
         );
 
+        final appBarColor = _tintedDominantColor(
+          dominantColor,
+          colors,
+          blend: 0.55,
+        );
+        final appBarInk = colors.onColor(appBarColor);
+
         final surface = _isDesktop
             ? Material(type: MaterialType.transparency, child: content)
             : Scaffold(
@@ -751,10 +761,12 @@ class _LyricsViewState extends State<LyricsView>
                     : AppBar(
                         elevation: 0,
                         scrolledUnderElevation: 0,
-                        title: const Text(
+                        foregroundColor: appBarInk,
+                        iconTheme: IconThemeData(color: appBarInk),
+                        title: Text(
                           'Lyrics',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: appBarInk,
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
                             letterSpacing: -0.3,
@@ -770,14 +782,12 @@ class _LyricsViewState extends State<LyricsView>
                                   lyricsProvider,
                                   track,
                                   isCompact: true,
+                                  ink: appBarInk,
                                 ),
                               ),
                             ),
                         ],
-                        backgroundColor: _tintedDominantColor(
-                          dominantColor,
-                          blend: 0.55,
-                        ),
+                        backgroundColor: appBarColor,
                       ),
                 body: content,
                 bottomNavigationBar: _MobileLyricsPlaybackBar(
@@ -794,16 +804,27 @@ class _LyricsViewState extends State<LyricsView>
     );
   }
 
-  Color _tintedDominantColor(Color color, {double blend = 0.4}) {
+  Color _tintedDominantColor(
+    Color color,
+    WispColors colors, {
+    double blend = 0.4,
+  }) {
     final hsl = HSLColor.fromColor(color);
-    final overlay = hsl
-        .withLightness(0.22)
-        .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+    if (colors.isDark) {
+      final overlay = hsl
+          .withLightness(0.22)
+          .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+          .toColor();
+      return Color.lerp(color, overlay, blend) ?? color;
+    }
+    final pastel = hsl
+        .withLightness(blend > 0.5 ? 0.89 : 0.92)
+        .withSaturation((hsl.saturation * 0.45).clamp(0.0, 0.55))
         .toColor();
-    return Color.lerp(color, overlay, blend) ?? color;
+    return Color.lerp(colors.canvas, pastel, blend.clamp(0.55, 0.9)) ?? pastel;
   }
 
-  Widget _buildLyricsContent(Color backgroundColor) {
+  Widget _buildLyricsContent(Color backgroundColor, Color ink) {
     return Selector<WispAudioHandler, GenericSong?>(
       selector: (context, player) => player.currentTrack,
       builder: (context, track, child) {
@@ -811,10 +832,10 @@ class _LyricsViewState extends State<LyricsView>
         final lyricsProvider = context.watch<LyricsProvider>();
         if (track == null) {
           _stopPositionTimer();
-          return const Center(
+          return Center(
             child: Text(
               'No track playing',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: ink.withValues(alpha: 0.6)),
             ),
           );
         }
@@ -848,11 +869,11 @@ class _LyricsViewState extends State<LyricsView>
 
         if (lyricsProvider.isInitialized && !lyricsProvider.hasSources) {
           _stopPositionTimer();
-          return const Center(
+          return Center(
             child: Text(
               'No lyrics providers available.\nAdd some in the settings!',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, height: 1.4),
+              style: TextStyle(color: ink.withValues(alpha: 0.65), height: 1.4),
             ),
           );
         }
@@ -872,7 +893,7 @@ class _LyricsViewState extends State<LyricsView>
                   ? 'No lyrics providers available.\nAdd some in the settings!'
                   : 'No lyrics found',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey, height: 1.4),
+              style: TextStyle(color: ink.withValues(alpha: 0.65), height: 1.4),
             ),
           );
         }
@@ -887,7 +908,7 @@ class _LyricsViewState extends State<LyricsView>
                   ? 'No lyrics providers available.\nAdd some in the settings!'
                   : 'No lyrics found',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey, height: 1.4),
+              style: TextStyle(color: ink.withValues(alpha: 0.65), height: 1.4),
             ),
           );
         }
@@ -960,16 +981,16 @@ class _LyricsViewState extends State<LyricsView>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Lyrics',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: ink,
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
                         letterSpacing: -0.3,
                       ),
                     ),
-                    _buildLyricsControls(lyricsProvider, track),
+                    _buildLyricsControls(lyricsProvider, track, ink: ink),
                   ],
                 ),
               ),
@@ -1103,7 +1124,9 @@ class _LyricsViewState extends State<LyricsView>
                                             Text(
                                               'Lyrics provided by ${lyrics.providerLabel}',
                                               style: TextStyle(
-                                                color: Colors.grey[300],
+                                                color: ink.withValues(
+                                                  alpha: 0.65,
+                                                ),
                                                 fontSize: 12,
                                               ),
                                               textAlign: TextAlign.left,
@@ -1113,11 +1136,13 @@ class _LyricsViewState extends State<LyricsView>
                                               _buildAttributionText(
                                                 lyrics.attribution!,
                                                 baseStyle: TextStyle(
-                                                  color: Colors.grey[400],
+                                                  color: ink.withValues(
+                                                    alpha: 0.55,
+                                                  ),
                                                   fontSize: 11,
                                                 ),
-                                                linkStyle: const TextStyle(
-                                                  color: Colors.white,
+                                                linkStyle: TextStyle(
+                                                  color: ink,
                                                   fontSize: 11,
                                                   decoration: TextDecoration.underline,
                                                   fontWeight: FontWeight.w600,
@@ -1158,7 +1183,11 @@ class _LyricsViewState extends State<LyricsView>
                       child: Material(
                         elevation: 4,
                         borderRadius: BorderRadius.circular(20),
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: context.colors.isDark
+                            ? ink.withValues(alpha: 0.2)
+                            : context.colors.surfaceElevated.withValues(
+                                alpha: 0.92,
+                              ),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(20),
                           onTap: () {
@@ -1176,23 +1205,23 @@ class _LyricsViewState extends State<LyricsView>
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.25),
+                                color: ink.withValues(alpha: 0.22),
                                 width: 1,
                               ),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
                                   Icons.keyboard_arrow_down,
                                   size: 16,
-                                  color: Colors.white,
+                                  color: ink,
                                 ),
-                                SizedBox(width: 4),
+                                const SizedBox(width: 4),
                                 Text(
                                   'Sync',
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: ink,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0.2,
@@ -1215,7 +1244,7 @@ class _LyricsViewState extends State<LyricsView>
                           Text(
                             'Lyrics provided by ${lyrics.providerLabel}',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: ink.withValues(alpha: 0.6),
                               fontSize: 11,
                             ),
                             textAlign: TextAlign.left,
@@ -1225,11 +1254,11 @@ class _LyricsViewState extends State<LyricsView>
                             _buildAttributionText(
                               lyrics.attribution!,
                               baseStyle: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.5),
+                                color: ink.withValues(alpha: 0.5),
                                 fontSize: 11,
                               ),
-                              linkStyle: const TextStyle(
-                                color: Colors.white,
+                              linkStyle: TextStyle(
+                                color: ink,
                                 fontSize: 11,
                                 decoration: TextDecoration.underline,
                                 fontWeight: FontWeight.w600,
@@ -1295,19 +1324,22 @@ class _LyricsViewState extends State<LyricsView>
     );
   }
 
-  Widget _buildDelayInput({bool isCompact = false}) {
+  Widget _buildDelayInput({bool isCompact = false, Color? ink}) {
     final width = isCompact ? 68.0 : 72.0;
     final height = isCompact ? 32.0 : 28.0;
     final fontSize = isCompact ? 13.0 : 12.0;
 
+    final colors = context.colors;
     return Container(
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.28),
+        color: colors.isDark
+            ? Colors.black.withValues(alpha: 0.28)
+            : colors.surface.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(isCompact ? 6 : 5),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.16),
+          color: (ink ?? colors.textPrimary).withValues(alpha: 0.16),
           width: 1,
         ),
       ),
@@ -1321,7 +1353,7 @@ class _LyricsViewState extends State<LyricsView>
           ),
           onChanged: _handleDelayChanged,
           style: TextStyle(
-            color: Colors.white,
+            color: ink ?? colors.textPrimary,
             fontSize: fontSize,
             fontWeight: FontWeight.w500,
           ),
@@ -1339,6 +1371,7 @@ class _LyricsViewState extends State<LyricsView>
     LyricsProvider lyricsProvider,
     GenericSong track, {
     bool isCompact = false,
+    required Color ink,
   }) {
     if (widget.hideHeader) return const SizedBox.shrink();
     final wordState = lyricsProvider.getState(track, LyricsSyncMode.word);
@@ -1360,11 +1393,11 @@ class _LyricsViewState extends State<LyricsView>
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _buildDelayInput(isCompact: isCompact),
+          _buildDelayInput(isCompact: isCompact, ink: ink),
           const SizedBox(width: 4),
           GenericIconButton(
             icon: Icon(Icons.refresh, size: iconSize),
-            color: Colors.white.withValues(alpha: 0.85),
+            color: ink.withValues(alpha: 0.85),
             tooltip: 'Reset Delay',
             splashRadius: isCompact ? 18 : 16,
             mouseCursor: SystemMouseCursors.click,
@@ -1380,13 +1413,14 @@ class _LyricsViewState extends State<LyricsView>
             wordAvailable: wordAvailable,
             lineAvailable: lineAvailable,
             isCompact: isCompact,
+            ink: ink,
           ),
           if (_isDesktop) ...[
             SizedBox(width: isCompact ? 4 : 6),
             if (hasCustom) ...[
               GenericIconButton(
                 icon: Icon(Icons.delete_outline, size: iconSize),
-                color: Colors.white.withValues(alpha: 0.85),
+                color: ink.withValues(alpha: 0.85),
                 tooltip: 'Revert to online lyrics',
                 splashRadius: isCompact ? 18 : 16,
                 mouseCursor: SystemMouseCursors.click,
@@ -1407,7 +1441,7 @@ class _LyricsViewState extends State<LyricsView>
               ),
               color: hasCustom
                   ? Theme.of(context).colorScheme.primary
-                  : Colors.white.withValues(alpha: 0.85),
+                  : ink.withValues(alpha: 0.85),
               tooltip: hasCustom
                   ? 'Replace TTML lyrics'
                   : 'Import TTML lyrics (.ttml)',
@@ -1431,10 +1465,11 @@ class _LyricsViewState extends State<LyricsView>
     required bool wordAvailable,
     required bool lineAvailable,
     bool isCompact = false,
+    required Color ink,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: ink.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(isCompact ? 8 : 6),
       ),
       padding: EdgeInsets.all(isCompact ? 3 : 2),
@@ -1447,6 +1482,7 @@ class _LyricsViewState extends State<LyricsView>
             enabled: wordAvailable,
             tooltip: 'Word/Syllable synced',
             isCompact: isCompact,
+            ink: ink,
           ),
           SizedBox(width: isCompact ? 3 : 2),
           _buildSyncButton(
@@ -1455,6 +1491,7 @@ class _LyricsViewState extends State<LyricsView>
             enabled: lineAvailable,
             tooltip: 'Line synced',
             isCompact: isCompact,
+            ink: ink,
           ),
           SizedBox(width: isCompact ? 3 : 2),
           _buildSyncButton(
@@ -1463,6 +1500,7 @@ class _LyricsViewState extends State<LyricsView>
             enabled: true,
             tooltip: 'Unsynced',
             isCompact: isCompact,
+            ink: ink,
           ),
         ],
       ),
@@ -1475,16 +1513,17 @@ class _LyricsViewState extends State<LyricsView>
     required bool enabled,
     required String tooltip,
     bool isCompact = false,
+    required Color ink,
   }) {
     final isSelected = _syncMode == mode;
     final buttonColor = isSelected
-        ? Colors.white.withValues(alpha: 0.22)
+        ? ink.withValues(alpha: 0.18)
         : Colors.transparent;
     final iconColor = !enabled
-        ? Colors.white.withValues(alpha: 0.25)
+        ? ink.withValues(alpha: 0.28)
         : isSelected
-            ? Colors.white
-            : Colors.white.withValues(alpha: 0.65);
+            ? ink
+            : ink.withValues(alpha: 0.65);
 
     final size = isCompact ? 30.0 : 26.0;
     final iconSize = isCompact ? 16.0 : 15.0;
@@ -1556,13 +1595,24 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
     super.dispose();
   }
 
-  Color _tintedDominantColor(Color color, {double blend = 0.4}) {
+  Color _tintedDominantColor(
+    Color color,
+    WispColors colors, {
+    double blend = 0.4,
+  }) {
     final hsl = HSLColor.fromColor(color);
-    final overlay = hsl
-        .withLightness(0.22)
-        .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+    if (colors.isDark) {
+      final overlay = hsl
+          .withLightness(0.22)
+          .withSaturation((hsl.saturation * 0.85).clamp(0.0, 1.0))
+          .toColor();
+      return Color.lerp(color, overlay, blend) ?? color;
+    }
+    final pastel = hsl
+        .withLightness(blend > 0.5 ? 0.89 : 0.92)
+        .withSaturation((hsl.saturation * 0.45).clamp(0.0, 0.55))
         .toColor();
-    return Color.lerp(color, overlay, blend) ?? color;
+    return Color.lerp(colors.canvas, pastel, blend.clamp(0.55, 0.9)) ?? pastel;
   }
 
   String _formatMobileDuration(Duration duration) {
@@ -1607,9 +1657,12 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
         ? Duration(milliseconds: (_dragPositionRatio! * maxMs).round())
         : position;
 
+    final colors = context.colors;
     final barBackground =
-        _tintedDominantColor(widget.dominantColor, blend: 0.7)
+        _tintedDominantColor(widget.dominantColor, colors, blend: 0.7)
             .withValues(alpha: 0.94);
+    final barInk = colors.onColor(barBackground);
+    final barOnInk = colors.onColor(barInk);
 
     return ClipRect(
       child: BackdropFilter(
@@ -1619,7 +1672,7 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
             color: barBackground,
             border: Border(
               top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.12),
+                color: barInk.withValues(alpha: 0.12),
                 width: 0.5,
               ),
             ),
@@ -1641,11 +1694,10 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
                       overlayShape: const RoundSliderOverlayShape(
                         overlayRadius: 10,
                       ),
-                      activeTrackColor: Colors.white,
-                      inactiveTrackColor:
-                          Colors.white.withValues(alpha: 0.22),
-                      thumbColor: Colors.white,
-                      overlayColor: Colors.white.withValues(alpha: 0.15),
+                      activeTrackColor: barInk,
+                      inactiveTrackColor: barInk.withValues(alpha: 0.22),
+                      thumbColor: barInk,
+                      overlayColor: barInk.withValues(alpha: 0.15),
                     ),
                     child: Slider(
                       value: progress,
@@ -1676,7 +1728,7 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
                         Text(
                           _formatMobileDuration(displayPosition),
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
+                            color: barInk.withValues(alpha: 0.6),
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1684,7 +1736,7 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
                         Text(
                           _formatMobileDuration(duration),
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
+                            color: barInk.withValues(alpha: 0.6),
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1700,13 +1752,13 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
                       GenericIconButton(
                         icon:
                             const Icon(Icons.skip_previous_rounded, size: 28),
-                        color: Colors.white,
+                        color: barInk,
                         splashRadius: 22,
                         onPressed: () => coordinator.skipPrevious(),
                       ),
                       const SizedBox(width: 20),
                       Material(
-                        color: Colors.white,
+                        color: barInk,
                         shape: const CircleBorder(),
                         elevation: 2,
                         child: InkWell(
@@ -1729,7 +1781,7 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
                                   ? Icons.pause_rounded
                                   : Icons.play_arrow_rounded,
                               size: 26,
-                              color: Colors.black,
+                              color: barOnInk,
                             ),
                           ),
                         ),
@@ -1737,7 +1789,7 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
                       const SizedBox(width: 20),
                       GenericIconButton(
                         icon: const Icon(Icons.skip_next_rounded, size: 28),
-                        color: Colors.white,
+                        color: barInk,
                         splashRadius: 22,
                         onPressed: () => coordinator.skipNext(),
                       ),

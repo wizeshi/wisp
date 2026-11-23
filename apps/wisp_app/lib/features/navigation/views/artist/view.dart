@@ -210,11 +210,27 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   Future<List<Color>> _getActionsRowColor(
     CoverArtPaletteProvider paletteProvider,
     String imageUrl,
+    Brightness brightness,
+    WispColors colors,
   ) async {
-    final palette = await paletteProvider.paletteForImageUrl(imageUrl);
-    final fakeColor = HSLColor.fromColor(
-      palette?.primary ?? const Color(0xFF1E1E1E),
+    final palette = await paletteProvider.paletteForImageUrl(
+      imageUrl,
+      brightness: brightness,
     );
+    final rawPrimary = palette?.primary;
+    if (rawPrimary == null) {
+      final fallback = colors.isDark
+          ? const Color(0xFF1E1E1E)
+          : colors.surfaceElevated;
+      return [fallback, colors.isDark ? fallback : colors.surface];
+    }
+    if (!colors.isDark) {
+      return [
+        colors.tintedHeader(rawPrimary),
+        colors.tintedSubtle(rawPrimary),
+      ];
+    }
+    final fakeColor = HSLColor.fromColor(rawPrimary);
     final color = fakeColor
         .withLightness(log(fakeColor.lightness + 1) / log(3))
         .toColor();
@@ -235,6 +251,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       );
     }
     final preferences = context.watch<PreferencesProvider>();
+    final colors = context.colors;
+    final brightness = Theme.of(context).brightness;
 
     final isDesktop =
         Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -248,10 +266,17 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       future: _getActionsRowColor(
         context.read<CoverArtPaletteProvider>(),
         imageUrl,
+        brightness,
+        colors,
       ),
       builder: (context, snapshot) {
-        final headerColor = snapshot.data?[0] ?? const Color(0xFF1E1E1E);
-        final actionsRowColor = snapshot.data?[1] ?? const Color(0xFF1E1E1E);
+        final fallbackHeader = colors.isDark
+            ? const Color(0xFF1E1E1E)
+            : colors.surfaceElevated;
+        final headerColor = snapshot.data?[0] ?? fallbackHeader;
+        final actionsRowColor =
+            snapshot.data?[1] ??
+            (colors.isDark ? fallbackHeader : colors.surface);
 
         final showLoadingSpinner = _isLoading && _artist == null;
         Widget content = showLoadingSpinner
@@ -300,16 +325,21 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         }
 
         return Scaffold(
+          backgroundColor: colors.canvas,
           appBar: AppBar(
-            backgroundColor: const Color(0xFF121212),
+            backgroundColor: colors.canvas,
             elevation: 0,
             leading: GenericIconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: Icon(Icons.arrow_back, color: colors.textPrimary),
               onPressed: () => NavigationHistory.instance.goBack(),
             ),
             title: Text(
               name,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
             ),
           ),
           body: wrappedContent,
@@ -507,10 +537,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 31,
         fontWeight: FontWeight.w700,
-        color: Colors.white,
+        color: context.colors.textPrimary,
       ),
     );
   }
@@ -521,6 +551,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     int followers,
     int? monthlyListeners,
   ) {
+    final colors = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -532,24 +563,24 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  color: Colors.grey[900],
+                  color: colors.artworkPlaceholder,
                   child: imageUrl.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: imageUrl,
                           fit: BoxFit.cover,
                           placeholder: (context, url) => Container(
-                            color: Colors.grey[800],
+                            color: colors.artworkPlaceholder,
                             child: const Center(
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
                           ),
                           errorWidget: (context, url, error) => Icon(
                             Icons.person,
-                            color: Colors.grey[600],
+                            color: colors.textMuted,
                             size: 64,
                           ),
                         )
-                      : Icon(Icons.person, color: Colors.grey[600], size: 64),
+                      : Icon(Icons.person, color: colors.textMuted, size: 64),
                 ),
               ),
             ),
@@ -564,8 +595,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             children: [
               Text(
                 name,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: colors.textPrimary,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
@@ -574,11 +605,11 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               (monthlyListeners != null && monthlyListeners > 0)
                   ? Text(
                       '${_formatNumber(monthlyListeners)} monthly listeners',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                      style: TextStyle(color: colors.textMuted, fontSize: 14),
                     )
                   : Text(
                       '${_formatNumber(followers)} followers',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                      style: TextStyle(color: colors.textMuted, fontSize: 14),
                     ),
             ],
           ),
@@ -588,6 +619,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Widget _buildMobileActionsRow({required bool useAppleIcons}) {
+    final colors = context.colors;
     final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 56,
@@ -598,8 +630,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
               final isFollowed = library.isArtistFollowed(widget.artistId);
               return GenericOutlinedButton(
                 onPressed: () => _toggleFollowArtist(isFollowed),
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.grey[700]!),
+                foregroundColor: colors.textPrimary,
+                side: BorderSide(color: colors.border),
                 borderRadius: BorderRadius.circular(999),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -618,7 +650,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                       ? CupertinoIcons.ellipsis_circle
                       : Icons.more_horiz,
                 ),
-                color: Colors.white,
+                color: colors.textPrimary,
                 onPressed: () => _showArtistOptions(buttonContext),
               );
             },
@@ -682,6 +714,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Widget _buildMobileAboutSection() {
+    final colors = context.colors;
     final description = _artist?.description?.trim() ?? '';
     final displayDescription = description.isEmpty
         ? 'No description available for this artist yet.'
@@ -693,7 +726,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: colors.surfaceSubtle,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -703,7 +736,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             context,
             displayDescription,
             style: TextStyle(
-              color: Colors.grey[200],
+              color: colors.textSecondary,
               fontSize: 16,
               height: 1.38,
             ),
@@ -742,14 +775,14 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
             'Top Songs',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: context.colors.textPrimary,
             ),
           ),
         ),
@@ -861,8 +894,12 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   Widget _buildActionsRow({
     required bool useAppleIcons,
     Gradient? backgroundGradient,
+    bool onDarkMedia = false,
   }) {
+    final colors = context.colors;
     final colorScheme = Theme.of(context).colorScheme;
+    final disabledColor = onDarkMedia ? Colors.white38 : colors.textMuted;
+    final inactiveColor = onDarkMedia ? Colors.white70 : colors.textSecondary;
     return Container(
       alignment: Alignment.bottomLeft,
       decoration: BoxDecoration(gradient: backgroundGradient),
@@ -941,10 +978,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   icon: Icon(
                     useAppleIcons ? CupertinoIcons.shuffle : Icons.shuffle,
                     color: isDJMode
-                        ? Colors.grey[600]
+                        ? disabledColor
                         : (shuffleEnabled
                               ? colorScheme.primary
-                              : Colors.grey[300]),
+                              : inactiveColor),
                   ),
                 );
               },
@@ -975,9 +1012,9 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                               ? CupertinoIcons.repeat
                               : Icons.repeat),
                     color: isDJMode
-                        ? Colors.grey[600]
+                        ? disabledColor
                         : (repeatMode == global_audio_player.RepeatMode.off
-                              ? Colors.grey[300]
+                              ? inactiveColor
                               : colorScheme.primary),
                   ),
                 );
@@ -989,7 +1026,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   onPressed: () => _showArtistOptions(buttonContext),
                   icon: Icon(
                     useAppleIcons ? CupertinoIcons.ellipsis : Icons.more_horiz,
-                    color: Colors.grey,
+                    color: inactiveColor,
                   ),
                 );
               },
@@ -1151,10 +1188,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w700,
-                color: Colors.white,
+                color: context.colors.textPrimary,
               ),
             ),
           ),
@@ -1287,12 +1324,12 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       children: [
         (isDesktop
             ? _buildSectionTitle('Albums')
-            : const Text(
+            : Text(
                 'Albums',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: context.colors.textPrimary,
                 ),
               )),
         const SizedBox(height: 12),
@@ -1335,6 +1372,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Widget _buildAboutSection({bool isMobile = false}) {
+    final colors = context.colors;
     final description = _artist?.description?.trim() ?? '';
 
     final displayDescription = description.isEmpty
@@ -1349,7 +1387,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
       width: double.infinity,
       padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.22),
+        color: colors.surfaceSubtle,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -1357,10 +1395,10 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
         children: [
           Text(
             'About $artistName',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 31,
               fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: colors.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
@@ -1383,7 +1421,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                   context,
                   displayDescription,
                   style: TextStyle(
-                    color: Colors.grey[300],
+                    color: colors.textSecondary,
                     fontSize: 15,
                     height: 1.45,
                   ),
@@ -1401,7 +1439,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
                     context,
                     displayDescription,
                     style: TextStyle(
-                      color: Colors.grey[300],
+                      color: colors.textSecondary,
                       fontSize: 15,
                       height: 1.45,
                     ),
@@ -1435,6 +1473,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
   }
 
   Widget _buildAboutStat(String label, String value) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Column(
@@ -1443,7 +1482,7 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
           Text(
             label,
             style: TextStyle(
-              color: Colors.grey[500],
+              color: colors.textMuted,
               fontSize: 11,
               letterSpacing: 0.8,
               fontWeight: FontWeight.w600,
@@ -1452,8 +1491,8 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
           const SizedBox(height: 3),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: colors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),

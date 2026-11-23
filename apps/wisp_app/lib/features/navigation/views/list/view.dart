@@ -903,30 +903,33 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     // Show confirmation dialog
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF282828),
-        title: const Text(
-          'Download All',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          'Download $toDownload tracks for offline playback?\n\n${alreadyCached > 0 ? '$alreadyCached tracks already cached.' : ''}',
-          style: TextStyle(color: Colors.grey[400]),
-        ),
-        actions: [
-          GenericTextButton(
-            onPressed: () => Navigator.pop(context, false),
-            foregroundColor: Colors.grey[400],
-            child: const Text('Cancel'),
+      builder: (dialogContext) {
+        final colors = dialogContext.colors;
+        return AlertDialog(
+          backgroundColor: colors.surfaceElevated,
+          title: Text(
+            'Download All',
+            style: TextStyle(color: colors.textPrimary),
           ),
-          GenericElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-            child: const Text('Download'),
+          content: Text(
+            'Download $toDownload tracks for offline playback?\n\n${alreadyCached > 0 ? '$alreadyCached tracks already cached.' : ''}',
+            style: TextStyle(color: colors.textSecondary),
           ),
-        ],
-      ),
+          actions: [
+            GenericTextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              foregroundColor: colors.textSecondary,
+              child: const Text('Cancel'),
+            ),
+            GenericElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              backgroundColor: Theme.of(dialogContext).colorScheme.primary,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onPrimary,
+              child: const Text('Download'),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirm == true) {
