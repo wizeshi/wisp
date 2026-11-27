@@ -1,6 +1,7 @@
 // Copyright © 2026 wizeshi
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_svg/svg.dart';
@@ -34,8 +35,10 @@ import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/shared/widgets/lyrics/word_fill_lyrics_line.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 import '../../components/canvas_video.dart';
+import '../../components/clickable_artist_names.dart';
 import '../../components/cover_gradient_container.dart';
 import '../../components/mobile_artist_info_card.dart';
+import '../../components/player_hero.dart';
 import 'apple_music_full_player.dart';
 
 class SpotifyMobileFullScreenPlayer extends StatelessWidget {
@@ -224,23 +227,37 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
   Widget _buildAlbumArt(BuildContext context, String imageUrl) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        return SizedBox(
-          width: constraints.maxWidth,
-          child: AspectRatio(
-            aspectRatio: 1,
-            child: ClipRRect(
+        final size = constraints.hasBoundedHeight
+            ? math.min(constraints.maxWidth, constraints.maxHeight)
+            : constraints.maxWidth;
+        return Center(
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: PlayerArtworkHero(
               borderRadius: BorderRadius.circular(8),
-              child: imageUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey[900],
-                        child: const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: imageUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey[900],
+                          child: const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey[900],
+                          child: const Icon(
+                            Icons.music_note,
+                            size: 80,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      )
+                    : Container(
                         color: Colors.grey[900],
                         child: const Icon(
                           Icons.music_note,
@@ -248,15 +265,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                           color: Colors.grey,
                         ),
                       ),
-                    )
-                  : Container(
-                      color: Colors.grey[900],
-                      child: const Icon(
-                        Icons.music_note,
-                        size: 80,
-                        color: Colors.grey,
-                      ),
-                    ),
+              ),
             ),
           ),
         );
@@ -271,10 +280,13 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
   Widget _buildHiddenArtworkPlaceholder(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        return SizedBox(
-          width: constraints.maxWidth,
-          child: AspectRatio(
-            aspectRatio: 1,
+        final size = constraints.hasBoundedHeight
+            ? math.min(constraints.maxWidth, constraints.maxHeight)
+            : constraints.maxWidth;
+        return Center(
+          child: SizedBox(
+            width: size,
+            height: size,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: const ColoredBox(color: Colors.transparent),
@@ -430,16 +442,29 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     bool useCoverArt,
   ) {
     final title = currentTrack?.title ?? 'No track playing';
-    final artists = currentTrack?.artists ?? [];
+    final List<GenericSimpleArtist> artists = currentTrack is GenericSong
+        ? currentTrack.artists
+        : const <GenericSimpleArtist>[];
+    final GenericSimpleAlbum? album =
+        currentTrack is GenericSong ? currentTrack.album : null;
+    final hasAlbum = album != null && album.id.isNotEmpty;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (useCoverArt && currentTrack != null) ...[
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 56, maxWidth: 56),
-            child: CachedNetworkImage(
-              imageUrl: currentTrack.thumbnailUrl as String? ?? '',
+          PlayerArtworkHero(
+            borderRadius: BorderRadius.circular(6),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                height: 56,
+                width: 56,
+                child: CachedNetworkImage(
+                  imageUrl: currentTrack.thumbnailUrl as String? ?? '',
+                  fit: BoxFit.cover,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -449,17 +474,20 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               GestureDetector(
-                onTap: () {
-                  _openScreen(
-                    () => AppNavigation.instance.openSharedList(
-                      context,
-                      id: currentTrack?.album?.id,
-                      type: SharedListType.album,
-                      initialTitle: currentTrack?.album?.title,
-                      initialThumbnailUrl: currentTrack?.album?.thumbnailUrl,
-                    ),
-                  );
-                },
+                onTap: hasAlbum
+                    ? () {
+                        _openScreen(
+                          () => AppNavigation.instance.openSharedList(
+                            context,
+                            id: album.id,
+                            type: SharedListType.album,
+                            initialTitle: album.title,
+                            initialThumbnailUrl: album.thumbnailUrl,
+                            source: album.source,
+                          ),
+                        );
+                      }
+                    : null,
                 child: SizedBox(
                   width: double.infinity,
                   child: MarqueeText(
@@ -476,46 +504,13 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
               Row(
                 children: [
                   TrackBadges(track: currentTrack),
-                  if (artists.isNotEmpty)
-                    Wrap(
-                      children: [
-                        for (int i = 0; i < artists.length; i++) ...[
-                          GestureDetector(
-                            onTap: () {
-                              _openScreen(
-                                () => AppNavigation.instance.openArtist(
-                                  context,
-                                  artistId: artists[i].id,
-                                  initialArtist: artists[i],
-                                  fallbackName: artists[i].name,
-                                  source: artists[i].source,
-                                ),
-                              );
-                            },
-                            child: Text(
-                              artists[i].name,
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                          if (i < artists.length - 1)
-                            Text(
-                              ', ',
-                              style: TextStyle(
-                                color: Colors.grey[300],
-                                fontSize: 16,
-                              ),
-                            ),
-                        ],
-                      ],
-                    )
-                  else
-                    Text(
-                      'No Artist',
-                      style: TextStyle(color: Colors.grey[300], fontSize: 16),
+                  Expanded(
+                    child: ClickableArtistNames(
+                      artists: artists,
+                      emptyText: 'No Artist',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 16),
                     ),
+                  ),
                 ],
               ),
             ],
@@ -958,6 +953,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                   overlayColor: colorScheme.primary.withValues(alpha: 0.2),
                 ),
                 child: Slider(
+                  padding: EdgeInsets.zero,
                   value: animatedProgress,
                   secondaryTrackValue: bufferedProgress,
                   onChanged: (value) {
@@ -1211,26 +1207,21 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppleMusicFullScreenPlayer
-          .animatedCanvasTemporarilyDisabledListenable,
-      builder: (context, animatedCanvasDisabled, _) {
-        return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
-          builder: (context, player, lyricsProvider, child) {
-            final currentTrack = player.currentTrack;
-            final imageUrl = currentTrack?.thumbnailUrl ?? '';
-            final useCanvas = context.select<PreferencesProvider, bool>(
-              (prefs) => prefs.animatedCanvasEnabled,
+    return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
+      builder: (context, player, lyricsProvider, child) {
+        final currentTrack = player.currentTrack;
+        final imageUrl = currentTrack?.thumbnailUrl ?? '';
+        final useCanvas = context.select<PreferencesProvider, bool>(
+          (prefs) => prefs.animatedCanvasEnabled,
+        );
+        final metadataManager = context.read<MetadataManager>();
+        final canUseCanvas =
+            useCanvas &&
+            currentTrack != null &&
+            metadataManager.hasCapability(
+              MetadataCapability.canvas,
+              source: currentTrack.source,
             );
-            final allowCanvas = useCanvas && !animatedCanvasDisabled;
-            final metadataManager = context.read<MetadataManager>();
-            final canUseCanvas =
-                allowCanvas &&
-                currentTrack != null &&
-                metadataManager.hasCapability(
-                  MetadataCapability.canvas,
-                  source: currentTrack.source,
-                );
 
             final maxHeight = MediaQuery.sizeOf(context).height;
 
@@ -1282,19 +1273,25 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                                         child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceEvenly,
                                           children: [
-                                            hasCanvas
-                                                ? _buildHiddenArtworkPlaceholder(
-                                                    context,
-                                                  )
-                                                : _buildAlbumArt(ctx, imageUrl),
+                                            Expanded(
+                                              child: Center(
+                                                child: hasCanvas
+                                                    ? _buildHiddenArtworkPlaceholder(
+                                                        context,
+                                                      )
+                                                    : _buildAlbumArt(
+                                                        ctx,
+                                                        imageUrl,
+                                                      ),
+                                              ),
+                                            ),
                                             _buildSingleLyricsLine(
                                               ctx,
                                               player,
                                               lyricsProvider,
                                             ),
+                                            const SizedBox(height: 12),
                                             _buildTrackInfo(
                                               ctx,
                                               currentTrack,
@@ -1306,6 +1303,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                                                   hasCanvas &&
                                                   useCanvas),
                                             ),
+                                            const SizedBox(height: 10),
                                           ],
                                         ),
                                       ),
@@ -1382,8 +1380,6 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
             );
           },
         );
-      },
-    );
   }
 }
 

@@ -1,8 +1,8 @@
-TODOs for version v26.10:
+TODOs for version v26.12:
 
 - Bugs:
   - [ ] Qobuz lossless streams are not seekable according to media_kit (files are tho)
-  - [ ] Fix spacing between progress bar and song info in full player
+  - [x] Fix spacing between progress bar and song info in full player
   - [ ] Fix lyrics highlighting when lines overflow
   - [ ] Fix library view:
     - [ ] Pinning an item does not correctly update the UI
@@ -19,7 +19,7 @@ TODOs for version v26.10:
   - [x] Move GitHub url to wisp icon
   - [ ] Improve player bar swipe gesture and appearance
   - [ ] Improve marketplace appearance on mobile
-  - [ ] Add heros between player bar and full player on mobile. Also change the AM animation to a hero.
+  - [x] Add heros between player bar and full player on mobile. Also change the AM animation to a hero.
   - [ ] Add sort mode headers to mobile playlist view
   - [ ] Change search view history to show both queries and selected/played items
   - [ ] Mobile Context Menu
@@ -28,7 +28,7 @@ TODOs for version v26.10:
     - [ ] Add proper scrolling
   - [ ] Update installer with new marketplace features
   - [ ] Add special card from the home screen on mobile. 
-  - [ ] Make artist name clickable in the full player
+  - [x] Make artist name clickable in the full player
   - [ ] Audio compressor utility. Since the app now supports multiple file types, we should, at some point, consider having a utility in the settings to compress audio into a standard format.
   - [ ] Finish styles integration
     - [ ] Improve user view style
@@ -37,9 +37,9 @@ TODOs for version v26.10:
     - [ ] Apple Music
       - [ ] Mobile Library
       - [ ] Search
-      - [ ] Mobile Full Player (spacing issues mostly) 
+      - [x] Mobile Full Player (spacing issues mostly) 
     - [ ] Original
-      - [ ] Mobile Full Player
+      - [x] Mobile Full Player
       - [ ] Make buttons based on M3E
   - [ ] Add CI/CD pipeline
     - [x] Replace installer remote download with local extraction

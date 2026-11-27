@@ -13,6 +13,8 @@ class NavigationService {
   late GoRouter _router;
   bool _isInitialized = false;
 
+  bool get isInitialized => _isInitialized;
+
   void initialize(GoRouter router) {
     _router = router;
     _isInitialized = true;
@@ -141,6 +143,7 @@ class NavigationService {
   }
 
   void closePlayer() {
+    if (!_isInitialized) return;
     if (router.canPop()) {
       router.pop();
     }

@@ -29,7 +29,7 @@ plugins {
 android {
     namespace = "dev.wizeshi.wisp_innertubex_manager"
 
-    compileSdk = 35
+    compileSdk = 37
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

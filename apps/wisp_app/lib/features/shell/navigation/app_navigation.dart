@@ -8,7 +8,6 @@ import 'package:wisp/core/theme/app_theme.dart';
 
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/features/shell/navigation/navigation_history.dart';
-import 'package:wisp/features/playback/widgets/full_player.dart';
 import 'package:wisp/features/playback/views/queue_view.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/navigation/shell/navigation_state.dart';
@@ -236,7 +235,6 @@ class AppNavigation {
     fullPlayerLyricsMode.value = false;
     fullPlayerDesktopMode.value = FullPlayerDesktopMode.artwork;
     fullPlayerDesktopPreviousMode.value = null;
-    AppleMusicFullScreenPlayer.resetTemporaryOptions();
     if (_isDesktop) {
       await _enterFullPlayerDesktopMode();
     }

@@ -17,6 +17,7 @@ import 'package:wisp/shared/widgets/style/generic_button.dart';
 import 'package:wisp/features/playback/widgets/player_bar.dart';
 import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import '../../components/canvas_video.dart';
+import '../../components/clickable_artist_names.dart';
 import '../../components/cover_gradient_container.dart';
 import '../../components/desktop_lyrics_preview.dart';
 import '../../components/inline_delay_editor.dart';
@@ -420,14 +421,16 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                             Row(
                               children: [
                                 TrackBadges(track: song),
-                                Text(
-                                  song.artists.map((a) => a.name).join(', '),
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w400,
+                                Flexible(
+                                  child: ClickableArtistNames(
+                                    artists: song.artists,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w400,
+                                    ),
                                   ),
                                 ),
-                              ]
+                              ],
                             )
                           ],
                         ),

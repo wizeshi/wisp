@@ -23,12 +23,14 @@ class QueueView extends StatefulWidget {
   final bool contentOnly;
   final bool hideHeader;
   final Color? backgroundColor;
+  final EdgeInsets? listPadding;
 
   const QueueView({
     super.key,
     this.contentOnly = false,
     this.hideHeader = false,
     this.backgroundColor,
+    this.listPadding,
   });
 
   @override
@@ -117,9 +119,10 @@ class _QueueViewState extends State<QueueView> {
         final player = context.read<WispAudioHandler>();
 
         return Container(
+          width: double.infinity,
           color: widget.backgroundColor ?? Colors.transparent,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (!widget.hideHeader)
                 _buildHeader(contextName, queue.length, player),
@@ -238,7 +241,7 @@ class _QueueViewState extends State<QueueView> {
     );
 
     return WispReorderableListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: widget.listPadding ?? const EdgeInsets.symmetric(horizontal: 24),
       itemCount: visibleQueueIndices.length,
       buildDefaultDragHandles: false,
       onReorder: (oldIndex, newIndex) {

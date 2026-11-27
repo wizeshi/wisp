@@ -59,90 +59,83 @@ extension _AppleMusicDesktopLayout on AppleMusicFullScreenPlayer {
             final canvasUrl = canvasSnapshot.data ?? '';
             final hasCanvas = canvasUrl.isNotEmpty;
 
-            return ValueListenableBuilder<bool>(
-              valueListenable: AppleMusicFullScreenPlayer
-                  ._animatedCanvasTemporarilyDisabledNotifier,
-              builder: (context, animatedCanvasDisabled, _) {
-                return ValueListenableBuilder<_ApplePlayerViewMode>(
-                  valueListenable: AppleMusicFullScreenPlayer._modeNotifier,
-                  builder: (context, mode, _) {
-                    final useNowPlayingCanvas =
-                        !animatedCanvasDisabled && hasCanvas;
+            return ValueListenableBuilder<_ApplePlayerViewMode>(
+              valueListenable: AppleMusicFullScreenPlayer._modeNotifier,
+              builder: (context, mode, _) {
+                final useNowPlayingCanvas = hasCanvas;
 
-                    return Stack(
-                      clipBehavior: Clip.hardEdge,
-                      children: [
-                        Positioned.fill(
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 420),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            transitionBuilder: (child, animation) {
-                              final moveAnimation = Tween<Offset>(
-                                begin: const Offset(0, 0.06),
-                                end: Offset.zero,
-                              ).animate(animation);
-                              return FadeTransition(
-                                opacity: animation,
-                                child: SlideTransition(
-                                  position: moveAnimation,
-                                  child: child,
-                                ),
-                              );
-                            },
-                            child: KeyedSubtree(
-                              key: ValueKey<bool>(useNowPlayingCanvas),
-                              child: useNowPlayingCanvas
-                                  ? _buildDesktopCanvasBackground(
-                                      context,
-                                      canvasUrl,
-                                      imageUrl,
-                                      topInset,
-                                    )
-                                  : _buildFallbackBackground(
-                                      context,
-                                      imageUrl,
-                                      topInset,
-                                    ),
+                return Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    Positioned.fill(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 420),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) {
+                          final moveAnimation = Tween<Offset>(
+                            begin: const Offset(0, 0.06),
+                            end: Offset.zero,
+                          ).animate(animation);
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: moveAnimation,
+                              child: child,
                             ),
-                          ),
+                          );
+                        },
+                        child: KeyedSubtree(
+                          key: ValueKey<bool>(useNowPlayingCanvas),
+                          child: useNowPlayingCanvas
+                              ? _buildDesktopCanvasBackground(
+                                  context,
+                                  canvasUrl,
+                                  imageUrl,
+                                  topInset,
+                                )
+                              : _buildFallbackBackground(
+                                  context,
+                                  imageUrl,
+                                  topInset,
+                                ),
                         ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
-                          ),
-                          child: Padding(
-                            padding: EdgeInsets.only(bottom: bottomInset),
-                            child: Column(
-                              children: [
-                                Padding(
-                                  padding: EdgeInsets.only(top: topInset),
-                                  child: _buildHeader(context),
-                                ),
-                                Flexible(
-                                  fit: FlexFit.tight,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24.0,
-                                    ),
-                                    child: _buildDesktopBodyLayout(
-                                      context,
-                                      player,
-                                      lyricsProvider,
-                                      currentTrack,
-                                      imageUrl,
-                                      mode,
-                                      btnColor,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: bottomInset),
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.only(top: topInset),
+                              child: _buildHeader(context),
                             ),
-                          ),
+                            Flexible(
+                              fit: FlexFit.tight,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24.0,
+                                ),
+                                child: _buildDesktopBodyLayout(
+                                  context,
+                                  player,
+                                  lyricsProvider,
+                                  currentTrack,
+                                  imageUrl,
+                                  mode,
+                                  btnColor,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    );
-                  },
+                      ),
+                    ),
+                  ],
                 );
               },
             );
@@ -237,7 +230,7 @@ extension _AppleMusicDesktopLayout on AppleMusicFullScreenPlayer {
                 ),
               ),
               const SizedBox(height: 12),
-              _buildTrackInfo(currentTrack, btnColor, true),
+              _buildTrackInfo(context, currentTrack, btnColor, true),
               const SizedBox(height: 8),
               _buildPlayerControls(context, player, btnColor, mode),
             ],

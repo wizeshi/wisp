@@ -1,6 +1,6 @@
 name: wisp_innertubex_manager
 description: "Metrolist InnerTubeX manager, streaming engine, and metadata extractor."
-version: 26.10.2+1
+version: 26.12.1+1
 
 resolution: workspace
 

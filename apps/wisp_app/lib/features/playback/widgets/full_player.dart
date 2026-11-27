@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/core/theme/cover_art_palette_provider.dart';
+import 'package:wisp/features/navigation/router/navigation_service.dart';
 import 'package:wisp/features/playback/widgets/full_player/styles/desktop/original_full_player.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
@@ -21,11 +22,14 @@ export 'full_player/styles/mobile/original_full_player.dart';
 export 'full_player/styles/desktop/spotify_full_player.dart';
 export 'full_player/styles/mobile/spotify_full_player.dart';
 export 'full_player/components/canvas_video.dart';
+export 'full_player/components/clickable_artist_names.dart';
 export 'full_player/components/cover_gradient_container.dart';
 export 'full_player/components/desktop_lyrics_preview.dart';
+export 'full_player/components/full_player_lyrics_view.dart';
 export 'full_player/components/full_player_volume_controls.dart';
 export 'full_player/components/inline_delay_editor.dart';
 export 'full_player/components/mobile_artist_info_card.dart';
+export 'full_player/components/player_hero.dart';
 export 'full_player/components/rotating_blurred_cover_background.dart';
 
 class FullScreenPlayer extends StatelessWidget {
@@ -34,14 +38,77 @@ class FullScreenPlayer extends StatelessWidget {
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
-  static void show(BuildContext context) {
-    AppleMusicFullScreenPlayer.resetTemporaryOptions();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const FullScreenPlayer(),
+  static const Duration mobileTransitionDuration = Duration(milliseconds: 360);
+  static const Duration mobileReverseTransitionDuration =
+      Duration(milliseconds: 300);
+
+  static Widget buildMobileTransition(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child, {
+    AppStyle? style,
+  }) {
+    AppStyle resolvedStyle = style ?? AppStyle.Original;
+    if (style == null) {
+      try {
+        resolvedStyle = context.read<PreferencesProvider>().style;
+      } catch (_) {}
+    }
+
+    final curvedAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
     );
+
+    if (resolvedStyle == AppStyle.AppleMusic) {
+      return FadeTransition(
+        opacity: curvedAnimation,
+        child: child,
+      );
+    }
+
+    final slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.14),
+      end: Offset.zero,
+    ).animate(curvedAnimation);
+
+    return FadeTransition(
+      opacity: curvedAnimation,
+      child: SlideTransition(
+        position: slideAnimation,
+        child: child,
+      ),
+    );
+  }
+
+  static Route<void> buildMobileRoute({AppStyle? style}) {
+    return PageRouteBuilder<void>(
+      opaque: false,
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,
+      transitionDuration: mobileTransitionDuration,
+      reverseTransitionDuration: mobileReverseTransitionDuration,
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          const FullScreenPlayer(),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          buildMobileTransition(
+            context,
+            animation,
+            secondaryAnimation,
+            child,
+            style: style,
+          ),
+    );
+  }
+
+  static void show(BuildContext context) {
+    if (NavigationService.instance.isInitialized) {
+      unawaited(AppNavigation.instance.openFullPlayer());
+      return;
+    }
+    Navigator.of(context, rootNavigator: true).push(buildMobileRoute());
   }
 
   @override
@@ -73,7 +140,7 @@ class FullScreenPlayer extends StatelessWidget {
         },
         child: const OriginalDesktopFullScreenPlayer(),
       );
-    } else {
+    } else if (_isDesktop) {
       final sheet = DraggableScrollableSheet(
         initialChildSize: 1.0,
         minChildSize: 0.5,
@@ -83,17 +150,24 @@ class FullScreenPlayer extends StatelessWidget {
         builder: (context, scrollController) =>
             _buildSheet(context, scrollController, style),
       );
-      body = _isDesktop
-          ? PopScope(
-              onPopInvokedWithResult: (didPop, result) {
-                if (!didPop) return;
-                unawaited(
-                  AppNavigation.instance.disableFullPlayerDesktopMode(),
-                );
-              },
-              child: sheet,
-            )
-          : sheet;
+      body = PopScope(
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) return;
+          unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
+        },
+        child: sheet,
+      );
+    } else {
+      body = Material(
+        color: Colors.transparent,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: _DismissibleFullPlayerSheet(
+            builder: (context, scrollController) =>
+                _buildSheet(context, scrollController, style),
+          ),
+        ),
+      );
     }
 
     return Theme(
@@ -126,5 +200,58 @@ class FullScreenPlayer extends StatelessWidget {
             ? SpotifyDesktopFullScreenPlayer()
             : SpotifyMobileFullScreenPlayer(scrollController: scrollController);
     }
+  }
+}
+
+class _DismissibleFullPlayerSheet extends StatefulWidget {
+  final Widget Function(BuildContext context, ScrollController scrollController)
+      builder;
+
+  const _DismissibleFullPlayerSheet({required this.builder});
+
+  @override
+  State<_DismissibleFullPlayerSheet> createState() =>
+      _DismissibleFullPlayerSheetState();
+}
+
+class _DismissibleFullPlayerSheetState
+    extends State<_DismissibleFullPlayerSheet> {
+  double _extent = 1.0;
+  bool _isDismissing = false;
+
+  void _triggerDismiss() {
+    if (_isDismissing || !mounted) return;
+    _isDismissing = true;
+    unawaited(Navigator.of(context).maybePop());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final topRadius = ((1.0 - _extent) * 60.0).clamp(0.0, 24.0);
+
+    return NotificationListener<DraggableScrollableNotification>(
+      onNotification: (notification) {
+        if ((notification.extent - _extent).abs() > 0.004) {
+          setState(() {
+            _extent = notification.extent;
+          });
+        }
+        if (notification.extent <= 0.52) {
+          _triggerDismiss();
+        }
+        return false;
+      },
+      child: DraggableScrollableSheet(
+        initialChildSize: 1.0,
+        minChildSize: 0.45,
+        maxChildSize: 1.0,
+        snap: true,
+        snapSizes: const [0.45, 1.0],
+        builder: (context, scrollController) => ClipRRect(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(topRadius)),
+          child: widget.builder(context, scrollController),
+        ),
+      ),
+    );
   }
 }

@@ -9,7 +9,7 @@ class WispIcons {
 
 class WispInfo {
   static const github = "https://github.com/wizeshi/wisp";
-  static const version = "pre-26.10.2";
+  static const version = "pre-26.12.1";
   static const author = "wizeshi";
 }
 

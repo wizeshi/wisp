@@ -10,6 +10,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_provider.dart';
+import 'package:wisp/features/navigation/router/navigation_service.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/playback/views/lyrics_view.dart';
 import 'package:wisp/features/playback/views/queue_view.dart';
@@ -25,6 +26,7 @@ import 'package:wisp/shared/widgets/display/marquee_text.dart';
 import 'package:wisp/shared/widgets/menus/entity_context_menus.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
 
+import '../../components/clickable_artist_names.dart';
 import '../../components/inline_delay_editor.dart';
 import '../../components/rotating_blurred_cover_background.dart';
 
@@ -375,9 +377,20 @@ class _OriginalDesktopFullScreenPlayerState
     // Width takes ~58% of width with responsive clamping (leaving ~42% for the mode area)
     final nowPlayingWidth = (constraints.maxWidth * 0.25);
     final title = track?.title ?? 'No track playing';
-    final artists = track?.artists.map((a) => a.name).join(', ') ?? '';
-    final albumName = track?.album?.title ?? '';
+    final artists = track?.artists ?? const <GenericSimpleArtist>[];
+    final album = track?.album;
+    final albumName = album?.title ?? '';
+    final hasAlbum = album != null && album.id.isNotEmpty;
     final imageUrl = track?.thumbnailUrl ?? '';
+
+    Future<void> openAlbum(GenericSimpleAlbum targetAlbum) async {
+      await AppNavigation.instance.closeFullPlayer();
+      NavigationService.instance.pushList(
+        id: targetAlbum.id,
+        type: 'album',
+        source: targetAlbum.source,
+      );
+    }
 
     return SizedBox(
       width: nowPlayingWidth,
@@ -427,21 +440,27 @@ class _OriginalDesktopFullScreenPlayerState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    MarqueeText(
-                      text: title,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: -0.3,
+                    MouseRegion(
+                      cursor: hasAlbum
+                          ? SystemMouseCursors.click
+                          : SystemMouseCursors.basic,
+                      child: GestureDetector(
+                        onTap: hasAlbum ? () => unawaited(openAlbum(album)) : null,
+                        child: MarqueeText(
+                          text: title,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
                       ),
                     ),
                     if (artists.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        artists,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      ClickableArtistNames(
+                        artists: artists,
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
@@ -451,13 +470,23 @@ class _OriginalDesktopFullScreenPlayerState
                     ],
                     if (albumName.isNotEmpty && albumName != title) ...[
                       const SizedBox(height: 2),
-                      Text(
-                        albumName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.white38,
+                      MouseRegion(
+                        cursor: hasAlbum
+                            ? SystemMouseCursors.click
+                            : SystemMouseCursors.basic,
+                        child: GestureDetector(
+                          onTap: hasAlbum
+                              ? () => unawaited(openAlbum(album))
+                              : null,
+                          child: Text(
+                            albumName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Colors.white38,
+                            ),
+                          ),
                         ),
                       ),
                     ],

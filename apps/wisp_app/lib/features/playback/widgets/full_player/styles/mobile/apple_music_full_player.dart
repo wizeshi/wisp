@@ -4,20 +4,16 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter/rendering.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
+import 'package:wisp/features/navigation/router/navigation_service.dart';
 import 'package:wisp/features/playback/widgets/player_bar/components/audio_quality_badge.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/connect/widgets/connect_menu.dart';
@@ -41,9 +37,11 @@ import 'package:wisp/shared/widgets/lyrics/word_fill_lyrics_line.dart';
 import 'package:wisp/shared/widgets/artwork/artwork_thumbnail.dart';
 import 'package:wisp/shared/widgets/rows/track_row.dart';
 import '../../components/canvas_video.dart';
+import '../../components/clickable_artist_names.dart';
+import '../../components/full_player_lyrics_view.dart';
+import '../../components/player_hero.dart';
 import '../../components/rotating_blurred_cover_background.dart';
 import '../../components/inline_delay_editor.dart';
-import 'package:wisp/services/system/app_focus_service.dart';
 
 part '../desktop/apple_music_full_player.dart';
 
@@ -54,8 +52,6 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       ValueNotifier<_ApplePlayerViewMode>(_ApplePlayerViewMode.nowPlaying);
   static final Map<String, Future<String?>> _canvasUrlFutureCache =
       <String, Future<String?>>{};
-  static final ValueNotifier<bool> _animatedCanvasTemporarilyDisabledNotifier =
-      ValueNotifier<bool>(false);
 
   const AppleMusicFullScreenPlayer({
     required this.scrollController,
@@ -63,21 +59,14 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     super.key,
   });
 
-  static void resetTemporaryOptions() {
-    _animatedCanvasTemporarilyDisabledNotifier.value = false;
-  }
-
-  static ValueNotifier<bool> get animatedCanvasTemporarilyDisabledListenable =>
-      _animatedCanvasTemporarilyDisabledNotifier;
-
   static Future<void> showTrackMenuWithCanvasToggle(
     BuildContext context, {
     required GenericSong track,
     Offset? globalPosition,
     Rect? anchorRect,
   }) async {
-    final animatedCanvasDisabled =
-        _animatedCanvasTemporarilyDisabledNotifier.value;
+    final prefs = context.read<PreferencesProvider>();
+    final canvasEnabled = prefs.animatedCanvasEnabled;
     final supportsCanvas = context.read<MetadataManager>().hasCapability(
       MetadataCapability.canvas,
       source: track.source,
@@ -92,16 +81,15 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       additionalActions: [
         if (supportsCanvas)
           ContextMenuAction(
-            id: 'toggle-animated-canvas-temp',
-            label: animatedCanvasDisabled
-                ? 'Enable Animated Canvas'
-                : 'Disable Animated Canvas',
-            icon: animatedCanvasDisabled
-                ? Icons.motion_photos_on
-                : Icons.motion_photos_off,
+            id: 'toggle-animated-canvas-pref',
+            label: canvasEnabled
+                ? 'Disable Animated Canvas'
+                : 'Enable Animated Canvas',
+            icon: canvasEnabled
+                ? Icons.motion_photos_off
+                : Icons.motion_photos_on,
             onSelected: (_) {
-              _animatedCanvasTemporarilyDisabledNotifier.value =
-                  !animatedCanvasDisabled;
+              unawaited(prefs.setAnimatedCanvasEnabled(!canvasEnabled));
             },
           ),
       ],
@@ -151,31 +139,19 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     String imageUrl,
     double size,
   ) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: imageUrl.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  color: Colors.grey[900],
-                  child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
+    final Widget imageContent = ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: imageUrl.isNotEmpty
+          ? CachedNetworkImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Container(
+                color: Colors.grey[900],
+                child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
-                errorWidget: (context, url, error) => Container(
-                  color: Colors.grey[900],
-                  child: const Icon(
-                    Icons.music_note,
-                    size: 40,
-                    color: Colors.grey,
-                  ),
-                ),
-              )
-            : Container(
+              ),
+              errorWidget: (context, url, error) => Container(
                 color: Colors.grey[900],
                 child: const Icon(
                   Icons.music_note,
@@ -183,7 +159,25 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   color: Colors.grey,
                 ),
               ),
-      ),
+            )
+          : Container(
+              color: Colors.grey[900],
+              child: const Icon(
+                Icons.music_note,
+                size: 40,
+                color: Colors.grey,
+              ),
+            ),
+    );
+
+    if (!size.isFinite) {
+      return SizedBox.expand(child: imageContent);
+    }
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: imageContent,
     );
   }
 
@@ -192,18 +186,24 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     _ApplePlayerViewMode mode,
     dynamic currentTrack,
     String imageUrl,
-    bool hideNowPlayingCover,
-  ) {
+    bool hideNowPlayingCover, {
+    double? maxCoverSize,
+  }) {
     final isNowPlaying = mode == _ApplePlayerViewMode.nowPlaying;
     final onCoverTap = isNowPlaying
         ? null
         : () => _setMode(_ApplePlayerViewMode.nowPlaying);
     final double expandedSize = math.min(
       MediaQuery.of(context).size.width - 48,
-      360.0,
+      maxCoverSize ?? 360.0,
     );
     final shouldHideCover = isNowPlaying && hideNowPlayingCover;
     final compactSize = 64.0;
+    final List<GenericSimpleArtist> compactArtists = currentTrack is GenericSong
+        ? currentTrack.artists
+        : const <GenericSimpleArtist>[];
+    final GenericSimpleAlbum? compactAlbum =
+        currentTrack is GenericSong ? currentTrack.album : null;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 340),
@@ -240,13 +240,13 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                         key: const ValueKey('apple-cover-visible'),
                         behavior: HitTestBehavior.opaque,
                         onTap: onCoverTap,
-                        child: SizedBox(
-                          width: isNowPlaying ? expandedSize : compactSize,
-                          height: isNowPlaying ? expandedSize : compactSize,
+                        child: PlayerArtworkHero(
+                          enabled: !_isDesktop,
+                          borderRadius: BorderRadius.circular(8),
                           child: _buildCoverImageBox(
                             context,
                             imageUrl,
-                            isNowPlaying ? expandedSize : compactSize,
+                            double.infinity,
                           ),
                         ),
                       ),
@@ -274,14 +274,25 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                               Row(
                                 children: [
                                   Flexible(
-                                    child: Text(
-                                      currentTrack?.title ?? 'No track playing',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w700,
+                                    child: GestureDetector(
+                                      onTap: compactAlbum != null &&
+                                              compactAlbum.id.isNotEmpty
+                                          ? () => unawaited(
+                                              _openAlbumFromPlayer(
+                                                compactAlbum,
+                                              ),
+                                            )
+                                          : null,
+                                      child: Text(
+                                        currentTrack?.title ??
+                                            'No track playing',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -293,14 +304,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                 ],
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                currentTrack?.artists?.isNotEmpty == true
-                                    ? currentTrack.artists
-                                          .map((a) => a.name)
-                                          .join(', ')
-                                    : 'No Artist',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              ClickableArtistNames(
+                                artists: compactArtists,
+                                emptyText: 'No Artist',
                                 style: TextStyle(
                                   color: Colors.grey[300],
                                   fontSize: 16,
@@ -335,121 +341,23 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     );
   }
 
+  Future<void> _openAlbumFromPlayer(
+    GenericSimpleAlbum album,
+  ) async {
+    await AppNavigation.instance.closeFullPlayer();
+    NavigationService.instance.pushList(
+      id: album.id,
+      type: 'album',
+      source: album.source,
+    );
+  }
+
   Widget _buildLyricsModeContent(
     BuildContext context,
     global_audio_player.WispAudioHandler player,
     LyricsProvider lyricsProvider,
   ) {
-    final currentTrack = player.currentTrack;
-    if (currentTrack == null) {
-      return Center(
-        child: Text(
-          'No track playing',
-          style: TextStyle(color: Colors.grey[400], fontSize: 16),
-        ),
-      );
-    }
-
-    final syncedState = lyricsProvider.getState(
-      currentTrack,
-      LyricsSyncMode.word,
-    );
-    final lineState = lyricsProvider.getState(
-      currentTrack,
-      LyricsSyncMode.line,
-    );
-    if (!syncedState.isLoading &&
-        syncedState.lyrics == null &&
-        syncedState.error == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.word);
-      });
-    }
-
-    lyricsProvider.ensureDelayLoaded(currentTrack.id);
-
-    final wordLyrics = syncedState.lyrics;
-    final syncedLyrics = wordLyrics?.isWordSynced == true
-        ? wordLyrics
-        : syncedState.hasFetched && !syncedState.isLoading
-        ? lineState.lyrics ?? wordLyrics
-        : null;
-    if ((wordLyrics == null || !wordLyrics.isWordSynced) &&
-        !lineState.isLoading &&
-        lineState.lyrics == null &&
-        lineState.error == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.line);
-      });
-    }
-    final unsyncedState = lyricsProvider.getState(
-      currentTrack,
-      LyricsSyncMode.unsynced,
-    );
-    if (syncedLyrics == null &&
-        !unsyncedState.isLoading &&
-        unsyncedState.lyrics == null &&
-        unsyncedState.error == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        lyricsProvider.ensureLyrics(currentTrack, LyricsSyncMode.unsynced);
-      });
-    }
-
-    final lyrics = syncedLyrics ?? unsyncedState.lyrics;
-    final isLoading =
-        (syncedState.isLoading ||
-            lineState.isLoading ||
-            unsyncedState.isLoading) &&
-        lyrics == null;
-
-    if (lyricsProvider.isInitialized && !lyricsProvider.hasSources) {
-      return Center(
-        child: Text(
-          'No lyrics providers available.\nAdd some in the settings!',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey[400], fontSize: 16, height: 1.4),
-        ),
-      );
-    }
-
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    }
-    if (lyrics == null || lyrics.lines.isEmpty) {
-      final noProviders = !lyricsProvider.hasSources;
-      return Center(
-        child: Text(
-          noProviders
-              ? 'No lyrics providers available.\nAdd some in the settings!'
-              : 'No lyrics found',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey[400], fontSize: 16, height: 1.4),
-        ),
-      );
-    }
-
-    final normalizedLyrics = removeEmptyLyricsLines(lyrics);
-    if (normalizedLyrics.lines.isEmpty) {
-      final noProviders = !lyricsProvider.hasSources;
-      return Center(
-        child: Text(
-          noProviders
-              ? 'No lyrics providers available.\nAdd some in the settings!'
-              : 'No lyrics found',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey[400], fontSize: 16, height: 1.4),
-        ),
-      );
-    }
-    final lyricsRenderMode = normalizedLyrics.isWordSynced
-        ? LyricsSyncMode.word
-        : normalizedLyrics.syncMode;
-
-    return _AppleMusicLyricsView(
-      key: ValueKey<String>('${currentTrack.id}_${normalizedLyrics.syncMode}'),
-      lyrics: normalizedLyrics,
-      lyricsRenderMode: lyricsRenderMode,
-      currentTrack: currentTrack,
+    return FullPlayerLyricsSection(
       player: player,
       lyricsProvider: lyricsProvider,
     );
@@ -1033,13 +941,15 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
   }
 
   Widget _buildTrackInfo(
+    BuildContext context,
     GenericSong? currentTrack,
     Color likeColor,
     bool isDesktop,
   ) {
     final title = currentTrack?.title ?? 'No track playing';
-    final artists = currentTrack?.artists ?? [];
-    final albumName = currentTrack?.album?.title ?? '';
+    final artists = currentTrack?.artists ?? const <GenericSimpleArtist>[];
+    final album = currentTrack?.album;
+    final hasAlbum = album != null && album.id.isNotEmpty;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1053,9 +963,11 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   Flexible(
                     fit: FlexFit.loose,
                     child: GestureDetector(
-                      onTap: () {
-                        // TODO: Navigate to track
-                      },
+                      onTap: hasAlbum
+                          ? () => unawaited(
+                              _openAlbumFromPlayer(album),
+                            )
+                          : null,
                       child: MarqueeText(
                         pauseWhenUnfocused: true,
                         text: title,
@@ -1072,21 +984,15 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 2),
-              if (artists.isEmpty && albumName.isEmpty)
-                Text(
-                  'No Artist - No Album',
+              SizedBox(
+                width: double.infinity,
+                child: ClickableArtistNames(
+                  artists: artists,
+                  album: album,
+                  emptyText: 'No Artist',
                   style: TextStyle(color: Colors.grey[300], fontSize: 16),
-                )
-              else
-                SizedBox(
-                  width: double.infinity,
-                  child: MarqueeText(
-                    pauseWhenUnfocused: true,
-                    text:
-                        '${artists.map((a) => a.name).join(', ')} - $albumName',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 16),
-                  ),
                 ),
+              ),
             ],
           ),
         ),
@@ -1155,10 +1061,12 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return _buildDesktopPlayerControls(context, player, btnColor, mode);
     }
     return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      mainAxisSize: MainAxisSize.min,
       children: [
         _buildProgressBar(context, player),
+        const SizedBox(height: 12),
         _buildPlaybackControls(context, player),
+        const SizedBox(height: 8),
         _buildSecondaryControls(context, btnColor, mode),
       ],
     );
@@ -1612,7 +1520,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(999),
               child: SizedBox(
@@ -1631,11 +1539,17 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
               children: [
                 Text(
                   _formatDuration(clampedPosition),
-                  style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 11,
+                  ),
                 ),
                 Text(
                   _formatDuration(duration),
-                  style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.65),
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -1655,7 +1569,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         return Column(
           children: [
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: SliderTheme(
                 data: SliderThemeData(
                   trackHeight: 4,
@@ -1672,6 +1586,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                   overlayColor: colorScheme.primary.withValues(alpha: 0.2),
                 ),
                 child: Slider(
+                  padding: EdgeInsets.zero,
                   value: animatedProgress,
                   secondaryTrackValue: bufferedProgress,
                   onChanged: (value) {
@@ -1690,7 +1605,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 children: [
                   Text(
                     _formatDuration(animatedPosition),
-                    style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      fontSize: 11,
+                    ),
                   ),
 
                   AudioQualityBadge(
@@ -1778,7 +1696,10 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
                   Text(
                     _formatDuration(duration),
-                    style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.65),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -1832,18 +1753,17 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     BuildContext context,
     global_audio_player.WispAudioHandler player,
   ) {
-    final colorScheme = Theme.of(context).colorScheme;
     final useHandoffState = context.select<PlaybackCoordinator, bool>(
       (coordinator) => coordinator.useLinkedPlaybackState,
     );
     final isLoading = _isUiLoading(player, useHandoffState);
     if (isLoading) {
-      return SizedBox(
-        width: 96,
-        height: 96,
-        child: Container(
+      return const SizedBox(
+        width: 72,
+        height: 72,
+        child: DecoratedBox(
           decoration: BoxDecoration(shape: BoxShape.circle),
-          child: const Center(
+          child: Center(
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -1858,16 +1778,16 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     );
 
     return Container(
-      width: 96,
-      height: 96,
-      decoration: BoxDecoration(shape: BoxShape.circle),
+      width: 72,
+      height: 72,
+      decoration: const BoxDecoration(shape: BoxShape.circle),
       child: GenericIconButton(
         style: AppStyle.AppleMusic,
         icon: Icon(
           isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
         ),
-        iconSize: 64,
-        color: colorScheme.onPrimary,
+        iconSize: 48,
+        color: Colors.white,
         padding: EdgeInsets.zero,
         onPressed: () {
           if (isPlaying) {
@@ -1988,59 +1908,62 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
             final canvasUrl = canvasSnapshot.data ?? '';
             final hasCanvas = canvasUrl.isNotEmpty;
 
-            return ValueListenableBuilder<bool>(
-              valueListenable: _animatedCanvasTemporarilyDisabledNotifier,
-              builder: (context, animatedCanvasDisabled, _) {
-                return ValueListenableBuilder<_ApplePlayerViewMode>(
-                  valueListenable: _modeNotifier,
-                  builder: (context, mode, _) {
-                    final isNowPlaying =
-                        mode == _ApplePlayerViewMode.nowPlaying;
-                    final useNowPlayingCanvas =
-                        !animatedCanvasDisabled && isNowPlaying && hasCanvas;
+            return ValueListenableBuilder<_ApplePlayerViewMode>(
+              valueListenable: _modeNotifier,
+              builder: (context, mode, _) {
+                final isNowPlaying =
+                    mode == _ApplePlayerViewMode.nowPlaying;
+                final useNowPlayingCanvas = isNowPlaying && hasCanvas;
 
-                    return Stack(
-                      clipBehavior: Clip.hardEdge,
-                      children: [
-                        Positioned.fill(
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 420),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            transitionBuilder: (child, animation) {
-                              final moveAnimation = Tween<Offset>(
-                                begin: const Offset(0, 0.06),
-                                end: Offset.zero,
-                              ).animate(animation);
-                              return FadeTransition(
-                                opacity: animation,
-                                child: SlideTransition(
-                                  position: moveAnimation,
-                                  child: child,
-                                ),
-                              );
-                            },
-                            child: KeyedSubtree(
-                              key: ValueKey<bool>(useNowPlayingCanvas),
-                              child: useNowPlayingCanvas
-                                  ? _buildCanvasBackground(
-                                      context,
-                                      canvasUrl,
-                                      imageUrl,
-                                      topInset,
-                                    )
-                                  : _buildFallbackBackground(
-                                      context,
-                                      imageUrl,
-                                      topInset,
-                                    ),
+                return Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    Positioned.fill(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 420),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) {
+                          final moveAnimation = Tween<Offset>(
+                            begin: const Offset(0, 0.06),
+                            end: Offset.zero,
+                          ).animate(animation);
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: moveAnimation,
+                              child: child,
                             ),
-                          ),
+                          );
+                        },
+                        child: KeyedSubtree(
+                          key: ValueKey<bool>(useNowPlayingCanvas),
+                          child: useNowPlayingCanvas
+                              ? _buildCanvasBackground(
+                                  context,
+                                  canvasUrl,
+                                  imageUrl,
+                                  topInset,
+                                )
+                              : _buildFallbackBackground(
+                                  context,
+                                  imageUrl,
+                                  topInset,
+                                ),
                         ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.45),
-                          ),
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                      ),
+                      child: SingleChildScrollView(
+                        controller: scrollController,
+                        physics: const ClampingScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
+                        ),
+                        child: SizedBox(
+                          height: MediaQuery.sizeOf(context).height,
                           child: Padding(
                             padding: EdgeInsets.only(bottom: bottomInset + 16),
                             child: Column(
@@ -2051,39 +1974,73 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                   ).add(EdgeInsets.only(top: topInset + 8.0)),
                                   child: _buildHeader(context),
                                 ),
-                                SizedBox(height: isNowPlaying ? 56 : 16),
-                                Flexible(
-                                  fit: FlexFit.tight,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 24.0,
-                                    ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.max,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceAround,
+                            const SizedBox(height: 12),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24.0,
+                                ),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final availableForCover = math.max(
+                                      160.0,
+                                      constraints.maxHeight - 130.0,
+                                    );
+                                    final maxCoverSize = math
+                                        .min(
+                                          constraints.maxWidth,
+                                          availableForCover,
+                                        )
+                                        .clamp(160.0, 360.0);
+                                    final topSpacerHeight = isNowPlaying
+                                        ? math.max(
+                                            0.0,
+                                            (availableForCover -
+                                                    maxCoverSize) /
+                                                2.0,
+                                          )
+                                        : 0.0;
+                                    return Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        _buildAnimatedCoverSection(
-                                          context,
-                                          mode,
-                                          currentTrack,
-                                          imageUrl,
-                                          useNowPlayingCanvas,
+                                        AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 340,
+                                          ),
+                                          curve: Curves.easeInOutCubic,
+                                          height: topSpacerHeight,
+                                        ),
+                                        KeyedSubtree(
+                                          key: const ValueKey(
+                                            'apple-cover-section',
+                                          ),
+                                          child: _buildAnimatedCoverSection(
+                                            context,
+                                            mode,
+                                            currentTrack,
+                                            imageUrl,
+                                            useNowPlayingCanvas,
+                                            maxCoverSize: maxCoverSize,
+                                          ),
                                         ),
                                         if (isNowPlaying) ...[
+                                          const Spacer(),
                                           _buildSingleLyricsLine(
                                             context,
                                             player,
                                             lyricsProvider,
                                           ),
+                                          const SizedBox(height: 12),
                                           _buildTrackInfo(
+                                            context,
                                             currentTrack,
                                             btnColor,
                                             false,
                                           ),
+                                          const SizedBox(height: 12),
                                         ] else ...[
+                                          const SizedBox(height: 12),
                                           Expanded(
                                             child: AnimatedSwitcher(
                                               duration: const Duration(
@@ -2106,29 +2063,32 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                               ),
                                             ),
                                           ),
+                                          const SizedBox(height: 8),
                                         ],
                                       ],
-                                    ),
-                                  ),
+                                    );
+                                  },
                                 ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24.0,
-                                  ),
-                                  child: _buildPlayerControls(
-                                    context,
-                                    player,
-                                    btnColor,
-                                    mode,
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24.0,
+                              ),
+                              child: _buildPlayerControls(
+                                context,
+                                player,
+                                btnColor,
+                                mode,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    );
-                  },
+                      ),
+                    ),
+                  ),
+                ),
+                  ],
                 );
               },
             );
@@ -2140,840 +2100,3 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 }
 
 enum _ApplePlayerViewMode { nowPlaying, lyrics, queue }
-
-class _AppleMusicLyricsView extends StatefulWidget {
-  final LyricsResult lyrics;
-  final LyricsSyncMode lyricsRenderMode;
-  final GenericSong currentTrack;
-  final global_audio_player.WispAudioHandler player;
-  final LyricsProvider lyricsProvider;
-
-  const _AppleMusicLyricsView({
-    super.key,
-    required this.lyrics,
-    required this.lyricsRenderMode,
-    required this.currentTrack,
-    required this.player,
-    required this.lyricsProvider,
-  });
-
-  @override
-  State<_AppleMusicLyricsView> createState() => _AppleMusicLyricsViewState();
-}
-
-class _AppleMusicLyricsViewState extends State<_AppleMusicLyricsView>
-    with SingleTickerProviderStateMixin {
-  final GlobalKey _listKey = GlobalKey();
-  late final ScrollController _scrollController = ScrollController();
-  late List<GlobalKey> _lineKeys;
-  late List<ValueNotifier<LyricsFrame>> _lineTimingNotifiers;
-  Ticker? _positionTicker;
-  VoidCallback? _focusListener;
-  PlaybackCoordinator? _coordinatorRef;
-  bool _freezeWhenUnfocused = false;
-  int _currentLineIndex = -1;
-  Set<int> _currentActiveIndices = {};
-  int? _previousWaitingDotsIndex;
-  int _lastFocusIndex = -1;
-  bool _userInteracting = false;
-  Timer? _resumeAutoScrollTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _initLines();
-    _setupFocusListener();
-    _startTicker();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _updateCurrentLine();
-      final focusIndex = _lastFocusIndex >= 0 ? _lastFocusIndex : 0;
-      _scrollToLine(focusIndex, instant: true);
-    });
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    try {
-      final coordinator = context.read<PlaybackCoordinator>();
-      if (!identical(_coordinatorRef, coordinator)) {
-        _coordinatorRef?.removeListener(_handleCoordinatorChanged);
-        _coordinatorRef = coordinator;
-        _coordinatorRef?.addListener(_handleCoordinatorChanged);
-      }
-    } catch (_) {}
-    _syncTickerState();
-  }
-
-  void _handleCoordinatorChanged() {
-    if (!mounted) return;
-    _syncTickerState();
-    if (!(_coordinatorRef?.effectiveIsPlaying ?? false)) {
-      _updateCurrentLine();
-    }
-  }
-
-  void _syncTickerState() {
-    final isPlaying = _coordinatorRef?.effectiveIsPlaying ?? false;
-    final canTick =
-        isPlaying &&
-        widget.lyricsRenderMode != LyricsSyncMode.unsynced &&
-        (!_freezeWhenUnfocused || AppFocusService.instance.isFocused.value);
-    if (canTick) {
-      if (_positionTicker != null && !_positionTicker!.isActive) {
-        _positionTicker!.start();
-      }
-    } else {
-      _positionTicker?.stop();
-    }
-  }
-
-  void _setupFocusListener() {
-    _focusListener = () {
-      if (!mounted) return;
-      final isFocused = AppFocusService.instance.isFocused.value;
-      _syncTickerState();
-      if (isFocused) {
-        _updateCurrentLine();
-        if (!_userInteracting &&
-            _lastFocusIndex >= 0 &&
-            widget.lyricsRenderMode != LyricsSyncMode.unsynced) {
-          _scrollToLine(_lastFocusIndex);
-        }
-      }
-    };
-    AppFocusService.instance.isFocused.addListener(_focusListener!);
-  }
-
-  void _initLines() {
-    _lineKeys = List.generate(widget.lyrics.lines.length, (_) => GlobalKey());
-    final delayMs =
-        (widget.lyricsProvider.getDelaySecondsCached(widget.currentTrack.id) *
-                1000)
-            .round();
-    final initialPos = _effectivePositionMs(delayMs);
-    final initialTiming = widget.lyricsRenderMode != LyricsSyncMode.unsynced
-        ? resolveSyncedLyricsTiming(widget.lyrics.lines, initialPos)
-        : null;
-    final initialFrame = LyricsFrame(
-      activeIndex: initialTiming?.activeIndex ?? 0,
-      activeIndices: initialTiming?.activeIndices ?? const {0},
-      timing: initialTiming,
-      positionMs: initialPos,
-      delayMs: delayMs,
-    );
-    _lineTimingNotifiers = List.generate(
-      widget.lyrics.lines.length,
-      (_) => ValueNotifier<LyricsFrame>(initialFrame),
-    );
-  }
-
-  void _disposeLines() {
-    for (final notifier in _lineTimingNotifiers) {
-      notifier.dispose();
-    }
-  }
-
-  @override
-  void didUpdateWidget(_AppleMusicLyricsView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.currentTrack.id != oldWidget.currentTrack.id ||
-        widget.lyrics.lines.length != oldWidget.lyrics.lines.length ||
-        widget.lyricsRenderMode != oldWidget.lyricsRenderMode) {
-      _resumeAutoScrollTimer?.cancel();
-      _userInteracting = false;
-      _disposeLines();
-      _currentLineIndex = -1;
-      _currentActiveIndices = {};
-      _previousWaitingDotsIndex = null;
-      _lastFocusIndex = -1;
-      _initLines();
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(0);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    if (_focusListener != null) {
-      AppFocusService.instance.isFocused.removeListener(_focusListener!);
-      _focusListener = null;
-    }
-    _coordinatorRef?.removeListener(_handleCoordinatorChanged);
-    _resumeAutoScrollTimer?.cancel();
-    _positionTicker?.dispose();
-    _disposeLines();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _startTicker() {
-    _positionTicker?.dispose();
-    _positionTicker = createTicker((_) {
-      if (!mounted) return;
-      if (_freezeWhenUnfocused && !AppFocusService.instance.isFocused.value) {
-        return;
-      }
-      if (!(_coordinatorRef?.effectiveIsPlaying ?? true)) {
-        _positionTicker?.stop();
-        return;
-      }
-      _updateCurrentLine();
-    });
-    _syncTickerState();
-  }
-
-  int _effectivePositionMs(int delayMs) {
-    final basePos = context
-        .read<PlaybackCoordinator>()
-        .effectiveInterpolatedPosition
-        .inMilliseconds;
-    final adjusted = basePos - delayMs;
-    return adjusted < 0 ? 0 : adjusted;
-  }
-
-  void _updateCurrentLine() {
-    final delayMs =
-        (widget.lyricsProvider.getDelaySecondsCached(widget.currentTrack.id) *
-                1000)
-            .round();
-    final effectivePosition = _effectivePositionMs(delayMs);
-
-    if (widget.lyricsRenderMode == LyricsSyncMode.unsynced) {
-      final newIndex = widget.lyrics.lines.isEmpty ? -1 : 0;
-      if (newIndex != _currentLineIndex) {
-        _currentLineIndex = newIndex;
-        _currentActiveIndices = {0};
-        _previousWaitingDotsIndex = null;
-        _notifyTimingLines(const LyricsFrame.unsynced());
-      }
-      return;
-    }
-
-    final timing = resolveSyncedLyricsTiming(
-      widget.lyrics.lines,
-      effectivePosition,
-    );
-    final waitingDotsIndex =
-        (timing.showWaitingDots && timing.nextIndex != null)
-        ? timing.nextIndex
-        : null;
-    final previousWaitingDotsIndex = _previousWaitingDotsIndex;
-    _previousWaitingDotsIndex = waitingDotsIndex;
-
-    final previousIndex = _currentLineIndex;
-    final previousActiveIndices = _currentActiveIndices;
-    final frame = LyricsFrame(
-      activeIndex: timing.activeIndex,
-      activeIndices: timing.activeIndices,
-      timing: timing,
-      positionMs: effectivePosition,
-      delayMs: delayMs,
-    );
-
-    _currentLineIndex = timing.activeIndex;
-    _currentActiveIndices = timing.activeIndices;
-
-    final focusIndex = timing.activeIndex >= 0
-        ? timing.activeIndex
-        : (timing.nextIndex ?? timing.previousIndex ?? 0);
-
-    if (focusIndex != _lastFocusIndex) {
-      _lastFocusIndex = focusIndex;
-      if (!_userInteracting) {
-        _scrollToLine(focusIndex);
-      }
-    }
-
-    _notifyTimingLines(
-      frame,
-      previousActiveIndices: previousActiveIndices,
-      previousIndex: previousIndex,
-      previousWaitingDotsIndex: previousWaitingDotsIndex,
-    );
-  }
-
-  void _scrollToLine(int focusIndex, {bool instant = false, int retries = 3}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      if (focusIndex < 0 || focusIndex >= _lineKeys.length) return;
-      final lineContext = _lineKeys[focusIndex].currentContext;
-      final listContext = _listKey.currentContext;
-      if (lineContext == null || listContext == null) {
-        if (retries > 0) {
-          _scrollToLine(focusIndex, instant: instant, retries: retries - 1);
-        }
-        return;
-      }
-
-      final lineBox = lineContext.findRenderObject() as RenderBox?;
-      final listBox = listContext.findRenderObject() as RenderBox?;
-      if (lineBox == null ||
-          listBox == null ||
-          !lineBox.hasSize ||
-          !listBox.hasSize) {
-        if (retries > 0) {
-          _scrollToLine(focusIndex, instant: instant, retries: retries - 1);
-        }
-        return;
-      }
-
-      final lineGlobalTop = lineBox.localToGlobal(Offset.zero).dy;
-      final viewportGlobalTop = listBox.localToGlobal(Offset.zero).dy;
-      final lineTopInViewport = lineGlobalTop - viewportGlobalTop;
-
-      const topTargetOffset = 24.0;
-      final currentOffset = _scrollController.offset;
-      final targetOffset =
-          (currentOffset + lineTopInViewport) - topTargetOffset;
-      final clampedOffset = targetOffset.clamp(
-        _scrollController.position.minScrollExtent,
-        _scrollController.position.maxScrollExtent,
-      );
-
-      if (instant) {
-        _scrollController.jumpTo(clampedOffset);
-      } else {
-        _scrollController.animateTo(
-          clampedOffset,
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeOutCubic,
-        );
-      }
-    });
-  }
-
-  void _notifyTimingLines(
-    LyricsFrame frame, {
-    Set<int>? previousActiveIndices,
-    int? previousIndex,
-    int? previousWaitingDotsIndex,
-  }) {
-    final indices = <int>{
-      ?previousIndex,
-      ...?previousActiveIndices,
-      ?previousWaitingDotsIndex,
-      ...frame.activeIndices,
-      frame.activeIndex,
-      if (frame.timing?.showWaitingDots == true &&
-          frame.timing?.nextIndex != null)
-        frame.timing!.nextIndex!,
-    };
-    for (final index in indices) {
-      if (index >= 0 && index < _lineTimingNotifiers.length) {
-        _lineTimingNotifiers[index].value = frame;
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
-      (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
-        PausedBackgroundWidget.lyricsFullscreen,
-      ),
-    );
-    _freezeWhenUnfocused = freezeWhenUnfocused;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bottomPadding = constraints.maxHeight * 0.75;
-
-        return ScrollConfiguration(
-          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification is ScrollStartNotification &&
-                  notification.dragDetails != null) {
-                _userInteracting = true;
-                _resumeAutoScrollTimer?.cancel();
-              } else if (notification is UserScrollNotification) {
-                if (notification.direction != ScrollDirection.idle) {
-                  _userInteracting = true;
-                  _resumeAutoScrollTimer?.cancel();
-                } else if (_userInteracting) {
-                  _userInteracting = false;
-                  _resumeAutoScrollTimer?.cancel();
-                  if (widget.lyricsRenderMode != LyricsSyncMode.unsynced) {
-                    _resumeAutoScrollTimer = Timer(
-                      const Duration(seconds: 4),
-                      () {
-                        if (!mounted ||
-                            widget.lyricsRenderMode ==
-                                LyricsSyncMode.unsynced) {
-                          return;
-                        }
-                        final focusIndex = _lastFocusIndex >= 0
-                            ? _lastFocusIndex
-                            : 0;
-                        _scrollToLine(focusIndex);
-                      },
-                    );
-                  }
-                }
-              } else if (notification is ScrollEndNotification) {
-                if (_userInteracting) {
-                  _userInteracting = false;
-                  _resumeAutoScrollTimer?.cancel();
-                  if (widget.lyricsRenderMode != LyricsSyncMode.unsynced) {
-                    _resumeAutoScrollTimer = Timer(
-                      const Duration(seconds: 4),
-                      () {
-                        if (!mounted ||
-                            widget.lyricsRenderMode ==
-                                LyricsSyncMode.unsynced) {
-                          return;
-                        }
-                        final focusIndex = _lastFocusIndex >= 0
-                            ? _lastFocusIndex
-                            : 0;
-                        _scrollToLine(focusIndex);
-                      },
-                    );
-                  }
-                }
-              }
-              return false;
-            },
-            child: ListView.builder(
-              key: _listKey,
-              controller: _scrollController,
-              scrollCacheExtent: ScrollCacheExtent.pixels(20000),
-              itemCount: widget.lyrics.lines.length + 1,
-              padding: EdgeInsets.fromLTRB(0, 24.0, 0, bottomPadding),
-              itemBuilder: (context, index) {
-                if (index == widget.lyrics.lines.length) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 16, bottom: 24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Lyrics provided by ${widget.lyrics.providerLabel}',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.left,
-                        ),
-                        if (widget.lyrics.attribution != null &&
-                            widget.lyrics.attribution!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 3),
-                          _buildAttributionText(
-                            widget.lyrics.attribution!,
-                            baseStyle: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.5),
-                              fontSize: 11,
-                            ),
-                            linkStyle: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              decoration: TextDecoration.underline,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                }
-                return _AppleMusicLyricsLineItem(
-                  key: _lineKeys[index],
-                  line: widget.lyrics.lines[index],
-                  index: index,
-                  syncMode: widget.lyricsRenderMode,
-                  frameListenable: _lineTimingNotifiers[index],
-                  onSeek: (position) {
-                    _resumeAutoScrollTimer?.cancel();
-                    _userInteracting = false;
-                    _lastFocusIndex = index;
-                    _scrollToLine(index);
-                    unawaited(
-                      context.read<PlaybackCoordinator>().seek(position),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAttributionText(
-    String text, {
-    required TextStyle baseStyle,
-    required TextStyle linkStyle,
-  }) {
-    final spans = <InlineSpan>[];
-    final linkRegex = RegExp(r'\[([^\]]+)\]\((https?://[^\)]+)\)');
-    int lastMatchEnd = 0;
-
-    for (final match in linkRegex.allMatches(text)) {
-      if (match.start > lastMatchEnd) {
-        spans.add(
-          TextSpan(
-            text: text.substring(lastMatchEnd, match.start),
-            style: baseStyle,
-          ),
-        );
-      }
-      final linkText = match.group(1) ?? '';
-      final linkUrl = match.group(2) ?? '';
-      spans.add(
-        TextSpan(
-          text: linkText,
-          style: linkStyle,
-          recognizer: TapGestureRecognizer()
-            ..onTap = () async {
-              final uri = Uri.tryParse(linkUrl);
-              if (uri != null && await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-        ),
-      );
-      lastMatchEnd = match.end;
-    }
-
-    if (lastMatchEnd < text.length) {
-      spans.add(TextSpan(text: text.substring(lastMatchEnd), style: baseStyle));
-    }
-
-    return Text.rich(TextSpan(children: spans), textAlign: TextAlign.left);
-  }
-}
-
-class _AppleMusicLyricsLineItem extends StatefulWidget {
-  final LyricsLine line;
-  final int index;
-  final LyricsSyncMode syncMode;
-  final ValueListenable<LyricsFrame> frameListenable;
-  final ValueChanged<Duration> onSeek;
-
-  const _AppleMusicLyricsLineItem({
-    super.key,
-    required this.line,
-    required this.index,
-    required this.syncMode,
-    required this.frameListenable,
-    required this.onSeek,
-  });
-
-  @override
-  State<_AppleMusicLyricsLineItem> createState() =>
-      _AppleMusicLyricsLineItemState();
-}
-
-class _AppleMusicLyricsLineItemState extends State<_AppleMusicLyricsLineItem> {
-  late List<List<TextSelection>> _bgWordRanges;
-
-  String _formatBgContent(String content) {
-    final trimmed = content.trim();
-    if (trimmed.startsWith('(') && trimmed.endsWith(')')) {
-      return trimmed;
-    }
-    return '($trimmed)';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _initRanges();
-  }
-
-  @override
-  void didUpdateWidget(_AppleMusicLyricsLineItem oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.line != oldWidget.line) {
-      _initRanges();
-    }
-  }
-
-  void _initRanges() {
-    _bgWordRanges = widget.line.background
-        .map((bg) => resolveWordRanges(_formatBgContent(bg.content), bg.words))
-        .toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<LyricsFrame>(
-      valueListenable: widget.frameListenable,
-      builder: (context, frame, _) {
-        final isSynced = widget.syncMode != LyricsSyncMode.unsynced;
-        final timing = frame.timing;
-        final anchorIndex = frame.activeIndex >= 0
-            ? frame.activeIndex
-            : (timing?.nextIndex ?? timing?.previousIndex ?? 0);
-        final distance = (widget.index - anchorIndex).abs();
-        final isLineActive =
-            !isSynced ||
-            frame.activeIndices.contains(widget.index) ||
-            frame.activeIndex == widget.index;
-
-        var opacity = (!isSynced || isLineActive)
-            ? 1.0
-            : (1.0 - (distance * 0.22)).clamp(0.16, 0.72);
-        var fontSize = (!isSynced || isLineActive) ? 34.0 : 30.0;
-        var fontWeight = (!isSynced || isLineActive)
-            ? FontWeight.w700
-            : FontWeight.w600;
-        var color = (!isSynced || isLineActive)
-            ? Colors.white
-            : Colors.grey[500]!;
-
-        if (isSynced &&
-            timing != null &&
-            !isLineActive &&
-            timing.shouldFadePreviousLine &&
-            timing.previousIndex == widget.index &&
-            timing.nextIndex != null) {
-          opacity = lerpDouble(1.0, 0.72, timing.fadeOutProgress)!;
-          fontSize = lerpDouble(34.0, 30.0, timing.fadeOutProgress)!;
-          fontWeight = timing.fadeOutProgress < 0.55
-              ? FontWeight.w700
-              : FontWeight.w600;
-          color = Color.lerp(
-            Colors.white,
-            Colors.grey[500],
-            timing.fadeOutProgress,
-          )!;
-        }
-
-        final baseStyle = TextStyle(
-          color: color,
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          height: 1.1,
-        );
-        final defaultTextStyle = DefaultTextStyle.of(context).style;
-        final effectiveBaseStyle = defaultTextStyle.merge(baseStyle);
-
-        final isRight = widget.line.isRightSpeaker;
-        final textAlign = isRight ? TextAlign.right : TextAlign.left;
-        final alignment = isRight
-            ? Alignment.centerRight
-            : Alignment.centerLeft;
-
-        final Widget textContent;
-        if (isLineActive &&
-            widget.syncMode == LyricsSyncMode.word &&
-            widget.line.hasWordTiming) {
-          textContent = WordFillLyricsLine(
-            line: widget.line,
-            positionMs: frame.positionMs,
-            textStyle: effectiveBaseStyle,
-            activeColor: Colors.white.withValues(alpha: opacity),
-            inactiveColor: Colors.white.withValues(alpha: 0.45 * opacity),
-            textAlign: textAlign,
-            enableTicker: false,
-          );
-        } else {
-          textContent = Text(
-            widget.line.content,
-            style: effectiveBaseStyle,
-            textAlign: textAlign,
-          );
-        }
-
-        // Synchronized Background vocal lines rendering if present
-        Widget? backgroundContent;
-        if (widget.line.hasBackground) {
-          final bgWidgets = <Widget>[];
-          final baseBgFontSize = fontSize * 0.72;
-
-          for (int bIdx = 0; bIdx < widget.line.background.length; bIdx++) {
-            final bg = widget.line.background[bIdx];
-            final bgRanges = (bIdx < _bgWordRanges.length)
-                ? _bgWordRanges[bIdx]
-                : <TextSelection>[];
-            final bgFormattedText = _formatBgContent(bg.content);
-
-            // Timing checks for this background vocal phrase
-            final bgStart = bg.startTimeMs;
-            int? resolvedBgEnd = bg.endTimeMs;
-            if (resolvedBgEnd == null && bg.words.isNotEmpty) {
-              final lastWord = bg.words.last;
-              resolvedBgEnd =
-                  lastWord.endTimeMs ?? (lastWord.startTimeMs + 800);
-            }
-            resolvedBgEnd ??= (widget.line.endTimeMs ?? (bgStart + 2000));
-
-            final isBgActive =
-                isSynced &&
-                isLineActive &&
-                frame.positionMs >= bgStart &&
-                frame.positionMs < resolvedBgEnd;
-            final isBgPast =
-                isSynced &&
-                (frame.positionMs >= resolvedBgEnd ||
-                    (!isLineActive && frame.positionMs >= bgStart));
-            final isBgUpcoming = isSynced && frame.positionMs < bgStart;
-
-            double bgOpacity = opacity;
-            if (isSynced) {
-              if (isBgActive) {
-                bgOpacity = 1.0;
-              } else if (isBgPast) {
-                bgOpacity = (opacity * 0.65).clamp(0.2, 0.7);
-              } else if (isBgUpcoming) {
-                bgOpacity = (opacity * 0.35).clamp(0.1, 0.4);
-              }
-            }
-
-            final inactiveBgColor =
-                Color.lerp(Colors.grey[500]!, Colors.black, 0.2) ??
-                Colors.grey[600]!;
-            final bgBaseStyle = effectiveBaseStyle.copyWith(
-              fontSize: baseBgFontSize,
-              fontStyle: FontStyle.italic,
-              color: (isBgActive ? Colors.white : inactiveBgColor).withValues(
-                alpha:
-                    (isBgActive ? bgOpacity : (inactiveBgColor.a * bgOpacity))
-                        .clamp(0.0, 1.0),
-              ),
-            );
-
-            Widget phraseWidget;
-            if (isBgActive && bg.hasWordTiming && bgRanges.isNotEmpty) {
-              final activeWordColor = Colors.white.withValues(alpha: bgOpacity);
-              final inactiveWordColor = Colors.white.withValues(
-                alpha: 0.45 * bgOpacity,
-              );
-
-              phraseWidget = WordFillLyricsLine(
-                line: LyricsLine(
-                  content: bgFormattedText,
-                  startTimeMs: bgStart,
-                  endTimeMs: resolvedBgEnd,
-                  words: bg.words,
-                  speaker: widget.line.speaker,
-                ),
-                positionMs: frame.positionMs,
-                textStyle: bgBaseStyle,
-                activeColor: activeWordColor,
-                inactiveColor: inactiveWordColor,
-                textAlign: textAlign,
-                enableTicker: false,
-              );
-            } else {
-              phraseWidget = Text(
-                bgFormattedText,
-                style: bgBaseStyle,
-                textAlign: textAlign,
-              );
-            }
-
-            bgWidgets.add(
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: phraseWidget,
-              ),
-            );
-          }
-
-          if (bgWidgets.isNotEmpty) {
-            backgroundContent = Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: isRight
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: bgWidgets,
-            );
-          }
-        }
-
-        final canSeek = isSynced && widget.line.startTimeMs > 0;
-
-        final fullContent = backgroundContent == null
-            ? textContent
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: isRight
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-                children: [textContent, backgroundContent],
-              );
-
-        final lineWidget = AnimatedOpacity(
-          duration: const Duration(milliseconds: 220),
-          opacity: opacity,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              mouseCursor: canSeek
-                  ? SystemMouseCursors.click
-                  : SystemMouseCursors.basic,
-              onTap: canSeek
-                  ? () => widget.onSeek(
-                      Duration(
-                        milliseconds: widget.line.startTimeMs + frame.delayMs,
-                      ),
-                    )
-                  : null,
-              child: Align(alignment: alignment, child: fullContent),
-            ),
-          ),
-        );
-
-        final showWaitingDots =
-            isSynced &&
-            timing != null &&
-            timing.showWaitingDots &&
-            timing.nextIndex == widget.index;
-
-        if (!showWaitingDots) {
-          return lineWidget;
-        }
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: isRight
-              ? CrossAxisAlignment.end
-              : CrossAxisAlignment.start,
-          children: [_buildWaitingDots(timing.progressToNext), lineWidget],
-        );
-      },
-    );
-  }
-
-  Widget _buildWaitingDots(double progress) {
-    const dotSize = 13.0;
-    final dots = List<Widget>.generate(3, (index) {
-      final start = index / 3;
-      final end = (index + 1) / 3;
-      final localProgress = ((progress - start) / (end - start)).clamp(
-        0.0,
-        1.0,
-      );
-      final opacity = lerpDouble(0.2, 1.0, localProgress)!;
-
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 7),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          width: dotSize,
-          height: dotSize,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: opacity),
-            shape: BoxShape.circle,
-          ),
-        ),
-      );
-    });
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Row(mainAxisSize: MainAxisSize.min, children: dots),
-      ),
-    );
-  }
-}

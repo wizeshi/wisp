@@ -71,6 +71,27 @@ class AppRouter {
     );
   }
 
+  static Page<dynamic> _buildMobilePlayerPage(GoRouterState state) {
+    return CustomTransitionPage<void>(
+      key: ValueKey(state.uri.toString()),
+      name: state.name ?? state.uri.toString(),
+      opaque: false,
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,
+      transitionDuration: FullScreenPlayer.mobileTransitionDuration,
+      reverseTransitionDuration:
+          FullScreenPlayer.mobileReverseTransitionDuration,
+      child: const FullScreenPlayer(),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          FullScreenPlayer.buildMobileTransition(
+            context,
+            animation,
+            secondaryAnimation,
+            child,
+          ),
+    );
+  }
+
   static GoRouter createRouter({
     required AppLinks appLinks,
     PreferencesProvider? preferences,
@@ -246,20 +267,24 @@ class AppRouter {
         GoRoute(
           parentNavigatorKey: rootNavigatorKey,
           path: AppRoutes.player,
-          pageBuilder: (context, state) => _buildAdaptivePage(
-            state: state,
-            isTab: false,
-            child: const FullScreenPlayer(),
-          ),
+          pageBuilder: (context, state) => (Platform.isAndroid || Platform.isIOS)
+              ? _buildMobilePlayerPage(state)
+              : _buildAdaptivePage(
+                  state: state,
+                  isTab: false,
+                  child: const FullScreenPlayer(),
+                ),
         ),
         GoRoute(
           parentNavigatorKey: rootNavigatorKey,
           path: '/fullplayer',
-          pageBuilder: (context, state) => _buildAdaptivePage(
-            state: state,
-            isTab: false,
-            child: const FullScreenPlayer(),
-          ),
+          pageBuilder: (context, state) => (Platform.isAndroid || Platform.isIOS)
+              ? _buildMobilePlayerPage(state)
+              : _buildAdaptivePage(
+                  state: state,
+                  isTab: false,
+                  child: const FullScreenPlayer(),
+                ),
         ),
         GoRoute(
           parentNavigatorKey: rootNavigatorKey,

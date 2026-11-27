@@ -260,24 +260,27 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   Widget _buildMobileAlbumArt(dynamic currentTrack) {
     final imageUrl = currentTrack?.thumbnailUrl ?? '';
     final colors = context.colors;
-    return ClipRRect(
+    return PlayerArtworkHero(
       borderRadius: BorderRadius.circular(6),
-      child: Container(
-        width: 44,
-        height: 44,
-        color: colors.artworkPlaceholder,
-        child: imageUrl.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                memCacheWidth: 132,
-                memCacheHeight: 132,
-                placeholder: (context, url) =>
-                    Container(color: colors.artworkPlaceholder),
-                errorWidget: (context, url, error) =>
-                    Icon(Icons.music_note, color: colors.textMuted),
-              )
-            : Icon(Icons.music_note, color: colors.textMuted),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          width: 44,
+          height: 44,
+          color: colors.artworkPlaceholder,
+          child: imageUrl.isNotEmpty
+              ? CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 132,
+                  memCacheHeight: 132,
+                  placeholder: (context, url) =>
+                      Container(color: colors.artworkPlaceholder),
+                  errorWidget: (context, url, error) =>
+                      Icon(Icons.music_note, color: colors.textMuted),
+                )
+              : Icon(Icons.music_note, color: colors.textMuted),
+        ),
       ),
     );
   }

@@ -697,24 +697,27 @@ class _AppleMusicMobilePlayerBarState
   Widget _buildMobileArt(dynamic currentTrack) {
     final imageUrl = currentTrack?.thumbnailUrl ?? '';
     final colors = context.colors;
-    return ClipRRect(
+    return PlayerArtworkHero(
       borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: 46,
-        height: 46,
-        color: colors.artworkPlaceholder,
-        child: imageUrl.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                memCacheWidth: 138,
-                memCacheHeight: 138,
-                placeholder: (context, url) =>
-                    Container(color: colors.artworkPlaceholder),
-                errorWidget: (context, url, error) =>
-                    Icon(Icons.music_note, color: colors.textMuted),
-              )
-            : Icon(Icons.music_note, color: colors.textMuted),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 46,
+          height: 46,
+          color: colors.artworkPlaceholder,
+          child: imageUrl.isNotEmpty
+              ? CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 138,
+                  memCacheHeight: 138,
+                  placeholder: (context, url) =>
+                      Container(color: colors.artworkPlaceholder),
+                  errorWidget: (context, url, error) =>
+                      Icon(Icons.music_note, color: colors.textMuted),
+                )
+              : Icon(Icons.music_note, color: colors.textMuted),
+        ),
       ),
     );
   }

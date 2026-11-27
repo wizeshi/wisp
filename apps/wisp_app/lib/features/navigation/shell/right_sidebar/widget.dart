@@ -285,42 +285,37 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppleMusicFullScreenPlayer
-          .animatedCanvasTemporarilyDisabledListenable,
-      builder: (context, animatedCanvasDisabled, _) {
-        return Selector<WispAudioHandler, _NowPlayingData>(
-          selector: (context, player) => _NowPlayingData(
-            track: player.currentTrack,
-            playbackContextName: player.playbackContext?.name,
-            playbackContextType: player.playbackContext?.type,
-            playbackContextID: player.playbackContext?.id,
-          ),
-          builder: (context, data, child) {
-            final useCanvas = context.select<PreferencesProvider, bool>(
-              (prefs) => prefs.animatedCanvasEnabled,
-            );
-            final libraryState = context.read<LibraryState>();
-            final metadataManager = context.read<MetadataManager>();
-            final track = data.track;
-            final resolvedContextName = _resolvePlaybackContextName(
-              data,
-              libraryState,
-            );
-            final headerText = resolvedContextName ?? 'Now Playing';
-            final canOpenContext =
-                data.playbackContextID != null &&
-                data.playbackContextID!.isNotEmpty &&
-                (data.playbackContextType == PlaybackContextType.playlist ||
-                    data.playbackContextType == PlaybackContextType.album ||
-                    data.playbackContextType == PlaybackContextType.artist);
-            final trackSource = track?.source ?? 'spotify';
-            final provider = metadataManager.getProviderForSource(trackSource);
-            final canUseCanvas =
-                !animatedCanvasDisabled &&
-                useCanvas &&
-                provider != null &&
-                provider.supports(MetadataCapability.canvas);
+    return Selector<WispAudioHandler, _NowPlayingData>(
+      selector: (context, player) => _NowPlayingData(
+        track: player.currentTrack,
+        playbackContextName: player.playbackContext?.name,
+        playbackContextType: player.playbackContext?.type,
+        playbackContextID: player.playbackContext?.id,
+      ),
+      builder: (context, data, child) {
+        final useCanvas = context.select<PreferencesProvider, bool>(
+          (prefs) => prefs.animatedCanvasEnabled,
+        );
+        final libraryState = context.read<LibraryState>();
+        final metadataManager = context.read<MetadataManager>();
+        final track = data.track;
+        final resolvedContextName = _resolvePlaybackContextName(
+          data,
+          libraryState,
+        );
+        final headerText = resolvedContextName ?? 'Now Playing';
+        final canOpenContext =
+            data.playbackContextID != null &&
+            data.playbackContextID!.isNotEmpty &&
+            (data.playbackContextType == PlaybackContextType.playlist ||
+                data.playbackContextType == PlaybackContextType.album ||
+                data.playbackContextType == PlaybackContextType.artist);
+        final trackSource = track?.source ?? 'spotify';
+        final provider = metadataManager.getProviderForSource(trackSource);
+        final canUseCanvas =
+            useCanvas &&
+            provider != null &&
+            provider.supports(MetadataCapability.canvas);
 
             if (track?.id != _cachedTrackId ||
                 trackSource != _cachedSource ||
@@ -611,8 +606,6 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
             );
           },
         );
-      },
-    );
   }
 
   String? _resolvePlaybackContextName(

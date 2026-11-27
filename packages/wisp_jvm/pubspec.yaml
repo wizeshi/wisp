@@ -1,6 +1,6 @@
 name: wisp_jvm
 description: "Shared JVM runtime manager and daemon process supervisor for wisp."
-version: 26.10.2+1
+version: 26.12.1+1
 
 resolution: workspace
 
