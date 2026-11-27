@@ -31,32 +31,44 @@ class _PlayerBarTopProgressBarState
   @override
   Widget build(BuildContext context) {
     final activeColor = widget.accentColor;
+    final coordinator = context.read<PlaybackCoordinator>();
+    final player = context.read<global_audio_player.WispAudioHandler>();
 
-    return Selector<global_audio_player.WispAudioHandler, _PositionData>(
-      selector: (context, player) => _PositionData(
-        position: player.throttledPosition,
-        bufferedPosition: player.bufferedPosition,
-        duration: player.duration,
-        isLoading: player.isLoading || player.isBuffering,
+    return Selector<global_audio_player.WispAudioHandler, ({Duration duration, bool isLoading})>(
+      selector: (context, p) => (
+        duration: p.duration,
+        isLoading: p.isLoading || p.isBuffering,
       ),
-      builder: (context, data, child) {
+      builder: (context, meta, child) {
         final shouldFreeze = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
             PausedBackgroundWidget.playerProgressBar,
           ),
         );
 
-        if (shouldFreeze && !_isHovering && !_isDragging) {
-          return FocusFreezeBuilder<_PositionData>(
-            value: data,
-            builder: (context, frozenData) {
-              return _buildBarContent(context, frozenData, activeColor);
-            },
-          );
-        }
+        return ValueListenableBuilder<Duration>(
+          valueListenable: coordinator.effectivePositionListenable,
+          builder: (context, position, _) {
+            final data = _PositionData(
+              position: position,
+              bufferedPosition: player.bufferedPosition,
+              duration: meta.duration,
+              isLoading: meta.isLoading,
+            );
 
-        return RepaintBoundary(
-          child: _buildBarContent(context, data, activeColor),
+            if (shouldFreeze && !_isHovering && !_isDragging) {
+              return FocusFreezeBuilder<_PositionData>(
+                value: data,
+                builder: (context, frozenData) {
+                  return _buildBarContent(context, frozenData, activeColor);
+                },
+              );
+            }
+
+            return RepaintBoundary(
+              child: _buildBarContent(context, data, activeColor),
+            );
+          },
         );
       },
     );
@@ -173,8 +185,8 @@ class _PlayerBarTopProgressBarState
                 Positioned(
                   top: 10,
                   left: (_hoverRelativeX! *
-                          (MediaQuery.of(context).size.width - 60))
-                      .clamp(8.0, MediaQuery.of(context).size.width - 68),
+                          (MediaQuery.sizeOf(context).width - 60))
+                      .clamp(8.0, MediaQuery.sizeOf(context).width - 68),
                   child: IgnorePointer(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -244,48 +256,47 @@ class _PlayerBarCircularProgressRing extends StatelessWidget {
       );
     }
 
-    return Selector2<
-      global_audio_player.WispAudioHandler,
-      PlaybackCoordinator,
-      _PositionData
-    >(
-      selector: (context, player, coordinator) => _PositionData(
-        position: coordinator.useLinkedPlaybackState
-            ? coordinator.effectiveThrottledPosition
-            : player.throttledPosition,
-        duration: player.duration,
-        isLoading: false,
-      ),
-      builder: (context, data, _) {
-        final duration = data.duration;
-        final position = data.position;
-        final progress = duration.inMilliseconds > 0
-            ? (position.inMilliseconds / duration.inMilliseconds)
-                .clamp(0.0, 1.0)
-            : 0.0;
-
+    final coordinator = context.read<PlaybackCoordinator>();
+    return Selector<global_audio_player.WispAudioHandler, Duration>(
+      selector: (context, player) => player.duration,
+      builder: (context, duration, _) {
         final shouldFreeze = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
             PausedBackgroundWidget.playerProgressBar,
           ),
         );
 
-        if (shouldFreeze) {
-          return FocusFreezeBuilder<_PositionData>(
-            value: data,
-            builder: (context, frozenData) {
-              final fDuration = frozenData.duration;
-              final fProgress = fDuration.inMilliseconds > 0
-                  ? (frozenData.position.inMilliseconds /
-                          fDuration.inMilliseconds)
-                      .clamp(0.0, 1.0)
-                  : 0.0;
-              return _buildRing(fProgress, trackColor);
-            },
-          );
-        }
+        return ValueListenableBuilder<Duration>(
+          valueListenable: coordinator.effectivePositionListenable,
+          builder: (context, position, _) {
+            final data = _PositionData(
+              position: position,
+              duration: duration,
+              isLoading: false,
+            );
 
-        return _buildRing(progress, trackColor);
+            if (shouldFreeze) {
+              return FocusFreezeBuilder<_PositionData>(
+                value: data,
+                builder: (context, frozenData) {
+                  final fDuration = frozenData.duration;
+                  final fProgress = fDuration.inMilliseconds > 0
+                      ? (frozenData.position.inMilliseconds /
+                              fDuration.inMilliseconds)
+                          .clamp(0.0, 1.0)
+                      : 0.0;
+                  return _buildRing(fProgress, trackColor);
+                },
+              );
+            }
+
+            final progress = duration.inMilliseconds > 0
+                ? (position.inMilliseconds / duration.inMilliseconds)
+                    .clamp(0.0, 1.0)
+                : 0.0;
+            return _buildRing(progress, trackColor);
+          },
+        );
       },
     );
   }

@@ -240,16 +240,20 @@ class _MarqueeTextState extends State<MarqueeText>
           textHeightBehavior: defaultTextStyle.textHeightBehavior,
         )..layout();
 
+        final textWidth = textPainter.width;
+        final textHeight = textPainter.height;
+        textPainter.dispose();
+
         final viewportWidth = constraints.hasBoundedWidth
             ? constraints.maxWidth
-            : textPainter.width;
+            : textWidth;
         final hasOverflow =
-            constraints.hasBoundedWidth && textPainter.width > viewportWidth;
+            constraints.hasBoundedWidth && textWidth > viewportWidth;
 
         _scheduleMetricsUpdate(
           viewportWidth: viewportWidth,
-          textWidth: textPainter.width,
-          textHeight: textPainter.height,
+          textWidth: textWidth,
+          textHeight: textHeight,
           hasOverflow: hasOverflow,
         );
 
@@ -259,7 +263,7 @@ class _MarqueeTextState extends State<MarqueeText>
           return textChild;
         }
 
-        final singleWidth = textPainter.width + widget.gap;
+        final singleWidth = textWidth + widget.gap;
 
         return RepaintBoundary(
           child: AnimatedBuilder(
@@ -269,35 +273,29 @@ class _MarqueeTextState extends State<MarqueeText>
 
               return SizedBox(
                 width: viewportWidth,
-                height: textPainter.height,
+                height: textHeight,
                 child: ClipRect(
                   clipper: const _HorizontalMarqueeClipper(),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned(
-                        left: -currentOffset,
-                        top: 0,
-                        bottom: 0,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: textChild,
-                        ),
-                      ),
-                      Positioned(
-                        left: -currentOffset + singleWidth,
-                        top: 0,
-                        bottom: 0,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: textChild,
-                        ),
-                      ),
-                    ],
+                  child: Transform.translate(
+                    offset: Offset(-currentOffset, 0),
+                    child: child,
                   ),
                 ),
               );
             },
+            child: OverflowBox(
+              alignment: Alignment.centerLeft,
+              minWidth: 0,
+              maxWidth: double.infinity,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  textChild,
+                  SizedBox(width: widget.gap),
+                  textChild,
+                ],
+              ),
+            ),
           ),
         );
       },

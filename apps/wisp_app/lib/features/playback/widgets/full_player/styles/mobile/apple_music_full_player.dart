@@ -194,7 +194,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
         ? null
         : () => _setMode(_ApplePlayerViewMode.nowPlaying);
     final double expandedSize = math.min(
-      MediaQuery.of(context).size.width - 48,
+      MediaQuery.sizeOf(context).width - 48,
       maxCoverSize ?? 360.0,
     );
     final shouldHideCover = isNowPlaying && hideNowPlayingCover;
@@ -858,46 +858,48 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final basePosition = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveInterpolatedPosition,
-    );
-    final delayMs =
-        (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
-    final adjustedPosition = basePosition.inMilliseconds - delayMs;
-    final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
     final lines = nonEmptyLyricsLines(lyrics.lines);
     if (lines.isEmpty) {
       return const SizedBox.shrink();
     }
+    final delayMs =
+        (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
 
-    final timing = lyrics.syncMode != LyricsSyncMode.unsynced
-        ? resolveSyncedLyricsTiming(lines, effectivePosition)
-        : null;
-    final line = _getSingleLine(lyrics, effectivePosition);
-    final showWaitingPlaceholder =
-        lyrics.syncMode != LyricsSyncMode.unsynced &&
-        timing != null &&
-        timing.activeIndex < 0 &&
-        timing.nextIndex != null &&
-        line == null;
-    if ((line == null || line.content.trim().isEmpty) &&
-        !showWaitingPlaceholder) {
-      return const SizedBox.shrink();
-    }
+    return ValueListenableBuilder<Duration>(
+      valueListenable:
+          context.read<PlaybackCoordinator>().effectivePositionListenable,
+      builder: (context, basePosition, _) {
+        final adjustedPosition = basePosition.inMilliseconds - delayMs;
+        final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 320),
-        switchInCurve: const Interval(0.5, 1.0, curve: Curves.easeOut),
-        switchOutCurve: const Interval(0.0, 0.5, curve: Curves.easeIn),
-        layoutBuilder: (currentChild, previousChildren) {
-          return Stack(
-            alignment: Alignment.centerLeft,
-            children: [...previousChildren, ?currentChild],
-          );
-        },
-        transitionBuilder: (child, animation) {
+        final timing = lyrics.syncMode != LyricsSyncMode.unsynced
+            ? resolveSyncedLyricsTiming(lines, effectivePosition)
+            : null;
+        final line = _getSingleLine(lyrics, effectivePosition);
+        final showWaitingPlaceholder =
+            lyrics.syncMode != LyricsSyncMode.unsynced &&
+            timing != null &&
+            timing.activeIndex < 0 &&
+            timing.nextIndex != null &&
+            line == null;
+        if ((line == null || line.content.trim().isEmpty) &&
+            !showWaitingPlaceholder) {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 320),
+            switchInCurve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+            switchOutCurve: const Interval(0.0, 0.5, curve: Curves.easeIn),
+            layoutBuilder: (currentChild, previousChildren) {
+              return Stack(
+                alignment: Alignment.centerLeft,
+                children: [...previousChildren, ?currentChild],
+              );
+            },
+            transitionBuilder: (child, animation) {
           final isRemoving = animation.status == AnimationStatus.reverse;
           final tween = isRemoving
               ? Tween<Offset>(begin: Offset.zero, end: const Offset(0, -0.2))
@@ -936,7 +938,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 inactiveColor: Colors.grey[400]!,
                 enableTicker: true,
               ),
-      ),
+            ),
+          );
+      },
     );
   }
 
@@ -1493,78 +1497,71 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
     BuildContext context,
     global_audio_player.WispAudioHandler player,
   ) {
+    final coordinator = context.read<PlaybackCoordinator>();
     final useHandoffState = context.select<PlaybackCoordinator, bool>(
-      (coordinator) => coordinator.useLinkedPlaybackState,
+      (c) => c.useLinkedPlaybackState,
     );
-    final isLoading = _isUiLoading(player, useHandoffState);
     final colorScheme = Theme.of(context).colorScheme;
-    final position = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveInterpolatedPosition,
-    );
-    final bufferedPosition = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveBufferedPosition,
-    );
     final duration = player.duration;
-    final clampedPosition = position > duration ? duration : position;
-    final progress = duration.inMilliseconds > 0
-        ? position.inMilliseconds / duration.inMilliseconds
-        : 0.0;
-    final bufferedProgress = duration.inMilliseconds > 0
-        ? (bufferedPosition.inMilliseconds / duration.inMilliseconds).clamp(
-            0.0,
-            1.0,
-          )
-        : 0.0;
 
-    if (isLoading) {
-      return Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: SizedBox(
-                height: 4,
-                child: LinearProgressIndicator(
-                  backgroundColor: Colors.grey[400],
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[300]!),
+    return ValueListenableBuilder<Duration>(
+      valueListenable: coordinator.effectivePositionListenable,
+      builder: (context, position, _) {
+        final isLoading = _isUiLoading(player, useHandoffState, position);
+        final bufferedPosition = coordinator.effectiveBufferedPosition;
+        final clampedPosition = position > duration ? duration : position;
+        final progress = duration.inMilliseconds > 0
+            ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+            : 0.0;
+        final bufferedProgress = duration.inMilliseconds > 0
+            ? (bufferedPosition.inMilliseconds / duration.inMilliseconds).clamp(
+                0.0,
+                1.0,
+              )
+            : 0.0;
+
+        if (isLoading) {
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: SizedBox(
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Colors.grey[400],
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.grey[300]!),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _formatDuration(clampedPosition),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.65),
-                    fontSize: 11,
-                  ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _formatDuration(clampedPosition),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 11,
+                      ),
+                    ),
+                    Text(
+                      _formatDuration(duration),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  _formatDuration(duration),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.65),
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-      duration: const Duration(milliseconds: 200),
-      builder: (context, animatedProgress, child) {
-        final animatedPosition = Duration(
-          milliseconds: (animatedProgress * duration.inMilliseconds).round(),
-        );
+              ),
+            ],
+          );
+        }
 
         return Column(
           children: [
@@ -1587,7 +1584,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 ),
                 child: Slider(
                   padding: EdgeInsets.zero,
-                  value: animatedProgress,
+                  value: progress,
                   secondaryTrackValue: bufferedProgress,
                   onChanged: (value) {
                     final newPosition = Duration(
@@ -1604,7 +1601,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _formatDuration(animatedPosition),
+                    _formatDuration(clampedPosition),
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.65),
                       fontSize: 11,
@@ -1818,8 +1815,9 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
   bool _isUiLoading(
     global_audio_player.WispAudioHandler player,
-    bool useHandoffState,
-  ) {
+    bool useHandoffState, [
+    Duration? position,
+  ]) {
     if (useHandoffState) {
       return false;
     }
@@ -1834,7 +1832,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
     return !player.isPlaying &&
         player.duration.inMilliseconds == 0 &&
-        player.throttledPosition.inMilliseconds <= 0;
+        (position ?? player.position).inMilliseconds <= 0;
   }
 
   Widget _buildCanvasBackground(
@@ -1868,8 +1866,8 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
-      builder: (context, player, lyricsProvider, child) {
+    return Consumer<global_audio_player.WispAudioHandler>(
+      builder: (context, player, child) {
         final currentTrack = player.currentTrack;
         final useCanvas = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.animatedCanvasEnabled,
@@ -1888,7 +1886,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
           canUseCanvas,
         );
 
-        final viewPadding = MediaQuery.of(context).viewPadding;
+        final viewPadding = MediaQuery.viewPaddingOf(context);
         final windowPadding = MediaQueryData.fromView(
           WidgetsBinding.instance.platformDispatcher.views.first,
         ).padding;
@@ -2026,10 +2024,13 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                         ),
                                         if (isNowPlaying) ...[
                                           const Spacer(),
-                                          _buildSingleLyricsLine(
-                                            context,
-                                            player,
-                                            lyricsProvider,
+                                          Consumer<LyricsProvider>(
+                                            builder: (ctx, lyricsProvider, _) =>
+                                                _buildSingleLyricsLine(
+                                                  ctx,
+                                                  player,
+                                                  lyricsProvider,
+                                                ),
                                           ),
                                           const SizedBox(height: 12),
                                           _buildTrackInfo(
@@ -2057,7 +2058,7 @@ class AppleMusicFullScreenPlayer extends StatelessWidget {
                                                   context,
                                                   mode,
                                                   player,
-                                                  lyricsProvider,
+                                                  context.read<LyricsProvider>(),
                                                   true,
                                                 ),
                                               ),

@@ -121,21 +121,39 @@ class SpotifyDesktopFullScreenPlayer extends StatefulWidget {
 }
 
 class _SpotifyDesktopFullScreenPlayerState
-    extends State<SpotifyDesktopFullScreenPlayer>
-    with SingleTickerProviderStateMixin {
+    extends State<SpotifyDesktopFullScreenPlayer> {
   late final _SpotifyDesktopFullScreenState _desktopState;
-  late AnimationController _colorTransitionController;
   Timer? _inactivityTimer;
   late final ScrollController _scrollController;
+  final Map<String, Future<String?>> _canvasUrlFutureCache = {};
+
+  Future<String?>? _getCanvasUrlFuture(
+    MetadataManager metadataManager,
+    GenericSong? currentTrack,
+    bool canUseCanvas,
+  ) {
+    if (!canUseCanvas || currentTrack == null) {
+      return null;
+    }
+    final trackId = currentTrack.id;
+    if (trackId.isEmpty) return null;
+    final cached = _canvasUrlFutureCache[trackId];
+    if (cached != null) return cached;
+    if (_canvasUrlFutureCache.length >= 24) {
+      _canvasUrlFutureCache.remove(_canvasUrlFutureCache.keys.first);
+    }
+    final future = metadataManager.getCanvasUrl(
+      trackId,
+      source: currentTrack.source,
+    );
+    _canvasUrlFutureCache[trackId] = future;
+    return future;
+  }
 
   @override
   void initState() {
     super.initState();
     _desktopState = _SpotifyDesktopFullScreenState();
-    _colorTransitionController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 360),
-    );
     _scrollController = ScrollController();
     AppNavigation.instance.fullPlayerDesktopMode.addListener(
       _handleExternalDesktopModeChange,
@@ -146,7 +164,6 @@ class _SpotifyDesktopFullScreenPlayerState
   @override
   void dispose() {
     _inactivityTimer?.cancel();
-    _colorTransitionController.dispose();
     AppNavigation.instance.fullPlayerDesktopMode.removeListener(
       _handleExternalDesktopModeChange,
     );
@@ -207,9 +224,24 @@ class _SpotifyDesktopFullScreenPlayerState
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
-      builder: (context, player, lyricsProvider, child) {
-        final currentTrack = player.currentTrack;
+    return Selector<
+      global_audio_player.WispAudioHandler,
+      ({
+        GenericSong? currentTrack,
+        int trackChangeToken,
+        int currentIndex,
+        int queueLength,
+      })
+    >(
+      selector: (context, p) => (
+        currentTrack: p.currentTrack,
+        trackChangeToken: p.trackChangeToken,
+        currentIndex: p.currentIndex,
+        queueLength: p.queueTracks.length,
+      ),
+      builder: (context, slice, child) {
+        final player = context.read<global_audio_player.WispAudioHandler>();
+        final currentTrack = slice.currentTrack;
         if (currentTrack == null) {
           return Scaffold(
             backgroundColor: Colors.black,
@@ -233,6 +265,11 @@ class _SpotifyDesktopFullScreenPlayerState
               MetadataCapability.canvas,
               source: currentTrack.source,
             );
+        final canvasUrlFuture = _getCanvasUrlFuture(
+          metadataManager,
+          currentTrack,
+          canUseCanvas,
+        );
 
         return ChangeNotifierProvider<_SpotifyDesktopFullScreenState>.value(
           value: _desktopState,
@@ -241,9 +278,10 @@ class _SpotifyDesktopFullScreenPlayerState
             onHover: (_) => _resetInactivityTimer(),
             child: _SpotifyDesktopFullScreenBody(
               player: player,
-              lyricsProvider: lyricsProvider,
+              lyricsProvider: context.read<LyricsProvider>(),
               currentTrack: currentTrack,
               canUseCanvas: canUseCanvas,
+              canvasUrlFuture: canvasUrlFuture,
               metadataManager: metadataManager,
               scrollController: _scrollController,
             ),
@@ -270,6 +308,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
   final LyricsProvider lyricsProvider;
   final dynamic currentTrack;
   final bool canUseCanvas;
+  final Future<String?>? canvasUrlFuture;
   final MetadataManager metadataManager;
   final ScrollController scrollController;
 
@@ -278,6 +317,7 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
     required this.lyricsProvider,
     required this.currentTrack,
     required this.canUseCanvas,
+    required this.canvasUrlFuture,
     required this.metadataManager,
     required this.scrollController,
   });
@@ -302,11 +342,6 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
       Theme.of(context).colorScheme.primary,
     );
     final song = currentTrack as GenericSong?;
-    final trackId = song?.id;
-    final canvasUrlFuture = canUseCanvas && trackId != null
-        ? metadataManager.getCanvasUrl(trackId, source: song?.source)
-        : Future<String?>.value(null);
-
     return Consumer<_SpotifyDesktopFullScreenState>(
       builder: (context, desktopState, _) {
         return FutureBuilder<String?>(
@@ -401,38 +436,44 @@ class _SpotifyDesktopFullScreenBody extends StatelessWidget {
                   if (song != null)
                     Positioned(
                       left: 32,
+                      right: 32,
                       bottom: 32,
-                      child: AnimatedOpacity(
-                        opacity: controlsVisible ? 0 : 1,
-                        duration: !controlsVisible
-                            ? Duration(milliseconds: 750)
-                            : Duration(milliseconds: 200),
-                        curve: Easing.emphasizedAccelerate,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              song.title,
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
+                      child: IgnorePointer(
+                        ignoring: controlsVisible,
+                        child: AnimatedOpacity(
+                          opacity: controlsVisible ? 0 : 1,
+                          duration: !controlsVisible
+                              ? Duration(milliseconds: 750)
+                              : Duration(milliseconds: 200),
+                          curve: Easing.emphasizedAccelerate,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                            Row(
-                              children: [
-                                TrackBadges(track: song),
-                                Flexible(
-                                  child: ClickableArtistNames(
-                                    artists: song.artists,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w400,
+                              Row(
+                                children: [
+                                  TrackBadges(track: song),
+                                  Flexible(
+                                    child: ClickableArtistNames(
+                                      artists: song.artists,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w400,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            )
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

@@ -290,6 +290,100 @@ int resolveLineEndTimeMs(
 /// Used in dual-layer lyrics line rendering where an identical inactive line is
 /// overlaid with a clipped active line. This ensures zero layout shifts or baseline
 /// jumps during the fill animation.
+@immutable
+class LyricsLineLayoutMetrics {
+  final String lineContent;
+  final List<LyricsWord> words;
+  final TextStyle style;
+  final TextAlign textAlign;
+  final TextScaler textScaler;
+  final double maxWidth;
+  final List<double> lineTops;
+  final List<double> lineBottoms;
+  final List<List<TextBox>> wordBoxes;
+
+  const LyricsLineLayoutMetrics._({
+    required this.lineContent,
+    required this.words,
+    required this.style,
+    required this.textAlign,
+    required this.textScaler,
+    required this.maxWidth,
+    required this.lineTops,
+    required this.lineBottoms,
+    required this.wordBoxes,
+  });
+
+  bool matches({
+    required String lineContent,
+    required List<LyricsWord> words,
+    required TextStyle style,
+    required TextAlign textAlign,
+    required TextScaler textScaler,
+    required double maxWidth,
+  }) {
+    return this.lineContent == lineContent &&
+        identical(this.words, words) &&
+        this.style == style &&
+        this.textAlign == textAlign &&
+        this.textScaler == textScaler &&
+        this.maxWidth == maxWidth;
+  }
+
+  static LyricsLineLayoutMetrics compute({
+    required String lineContent,
+    required List<LyricsWord> words,
+    required List<TextSelection> wordRanges,
+    required TextStyle style,
+    required TextAlign textAlign,
+    required TextScaler textScaler,
+    required double maxWidth,
+  }) {
+    final tp = TextPainter(
+      text: TextSpan(text: lineContent, style: style),
+      textDirection: TextDirection.ltr,
+      textAlign: textAlign,
+      textScaler: textScaler,
+    );
+    try {
+      tp.layout(maxWidth: maxWidth);
+      final lineMetrics = tp.computeLineMetrics();
+      final lineCount = lineMetrics.isEmpty ? 1 : lineMetrics.length;
+      final lineTops = List<double>.filled(lineCount, 0.0);
+      final lineBottoms = List<double>.filled(lineCount, tp.height);
+
+      if (lineMetrics.length > 1) {
+        var currentTop = 0.0;
+        for (var l = 0; l < lineMetrics.length; l++) {
+          final lm = lineMetrics[l];
+          lineTops[l] = currentTop;
+          currentTop += lm.height;
+          lineBottoms[l] = currentTop;
+        }
+        lineTops[0] = 0.0;
+      }
+
+      final wordBoxes = <List<TextBox>>[
+        for (final range in wordRanges) tp.getBoxesForSelection(range),
+      ];
+
+      return LyricsLineLayoutMetrics._(
+        lineContent: lineContent,
+        words: words,
+        style: style,
+        textAlign: textAlign,
+        textScaler: textScaler,
+        maxWidth: maxWidth,
+        lineTops: List.unmodifiable(lineTops),
+        lineBottoms: List.unmodifiable(lineBottoms),
+        wordBoxes: List.unmodifiable(wordBoxes),
+      );
+    } finally {
+      tp.dispose();
+    }
+  }
+}
+
 class LyricsLineFillClipper extends CustomClipper<Path> {
   final String lineContent;
   final List<LyricsWord> words;
@@ -300,6 +394,7 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
   final TextScaler? textScaler;
   final double? layoutWidth;
   final int positionMs;
+  final LyricsLineLayoutMetrics? cachedLayout;
 
   const LyricsLineFillClipper({
     required this.lineContent,
@@ -311,22 +406,12 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
     this.textScaler,
     this.layoutWidth,
     required this.positionMs,
+    this.cachedLayout,
   });
 
   @override
   Path getClip(Size size) {
     if (words.isEmpty) return Path();
-
-    final maxW = (layoutWidth != null && layoutWidth!.isFinite && layoutWidth! > 0)
-        ? math.max(layoutWidth!, size.width)
-        : (size.width > 0 ? size.width * 2 : double.infinity);
-
-    final tp = TextPainter(
-      text: TextSpan(text: lineContent, style: style),
-      textDirection: TextDirection.ltr,
-      textAlign: textAlign,
-      textScaler: textScaler ?? TextScaler.noScaling,
-    )..layout(maxWidth: maxW);
 
     final lineEnd = lineEndTimeMs ??
         (words.last.endTimeMs ?? (words.last.startTimeMs + 800));
@@ -342,24 +427,6 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
 
     if (activeIndex < 0 && positionMs < words.first.startTimeMs) {
       return Path();
-    }
-
-    // Determine line metrics to bound vertical coverage to actual line heights
-    final lineMetrics = tp.computeLineMetrics();
-    final lineCount = lineMetrics.isEmpty ? 1 : lineMetrics.length;
-    final lineTops = List<double>.filled(lineCount, 0.0);
-    final lineBottoms = List<double>.filled(lineCount, size.height);
-
-    if (lineMetrics.length > 1) {
-      var currentTop = 0.0;
-      for (var l = 0; l < lineMetrics.length; l++) {
-        final lm = lineMetrics[l];
-        lineTops[l] = currentTop;
-        currentTop += lm.height;
-        lineBottoms[l] = currentTop;
-      }
-      lineTops[0] = 0.0;
-      lineBottoms[lineMetrics.length - 1] = size.height;
     }
 
     final safeActiveIndex = activeIndex.clamp(0, words.length - 1);
@@ -392,19 +459,50 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
         ..addRect(Rect.fromLTWH(0, 0, size.width + 10, size.height + 10));
     }
 
+    final maxW = (layoutWidth != null && layoutWidth!.isFinite && layoutWidth! > 0)
+        ? math.max(layoutWidth!, size.width)
+        : (size.width > 0 ? size.width * 2 : double.infinity);
+
+    final effectiveScaler = textScaler ?? TextScaler.noScaling;
+    final layout = (cachedLayout != null &&
+            cachedLayout!.matches(
+              lineContent: lineContent,
+              words: words,
+              style: style,
+              textAlign: textAlign,
+              textScaler: effectiveScaler,
+              maxWidth: maxW,
+            ))
+        ? cachedLayout!
+        : LyricsLineLayoutMetrics.compute(
+            lineContent: lineContent,
+            words: words,
+            wordRanges: wordRanges,
+            style: style,
+            textAlign: textAlign,
+            textScaler: effectiveScaler,
+            maxWidth: maxW,
+          );
+
+    final lineTops = layout.lineTops;
+    final lineCount = lineTops.length;
+    final lineBottoms = layout.lineBottoms;
+
+    double lineBottom(int idx) =>
+        idx == lineCount - 1 ? size.height : lineBottoms[idx];
+
     var activeLineIdx = 0;
     var currentFillX = 0.0;
 
-    if (safeActiveIndex < wordRanges.length) {
-      final activeRange = wordRanges[safeActiveIndex];
-      final activeBoxes = tp.getBoxesForSelection(activeRange);
+    if (safeActiveIndex < layout.wordBoxes.length) {
+      final activeBoxes = layout.wordBoxes[safeActiveIndex];
 
       if (activeBoxes.isNotEmpty) {
         if (activeBoxes.length == 1) {
           final box = activeBoxes.first;
           final midY = (box.top + box.bottom) / 2;
           for (var l = 0; l < lineCount; l++) {
-            if (midY >= lineTops[l] && midY <= lineBottoms[l]) {
+            if (midY >= lineTops[l] && midY <= lineBottom(l)) {
               activeLineIdx = l;
               break;
             }
@@ -430,7 +528,7 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
             final midY = (box.top + box.bottom) / 2;
             var boxLine = 0;
             for (var l = 0; l < lineCount; l++) {
-              if (midY >= lineTops[l] && midY <= lineBottoms[l]) {
+              if (midY >= lineTops[l] && midY <= lineBottom(l)) {
                 boxLine = l;
                 break;
               }
@@ -455,12 +553,12 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
 
     // 1. All lines prior to activeLineIdx are 100% revealed
     for (var l = 0; l < activeLineIdx; l++) {
-      path.addRect(Rect.fromLTRB(0, lineTops[l], size.width + 10.0, lineBottoms[l]));
+      path.addRect(Rect.fromLTRB(0, lineTops[l], size.width + 10.0, lineBottom(l)));
     }
 
     // 2. Active line is revealed from x = 0 up to currentFillX
     if (currentFillX > 0) {
-      path.addRect(Rect.fromLTRB(0, lineTops[activeLineIdx], currentFillX, lineBottoms[activeLineIdx]));
+      path.addRect(Rect.fromLTRB(0, lineTops[activeLineIdx], currentFillX, lineBottom(activeLineIdx)));
     }
 
     return path;
@@ -474,7 +572,8 @@ class LyricsLineFillClipper extends CustomClipper<Path> {
         oldClipper.textScaler != textScaler ||
         oldClipper.layoutWidth != layoutWidth ||
         oldClipper.lineContent != lineContent ||
-        oldClipper.lineEndTimeMs != lineEndTimeMs;
+        oldClipper.lineEndTimeMs != lineEndTimeMs ||
+        !identical(oldClipper.cachedLayout, cachedLayout);
   }
 }
 

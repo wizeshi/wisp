@@ -33,7 +33,6 @@ class _PlayingWaveformState extends State<PlayingWaveform>
   // widget, per the user's preference. Kept in sync from build().
   bool _freezeWhenUnfocused = false;
 
-  static const _phases = [0.0, 1.4, 2.8];
   static const _minHeightFactor = 0.25;
   static const _maxHeightFactor = 0.875;
 
@@ -103,33 +102,70 @@ class _PlayingWaveformState extends State<PlayingWaveform>
       child: SizedBox(
         width: widget.size,
         height: widget.size,
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, _) {
-            final t = _controller.value * 2 * pi;
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (var i = 0; i < _phases.length; i++) ...[
-                  if (i != 0) SizedBox(width: spacing),
-                  Container(
-                    width: barWidth,
-                    height:
-                        minHeight +
-                        ((sin(t + _phases[i]) + 1) / 2) *
-                            (maxHeight - minHeight),
-                    decoration: BoxDecoration(
-                      color: widget.color,
-                      borderRadius: BorderRadius.circular(barWidth / 2),
-                    ),
-                  ),
-                ],
-              ],
-            );
-          },
+        child: CustomPaint(
+          painter: _PlayingWaveformPainter(
+            animation: _controller,
+            color: widget.color,
+            minHeight: minHeight,
+            maxHeight: maxHeight,
+            barWidth: barWidth,
+            spacing: spacing,
+          ),
         ),
       ),
     );
+  }
+}
+
+class _PlayingWaveformPainter extends CustomPainter {
+  final Animation<double> animation;
+  final Color color;
+  final double minHeight;
+  final double maxHeight;
+  final double barWidth;
+  final double spacing;
+
+  static const _phases = [0.0, 1.4, 2.8];
+
+  _PlayingWaveformPainter({
+    required this.animation,
+    required this.color,
+    required this.minHeight,
+    required this.maxHeight,
+    required this.barWidth,
+    required this.spacing,
+  }) : super(repaint: animation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = animation.value * 2 * pi;
+    final totalWidth =
+        barWidth * _phases.length + spacing * (_phases.length - 1);
+    var x = (size.width - totalWidth) / 2;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    final radius = Radius.circular(barWidth / 2);
+
+    for (var i = 0; i < _phases.length; i++) {
+      final barHeight =
+          minHeight + ((sin(t + _phases[i]) + 1) / 2) * (maxHeight - minHeight);
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, size.height - barHeight, barWidth, barHeight),
+        radius,
+      );
+      canvas.drawRRect(rect, paint);
+      x += barWidth + spacing;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlayingWaveformPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.minHeight != minHeight ||
+        oldDelegate.maxHeight != maxHeight ||
+        oldDelegate.barWidth != barWidth ||
+        oldDelegate.spacing != spacing ||
+        !identical(oldDelegate.animation, animation);
   }
 }

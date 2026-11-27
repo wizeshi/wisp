@@ -21,6 +21,7 @@ import 'package:wisp/features/playback/services/playback_coordinator.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/services/system/app_focus_service.dart';
+import 'package:wisp/shared/widgets/display/focus_freeze_builder.dart';
 import 'package:wisp/shared/widgets/display/sliding_track_background.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
@@ -78,6 +79,7 @@ class _LyricsViewState extends State<LyricsView>
   double? _delaySyncValue;
 
   bool _freezeWhenUnfocused = false;
+  final List<TapGestureRecognizer> _attributionRecognizers = [];
 
   static const Duration _lineScrollDuration = Duration(milliseconds: 620);
 
@@ -113,9 +115,16 @@ class _LyricsViewState extends State<LyricsView>
     _positionTicker?.dispose();
     _scrollController.dispose();
     _clearLineAllocations();
+    _disposeAttributionRecognizers();
     _delayController.dispose();
-    PaintingBinding.instance.imageCache.clearLiveImages();
     super.dispose();
+  }
+
+  void _disposeAttributionRecognizers() {
+    for (final recognizer in _attributionRecognizers) {
+      recognizer.dispose();
+    }
+    _attributionRecognizers.clear();
   }
 
   void _clearLineAllocations() {
@@ -1277,16 +1286,20 @@ class _LyricsViewState extends State<LyricsView>
     );
   }
 
+  static final RegExp _attributionLinkRegex = RegExp(
+    r'\[([^\]]+)\]\((https?://[^\)]+)\)',
+  );
+
   Widget _buildAttributionText(
     String text, {
     required TextStyle baseStyle,
     required TextStyle linkStyle,
   }) {
+    _disposeAttributionRecognizers();
     final spans = <InlineSpan>[];
-    final linkRegex = RegExp(r'\[([^\]]+)\]\((https?://[^\)]+)\)');
     int lastMatchEnd = 0;
 
-    for (final match in linkRegex.allMatches(text)) {
+    for (final match in _attributionLinkRegex.allMatches(text)) {
       if (match.start > lastMatchEnd) {
         spans.add(TextSpan(
           text: text.substring(lastMatchEnd, match.start),
@@ -1295,17 +1308,19 @@ class _LyricsViewState extends State<LyricsView>
       }
       final linkText = match.group(1) ?? '';
       final linkUrl = match.group(2) ?? '';
+      final recognizer = TapGestureRecognizer()
+        ..onTap = () async {
+          final uri = Uri.tryParse(linkUrl);
+          if (uri != null && await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        };
+      _attributionRecognizers.add(recognizer);
       spans.add(
         TextSpan(
           text: linkText,
           style: linkStyle,
-          recognizer: TapGestureRecognizer()
-            ..onTap = () async {
-              final uri = Uri.tryParse(linkUrl);
-              if (uri != null && await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
+          recognizer: recognizer,
         ),
       );
       lastMatchEnd = match.end;
@@ -1567,33 +1582,8 @@ class _MobileLyricsPlaybackBar extends StatefulWidget {
       _MobileLyricsPlaybackBarState();
 }
 
-class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
-    with SingleTickerProviderStateMixin {
-  Ticker? _ticker;
+class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar> {
   double? _dragPositionRatio;
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = createTicker((_) {
-      if (!mounted) return;
-      if (!AppFocusService.instance.isFocused.value) return;
-      setState(() {});
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final coordinator = context.read<PlaybackCoordinator>();
-      if (coordinator.effectiveIsPlaying) {
-        _ticker?.start();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _ticker?.dispose();
-    super.dispose();
-  }
 
   Color _tintedDominantColor(
     Color color,
@@ -1622,41 +1612,19 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
     return '$minutes:$seconds';
   }
 
-  void _syncTicker(bool isPlaying) {
-    if (isPlaying) {
-      if (_ticker != null && !_ticker!.isActive) {
-        _ticker!.start();
-      }
-    } else {
-      if (_ticker != null && _ticker!.isActive) {
-        _ticker!.stop();
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    context.watch<WispAudioHandler>();
-    final coordinator = context.watch<PlaybackCoordinator>();
-    final isPlaying = coordinator.effectiveIsPlaying;
+    final coordinator = context.read<PlaybackCoordinator>();
+    final isPlaying = context.select<PlaybackCoordinator, bool>(
+      (c) => c.effectiveIsPlaying,
+    );
+    final freezeProgress = context.select<PreferencesProvider, bool>(
+      (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+        PausedBackgroundWidget.playerProgressBar,
+      ),
+    );
 
-    _syncTicker(isPlaying);
-
-    final position = coordinator.effectiveInterpolatedPosition;
     final durationSecs = widget.track.durationSecs;
-    final duration = durationSecs > 0
-        ? Duration(seconds: durationSecs)
-        : (position > Duration.zero ? position : const Duration(seconds: 1));
-
-    final maxMs = duration.inMilliseconds;
-    final curMs = position.inMilliseconds.clamp(0, maxMs);
-    final progress = _dragPositionRatio ??
-        (maxMs > 0 ? (curMs / maxMs).clamp(0.0, 1.0) : 0.0);
-
-    final displayPosition = _dragPositionRatio != null
-        ? Duration(milliseconds: (_dragPositionRatio! * maxMs).round())
-        : position;
-
     final colors = context.colors;
     final barBackground =
         _tintedDominantColor(widget.dominantColor, colors, blend: 0.7)
@@ -1684,65 +1652,106 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Progress Bar & Durations
-                  SliderTheme(
-                    data: SliderThemeData(
-                      trackHeight: 3,
-                      thumbShape: const RoundSliderThumbShape(
-                        enabledThumbRadius: 5,
-                      ),
-                      overlayShape: const RoundSliderOverlayShape(
-                        overlayRadius: 10,
-                      ),
-                      activeTrackColor: barInk,
-                      inactiveTrackColor: barInk.withValues(alpha: 0.22),
-                      thumbColor: barInk,
-                      overlayColor: barInk.withValues(alpha: 0.15),
-                    ),
-                    child: Slider(
-                      value: progress,
-                      onChangeStart: (val) {
-                        setState(() {
-                          _dragPositionRatio = val;
-                        });
-                      },
-                      onChanged: (value) {
-                        setState(() {
-                          _dragPositionRatio = value;
-                        });
-                      },
-                      onChangeEnd: (value) {
-                        final targetMs = (value * maxMs).round();
-                        coordinator.seek(Duration(milliseconds: targetMs));
-                        setState(() {
-                          _dragPositionRatio = null;
-                        });
-                      },
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          _formatMobileDuration(displayPosition),
-                          style: TextStyle(
-                            color: barInk.withValues(alpha: 0.6),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Text(
-                          _formatMobileDuration(duration),
-                          style: TextStyle(
-                            color: barInk.withValues(alpha: 0.6),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
+                  ValueListenableBuilder<Duration>(
+                    valueListenable: coordinator.effectivePositionListenable,
+                    builder: (context, position, _) {
+                      Widget buildProgress(Duration pos) {
+                        final duration = durationSecs > 0
+                            ? Duration(seconds: durationSecs)
+                            : (pos > Duration.zero
+                                  ? pos
+                                  : const Duration(seconds: 1));
+                        final maxMs = duration.inMilliseconds;
+                        final curMs = pos.inMilliseconds.clamp(0, maxMs);
+                        final progress = _dragPositionRatio ??
+                            (maxMs > 0 ? (curMs / maxMs).clamp(0.0, 1.0) : 0.0);
+                        final displayPosition = _dragPositionRatio != null
+                            ? Duration(
+                                milliseconds: (_dragPositionRatio! * maxMs)
+                                    .round(),
+                              )
+                            : pos;
+
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SliderTheme(
+                              data: SliderThemeData(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 5,
+                                ),
+                                overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 10,
+                                ),
+                                activeTrackColor: barInk,
+                                inactiveTrackColor:
+                                    barInk.withValues(alpha: 0.22),
+                                thumbColor: barInk,
+                                overlayColor: barInk.withValues(alpha: 0.15),
+                              ),
+                              child: Slider(
+                                value: progress,
+                                onChangeStart: (val) {
+                                  setState(() {
+                                    _dragPositionRatio = val;
+                                  });
+                                },
+                                onChanged: (value) {
+                                  setState(() {
+                                    _dragPositionRatio = value;
+                                  });
+                                },
+                                onChangeEnd: (value) {
+                                  final targetMs = (value * maxMs).round();
+                                  coordinator.seek(
+                                    Duration(milliseconds: targetMs),
+                                  );
+                                  setState(() {
+                                    _dragPositionRatio = null;
+                                  });
+                                },
+                              ),
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 4),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _formatMobileDuration(displayPosition),
+                                    style: TextStyle(
+                                      color: barInk.withValues(alpha: 0.6),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    _formatMobileDuration(duration),
+                                    style: TextStyle(
+                                      color: barInk.withValues(alpha: 0.6),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      if (freezeProgress && _dragPositionRatio == null) {
+                        return FocusFreezeBuilder<Duration>(
+                          value: position,
+                          builder: (context, frozenPos) =>
+                              buildProgress(frozenPos),
+                        );
+                      }
+                      return buildProgress(position);
+                    },
                   ),
                   const SizedBox(height: 2),
                   // Controls: Skip Backward, Play/Pause, Skip Forward
@@ -1766,10 +1775,8 @@ class _MobileLyricsPlaybackBarState extends State<_MobileLyricsPlaybackBar>
                           onTap: () {
                             if (isPlaying) {
                               coordinator.pause();
-                              _syncTicker(false);
                             } else {
                               coordinator.play();
-                              _syncTicker(true);
                             }
                           },
                           child: Container(

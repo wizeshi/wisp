@@ -369,8 +369,23 @@ class _WispAppState extends State<WispApp> with WindowListener {
         ChangeNotifierProvider(create: (_) => NavigationState()),
         ChangeNotifierProvider.value(value: DesktopNotificationCenter.instance),
       ],
-      child: Consumer2<CoverArtPaletteProvider, PreferencesProvider>(
-        builder: (context, palette, preferences, child) {
+      child: Selector2<
+        CoverArtPaletteProvider,
+        PreferencesProvider,
+        ({
+          ColorScheme? lightPalette,
+          ColorScheme? darkPalette,
+          AppStyle style,
+          ThemeMode themeMode,
+        })
+      >(
+        selector: (_, palette, preferences) => (
+          lightPalette: palette.lightPalette,
+          darkPalette: palette.darkPalette,
+          style: preferences.style,
+          themeMode: preferences.themeMode,
+        ),
+        builder: (context, themeSlice, child) {
           return MaterialApp.router(
             routerConfig: _router,
             title: 'wisp',
@@ -393,14 +408,14 @@ class _WispAppState extends State<WispApp> with WindowListener {
               );
             },
             theme: AppTheme.light(
-              paletteOverride: palette.lightPalette,
-              appStyle: preferences.style,
+              paletteOverride: themeSlice.lightPalette,
+              appStyle: themeSlice.style,
             ),
             darkTheme: AppTheme.dark(
-              paletteOverride: palette.darkPalette,
-              appStyle: preferences.style,
+              paletteOverride: themeSlice.darkPalette,
+              appStyle: themeSlice.style,
             ),
-            themeMode: preferences.themeMode,
+            themeMode: themeSlice.themeMode,
           );
         },
       ),

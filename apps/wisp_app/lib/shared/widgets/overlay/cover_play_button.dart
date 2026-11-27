@@ -35,15 +35,16 @@ class PlaybackAffordance extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          AnimatedOpacity(
-            opacity: showWaveform ? 1 : 0,
-            duration: const Duration(milliseconds: 120),
-            child: PlayingWaveform(
-              active: showWaveform,
-              color: Theme.of(context).colorScheme.primary,
-              size: waveformSize,
+          if (isPlaying)
+            AnimatedOpacity(
+              opacity: showWaveform ? 1 : 0,
+              duration: const Duration(milliseconds: 120),
+              child: PlayingWaveform(
+                active: showWaveform,
+                color: Theme.of(context).colorScheme.primary,
+                size: waveformSize,
+              ),
             ),
-          ),
           if (onPressed != null)
             AnimatedOpacity(
               opacity: showButton ? 1 : 0,

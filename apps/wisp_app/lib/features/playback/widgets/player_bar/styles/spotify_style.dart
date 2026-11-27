@@ -82,7 +82,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
                       borderRadius: BorderRadius.circular(12),
                       onTap: () => FullScreenPlayer.show(builderContext),
                       child: Container(
-                        width: MediaQuery.of(builderContext).size.width - 32,
+                        width: MediaQuery.sizeOf(builderContext).width - 32,
                         height: 60,
                         decoration: BoxDecoration(
                           color: bgColor.withValues(alpha: isDark ? 0.80 : 0.92),
@@ -451,23 +451,20 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     required Color trackBg,
     required Color bufferedColor,
   }) {
+    final coordinator = context.read<PlaybackCoordinator>();
     return Selector2<
       global_audio_player.WispAudioHandler,
       PlaybackCoordinator,
-      _PositionData
+      ({Duration duration, bool isLoading})
     >(
-      selector: (context, player, coordinator) => _PositionData(
-        position: coordinator.useLinkedPlaybackState
-            ? coordinator.effectiveThrottledPosition
-            : player.throttledPosition,
-        bufferedPosition: coordinator.effectiveBufferedPosition,
+      selector: (context, player, coord) => (
         duration: player.duration,
         isLoading:
-            !coordinator.useLinkedPlaybackState &&
+            !coord.useLinkedPlaybackState &&
             (player.isLoading || player.isBuffering),
       ),
-      builder: (context, data, _) {
-        if (data.isLoading) {
+      builder: (context, meta, _) {
+        if (meta.isLoading) {
           return SizedBox(
             height: 3,
             child: LinearProgressIndicator(
@@ -477,57 +474,68 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
           );
         }
 
-        final duration = data.duration;
-        final position = data.position;
-        final progress = duration.inMilliseconds > 0
-            ? (position.inMilliseconds / duration.inMilliseconds).clamp(
-                0.0,
-                1.0,
-              )
-            : 0.0;
-        final bufferedProgress = duration.inMilliseconds > 0
-            ? (data.bufferedPosition.inMilliseconds / duration.inMilliseconds)
-                  .clamp(0.0, 1.0)
-            : 0.0;
-
         final shouldFreeze = context.select<PreferencesProvider, bool>(
           (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
             PausedBackgroundWidget.playerProgressBar,
           ),
         );
 
-        if (shouldFreeze) {
-          return FocusFreezeBuilder<_PositionData>(
-            value: data,
-            builder: (context, frozenData) {
-              final fDuration = frozenData.duration;
-              final fProgress = fDuration.inMilliseconds > 0
-                  ? (frozenData.position.inMilliseconds /
-                            fDuration.inMilliseconds)
-                        .clamp(0.0, 1.0)
-                  : 0.0;
-              final fBuffered = fDuration.inMilliseconds > 0
-                  ? (frozenData.bufferedPosition.inMilliseconds /
-                            fDuration.inMilliseconds)
-                        .clamp(0.0, 1.0)
-                  : 0.0;
-              return _buildMiniProgressIndicator(
-                fProgress,
-                fBuffered,
-                progressColor: progressColor,
-                trackBg: trackBg,
-                bufferedColor: bufferedColor,
-              );
-            },
-          );
-        }
+        return ValueListenableBuilder<Duration>(
+          valueListenable: coordinator.effectivePositionListenable,
+          builder: (context, position, _) {
+            final data = _PositionData(
+              position: position,
+              bufferedPosition: coordinator.effectiveBufferedPosition,
+              duration: meta.duration,
+              isLoading: false,
+            );
 
-        return _buildMiniProgressIndicator(
-          progress,
-          bufferedProgress,
-          progressColor: progressColor,
-          trackBg: trackBg,
-          bufferedColor: bufferedColor,
+            if (shouldFreeze) {
+              return FocusFreezeBuilder<_PositionData>(
+                value: data,
+                builder: (context, frozenData) {
+                  final fDuration = frozenData.duration;
+                  final fProgress = fDuration.inMilliseconds > 0
+                      ? (frozenData.position.inMilliseconds /
+                                fDuration.inMilliseconds)
+                            .clamp(0.0, 1.0)
+                      : 0.0;
+                  final fBuffered = fDuration.inMilliseconds > 0
+                      ? (frozenData.bufferedPosition.inMilliseconds /
+                                fDuration.inMilliseconds)
+                            .clamp(0.0, 1.0)
+                      : 0.0;
+                  return _buildMiniProgressIndicator(
+                    fProgress,
+                    fBuffered,
+                    progressColor: progressColor,
+                    trackBg: trackBg,
+                    bufferedColor: bufferedColor,
+                  );
+                },
+              );
+            }
+
+            final duration = data.duration;
+            final progress = duration.inMilliseconds > 0
+                ? (position.inMilliseconds / duration.inMilliseconds).clamp(
+                    0.0,
+                    1.0,
+                  )
+                : 0.0;
+            final bufferedProgress = duration.inMilliseconds > 0
+                ? (data.bufferedPosition.inMilliseconds / duration.inMilliseconds)
+                      .clamp(0.0, 1.0)
+                : 0.0;
+
+            return _buildMiniProgressIndicator(
+              progress,
+              bufferedProgress,
+              progressColor: progressColor,
+              trackBg: trackBg,
+              bufferedColor: bufferedColor,
+            );
+          },
         );
       },
     );

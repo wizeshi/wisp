@@ -48,6 +48,9 @@ class WordFillLyricsLine extends StatefulWidget {
   /// [positionMsListenable] is provided.
   final bool enableTicker;
 
+  /// Whether the internal ticker should pause when the app/window is unfocused.
+  final bool pauseWhenUnfocused;
+
   const WordFillLyricsLine({
     super.key,
     required this.line,
@@ -63,6 +66,7 @@ class WordFillLyricsLine extends StatefulWidget {
     this.softWrap,
     this.layoutWidth,
     this.enableTicker = true,
+    this.pauseWhenUnfocused = true,
   });
 
   @override
@@ -75,6 +79,38 @@ class _WordFillLyricsLineState extends State<WordFillLyricsLine>
   ValueNotifier<int>? _internalPositionNotifier;
   Ticker? _ticker;
   PlaybackCoordinator? _coordinatorRef;
+  LyricsLineLayoutMetrics? _cachedLayoutMetrics;
+
+  LyricsLineLayoutMetrics _getCachedLayout({
+    required TextStyle style,
+    required TextAlign textAlign,
+    required TextScaler textScaler,
+    required double maxWidth,
+  }) {
+    final existing = _cachedLayoutMetrics;
+    if (existing != null &&
+        existing.matches(
+          lineContent: widget.line.content,
+          words: widget.line.words,
+          style: style,
+          textAlign: textAlign,
+          textScaler: textScaler,
+          maxWidth: maxWidth,
+        )) {
+      return existing;
+    }
+    final computed = LyricsLineLayoutMetrics.compute(
+      lineContent: widget.line.content,
+      words: widget.line.words,
+      wordRanges: _wordRanges,
+      style: style,
+      textAlign: textAlign,
+      textScaler: textScaler,
+      maxWidth: maxWidth,
+    );
+    _cachedLayoutMetrics = computed;
+    return computed;
+  }
 
   @override
   void initState() {
@@ -110,6 +146,7 @@ class _WordFillLyricsLineState extends State<WordFillLyricsLine>
   }
 
   void _initRanges() {
+    _cachedLayoutMetrics = null;
     if (widget.line.hasWordTiming) {
       _wordRanges = resolveWordRanges(widget.line.content, widget.line.words);
     } else {
@@ -145,7 +182,8 @@ class _WordFillLyricsLineState extends State<WordFillLyricsLine>
 
     _internalPositionNotifier ??= ValueNotifier<int>(widget.positionMs ?? 0);
 
-    final isFocused = AppFocusService.instance.isFocused.value;
+    final isFocused =
+        !widget.pauseWhenUnfocused || AppFocusService.instance.isFocused.value;
     final isPlaying = _coordinatorRef?.effectiveIsPlaying ?? true;
 
     if (isFocused && isPlaying) {
@@ -160,7 +198,9 @@ class _WordFillLyricsLineState extends State<WordFillLyricsLine>
 
   void _onTick(Duration elapsed) {
     if (!mounted) return;
-    if (!AppFocusService.instance.isFocused.value) return;
+    if (widget.pauseWhenUnfocused && !AppFocusService.instance.isFocused.value) {
+      return;
+    }
 
     final coordinator = _coordinatorRef;
     if (coordinator == null || !coordinator.effectiveIsPlaying) {
@@ -212,54 +252,70 @@ class _WordFillLyricsLineState extends State<WordFillLyricsLine>
     final effectiveOverflow = widget.overflow ?? (widget.maxLines != null ? TextOverflow.ellipsis : null);
 
     if (effectiveListenable != null && widget.line.hasWordTiming) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final layoutWidth = widget.layoutWidth ??
-              (constraints.maxWidth.isFinite && constraints.maxWidth > 0
-                  ? constraints.maxWidth
-                  : null);
+      return RepaintBoundary(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final layoutWidth = widget.layoutWidth ??
+                (constraints.maxWidth.isFinite && constraints.maxWidth > 0
+                    ? constraints.maxWidth
+                    : null);
+            final effectiveMaxW =
+                (layoutWidth != null && layoutWidth.isFinite && layoutWidth > 0)
+                    ? layoutWidth
+                    : (constraints.maxWidth.isFinite &&
+                              constraints.maxWidth > 0
+                          ? constraints.maxWidth
+                          : double.infinity);
+            final cachedLayout = _getCachedLayout(
+              style: effectiveBaseStyle,
+              textAlign: textAlign,
+              textScaler: textScaler,
+              maxWidth: effectiveMaxW,
+            );
 
-          return Stack(
-            alignment: alignment,
-            children: [
-              Text(
-                widget.line.content,
-                style: effectiveBaseStyle.copyWith(color: inactiveColor),
-                textAlign: textAlign,
-                maxLines: widget.maxLines,
-                overflow: effectiveOverflow,
-                softWrap: effectiveSoftWrap,
-              ),
-              ValueListenableBuilder<int>(
-                valueListenable: effectiveListenable,
-                builder: (context, positionMs, child) {
-                  return ClipPath(
-                    clipper: LyricsLineFillClipper(
-                      lineContent: widget.line.content,
-                      words: widget.line.words,
-                      wordRanges: _wordRanges,
-                      lineEndTimeMs: widget.line.endTimeMs,
-                      style: effectiveBaseStyle,
-                      textAlign: textAlign,
-                      textScaler: textScaler,
-                      layoutWidth: layoutWidth,
-                      positionMs: positionMs,
-                    ),
-                    child: child,
-                  );
-                },
-                child: Text(
+            return Stack(
+              alignment: alignment,
+              children: [
+                Text(
                   widget.line.content,
-                  style: effectiveBaseStyle.copyWith(color: activeColor),
+                  style: effectiveBaseStyle.copyWith(color: inactiveColor),
                   textAlign: textAlign,
                   maxLines: widget.maxLines,
                   overflow: effectiveOverflow,
                   softWrap: effectiveSoftWrap,
                 ),
-              ),
-            ],
-          );
-        },
+                ValueListenableBuilder<int>(
+                  valueListenable: effectiveListenable,
+                  builder: (context, positionMs, child) {
+                    return ClipPath(
+                      clipper: LyricsLineFillClipper(
+                        lineContent: widget.line.content,
+                        words: widget.line.words,
+                        wordRanges: _wordRanges,
+                        lineEndTimeMs: widget.line.endTimeMs,
+                        style: effectiveBaseStyle,
+                        textAlign: textAlign,
+                        textScaler: textScaler,
+                        layoutWidth: layoutWidth,
+                        positionMs: positionMs,
+                        cachedLayout: cachedLayout,
+                      ),
+                      child: child,
+                    );
+                  },
+                  child: Text(
+                    widget.line.content,
+                    style: effectiveBaseStyle.copyWith(color: activeColor),
+                    textAlign: textAlign,
+                    maxLines: widget.maxLines,
+                    overflow: effectiveOverflow,
+                    softWrap: effectiveSoftWrap,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       );
     }
 
@@ -309,48 +365,64 @@ class _WordFillLyricsLineState extends State<WordFillLyricsLine>
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final layoutWidth = widget.layoutWidth ??
-            (constraints.maxWidth.isFinite && constraints.maxWidth > 0
-                ? constraints.maxWidth
-                : null);
+    return RepaintBoundary(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final layoutWidth = widget.layoutWidth ??
+              (constraints.maxWidth.isFinite && constraints.maxWidth > 0
+                  ? constraints.maxWidth
+                  : null);
+          final effectiveMaxW =
+              (layoutWidth != null && layoutWidth.isFinite && layoutWidth > 0)
+                  ? layoutWidth
+                  : (constraints.maxWidth.isFinite &&
+                            constraints.maxWidth > 0
+                        ? constraints.maxWidth
+                        : double.infinity);
+          final cachedLayout = _getCachedLayout(
+            style: effectiveBaseStyle,
+            textAlign: textAlign,
+            textScaler: textScaler,
+            maxWidth: effectiveMaxW,
+          );
 
-        return Stack(
-          alignment: alignment,
-          children: [
-            Text(
-              widget.line.content,
-              style: effectiveBaseStyle.copyWith(color: inactiveColor),
-              textAlign: textAlign,
-              maxLines: widget.maxLines,
-              overflow: effectiveOverflow,
-              softWrap: effectiveSoftWrap,
-            ),
-            ClipPath(
-              clipper: LyricsLineFillClipper(
-                lineContent: widget.line.content,
-                words: widget.line.words,
-                wordRanges: _wordRanges,
-                lineEndTimeMs: widget.line.endTimeMs,
-                style: effectiveBaseStyle,
-                textAlign: textAlign,
-                textScaler: textScaler,
-                layoutWidth: layoutWidth,
-                positionMs: pos,
-              ),
-              child: Text(
+          return Stack(
+            alignment: alignment,
+            children: [
+              Text(
                 widget.line.content,
-                style: effectiveBaseStyle.copyWith(color: activeColor),
+                style: effectiveBaseStyle.copyWith(color: inactiveColor),
                 textAlign: textAlign,
                 maxLines: widget.maxLines,
                 overflow: effectiveOverflow,
                 softWrap: effectiveSoftWrap,
               ),
-            ),
-          ],
-        );
-      },
+              ClipPath(
+                clipper: LyricsLineFillClipper(
+                  lineContent: widget.line.content,
+                  words: widget.line.words,
+                  wordRanges: _wordRanges,
+                  lineEndTimeMs: widget.line.endTimeMs,
+                  style: effectiveBaseStyle,
+                  textAlign: textAlign,
+                  textScaler: textScaler,
+                  layoutWidth: layoutWidth,
+                  positionMs: pos,
+                  cachedLayout: cachedLayout,
+                ),
+                child: Text(
+                  widget.line.content,
+                  style: effectiveBaseStyle.copyWith(color: activeColor),
+                  textAlign: textAlign,
+                  maxLines: widget.maxLines,
+                  overflow: effectiveOverflow,
+                  softWrap: effectiveSoftWrap,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

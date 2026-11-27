@@ -41,13 +41,47 @@ import '../../components/mobile_artist_info_card.dart';
 import '../../components/player_hero.dart';
 import 'apple_music_full_player.dart';
 
-class SpotifyMobileFullScreenPlayer extends StatelessWidget {
+class SpotifyMobileFullScreenPlayer extends StatefulWidget {
   final ScrollController scrollController;
 
   const SpotifyMobileFullScreenPlayer({
     required this.scrollController,
     super.key,
   });
+
+  @override
+  State<SpotifyMobileFullScreenPlayer> createState() =>
+      _SpotifyMobileFullScreenPlayerState();
+}
+
+class _SpotifyMobileFullScreenPlayerState
+    extends State<SpotifyMobileFullScreenPlayer> {
+  final Map<String, Future<String?>> _canvasUrlFutureCache = {};
+
+  ScrollController get scrollController => widget.scrollController;
+
+  Future<String?>? _getCanvasUrlFuture(
+    MetadataManager metadataManager,
+    GenericSong? currentTrack,
+    bool canUseCanvas,
+  ) {
+    if (!canUseCanvas || currentTrack == null) {
+      return null;
+    }
+    final trackId = currentTrack.id;
+    if (trackId.isEmpty) return null;
+    final cached = _canvasUrlFutureCache[trackId];
+    if (cached != null) return cached;
+    if (_canvasUrlFutureCache.length >= 24) {
+      _canvasUrlFutureCache.remove(_canvasUrlFutureCache.keys.first);
+    }
+    final future = metadataManager.getCanvasUrl(
+      trackId,
+      source: currentTrack.source,
+    );
+    _canvasUrlFutureCache[trackId] = future;
+    return future;
+  }
 
   // This method ensures that before navigating to other screens (e.g. albums),
   // the full player is closed first.
@@ -345,9 +379,9 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return Consumer<PlaybackCoordinator>(
-      builder: (ctx, coordinator, child) {
-        final basePosition = coordinator.effectiveInterpolatedPosition;
+    return ValueListenableBuilder<Duration>(
+      valueListenable: context.read<PlaybackCoordinator>().effectivePositionListenable,
+      builder: (ctx, basePosition, child) {
         final delayMs =
             (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000)
                 .round();
@@ -578,9 +612,9 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
         wordState.isLoading ||
         (wordState.lyrics == null && lineState.isLoading);
 
-    return Consumer<PlaybackCoordinator>(
-      builder: (ctx, coordinator, child) {
-        final basePosition = coordinator.effectiveThrottledPosition;
+    return ValueListenableBuilder<Duration>(
+      valueListenable: context.read<PlaybackCoordinator>().effectivePositionListenable,
+      builder: (ctx, basePosition, child) {
         final delayMs =
             (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000)
                 .round();
@@ -866,72 +900,64 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
     global_audio_player.WispAudioHandler player,
     Color bgColor,
   ) {
+    final coordinator = context.read<PlaybackCoordinator>();
     final useHandoffState = context.select<PlaybackCoordinator, bool>(
-      (coordinator) => coordinator.useLinkedPlaybackState,
+      (c) => c.useLinkedPlaybackState,
     );
-    final isLoading = _isUiLoading(player, useHandoffState);
     final colorScheme = Theme.of(context).colorScheme;
-    final position = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveInterpolatedPosition,
-    );
-    final bufferedPosition = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveBufferedPosition,
-    );
     final duration = player.duration;
-    final clampedPosition = position > duration ? duration : position;
-    final progress = duration.inMilliseconds > 0
-        ? position.inMilliseconds / duration.inMilliseconds
-        : 0.0;
-    final bufferedProgress = duration.inMilliseconds > 0
-        ? (bufferedPosition.inMilliseconds / duration.inMilliseconds).clamp(
-            0.0,
-            1.0,
-          )
-        : 0.0;
 
-    if (isLoading) {
-      return Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: SizedBox(
-                height: 4,
-                child: LinearProgressIndicator(
-                  backgroundColor: Colors.grey[800],
-                  valueColor: AlwaysStoppedAnimation<Color>(bgColor),
+    return ValueListenableBuilder<Duration>(
+      valueListenable: coordinator.effectivePositionListenable,
+      builder: (context, position, _) {
+        final isLoading = _isUiLoading(player, useHandoffState, position);
+        final bufferedPosition = coordinator.effectiveBufferedPosition;
+        final clampedPosition = position > duration ? duration : position;
+        final progress = duration.inMilliseconds > 0
+            ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+            : 0.0;
+        final bufferedProgress = duration.inMilliseconds > 0
+            ? (bufferedPosition.inMilliseconds / duration.inMilliseconds).clamp(
+                0.0,
+                1.0,
+              )
+            : 0.0;
+
+        if (isLoading) {
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: SizedBox(
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Colors.grey[800],
+                      valueColor: AlwaysStoppedAnimation<Color>(bgColor),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _formatDuration(clampedPosition),
-                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _formatDuration(clampedPosition),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                    ),
+                    Text(
+                      _formatDuration(duration),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                    ),
+                  ],
                 ),
-                Text(
-                  _formatDuration(duration),
-                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-      duration: const Duration(milliseconds: 200),
-      builder: (context, animatedProgress, child) {
-        final animatedPosition = Duration(
-          milliseconds: (animatedProgress * duration.inMilliseconds).round(),
-        );
+              ),
+            ],
+          );
+        }
 
         return Column(
           children: [
@@ -954,7 +980,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                 ),
                 child: Slider(
                   padding: EdgeInsets.zero,
-                  value: animatedProgress,
+                  value: progress,
                   secondaryTrackValue: bufferedProgress,
                   onChanged: (value) {
                     final newPosition = Duration(
@@ -971,7 +997,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _formatDuration(animatedPosition),
+                    _formatDuration(clampedPosition),
                     style: TextStyle(color: Colors.grey[400], fontSize: 11),
                   ),
                   Text(
@@ -1149,8 +1175,9 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
 
   bool _isUiLoading(
     global_audio_player.WispAudioHandler player,
-    bool useHandoffState,
-  ) {
+    bool useHandoffState, [
+    Duration? position,
+  ]) {
     if (useHandoffState) {
       return false;
     }
@@ -1165,7 +1192,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
 
     return !player.isPlaying &&
         player.duration.inMilliseconds == 0 &&
-        player.throttledPosition.inMilliseconds <= 0;
+        (position ?? player.position).inMilliseconds <= 0;
   }
 
   Widget _buildSpotifyTopCanvasBackground(
@@ -1207,8 +1234,8 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
-      builder: (context, player, lyricsProvider, child) {
+    return Consumer<global_audio_player.WispAudioHandler>(
+      builder: (context, player, child) {
         final currentTrack = player.currentTrack;
         final imageUrl = currentTrack?.thumbnailUrl ?? '';
         final useCanvas = context.select<PreferencesProvider, bool>(
@@ -1222,10 +1249,15 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
               MetadataCapability.canvas,
               source: currentTrack.source,
             );
+        final canvasFuture = _getCanvasUrlFuture(
+          metadataManager,
+          currentTrack,
+          canUseCanvas,
+        );
 
             final maxHeight = MediaQuery.sizeOf(context).height;
 
-            final viewPadding = MediaQuery.of(context).viewPadding;
+            final viewPadding = MediaQuery.viewPaddingOf(context);
             final windowPadding = MediaQueryData.fromView(
               WidgetsBinding.instance.platformDispatcher.views.first,
             ).padding;
@@ -1286,10 +1318,13 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                                                       ),
                                               ),
                                             ),
-                                            _buildSingleLyricsLine(
-                                              ctx,
-                                              player,
-                                              lyricsProvider,
+                                            Consumer<LyricsProvider>(
+                                              builder: (ctx, lyricsProvider, _) =>
+                                                  _buildSingleLyricsLine(
+                                                    ctx,
+                                                    player,
+                                                    lyricsProvider,
+                                                  ),
                                             ),
                                             const SizedBox(height: 12),
                                             _buildTrackInfo(
@@ -1316,12 +1351,15 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                _buildLyricsPreview(
-                                  ctx,
-                                  player,
-                                  lyricsProvider,
-                                  bgColor,
-                                  btnColor,
+                                Consumer<LyricsProvider>(
+                                  builder: (ctx, lyricsProvider, _) =>
+                                      _buildLyricsPreview(
+                                        ctx,
+                                        player,
+                                        lyricsProvider,
+                                        bgColor,
+                                        btnColor,
+                                      ),
                                 ),
                                 const SizedBox(height: 16),
                                 _buildArtistInfoSection(currentTrack),
@@ -1369,10 +1407,7 @@ class SpotifyMobileFullScreenPlayer extends StatelessWidget {
             }
 
             return FutureBuilder<String?>(
-              future: metadataManager.getCanvasUrl(
-                currentTrack.id,
-                source: currentTrack.source,
-              ),
+              future: canvasFuture,
               builder: (context, snapshot) {
                 final canvasUrl = snapshot.data ?? '';
                 return buildPlayerScaffold(context, canvasUrl: canvasUrl);

@@ -150,6 +150,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   GenericSong? _currentTrack;
   List<GenericSong> _queue = [];
   List<GenericSong> _originalQueue = [];
+  List<GenericSong> _cachedUnmodifiableQueue = const [];
+  List<GenericSong> _cachedUnmodifiableOriginalQueue = const [];
   int _currentIndex = -1;
   bool _shuffleEnabled = false;
   RepeatMode _repeatMode = RepeatMode.off;
@@ -210,6 +212,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   static const Duration _positionNotifyInterval = Duration(milliseconds: 200);
   final Stopwatch _rawPositionStopwatch = Stopwatch();
+  final ValueNotifier<Duration> _positionNotifier =
+      ValueNotifier<Duration>(Duration.zero);
+  final ValueNotifier<Duration> _bufferedPositionNotifier =
+      ValueNotifier<Duration>(Duration.zero);
   Duration _lastRawPosition = Duration.zero;
   Duration _lastNotifiedPosition = Duration.zero;
   int _lastPositionNotifyMs = 0;
@@ -217,6 +223,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   int _lastMediaPositionMs = -1;
   int _lastMediaUpdateMs = 0;
   Duration? _lastKnownDuration;
+  bool _disposed = false;
 
   int _trackChangeToken = 0;
   int? _lastRecordedFinishToken;
@@ -242,9 +249,12 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   // Getters
   PlaybackState get state => _state;
   GenericSong? get currentTrack => _currentTrack;
-  List<GenericSong> get queueTracks => List.unmodifiable(_queue);
+  List<GenericSong> get queueTracks => _cachedUnmodifiableQueue;
   List<GenericSong> get originalQueueTracks =>
-      List.unmodifiable(_originalQueue);
+      _cachedUnmodifiableOriginalQueue;
+  ValueListenable<Duration> get positionListenable => _positionNotifier;
+  ValueListenable<Duration> get bufferedPositionListenable =>
+      _bufferedPositionNotifier;
   int get currentIndex => _currentIndex;
   int get trackChangeToken => _trackChangeToken;
   bool get shuffleEnabled => _shuffleEnabled;
@@ -419,6 +429,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (!sameQueueById(_originalQueue, snapshot.originalQueue)) {
       _originalQueue = List<GenericSong>.from(snapshot.originalQueue);
       changed = true;
+    }
+
+    if (changed) {
+      _refreshCachedQueues();
     }
 
     final nextIndex = _queue.isEmpty
@@ -706,6 +720,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         _currentTrack = updatedTrack;
         if (_currentIndex >= 0 && _currentIndex < _queue.length) {
           _queue[_currentIndex] = updatedTrack;
+          _refreshCachedQueues();
         }
         _updateMediaItem();
       } else if (durationChanged &&
@@ -775,6 +790,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
         _positionNotifyInterval.inMilliseconds) {
       return;
     }
+    final previousPos = _lastNotifiedPosition;
     _lastNotifiedPosition = position;
     _lastPositionNotifyMs = nowMs;
     _lastPositionUpdateMs = nowMs;
@@ -782,7 +798,13 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       _lastSessionSaveMs = nowMs;
       _saveQueue();
     }
-    notifyListeners();
+    if (!_disposed) {
+      _positionNotifier.value = position;
+      _bufferedPositionNotifier.value = _engine.state.bufferedPosition;
+    }
+    if (previousPos <= Duration.zero && position > Duration.zero) {
+      notifyListeners();
+    }
   }
 
   void _forcePositionUpdate(Duration position) {
@@ -796,6 +818,10 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _lastNotifiedPosition = position;
     _lastPositionNotifyMs = nowMs;
     _lastPositionUpdateMs = nowMs;
+    if (!_disposed) {
+      _positionNotifier.value = position;
+      _bufferedPositionNotifier.value = _engine.state.bufferedPosition;
+    }
     notifyListeners();
   }
 
@@ -1296,7 +1322,14 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     } catch (_) {}
   }
 
+  void _refreshCachedQueues() {
+    _cachedUnmodifiableQueue = List<GenericSong>.unmodifiable(_queue);
+    _cachedUnmodifiableOriginalQueue =
+        List<GenericSong>.unmodifiable(_originalQueue);
+  }
+
   void _broadcastQueue() {
+    _refreshCachedQueues();
     try {
       queue.add(_queue.map(_toMediaItem).toList());
     } catch (_) {}
@@ -2908,6 +2941,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
 
   @override
   void dispose() {
+    _disposed = true;
+    _positionNotifier.dispose();
+    _bufferedPositionNotifier.dispose();
     unawaited(AndroidBackgroundAudioService.instance.releaseLocks());
     _saveVolumePrefs();
     _saveQueue(immediate: true);

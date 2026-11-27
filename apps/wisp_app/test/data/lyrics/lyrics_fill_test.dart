@@ -432,5 +432,88 @@ void main() {
       // 3. The left margin on line 2 (which has no text) must NOT cause clip leak
       // And the wipe does not start from x=0 on screen
     });
+
+    testWidgets('LyricsLineFillClipper cached layout matches uncached bounds across line wrap', (tester) async {
+      const line = LyricsLine(
+        content: 'You get in my way I will feed you to the monster',
+        startTimeMs: 1000,
+        endTimeMs: 5000,
+        words: [
+          LyricsWord(content: 'You', startTimeMs: 1000, endTimeMs: 1300),
+          LyricsWord(content: 'get', startTimeMs: 1300, endTimeMs: 1600),
+          LyricsWord(content: 'in', startTimeMs: 1600, endTimeMs: 1900),
+          LyricsWord(content: 'my', startTimeMs: 1900, endTimeMs: 2200),
+          LyricsWord(content: 'way', startTimeMs: 2200, endTimeMs: 2600),
+          LyricsWord(content: 'I', startTimeMs: 2600, endTimeMs: 2900),
+          LyricsWord(content: 'will', startTimeMs: 2900, endTimeMs: 3200),
+          LyricsWord(content: 'feed', startTimeMs: 3200, endTimeMs: 3500),
+          LyricsWord(content: 'you', startTimeMs: 3500, endTimeMs: 3900),
+          LyricsWord(content: 'to', startTimeMs: 3900, endTimeMs: 4200),
+          LyricsWord(content: 'the', startTimeMs: 4200, endTimeMs: 4500),
+          LyricsWord(content: 'monster', startTimeMs: 4500, endTimeMs: 5000),
+        ],
+      );
+      final ranges = resolveWordRanges(line.content, line.words);
+      const style = TextStyle(fontSize: 24, fontWeight: FontWeight.w700);
+      const testSize = Size(120, 200);
+
+      final cachedMetrics = LyricsLineLayoutMetrics.compute(
+        lineContent: line.content,
+        words: line.words,
+        wordRanges: ranges,
+        style: style,
+        textAlign: TextAlign.left,
+        textScaler: TextScaler.noScaling,
+        maxWidth: testSize.width,
+      );
+      expect(cachedMetrics.lineTops.length, greaterThan(1));
+
+      for (final positionMs in [500, 1450, 3350, 4750, 5500]) {
+        final uncached = LyricsLineFillClipper(
+          lineContent: line.content,
+          words: line.words,
+          wordRanges: ranges,
+          lineEndTimeMs: line.endTimeMs,
+          style: style,
+          textAlign: TextAlign.left,
+          layoutWidth: testSize.width,
+          positionMs: positionMs,
+        );
+        final cached = LyricsLineFillClipper(
+          lineContent: line.content,
+          words: line.words,
+          wordRanges: ranges,
+          lineEndTimeMs: line.endTimeMs,
+          style: style,
+          textAlign: TextAlign.left,
+          layoutWidth: testSize.width,
+          positionMs: positionMs,
+          cachedLayout: cachedMetrics,
+        );
+
+        final uncachedBounds = uncached.getClip(testSize).getBounds();
+        final cachedBounds = cached.getClip(testSize).getBounds();
+        expect(
+          cachedBounds.left,
+          closeTo(uncachedBounds.left, 0.01),
+          reason: 'left mismatch at $positionMs ms',
+        );
+        expect(
+          cachedBounds.top,
+          closeTo(uncachedBounds.top, 0.01),
+          reason: 'top mismatch at $positionMs ms',
+        );
+        expect(
+          cachedBounds.right,
+          closeTo(uncachedBounds.right, 0.01),
+          reason: 'right mismatch at $positionMs ms',
+        );
+        expect(
+          cachedBounds.bottom,
+          closeTo(uncachedBounds.bottom, 0.01),
+          reason: 'bottom mismatch at $positionMs ms',
+        );
+      }
+    });
   });
 }

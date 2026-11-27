@@ -113,7 +113,9 @@ class FullScreenPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = context.watch<PreferencesProvider>().style;
+    final style = context.select<PreferencesProvider, AppStyle>(
+      (p) => p.style,
+    );
     final darkPalette = context.select<CoverArtPaletteProvider, ColorScheme?>(
       (p) => p.darkPalette,
     );
@@ -125,20 +127,26 @@ class FullScreenPlayer extends StatelessWidget {
     final Widget body;
     // Use new desktop fullscreen for Spotify and Original on desktop
     if (_isDesktop && style == AppStyle.Spotify) {
-      body = PopScope(
-        onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) return;
-          unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
-        },
-        child: const SpotifyDesktopFullScreenPlayer(),
+      body = Material(
+        type: MaterialType.transparency,
+        child: PopScope(
+          onPopInvokedWithResult: (didPop, result) {
+            if (!didPop) return;
+            unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
+          },
+          child: const SpotifyDesktopFullScreenPlayer(),
+        ),
       );
     } else if (_isDesktop && style == AppStyle.Original) {
-      body = PopScope(
-        onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) return;
-          unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
-        },
-        child: const OriginalDesktopFullScreenPlayer(),
+      body = Material(
+        type: MaterialType.transparency,
+        child: PopScope(
+          onPopInvokedWithResult: (didPop, result) {
+            if (!didPop) return;
+            unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
+          },
+          child: const OriginalDesktopFullScreenPlayer(),
+        ),
       );
     } else if (_isDesktop) {
       final sheet = DraggableScrollableSheet(
@@ -150,12 +158,15 @@ class FullScreenPlayer extends StatelessWidget {
         builder: (context, scrollController) =>
             _buildSheet(context, scrollController, style),
       );
-      body = PopScope(
-        onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) return;
-          unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
-        },
-        child: sheet,
+      body = Material(
+        type: MaterialType.transparency,
+        child: PopScope(
+          onPopInvokedWithResult: (didPop, result) {
+            if (!didPop) return;
+            unawaited(AppNavigation.instance.disableFullPlayerDesktopMode());
+          },
+          child: sheet,
+        ),
       );
     } else {
       body = Material(

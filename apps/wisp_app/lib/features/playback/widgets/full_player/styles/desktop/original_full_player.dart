@@ -208,10 +208,12 @@ class _OriginalDesktopFullScreenPlayerState
 
   @override
   Widget build(BuildContext context) {
-    final audioHandler = context.watch<global_audio_player.WispAudioHandler>();
-    final coordinator = context.watch<PlaybackCoordinator>();
-    final currentTrack = audioHandler.currentTrack;
-    final isPlaying = coordinator.effectiveIsPlaying;
+    final currentTrack = context.select<global_audio_player.WispAudioHandler, GenericSong?>(
+      (p) => p.currentTrack,
+    );
+    final isPlaying = context.select<PlaybackCoordinator, bool>(
+      (c) => c.effectiveIsPlaying,
+    );
 
     final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
       (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
@@ -860,9 +862,11 @@ class _VinylDiscWidget extends StatelessWidget {
                       ),
 
                       // Grooves and specular sheen lines
-                      CustomPaint(
-                        size: Size(discDiameter, discDiameter),
-                        painter: _VinylGroovesPainter(diameter: discDiameter),
+                      RepaintBoundary(
+                        child: CustomPaint(
+                          size: Size(discDiameter, discDiameter),
+                          painter: _VinylGroovesPainter(diameter: discDiameter),
+                        ),
                       ),
 
                       // Center Label (Track Thumbnail)

@@ -16,8 +16,6 @@ import 'package:wisp/data/sources/metadata/metadata_manager.dart';
 import 'package:wisp/data/models/library_folder.dart';
 import 'package:wisp/features/library/state/library_folders.dart';
 import 'package:wisp/features/library/state/library_state.dart';
-import 'package:wisp/services/audio/wisp_audio_handler.dart';
-import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/shared/widgets/menus/playlist_folder_modals.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/shared/widgets/display/smooth_scroll.dart';
@@ -30,14 +28,6 @@ import 'mobile/original.dart';
 import 'mobile/apple_music.dart';
 
 enum LibrarySidebarEntryType { item }
-
-typedef _SidebarPlaybackHighlight = ({
-  bool isPlaying,
-  PlaybackContextType? contextType,
-  String? contextId,
-  String? contextName,
-  String currentArtistIds,
-});
 
 Widget widgetForThumbnail(Widget child, bool isArtist) {
   if (isArtist) {
@@ -85,6 +75,57 @@ class _WispNavigationState extends State<WispNavigation> {
   bool _isCollapsed = false;
   bool _isHoveringHeader = false;
   bool _layoutCollapsed = false;
+  LibraryState? _observedLibraryState;
+  LibraryFolderState? _observedFolderState;
+  List<dynamic>? _cachedLibraryItems;
+  LibraryView? _cachedLibraryView;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    try {
+      final library = context.read<LibraryState>();
+      if (!identical(_observedLibraryState, library)) {
+        _observedLibraryState?.removeListener(_invalidateLibraryCache);
+        _observedLibraryState = library;
+        _observedLibraryState?.addListener(_invalidateLibraryCache);
+        _cachedLibraryItems = null;
+      }
+    } catch (_) {}
+    try {
+      final folders = context.read<LibraryFolderState>();
+      if (!identical(_observedFolderState, folders)) {
+        _observedFolderState?.removeListener(_invalidateLibraryCache);
+        _observedFolderState = folders;
+        _observedFolderState?.addListener(_invalidateLibraryCache);
+        _cachedLibraryItems = null;
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _observedLibraryState?.removeListener(_invalidateLibraryCache);
+    _observedFolderState?.removeListener(_invalidateLibraryCache);
+    super.dispose();
+  }
+
+  void _invalidateLibraryCache() {
+    _cachedLibraryItems = null;
+  }
+
+  List<dynamic> _getMemoizedLibraryItems(
+    LibraryState library,
+    LibraryFolderState folderState,
+    LibraryView view,
+  ) {
+    if (_cachedLibraryItems != null && _cachedLibraryView == view) {
+      return _cachedLibraryItems!;
+    }
+    _cachedLibraryView = view;
+    _cachedLibraryItems = _computeLibraryItems(library, folderState, view);
+    return _cachedLibraryItems!;
+  }
 
   bool _isDesktop() {
     return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
@@ -489,7 +530,7 @@ class _WispNavigationState extends State<WispNavigation> {
   Widget _buildDesktopSidebar() {
     final libraryState = context.watch<LibraryState>();
     final folderState = context.watch<LibraryFolderState>();
-    final libraryItems = _computeLibraryItems(
+    final libraryItems = _getMemoizedLibraryItems(
       libraryState,
       folderState,
       LibraryView.all,
@@ -519,24 +560,14 @@ class _WispNavigationState extends State<WispNavigation> {
 
           // Library items list
           Expanded(
-            child: ValueListenableBuilder<Route<dynamic>?>(
-              valueListenable: NavigationHistory.instance.currentRoute,
-              builder: (context, route, child) {
-                return WispListView.builder(
-                  itemCount: libraryItems.length,
-                  itemBuilder: (context, index) {
-                    final item = libraryItems[index];
-                    return _SidebarLibraryItem(
-                      builder: (folderState, libraryState, playback) =>
-                          _buildLibraryItem(
-                            item,
-                            isCollapsed: _layoutCollapsed,
-                            folderState: folderState,
-                            libraryState: libraryState,
-                            playback: playback,
-                          ),
-                    );
-                  },
+            child: WispListView.builder(
+              itemCount: libraryItems.length,
+              itemBuilder: (context, index) {
+                final item = libraryItems[index];
+                return _buildLibraryItem(
+                  item,
+                  isCollapsed: _layoutCollapsed,
+                  folderState: folderState,
                 );
               },
             ),
@@ -830,8 +861,6 @@ class _WispNavigationState extends State<WispNavigation> {
     dynamic item, {
     required bool isCollapsed,
     required LibraryFolderState folderState,
-    required LibraryState libraryState,
-    required _SidebarPlaybackHighlight playback,
   }) {
     final entry = item is LibrarySidebarEntry
         ? item
@@ -988,37 +1017,6 @@ class _WispNavigationState extends State<WispNavigation> {
         onDestinationSelected: widget.onDestinationSelected,
       ),
     };
-  }
-}
-
-class _SidebarLibraryItem extends StatelessWidget {
-  final Widget Function(
-    LibraryFolderState folderState,
-    LibraryState libraryState,
-    _SidebarPlaybackHighlight playback,
-  )
-  builder;
-
-  const _SidebarLibraryItem({required this.builder});
-
-  @override
-  Widget build(BuildContext context) {
-    final folderState = context.watch<LibraryFolderState>();
-    final libraryState = context.watch<LibraryState>();
-    final playback = context
-        .select<WispAudioHandler, _SidebarPlaybackHighlight>((player) {
-          final track = player.currentTrack;
-          return (
-            isPlaying: player.isPlaying,
-            contextType: player.playbackContext?.type,
-            contextId: player.playbackContext?.id,
-            contextName: player.playbackContext?.name.trim(),
-            currentArtistIds: track == null || track.artists.isEmpty
-                ? ''
-                : track.artists.map((artist) => artist.id).join('\u0001'),
-          );
-        });
-    return builder(folderState, libraryState, playback);
   }
 }
 

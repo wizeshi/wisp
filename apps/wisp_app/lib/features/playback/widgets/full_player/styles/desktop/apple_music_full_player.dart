@@ -151,38 +151,40 @@ extension _AppleMusicDesktopLayout on AppleMusicFullScreenPlayer {
     String fallbackUrl,
     double topInset,
   ) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        RepaintBoundary(
-          child: RotatingBlurredCoverBackground(
-            imageUrl: fallbackUrl,
-            blurSigma: 90,
-          ),
-        ),
-        Positioned.fill(
-          child: ColoredBox(
-            color: Colors.black,
-            child: ClipRect(
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 90, sigmaY: 90),
-                child: ColorFiltered(
-                  colorFilter: ColorFilter.mode(
-                    Colors.black.withValues(
-                        alpha: 0.1,
+    return ColoredBox(
+      color: Colors.black,
+      child: ClipRect(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final targetW = (constraints.maxWidth / 4).clamp(64.0, 480.0);
+            final targetH = (constraints.maxHeight / 4).clamp(64.0, 320.0);
+            return Transform.scale(
+              scale: 1.08,
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: targetW,
+                  height: targetH,
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(
+                      sigmaX: 22.5,
+                      sigmaY: 22.5,
+                      tileMode: TileMode.clamp,
+                    ),
+                    child: ColorFiltered(
+                      colorFilter: ColorFilter.mode(
+                        Colors.black.withValues(alpha: 0.1),
+                        BlendMode.srcATop,
                       ),
-                    BlendMode.srcATop,
-                  ),
-                  child: Transform.scale(
-                    scale: 1.08,
-                    child: CanvasVideo(url: url, fallbackUrl: fallbackUrl),
+                      child: CanvasVideo(url: url, fallbackUrl: fallbackUrl),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
-      ],
+      ),
     );
   }
 

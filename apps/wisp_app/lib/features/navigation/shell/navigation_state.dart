@@ -1,5 +1,7 @@
 // Copyright © 2026 wizeshi
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +19,7 @@ class NavigationState extends ChangeNotifier {
   bool? _rightSidebarVisibleBeforeImmersive;
   double _rightSidebarWidth = 320;
   double _leftSidebarWidth = 240;
+  Timer? _saveDebounceTimer;
 
   NavigationState() {
     _loadPrefs();
@@ -92,7 +95,7 @@ class NavigationState extends ChangeNotifier {
     final next = width.clamp(240.0, 420.0);
     if (next == _rightSidebarWidth) return;
     _rightSidebarWidth = next;
-    _savePrefs();
+    _scheduleSavePrefs();
     notifyListeners();
   }
 
@@ -104,8 +107,21 @@ class NavigationState extends ChangeNotifier {
     final next = width.clamp(180.0, 420.0);
     if (next == _leftSidebarWidth) return;
     _leftSidebarWidth = next;
-    _savePrefs();
+    _scheduleSavePrefs();
     notifyListeners();
+  }
+
+  void _scheduleSavePrefs() {
+    _saveDebounceTimer?.cancel();
+    _saveDebounceTimer = Timer(const Duration(milliseconds: 250), () {
+      _savePrefs();
+    });
+  }
+
+  @override
+  void dispose() {
+    _saveDebounceTimer?.cancel();
+    super.dispose();
   }
 
   void adjustLeftSidebarWidth(double delta) {

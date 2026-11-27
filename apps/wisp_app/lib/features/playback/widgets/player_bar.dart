@@ -188,16 +188,17 @@ class _DesktopProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final coordinator = context.read<PlaybackCoordinator>();
+    final player = context.read<global_audio_player.WispAudioHandler>();
+
     return RepaintBoundary(
-      child: Selector<global_audio_player.WispAudioHandler, _PositionData>(
-        selector: (context, player) => _PositionData(
-          position: player.throttledPosition,
-          bufferedPosition: player.bufferedPosition,
-          duration: player.duration,
-          isLoading: player.isLoading || player.isBuffering,
+      child: Selector<global_audio_player.WispAudioHandler, ({Duration duration, bool isLoading})>(
+        selector: (context, p) => (
+          duration: p.duration,
+          isLoading: p.isLoading || p.isBuffering,
         ),
-        builder: (context, data, child) {
-          if (data.isLoading) {
+        builder: (context, meta, child) {
+          if (meta.isLoading) {
             return Center(
               child: Column(
                 children: [
@@ -217,133 +218,126 @@ class _DesktopProgressBar extends StatelessWidget {
             );
           }
 
-          final duration = data.duration;
-          final progress = duration.inMilliseconds > 0
-              ? data.position.inMilliseconds / duration.inMilliseconds
-              : 0.0;
-          final bufferedProgress = duration.inMilliseconds > 0
-              ? (data.bufferedPosition.inMilliseconds / duration.inMilliseconds)
-                    .clamp(0.0, 1.0)
-              : 0.0;
-
-          // Freeze the ticking progress bar (text + slider) while the app or
-          // window is unfocused, instead of rebuilding it on every position
-          // update.
-          if (context.select<PreferencesProvider, bool>(
+          final shouldFreeze = context.select<PreferencesProvider, bool>(
             (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
               PausedBackgroundWidget.playerProgressBar,
             ),
-          )) {
-            return FocusFreezeBuilder<_PositionData>(
-              value: data,
-              builder: (context, frozenData) {
-                final frozenDuration = frozenData.duration;
-                final frozenProgress = frozenDuration.inMilliseconds > 0
-                    ? frozenData.position.inMilliseconds /
-                          frozenDuration.inMilliseconds
-                    : 0.0;
-                final frozenBuffered = frozenDuration.inMilliseconds > 0
-                    ? (frozenData.bufferedPosition.inMilliseconds /
-                              frozenDuration.inMilliseconds)
-                          .clamp(0.0, 1.0)
-                    : 0.0;
-                return buildBaseProgressBar(
-                  context,
-                  frozenDuration,
-                  frozenProgress,
-                  frozenBuffered,
-                );
-              },
-            );
-          }
+          );
 
-          return buildBaseProgressBar(
-            context,
-            duration,
-            progress,
-            bufferedProgress,
+          return ValueListenableBuilder<Duration>(
+            valueListenable: coordinator.effectivePositionListenable,
+            builder: (context, position, _) {
+              final data = _PositionData(
+                position: position,
+                bufferedPosition: player.bufferedPosition,
+                duration: meta.duration,
+                isLoading: false,
+              );
+
+              if (shouldFreeze) {
+                return FocusFreezeBuilder<_PositionData>(
+                  value: data,
+                  builder: (context, frozenData) {
+                    return _buildBar(context, frozenData);
+                  },
+                );
+              }
+
+              return _buildBar(context, data);
+            },
           );
         },
       ),
     );
   }
 
+  Widget _buildBar(BuildContext context, _PositionData data) {
+    final duration = data.duration;
+    final progress = duration.inMilliseconds > 0
+        ? (data.position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+    final bufferedProgress = duration.inMilliseconds > 0
+        ? (data.bufferedPosition.inMilliseconds / duration.inMilliseconds)
+            .clamp(0.0, 1.0)
+        : 0.0;
+    return buildBaseProgressBar(
+      context,
+      duration,
+      data.position,
+      progress,
+      bufferedProgress,
+    );
+  }
+
   Widget buildBaseProgressBar(
     BuildContext context,
     Duration duration,
+    Duration position,
     double progress,
     double bufferedProgress,
   ) {
     final colors = context.colors;
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-      duration: const Duration(milliseconds: 200),
-      builder: (context, animatedProgress, child) {
-        final animatedPosition = Duration(
-          milliseconds: (animatedProgress * duration.inMilliseconds).round(),
-        );
+    final clampedProgress = progress.clamp(0.0, 1.0);
 
-        return Center(
-          child: Row(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 8.0),
-                child: SizedBox(
-                  width: 56,
-                  child: Text(
-                    _formatDuration(animatedPosition),
-                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
+    return Center(
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 8.0),
+            child: SizedBox(
+              width: 56,
+              child: Text(
+                _formatDuration(position),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                textAlign: TextAlign.right,
               ),
-              Expanded(
-                child: SliderTheme(
-                  data: SliderThemeData(
-                    trackHeight: 4,
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 6,
-                    ),
-                    overlayShape: const RoundSliderOverlayShape(
-                      overlayRadius: 12,
-                    ),
-                    activeTrackColor: Theme.of(context).colorScheme.primary,
-                    secondaryActiveTrackColor: colors.textPrimary.withValues(
-                      alpha: 0.25,
-                    ),
-                    inactiveTrackColor: colors.trackInactive,
-                    thumbColor: colors.textPrimary,
-                    overlayColor: (Theme.of(
-                      context,
-                    ).colorScheme.primary).withValues(alpha: 0.2),
-                  ),
-                  child: Slider(
-                    value: animatedProgress,
-                    secondaryTrackValue: bufferedProgress.clamp(0.0, 1.0),
-                    onChanged: (value) {
-                      final newPosition = Duration(
-                        milliseconds: (value * duration.inMilliseconds).toInt(),
-                      );
-                      context.read<PlaybackCoordinator>().seek(newPosition);
-                    },
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: SizedBox(
-                  width: 56,
-                  child: Text(
-                    _formatDuration(duration),
-                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                    textAlign: TextAlign.left,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        );
-      },
+          Expanded(
+            child: SliderTheme(
+              data: SliderThemeData(
+                trackHeight: 4,
+                thumbShape: const RoundSliderThumbShape(
+                  enabledThumbRadius: 6,
+                ),
+                overlayShape: const RoundSliderOverlayShape(
+                  overlayRadius: 12,
+                ),
+                activeTrackColor: Theme.of(context).colorScheme.primary,
+                secondaryActiveTrackColor: colors.textPrimary.withValues(
+                  alpha: 0.25,
+                ),
+                inactiveTrackColor: colors.trackInactive,
+                thumbColor: colors.textPrimary,
+                overlayColor: (Theme.of(
+                  context,
+                ).colorScheme.primary).withValues(alpha: 0.2),
+              ),
+              child: Slider(
+                value: clampedProgress,
+                secondaryTrackValue: bufferedProgress.clamp(0.0, 1.0),
+                onChanged: (value) {
+                  final newPosition = Duration(
+                    milliseconds: (value * duration.inMilliseconds).toInt(),
+                  );
+                  context.read<PlaybackCoordinator>().seek(newPosition);
+                },
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: SizedBox(
+              width: 56,
+              child: Text(
+                _formatDuration(duration),
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                textAlign: TextAlign.left,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -433,9 +427,12 @@ class _DesktopTrackArtists extends StatelessWidget {
           textScaler: MediaQuery.textScalerOf(context),
         )..layout();
 
+        final textWidth = textPainter.width;
+        textPainter.dispose();
+
         final overflows =
             constraints.hasBoundedWidth &&
-            textPainter.width > constraints.maxWidth;
+            textWidth > constraints.maxWidth;
 
         if (overflows) {
           return MarqueeText(text: joinedText, style: style);

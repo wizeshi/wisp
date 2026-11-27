@@ -315,7 +315,6 @@ class _SharedListDetailViewState extends State<SharedListDetailView> {
     }
     _desktopScrollController.dispose();
     _mobileScrollController.dispose();
-    PaintingBinding.instance.imageCache.clearLiveImages();
     super.dispose();
   }
 

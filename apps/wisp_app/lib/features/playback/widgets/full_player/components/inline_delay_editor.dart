@@ -144,7 +144,7 @@ class _InlineDelayEditorState extends State<InlineDelayEditor> {
         ],
       ),
     );
-    final surface = widget.liquidGlass
+    final surface = widget.liquidGlass && widget.visible
         ? LiquidGlassLens(
             style: LiquidGlassStyle(
               shape: LiquidGlassShape.continuousRoundedRectangle(

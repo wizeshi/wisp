@@ -209,14 +209,21 @@ class PreferencesProvider extends ChangeNotifier {
       _trustedDevices = _decodeTrustedDevices(
         prefs.getString(_keyTrustedDevices),
       );
-      _pausedBackgroundWidgetsEnabled =
-          (prefs.getStringList(_keyPausedBackgroundWidgetsEnabled) ?? [])
-              .expand(
-                (name) => PausedBackgroundWidget.values.where(
-                  (widget) => widget.name == name,
-                ),
-              )
-              .toList(growable: false);
+      final savedPausedWidgets = prefs.getStringList(
+        _keyPausedBackgroundWidgetsEnabled,
+      );
+      if (savedPausedWidgets == null) {
+        _pausedBackgroundWidgetsEnabled =
+            _defaultPausedBackgroundWidgetsEnabled;
+      } else {
+        _pausedBackgroundWidgetsEnabled = savedPausedWidgets
+            .expand(
+              (name) => PausedBackgroundWidget.values.where(
+                (widget) => widget.name == name,
+              ),
+            )
+            .toList(growable: false);
+      }
       _firstBootCompleted = prefs.getBool(_keyFirstBootCompleted) ?? false;
       _disabledProviderIds =
           List<String>.from(prefs.getStringList(_keyDisabledProviderIds) ?? <String>[]);

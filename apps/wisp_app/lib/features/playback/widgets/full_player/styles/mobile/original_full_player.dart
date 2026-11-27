@@ -158,8 +158,9 @@ class _OriginalMobileFullScreenPlayerState
 
   bool _isUiLoading(
     global_audio_player.WispAudioHandler player,
-    bool useHandoffState,
-  ) {
+    bool useHandoffState, [
+    Duration? position,
+  ]) {
     if (useHandoffState) return false;
     if (player.isLoading || player.isBuffering || player.isTrackTransitioning) {
       return true;
@@ -167,7 +168,7 @@ class _OriginalMobileFullScreenPlayerState
     if (player.currentTrack == null) return false;
     return !player.isPlaying &&
         player.duration.inMilliseconds == 0 &&
-        player.throttledPosition.inMilliseconds <= 0;
+        (position ?? player.position).inMilliseconds <= 0;
   }
 
   Widget _buildHeader(
@@ -518,54 +519,58 @@ class _OriginalMobileFullScreenPlayerState
       return const SizedBox.shrink();
     }
 
-    final basePosition = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveInterpolatedPosition,
-    );
-    final delayMs =
-        (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
-    final adjustedPosition = basePosition.inMilliseconds - delayMs;
-    final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
     final lines = nonEmptyLyricsLines(lyrics.lines);
     if (lines.isEmpty) {
       return const SizedBox.shrink();
     }
+    final delayMs =
+        (lyricsProvider.getDelaySecondsCached(currentTrack.id) * 1000).round();
 
-    final timing = resolveSyncedLyricsTiming(lines, effectivePosition);
-    LyricsLine? line;
-    if (timing.activeIndex >= 0 && timing.activeIndex < lines.length) {
-      line = lines[timing.activeIndex];
-    } else if (timing.nextIndex != null && timing.nextIndex! < lines.length) {
-      final nextLine = lines[timing.nextIndex!];
-      if (nextLine.startTimeMs - effectivePosition <= 1800) {
-        line = nextLine;
-      }
-    }
+    return ValueListenableBuilder<Duration>(
+      valueListenable:
+          context.read<PlaybackCoordinator>().effectivePositionListenable,
+      builder: (context, basePosition, _) {
+        final adjustedPosition = basePosition.inMilliseconds - delayMs;
+        final effectivePosition = adjustedPosition < 0 ? 0 : adjustedPosition;
 
-    if (line == null || line.content.trim().isEmpty) {
-      return const SizedBox.shrink();
-    }
+        final timing = resolveSyncedLyricsTiming(lines, effectivePosition);
+        LyricsLine? line;
+        if (timing.activeIndex >= 0 && timing.activeIndex < lines.length) {
+          line = lines[timing.activeIndex];
+        } else if (timing.nextIndex != null && timing.nextIndex! < lines.length) {
+          final nextLine = lines[timing.nextIndex!];
+          if (nextLine.startTimeMs - effectivePosition <= 1800) {
+            line = nextLine;
+          }
+        }
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 10),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 280),
-        child: WordFillLyricsLine(
-          key: ValueKey<String>('${line.startTimeMs}_${line.content.trim()}'),
-          line: line,
-          positionMs: effectivePosition,
-          isActive: effectivePosition >= line.startTimeMs,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textStyle: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
+        if (line == null || line.content.trim().isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 280),
+            child: WordFillLyricsLine(
+              key: ValueKey<String>('${line.startTimeMs}_${line.content.trim()}'),
+              line: line,
+              positionMs: effectivePosition,
+              isActive: effectivePosition >= line.startTimeMs,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textStyle: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+              activeColor: Colors.white,
+              inactiveColor: Colors.white.withValues(alpha: 0.45),
+              enableTicker: true,
+            ),
           ),
-          activeColor: Colors.white,
-          inactiveColor: Colors.white.withValues(alpha: 0.45),
-          enableTicker: true,
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -669,63 +674,55 @@ class _OriginalMobileFullScreenPlayerState
     BuildContext context,
     global_audio_player.WispAudioHandler player,
   ) {
+    final coordinator = context.read<PlaybackCoordinator>();
     final useHandoffState = context.select<PlaybackCoordinator, bool>(
-      (coordinator) => coordinator.useLinkedPlaybackState,
+      (c) => c.useLinkedPlaybackState,
     );
-    final isLoading = _isUiLoading(player, useHandoffState);
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final position = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveInterpolatedPosition,
-    );
-    final bufferedPosition = context.select<PlaybackCoordinator, Duration>(
-      (coordinator) => coordinator.effectiveBufferedPosition,
-    );
     final duration = player.duration;
-    final clampedPosition = position > duration ? duration : position;
-    final progress = duration.inMilliseconds > 0
-        ? position.inMilliseconds / duration.inMilliseconds
-        : 0.0;
-    final bufferedProgress = duration.inMilliseconds > 0
-        ? (bufferedPosition.inMilliseconds / duration.inMilliseconds).clamp(
-            0.0,
-            1.0,
-          )
-        : 0.0;
 
-    if (isLoading) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: SizedBox(
-                height: 4,
-                child: LinearProgressIndicator(
-                  backgroundColor: Colors.white.withValues(alpha: 0.18),
-                  valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+    return ValueListenableBuilder<Duration>(
+      valueListenable: coordinator.effectivePositionListenable,
+      builder: (context, position, _) {
+        final isLoading = _isUiLoading(player, useHandoffState, position);
+        final bufferedPosition = coordinator.effectiveBufferedPosition;
+        final clampedPosition = position > duration ? duration : position;
+        final progress = duration.inMilliseconds > 0
+            ? (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0)
+            : 0.0;
+        final bufferedProgress = duration.inMilliseconds > 0
+            ? (bufferedPosition.inMilliseconds / duration.inMilliseconds).clamp(
+                0.0,
+                1.0,
+              )
+            : 0.0;
+
+        if (isLoading) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: SizedBox(
+                    height: 4,
+                    child: LinearProgressIndicator(
+                      backgroundColor: Colors.white.withValues(alpha: 0.18),
+                      valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          _buildDurationRow(
-            context,
-            elapsed: clampedPosition,
-            duration: duration,
-            primaryColor: primaryColor,
-          ),
-        ],
-      );
-    }
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: progress.clamp(0.0, 1.0)),
-      duration: const Duration(milliseconds: 200),
-      builder: (context, animatedProgress, child) {
-        final animatedPosition = Duration(
-          milliseconds: (animatedProgress * duration.inMilliseconds).round(),
-        );
+              _buildDurationRow(
+                context,
+                elapsed: clampedPosition,
+                duration: duration,
+                primaryColor: primaryColor,
+              ),
+            ],
+          );
+        }
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -751,7 +748,7 @@ class _OriginalMobileFullScreenPlayerState
                 ),
                 child: Slider(
                   padding: EdgeInsets.zero,
-                  value: animatedProgress,
+                  value: progress,
                   secondaryTrackValue: bufferedProgress,
                   onChanged: (value) {
                     final newPosition = Duration(
@@ -764,7 +761,7 @@ class _OriginalMobileFullScreenPlayerState
             ),
             _buildDurationRow(
               context,
-              elapsed: animatedPosition,
+              elapsed: clampedPosition,
               duration: duration,
               primaryColor: primaryColor,
             ),
@@ -1060,8 +1057,8 @@ class _OriginalMobileFullScreenPlayerState
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<global_audio_player.WispAudioHandler, LyricsProvider>(
-      builder: (context, player, lyricsProvider, child) {
+    return Consumer<global_audio_player.WispAudioHandler>(
+      builder: (context, player, child) {
         final currentTrack = player.currentTrack;
         final imageUrl = currentTrack?.thumbnailUrl ?? '';
         final useCanvas = context.select<PreferencesProvider, bool>(
@@ -1081,7 +1078,7 @@ class _OriginalMobileFullScreenPlayerState
           canUseCanvas,
         );
 
-        final viewPadding = MediaQuery.of(context).viewPadding;
+        final viewPadding = MediaQuery.viewPaddingOf(context);
         final windowPadding = MediaQueryData.fromView(
           WidgetsBinding.instance.platformDispatcher.views.first,
         ).padding;
@@ -1103,14 +1100,15 @@ class _OriginalMobileFullScreenPlayerState
             return Stack(
               fit: StackFit.expand,
               children: [
-                Positioned.fill(
-                  child: RepaintBoundary(
-                    child: RotatingBlurredCoverBackground(
-                      imageUrl: imageUrl,
-                      blurSigma: 72,
+                if (!useCanvasBg)
+                  Positioned.fill(
+                    child: RepaintBoundary(
+                      child: RotatingBlurredCoverBackground(
+                        imageUrl: imageUrl,
+                        blurSigma: 72,
+                      ),
                     ),
                   ),
-                ),
                 if (useCanvasBg)
                   Positioned.fill(
                     child: CanvasVideo(
@@ -1183,15 +1181,19 @@ class _OriginalMobileFullScreenPlayerState
                                         imageUrl: imageUrl,
                                         hideNowPlayingCover: useCanvasBg,
                                         maxCoverSize: maxCoverSize,
-                                        lyricsProvider: lyricsProvider,
+                                        lyricsProvider:
+                                            context.read<LyricsProvider>(),
                                       ),
                                     ),
                                     if (isPlayerMode) ...[
                                       const Spacer(),
-                                      _buildSingleLyricsLine(
-                                        context,
-                                        player,
-                                        lyricsProvider,
+                                      Consumer<LyricsProvider>(
+                                        builder: (ctx, lyricsProvider, _) =>
+                                            _buildSingleLyricsLine(
+                                              ctx,
+                                              player,
+                                              lyricsProvider,
+                                            ),
                                       ),
                                       const SizedBox(height: 12),
                                       _buildTrackInfo(context, currentTrack),
@@ -1211,7 +1213,7 @@ class _OriginalMobileFullScreenPlayerState
                                             child: _buildModeContent(
                                               context,
                                               player,
-                                              lyricsProvider,
+                                              context.read<LyricsProvider>(),
                                             ),
                                           ),
                                         ),

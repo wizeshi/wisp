@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,6 +84,12 @@ class ConnectSessionProvider extends ChangeNotifier
   int get lastAckedSequence => _lastAckedSequence;
 
   int _nextPositionPulseSeq = 0;
+
+  final ValueNotifier<Duration> _linkedPositionNotifier =
+      ValueNotifier<Duration>(Duration.zero);
+  @override
+  ValueListenable<Duration> get linkedPositionListenable =>
+      _linkedPositionNotifier;
 
   Duration _linkedPosition = Duration.zero;
   Duration get linkedPosition => _linkedPosition;
@@ -1113,6 +1120,9 @@ class ConnectSessionProvider extends ChangeNotifier
     _linkedIsPlaying = isPlaying;
     _linkedPosition = position;
     _linkedPositionUpdatedAt = DateTime.now();
+    if (!_disposed) {
+      _linkedPositionNotifier.value = linkedInterpolatedPosition;
+    }
 
     if (isHost && isLinked && _linkedIsPlaying) {
       _ensureHostInterpolationTimer();
@@ -1183,6 +1193,9 @@ class ConnectSessionProvider extends ChangeNotifier
     _linkedPosition = resumePosition;
     _linkedIsPlaying = resumePlaying;
     _linkedPositionUpdatedAt = DateTime.now();
+    if (!_disposed) {
+      _linkedPositionNotifier.value = resumePosition;
+    }
     if (!isLinked) {
       _clearHandoffOutputDestination();
       // A physical output device may already be attached; re-detect it now
@@ -1218,6 +1231,9 @@ class ConnectSessionProvider extends ChangeNotifier
     _linkedPosition = Duration.zero;
     _linkedIsPlaying = false;
     _linkedPositionUpdatedAt = null;
+    if (!_disposed) {
+      _linkedPositionNotifier.value = Duration.zero;
+    }
     _sessionResolvedYoutubeIds = {};
     _pendingPairRequest = null;
     _pairingTargetDeviceId = null;
@@ -1586,19 +1602,12 @@ class ConnectSessionProvider extends ChangeNotifier
     final pulse = pulsesync.pulse;
 
     // Update host UI with target's current position for interpolation
-    // Apply pulse to linked playback state
+    // Apply pulse to linked playback state without notifying non-position listeners.
     _setLinkedPlaybackState(
       isPlaying: _linkedIsPlaying,
       position: Duration(milliseconds: pulse.positionMs),
-      notify: true,
+      notify: false,
     );
-
-    // Ensure audio handler is in sync with pulse state
-    final audio = _audioHandler;
-    if (audio != null && _activeLinkMode == ConnectLinkMode.controlOnly) {
-      // In control-only, Host should reflect target's position for UI
-      notifyListeners();
-    }
   }
 
   void _onCommandIntent(ConnectCommandIntent intent) {
@@ -2013,7 +2022,9 @@ class ConnectSessionProvider extends ChangeNotifier
           _stopHostInterpolationTimer();
           return;
         }
-        notifyListeners();
+        if (!_disposed) {
+          _linkedPositionNotifier.value = linkedInterpolatedPosition;
+        }
       },
     );
   }
@@ -2387,6 +2398,7 @@ class ConnectSessionProvider extends ChangeNotifier
   @override
   void dispose() {
     _disposed = true;
+    _linkedPositionNotifier.dispose();
     unawaited(shutdown());
     super.dispose();
   }

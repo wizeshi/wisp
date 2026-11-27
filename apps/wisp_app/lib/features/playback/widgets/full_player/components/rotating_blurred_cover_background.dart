@@ -130,52 +130,57 @@ class _RotatingBlurredCoverBackgroundState
           final height = constraints.maxHeight;
           final maxSide = width > height ? width : height;
           final imageSize = maxSide * 2.4;
+          const double preBlurTextureSize = 240.0;
+          final double scaledSigma = maxSide > 0
+              ? (widget.blurSigma * (preBlurTextureSize / imageSize))
+                    .clamp(6.0, widget.blurSigma)
+              : widget.blurSigma;
 
-          return ImageFiltered(
-            imageFilter: ImageFilter.blur(
-              sigmaX: widget.blurSigma,
-              sigmaY: widget.blurSigma,
-            ),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Positioned.fill(
-                  child: CachedNetworkImage(
-                    imageUrl: widget.imageUrl,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 150,
-                    memCacheHeight: 150,
+          return AnimatedBuilder(
+            animation: _rotationController,
+            builder: (context, child) {
+              final angle = _rotationController.value * 6.283185307179586;
+              final centerX = width;
+              final centerY = 0.0;
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: centerX - (imageSize / 2),
+                    top: centerY - (imageSize / 2),
+                    width: imageSize,
+                    height: imageSize,
+                    child: Transform.rotate(
+                      angle: angle,
+                      child: child!,
+                    ),
                   ),
-                ),
-                AnimatedBuilder(
-                  animation: _rotationController,
-                  builder: (context, child) {
-                    final angle = _rotationController.value * 6.283185307179586;
-                    final centerX = width;
-                    final centerY = 0.0;
-
-                    return Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Positioned(
-                          left: centerX - (imageSize / 2),
-                          top: centerY - (imageSize / 2),
-                          width: imageSize,
-                          height: imageSize,
-                          child: Transform.rotate(angle: angle, child: child!),
-                        ),
-                      ],
-                    );
-                  },
-                  child: CachedNetworkImage(
+                ],
+              );
+            },
+            child: RepaintBoundary(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: preBlurTextureSize,
+                  height: preBlurTextureSize,
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(
+                      sigmaX: scaledSigma,
+                      sigmaY: scaledSigma,
+                      tileMode: TileMode.clamp,
+                    ),
+                    child: CachedNetworkImage(
                       imageUrl: widget.imageUrl,
                       fit: BoxFit.cover,
                       filterQuality: FilterQuality.low,
                       memCacheWidth: 150,
                       memCacheHeight: 150,
+                    ),
                   ),
                 ),
-              ],
+              ),
             ),
           );
         },

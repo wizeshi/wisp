@@ -22,7 +22,6 @@ import 'package:wisp/features/library/state/library_state.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
 import 'package:wisp/features/shell/navigation/app_navigation.dart';
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
-import 'package:wisp/features/shell/navigation/navigation_history.dart';
 import 'package:wisp/data/sources/lyrics/lyrics_timing.dart';
 import 'package:wisp/features/navigation/views/list/view.dart' show SharedListType;
 import 'package:wisp/features/playback/widgets/full_player.dart';
@@ -59,7 +58,9 @@ class _RightSidebarState extends State<RightSidebar> {
       return const SizedBox.shrink();
     }
 
-    final navState = context.watch<NavigationState>();
+    final rightSidebarContent = context.select<NavigationState, RightSidebarContent>(
+      (s) => s.rightSidebarContent,
+    );
     final colors = context.colors;
 
     return SizedBox(
@@ -110,7 +111,7 @@ class _RightSidebarState extends State<RightSidebar> {
                         );
                       },
                       child:
-                          navState.rightSidebarContent ==
+                          rightSidebarContent ==
                               RightSidebarContent.connect
                           ? ConnectMenu(
                               key: const ValueKey('connect-sidebar-content'),
@@ -727,9 +728,12 @@ class _NowPlayingCardState extends State<_NowPlayingCard> {
                 textScaler: MediaQuery.textScalerOf(context),
               )..layout();
 
+              final textWidth = textPainter.width;
+              textPainter.dispose();
+
               final overflows =
                   constraints.hasBoundedWidth &&
-                  textPainter.width > constraints.maxWidth;
+                  textWidth > constraints.maxWidth;
 
               if (overflows) {
                 return MarqueeText(
@@ -1539,6 +1543,35 @@ class _LyricsPreviewCard extends StatefulWidget {
 
 class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
   bool _hovering = false;
+  LyricsResult? _cachedLyricsRef;
+  List<LyricsLine> _cachedNonEmptyLines = const [];
+
+  List<LyricsLine> _getNonEmptyLines(LyricsResult lyrics) {
+    if (!identical(_cachedLyricsRef, lyrics)) {
+      _cachedLyricsRef = lyrics;
+      _cachedNonEmptyLines = nonEmptyLyricsLines(lyrics.lines);
+    }
+    return _cachedNonEmptyLines;
+  }
+
+  int _resolveStartIndex(
+    LyricsResult lyrics,
+    List<LyricsLine> lines,
+    Duration pos,
+    double delaySeconds,
+  ) {
+    if (lines.isEmpty || lyrics.syncMode == LyricsSyncMode.unsynced) {
+      return 0;
+    }
+    final delayMs = (delaySeconds * 1000).round();
+    final effectivePosition = pos.inMilliseconds - delayMs < 0
+        ? 0
+        : pos.inMilliseconds - delayMs;
+    final timing = resolveSyncedLyricsTiming(lines, effectivePosition);
+    return timing.activeIndex >= 0
+        ? timing.activeIndex
+        : (timing.nextIndex ?? timing.previousIndex ?? 0);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1614,113 +1647,104 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
         final isLoading =
             wordState.isLoading ||
             (wordState.lyrics == null && lineState.isLoading);
-        if (!isLoading && (lyrics == null || lyrics.lines.isEmpty)) {
+        final nonEmptyLines =
+            lyrics == null ? const <LyricsLine>[] : _getNonEmptyLines(lyrics);
+        if (!isLoading && (lyrics == null || nonEmptyLines.isEmpty)) {
           return const SizedBox.shrink();
         }
 
-        return ValueListenableBuilder<Route<dynamic>?>(
-          valueListenable: NavigationHistory.instance.currentRoute,
-          builder: (context, route, child) {
-            return Column(
-              children: [
-                MouseRegion(
-                  onEnter: (_) => setState(() => _hovering = true),
-                  onExit: (_) => setState(() => _hovering = false),
-                  child: _SectionCard(
-                    backgroundColor: bgColor,
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: Stack(
+        final freezeWhenUnfocused = context.select<PreferencesProvider, bool>(
+          (prefs) => prefs.pausedBackgroundWidgetsEnabled.contains(
+            PausedBackgroundWidget.lyricsPreview,
+          ),
+        );
+        final coordinator = context.read<PlaybackCoordinator>();
+
+        return Column(
+          children: [
+            MouseRegion(
+              onEnter: (_) => setState(() => _hovering = true),
+              onExit: (_) => setState(() => _hovering = false),
+              child: _SectionCard(
+                backgroundColor: bgColor,
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Stack(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Lyrics Preview',
-                                style: TextStyle(
-                                  color: fgPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                          Text(
+                            'Lyrics Preview',
+                            style: TextStyle(
+                              color: fgPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          if (isLoading && lyrics == null)
+                            Text(
+                              'Loading lyrics…',
+                              style: TextStyle(
+                                color: fgSecondary,
+                                fontSize: 13,
                               ),
-                              const SizedBox(height: 10),
-                              if (isLoading && lyrics == null)
-                                Text(
-                                  'Loading lyrics…',
-                                  style: TextStyle(
-                                    color: fgSecondary,
-                                    fontSize: 13,
-                                  ),
-                                )
-                              else
-                                RepaintBoundary(
-                                  child: Selector<PlaybackCoordinator, int>(
-                                    selector: (context, coordinator) {
-                                      final posMs = coordinator
-                                          .effectiveInterpolatedPosition
-                                          .inMilliseconds;
-                                      final delaySeconds = lyricsProvider
-                                          .getDelaySecondsCached(track.id);
-                                      final delayMs = (delaySeconds * 1000)
-                                          .round();
-                                      final effectivePosition =
-                                          posMs - delayMs < 0
-                                          ? 0
-                                          : posMs - delayMs;
-                                      final lines = nonEmptyLyricsLines(
-                                        lyrics!.lines,
+                            )
+                          else
+                            RepaintBoundary(
+                              child: Selector<LyricsProvider, double>(
+                                selector: (context, p) =>
+                                    p.getDelaySecondsCached(track.id),
+                                builder: (context, delaySeconds, _) {
+                                  return ValueListenableBuilder<Duration>(
+                                    valueListenable:
+                                        coordinator.effectivePositionListenable,
+                                    builder: (context, pos, _) {
+                                      final startIndex = _resolveStartIndex(
+                                        lyrics!,
+                                        nonEmptyLines,
+                                        pos,
+                                        delaySeconds,
                                       );
-                                      if (lines.isEmpty ||
-                                          lyrics.syncMode ==
-                                              LyricsSyncMode.unsynced) {
-                                        return 0;
+
+                                      Widget buildPreview(int idx) {
+                                        final previewLines =
+                                            lyrics.syncMode ==
+                                                    LyricsSyncMode.unsynced
+                                                ? nonEmptyLines.take(3).toList()
+                                                : nonEmptyLines
+                                                      .skip(idx)
+                                                      .take(3)
+                                                      .toList();
+                                        return AnimatedLyricsPreviewList(
+                                          lines: previewLines,
+                                          resetKey: track.id,
+                                          maxLines: 1,
+                                          activeWordColor: fgPrimary,
+                                          inactiveWordColor:
+                                              fgPrimary.withValues(alpha: 0.45),
+                                          textStyle: TextStyle(
+                                            color: fgPrimary,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        );
                                       }
-                                      final timing = resolveSyncedLyricsTiming(
-                                        lines,
-                                        effectivePosition,
-                                      );
-                                      return timing.activeIndex >= 0
-                                          ? timing.activeIndex
-                                          : (timing.nextIndex ??
-                                                timing.previousIndex ??
-                                                0);
+
+                                      if (freezeWhenUnfocused) {
+                                        return FocusFreezeBuilder<int>(
+                                          value: startIndex,
+                                          builder: (context, frozenIdx) =>
+                                              buildPreview(frozenIdx),
+                                        );
+                                      }
+                                      return buildPreview(startIndex);
                                     },
-                                    builder: (context, startIndex, child) {
-                                      // Freeze the scrolling lyrics preview while
-                                      // the app/window is unfocused instead of
-                                      // rebuilding it on every position tick.
-                                      return FocusFreezeBuilder<int>(
-                                        value: startIndex,
-                                        builder: (context, startIndex) {
-                                          final lines = nonEmptyLyricsLines(
-                                            lyrics!.lines,
-                                          );
-                                          final previewLines =
-                                              lyrics.syncMode ==
-                                                  LyricsSyncMode.unsynced
-                                              ? lines.take(3).toList()
-                                              : lines
-                                                    .skip(startIndex)
-                                                    .take(3)
-                                                    .toList();
-                                          return AnimatedLyricsPreviewList(
-                                            lines: previewLines,
-                                            resetKey: track.id,
-                                            maxLines: 1,
-                                            activeWordColor: fgPrimary,
-                                            inactiveWordColor:
-                                                fgPrimary.withValues(alpha: 0.45),
-                                            textStyle: TextStyle(
-                                              color: fgPrimary,
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                  ),
-                                ),
+                                  );
+                                },
+                              ),
+                            ),
                               const SizedBox(height: 4),
                               Text(
                                 lyrics == null
@@ -1776,8 +1800,6 @@ class _LyricsPreviewCardState extends State<_LyricsPreviewCard> {
                 const SizedBox(height: 16),
               ],
             );
-          },
-        );
       },
     );
   }

@@ -94,7 +94,6 @@ class _ArtistDetailViewState extends State<ArtistDetailView> {
     }
     _appleTopSongsPageController.dispose();
     _scrollController.dispose();
-    PaintingBinding.instance.imageCache.clearLiveImages();
     super.dispose();
   }
 

@@ -11,6 +11,7 @@ abstract class PlaybackTransport implements Listenable {
   bool get isTarget;
   bool get linkedIsPlaying;
   Duration get linkedInterpolatedPosition;
+  ValueListenable<Duration> get linkedPositionListenable;
 
   Future<void> sendPlayCommand();
   Future<void> sendPauseCommand();

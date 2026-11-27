@@ -2,7 +2,7 @@
 
 import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:app_links/app_links.dart';
 import 'package:wisp/core/theme/app_theme.dart';
@@ -96,10 +96,24 @@ class AppRouter {
     required AppLinks appLinks,
     PreferencesProvider? preferences,
   }) {
+    ValueNotifier<(bool, bool)>? onboardingRefreshNotifier;
+    if (preferences != null) {
+      onboardingRefreshNotifier = ValueNotifier<(bool, bool)>((
+        preferences.isLoaded,
+        preferences.isFirstBootCompleted,
+      ));
+      preferences.addListener(() {
+        final next = (preferences.isLoaded, preferences.isFirstBootCompleted);
+        if (onboardingRefreshNotifier!.value != next) {
+          onboardingRefreshNotifier.value = next;
+        }
+      });
+    }
+
     final router = GoRouter(
       navigatorKey: rootNavigatorKey,
       initialLocation: AppRoutes.home,
-      refreshListenable: preferences,
+      refreshListenable: onboardingRefreshNotifier,
       observers: [NavigationHistory.instance.observer],
       redirect: (context, state) {
         if (preferences == null) return null;

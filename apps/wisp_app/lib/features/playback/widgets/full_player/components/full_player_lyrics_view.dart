@@ -54,6 +54,7 @@ class FullPlayerLyricsSection extends StatelessWidget {
       );
     }
 
+    final lyricsProvider = context.watch<LyricsProvider>();
     final syncedState = lyricsProvider.getState(
       currentTrack,
       LyricsSyncMode.word,
@@ -212,6 +213,8 @@ class _FullPlayerSyncedLyricsViewState extends State<FullPlayerSyncedLyricsView>
   int _lastFocusIndex = -1;
   bool _userInteracting = false;
   Timer? _resumeAutoScrollTimer;
+  double _avgLineHeight = 56.0;
+  final List<TapGestureRecognizer> _attributionRecognizers = [];
 
   @override
   void initState() {
@@ -340,8 +343,16 @@ class _FullPlayerSyncedLyricsViewState extends State<FullPlayerSyncedLyricsView>
     _resumeAutoScrollTimer?.cancel();
     _positionTicker?.dispose();
     _disposeLines();
+    _disposeAttributionRecognizers();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _disposeAttributionRecognizers() {
+    for (final recognizer in _attributionRecognizers) {
+      recognizer.dispose();
+    }
+    _attributionRecognizers.clear();
   }
 
   void _startTicker() {
@@ -438,6 +449,17 @@ class _FullPlayerSyncedLyricsViewState extends State<FullPlayerSyncedLyricsView>
       final listContext = _listKey.currentContext;
       if (lineContext == null || listContext == null) {
         if (retries > 0) {
+          // Target line may be outside the 1500px cache window (e.g. after a
+          // large seek); jump close to the estimated offset so it mounts, then
+          // refine with exact RenderBox coordinates on the next frame.
+          final pos = _scrollController.position;
+          final estimatedOffset = (focusIndex * _avgLineHeight).clamp(
+            pos.minScrollExtent,
+            pos.maxScrollExtent,
+          );
+          if ((_scrollController.offset - estimatedOffset).abs() > 1.0) {
+            _scrollController.jumpTo(estimatedOffset);
+          }
           _scrollToLine(focusIndex, instant: instant, retries: retries - 1);
         }
         return;
@@ -454,6 +476,8 @@ class _FullPlayerSyncedLyricsViewState extends State<FullPlayerSyncedLyricsView>
         }
         return;
       }
+
+      _avgLineHeight = (_avgLineHeight * 0.7) + (lineBox.size.height * 0.3);
 
       final lineGlobalTop = lineBox.localToGlobal(Offset.zero).dy;
       final viewportGlobalTop = listBox.localToGlobal(Offset.zero).dy;
@@ -572,11 +596,12 @@ class _FullPlayerSyncedLyricsViewState extends State<FullPlayerSyncedLyricsView>
               }
               return false;
             },
-            child: ListView.builder(
-              key: _listKey,
-              controller: _scrollController,
-              scrollCacheExtent: ScrollCacheExtent.pixels(20000),
-              itemCount: widget.lyrics.lines.length + 1,
+            child: RepaintBoundary(
+              child: ListView.builder(
+                key: _listKey,
+                controller: _scrollController,
+                scrollCacheExtent: ScrollCacheExtent.pixels(1500),
+                itemCount: widget.lyrics.lines.length + 1,
               padding: EdgeInsets.fromLTRB(
                 0,
                 widget.topPadding,
@@ -642,22 +667,27 @@ class _FullPlayerSyncedLyricsViewState extends State<FullPlayerSyncedLyricsView>
                 );
               },
             ),
+            ),
           ),
         );
       },
     );
   }
 
+  static final RegExp _attributionLinkRegex = RegExp(
+    r'\[([^\]]+)\]\((https?://[^\)]+)\)',
+  );
+
   Widget _buildAttributionText(
     String text, {
     required TextStyle baseStyle,
     required TextStyle linkStyle,
   }) {
+    _disposeAttributionRecognizers();
     final spans = <InlineSpan>[];
-    final linkRegex = RegExp(r'\[([^\]]+)\]\((https?://[^\)]+)\)');
     int lastMatchEnd = 0;
 
-    for (final match in linkRegex.allMatches(text)) {
+    for (final match in _attributionLinkRegex.allMatches(text)) {
       if (match.start > lastMatchEnd) {
         spans.add(
           TextSpan(
@@ -668,17 +698,19 @@ class _FullPlayerSyncedLyricsViewState extends State<FullPlayerSyncedLyricsView>
       }
       final linkText = match.group(1) ?? '';
       final linkUrl = match.group(2) ?? '';
+      final recognizer = TapGestureRecognizer()
+        ..onTap = () async {
+          final uri = Uri.tryParse(linkUrl);
+          if (uri != null && await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        };
+      _attributionRecognizers.add(recognizer);
       spans.add(
         TextSpan(
           text: linkText,
           style: linkStyle,
-          recognizer: TapGestureRecognizer()
-            ..onTap = () async {
-              final uri = Uri.tryParse(linkUrl);
-              if (uri != null && await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
+          recognizer: recognizer,
         ),
       );
       lastMatchEnd = match.end;

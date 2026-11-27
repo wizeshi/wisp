@@ -252,18 +252,41 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final navState = context.watch<NavigationState>();
+    final selectedNavIndex = context.select<NavigationState, int>(
+      (s) => s.selectedNavIndex,
+    );
+    final selectedLibraryView = context.select<NavigationState, LibraryView>(
+      (s) => s.selectedLibraryView,
+    );
+    final desktopImmersiveMode = context.select<NavigationState, bool>(
+      (s) => s.desktopImmersiveMode,
+    );
+    final rightSidebarVisible = context.select<NavigationState, bool>(
+      (s) => s.rightSidebarVisible,
+    );
+    final leftSidebarWidth = context.select<NavigationState, double>(
+      (s) => s.leftSidebarWidth,
+    );
+    final rightSidebarWidth = context.select<NavigationState, double>(
+      (s) => s.rightSidebarWidth,
+    );
+    final navState = context.read<NavigationState>();
     final selectedSource = context.select<SearchState, String>(
       (s) => s.selectedSource,
     );
     final searchController = context.read<SearchState>().controller;
-    final availableSources = context.select<MetadataManager, List<String>>(
-      (m) => m.availableProviders.map((p) => p.providerId.toLowerCase()).toList(),
+    final availableSourcesKey = context.select<MetadataManager, String>(
+      (m) => m.availableProviders
+          .map((p) => p.providerId.toLowerCase())
+          .join('\u0001'),
     );
+    final availableSources = availableSourcesKey.isEmpty
+        ? const <String>[]
+        : availableSourcesKey.split('\u0001');
     final effectiveSource = availableSources.contains(selectedSource)
         ? selectedSource
         : (availableSources.isNotEmpty ? availableSources.first : 'spotify');
-    final isDesktopImmersive = _isDesktop && navState.desktopImmersiveMode;
+    final isDesktopImmersive = _isDesktop && desktopImmersiveMode;
     final enableExitPrompt = !_isDesktop;
 
     final keyboardVisible =
@@ -312,14 +335,14 @@ class _AppShellState extends State<AppShell> {
                 if (!isDesktopImmersive)
                   RepaintBoundary(
                     child: WispNavigation(
-                      selectedView: navState.selectedLibraryView,
+                      selectedView: selectedLibraryView,
                       onViewChanged: navState.setLibraryView,
-                      selectedIndex: navState.selectedNavIndex,
+                      selectedIndex: selectedNavIndex,
                       onDestinationSelected: (index) {
                         _pushTab(index);
                       },
                       onLibraryItemSelected: _handleLibraryItemSelected,
-                      expandedWidth: navState.leftSidebarWidth,
+                      expandedWidth: leftSidebarWidth,
                     ),
                   ),
                 if (!isDesktopImmersive)
@@ -327,9 +350,9 @@ class _AppShellState extends State<AppShell> {
                 Expanded(
                   child: RepaintBoundary(child: contentWidget),
                 ),
-                if (!isDesktopImmersive && navState.rightSidebarVisible)
+                if (!isDesktopImmersive && rightSidebarVisible)
                   RightSidebar(
-                    width: navState.rightSidebarWidth,
+                    width: rightSidebarWidth,
                     onResize: navState.adjustRightSidebarWidth,
                   ),
               ],
@@ -347,7 +370,7 @@ class _AppShellState extends State<AppShell> {
           Positioned.fill(
             child: RepaintBoundary(child: contentWidget),
           ),
-          if (navState.selectedNavIndex != 3 && !keyboardVisible)
+          if (selectedNavIndex != 3 && !keyboardVisible)
             Positioned(
               left: 0,
               right: 0,
@@ -363,9 +386,9 @@ class _AppShellState extends State<AppShell> {
                   ),
                   RepaintBoundary(
                     child: WispNavigation(
-                      selectedView: navState.selectedLibraryView,
+                      selectedView: selectedLibraryView,
                       onViewChanged: navState.setLibraryView,
-                      selectedIndex: navState.selectedNavIndex,
+                      selectedIndex: selectedNavIndex,
                       onDestinationSelected: (index) {
                         _pushTab(index);
                       },

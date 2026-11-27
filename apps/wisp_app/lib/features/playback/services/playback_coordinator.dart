@@ -9,13 +9,27 @@ import 'playback_transport.dart';
 class PlaybackCoordinator extends ChangeNotifier {
   WispAudioHandler? _audioHandler;
   PlaybackTransport? _transport;
+  final ValueNotifier<Duration> _effectivePositionNotifier =
+      ValueNotifier<Duration>(Duration.zero);
+  bool _disposed = false;
 
   void _notifyFromSource() {
+    _syncEffectivePosition();
     notifyListeners();
+  }
+
+  void _syncEffectivePosition() {
+    if (_disposed) return;
+    final next = effectiveThrottledPosition;
+    if (_effectivePositionNotifier.value != next) {
+      _effectivePositionNotifier.value = next;
+    }
   }
 
   WispAudioHandler? get audioHandler => _audioHandler;
   PlaybackTransport? get transport => _transport;
+  ValueListenable<Duration> get effectivePositionListenable =>
+      _effectivePositionNotifier;
 
   bool get isLinked => _transport?.isLinked ?? false;
   bool get isHost => _transport?.isHost ?? false;
@@ -53,23 +67,33 @@ class PlaybackCoordinator extends ChangeNotifier {
   void bindAudioHandler(WispAudioHandler audioHandler) {
     if (identical(_audioHandler, audioHandler)) return;
     _audioHandler?.removeListener(_notifyFromSource);
+    _audioHandler?.positionListenable.removeListener(_syncEffectivePosition);
     _audioHandler = audioHandler;
     _audioHandler?.addListener(_notifyFromSource);
+    _audioHandler?.positionListenable.addListener(_syncEffectivePosition);
+    _syncEffectivePosition();
     notifyListeners();
   }
 
   void bindTransport(PlaybackTransport transport) {
     if (identical(_transport, transport)) return;
     _transport?.removeListener(_notifyFromSource);
+    _transport?.linkedPositionListenable.removeListener(_syncEffectivePosition);
     _transport = transport;
     _transport?.addListener(_notifyFromSource);
+    _transport?.linkedPositionListenable.addListener(_syncEffectivePosition);
+    _syncEffectivePosition();
     notifyListeners();
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _audioHandler?.removeListener(_notifyFromSource);
+    _audioHandler?.positionListenable.removeListener(_syncEffectivePosition);
     _transport?.removeListener(_notifyFromSource);
+    _transport?.linkedPositionListenable.removeListener(_syncEffectivePosition);
+    _effectivePositionNotifier.dispose();
     super.dispose();
   }
 
