@@ -17,32 +17,6 @@ class _MobilePlayerBarAnimated extends StatefulWidget {
 }
 
 class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
-  double _dragOffset = 0.0;
-
-  void _onHorizontalDragUpdate(DragUpdateDetails details) {
-    setState(() {
-      _dragOffset += details.primaryDelta ?? 0;
-      _dragOffset = _dragOffset.clamp(-100.0, 100.0);
-    });
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    final playback = context.read<PlaybackCoordinator>();
-
-    if (velocity.abs() > 200 || _dragOffset.abs() > 50) {
-      if (_dragOffset < 0 || velocity < -200) {
-        playback.skipNext();
-      } else {
-        playback.skipPrevious();
-      }
-    }
-
-    setState(() {
-      _dragOffset = 0.0;
-    });
-  }
-
   Color _tintedDominantColor(Color color, {double blend = 0.4}) {
     final hsl = HSLColor.fromColor(color);
     final overlay = hsl
@@ -54,34 +28,15 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
 
   @override
   Widget build(BuildContext context) {
-    final offset = Offset(_dragOffset / 300, 0);
-    final dragProgress = (_dragOffset.abs() / 100).clamp(0.0, 1.0);
     final swipePreview = context
-        .select<global_audio_player.WispAudioHandler, _SwipePreviewData>((
-          player,
-        ) {
-          final queue = player.queueTracks;
-          final currentIndex = player.currentIndex;
-          GenericSong? previousTrack;
-          GenericSong? nextTrack;
-
-          if (currentIndex > 0 && currentIndex < queue.length) {
-            previousTrack = queue[currentIndex - 1];
-          }
-          if (currentIndex >= 0 && currentIndex + 1 < queue.length) {
-            nextTrack = queue[currentIndex + 1];
-          }
-
-          return _SwipePreviewData(
-            previousTrack: previousTrack,
-            nextTrack: nextTrack,
-          );
-        });
-
-    final isSwipingLeft = _dragOffset < 0;
-    final previewTrack = isSwipingLeft
-        ? swipePreview.nextTrack
-        : swipePreview.previousTrack;
+        .select<global_audio_player.WispAudioHandler, _SwipePreviewData>(
+          _selectSwipePreview,
+        );
+    final quality = context
+        .select<global_audio_player.WispAudioHandler, ActiveTrackQualityInfo?>(
+          (player) => player.activeTrackQuality,
+        );
+    final playback = context.read<PlaybackCoordinator>();
 
     final colors = context.colors;
     final isDark = colors.isDark;
@@ -108,136 +63,134 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
       clipBehavior: Clip.none,
       children: [
         Center(
-          child: GestureDetector(
-            onHorizontalDragUpdate: _onHorizontalDragUpdate,
-            onHorizontalDragEnd: _onHorizontalDragEnd,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => FullScreenPlayer.show(context),
-                    child: Container(
-                      width:
-                          MediaQuery.of(context).size.width -
-                          32, // 16px padding each side
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: bgColor.withValues(alpha: isDark ? 0.78 : 0.90),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.12)
-                              : colors.borderSubtle,
-                          width: 0.8,
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: isDark
-                            ? null
-                            : [
-                                BoxShadow(
-                                  color: colors.shadow,
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 3, 8, 0),
-                            child: Row(
-                              children: [
-                                _buildMobileAlbumArt(widget.currentTrack),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ClipRect(
-                                    clipBehavior: Clip.hardEdge,
-                                    child: Stack(
-                                      children: [
-                                        AnimatedSlide(
-                                          offset: offset,
-                                          duration: Duration.zero,
-                                          child: Opacity(
-                                            opacity: (1.0 - dragProgress).clamp(
-                                              0.3,
-                                              1.0,
-                                            ),
-                                            child: _buildMobileTrackInfo(
-                                              widget.currentTrack,
-                                              fgPrimary: fgPrimary,
-                                              fgSecondary: fgSecondary,
-                                            ),
-                                          ),
-                                        ),
-                                        if (previewTrack != null &&
-                                            dragProgress > 0)
-                                          Positioned.fill(
-                                            child: IgnorePointer(
-                                              child: Opacity(
-                                                opacity: (dragProgress * 0.95)
-                                                    .clamp(0.0, 0.95),
-                                                child: Transform.translate(
-                                                  offset: Offset(
-                                                    isSwipingLeft
-                                                        ? (1 - dragProgress) *
-                                                              24
-                                                        : -(1 - dragProgress) *
-                                                              24,
-                                                    0,
-                                                  ),
-                                                  child: _buildMobileTrackInfo(
-                                                    previewTrack,
-                                                    fgPrimary: fgPrimary,
-                                                    fgSecondary: fgSecondary,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                _buildMobileConnectButton(
-                                  widget.appStyle,
-                                  fgPrimary: fgPrimary,
-                                  fgSecondary: fgSecondary,
-                                ),
-                                LikeButton(
-                                  track: widget.currentTrack as GenericSong?,
-                                  iconSize: 24,
-                                  padding: const EdgeInsets.all(2),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 28,
-                                    minHeight: 28,
-                                  ),
-                                  color: btnColor,
-                                ),
-                                _buildMobilePlayPauseButton(
-                                  widget.appStyle,
-                                  fgPrimary: fgPrimary,
-                                ),
-                              ],
-                            ),
-                          ),
-                          _buildMiniProgressBar(
-                            progressColor: isDark ? Colors.white : primary,
-                            trackBg: isDark
-                                ? Colors.grey[850]!.withValues(alpha: 0.4)
+          child: MobileSwipeablePlayerBar(
+            currentTrack: widget.currentTrack is GenericSong
+                ? widget.currentTrack as GenericSong
+                : null,
+            previousTrack: swipePreview.previousTrack,
+            nextTrack: swipePreview.nextTrack,
+            onSkipNext: playback.skipNext,
+            onSkipPrevious: playback.skipPrevious,
+            builder: (builderContext, swipe) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => FullScreenPlayer.show(builderContext),
+                      child: Container(
+                        width: MediaQuery.of(builderContext).size.width - 32,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: bgColor.withValues(alpha: isDark ? 0.80 : 0.92),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.12)
                                 : colors.borderSubtle,
-                            bufferedColor: fgPrimary.withValues(alpha: 0.25),
+                            width: 0.8,
                           ),
-                        ],
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: isDark
+                                  ? Colors.black.withValues(alpha: 0.32)
+                                  : colors.shadow,
+                              blurRadius: isDark ? 14 : 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+                                child: Row(
+                                  children: [
+                                    MobileSwipeArtworkOverlay(
+                                      swipe: swipe,
+                                      size: 44,
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: _buildMobileAlbumArt(
+                                        builderContext,
+                                        widget.currentTrack,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: MobileSwipeTrackInfoStack(
+                                        swipe: swipe,
+                                        accentColor: btnColor,
+                                        secondaryColor: fgSecondary,
+                                        currentChild: _buildMobileTrackInfo(
+                                          builderContext,
+                                          widget.currentTrack,
+                                          quality: quality,
+                                          fgPrimary: fgPrimary,
+                                          fgSecondary: fgSecondary,
+                                        ),
+                                        previewChild: swipe.previewTrack == null
+                                            ? null
+                                            : _buildMobileTrackInfo(
+                                                builderContext,
+                                                swipe.previewTrack,
+                                                quality: quality,
+                                                fgPrimary: fgPrimary,
+                                                fgSecondary: fgSecondary,
+                                              ),
+                                      ),
+                                    ),
+                                    _buildMobileConnectButton(
+                                      widget.appStyle,
+                                      fgPrimary: fgPrimary,
+                                      fgSecondary: fgSecondary,
+                                    ),
+                                    LikeButton(
+                                      track: widget.currentTrack as GenericSong?,
+                                      iconSize: 24,
+                                      padding: const EdgeInsets.all(2),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 28,
+                                        minHeight: 28,
+                                      ),
+                                      color: btnColor,
+                                    ),
+                                    _buildMobilePlayPauseButton(
+                                      widget.appStyle,
+                                      fgPrimary: fgPrimary,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(10, 0, 10, 2),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(2),
+                                child: _buildMiniProgressBar(
+                                  progressColor:
+                                      isDark ? Colors.white : primary,
+                                  trackBg: isDark
+                                      ? Colors.grey[850]!.withValues(alpha: 0.4)
+                                      : colors.borderSubtle,
+                                  bufferedColor: fgPrimary.withValues(
+                                    alpha: 0.25,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
         if (handoffMessage != null)
@@ -257,7 +210,7 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     );
   }
 
-  Widget _buildMobileAlbumArt(dynamic currentTrack) {
+  Widget _buildMobileAlbumArt(BuildContext context, dynamic currentTrack) {
     final imageUrl = currentTrack?.thumbnailUrl ?? '';
     final colors = context.colors;
     return PlayerArtworkHero(
@@ -286,7 +239,9 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
   }
 
   Widget _buildMobileTrackInfo(
+    BuildContext context,
     dynamic currentTrack, {
+    required ActiveTrackQualityInfo? quality,
     required Color fgPrimary,
     required Color fgSecondary,
   }) {
@@ -298,11 +253,6 @@ class _MobilePlayerBarAnimatedState extends State<_MobilePlayerBarAnimated> {
     }
 
     final GenericSong track = currentTrack;
-
-    final quality = context
-        .select<global_audio_player.WispAudioHandler, ActiveTrackQualityInfo?>(
-          (player) => player.activeTrackQuality,
-        );
 
     final qualityLabel = quality == null
         ? 'Standard'

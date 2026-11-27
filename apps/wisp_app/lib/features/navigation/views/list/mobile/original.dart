@@ -16,6 +16,7 @@ import 'package:wisp/shared/widgets/buttons/like_button.dart';
 import 'package:wisp/shared/widgets/layout/mobile_bottom_padding.dart';
 import 'package:wisp/shared/widgets/rows/track_row.dart';
 import 'package:wisp/shared/widgets/style/generic_button.dart';
+import 'mobile_sort_header.dart';
 import '../view.dart' show SharedListType, ListSortMethod;
 
 class MobileOriginalListView extends StatefulWidget {
@@ -216,6 +217,16 @@ class _MobileOriginalListViewState extends State<MobileOriginalListView> {
                   child: _buildActionsRow(context),
                 ),
               ),
+              if (widget.songs.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: MobileListSortHeader(
+                    type: widget.type,
+                    sortMethod: widget.sortMethod,
+                    sortAscending: widget.sortAscending,
+                    onSort: widget.onSort,
+                    style: AppStyle.Original,
+                  ),
+                ),
               SliverFixedExtentList(
                 itemExtent: 56.0,
                 delegate: SliverChildBuilderDelegate((context, rowIndex) {

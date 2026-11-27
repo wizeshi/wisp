@@ -17,15 +17,15 @@ TODOs for version v26.12:
 - Features/Changes:
   - [x] Make fullplayer button see through
   - [x] Move GitHub url to wisp icon
-  - [ ] Improve player bar swipe gesture and appearance
-  - [ ] Improve marketplace appearance on mobile
+  - [x] Improve player bar swipe gesture and appearance
+  - [x] Improve marketplace appearance on mobile
   - [x] Add heros between player bar and full player on mobile. Also change the AM animation to a hero.
-  - [ ] Add sort mode headers to mobile playlist view
+  - [x] Add sort mode headers to mobile playlist view
   - [ ] Change search view history to show both queries and selected/played items
-  - [ ] Mobile Context Menu
-    - [ ] Add new source icon
-    - [ ] Add playlist/album/artist preview 
-    - [ ] Add proper scrolling
+  - [x] Mobile Context Menu
+    - [x] Add new source icon
+    - [x] Add playlist/album/artist preview 
+    - [x] Add proper scrolling
   - [ ] Update installer with new marketplace features
   - [ ] Add special card from the home screen on mobile. 
   - [x] Make artist name clickable in the full player

@@ -9,6 +9,10 @@ import 'dart:math' as math;
 import 'package:material_ui/material_ui.dart';
 import 'package:wisp/core/theme/app_theme.dart';
 
+/// Test-only override to force mobile bottom-sheet or desktop menu rendering.
+@visibleForTesting
+bool? debugForceMobileContextMenu;
+
 typedef ContextMenuActionCallback =
     FutureOr<void> Function(BuildContext context);
 typedef ContextMenuHeaderBuilder = Widget Function(BuildContext context);
@@ -56,7 +60,9 @@ Future<void> showAdaptiveContextMenu({
   String? barrierLabel,
 }) async {
   if (actions.isEmpty) return;
-  final desktop = _isDesktop;
+  final desktop = debugForceMobileContextMenu == true
+      ? false
+      : (debugForceMobileContextMenu == false ? true : _isDesktop);
   if (desktop) {
     final overlay =
         Overlay.of(context, rootOverlay: true).context.findRenderObject()
@@ -115,6 +121,8 @@ Future<void> _showMobileContextMenu(
   await showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
+    useSafeArea: true,
+    isScrollControlled: true,
     isDismissible: true,
     enableDrag: true,
     backgroundColor: context.colors.surfaceElevated,
@@ -122,65 +130,187 @@ Future<void> _showMobileContextMenu(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (sheetContext) {
-      return StatefulBuilder(
-        builder: (context, setSheetState) {
-          final colors = context.colors;
-          return SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 12),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: colors.textMuted,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                if (headerBuilder != null) ...[
-                  const SizedBox(height: 12),
-                  headerBuilder(sheetContext),
-                  const SizedBox(height: 8),
-                  Divider(height: 1, color: colors.borderSubtle),
-                ],
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    children: [
-                      for (final action in actions)
-                        _MobileMenuTile(
-                          action: action,
-                          onSelected: () async {
-                            if (!action.enabled) return;
-                            if (action.hasChildren) {
-                              Navigator.of(sheetContext).pop();
-                              await _showMobileContextMenu(
-                                context,
-                                actions: action.children,
-                              );
-                              return;
-                            }
-                            if (!action.keepOpenOnSelect) {
-                              Navigator.of(sheetContext).pop();
-                            }
-                            await action.onSelected?.call(context);
-                            if (action.keepOpenOnSelect) {
-                              setSheetState(() {});
-                            }
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+      return _MobileContextMenuSheet(
+        parentContext: context,
+        actions: actions,
+        headerBuilder: headerBuilder,
       );
     },
   );
+}
+
+class _MobileMenuPage {
+  final List<ContextMenuAction> actions;
+  final ContextMenuHeaderBuilder? headerBuilder;
+  final String? title;
+
+  const _MobileMenuPage({
+    required this.actions,
+    this.headerBuilder,
+    this.title,
+  });
+}
+
+class _MobileContextMenuSheet extends StatefulWidget {
+  final BuildContext parentContext;
+  final List<ContextMenuAction> actions;
+  final ContextMenuHeaderBuilder? headerBuilder;
+
+  const _MobileContextMenuSheet({
+    required this.parentContext,
+    required this.actions,
+    this.headerBuilder,
+  });
+
+  @override
+  State<_MobileContextMenuSheet> createState() =>
+      _MobileContextMenuSheetState();
+}
+
+class _MobileContextMenuSheetState extends State<_MobileContextMenuSheet> {
+  late final List<_MobileMenuPage> _stack;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _stack = [
+      _MobileMenuPage(
+        actions: widget.actions,
+        headerBuilder: widget.headerBuilder,
+      ),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _openSubmenu(ContextMenuAction action) {
+    setState(() {
+      _stack.add(
+        _MobileMenuPage(
+          actions: action.children,
+          title: action.label,
+        ),
+      );
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
+  }
+
+  void _popSubmenu() {
+    if (_stack.length <= 1) return;
+    setState(() {
+      _stack.removeLast();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
+  }
+
+  Future<void> _handleActionTap(ContextMenuAction action) async {
+    if (!action.enabled) return;
+    if (action.hasChildren) {
+      _openSubmenu(action);
+      return;
+    }
+
+    final actionContext =
+        action.keepOpenOnSelect ? context : widget.parentContext;
+    if (!action.keepOpenOnSelect) {
+      Navigator.of(context).pop();
+    }
+    await action.onSelected?.call(actionContext);
+    if (action.keepOpenOnSelect && mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final currentPage = _stack.last;
+    final isSubmenu = _stack.length > 1;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
+
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.textMuted,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            if (isSubmenu) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 12, 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.arrow_back, color: colors.textPrimary),
+                      onPressed: _popSubmenu,
+                      tooltip: 'Back',
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        currentPage.title ?? '',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: colors.borderSubtle),
+            ] else if (currentPage.headerBuilder != null) ...[
+              currentPage.headerBuilder!(context),
+              const SizedBox(height: 10),
+              Divider(height: 1, color: colors.borderSubtle),
+            ],
+            Flexible(
+              child: ListView.builder(
+                controller: _scrollController,
+                shrinkWrap: true,
+                primary: false,
+                physics: const ClampingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                itemCount: currentPage.actions.length,
+                itemBuilder: (itemContext, index) {
+                  final action = currentPage.actions[index];
+                  return _MobileMenuTile(
+                    action: action,
+                    onSelected: () => _handleActionTap(action),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _MobileMenuTile extends StatelessWidget {

@@ -2,6 +2,8 @@
 
 library;
 
+import 'dart:io' show File;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
@@ -21,9 +23,10 @@ import 'package:wisp/data/cache/metadata_cache.dart';
 import 'package:wisp/services/system/listening_habits_service.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart' as global_audio_player;
 import 'package:wisp/features/playback/services/playback_coordinator.dart';
-import 'package:wisp/core/utils/song_source_icon.dart';
 import 'package:wisp/core/utils/liked_songs.dart';
 import 'package:wisp/features/library/state/local_playlists.dart';
+import 'package:wisp/shared/widgets/artwork/liked_songs_art.dart';
+import 'package:wisp/shared/widgets/display/provider_icon.dart';
 import 'adaptive_context_menu.dart';
 import 'playlist_folder_modals.dart';
 import 'inspect_dialog.dart';
@@ -66,7 +69,113 @@ class EntityContextMenus {
     required String id,
   }) => copyShareUrl(context, source: source, type: type, id: id);
 
-  static IconData _sourceIcon(String source) => songSourceIcon(source);
+  static bool _isLocalImagePath(String path) {
+    return path.startsWith('file://') ||
+        path.startsWith('/') ||
+        (path.length > 2 && path[1] == ':');
+  }
+
+  /// Builds a unified mobile context menu header with entity artwork,
+  /// title/subtitle metadata, and the source provider icon.
+  static Widget _buildMobilePreviewHeader(
+    BuildContext context, {
+    required String title,
+    String? subtitle,
+    required String thumbnailUrl,
+    required String source,
+    required IconData fallbackIcon,
+    bool circularArtwork = false,
+    bool isLikedPlaylist = false,
+  }) {
+    final colors = context.colors;
+
+    Widget artwork;
+    if (isLikedPlaylist) {
+      artwork = const LikedSongsArt();
+    } else if (thumbnailUrl.isEmpty) {
+      artwork = Container(
+        color: colors.artworkPlaceholder,
+        child: Icon(fallbackIcon, color: colors.textMuted),
+      );
+    } else if (_isLocalImagePath(thumbnailUrl)) {
+      artwork = Image.file(
+        File(thumbnailUrl.replaceFirst('file://', '')),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => Container(
+          color: colors.artworkPlaceholder,
+          child: Icon(fallbackIcon, color: colors.textMuted),
+        ),
+      );
+    } else {
+      artwork = CachedNetworkImage(
+        imageUrl: thumbnailUrl,
+        fit: BoxFit.cover,
+        errorWidget: (_, _, _) => Container(
+          color: colors.artworkPlaceholder,
+          child: Icon(fallbackIcon, color: colors.textMuted),
+        ),
+        placeholder: (_, _) => Container(color: colors.artworkPlaceholder),
+      );
+    }
+
+    final framedArtwork = SizedBox(
+      width: 52,
+      height: 52,
+      child: circularArtwork
+          ? ClipOval(child: artwork)
+          : ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: artwork,
+            ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Row(
+        children: [
+          framedArtwork,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitle != null && subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          ProviderIcon(
+            providerId: source,
+            type: 'metadata',
+            size: 22,
+            color: colors.textSecondary,
+            fallbackIcon: source.toLowerCase() == 'local'
+                ? Icons.folder_outlined
+                : Icons.music_note,
+          ),
+        ],
+      ),
+    );
+  }
 
   static Future<List<GenericSong>> _resolveAllPlaylistTracks(
     BuildContext context,
@@ -736,57 +845,16 @@ class EntityContextMenus {
       anchorRect: effectiveAnchorRect,
       globalPosition: globalPosition,
       mobileHeaderBuilder: (headerContext) {
-        final colors = headerContext.colors;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: 52,
-                  height: 52,
-                  child: CachedNetworkImage(
-                    imageUrl: track.thumbnailUrl,
-                    fit: BoxFit.cover,
-                    errorWidget: (context, url, error) => Container(
-                      color: colors.artworkPlaceholder,
-                      child: Icon(Icons.music_note, color: colors.textMuted),
-                    ),
-                    placeholder: (context, url) =>
-                        Container(color: colors.artworkPlaceholder),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      track.title,
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      track.artists.map((artist) => artist.name).join(', '),
-                      style: TextStyle(color: colors.textSecondary, fontSize: 12),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(_sourceIcon(track.source), color: colors.textSecondary),
-            ],
-          ),
+        final artistNames = track.artists.map((artist) => artist.name).join(', ');
+        final subtitle =
+            artistNames.isNotEmpty ? artistNames : track.album?.title;
+        return _buildMobilePreviewHeader(
+          headerContext,
+          title: track.title,
+          subtitle: subtitle,
+          thumbnailUrl: track.thumbnailUrl,
+          source: track.source,
+          fallbackIcon: Icons.music_note,
         );
       },
     );
@@ -1025,6 +1093,24 @@ class EntityContextMenus {
       actions: actions,
       anchorRect: anchorRect,
       globalPosition: globalPosition,
+      mobileHeaderBuilder: (headerContext) {
+        final trackCount = playlist.total ?? playlist.songs?.length;
+        final owner = playlist.author.displayName;
+        final subtitleParts = <String>[
+          owner.isNotEmpty ? owner : 'Playlist',
+          if (trackCount != null && trackCount > 0)
+            '$trackCount ${trackCount == 1 ? 'song' : 'songs'}',
+        ];
+        return _buildMobilePreviewHeader(
+          headerContext,
+          title: playlist.title,
+          subtitle: subtitleParts.join(' • '),
+          thumbnailUrl: playlist.thumbnailUrl,
+          source: playlist.source,
+          fallbackIcon: Icons.playlist_play,
+          isLikedPlaylist: isLikedSongsPlaylistId(playlist.id),
+        );
+      },
     );
   }
 
@@ -1187,6 +1273,24 @@ class EntityContextMenus {
       actions: actions,
       anchorRect: anchorRect,
       globalPosition: globalPosition,
+      mobileHeaderBuilder: (headerContext) {
+        final artistsText =
+            resolvedAlbum.artists.map((a) => a.name).join(', ');
+        final subtitleParts = <String>[
+          if (artistsText.isNotEmpty) artistsText,
+          'Album',
+          if (resolvedAlbum.releaseDate.year > 1900)
+            '${resolvedAlbum.releaseDate.year}',
+        ];
+        return _buildMobilePreviewHeader(
+          headerContext,
+          title: resolvedAlbum.title,
+          subtitle: subtitleParts.join(' • '),
+          thumbnailUrl: resolvedAlbum.thumbnailUrl,
+          source: resolvedAlbum.source,
+          fallbackIcon: Icons.album,
+        );
+      },
     );
   }
 
@@ -1278,6 +1382,15 @@ class EntityContextMenus {
       actions: actions,
       anchorRect: anchorRect,
       globalPosition: globalPosition,
+      mobileHeaderBuilder: (headerContext) => _buildMobilePreviewHeader(
+        headerContext,
+        title: artist.name,
+        subtitle: 'Artist',
+        thumbnailUrl: artist.thumbnailUrl,
+        source: artist.source,
+        fallbackIcon: Icons.person,
+        circularArtwork: true,
+      ),
     );
   }
 

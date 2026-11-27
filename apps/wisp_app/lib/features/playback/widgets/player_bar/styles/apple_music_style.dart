@@ -526,155 +526,111 @@ class _AppleMusicMobilePlayerBar extends StatefulWidget {
 
 class _AppleMusicMobilePlayerBarState
     extends State<_AppleMusicMobilePlayerBar> {
-  double _dragOffset = 0.0;
-
-  void _onHorizontalDragUpdate(DragUpdateDetails details) {
-    setState(() {
-      _dragOffset += details.primaryDelta ?? 0;
-      _dragOffset = _dragOffset.clamp(-100.0, 100.0);
-    });
-  }
-
-  void _onHorizontalDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    final playback = context.read<PlaybackCoordinator>();
-
-    if (velocity.abs() > 200 || _dragOffset.abs() > 50) {
-      if (_dragOffset < 0 || velocity < -200) {
-        playback.skipNext();
-      } else {
-        playback.skipPrevious();
-      }
-    }
-
-    setState(() {
-      _dragOffset = 0.0;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final offset = Offset(_dragOffset / 300, 0);
-    final dragProgress = (_dragOffset.abs() / 100).clamp(0.0, 1.0);
-
     final swipePreview = context
-        .select<global_audio_player.WispAudioHandler, _SwipePreviewData>((
-          player,
-        ) {
-          final queue = player.queueTracks;
-          final currentIndex = player.currentIndex;
-          GenericSong? previousTrack;
-          GenericSong? nextTrack;
-
-          if (currentIndex > 0 && currentIndex < queue.length) {
-            previousTrack = queue[currentIndex - 1];
-          }
-          if (currentIndex >= 0 && currentIndex + 1 < queue.length) {
-            nextTrack = queue[currentIndex + 1];
-          }
-
-          return _SwipePreviewData(
-            previousTrack: previousTrack,
-            nextTrack: nextTrack,
-          );
-        });
-
-    final isSwipingLeft = _dragOffset < 0;
-    final previewTrack = isSwipingLeft
-        ? swipePreview.nextTrack
-        : swipePreview.previousTrack;
+        .select<global_audio_player.WispAudioHandler, _SwipePreviewData>(
+          _selectSwipePreview,
+        );
+    final playback = context.read<PlaybackCoordinator>();
+    final primary = Theme.of(context).colorScheme.primary;
+    final colors = context.colors;
 
     final handoffMessage = context.select<ConnectSessionProvider, String?>(
       (connect) => _handoffStatusMessage(connect),
-    );
-
-    // Transparent body: the lens provides the glass material.
-    final cardBody = SizedBox(
-      width: MediaQuery.of(context).size.width - 32,
-      height: 60,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-        child: Row(
-          children: [
-            _buildMobileArt(widget.currentTrack),
-            const SizedBox(width: 12),
-
-            // Track title & artist (with swipe animation)
-            Expanded(
-              child: ClipRect(
-                clipBehavior: Clip.hardEdge,
-                child: Stack(
-                  children: [
-                    AnimatedSlide(
-                      offset: offset,
-                      duration: Duration.zero,
-                      child: Opacity(
-                        opacity: (1.0 - dragProgress).clamp(0.3, 1.0),
-                        child: _buildMobileTrackInfo(widget.currentTrack),
-                      ),
-                    ),
-                    if (previewTrack != null && dragProgress > 0)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: Opacity(
-                            opacity: (dragProgress * 0.95).clamp(0.0, 0.95),
-                            child: Transform.translate(
-                              offset: Offset(
-                                isSwipingLeft
-                                    ? (1 - dragProgress) * 24
-                                    : -(1 - dragProgress) * 24,
-                                0,
-                              ),
-                              child: _buildMobileTrackInfo(previewTrack),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-
-            _ConnectMenuButton(
-              iconSize: 22,
-              appStyle: AppStyle.AppleMusic,
-              inactiveColor: context.colors.textSecondary,
-              activeColorOverride: context.colors.textPrimary,
-            ),
-            LikeButton(
-              track: widget.currentTrack as GenericSong?,
-              iconSize: 22,
-              padding: const EdgeInsets.all(2),
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              color: context.colors.textPrimary,
-            ),
-            const SizedBox(width: 4),
-
-            // Circular progress indicator surrounding the play button
-            const _AppleMusicCircularPlayButton(),
-          ],
-        ),
-      ),
     );
 
     return Stack(
       clipBehavior: Clip.none,
       children: [
         Center(
-          child: GestureDetector(
-            onHorizontalDragUpdate: _onHorizontalDragUpdate,
-            onHorizontalDragEnd: _onHorizontalDragEnd,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () => FullScreenPlayer.show(context),
-                  child: _AppleGlassLens(cornerRadius: 16, child: cardBody),
+          child: MobileSwipeablePlayerBar(
+            currentTrack: widget.currentTrack is GenericSong
+                ? widget.currentTrack as GenericSong
+                : null,
+            previousTrack: swipePreview.previousTrack,
+            nextTrack: swipePreview.nextTrack,
+            onSkipNext: playback.skipNext,
+            onSkipPrevious: playback.skipPrevious,
+            builder: (builderContext, swipe) {
+              // Transparent body: the lens provides the glass material.
+              final cardBody = SizedBox(
+                width: MediaQuery.of(builderContext).size.width - 32,
+                height: 60,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10.0,
+                    vertical: 6.0,
+                  ),
+                  child: Row(
+                    children: [
+                      MobileSwipeArtworkOverlay(
+                        swipe: swipe,
+                        size: 46,
+                        borderRadius: BorderRadius.circular(10),
+                        child: _buildMobileArt(
+                          builderContext,
+                          widget.currentTrack,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Track title & artist (with swipe animation)
+                      Expanded(
+                        child: MobileSwipeTrackInfoStack(
+                          swipe: swipe,
+                          accentColor: primary,
+                          secondaryColor: colors.textSecondary,
+                          currentChild: _buildMobileTrackInfo(
+                            builderContext,
+                            widget.currentTrack,
+                          ),
+                          previewChild: swipe.previewTrack == null
+                              ? null
+                              : _buildMobileTrackInfo(
+                                  builderContext,
+                                  swipe.previewTrack,
+                                ),
+                        ),
+                      ),
+
+                      _ConnectMenuButton(
+                        iconSize: 22,
+                        appStyle: AppStyle.AppleMusic,
+                        inactiveColor: colors.textSecondary,
+                        activeColorOverride: colors.textPrimary,
+                      ),
+                      LikeButton(
+                        track: widget.currentTrack as GenericSong?,
+                        iconSize: 22,
+                        padding: const EdgeInsets.all(2),
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
+                        color: colors.textPrimary,
+                      ),
+                      const SizedBox(width: 4),
+
+                      // Circular progress indicator surrounding the play button
+                      const _AppleMusicCircularPlayButton(),
+                    ],
+                  ),
                 ),
-              ),
-            ),
+              );
+
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => FullScreenPlayer.show(builderContext),
+                    child: _AppleGlassLens(cornerRadius: 16, child: cardBody),
+                  ),
+                ),
+              );
+            },
           ),
         ),
         if (handoffMessage != null)
@@ -685,7 +641,7 @@ class _AppleMusicMobilePlayerBarState
             child: Center(
               child: _HandoffStatusIndicator(
                 message: handoffMessage,
-                backgroundColor: context.colors.surfaceElevated,
+                backgroundColor: colors.surfaceElevated,
                 mobile: true,
               ),
             ),
@@ -694,7 +650,7 @@ class _AppleMusicMobilePlayerBarState
     );
   }
 
-  Widget _buildMobileArt(dynamic currentTrack) {
+  Widget _buildMobileArt(BuildContext context, dynamic currentTrack) {
     final imageUrl = currentTrack?.thumbnailUrl ?? '';
     final colors = context.colors;
     return PlayerArtworkHero(
@@ -722,7 +678,7 @@ class _AppleMusicMobilePlayerBarState
     );
   }
 
-  Widget _buildMobileTrackInfo(dynamic currentTrack) {
+  Widget _buildMobileTrackInfo(BuildContext context, dynamic currentTrack) {
     final colors = context.colors;
     if (currentTrack == null || currentTrack is! GenericSong) {
       return Text(

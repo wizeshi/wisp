@@ -38,6 +38,7 @@ import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/features/connect/widgets/connect_menu.dart';
 import 'package:wisp/shared/widgets/playback/track_cache_indicator.dart';
 import 'package:wisp/features/playback/widgets/player_bar/components/audio_quality_badge.dart';
+import 'package:wisp/features/playback/widgets/player_bar/components/mobile_swipe_track_switcher.dart';
 import 'package:material_3_expressive/material_3_expressive.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
@@ -106,6 +107,36 @@ class _SwipePreviewData {
 
   @override
   int get hashCode => Object.hash(previousTrack?.id, nextTrack?.id);
+}
+
+_SwipePreviewData _selectSwipePreview(
+  global_audio_player.WispAudioHandler player,
+) {
+  final queue = player.queueTracks;
+  final currentIndex = player.currentIndex;
+  GenericSong? previousTrack;
+  GenericSong? nextTrack;
+
+  if (queue.isNotEmpty && currentIndex >= 0 && currentIndex < queue.length) {
+    if (currentIndex > 0) {
+      previousTrack = queue[currentIndex - 1];
+    } else if (player.repeatMode == global_audio_player.RepeatMode.all &&
+        queue.length > 1) {
+      previousTrack = queue.last;
+    }
+
+    if (currentIndex + 1 < queue.length) {
+      nextTrack = queue[currentIndex + 1];
+    } else if (player.repeatMode == global_audio_player.RepeatMode.all &&
+        queue.length > 1) {
+      nextTrack = queue.first;
+    }
+  }
+
+  return _SwipePreviewData(
+    previousTrack: previousTrack,
+    nextTrack: nextTrack,
+  );
 }
 
 class _HandoffStatusIndicator extends StatelessWidget {
