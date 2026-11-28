@@ -19,10 +19,12 @@ void log(String message) {
 /// A two-slot MediaKit engine. The inactive slot is private so callers cannot
 /// accidentally disrupt a preload or a transition.
 class MediaKitPlaybackEngine implements WispPlaybackEngine {
-  late final Player _first;
-  late final Player _second;
+  static const PlayerConfiguration _playerConfig = PlayerConfiguration(
+    bufferSize: 8 * 1024 * 1024,
+  );
+
   late Player _active;
-  late Player _standby;
+  Player? _standby;
 
   PlaybackEngineSettings _settings;
   PlaybackEngineState _state = PlaybackEngineState.initial;
@@ -48,10 +50,11 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   // when the underlying slot swap actually occurs.
   Player? _reportingPlayer;
   PlaybackSource? _fadeOutgoingSource;
+  AudioDevice? _selectedAudioDevice;
 
   final _states = StreamController<PlaybackEngineState>.broadcast();
   final _completed = StreamController<void>.broadcast();
-  final List<StreamSubscription<dynamic>> _subscriptions = [];
+  final Map<Player, List<StreamSubscription<dynamic>>> _playerSubscriptions = {};
 
   MediaKitPlaybackEngine({
     PlaybackEngineSettings? settings,
@@ -60,15 +63,8 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     
     log('[MediaKitPlaybackEngine]: initialized with settings: ${_settings.toString()}');
     
-    const playerConfig = PlayerConfiguration(
-      bufferSize: 8 * 1024 * 1024,
-    );
-    _first = Player(configuration: playerConfig);
-    _second = Player(configuration: playerConfig);
-    _active = _first;
-    _standby = _second;
-
-    _listenToPlayers();
+    _active = Player(configuration: _playerConfig);
+    _attachPlayerListeners(_active);
   }
 
   @override
@@ -89,16 +85,47 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   @override
   Stream<AudioOutputDevice?> get activeOutputDevice => WispAudioOutputInfo.activeOutputDevice;
 
+  Future<Player> _ensureStandbyPlayer() async {
+    final existing = _standby;
+    if (existing != null) return existing;
+    final standby = Player(configuration: _playerConfig);
+    _attachPlayerListeners(standby);
+    final selectedDevice = _selectedAudioDevice;
+    if (selectedDevice != null) {
+      await standby.setAudioDevice(selectedDevice);
+    }
+    _standby = standby;
+    return standby;
+  }
+
+  Future<void> _disposeStandbyPlayer() async {
+    final standby = _standby;
+    if (standby == null) return;
+    _standby = null;
+    await _detachPlayerListeners(standby);
+    await standby.dispose();
+  }
+
+  Future<void> _maybeDisposeStandbyPlayer() async {
+    if (_settings.gaplessEnabled ||
+        _settings.crossfadeEnabled ||
+        _isTransitioning ||
+        _standby == null) {
+      return;
+    }
+    _preloadedSource = null;
+    await _disposeStandbyPlayer();
+  }
+
   @override
   Future<void> updateSettings(PlaybackEngineSettings settings) =>
       _enqueue(() async {
         _settings = settings;
-        if (!settings.crossfadeEnabled && _preloadedSource != null) {
-          // Keep a gapless preload when requested, but discard a crossfade-only
-          // standby player so it cannot unexpectedly start later.
-          if (!settings.gaplessEnabled) {
-            await _standby.stop();
-            _preloadedSource = null;
+        if (!settings.gaplessEnabled && !settings.crossfadeEnabled) {
+          _preloadedSource = null;
+          if (!_isTransitioning && _standby != null) {
+            await _standby!.stop();
+            await _disposeStandbyPlayer();
           }
         }
         _publishState();
@@ -116,7 +143,10 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
         _isTransitioning = false;
         _preloadedSource = null;
         _activeSource = source;
-        await _standby.stop();
+        if (_standby != null) {
+          await _standby!.stop();
+          await _maybeDisposeStandbyPlayer();
+        }
         await _applyBufferForSource(_active, source);
         await _active.open(_media(source), play: false);
         await _active.setVolume(_volume * 100);
@@ -135,9 +165,10 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   Future<void> preloadNext(PlaybackSource source) => _enqueue(() async {
         if (!_settings.gaplessEnabled && !_settings.crossfadeEnabled) return;
         try {
-          await _applyBufferForSource(_standby, source);
-          await _standby.open(_media(source), play: false);
-          await _standby.setVolume(
+          final standby = await _ensureStandbyPlayer();
+          await _applyBufferForSource(standby, source);
+          await standby.open(_media(source), play: false);
+          await standby.setVolume(
             _settings.crossfadeEnabled ? 0 : _volume * 100,
           );
           _preloadedSource = source;
@@ -155,14 +186,18 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     return _enqueue(() async {
       _isTransitioning = false;
       _preloadedSource = null;
-      await _standby.stop();
+      if (_standby != null) {
+        await _standby!.stop();
+        await _maybeDisposeStandbyPlayer();
+      }
       _publishState();
     });
   }
 
   @override
   Future<void> transitionToPreloaded({bool play = true}) => _enqueue(() async {
-        if (_preloadedSource == null) return;
+        final standby = _standby;
+        if (_preloadedSource == null || standby == null) return;
 
         try {
           final shouldFade = _settings.crossfadeEnabled &&
@@ -178,7 +213,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
             // background under the old `_active` reference until the fade
             // completes and the slots swap.
             _fadeOutgoingSource = _activeSource;
-            _reportingPlayer = _standby;
+            _reportingPlayer = standby;
             _activeSource = incomingSource;
           }
           _isTransitioning = shouldFade;
@@ -198,11 +233,13 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
           _reportingPlayer = null;
           _fadeOutgoingSource = null;
           _lastError = null;
+          await _maybeDisposeStandbyPlayer();
           _publishState();
         } catch (error) {
           _isTransitioning = false;
           _reportingPlayer = null;
           _fadeOutgoingSource = null;
+          await _maybeDisposeStandbyPlayer();
           _publishFailure('transitionToPreloaded', error);
           rethrow;
         }
@@ -236,6 +273,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
         _preloadedSource = null;
         await _active.setVolume(_volume * 100);
         await _active.pause();
+        await _maybeDisposeStandbyPlayer();
         _publishState();
       });
     }
@@ -243,6 +281,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     _cancelTransition();
     return _enqueue(() async {
       await _active.pause();
+      await _maybeDisposeStandbyPlayer();
       _publishState();
     });
   }
@@ -263,6 +302,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
         _preloadedSource = null;
         await _active.setVolume(_volume * 100);
         await _active.seek(position);
+        await _maybeDisposeStandbyPlayer();
         _publishState();
       });
     }
@@ -270,6 +310,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     _cancelTransition();
     return _enqueue(() async {
       await _active.seek(position);
+      await _maybeDisposeStandbyPlayer();
       _publishState();
     });
   }
@@ -277,9 +318,11 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   @override
   Future<void> setVolume(double volume) => _enqueue(() async {
     _volume = volume.clamp(0, 1).toDouble();
+    final standby = _standby;
     await Future.wait([
       _active.setVolume(_volume * 100),
-      if (_preloadedSource != null) _standby.setVolume(_volume * 100),
+      if (standby != null && _preloadedSource != null)
+        standby.setVolume(_volume * 100),
     ]);
     _publishState();
   });
@@ -288,10 +331,10 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   Future<void> setOutputDevice(String deviceId) => _enqueue(() async {
     log('[MediaKitPlaybackEngine] setOutputDevice: $deviceId');
 
-    log('[MediaKitPlaybackEngine] _first.state.audioDevices: ${_first.state.audioDevices.map((d) => d.name).toList()}');
+    log('[MediaKitPlaybackEngine] _active.state.audioDevices: ${_active.state.audioDevices.map((d) => d.name).toList()}');
 
     unawaited((() async {
-      final audioDevices = await (_first.platform as NativePlayer).getProperty('audio-device-list');
+      final audioDevices = await (_active.platform as NativePlayer).getProperty('audio-device-list');
       log('[MediaKitPlaybackEngine] mpv inner state: $audioDevices');
     })());
 
@@ -301,16 +344,19 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
       filteredDeviceId = "wasapi/${deviceId.split('.').last}";
     }
 
-    final device = _first.state.audioDevices
+    final device = _active.state.audioDevices
         .where((candidate) => candidate.name == filteredDeviceId)
         .firstOrNull;
     if (device == null) {
       throw ArgumentError.value(filteredDeviceId, 'deviceId', 'Unknown audio device');
     }
+    _selectedAudioDevice = device;
     // Both slots must use the same route or a crossfade can split between
     // hardware outputs.
-    await _first.setAudioDevice(device);
-    await _second.setAudioDevice(device);
+    await _active.setAudioDevice(device);
+    if (_standby != null) {
+      await _standby!.setAudioDevice(device);
+    }
   });
 
   @override
@@ -320,7 +366,12 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
       _isTransitioning = false;
       _preloadedSource = null;
       _activeSource = null;
-      await Future.wait([_first.stop(), _second.stop()]);
+      final standby = _standby;
+      await Future.wait([
+        _active.stop(),
+        if (standby != null) standby.stop(),
+      ]);
+      await _maybeDisposeStandbyPlayer();
     });
   }
 
@@ -329,10 +380,16 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     if (_disposed) return;
     _disposed = true;
     await _operations.catchError((_) {});
-    for (final subscription in _subscriptions) {
-      await subscription.cancel();
+    final players = _playerSubscriptions.keys.toList(growable: false);
+    for (final player in players) {
+      await _detachPlayerListeners(player);
     }
-    await Future.wait([_first.dispose(), _second.dispose()]);
+    final standby = _standby;
+    _standby = null;
+    await Future.wait([
+      _active.dispose(),
+      if (standby != null) standby.dispose(),
+    ]);
     await _states.close();
     await _completed.close();
   }
@@ -340,6 +397,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   Future<bool> _crossfade() async {
     final outgoing = _active;
     final incoming = _standby;
+    if (incoming == null) return false;
     await incoming.setVolume(0);
     final generation = ++_transitionGeneration;
     await incoming.play();
@@ -412,8 +470,10 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
   }
 
   void _swapSlots() {
+    final standby = _standby;
+    if (standby == null) return;
     final previous = _active;
-    _active = _standby;
+    _active = standby;
     _standby = previous;
     _publishState();
   }
@@ -433,23 +493,36 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     httpHeaders: source.headers.isEmpty ? null : source.headers,
   );
 
-  void _listenToPlayers() {
-    for (final player in [_first, _second]) {
-      _subscriptions.add(player.stream.playing.listen((_) => _publishState()));
-      _subscriptions.add(player.stream.buffering.listen((_) => _publishState()));
-      _subscriptions.add(player.stream.position.listen((_) => _publishState()));
-      _subscriptions.add(player.stream.buffer.listen((_) => _publishState()));
-      _subscriptions.add(player.stream.duration.listen((_) => _publishState()));
-      _subscriptions.add(player.stream.completed.listen((didComplete) {
-        if (didComplete && identical(player, _active) && !_disposed) {
-          _completed.add(null);
-        }
-      }));
-      _subscriptions.add(player.stream.error.listen((error) {
-        if (identical(player, _active)) {
-          _publishFailure('nativePlayback', error);
-        }
-      }));
+  void _attachPlayerListeners(Player player) {
+    final subs = <StreamSubscription<dynamic>>[];
+    void publishIfReported() {
+      if (!identical(player, _reportingPlayer ?? _active)) return;
+      _publishState();
+    }
+
+    subs.add(player.stream.playing.listen((_) => publishIfReported()));
+    subs.add(player.stream.buffering.listen((_) => publishIfReported()));
+    subs.add(player.stream.position.listen((_) => publishIfReported()));
+    subs.add(player.stream.buffer.listen((_) => publishIfReported()));
+    subs.add(player.stream.duration.listen((_) => publishIfReported()));
+    subs.add(player.stream.completed.listen((didComplete) {
+      if (didComplete && identical(player, _active) && !_disposed) {
+        _completed.add(null);
+      }
+    }));
+    subs.add(player.stream.error.listen((error) {
+      if (identical(player, _active)) {
+        _publishFailure('nativePlayback', error);
+      }
+    }));
+    _playerSubscriptions[player] = subs;
+  }
+
+  Future<void> _detachPlayerListeners(Player player) async {
+    final subs = _playerSubscriptions.remove(player);
+    if (subs == null) return;
+    for (final subscription in subs) {
+      await subscription.cancel();
     }
   }
 
@@ -468,7 +541,7 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
     // isPlaying line up with `_activeSource` (also already flipped to the
     // incoming track) instead of lagging behind until the slots swap.
     final reportingPlayer = _reportingPlayer ?? _active;
-    _state = PlaybackEngineState(
+    final nextState = PlaybackEngineState(
       isPlaying: reportingPlayer.state.playing,
       isBuffering: reportingPlayer.state.buffering,
       position: reportingPlayer.state.position,
@@ -482,7 +555,9 @@ class MediaKitPlaybackEngine implements WispPlaybackEngine {
       audioSampleRate: reportingPlayer.state.audioParams.sampleRate,
       error: _lastError,
     );
-    _states.add(_state);
+    if (nextState == _state) return;
+    _state = nextState;
+    _states.add(nextState);
   }
 
   Duration _reportedDuration(Player player) {

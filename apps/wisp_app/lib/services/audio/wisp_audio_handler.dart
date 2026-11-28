@@ -208,7 +208,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   StreamSubscription? _connectivitySubscription;
   Timer? _rpcTimer;
   Timer? _mprisTimer;
-  int _rpcLastSecond = -1;
+  bool? _androidLocksDesired;
+  (bool, audio_service.AudioProcessingState, bool, bool, RepeatMode)?
+  _lastBroadcastSignature;
 
   static const Duration _positionNotifyInterval = Duration(milliseconds: 200);
   final Stopwatch _rawPositionStopwatch = Stopwatch();
@@ -698,6 +700,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _engineAudioSampleRate = engineState.audioSampleRate;
 
     if (engineState.duration > Duration.zero) {
+      final hadZeroDuration =
+          (_lastKnownDuration ?? Duration.zero) <= Duration.zero;
       final hasPredeterminedDuration =
           _currentTrack != null && _currentTrack!.durationSecs > 0;
       final effectiveDuration = hasPredeterminedDuration
@@ -728,6 +732,9 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
               mediaItem.value?.duration == Duration.zero)) {
         _updateMediaItem();
       }
+      if (hadZeroDuration && durationChanged && _currentTrack != null) {
+        unawaited(_updateDiscordPresence(force: true));
+      }
     }
 
     if (engineState.error != null &&
@@ -740,7 +747,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     }
 
     _handlePositionUpdate(engineState.position);
-    _handleRpcPositionTick();
 
     // Don't let a mid-transition buffering/playing blip flip our
     // higher-level state — _transitionToNext()/_loadTrackAtIndex() already
@@ -760,7 +766,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       }
     }
 
-    _broadcastPlaybackState();
+    _maybeBroadcastPlaybackStateFromEngine();
 
     if (!_engineIsTransitioning) {
       final effectiveTrackDuration = duration > Duration.zero ? duration : engineState.duration;
@@ -870,25 +876,25 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     return predicted;
   }
 
-  // RPC and MPRIS timers to update Discord and MPRIS every second
+  // Slow reconnect check (30s) when playing on desktop in case Discord opened
+  // or restarted after Wisp; active presence stays event-driven.
   void _ensureRpcTimer() {
+    if (!(Platform.isLinux || Platform.isMacOS || Platform.isWindows)) return;
     if (!isPlaying || _currentTrack == null || _rpcTimer != null) return;
-    _rpcTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _rpcTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (_currentTrack == null) {
         _clearDiscordPresence();
         return;
       }
-      _handleRpcPositionTick();
+      if (!isPlaying || DiscordRpcService.instance.isConnected) return;
+      unawaited(_reconnectAndRefreshDiscordPresence());
     });
   }
 
-  void _handleRpcPositionTick() {
-    if (_currentTrack == null) return;
-    if (!isPlaying) return;
-    final seconds = position.inSeconds;
-    if (seconds != _rpcLastSecond) {
-      _rpcLastSecond = seconds;
-      _updateDiscordPresence();
+  Future<void> _reconnectAndRefreshDiscordPresence() async {
+    final connected = await DiscordRpcService.instance.ensureConnected();
+    if (connected && isPlaying && _currentTrack != null && !_disposed) {
+      await _updateDiscordPresence(force: true);
     }
   }
 
@@ -903,6 +909,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   void _ensureMprisTimer() {
+    if (!Platform.isLinux) return;
     if (!isPlaying || _currentTrack == null || _mprisTimer != null) return;
     _mprisTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_currentTrack == null) return;
@@ -1242,18 +1249,43 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     notifyListeners();
   }
 
+  void _maybeBroadcastPlaybackStateFromEngine() {
+    final signature = (
+      isPlaying,
+      _mapProcessingState(),
+      isDJMode,
+      _shuffleEnabled,
+      _repeatMode,
+    );
+    if (signature == _lastBroadcastSignature) return;
+    _broadcastPlaybackState();
+  }
+
   void _broadcastPlaybackState() {
     try {
-      if (isPlaying || isLoading) {
-        unawaited(AndroidBackgroundAudioService.instance.acquireLocks());
-      } else {
-        unawaited(AndroidBackgroundAudioService.instance.releaseLocks());
+      final processingState = _mapProcessingState();
+      _lastBroadcastSignature = (
+        isPlaying,
+        processingState,
+        isDJMode,
+        _shuffleEnabled,
+        _repeatMode,
+      );
+
+      final shouldHoldLocks = isPlaying || isLoading;
+      if (_androidLocksDesired != shouldHoldLocks) {
+        _androidLocksDesired = shouldHoldLocks;
+        if (shouldHoldLocks) {
+          unawaited(AndroidBackgroundAudioService.instance.acquireLocks());
+        } else {
+          unawaited(AndroidBackgroundAudioService.instance.releaseLocks());
+        }
       }
 
       playbackState.add(
         audio_service.PlaybackState(
           playing: isPlaying,
-          processingState: _mapProcessingState(),
+          processingState: processingState,
           controls: [
             if (!isDJMode) _shuffleControl(_shuffleEnabled),
             audio_service.MediaControl.skipToPrevious,
@@ -2144,10 +2176,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       return;
     }
 
-    if (force) {
-      _rpcLastSecond = position.inSeconds;
-    }
-
     await DiscordRpcService.instance.updatePresence(
       track: track,
       isPlaying: isPlaying,
@@ -2158,7 +2186,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   Future<void> _clearDiscordPresence() async {
-    _rpcLastSecond = -1;
     await DiscordRpcService.instance.clearPresence();
     _stopRpcTimer();
   }
@@ -2880,7 +2907,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
       'lastPositionNotifyMs': _lastPositionNotifyMs,
       'lastPositionUpdateMs': _lastPositionUpdateMs,
       'lastKnownDurationMs': _lastKnownDuration?.inMilliseconds,
-      'rpcLastSecond': _rpcLastSecond,
       'playlistPlaybackEnabled': _playlistPlaybackEnabled,
       'playbackContext': _playbackContext?.toJson(),
       'isHandoffHost': _isHandoffHost,

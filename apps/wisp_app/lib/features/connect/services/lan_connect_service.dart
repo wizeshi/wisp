@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:permission_handler/permission_handler.dart';
@@ -87,6 +88,7 @@ class LanConnectService implements ConnectTransport {
   static const Duration _discoveryReplyThrottle = Duration(seconds: 2);
 
   bool _started = false;
+  Future<void>? _startFuture;
   String? _localDeviceId;
   String? _localDeviceName;
   String? _localPlatform;
@@ -138,6 +140,29 @@ class LanConnectService implements ConnectTransport {
 
   @override
   Future<void> start({
+    required String localDeviceId,
+    required String localDeviceName,
+    required String localPlatform,
+  }) {
+    if (_started) return Future<void>.value();
+    final pending = _startFuture;
+    if (pending != null) return pending;
+
+    late final Future<void> runFuture;
+    runFuture = _startInternal(
+      localDeviceId: localDeviceId,
+      localDeviceName: localDeviceName,
+      localPlatform: localPlatform,
+    ).whenComplete(() {
+      if (identical(_startFuture, runFuture)) {
+        _startFuture = null;
+      }
+    });
+    _startFuture = runFuture;
+    return runFuture;
+  }
+
+  Future<void> _startInternal({
     required String localDeviceId,
     required String localDeviceName,
     required String localPlatform,
@@ -231,6 +256,12 @@ class LanConnectService implements ConnectTransport {
 
   @override
   Future<void> stop() async {
+    final pending = _startFuture;
+    if (pending != null) {
+      try {
+        await pending;
+      } catch (_) {}
+    }
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _sendGoodbyeToKnownPeers();
@@ -532,6 +563,16 @@ class LanConnectService implements ConnectTransport {
   }
 
   void _sendViaTcp(String address, ConnectPacketEnvelope packet) {
+    final encoded = '${packet.encode()}\n';
+    final data = utf8.encode(encoded);
+    _sendViaTcpBytes(address, packet, data);
+  }
+
+  void _sendViaTcpBytes(
+    String address,
+    ConnectPacketEnvelope packet,
+    List<int> data,
+  ) {
     final socket = _peerTcpConnections[address];
     if (socket == null) {
       logger.e(
@@ -541,8 +582,6 @@ class LanConnectService implements ConnectTransport {
     }
 
     try {
-      final encoded = '${packet.encode()}\n';
-      final data = utf8.encode(encoded);
       socket.add(data);
       logger.d(
         '[Connect/LAN] -> TCP ${packet.packetType} to=$address len=${data.length}B payload_keys=${packet.payload.keys.toList()}',
@@ -621,7 +660,8 @@ class LanConnectService implements ConnectTransport {
       metadata: {'ts': DateTime.now().toIso8601String()},
     );
     final encoded = packet.encode();
-    final byteLength = utf8.encode(encoded).length;
+    final bytes = utf8.encode(encoded);
+    final byteLength = bytes.length;
 
     // Use TCP for large snapshots, UDP for small ones
     const int safeUdpPayload = 40000;
@@ -630,7 +670,10 @@ class LanConnectService implements ConnectTransport {
         '[Handoff/LAN] snapshot_sync size=${byteLength}B (over UDP limit) using TCP target=$targetAddress queue=${snapshot.queue.length} index=${snapshot.currentIndex} playing=${snapshot.isPlaying}',
       );
       try {
-        _sendViaTcp(targetAddress, packet);
+        final framedBytes = Uint8List(byteLength + 1)
+          ..setRange(0, byteLength, bytes)
+          ..[byteLength] = 0x0A;
+        _sendViaTcpBytes(targetAddress, packet, framedBytes);
         logger.d(
           '[Handoff/LAN] -> snapshot_sync to=$targetAddress via TCP from=$fromDeviceId queue=${snapshot.queue.length} index=${snapshot.currentIndex} playing=${snapshot.isPlaying}',
         );
@@ -642,7 +685,7 @@ class LanConnectService implements ConnectTransport {
       logger.d(
         '[Handoff/LAN] snapshot_sync size=${byteLength}B target=$targetAddress queue=${snapshot.queue.length} index=${snapshot.currentIndex} playing=${snapshot.isPlaying}',
       );
-      _sendControlDatagram(targetAddress, packet);
+      _sendControlDatagramBytes(targetAddress, packet, bytes);
       logger.d(
         '[Handoff/LAN] -> snapshot_sync to=$targetAddress from=$fromDeviceId queue=${snapshot.queue.length} index=${snapshot.currentIndex} playing=${snapshot.isPlaying}',
       );
@@ -1144,6 +1187,15 @@ class LanConnectService implements ConnectTransport {
   }
 
   void _sendControlDatagram(String address, ConnectPacketEnvelope packet) {
+    final data = utf8.encode(packet.encode());
+    _sendControlDatagramBytes(address, packet, data);
+  }
+
+  void _sendControlDatagramBytes(
+    String address,
+    ConnectPacketEnvelope packet,
+    List<int> data,
+  ) {
     final socket = _controlSocket;
     if (socket == null) return;
 
@@ -1161,7 +1213,6 @@ class LanConnectService implements ConnectTransport {
       return;
     }
 
-    final data = utf8.encode(packet.encode());
     try {
       logger.d(
         '[Connect/LAN] sending control datagram to=${dest.address} len=${data.length} packet=${packet.packetType}',

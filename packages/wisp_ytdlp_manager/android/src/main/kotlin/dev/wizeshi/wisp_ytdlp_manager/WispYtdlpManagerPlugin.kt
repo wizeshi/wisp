@@ -53,38 +53,12 @@ class WispYtdlpManagerPlugin :
         val source: String,
     )
 
-    private fun initialize() {
-        try {
-            YoutubeDL.getInstance().init(context)
-            YoutubeDL.getInstance().updateYoutubeDL(context)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize YoutubeDL", e)
-        }
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val selectedRuntime = resolveJsRuntimesOption()
-                Log.i(TAG, "Startup JS runtime probe complete: $selectedRuntime")
-            } catch (e: Exception) {
-                Log.w(TAG, "Startup JS runtime probe failed", e)
-            }
-        }
-    }
-
     private fun ensureInitialized() {
         if (initialized) return
         synchronized(initLock) {
             if (initialized) return
             YoutubeDL.getInstance().init(context)
             initialized = true
-
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    Log.i(TAG, "Startup JS runtime probe complete: ${resolveJsRuntimesOption()}")
-                } catch (e: Exception) {
-                    Log.w(TAG, "Startup JS runtime probe failed", e)
-                }
-            }
         }
     }
 
@@ -92,12 +66,6 @@ class WispYtdlpManagerPlugin :
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "dev.wizeshi.wisp_ytdlp_manager")
         channel.setMethodCallHandler(this)
         context = flutterPluginBinding.applicationContext
-
-        try {
-            ensureInitialized()
-        } catch (e: Exception) {
-            Log.e(TAG, "Eager init failed, will retry on first request", e)
-        }
     }
 
     override fun onMethodCall(
@@ -263,6 +231,13 @@ class WispYtdlpManagerPlugin :
 
         val outputLibDir = File(context.filesDir, "node-runtime/$assetAbi/lib")
         if (!preparedAssetLibAbis.contains(assetAbi)) {
+            val stampFile = File(outputLibDir, ".stamp")
+            val expectedStamp = getAppInstallStamp()
+            if (outputLibDir.exists() && stampFile.isFile && stampFile.readText().trim() == expectedStamp) {
+                preparedAssetLibAbis.add(assetAbi)
+                return outputLibDir
+            }
+
             Log.i(TAG, "Refreshing Node dependency libs for ABI $assetAbi")
             outputLibDir.parentFile?.mkdirs()
             if (outputLibDir.exists()) {
@@ -276,11 +251,36 @@ class WispYtdlpManagerPlugin :
             }
 
             ensureUnversionedSoAliases(outputLibDir)
+            stampFile.writeText(expectedStamp)
 
             preparedAssetLibAbis.add(assetAbi)
         }
 
         return outputLibDir
+    }
+
+    private fun getAppInstallStamp(): String {
+        return try {
+            val pm = context.packageManager
+            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(
+                    context.packageName,
+                    android.content.pm.PackageManager.PackageInfoFlags.of(0),
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(context.packageName, 0)
+            }
+            val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageInfo.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.versionCode.toLong()
+            }
+            "${versionCode}_${packageInfo.lastUpdateTime}"
+        } catch (e: Exception) {
+            "fallback"
+        }
     }
 
     private fun extractAssetZip(assetPath: String, outputDir: File) {
@@ -321,12 +321,7 @@ class WispYtdlpManagerPlugin :
             "Verifying Node runtime source=${nodeRuntime.source} bin=${nodeRuntime.nodeBinary.absolutePath} libDir=${nodeRuntime.libDir.absolutePath}"
         )
 
-        val versionOk = runNodeCheck(nodeRuntime, "--version")
-        if (!versionOk) {
-            return false
-        }
-
-        return runNodeCheck(nodeRuntime, "-e", "process.stdout.write('ok')")
+        return runNodeCheck(nodeRuntime, "-e", "process.stdout.write(process.version)")
     }
 
     private fun runNodeCheck(nodeRuntime: NodeRuntime, vararg args: String): Boolean {
@@ -429,6 +424,7 @@ class WispYtdlpManagerPlugin :
     }
 
     private suspend fun updateYtDlp() = withContext(Dispatchers.IO) {
+        ensureInitialized()
         YoutubeDL.getInstance().updateYoutubeDL(context)
     }
 }

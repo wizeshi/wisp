@@ -133,4 +133,38 @@ class PlaybackEngineState {
     duration: Duration.zero,
     volume: 1,
   );
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is PlaybackEngineState &&
+        other.isPlaying == isPlaying &&
+        other.isBuffering == isBuffering &&
+        other.position == position &&
+        other.bufferedPosition == bufferedPosition &&
+        other.duration == duration &&
+        other.volume == volume &&
+        other.source == source &&
+        other.preloadedSource == preloadedSource &&
+        other.isTransitioning == isTransitioning &&
+        other.audioBitrate == audioBitrate &&
+        other.audioSampleRate == audioSampleRate &&
+        other.error == error;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    isPlaying,
+    isBuffering,
+    position,
+    bufferedPosition,
+    duration,
+    volume,
+    source,
+    preloadedSource,
+    isTransitioning,
+    audioBitrate,
+    audioSampleRate,
+    error,
+  );
 }

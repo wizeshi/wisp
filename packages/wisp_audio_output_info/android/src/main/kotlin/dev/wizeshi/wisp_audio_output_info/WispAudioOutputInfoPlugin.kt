@@ -1,6 +1,8 @@
 // Expected path: android/src/main/kotlin/dev/wizeshi/wisp_audio_output_info/WispAudioOutputInfoPlugin.kt
 package dev.wizeshi.wisp_audio_output_info
 
+import android.app.Activity
+import android.app.Application
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,6 +13,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -57,6 +60,8 @@ class WispAudioOutputInfoPlugin :
 
     private var outputDevicesStreamHandler: OutputDevicesStreamHandler? = null
     private var activeOutputDeviceStreamHandler: ActiveOutputDeviceStreamHandler? = null
+    private var lifecycleCallbacks: Application.ActivityLifecycleCallbacks? = null
+    private var resumedActivity: Activity? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
@@ -83,9 +88,43 @@ class WispAudioOutputInfoPlugin :
         val activeHandler = ActiveOutputDeviceStreamHandler(context, audioManager)
         activeOutputDeviceStreamHandler = activeHandler
         activeOutputDeviceChannel.setStreamHandler(activeHandler)
+
+        val app = context.applicationContext as? Application
+        if (app != null) {
+            val callbacks = object : Application.ActivityLifecycleCallbacks {
+                override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+                override fun onActivityStarted(activity: Activity) {}
+                override fun onActivityResumed(activity: Activity) {
+                    resumedActivity = activity
+                    activeOutputDeviceStreamHandler?.setForeground(true)
+                }
+
+                override fun onActivityPaused(activity: Activity) {}
+                override fun onActivityStopped(activity: Activity) {
+                    if (resumedActivity == null || resumedActivity === activity) {
+                        resumedActivity = null
+                        activeOutputDeviceStreamHandler?.setForeground(false)
+                    }
+                }
+
+                override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+                override fun onActivityDestroyed(activity: Activity) {
+                    if (resumedActivity === activity) {
+                        resumedActivity = null
+                    }
+                }
+            }
+            lifecycleCallbacks = callbacks
+            app.registerActivityLifecycleCallbacks(callbacks)
+        }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        lifecycleCallbacks?.let { callbacks ->
+            (context.applicationContext as? Application)?.unregisterActivityLifecycleCallbacks(callbacks)
+        }
+        lifecycleCallbacks = null
+        resumedActivity = null
         methodChannel.setMethodCallHandler(null)
         outputDevicesChannel.setStreamHandler(null)
         activeOutputDeviceChannel.setStreamHandler(null)
@@ -149,6 +188,8 @@ private class ActiveOutputDeviceStreamHandler(
 
     private var eventSink: EventChannel.EventSink? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var isListening = false
+    private var isForeground = true
 
     // Dedup state so the half-second poll below only actually pushes an
     // event when the resolved device id changes, not on every tick.
@@ -189,12 +230,30 @@ private class ActiveOutputDeviceStreamHandler(
      */
     private val pollRunnable = object : Runnable {
         override fun run() {
+            if (!isListening || !isForeground) return
             emit()
             mainHandler.postDelayed(this, POLL_INTERVAL_MS)
         }
     }
 
+    fun setForeground(foreground: Boolean) {
+        if (isForeground == foreground) return
+        isForeground = foreground
+        if (!isListening) return
+        if (foreground) {
+            mainHandler.post {
+                if (!isListening || !isForeground) return@post
+                emit()
+                mainHandler.removeCallbacks(pollRunnable)
+                mainHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
+            }
+        } else {
+            mainHandler.removeCallbacks(pollRunnable)
+        }
+    }
+
     override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+        isListening = true
         eventSink = events
         audioManager.registerAudioDeviceCallback(deviceCallback, mainHandler)
         playbackCallback?.let { audioManager.registerAudioPlaybackCallback(it, mainHandler) }
@@ -207,10 +266,13 @@ private class ActiveOutputDeviceStreamHandler(
             },
         )
         emit()
-        mainHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
+        if (isForeground) {
+            mainHandler.postDelayed(pollRunnable, POLL_INTERVAL_MS)
+        }
     }
 
     override fun onCancel(arguments: Any?) {
+        isListening = false
         mainHandler.removeCallbacks(pollRunnable)
         audioManager.unregisterAudioDeviceCallback(deviceCallback)
         playbackCallback?.let { audioManager.unregisterAudioPlaybackCallback(it) }
@@ -230,7 +292,7 @@ private class ActiveOutputDeviceStreamHandler(
     }
 
     private companion object {
-        const val POLL_INTERVAL_MS = 500L
+        const val POLL_INTERVAL_MS = 2000L
     }
 }
 
@@ -260,14 +322,6 @@ private object PlaybackDeviceSource {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
 
         val configs = audioManager.activePlaybackConfigurations
-        configs.forEach {
-            android.util.Log.d(
-                "WispAudioOutput",
-                "config usage=${it.audioAttributes.usage} " +
-                    "device=${it.audioDeviceInfo?.type} " +
-                    "name=${it.audioDeviceInfo?.productName}",
-            )
-        }
         return configs
             .firstOrNull { it.audioAttributes.usage != AudioAttributes.USAGE_UNKNOWN }
             ?.audioDeviceInfo

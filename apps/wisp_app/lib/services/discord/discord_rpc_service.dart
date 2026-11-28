@@ -27,18 +27,27 @@ class DiscordRpcService {
 
   bool _initialized = false;
 
+  bool get isConnected => _initialized && DiscordRpcApi.instance.isConnected;
+
   bool get _isDesktop =>
       Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 
   Future<void> initialize() async {
-    if (!_isDesktop || _initialized) return;
+    if (!_isDesktop || isConnected) return;
     try {
       await DiscordRpcApi.instance.initialize(_clientId);
       await DiscordRpcApi.instance.connect();
-      _initialized = true;
+      _initialized = DiscordRpcApi.instance.isConnected;
     } catch (_) {
       _initialized = false;
     }
+  }
+
+  Future<bool> ensureConnected() async {
+    if (!_isDesktop) return false;
+    if (isConnected) return true;
+    await initialize();
+    return isConnected;
   }
 
   // Uses a JSON object to generate a wisp URL for the given element.
@@ -172,14 +181,23 @@ class DiscordRpcService {
           : null,
     );
 
-    await DiscordRpcApi.instance.setActivity(activity: activity);
+    try {
+      await DiscordRpcApi.instance.setActivity(activity: activity);
+    } catch (_) {
+      _initialized = false;
+      try {
+        await DiscordRpcApi.instance.disconnect();
+      } catch (_) {}
+    }
   }
 
   Future<void> clearPresence() async {
     if (!_isDesktop || !_initialized) return;
     try {
       await DiscordRpcApi.instance.clearActivity();
-    } catch (_) {}
+    } catch (_) {
+      _initialized = false;
+    }
   }
 
   Future<void> dispose() async {

@@ -1705,6 +1705,41 @@ class _SettingsPageState extends State<SettingsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
+                          'LAN Connect',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Text(
+                          'Discover and hand off playback with Wisp devices on your network',
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GenericSwitch(
+                    value: prefs.lanConnectEnabled,
+                    onChanged: (value) async {
+                      await context
+                          .read<PreferencesProvider>()
+                          .setLanConnectEnabled(value);
+                    },
+                    activeThumbColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
                           'Security Level',
                           style: TextStyle(
                             color: colors.textPrimary,

@@ -67,9 +67,11 @@ class PreferencesProvider extends ChangeNotifier {
   static const _keyProviderPriorityOrderPrefix =
       'provider_priority_order_';
   static const _keyPreferredAudioQuality = 'preferred_audio_quality';
+  static const _keyLanConnectEnabled = 'lan_connect_enabled';
 
   static const bool _defaultAllowWriting = true;
   static const bool _defaultAudioYouTubeEnabled = true;
+  static const bool _defaultLanConnectEnabled = true;
   static const AudioQuality _defaultPreferredAudioQuality = AudioQuality.auto;
   static const bool _defaultGaplessPlaybackEnabled = true;
   static const bool _defaultCrossfadeEnabled = false;
@@ -137,6 +139,9 @@ class PreferencesProvider extends ChangeNotifier {
 
   bool _autoRegisterLocalProviders = _defaultAutoRegisterLocalProviders;
   bool get autoRegisterLocalProviders => _autoRegisterLocalProviders;
+
+  bool _lanConnectEnabled = _defaultLanConnectEnabled;
+  bool get lanConnectEnabled => _lanConnectEnabled;
 
   bool _isLoaded = false;
   bool get isLoaded => _isLoaded;
@@ -206,6 +211,8 @@ class PreferencesProvider extends ChangeNotifier {
       _autoRegisterLocalProviders =
           prefs.getBool(_keyAutoRegisterLocalProviders) ??
           _defaultAutoRegisterLocalProviders;
+      _lanConnectEnabled =
+          prefs.getBool(_keyLanConnectEnabled) ?? _defaultLanConnectEnabled;
       _trustedDevices = _decodeTrustedDevices(
         prefs.getString(_keyTrustedDevices),
       );
@@ -545,6 +552,16 @@ class PreferencesProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyKeepPositionBetweenRestarts, enabled);
+    } catch (_) {}
+  }
+
+  Future<void> setLanConnectEnabled(bool enabled) async {
+    if (enabled == _lanConnectEnabled) return;
+    _lanConnectEnabled = enabled;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyLanConnectEnabled, enabled);
     } catch (_) {}
   }
 

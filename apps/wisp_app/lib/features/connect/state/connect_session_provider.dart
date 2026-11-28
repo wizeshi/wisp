@@ -28,6 +28,7 @@ import 'package:wisp_audio_output_info/models/types.dart';
 enum ConnectErrorCode { generic, securityLevelTooLow }
 
 class ConnectSessionProvider extends ChangeNotifier
+    with WidgetsBindingObserver
     implements PlaybackTransport {
   static const String _keyLocalDeviceId = 'connect_local_device_id';
   static const String _keyPreferredModesByDevice =
@@ -177,8 +178,7 @@ class ConnectSessionProvider extends ChangeNotifier
   Timer? _pruneTimer;
   Timer? _targetPulseTimer;
   Timer? _hostInterpolationTimer;
-  String? _lastTargetSnapshotTrackId;
-  int _lastTargetSnapshotIndex = -1;
+  Object? _lastTargetSnapshotSignature;
   DateTime? _lastTargetSnapshotSentAt;
   int _lastHostDeltaSeq = -1;
   int _lastHostDeltaTs = -1;
@@ -219,12 +219,20 @@ class ConnectSessionProvider extends ChangeNotifier
 
   Future<void>? _discoveryStartFuture;
   bool _transportDisposed = false;
+  bool _isAppForegrounded = true;
+  bool _firstFrameReady = false;
+  bool _lifecycleObserverRegistered = false;
+
+  bool get _isLanConnectEnabled => _preferences?.lanConnectEnabled ?? true;
 
   ConnectSessionProvider({
     PreferencesProvider? preferences,
     ConnectTransport? transport,
   }) {
     _preferences = preferences;
+    _preferences?.addListener(_onPreferencesChanged);
+    WidgetsBinding.instance.addObserver(this);
+    _lifecycleObserverRegistered = true;
     _transport = transport ?? LanConnectService();
     _initFuture = _initialize();
     unawaited(
@@ -240,7 +248,10 @@ class ConnectSessionProvider extends ChangeNotifier
         // addPostFrameCallback gating main.dart already uses for the
         // notification-permission request.
         await WidgetsBinding.instance.waitUntilFirstFrameRasterized;
-        startDiscovery();
+        _firstFrameReady = true;
+        if (!_disposed && _isLanConnectEnabled && _isAppForegrounded) {
+          startDiscovery();
+        }
       }),
     );
   }
@@ -249,8 +260,64 @@ class ConnectSessionProvider extends ChangeNotifier
     if (identical(_preferences, preferences)) {
       return;
     }
+    _preferences?.removeListener(_onPreferencesChanged);
     _preferences = preferences;
+    _preferences?.addListener(_onPreferencesChanged);
+    if (_firstFrameReady || !_isLanConnectEnabled) {
+      _reconcileDiscoveryWithPreferences();
+    }
     notifyListeners();
+  }
+
+  void _onPreferencesChanged() {
+    _reconcileDiscoveryWithPreferences();
+  }
+
+  void _reconcileDiscoveryWithPreferences() {
+    if (_disposed) return;
+    if (!_isLanConnectEnabled) {
+      if (isLinked) {
+        unlink(localResumed: false);
+      }
+      if (_discoveryStarted || _discoveryStartFuture != null) {
+        stopDiscovery();
+      }
+      return;
+    }
+    if (_isAppForegrounded &&
+        !_discoveryStarted &&
+        _discoveryStartFuture == null) {
+      startDiscovery();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    handleAppLifecycleState(state);
+  }
+
+  void handleAppLifecycleState(AppLifecycleState state) {
+    if (_disposed) return;
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _isAppForegrounded = true;
+        if (_isLanConnectEnabled &&
+            !_discoveryStarted &&
+            _discoveryStartFuture == null) {
+          startDiscovery();
+        }
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        _isAppForegrounded = false;
+        if (!isLinked &&
+            _phase != ConnectPhase.pairing &&
+            (_discoveryStarted || _discoveryStartFuture != null)) {
+          stopDiscovery();
+        }
+      case AppLifecycleState.inactive:
+        break;
+    }
   }
 
   Future<void> _initialize() async {
@@ -1204,8 +1271,7 @@ class ConnectSessionProvider extends ChangeNotifier
     }
     _lastAppliedSequence = -1;
     _lastAckedSequence = -1;
-    _lastTargetSnapshotTrackId = null;
-    _lastTargetSnapshotIndex = -1;
+    _lastTargetSnapshotSignature = null;
     _lastTargetSnapshotSentAt = null;
     _lastHostDeltaSeq = -1;
     _lastHostDeltaTs = -1;
@@ -1241,8 +1307,7 @@ class ConnectSessionProvider extends ChangeNotifier
     _linkedPeerAddress = null;
     _linkedPeerName = null;
     _activeLinkMode = ConnectLinkMode.fullHandoff;
-    _lastTargetSnapshotTrackId = null;
-    _lastTargetSnapshotIndex = -1;
+    _lastTargetSnapshotSignature = null;
     _lastTargetSnapshotSentAt = null;
     _lastHostDeltaSeq = -1;
     _lastHostDeltaTs = -1;
@@ -1300,14 +1365,15 @@ class ConnectSessionProvider extends ChangeNotifier
     return buffer.toString();
   }
 
-  Future<void> _startDiscoveryInternal() async {
-    if (_phase == ConnectPhase.unlinking) return;
+  Future<void> _startDiscoveryInternal() {
+    if (_disposed || _phase == ConnectPhase.unlinking || !_isLanConnectEnabled) {
+      return Future<void>.value();
+    }
     _clearError();
 
     final activeStart = _discoveryStartFuture;
     if (activeStart != null) {
-      await activeStart;
-      return;
+      return activeStart;
     }
 
     if (_discoveryStarted) {
@@ -1317,12 +1383,30 @@ class ConnectSessionProvider extends ChangeNotifier
       pruneDiscoveredDevicesOlderThan(const Duration(seconds: 15));
       notifyListeners();
       logger.d('[Handoff] Discovery already running; reusing current session.');
-      return;
+      return Future<void>.value();
     }
 
+    late final Future<void> runFuture;
+    runFuture = _runStartDiscovery().whenComplete(() {
+      if (identical(_discoveryStartFuture, runFuture)) {
+        _discoveryStartFuture = null;
+      }
+    });
+    _discoveryStartFuture = runFuture;
+    return runFuture;
+  }
+
+  Future<void> _runStartDiscovery() async {
     final initFuture = _initFuture;
     if (initFuture != null) {
       await initFuture;
+    }
+
+    if (_disposed ||
+        _discoveryStarted ||
+        !_isLanConnectEnabled ||
+        (!_isAppForegrounded && !isLinked && _phase != ConnectPhase.pairing)) {
+      return;
     }
 
     _deviceSubscription ??= _transport.discoveredDeviceStream.listen(
@@ -1360,14 +1444,12 @@ class ConnectSessionProvider extends ChangeNotifier
       pruneDiscoveredDevicesOlderThan(const Duration(seconds: 15));
     });
 
-    final startFuture = _transport.start(
-      localDeviceId: _localDeviceId,
-      localDeviceName: _localDeviceName,
-      localPlatform: localPlatform,
-    );
-    _discoveryStartFuture = startFuture;
     try {
-      await startFuture;
+      await _transport.start(
+        localDeviceId: _localDeviceId,
+        localDeviceName: _localDeviceName,
+        localPlatform: localPlatform,
+      );
       _discoveryStarted = true;
       logger.d('[Handoff] Discovery started.');
       if (!isLinked && _phase != ConnectPhase.pairing) {
@@ -1378,14 +1460,16 @@ class ConnectSessionProvider extends ChangeNotifier
     } catch (_) {
       setError('Could not start LAN discovery.');
       logger.e('[Handoff] Could not start LAN discovery.');
-    } finally {
-      if (identical(_discoveryStartFuture, startFuture)) {
-        _discoveryStartFuture = null;
-      }
     }
   }
 
   Future<void> _stopDiscoveryInternal() async {
+    final activeStart = _discoveryStartFuture;
+    if (activeStart != null) {
+      try {
+        await activeStart;
+      } catch (_) {}
+    }
     _pruneTimer?.cancel();
     _pruneTimer = null;
     await _deviceLeftSubscription?.cancel();
@@ -2072,15 +2156,23 @@ class ConnectSessionProvider extends ChangeNotifier
 
     final currentTrackId = audio.currentTrack?.id;
     final currentIndex = audio.currentIndex;
+    final queue = audio.queueTracks;
+    final signature = (
+      currentTrackId,
+      currentIndex,
+      queue.length,
+      identityHashCode(queue),
+      audio.isPlaying,
+      audio.shuffleEnabled,
+      audio.repeatMode,
+    );
     final now = DateTime.now();
     final shouldSendSnapshot =
-        currentTrackId != _lastTargetSnapshotTrackId ||
-        currentIndex != _lastTargetSnapshotIndex ||
+        signature != _lastTargetSnapshotSignature ||
         _lastTargetSnapshotSentAt == null ||
-        now.difference(_lastTargetSnapshotSentAt!).inSeconds >= 2;
+        now.difference(_lastTargetSnapshotSentAt!).inSeconds >= 30;
     if (shouldSendSnapshot) {
-      _lastTargetSnapshotTrackId = currentTrackId;
-      _lastTargetSnapshotIndex = currentIndex;
+      _lastTargetSnapshotSignature = signature;
       _lastTargetSnapshotSentAt = now;
       _sendCurrentSnapshotToHost(peerAddress);
     }
@@ -2406,6 +2498,11 @@ class ConnectSessionProvider extends ChangeNotifier
   Future<void> shutdown() async {
     if (_transportDisposed) return;
     _transportDisposed = true;
+    if (_lifecycleObserverRegistered) {
+      WidgetsBinding.instance.removeObserver(this);
+      _lifecycleObserverRegistered = false;
+    }
+    _preferences?.removeListener(_onPreferencesChanged);
     _audioHandler?.removeListener(_onAudioHandlerChanged);
     _pruneTimer?.cancel();
     _deviceSubscription?.cancel();

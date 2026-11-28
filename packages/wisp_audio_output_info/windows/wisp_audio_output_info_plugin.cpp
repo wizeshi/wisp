@@ -14,6 +14,7 @@
 #include <audioclient.h>
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -736,6 +737,11 @@ namespace wisp_audio_output_info
         WispAudioOutputInfoPlugin *plugin)
         : plugin_(plugin) {}
 
+    void DetachPlugin()
+    {
+      plugin_.store(nullptr, std::memory_order_release);
+    }
+
     // ---------------------------------------------------------------------------
     // IUnknown
     // ---------------------------------------------------------------------------
@@ -867,39 +873,29 @@ namespace wisp_audio_output_info
   private:
     void NotifyDeviceChange()
     {
-
-      if (plugin_ == nullptr)
+      auto *plugin = plugin_.load(std::memory_order_acquire);
+      if (plugin == nullptr)
       {
         return;
       }
 
-      std::thread(
-          [plugin = plugin_]()
-          {
-            plugin->OnAudioDeviceNotification();
-          })
-          .detach();
+      plugin->ScheduleDevicesUpdate();
     }
 
     void NotifyDefaultChange()
     {
-
-      if (plugin_ == nullptr)
+      auto *plugin = plugin_.load(std::memory_order_acquire);
+      if (plugin == nullptr)
       {
         return;
       }
 
-      std::thread(
-          [plugin = plugin_]()
-          {
-            plugin->OnDefaultOutputChanged();
-          })
-          .detach();
+      plugin->ScheduleDefaultUpdate();
     }
 
     std::atomic<ULONG> ref_count_{1};
 
-    WispAudioOutputInfoPlugin *plugin_;
+    std::atomic<WispAudioOutputInfoPlugin *> plugin_;
   };
 
   // -----------------------------------------------------------------------------
@@ -1054,30 +1050,17 @@ namespace wisp_audio_output_info
               std::move(result));
         });
 
-    // Stream handlers need to live as long as the EventChannels.
-    plugin->output_devices_stream_handler_ =
+    output_devices_channel->SetStreamHandler(
         std::make_unique<
             WispAudioOutputInfoPlugin::
                 OutputDevicesStreamHandler>(
-            plugin.get());
+            plugin.get()));
 
-    plugin->active_output_stream_handler_ =
+    active_output_channel->SetStreamHandler(
         std::make_unique<
             WispAudioOutputInfoPlugin::
                 ActiveOutputStreamHandler>(
-            plugin.get());
-
-    output_devices_channel->SetStreamHandler(
-        std::unique_ptr<
-            flutter::StreamHandler<
-                flutter::EncodableValue>>(
-            plugin->output_devices_stream_handler_.get()));
-
-    active_output_channel->SetStreamHandler(
-        std::unique_ptr<
-            flutter::StreamHandler<
-                flutter::EncodableValue>>(
-            plugin->active_output_stream_handler_.get()));
+            plugin.get()));
 
     registrar->AddPlugin(
         std::move(plugin));
@@ -1136,6 +1119,7 @@ namespace wisp_audio_output_info
     if (FAILED(hr))
     {
 
+      notification_client_->DetachPlugin();
       notification_client_->Release();
       notification_client_ = nullptr;
 
@@ -1144,6 +1128,14 @@ namespace wisp_audio_output_info
 
       return false;
     }
+
+    {
+      std::lock_guard<std::mutex> lock(worker_mutex_);
+      worker_stop_ = false;
+      devices_dirty_ = false;
+      default_dirty_ = false;
+    }
+    worker_thread_ = std::thread(&WispAudioOutputInfoPlugin::WorkerLoop, this);
 
     return true;
   }
@@ -1163,6 +1155,7 @@ namespace wisp_audio_output_info
       enumerator_->UnregisterEndpointNotificationCallback(
           notification_client_);
 
+      notification_client_->DetachPlugin();
       notification_client_->Release();
       notification_client_ = nullptr;
     }
@@ -1173,11 +1166,92 @@ namespace wisp_audio_output_info
       enumerator_ = nullptr;
     }
 
+    {
+      std::lock_guard<std::mutex> lock(worker_mutex_);
+      worker_stop_ = true;
+    }
+    worker_cv_.notify_all();
+    if (worker_thread_.joinable())
+    {
+      worker_thread_.join();
+    }
+
     std::lock_guard<std::mutex> lock(
         event_sink_mutex_);
 
     output_devices_sink_.reset();
     active_output_sink_.reset();
+  }
+
+  void WispAudioOutputInfoPlugin::ScheduleDevicesUpdate()
+  {
+    {
+      std::lock_guard<std::mutex> lock(worker_mutex_);
+      if (worker_stop_)
+      {
+        return;
+      }
+      devices_dirty_ = true;
+    }
+    worker_cv_.notify_one();
+  }
+
+  void WispAudioOutputInfoPlugin::ScheduleDefaultUpdate()
+  {
+    {
+      std::lock_guard<std::mutex> lock(worker_mutex_);
+      if (worker_stop_)
+      {
+        return;
+      }
+      default_dirty_ = true;
+    }
+    worker_cv_.notify_one();
+  }
+
+  void WispAudioOutputInfoPlugin::WorkerLoop()
+  {
+    const HRESULT co_hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+
+    while (true)
+    {
+      bool run_devices = false;
+      bool run_default = false;
+      {
+        std::unique_lock<std::mutex> lock(worker_mutex_);
+        worker_cv_.wait(lock, [this]()
+                        { return worker_stop_ || devices_dirty_ || default_dirty_; });
+        if (worker_stop_)
+        {
+          break;
+        }
+        // Coalesce rapid WASAPI bursts (~100ms) before enumerating devices.
+        worker_cv_.wait_for(lock, std::chrono::milliseconds(100), [this]()
+                            { return worker_stop_; });
+        if (worker_stop_)
+        {
+          break;
+        }
+        run_devices = devices_dirty_;
+        run_default = default_dirty_;
+        devices_dirty_ = false;
+        default_dirty_ = false;
+      }
+
+      if (run_devices)
+      {
+        OnAudioDeviceNotification();
+      }
+      if (run_default)
+      {
+        OnDefaultOutputChanged();
+      }
+    }
+
+    if (SUCCEEDED(co_hr))
+    {
+      CoUninitialize();
+    }
   }
 
   // =============================================================================

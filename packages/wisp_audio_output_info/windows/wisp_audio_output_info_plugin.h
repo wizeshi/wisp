@@ -7,8 +7,10 @@
 
 #include <mmdeviceapi.h>
 
+#include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <thread>
 
 namespace wisp_audio_output_info {
 
@@ -28,6 +30,8 @@ class WispAudioOutputInfoPlugin : public flutter::Plugin {
           flutter::MethodResult<flutter::EncodableValue>> result);
 
   // Called by WispAudioNotificationClient.
+  void ScheduleDevicesUpdate();
+  void ScheduleDefaultUpdate();
   void OnAudioDeviceNotification();
   void OnDefaultOutputChanged();
 
@@ -54,12 +58,15 @@ class WispAudioOutputInfoPlugin : public flutter::Plugin {
 
   std::mutex notification_mutex_;
 
-  // Event stream handlers.
-  std::unique_ptr<OutputDevicesStreamHandler>
-      output_devices_stream_handler_;
+  // Coalesced background notification worker.
+  std::thread worker_thread_;
+  std::mutex worker_mutex_;
+  std::condition_variable worker_cv_;
+  bool worker_stop_ = false;
+  bool devices_dirty_ = false;
+  bool default_dirty_ = false;
 
-  std::unique_ptr<ActiveOutputStreamHandler>
-      active_output_stream_handler_;
+  void WorkerLoop();
 
   // Emits the current state.
   void EmitOutputDevices();

@@ -54,4 +54,24 @@ void main() {
       expect(provider.pausedBackgroundWidgetsEnabled, isEmpty);
     });
   });
+
+  group('PreferencesProvider LAN Connect', () {
+    test('defaults to true when unset and persists toggles', () async {
+      SharedPreferences.setMockInitialValues({});
+
+      final provider = PreferencesProvider();
+      await _waitUntilLoaded(provider);
+      expect(provider.lanConnectEnabled, isTrue);
+
+      await provider.setLanConnectEnabled(false);
+      expect(provider.lanConnectEnabled, isFalse);
+
+      final reloaded = PreferencesProvider();
+      await _waitUntilLoaded(reloaded);
+      expect(reloaded.lanConnectEnabled, isFalse);
+
+      await reloaded.setLanConnectEnabled(true);
+      expect(reloaded.lanConnectEnabled, isTrue);
+    });
+  });
 }

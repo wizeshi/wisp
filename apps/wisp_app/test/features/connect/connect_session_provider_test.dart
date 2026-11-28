@@ -2,12 +2,14 @@
 
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wisp/features/connect/services/connect_models.dart';
 import 'package:wisp/features/connect/services/connect_packet_models.dart';
 import 'package:wisp/features/connect/services/connect_transport.dart';
 import 'package:wisp/features/connect/state/connect_session_provider.dart';
+import 'package:wisp/features/settings/state/preferences_provider.dart';
 
 class FakeConnectTransport implements ConnectTransport {
   final StreamController<ConnectDevice> _discoveredDeviceController =
@@ -34,6 +36,7 @@ class FakeConnectTransport implements ConnectTransport {
       StreamController.broadcast();
 
   int broadcastDiscoveryCallCount = 0;
+  int startCallCount = 0;
   bool isStarted = false;
 
   @override
@@ -73,6 +76,7 @@ class FakeConnectTransport implements ConnectTransport {
     required String localDeviceName,
     required String localPlatform,
   }) async {
+    startCallCount++;
     isStarted = true;
   }
 
@@ -267,6 +271,94 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
       expect(fakeTransport.broadcastDiscoveryCallCount, 1);
+
+      provider.dispose();
+    });
+  });
+
+  group('ConnectSessionProvider lifecycle and preference gating', () {
+    test('lanConnectEnabled=false blocks and stops discovery', () async {
+      SharedPreferences.setMockInitialValues({'lan_connect_enabled': false});
+      final prefs = PreferencesProvider();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final fakeTransport = FakeConnectTransport();
+      final provider = ConnectSessionProvider(
+        preferences: prefs,
+        transport: fakeTransport,
+      );
+      provider.startDiscovery();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fakeTransport.isStarted, isFalse);
+
+      await prefs.setLanConnectEnabled(true);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fakeTransport.isStarted, isTrue);
+
+      await prefs.setLanConnectEnabled(false);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fakeTransport.isStarted, isFalse);
+
+      provider.dispose();
+    });
+
+    test('pauses discovery on background when unlinked and restarts on resume', () async {
+      final prefs = PreferencesProvider();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final fakeTransport = FakeConnectTransport();
+      final provider = ConnectSessionProvider(
+        preferences: prefs,
+        transport: fakeTransport,
+      );
+      provider.startDiscovery();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fakeTransport.isStarted, isTrue);
+
+      provider.handleAppLifecycleState(AppLifecycleState.paused);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fakeTransport.isStarted, isFalse);
+
+      provider.handleAppLifecycleState(AppLifecycleState.resumed);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fakeTransport.isStarted, isTrue);
+
+      provider.dispose();
+    });
+
+    test('keeps transport running on background while linked', () async {
+      final prefs = PreferencesProvider();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final fakeTransport = FakeConnectTransport();
+      final provider = ConnectSessionProvider(
+        preferences: prefs,
+        transport: fakeTransport,
+      );
+      provider.startDiscovery();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fakeTransport.isStarted, isTrue);
+
+      provider.markLinkedSyncingAsHost('peer_1', 'Peer');
+      provider.handleAppLifecycleState(AppLifecycleState.paused);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(fakeTransport.isStarted, isTrue);
+
+      provider.dispose();
+    });
+
+    test('concurrent startDiscovery calls and bindPreferencesProvider start transport once', () async {
+      final prefs = PreferencesProvider();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      final fakeTransport = FakeConnectTransport();
+      final provider = ConnectSessionProvider(transport: fakeTransport);
+      provider.startDiscovery();
+      provider.startDiscovery();
+      provider.bindPreferencesProvider(prefs);
+
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(fakeTransport.startCallCount, 1);
 
       provider.dispose();
     });
