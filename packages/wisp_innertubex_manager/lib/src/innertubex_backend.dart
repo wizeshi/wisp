@@ -2,11 +2,17 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:wisp_jvm/wisp_jvm.dart';
 import 'package:wisp_innertubex_manager/src/models/innertubex_models.dart';
+
+typedef InnerTubeXProcessStarter = Future<Process> Function(
+  String executable,
+  List<String> arguments,
+);
 
 class InnerTubeXBackendException implements Exception {
   final String message;
@@ -17,10 +23,39 @@ class InnerTubeXBackendException implements Exception {
 }
 
 class InnerTubeXBackend {
-  InnerTubeXBackend._internal();
+  InnerTubeXBackend._internal({
+    InnerTubeXProcessStarter? processStarter,
+    Future<String> Function()? javaExecutableResolver,
+    Future<File> Function()? jarFileResolver,
+  })  : _processStarter = processStarter ?? Process.start,
+        _javaExecutableResolver =
+            javaExecutableResolver ?? JvmRuntimeManager.instance.getJavaExecutablePath,
+        _jarFileResolver = jarFileResolver;
+
+  @visibleForTesting
+  factory InnerTubeXBackend.forTesting({
+    InnerTubeXProcessStarter? processStarter,
+    Future<String> Function()? javaExecutableResolver,
+    Future<File> Function()? jarFileResolver,
+  }) {
+    return InnerTubeXBackend._internal(
+      processStarter: processStarter,
+      javaExecutableResolver: javaExecutableResolver,
+      jarFileResolver: jarFileResolver,
+    );
+  }
+
   static final InnerTubeXBackend instance = InnerTubeXBackend._internal();
 
   static const _androidChannel = MethodChannel('dev.wizeshi.wisp/innertubex_android');
+  static const List<String> defaultJvmArgs = [
+    '-Xmx192m',
+    '-Djava.net.preferIPv6Addresses=true',
+  ];
+
+  final InnerTubeXProcessStarter _processStarter;
+  final Future<String> Function() _javaExecutableResolver;
+  final Future<File> Function()? _jarFileResolver;
 
   JvmDaemonProcess? _daemon;
   int? _localPort;
@@ -33,6 +68,10 @@ class InnerTubeXBackend {
   String get baseUrl => 'http://127.0.0.1:$_localPort';
 
   Future<File> resolveJarFile() async {
+    final override = _jarFileResolver;
+    if (override != null) {
+      return override();
+    }
     final supportDir = await WispSupportDirectory().get();
     final jar = File(p.join(supportDir.path, 'innertubex', 'innertubexstreamextractor.jar'));
     if (await jar.exists()) {
@@ -45,13 +84,17 @@ class InnerTubeXBackend {
     if (Platform.isAndroid) return; // Android uses native in-process plugin
     if (isRunning) return;
 
-    final starting = _starting ?? (_starting = Completer<void>());
-    if (_starting != starting) {
-      return starting.future;
+    final existing = _starting;
+    if (existing != null) {
+      return existing.future;
     }
 
+    final starting = Completer<void>();
+    starting.future.ignore();
+    _starting = starting;
+
     try {
-      final javaExec = await JvmRuntimeManager.instance.getJavaExecutablePath();
+      final javaExec = await _javaExecutableResolver();
       final jarFile = await resolveJarFile();
 
       if (!await jarFile.exists()) {
@@ -60,9 +103,9 @@ class InnerTubeXBackend {
         );
       }
 
-      final process = await Process.start(
+      final process = await _processStarter(
         javaExec,
-        ['-Djava.net.preferIPv6Addresses=true', '-jar', jarFile.path],
+        [...defaultJvmArgs, '-jar', jarFile.path],
       );
 
       final daemon = JvmDaemonProcess(process);
@@ -83,9 +126,13 @@ class InnerTubeXBackend {
       });
 
       unawaited(daemon.exitCode.then((code) {
-        _daemon = null;
-        _localPort = null;
-        _starting = null;
+        if (identical(_daemon, daemon)) {
+          _daemon = null;
+          _localPort = null;
+        }
+        if (identical(_starting, starting)) {
+          _starting = null;
+        }
         if (!readyCompleter.isCompleted) {
           readyCompleter.completeError(
             InnerTubeXBackendException('InnerTubeX daemon exited with code $code before ready.'),
@@ -93,19 +140,31 @@ class InnerTubeXBackend {
         }
       }));
 
-      _localPort = await readyCompleter.future.timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          daemon.shutdown();
-          throw InnerTubeXBackendException('InnerTubeX daemon startup timed out.');
-        },
-      );
+      try {
+        _localPort = await readyCompleter.future.timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            unawaited(daemon.shutdown());
+            throw InnerTubeXBackendException('InnerTubeX daemon startup timed out.');
+          },
+        );
+      } finally {
+        await sub.cancel();
+      }
 
-      await sub.cancel();
-      _starting?.complete();
-    } catch (e) {
-      _starting?.completeError(e);
-      _starting = null;
+      if (!starting.isCompleted) {
+        starting.complete();
+      }
+      if (identical(_starting, starting)) {
+        _starting = null;
+      }
+    } catch (e, st) {
+      if (!starting.isCompleted) {
+        starting.completeError(e, st);
+      }
+      if (identical(_starting, starting)) {
+        _starting = null;
+      }
       rethrow;
     }
   }
@@ -257,9 +316,16 @@ class InnerTubeXBackend {
   }
 
   Future<void> shutdown() async {
+    final pending = _starting;
     _starting = null;
-    _localPort = null;
-    await _daemon?.shutdown();
+    if (pending != null && !pending.isCompleted) {
+      pending.completeError(
+        InnerTubeXBackendException('InnerTubeX backend shut down during startup.'),
+      );
+    }
+    final daemon = _daemon;
     _daemon = null;
+    _localPort = null;
+    await daemon?.shutdown();
   }
 }

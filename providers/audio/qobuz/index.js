@@ -2,6 +2,7 @@ const JUMO_HOST = 'https://jumo-dl.pages.dev';
 const SEARCH_PATH = '/qggybiqvrmvapbsrfrlg';
 const FETCH_PATH = '/wydmcqpplrfjrstcj';
 const REGIONS_PATH = '/symdofufvpjpgkmru';
+const MAX_CACHED_TRACKS = 200;
 
 function getRandomHex(len) {
   let hex = '';
@@ -162,15 +163,37 @@ class JumoClient {
     return [];
   }
 
+  _cacheTrack(track) {
+    if (!track || !track.id) return;
+    const key = String(track.id);
+    if (this.cachedTracks.has(key)) {
+      this.cachedTracks.delete(key);
+    }
+    this.cachedTracks.set(key, track);
+    while (this.cachedTracks.size > MAX_CACHED_TRACKS) {
+      const oldestKey = this.cachedTracks.keys().next().value;
+      if (oldestKey === undefined) break;
+      this.cachedTracks.delete(oldestKey);
+    }
+  }
+
+  getCachedTrack(mediaId) {
+    const key = String(mediaId);
+    const track = this.cachedTracks.get(key);
+    if (track) {
+      this.cachedTracks.delete(key);
+      this.cachedTracks.set(key, track);
+    }
+    return track;
+  }
+
   async _searchWithRegion(queryStr, region) {
     try {
       const url = SEARCH_PATH + '?query=' + encodeURIComponent(queryStr) + '&offset=0&limit=10&region=' + encodeURIComponent(region) + '&view=ui';
       const data = await this.request(url);
       if (data && data.tracks && Array.isArray(data.tracks.items)) {
         for (const t of data.tracks.items) {
-          if (t && t.id) {
-            this.cachedTracks.set(String(t.id), t);
-          }
+          this._cacheTrack(t);
         }
         return data.tracks.items;
       }
@@ -281,7 +304,7 @@ async function searchAudio(query) {
 
 async function getStreamUrl(mediaId, options = {}) {
   try {
-    let track = client.cachedTracks.get(String(mediaId));
+    let track = client.getCachedTrack(mediaId);
     if (!track) {
       const items = await client.search(String(mediaId));
       track = items.find(i => String(i.id) === String(mediaId)) || items[0];

@@ -98,15 +98,35 @@ class TrackListeningRecord {
 /// Service that persistently tracks listening habits when a user finishes a track.
 class ListeningHabitsService extends ChangeNotifier {
   static final ListeningHabitsService instance = ListeningHabitsService._();
-  ListeningHabitsService._();
+  ListeningHabitsService._()
+      : _testingStorageDir = null,
+        _trackInfoFetcher = null;
 
+  @visibleForTesting
+  ListeningHabitsService.forTesting({
+    Directory? storageDirectory,
+    Future<GenericSong> Function(String trackId)? trackInfoFetcher,
+  })  : _testingStorageDir = storageDirectory,
+        _trackInfoFetcher = trackInfoFetcher;
+
+  static const int maxHistoryRecords = 5000;
+  static const int maxBackfillPerRun = 25;
+  static const int maxTrackedBackfillIds = 2000;
+
+  final Directory? _testingStorageDir;
+  final Future<GenericSong> Function(String trackId)? _trackInfoFetcher;
   MetadataManager? _metadataManager;
   final List<TrackListeningRecord> _history = [];
+  final Set<String> _backfillAttemptedIds = <String>{};
   final List<_TasteIngestionBatch> _ingestionQueue = [];
   bool _isProcessingQueue = false;
+  bool _isBackfilling = false;
   static int _nextNotificationId = 70000;
   bool _initialized = false;
   File? _storeFile;
+  File? _backfillAttemptedFile;
+  Future<void>? _activeSave;
+  bool _pendingSave = false;
 
   List<TrackListeningRecord> get history => List.unmodifiable(_history);
 
@@ -341,60 +361,128 @@ class ListeningHabitsService extends ChangeNotifier {
       }
     }
     if (changed) {
-      _saveHistory();
+      unawaited(_saveHistory());
+    }
+  }
+
+  String _cleanTrackId(String trackId) {
+    return trackId.startsWith('spotify:track:')
+        ? trackId.split(':').last
+        : trackId;
+  }
+
+  void _trimHistoryIfNeeded() {
+    if (_history.length > maxHistoryRecords) {
+      _history.removeRange(0, _history.length - maxHistoryRecords);
+    }
+  }
+
+  void _trimBackfillAttemptedIfNeeded() {
+    while (_backfillAttemptedIds.length > maxTrackedBackfillIds) {
+      _backfillAttemptedIds.remove(_backfillAttemptedIds.first);
+    }
+  }
+
+  Future<void> _saveBackfillAttempted() async {
+    final file = _backfillAttemptedFile;
+    if (file == null) return;
+    try {
+      _trimBackfillAttemptedIfNeeded();
+      await file.writeAsString(
+        jsonEncode(_backfillAttemptedIds.toList(growable: false)),
+        flush: true,
+      );
+    } catch (e) {
+      logger.w('[ListeningHabits] Failed to save backfill state: $e');
     }
   }
 
   /// Automatically backfills missing thumbnails and duration for previously listened tracks in the background.
   Future<void> backfillMissingThumbnails() async {
+    if (_isBackfilling) return;
     final metadataManager = _metadataManager;
-    if (metadataManager == null) return;
+    final fetcher = _trackInfoFetcher;
+    if (metadataManager == null && fetcher == null) return;
 
-    bool changed = false;
-    for (int i = 0; i < _history.length; i++) {
-      final r = _history[i];
-      final needsThumb = r.thumbnailUrl == null || r.thumbnailUrl!.isEmpty;
-      final needsDuration = r.durationSecs == 0;
-      if (needsThumb || needsDuration) {
+    _isBackfilling = true;
+    try {
+      // Collect up to [maxBackfillPerRun] unique unattempted track IDs, newest first.
+      final candidateIds = <String>{};
+      for (int i = _history.length - 1; i >= 0; i--) {
+        if (candidateIds.length >= maxBackfillPerRun) break;
+        final r = _history[i];
+        final needsThumb = r.thumbnailUrl == null || r.thumbnailUrl!.isEmpty;
+        final needsDuration = r.durationSecs == 0;
+        if (!needsThumb && !needsDuration) continue;
+
+        final cleanId = _cleanTrackId(r.trackId);
+        if (cleanId.isEmpty || _backfillAttemptedIds.contains(cleanId)) {
+          continue;
+        }
+        candidateIds.add(cleanId);
+      }
+
+      if (candidateIds.isEmpty) return;
+
+      bool changed = false;
+      bool attemptedChanged = false;
+
+      for (final cleanId in candidateIds) {
+        _backfillAttemptedIds.add(cleanId);
+        attemptedChanged = true;
         try {
-          final cleanId = r.trackId.startsWith('spotify:track:')
-              ? r.trackId.split(':').last
-              : r.trackId;
-          final info = await metadataManager.getTrackInfo(cleanId);
-          final updatedThumb = info.thumbnailUrl.isNotEmpty
-              ? info.thumbnailUrl
-              : r.thumbnailUrl;
-          final updatedDuration =
-              info.durationSecs > 0 ? info.durationSecs : r.durationSecs;
-          _history[i] = TrackListeningRecord(
-            trackId: r.trackId,
-            title: r.title,
-            artistNames: r.artistNames,
-            artistIds: r.artistIds,
-            thumbnailUrl: updatedThumb,
-            albumName: r.albumName ?? info.album?.title,
-            albumId: r.albumId ?? info.album?.id,
-            releaseDate: r.releaseDate ?? info.album?.releaseDate,
-            releaseYear: r.releaseYear ??
-                (info.album?.releaseDate != null
-                    ? info.album!.releaseDate.year
-                    : null),
-            genres: r.genres,
-            languages: r.languages.isNotEmpty
-                ? r.languages
-                : (info.languages ?? const []),
-            durationSecs: updatedDuration,
-            completedAt: r.completedAt,
-          );
-          changed = true;
+          final info = fetcher != null
+              ? await fetcher(cleanId)
+              : await metadataManager!.getTrackInfo(cleanId);
+
+          for (int i = 0; i < _history.length; i++) {
+            final r = _history[i];
+            if (_cleanTrackId(r.trackId) != cleanId) continue;
+            final needsThumb =
+                r.thumbnailUrl == null || r.thumbnailUrl!.isEmpty;
+            final needsDuration = r.durationSecs == 0;
+            if (!needsThumb && !needsDuration) continue;
+
+            final updatedThumb =
+                info.thumbnailUrl.isNotEmpty ? info.thumbnailUrl : r.thumbnailUrl;
+            final updatedDuration =
+                info.durationSecs > 0 ? info.durationSecs : r.durationSecs;
+            _history[i] = TrackListeningRecord(
+              trackId: r.trackId,
+              title: r.title,
+              artistNames: r.artistNames,
+              artistIds: r.artistIds,
+              thumbnailUrl: updatedThumb,
+              albumName: r.albumName ?? info.album?.title,
+              albumId: r.albumId ?? info.album?.id,
+              releaseDate: r.releaseDate ?? info.album?.releaseDate,
+              releaseYear: r.releaseYear ??
+                  (info.album?.releaseDate != null
+                      ? info.album!.releaseDate.year
+                      : null),
+              genres: r.genres,
+              languages: r.languages.isNotEmpty
+                  ? r.languages
+                  : (info.languages ?? const []),
+              durationSecs: updatedDuration,
+              completedAt: r.completedAt,
+            );
+            changed = true;
+          }
         } catch (e) {
-          // Ignore individual fetch errors during backfill
+          // Ignore individual fetch errors during backfill; cleanId stays marked attempted.
         }
       }
-    }
-    if (changed) {
-      await _saveHistory();
-      notifyListeners();
+
+      if (attemptedChanged) {
+        await _saveBackfillAttempted();
+      }
+      if (changed) {
+        await _saveHistory();
+        notifyListeners();
+      }
+    } finally {
+      _isBackfilling = false;
     }
   }
 
@@ -411,8 +499,29 @@ class ListeningHabitsService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) return;
     try {
-      final dir = await getApplicationSupportDirectory();
+      final dir = _testingStorageDir ?? await getApplicationSupportDirectory();
       _storeFile = File('${dir.path}/listening_habits.json');
+      _backfillAttemptedFile = File(
+        '${dir.path}/listening_habits_backfill_attempted.json',
+      );
+
+      if (await _backfillAttemptedFile!.exists()) {
+        try {
+          final attemptedContent = await _backfillAttemptedFile!.readAsString();
+          if (attemptedContent.trim().isNotEmpty) {
+            final attemptedData = await JsonUtils.decode(attemptedContent);
+            if (attemptedData is List) {
+              _backfillAttemptedIds
+                ..clear()
+                ..addAll(
+                  attemptedData.map((e) => e.toString()).where((e) => e.isNotEmpty),
+                );
+              _trimBackfillAttemptedIfNeeded();
+            }
+          }
+        } catch (_) {}
+      }
+
       if (await _storeFile!.exists()) {
         final content = await _storeFile!.readAsString();
         if (content.trim().isNotEmpty) {
@@ -424,6 +533,7 @@ class ListeningHabitsService extends ChangeNotifier {
                 _history.add(TrackListeningRecord.fromJson(item));
               }
             }
+            _trimHistoryIfNeeded();
           }
         }
       }
@@ -496,6 +606,7 @@ class ListeningHabitsService extends ChangeNotifier {
       );
 
       _history.add(record);
+      _trimHistoryIfNeeded();
       logger.i(
         '[ListeningHabits] Track finished: "${record.title}" | '
         'Genres: ${record.genres} | '
@@ -517,11 +628,38 @@ class ListeningHabitsService extends ChangeNotifier {
   Future<void> _saveHistory() async {
     final file = _storeFile;
     if (file == null) return;
+    if (_activeSave != null) {
+      _pendingSave = true;
+      await _activeSave;
+      return;
+    }
+
+    Future<void> runSaves() async {
+      do {
+        _pendingSave = false;
+        try {
+          final snapshot = _history
+              .map((r) => r.toJson())
+              .toList(growable: false);
+          final jsonStr = await JsonUtils.encode(
+            snapshot,
+            itemCountHint: snapshot.length,
+          );
+          await file.writeAsString(jsonStr, flush: true);
+        } catch (e) {
+          logger.w('[ListeningHabits] Failed to save history: $e');
+        }
+      } while (_pendingSave);
+    }
+
+    final saveFuture = runSaves();
+    _activeSave = saveFuture;
     try {
-      final jsonStr = jsonEncode(_history.map((r) => r.toJson()).toList());
-      await file.writeAsString(jsonStr, flush: true);
-    } catch (e) {
-      logger.w('[ListeningHabits] Failed to save history: $e');
+      await saveFuture;
+    } finally {
+      if (identical(_activeSave, saveFuture)) {
+        _activeSave = null;
+      }
     }
   }
 
@@ -672,6 +810,7 @@ class ListeningHabitsService extends ChangeNotifier {
         _history[existingIndex] = record;
       } else {
         _history.add(record);
+        _trimHistoryIfNeeded();
       }
       unsavedChanges++;
       processed++;

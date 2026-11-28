@@ -18,7 +18,10 @@ import 'package:wisp/data/sources/audio/audio_source_manager.dart';
 import 'package:wisp/data/sources/auth/auth_source_manager.dart';
 import 'package:wisp/services/system/protocol_registrar.dart';
 import 'package:wisp_assets/wisp_assets.dart';
+import 'package:wisp_innertubex_manager/wisp_innertubex_manager.dart';
+import 'package:wisp_newpipe_manager/services/newpipe_daemon_manager.dart';
 import 'package:wisp_newpipe_manager/wisp_newpipe_manager.dart';
+import 'package:wisp_ytdlp_manager/wisp_ytdlp_manager.dart';
 import 'package:wisp/data/sources/youtube/youtube_metadata.dart';
 import 'package:wisp/services/audio/wisp_audio_handler.dart';
 import 'package:wisp/features/settings/state/preferences_provider.dart';
@@ -268,6 +271,9 @@ class _WispAppState extends State<WispApp> with WindowListener {
       MetadataSourceManager.instance.dispose();
       LyricsSourceManager.instance.dispose();
       SharedJsRuntime.instance.dispose();
+      await InnerTubeXBackend.instance.shutdown();
+      await NewPipeDaemonManager.instance.shutdown();
+      await WispYtdlpManager.instance.dispose();
       await logger.close();
     } catch (error, stackTrace) {
       logger.e('[Main] Shutdown failed', error: error, stackTrace: stackTrace);

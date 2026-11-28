@@ -36,6 +36,9 @@ class JsMetadataSource extends MetadataProvider {
   final ServiceSessionManager _sessionManager = ServiceSessionManager.instance;
 
   bool _isInitialized = false;
+  bool _disposed = false;
+  late final void Function(Map<String, dynamic>?) _sessionListener =
+      _updateStateFromSession;
 
   final Set<String> _likedTrackIds = {};
   bool _likedTracksLoaded = false;
@@ -145,19 +148,20 @@ class JsMetadataSource extends MetadataProvider {
            (providerId == 'spotify'
                ? MetadataCapability.values.toSet()
                : const {MetadataCapability.search}) {
-    _sessionManager.addListener(this.serviceId, (newSession) {
-      _updateStateFromSession(newSession);
-    });
+    _sessionManager.addListener(this.serviceId, _sessionListener);
     _initSessionState();
   }
 
   Future<void> _initSessionState() async {
     final session = await _sessionManager.getSession(serviceId);
     _updateStateFromSession(session);
-    unawaited(initialize());
+    if (!_disposed) {
+      unawaited(initialize());
+    }
   }
 
   void _updateStateFromSession(Map<String, dynamic>? session) {
+    if (_disposed) return;
     final hadAuth = _auth;
     if (session == null || session.isEmpty) {
       _auth = false;
@@ -1329,6 +1333,9 @@ class JsMetadataSource extends MetadataProvider {
 
   @override
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _sessionManager.removeListener(serviceId, _sessionListener);
     SharedJsRuntime.instance.unloadProvider(providerId, type: 'metadata');
     _isInitialized = false;
     super.dispose();

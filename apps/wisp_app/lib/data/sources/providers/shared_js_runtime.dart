@@ -398,16 +398,36 @@ class SharedJsRuntime {
     try {
       final encodedKey = jsonEncode(providerKey);
       final encodedId = jsonEncode(id);
-      runtime.evaluate('''
-        if (globalThis.__wisp_providers) {
-          delete globalThis.__wisp_providers[$encodedKey];
-          delete globalThis.__wisp_providers[$encodedId];
-        }
-        delete globalThis['__wisp_provider_' + $encodedKey];
-        delete globalThis['__wisp_provider_' + $encodedId];
-        var sanitizedKey = $encodedKey.replace(/[^a-zA-Z0-9_]/g, '_');
-        delete globalThis['__wisp_provider_' + sanitizedKey];
+      final res = runtime.evaluate('''
+        (function() {
+          var sanitizedKey = $encodedKey.replace(/[^a-zA-Z0-9_]/g, '_');
+          var target = (globalThis.__wisp_providers && globalThis.__wisp_providers[$encodedKey])
+              || globalThis['__wisp_provider_' + $encodedKey]
+              || globalThis['__wisp_provider_' + sanitizedKey];
+          if (globalThis.__wisp_providers) {
+            delete globalThis.__wisp_providers[$encodedKey];
+            if (!target || globalThis.__wisp_providers[$encodedId] === target) {
+              delete globalThis.__wisp_providers[$encodedId];
+            }
+          }
+          delete globalThis['__wisp_provider_' + $encodedKey];
+          delete globalThis['__wisp_provider_' + sanitizedKey];
+          if (!target || globalThis['__wisp_provider_' + $encodedId] === target) {
+            delete globalThis['__wisp_provider_' + $encodedId];
+          }
+          if (globalThis.__wisp_metadata_provider &&
+              (globalThis.__wisp_metadata_provider === target ||
+               $encodedKey.indexOf('metadata/') === 0)) {
+            delete globalThis.__wisp_metadata_provider;
+          }
+          if (globalThis.__wisp_current_provider === $encodedKey ||
+              globalThis.__wisp_current_provider === $encodedId) {
+            delete globalThis.__wisp_current_provider;
+          }
+        })();
+        undefined;
       ''');
+      JSRef.freeRecursive(res.rawResult);
       drainMicrotasks();
       _loadedProviders.remove(providerKey);
       _loadedProviders.remove(id);

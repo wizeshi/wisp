@@ -590,4 +590,10 @@ class YouTubeMetadataProvider extends MetadataProvider {
       itemFromJson: GenericSong.fromJson,
     );
   }
+
+  @override
+  void dispose() {
+    _youtube.dispose();
+    super.dispose();
+  }
 }

@@ -5,8 +5,14 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:wisp_jvm/wisp_jvm.dart';
+
+typedef NewPipeProcessStarter = Future<Process> Function(
+  String executable,
+  List<String> arguments,
+);
 
 class NewPipeDaemonException implements Exception {
   final String message;
@@ -24,8 +30,38 @@ class NewPipeDaemonException implements Exception {
 /// call gets its own request id, and responses are routed back to the
 /// caller that made the matching request regardless of completion order.
 class NewPipeDaemonManager {
-  NewPipeDaemonManager._internal();
+  NewPipeDaemonManager._internal({
+    NewPipeProcessStarter? processStarter,
+    Future<String> Function()? javaExecutableResolver,
+    Future<String> Function()? jarPathResolver,
+  })  : _processStarter = processStarter ?? Process.start,
+        _javaExecutableResolver =
+            javaExecutableResolver ?? JvmRuntimeManager.instance.getJavaExecutablePath,
+        _jarPathResolver = jarPathResolver ?? _defaultJarPath;
+
+  @visibleForTesting
+  factory NewPipeDaemonManager.forTesting({
+    NewPipeProcessStarter? processStarter,
+    Future<String> Function()? javaExecutableResolver,
+    Future<String> Function()? jarPathResolver,
+  }) {
+    return NewPipeDaemonManager._internal(
+      processStarter: processStarter,
+      javaExecutableResolver: javaExecutableResolver,
+      jarPathResolver: jarPathResolver,
+    );
+  }
+
   static final NewPipeDaemonManager instance = NewPipeDaemonManager._internal();
+
+  static const List<String> defaultJvmArgs = [
+    '-Xmx192m',
+    '-Djava.net.preferIPv6Addresses=true',
+  ];
+
+  final NewPipeProcessStarter _processStarter;
+  final Future<String> Function() _javaExecutableResolver;
+  final Future<String> Function() _jarPathResolver;
 
   Process? _process;
   StreamSubscription<String>? _stdoutSub;
@@ -36,34 +72,38 @@ class NewPipeDaemonManager {
 
   bool get isRunning => _process != null;
 
-  Future<String> _javaExecutable() async {
-    return JvmRuntimeManager.instance.getJavaExecutablePath();
-  }
-
-  Future<String> _jarPath() async {
+  static Future<String> _defaultJarPath() async {
     final supportDir = await WispSupportDirectory().get();
     return p.join(supportDir.path, 'newpipe', 'newpipestreamextractor.jar');
   }
 
+  Future<String> _javaExecutable() async {
+    return _javaExecutableResolver();
+  }
+
+  Future<String> _jarPath() => _jarPathResolver();
+
   /// Starts the daemon if it isn't already running. Concurrent callers block
-  /// until startup is complete or fails. Blocks indefinitely if the daemon
-  /// process exits after startup (i.e., does not auto-restart on crash).
+  /// until startup is complete or fails.
   Future<void> _ensureStarted() async {
     if (_process != null) return;
 
-    final starting = _starting ?? (_starting = Completer<void>());
-    if (_starting != starting) {
-      // Another caller beat us here; wait for them
-      return starting.future;
+    final existing = _starting;
+    if (existing != null) {
+      return existing.future;
     }
+
+    final starting = Completer<void>();
+    starting.future.ignore();
+    _starting = starting;
 
     try {
       final javaExec = await _javaExecutable();
       final jar = await _jarPath();
 
-      final process = await Process.start(
+      final process = await _processStarter(
         javaExec,
-        ['-Djava.net.preferIPv6Addresses=true', '-jar', jar],
+        [...defaultJvmArgs, '-jar', jar],
       );
 
       _process = process;
@@ -77,7 +117,9 @@ class NewPipeDaemonManager {
           final response = json.decode(line) as Map<String, dynamic>;
           final id = response['id']?.toString();
           final completer = id != null ? _pending.remove(id) : null;
-          completer?.complete(response);
+          if (completer != null && !completer.isCompleted) {
+            completer.complete(response);
+          }
         } catch (e) {
           // Ignore parse errors; lines might be debug output
         }
@@ -93,17 +135,39 @@ class NewPipeDaemonManager {
 
       // Clean up on exit
       unawaited(process.exitCode.then((_) {
-        _process = null;
-        _stdoutSub?.cancel();
-        _stderrSub?.cancel();
-        _starting = null;
-        _pending.clear();
+        if (identical(_process, process)) {
+          _process = null;
+          unawaited(_stdoutSub?.cancel());
+          _stdoutSub = null;
+          unawaited(_stderrSub?.cancel());
+          _stderrSub = null;
+          for (final completer in _pending.values) {
+            if (!completer.isCompleted) {
+              completer.completeError(
+                NewPipeDaemonException('NewPipe daemon exited unexpectedly'),
+              );
+            }
+          }
+          _pending.clear();
+        }
+        if (identical(_starting, starting)) {
+          _starting = null;
+        }
       }));
 
-      _starting?.complete();
-    } catch (e) {
-      _starting?.completeError(e);
-      _starting = null;
+      if (!starting.isCompleted) {
+        starting.complete();
+      }
+      if (identical(_starting, starting)) {
+        _starting = null;
+      }
+    } catch (e, st) {
+      if (!starting.isCompleted) {
+        starting.completeError(e, st);
+      }
+      if (identical(_starting, starting)) {
+        _starting = null;
+      }
       rethrow;
     }
   }
@@ -164,14 +228,32 @@ class NewPipeDaemonManager {
 
   /// Shuts down the running daemon process, if any. Safe to call when already stopped.
   Future<void> shutdown() async {
-    final process = _process;
-    if (process == null) return;
+    final pendingStartup = _starting;
+    _starting = null;
+    if (pendingStartup != null && !pendingStartup.isCompleted) {
+      pendingStartup.completeError(
+        NewPipeDaemonException('NewPipe daemon shut down during startup'),
+      );
+    }
 
+    final process = _process;
     _process = null;
+
     await _stdoutSub?.cancel();
     _stdoutSub = null;
     await _stderrSub?.cancel();
     _stderrSub = null;
+
+    for (final completer in _pending.values) {
+      if (!completer.isCompleted) {
+        completer.completeError(
+          NewPipeDaemonException('NewPipe daemon shut down'),
+        );
+      }
+    }
+    _pending.clear();
+
+    if (process == null) return;
 
     try {
       process.kill();
@@ -179,8 +261,5 @@ class NewPipeDaemonManager {
     } catch (_) {
       // Best-effort shutdown; ignore timeouts or signals already delivered
     }
-
-    _pending.clear();
-    _starting = null;
   }
 }

@@ -139,7 +139,6 @@ class _StreamUrlCacheEntry {
 class WispAudioHandler extends audio_service.BaseAudioHandler
     with ChangeNotifier {
   final WispPlaybackEngine _engine;
-  final YouTubeProvider _youtube = YouTubeProvider();
   final Connectivity _connectivity = Connectivity();
 
   double _lastVolume = 1.0;
@@ -877,7 +876,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   }
 
   // Slow reconnect check (30s) when playing on desktop in case Discord opened
-  // or restarted after Wisp; active presence stays event-driven.
+  // or restarted after wisp; active presence stays event-driven.
   void _ensureRpcTimer() {
     if (!(Platform.isLinux || Platform.isMacOS || Platform.isWindows)) return;
     if (!isPlaying || _currentTrack == null || _rpcTimer != null) return;
@@ -2985,7 +2984,6 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     if (!_engineDisposed) {
       unawaited(_engine.dispose());
     }
-    _youtube.dispose();
     super.dispose();
   }
 }

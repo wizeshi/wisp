@@ -5,6 +5,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -112,6 +113,8 @@ class AudioCacheManager extends ChangeNotifier {
   final Map<String, _PendingDownload> _pendingDownloads = {};
   bool _initialized = false;
   int _lastOverallProgressPercent = -1;
+  int _batchTotalCount = 0;
+  int _batchCompletedCount = 0;
 
   // Dio instance for downloads
   final Dio _dio = Dio(
@@ -123,6 +126,7 @@ class AudioCacheManager extends ChangeNotifier {
 
   // Connectivity
   final Connectivity _connectivity = Connectivity();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   bool _isOnWifi = false;
 
   bool _isWifiOrEthernet(List<ConnectivityResult> results) {
@@ -217,7 +221,8 @@ class AudioCacheManager extends ChangeNotifier {
       await _storage.initialize();
       await _loadSettings();
 
-      _connectivity.onConnectivityChanged.listen(_handleConnectivityChange);
+      _connectivitySubscription =
+          _connectivity.onConnectivityChanged.listen(_handleConnectivityChange);
       final result = await _connectivity.checkConnectivity();
       _isOnWifi = _isWifiOrEthernet(result);
 
@@ -328,6 +333,7 @@ class AudioCacheManager extends ChangeNotifier {
       artistName: artistName,
       isUserDownload: isUserDownload,
     );
+    _batchTotalCount++;
 
     _coordinator.setQueued(key);
     notifyListeners();
@@ -402,6 +408,8 @@ class AudioCacheManager extends ChangeNotifier {
       );
       task.status = DownloadStatus.failed;
       task.errorMessage = 'Missing download resolver';
+      _downloadQueue.remove(trackId);
+      _resetBatchCountersIfIdle();
       _coordinator.setFailed(trackId, task.errorMessage);
       onDownloadComplete?.call(trackId, false, task.errorMessage);
       notifyListeners();
@@ -533,6 +541,8 @@ class AudioCacheManager extends ChangeNotifier {
 
       task.status = DownloadStatus.completed;
       task.progress = 1.0;
+      _batchCompletedCount++;
+      _downloadQueue.remove(trackId);
       _coordinator.setCompleted(trackId);
 
       onDownloadComplete?.call(trackId, true, null);
@@ -568,6 +578,7 @@ class AudioCacheManager extends ChangeNotifier {
 
       if (e is DioException && e.type == DioExceptionType.cancel) {
         task.status = DownloadStatus.cancelled;
+        _downloadQueue.remove(trackId);
         _coordinator.setRemoved(trackId);
         logger.i('[AudioCacheManager] Download cancelled: ${task.trackTitle}');
         shouldRemovePending = true;
@@ -590,6 +601,7 @@ class AudioCacheManager extends ChangeNotifier {
         } else {
           task.status = DownloadStatus.failed;
           task.errorMessage = e.toString();
+          _downloadQueue.remove(trackId);
           _coordinator.setFailed(trackId, e.toString());
           logger.e(
             '[AudioCacheManager] Download failed: ${task.trackTitle}',
@@ -604,10 +616,21 @@ class AudioCacheManager extends ChangeNotifier {
       _activeDownloads.remove(trackId);
       if (shouldRemovePending) {
         _pendingDownloads.remove(trackId);
+        _downloadQueue.remove(trackId);
       }
+      _resetBatchCountersIfIdle();
       notifyListeners();
       _processDownloadQueue();
+      await _updateForegroundServiceProgress(force: true);
       await _updateForegroundService();
+    }
+  }
+
+  void _resetBatchCountersIfIdle() {
+    if (_downloadQueue.isEmpty && _activeDownloads.isEmpty) {
+      _batchTotalCount = 0;
+      _batchCompletedCount = 0;
+      _lastOverallProgressPercent = -1;
     }
   }
 
@@ -617,15 +640,20 @@ class AudioCacheManager extends ChangeNotifier {
   }
 
   String _formatOverallProgressText() {
-    final total = _downloadQueue.length;
+    final total = math.max(
+      _batchTotalCount,
+      _downloadQueue.length + _batchCompletedCount,
+    );
     if (total == 0) return 'Preparing downloads…';
-    final completed = _downloadQueue.values
-        .where((task) => task.status == DownloadStatus.completed)
-        .length;
-    final totalProgress = _downloadQueue.values.fold<double>(
+    final completed = _batchCompletedCount +
+        _downloadQueue.values
+            .where((task) => task.status == DownloadStatus.completed)
+            .length;
+    final activeProgress = _downloadQueue.values.fold<double>(
       0,
       (sum, task) => sum + task.progress.clamp(0.0, 1.0),
     );
+    final totalProgress = _batchCompletedCount + activeProgress;
     final overallPercent =
         ((totalProgress / total) * 100).clamp(0, 100).toInt();
     final activeCount = _activeDownloads.length;
@@ -639,11 +667,15 @@ class AudioCacheManager extends ChangeNotifier {
       }
       return;
     }
-    final total = _downloadQueue.length;
-    final totalProgress = _downloadQueue.values.fold<double>(
+    final total = math.max(
+      _batchTotalCount,
+      _downloadQueue.length + _batchCompletedCount,
+    );
+    final activeProgress = _downloadQueue.values.fold<double>(
       0,
       (sum, task) => sum + task.progress.clamp(0.0, 1.0),
     );
+    final totalProgress = _batchCompletedCount + activeProgress;
     final overallPercent =
         ((totalProgress / total) * 100).clamp(0, 100).toInt();
     if (!force && overallPercent == _lastOverallProgressPercent) return;
@@ -673,6 +705,7 @@ class AudioCacheManager extends ChangeNotifier {
       _pendingDownloads.remove(key);
       _retryAfter.remove(key);
       _activeDownloads.remove(key);
+      _resetBatchCountersIfIdle();
       _coordinator.setRemoved(key);
       NotificationService.instance.cancelNotification(key.hashCode);
       notifyListeners();
@@ -693,6 +726,7 @@ class AudioCacheManager extends ChangeNotifier {
     _pendingDownloads.clear();
     _retryAfter.clear();
     _activeDownloads.clear();
+    _resetBatchCountersIfIdle();
     notifyListeners();
     DownloadForegroundService.stop();
     NotificationService.instance.cancelDownloadGroupSummary();
@@ -700,7 +734,10 @@ class AudioCacheManager extends ChangeNotifier {
 
   bool isDownloading(String trackId) {
     final key = _normalizeTrackId(trackId);
-    return _downloadQueue.containsKey(key);
+    final task = _downloadQueue[key];
+    return task != null &&
+        (task.status == DownloadStatus.queued ||
+            task.status == DownloadStatus.downloading);
   }
 
   double? getDownloadProgress(String trackId) {
@@ -815,6 +852,8 @@ class AudioCacheManager extends ChangeNotifier {
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
+    _connectivitySubscription = null;
     _storage.removeListener(_handleStorageChanged);
     _coordinator.dispose();
     cancelAllDownloads();

@@ -293,6 +293,7 @@ class AudioStreamingProxy {
         requestHeaders['range'] = rangeHeader;
       }
 
+      final cancelToken = CancelToken();
       final options = Options(
         headers: requestHeaders,
         responseType: ResponseType.stream,
@@ -302,11 +303,21 @@ class AudioStreamingProxy {
       final response = await _dio.get<ResponseBody>(
         targetUrl,
         options: options,
+        cancelToken: cancelToken,
       );
 
       final statusCode = response.statusCode ?? 200;
       final headers = <String, String>{};
       response.headers.forEach((name, values) {
+        final lower = name.toLowerCase();
+        // Strip hop-by-hop headers: Dio already de-chunks upstream streams,
+        // and shelf_io re-parses transfer-encoding as raw chunked framing if left set.
+        if (lower == 'transfer-encoding' ||
+            lower == 'connection' ||
+            lower == 'keep-alive' ||
+            lower == 'upgrade') {
+          return;
+        }
         if (values.isNotEmpty) {
           headers[name] = values.first;
         }
@@ -338,24 +349,53 @@ class AudioStreamingProxy {
         final partFile = File(tempPartPath);
         final sink = partFile.openWrite();
 
-        final controller = StreamController<List<int>>();
+        StreamSubscription<Uint8List>? upstreamSub;
+        var finalizedOrAborted = false;
 
-        upstreamStream.listen(
+        Future<void> abortSpool() async {
+          if (finalizedOrAborted) return;
+          finalizedOrAborted = true;
+          if (!cancelToken.isCancelled) {
+            cancelToken.cancel('Client disconnected');
+          }
+          await upstreamSub?.cancel();
+          try {
+            await sink.close();
+          } catch (_) {}
+          try {
+            if (await partFile.exists()) await partFile.delete();
+          } catch (_) {}
+        }
+
+        late final StreamController<List<int>> controller;
+        controller = StreamController<List<int>>(
+          onPause: () => upstreamSub?.pause(),
+          onResume: () => upstreamSub?.resume(),
+          onCancel: abortSpool,
+        );
+
+        upstreamSub = upstreamStream.listen(
           (chunk) {
+            if (finalizedOrAborted || controller.isClosed) return;
             try {
               sink.add(chunk);
             } catch (_) {}
             controller.add(chunk);
           },
           onError: (Object e, StackTrace st) {
-            sink.close();
-            try {
-              if (partFile.existsSync()) partFile.deleteSync();
-            } catch (_) {}
-            controller.addError(e, st);
+            final wasAborted = finalizedOrAborted;
+            unawaited(abortSpool());
+            if (!wasAborted && !controller.isClosed) {
+              controller.addError(e, st);
+              controller.close();
+            }
           },
           onDone: () async {
-            await controller.close();
+            if (finalizedOrAborted) return;
+            finalizedOrAborted = true;
+            if (!controller.isClosed) {
+              await controller.close();
+            }
             try {
               await sink.flush();
               await sink.close();
@@ -392,14 +432,51 @@ class AudioStreamingProxy {
           statusCode,
           body: controller.stream,
           headers: headers,
+          context: const {'shelf.io.buffer_output': false},
         );
       }
 
-      // Non-spooled passthrough
+      // Non-spooled passthrough with backpressure and prompt HTTP abort on cancel
+      StreamSubscription<Uint8List>? passthroughSub;
+      var passthroughAborted = false;
+      late final StreamController<List<int>> passthroughController;
+      passthroughController = StreamController<List<int>>(
+        onPause: () => passthroughSub?.pause(),
+        onResume: () => passthroughSub?.resume(),
+        onCancel: () async {
+          passthroughAborted = true;
+          if (!cancelToken.isCancelled) {
+            cancelToken.cancel('Client disconnected');
+          }
+          await passthroughSub?.cancel();
+        },
+      );
+
+      passthroughSub = upstreamStream.listen(
+        (chunk) {
+          if (!passthroughAborted && !passthroughController.isClosed) {
+            passthroughController.add(chunk);
+          }
+        },
+        onError: (Object e, StackTrace st) {
+          if (!passthroughAborted && !passthroughController.isClosed) {
+            passthroughController.addError(e, st);
+            passthroughController.close();
+          }
+        },
+        onDone: () async {
+          if (!passthroughController.isClosed) {
+            await passthroughController.close();
+          }
+        },
+        cancelOnError: true,
+      );
+
       return shelf.Response(
         statusCode,
-        body: upstreamStream,
+        body: passthroughController.stream,
         headers: headers,
+        context: const {'shelf.io.buffer_output': false},
       );
     } catch (e, stack) {
       logger.e('[AudioStreamingProxy] Streaming error', error: e, stackTrace: stack);
@@ -443,16 +520,22 @@ class AudioStreamingProxy {
         }
       }
 
+      final cancelToken = CancelToken();
+
       // 1. Fetch initialization segment (Metadata & segment table)
       final initRes = await _dio.get<List<int>>(
         descriptor.initSegmentUrl,
+        cancelToken: cancelToken,
         options: Options(responseType: ResponseType.bytes),
       );
       if (initRes.data == null || initRes.data!.isEmpty) {
         throw Exception('Failed to download audio initialization segment');
       }
 
-      final seg0Info = JumoCryptoUtils.parseSegment0(Uint8List.fromList(initRes.data!));
+      final initData = initRes.data!;
+      final initBytes =
+          initData is Uint8List ? initData : Uint8List.fromList(initData);
+      final seg0Info = JumoCryptoUtils.parseSegment0(initBytes);
       final numSegments = seg0Info.table.isNotEmpty ? seg0Info.table.length : descriptor.segmentCount;
 
       // Spooling setup to cache track as it plays
@@ -473,7 +556,47 @@ class AudioStreamingProxy {
         fileSink = partFile.openWrite();
       }
 
-      final streamController = StreamController<List<int>>();
+      var isCancelled = false;
+      var sinkClosed = false;
+      Completer<void>? resumeCompleter;
+
+      Future<void> cleanupPartialFile() async {
+        final localSink = fileSink;
+        final localPart = partFile;
+        if (localSink != null && !sinkClosed) {
+          sinkClosed = true;
+          try {
+            await localSink.close();
+          } catch (_) {}
+        }
+        if (localPart != null) {
+          try {
+            if (await localPart.exists()) await localPart.delete();
+          } catch (_) {}
+        }
+      }
+
+      late final StreamController<List<int>> streamController;
+      streamController = StreamController<List<int>>(
+        onPause: () {
+          resumeCompleter ??= Completer<void>();
+        },
+        onResume: () {
+          final c = resumeCompleter;
+          resumeCompleter = null;
+          if (c != null && !c.isCompleted) c.complete();
+        },
+        onCancel: () async {
+          isCancelled = true;
+          if (!cancelToken.isCancelled) {
+            cancelToken.cancel('Client disconnected');
+          }
+          final c = resumeCompleter;
+          resumeCompleter = null;
+          if (c != null && !c.isCompleted) c.complete();
+          await cleanupPartialFile();
+        },
+      );
 
       // Write header first
       final headerBytes = seg0Info.header;
@@ -484,16 +607,31 @@ class AudioStreamingProxy {
       unawaited(() async {
         try {
           for (var s = 1; s <= numSegments; s++) {
+            if (isCancelled || streamController.isClosed) break;
+
+            while (streamController.isPaused &&
+                !isCancelled &&
+                !streamController.isClosed) {
+              resumeCompleter ??= Completer<void>();
+              await resumeCompleter!.future;
+            }
+            if (isCancelled || streamController.isClosed) break;
+
             final segUrl = descriptor.segmentUrlTemplate.replaceAll(r'$SEGMENT$', s.toString());
             final segRes = await _dio.get<List<int>>(
               segUrl,
+              cancelToken: cancelToken,
               options: Options(responseType: ResponseType.bytes),
             );
-            if (segRes.data == null || segRes.data!.isEmpty) {
+            if (isCancelled || streamController.isClosed) break;
+
+            final segData = segRes.data;
+            if (segData == null || segData.isEmpty) {
               throw Exception('Segment $s download failed');
             }
 
-            final rawSegmentBytes = Uint8List.fromList(segRes.data!);
+            final rawSegmentBytes =
+                segData is Uint8List ? segData : Uint8List.fromList(segData);
             final audioBytes = contentKey.isNotEmpty
                 ? JumoCryptoUtils.decryptSegmentAudio(
                     segmentBytes: rawSegmentBytes,
@@ -501,14 +639,30 @@ class AudioStreamingProxy {
                   )
                 : rawSegmentBytes;
 
-            fileSink?.add(audioBytes);
+            if (isCancelled || streamController.isClosed) break;
+            if (!sinkClosed) {
+              try {
+                fileSink?.add(audioBytes);
+              } catch (_) {}
+            }
             streamController.add(audioBytes);
           }
 
-          await streamController.close();
+          if (isCancelled) {
+            await cleanupPartialFile();
+            if (!streamController.isClosed) {
+              await streamController.close();
+            }
+            return;
+          }
+
+          if (!streamController.isClosed) {
+            await streamController.close();
+          }
           final localPartFile = partFile;
           final localSink = fileSink;
-          if (localSink != null) {
+          if (localSink != null && !sinkClosed) {
+            sinkClosed = true;
             await localSink.flush();
             await localSink.close();
 
@@ -528,19 +682,20 @@ class AudioStreamingProxy {
             }
           }
         } catch (e, st) {
-          logger.e('[AudioStreamingProxy] Error assembling segmented stream: $e', error: e, stackTrace: st);
-          if (!streamController.isClosed) {
-            streamController.addError(e, st);
-            await streamController.close();
-          }
-          final localPartFile = partFile;
-          if (fileSink != null) {
-            await fileSink.close();
-            try {
-              if (localPartFile != null && await localPartFile.exists()) {
-                await localPartFile.delete();
-              }
-            } catch (_) {}
+          if (isCancelled ||
+              (e is DioException && e.type == DioExceptionType.cancel)) {
+            logger.d('[AudioStreamingProxy] Segmented stream cancelled: $trackTitle');
+            await cleanupPartialFile();
+            if (!streamController.isClosed) {
+              await streamController.close();
+            }
+          } else {
+            logger.e('[AudioStreamingProxy] Error assembling segmented stream: $e', error: e, stackTrace: st);
+            if (!streamController.isClosed) {
+              streamController.addError(e, st);
+              await streamController.close();
+            }
+            await cleanupPartialFile();
           }
         }
       }());
@@ -553,6 +708,7 @@ class AudioStreamingProxy {
       return shelf.Response.ok(
         streamController.stream,
         headers: headers,
+        context: const {'shelf.io.buffer_output': false},
       );
     } catch (e, stack) {
       logger.e('[AudioStreamingProxy] Segmented stream initialization error: $e', error: e, stackTrace: stack);
@@ -627,6 +783,7 @@ class AudioStreamingProxy {
       final cipher = CTRStreamCipher(AESEngine());
       cipher.init(false, ParametersWithIV(KeyParameter(keyBytes), ivBytes));
 
+      final cancelToken = CancelToken();
       final options = Options(
         headers: headers,
         responseType: ResponseType.stream,
@@ -636,6 +793,7 @@ class AudioStreamingProxy {
       final response = await _dio.get<ResponseBody>(
         targetUrl,
         options: options,
+        cancelToken: cancelToken,
       );
 
       final statusCode = response.statusCode ?? 200;
@@ -668,45 +826,84 @@ class AudioStreamingProxy {
         partFile = File(tempPartPath);
         fileSink = partFile.openWrite();
         spoolCompleter = Completer<void>();
+        spoolCompleter.future.ignore();
         _inFlightSpools[spoolKey] = spoolCompleter.future;
       }
 
-      final streamController = StreamController<List<int>>();
+      StreamSubscription<Uint8List>? upstreamSub;
+      var finalizedOrAborted = false;
+      var spoolReleased = false;
       var skipRemaining = skipBytes;
 
-      upstreamStream.listen(
+      void releaseSpoolLock() {
+        if (spoolReleased) return;
+        spoolReleased = true;
+        _inFlightSpools.remove(spoolKey);
+        if (spoolCompleter != null && !spoolCompleter.isCompleted) {
+          spoolCompleter.complete();
+        }
+      }
+
+      Future<void> abortAesStream() async {
+        if (finalizedOrAborted) return;
+        finalizedOrAborted = true;
+        if (!cancelToken.isCancelled) {
+          cancelToken.cancel('Client disconnected');
+        }
+        await upstreamSub?.cancel();
+        try {
+          await fileSink?.close();
+        } catch (_) {}
+        final localPartFile = partFile;
+        try {
+          if (localPartFile != null && await localPartFile.exists()) {
+            await localPartFile.delete();
+          }
+        } catch (_) {}
+        releaseSpoolLock();
+      }
+
+      late final StreamController<List<int>> streamController;
+      streamController = StreamController<List<int>>(
+        onPause: () => upstreamSub?.pause(),
+        onResume: () => upstreamSub?.resume(),
+        onCancel: abortAesStream,
+      );
+
+      upstreamSub = upstreamStream.listen(
         (chunk) {
-          final decrypted = cipher.process(Uint8List.fromList(chunk));
+          if (finalizedOrAborted || streamController.isClosed) return;
+          final decrypted = cipher.process(chunk);
           if (skipRemaining > 0) {
             if (decrypted.length <= skipRemaining) {
               skipRemaining -= decrypted.length;
               return;
             } else {
-              final valid = Uint8List.fromList(decrypted.sublist(skipRemaining));
+              final valid = Uint8List.sublistView(decrypted, skipRemaining);
               skipRemaining = 0;
-              fileSink?.add(valid);
+              try {
+                fileSink?.add(valid);
+              } catch (_) {}
               streamController.add(valid);
             }
           } else {
-            fileSink?.add(decrypted);
+            try {
+              fileSink?.add(decrypted);
+            } catch (_) {}
             streamController.add(decrypted);
           }
         },
         onError: (Object e, StackTrace st) {
-          fileSink?.close();
-          try {
-            if (partFile?.existsSync() == true) partFile?.deleteSync();
-          } catch (_) {}
-          _inFlightSpools.remove(spoolKey);
-          if (spoolCompleter != null && !spoolCompleter.isCompleted) {
-            spoolCompleter.completeError(e);
-          }
-          if (!streamController.isClosed) {
+          final wasAborted = finalizedOrAborted;
+          unawaited(abortAesStream());
+          if (!wasAborted && !streamController.isClosed) {
             streamController.addError(e, st);
             streamController.close();
           }
         },
         onDone: () async {
+          if (finalizedOrAborted) return;
+          finalizedOrAborted = true;
           if (!streamController.isClosed) {
             await streamController.close();
           }
@@ -736,16 +933,10 @@ class AudioStreamingProxy {
                 if (await localPart.exists()) await localPart.delete();
               } catch (_) {}
             } finally {
-              _inFlightSpools.remove(spoolKey);
-              if (spoolCompleter != null && !spoolCompleter.isCompleted) {
-                spoolCompleter.complete();
-              }
+              releaseSpoolLock();
             }
           } else {
-            _inFlightSpools.remove(spoolKey);
-            if (spoolCompleter != null && !spoolCompleter.isCompleted) {
-              spoolCompleter.complete();
-            }
+            releaseSpoolLock();
           }
         },
         cancelOnError: true,
@@ -759,7 +950,12 @@ class AudioStreamingProxy {
         'accept-ranges': 'none',
       };
 
-      return shelf.Response(statusCode, body: streamController.stream, headers: responseHeaders);
+      return shelf.Response(
+        statusCode,
+        body: streamController.stream,
+        headers: responseHeaders,
+        context: const {'shelf.io.buffer_output': false},
+      );
     } catch (e, stack) {
       logger.e('[AudioStreamingProxy] AES-CTR stream error: $e', error: e, stackTrace: stack);
       return shelf.Response.internalServerError(body: 'AES-CTR stream error: $e');

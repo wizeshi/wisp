@@ -1712,7 +1712,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ),
                         Text(
-                          'Discover and hand off playback with Wisp devices on your network',
+                          'Discover and hand off playback with wisp devices on your network',
                           style: TextStyle(
                             color: colors.textSecondary,
                             fontSize: 12,

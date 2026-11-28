@@ -39,7 +39,8 @@ class LyricsSourceManager {
   /// Unregister a provider in memory and mark it as explicitly uninstalled
   void unregisterSource(String id) {
     _explicitlyUninstalled.add(id);
-    _sources.remove(id);
+    final removed = _sources.remove(id);
+    removed?.dispose();
     logger.i('[LyricsSourceManager] Unregistered lyrics provider: $id');
     _notifyListeners();
   }
@@ -251,6 +252,7 @@ class LyricsSourceManager {
             script: script,
           );
 
+          _sources[id]?.dispose();
           _sources[id] = source;
           logger.i(
             '[LyricsSourceManager] Registered provider: $name ($id) [priority: $priority, modes: ${supportedModes.map((m) => m.name).join(",")}]',
@@ -300,6 +302,9 @@ class LyricsSourceManager {
 
   /// Reload all sources and re-scan the providers directories.
   Future<void> reload() async {
+    for (final source in _sources.values) {
+      source.dispose();
+    }
     _sources.clear();
     _initialized = false;
     _initFuture = null;
@@ -314,5 +319,6 @@ class LyricsSourceManager {
       source.dispose();
     }
     _sources.clear();
+    _listeners.clear();
   }
 }

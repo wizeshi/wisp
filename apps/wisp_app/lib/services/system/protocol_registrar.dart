@@ -9,8 +9,10 @@ class ProtocolRegistrar {
     String? executablePath = Platform.resolvedExecutable;
 
     if (Platform.isWindows) {
+      RegistryKey? key;
+      RegistryKey? commandKey;
       try {
-        final key = CURRENT_USER.open(
+        key = CURRENT_USER.open(
           'Software\\Classes\\$scheme',
           config: RegistryOpenConfig(
             create: false,
@@ -23,7 +25,7 @@ class ProtocolRegistrar {
         final hasURLValue =
             firstValue != null && firstValue.startsWith('URL:$scheme');
 
-        final commandKey = key.open(
+        commandKey = key.open(
           'shell\\open\\command',
           config: RegistryOpenConfig(
             create: false,
@@ -37,6 +39,9 @@ class ProtocolRegistrar {
         return hasURLValue && isCorrectExecutable;
       } catch (e) {
         return false;
+      } finally {
+        commandKey?.close();
+        key?.close();
       }
     }
 
@@ -50,14 +55,21 @@ class ProtocolRegistrar {
     executablePath ??= Platform.resolvedExecutable;
 
     if (Platform.isWindows) {
-      final initialKey = CURRENT_USER.create('Software\\Classes\\$scheme');
+      RegistryKey? initialKey;
+      RegistryKey? key;
+      try {
+        initialKey = CURRENT_USER.create('Software\\Classes\\$scheme');
 
-      initialKey.setValue('', RegistryValue.string("URL:$scheme"));
+        initialKey.setValue('', RegistryValue.string("URL:$scheme"));
 
-      initialKey.setValue("URL Protocol", RegistryValue.string(''));
+        initialKey.setValue("URL Protocol", RegistryValue.string(''));
 
-      final key = initialKey.create("shell\\open\\command");
-      key.setValue('', RegistryValue.string('"$executablePath" "%1"'));
+        key = initialKey.create("shell\\open\\command");
+        key.setValue('', RegistryValue.string('"$executablePath" "%1"'));
+      } finally {
+        key?.close();
+        initialKey?.close();
+      }
     }
   }
 

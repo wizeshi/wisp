@@ -885,6 +885,7 @@ class YouTubeProvider {
   void dispose() {
     _youtube.close();
     unawaited(NewPipeManager.instance.dispose());
+    unawaited(InnerTubeXBackend.instance.shutdown());
     unawaited(WispYtdlpManager.instance.dispose());
   }
 }
