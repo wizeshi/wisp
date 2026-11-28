@@ -4,9 +4,18 @@
 library;
 
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
+
+Uint8List? _decodeResizeEncodePng(Uint8List bytes, int size) {
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null) return null;
+  final resized = img.copyResize(decoded, width: size, height: size);
+  return Uint8List.fromList(img.encodePng(resized));
+}
 
 class FolderThumbnailStore {
   FolderThumbnailStore._();
@@ -28,15 +37,10 @@ class FolderThumbnailStore {
   Future<String?> saveThumbnail(File source, {String? preferredName}) async {
     try {
       final bytes = await source.readAsBytes();
-      final decoded = img.decodeImage(bytes);
-      if (decoded == null) return null;
-
-      final resized = img.copyResize(
-        decoded,
-        width: _thumbSize,
-        height: _thumbSize,
+      final encoded = await Isolate.run(
+        () => _decodeResizeEncodePng(bytes, _thumbSize),
       );
-      final encoded = img.encodePng(resized);
+      if (encoded == null) return null;
 
       final dir = await _getFolderDirectory();
       final fileName = preferredName ?? _randomFileName();

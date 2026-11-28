@@ -207,6 +207,7 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
   StreamSubscription? _connectivitySubscription;
   Timer? _rpcTimer;
   Timer? _mprisTimer;
+  Timer? _volumeSaveDebounceTimer;
   bool? _androidLocksDesired;
   (bool, audio_service.AudioProcessingState, bool, bool, RepeatMode)?
   _lastBroadcastSignature;
@@ -2315,13 +2316,21 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     unawaited(_scheduleNextTrackPreload());
   }
 
+  void _scheduleVolumeSave() {
+    _volumeSaveDebounceTimer?.cancel();
+    _volumeSaveDebounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _volumeSaveDebounceTimer = null;
+      unawaited(_saveVolumePrefs());
+    });
+  }
+
   Future<void> setVolume(double volume) async {
     await _engine.setVolume(volume);
     _savedVolume = volume;
     if (volume > 0) {
       _lastVolume = volume;
     }
-    await _saveVolumePrefs();
+    _scheduleVolumeSave();
     notifyListeners();
   }
 
@@ -2970,6 +2979,8 @@ class WispAudioHandler extends audio_service.BaseAudioHandler
     _positionNotifier.dispose();
     _bufferedPositionNotifier.dispose();
     unawaited(AndroidBackgroundAudioService.instance.releaseLocks());
+    _volumeSaveDebounceTimer?.cancel();
+    _volumeSaveDebounceTimer = null;
     _saveVolumePrefs();
     _saveQueue(immediate: true);
     _engineStateSubscription?.cancel();

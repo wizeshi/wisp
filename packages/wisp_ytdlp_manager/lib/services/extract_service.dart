@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
@@ -12,7 +13,9 @@ class ExtractService {
       await destinationDir.create(recursive: true);
     }
 
-    await extractFileToDisk(archiveFile.path, destinationDir.path);
+    final archivePath = archiveFile.path;
+    final destPath = destinationDir.path;
+    await Isolate.run(() => extractFileToDisk(archivePath, destPath));
     return destinationDir;
   }
 
@@ -24,11 +27,9 @@ class ExtractService {
       await destinationDir.create(recursive: true);
     }
 
-    final compressedBytes = await archiveFile.readAsBytes();
-    final archive = TarDecoder().decodeBytes(
-      GZipDecoder().decodeBytes(compressedBytes),
-    );
-    await extractArchiveToDisk(archive, destinationDir.path);
+    final archivePath = archiveFile.path;
+    final destPath = destinationDir.path;
+    await Isolate.run(() => extractFileToDisk(archivePath, destPath));
     return destinationDir;
   }
 

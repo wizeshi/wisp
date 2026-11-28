@@ -10,6 +10,9 @@ import 'package:wisp/data/models/metadata_models.dart';
 class TtmlParser {
   const TtmlParser._();
 
+  static final RegExp _trailingPunctuationRegex = RegExp(r'^[.,!?:;)\]]+$');
+  static final RegExp _whitespaceRegex = RegExp(r'\s+');
+
   /// Parses the given [xmlContent] into a [LyricsResult].
   ///
   /// Supports:
@@ -191,7 +194,7 @@ class TtmlParser {
 
         // If this word is standalone trailing punctuation, attach to previous word
         if (i > 0 &&
-            RegExp(r'^[.,!?:;)\]]+$').hasMatch(wordText) &&
+            _trailingPunctuationRegex.hasMatch(wordText) &&
             buffer.isNotEmpty &&
             buffer.toString().endsWith(' ')) {
           final str = buffer.toString();
@@ -304,7 +307,7 @@ class TtmlParser {
         final wordText = w.content;
 
         if (i > 0 &&
-            RegExp(r'^[.,!?:;)\]]+$').hasMatch(wordText) &&
+            _trailingPunctuationRegex.hasMatch(wordText) &&
             buffer.isNotEmpty &&
             buffer.toString().endsWith(' ')) {
           final str = buffer.toString();
@@ -406,7 +409,7 @@ class TtmlParser {
   }
 
   static String _cleanWhitespace(String str) {
-    return str.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return str.replaceAll(_whitespaceRegex, ' ').trim();
   }
 }
 

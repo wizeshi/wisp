@@ -87,9 +87,12 @@ class CryptoBridgeUtils {
     return buffer.toString();
   }
 
-  /// Creates a standard HTTP client suitable for JS provider bridges.
-  static dynamic createBridgeHttpClient() {
-    final ioClient = HttpClient();
+  /// Creates a standard HTTP client suitable for pooled JS provider bridges.
+  static HttpClient createBridgeHttpClient() {
+    final ioClient = HttpClient()
+      ..idleTimeout = const Duration(seconds: 30)
+      ..maxConnectionsPerHost = 6
+      ..connectionTimeout = const Duration(seconds: 15);
     ioClient.badCertificateCallback = (cert, host, port) => true;
     return ioClient;
   }

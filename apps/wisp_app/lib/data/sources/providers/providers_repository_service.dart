@@ -30,6 +30,12 @@ class ProvidersRepositoryService {
   static const String repoRawBaseUrl =
       'https://raw.githubusercontent.com/$appRepo/main/providers';
 
+  static const Duration _updateCheckCooldown = Duration(minutes: 10);
+
+  DateTime? _lastUpdateCheckAt;
+  List<ProviderPackage>? _cachedCatalog;
+  Future<List<ProviderPackage>>? _inFlightCatalogFetch;
+
   /// Number of installed providers with an update available.
   final ValueNotifier<int> updatesAvailableCount = ValueNotifier<int>(0);
 
@@ -58,12 +64,32 @@ class ProvidersRepositoryService {
   /// (via GitHub Git Trees API) or walking local directories recursively for manifest.json.
   Future<List<ProviderPackage>> fetchCatalog({
     PreferencesProvider? preferences,
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _inFlightCatalogFetch != null) {
+      return _inFlightCatalogFetch!;
+    }
+
+    final future = _fetchCatalogInternal(preferences: preferences);
+    _inFlightCatalogFetch = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_inFlightCatalogFetch, future)) {
+        _inFlightCatalogFetch = null;
+      }
+    }
+  }
+
+  Future<List<ProviderPackage>> _fetchCatalogInternal({
+    PreferencesProvider? preferences,
   }) async {
     final Map<String, ProviderPackage> discovered = {};
+    final httpClient = http.Client();
 
     // 1. Try remote GitHub Git Trees API
     try {
-      final treeRes = await http
+      final treeRes = await httpClient
           .get(
             Uri.parse(
               'https://api.github.com/repos/$appRepo/git/trees/main?recursive=1',
@@ -89,48 +115,59 @@ class ProvidersRepositoryService {
               path.endsWith('/manifest.json');
         }).toList();
 
-        for (final entry in manifestEntries) {
-          final manifestPath = (entry['path'] as String).replaceAll('\\', '/');
-          final parentDir = p.dirname(manifestPath).replaceAll('\\', '/');
-          final relativeProviderPath = parentDir.substring('providers/'.length);
+        // Pre-index blob files by parent directory for O(1) lookup per manifest
+        final blobsByDir = <String, List<String>>{};
+        for (final item in tree) {
+          if (item['type'] != 'blob') continue;
+          final itemPath = (item['path'] as String? ?? '').replaceAll('\\', '/');
+          if (!itemPath.startsWith('providers/')) continue;
+          final dir = p.dirname(itemPath).replaceAll('\\', '/');
+          blobsByDir.putIfAbsent(dir, () => []).add(p.basename(itemPath));
+        }
 
-          final siblingFiles = tree
-              .where((item) {
-                final pth = (item['path'] as String? ?? '').replaceAll(
-                  '\\',
-                  '/',
-                );
-                final type = item['type'] as String? ?? '';
-                return pth.startsWith('$parentDir/') && type == 'blob';
-              })
-              .map((item) => p.basename(item['path'] as String))
-              .toList();
+        final fetchedPackages = await Future.wait(
+          manifestEntries.map((entry) async {
+            final manifestPath =
+                (entry['path'] as String).replaceAll('\\', '/');
+            final parentDir = p.dirname(manifestPath).replaceAll('\\', '/');
+            final relativeProviderPath =
+                parentDir.substring('providers/'.length);
+            final siblingFiles = blobsByDir[parentDir] ?? const <String>[];
 
-          try {
-            final rawManifestUrl =
-                '$repoRawBaseUrl/$relativeProviderPath/manifest.json';
-            final mRes = await http
-                .get(Uri.parse(rawManifestUrl))
-                .timeout(const Duration(seconds: 4));
+            try {
+              final rawManifestUrl =
+                  '$repoRawBaseUrl/$relativeProviderPath/manifest.json';
+              final mRes = await httpClient
+                  .get(Uri.parse(rawManifestUrl))
+                  .timeout(const Duration(seconds: 4));
 
-            if (mRes.statusCode == 200) {
-              final json = jsonDecode(mRes.body) as Map<String, dynamic>;
-              json['path'] = relativeProviderPath;
-              json['files'] = siblingFiles.isNotEmpty
-                  ? siblingFiles
-                  : ['manifest.json', 'index.js'];
-              final pkg = ProviderPackage.fromJson(json);
-              discovered[pkg.uniqueKey] = pkg;
+              if (mRes.statusCode == 200) {
+                final json = jsonDecode(mRes.body) as Map<String, dynamic>;
+                json['path'] = relativeProviderPath;
+                json['files'] = siblingFiles.isNotEmpty
+                    ? siblingFiles
+                    : ['manifest.json', 'index.js'];
+                return ProviderPackage.fromJson(json);
+              }
+            } catch (e) {
+              logger.d(
+                '[ProvidersRepositoryService] Failed to fetch manifest for $manifestPath: $e',
+              );
             }
-          } catch (e) {
-            logger.d(
-              '[ProvidersRepositoryService] Failed to fetch manifest for $manifestPath: $e',
-            );
+            return null;
+          }),
+        );
+
+        for (final pkg in fetchedPackages) {
+          if (pkg != null) {
+            discovered[pkg.uniqueKey] = pkg;
           }
         }
       }
     } catch (e) {
       logger.d('[ProvidersRepositoryService] Remote tree API scan failed: $e');
+    } finally {
+      httpClient.close();
     }
 
     // 2. Discover from local workspace providers directories recursively
@@ -253,14 +290,28 @@ class ProvidersRepositoryService {
     final updates = results.where((pkg) => pkg.hasUpdate).toList();
     packagesWithUpdate.value = updates;
     updatesAvailableCount.value = updates.length;
+    _cachedCatalog = results;
+    _lastUpdateCheckAt = DateTime.now();
 
     return results;
   }
 
   /// Quick check for provider updates without needing explicit UI callers to filter.
-  Future<int> checkForUpdates({PreferencesProvider? preferences}) async {
+  Future<int> checkForUpdates({
+    PreferencesProvider? preferences,
+    bool force = false,
+  }) async {
+    final lastCheck = _lastUpdateCheckAt;
+    if (!force &&
+        lastCheck != null &&
+        DateTime.now().difference(lastCheck) < _updateCheckCooldown) {
+      return updatesAvailableCount.value;
+    }
     try {
-      final list = await fetchCatalog(preferences: preferences);
+      final list = await fetchCatalog(
+        preferences: preferences,
+        forceRefresh: force,
+      );
       final updates = list.where((p) => p.hasUpdate).toList();
       packagesWithUpdate.value = updates;
       updatesAvailableCount.value = updates.length;
@@ -283,7 +334,10 @@ class ProvidersRepositoryService {
   }
 
   /// Download and install or update a provider package.
-  Future<bool> installOrUpdateProvider(ProviderPackage pkg) async {
+  Future<bool> installOrUpdateProvider(
+    ProviderPackage pkg, {
+    List<ProviderPackage>? catalog,
+  }) async {
     try {
       final baseDir = await getBaseProvidersDirectory();
       final targetDir = Directory(p.join(baseDir.path, pkg.path));
@@ -357,18 +411,19 @@ class ProvidersRepositoryService {
 
       // Auto-install dependencies if not already installed
       if (pkg.dependencies.isNotEmpty) {
+        List<ProviderPackage>? resolvedCatalog = catalog ?? _cachedCatalog;
         for (final depPath in pkg.dependencies) {
           final depDir = Directory(p.join(baseDir.path, depPath));
           if (!depDir.existsSync()) {
-            final catalog = await fetchCatalog();
-            final depPkg = catalog
+            resolvedCatalog ??= await fetchCatalog();
+            final depPkg = resolvedCatalog
                 .where((p) => p.path == depPath || p.uniqueKey == depPath)
                 .firstOrNull;
             if (depPkg != null) {
               logger.i(
                 '[ProvidersRepositoryService] Installing dependency $depPath for ${pkg.name}...',
               );
-              await installOrUpdateProvider(depPkg);
+              await installOrUpdateProvider(depPkg, catalog: resolvedCatalog);
             }
           }
         }

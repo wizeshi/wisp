@@ -244,7 +244,8 @@ class LyricsProvider extends ChangeNotifier {
           logger.i(
             '[LyricsProvider] Successfully resolved lyrics for "${track.title}" via ${result.providerLabel} (${result.lines.length} lines, sync: ${result.syncMode.name})',
           );
-          await _writeCachedLyrics(track.id, mode, result);
+          // Persist once under the canonical syncMode; _readCachedLyrics already checks higher modes.
+          await _writeCachedLyrics(track.id, result.syncMode, result);
           if (result.isWordSynced) {
             final wordState = LyricsFetchState(
               isLoading: false,
@@ -253,8 +254,6 @@ class LyricsProvider extends ChangeNotifier {
             );
             _putInCache(_key(track.id, LyricsSyncMode.word), wordState);
             _putInCache(_key(track.id, LyricsSyncMode.line), wordState);
-            await _writeCachedLyrics(track.id, LyricsSyncMode.word, result);
-            await _writeCachedLyrics(track.id, LyricsSyncMode.line, result);
           } else if (result.isLineSynced) {
             final lineState = LyricsFetchState(
               isLoading: false,
@@ -262,7 +261,6 @@ class LyricsProvider extends ChangeNotifier {
               hasFetched: true,
             );
             _putInCache(_key(track.id, LyricsSyncMode.line), lineState);
-            await _writeCachedLyrics(track.id, LyricsSyncMode.line, result);
           }
         } else {
           logger.w(

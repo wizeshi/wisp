@@ -27,6 +27,9 @@ class JsAudioSource extends AudioSource {
   @override
   final int priority;
 
+  @override
+  bool get supportsIsrcSearch => true;
+
   final String? serviceId;
   String? script;
   final String? scriptPath;

@@ -5,7 +5,9 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_js/flutter_js.dart';
 import 'package:http/http.dart' as http;
@@ -21,9 +23,66 @@ import 'crypto_bridge_utils.dart';
 import 'jumo_crypto_utils.dart';
 import 'service_session_manager.dart';
 
+/// Runs ECDH + AES-GCM + optional gzip decode + JSON decode off the UI isolate.
+dynamic _decryptJumoPayloadWorker(Map<String, String> params) {
+  final clientPrivHex = params['clientPrivHex']!;
+  final serverPubKey = params['serverPubKey']!;
+  final bodyB64 = params['bodyB64']!;
+  final url = params['url']!;
+  final nonce = params['nonce']!;
+
+  final sharedX =
+      JumoCryptoUtils.deriveSharedSecretX(clientPrivHex, serverPubKey);
+  final aesKey = JumoCryptoUtils.deriveAesGcmKey(sharedX);
+
+  var cleanB64 = bodyB64.replaceAll('-', '+').replaceAll('_', '/');
+  while (cleanB64.length % 4 != 0) {
+    cleanB64 += '=';
+  }
+  final bodyBytes = base64Decode(cleanB64);
+  final iv = bodyBytes.sublist(0, 12);
+  final ciphertext = bodyBytes.sublist(12);
+  final aad = Uint8List.fromList(utf8.encode('$url\n$nonce'));
+
+  final decrypted = JumoCryptoUtils.decryptAesGcm(
+    key: aesKey,
+    iv: iv,
+    ciphertextWithTag: ciphertext,
+    aad: aad,
+  );
+  Uint8List finalBytes = decrypted;
+  if (finalBytes.length >= 2 &&
+      finalBytes[0] == 0x1f &&
+      finalBytes[1] == 0x8b) {
+    finalBytes = Uint8List.fromList(gzip.decode(finalBytes));
+  }
+  final decryptedText = utf8.decode(finalBytes);
+  return jsonDecode(decryptedText);
+}
+
 /// Configures and installs the standardized `wisp.*` host bridges into a JavaScript runtime.
 class JsProviderBridge {
   JsProviderBridge._();
+
+  static final RegExp _opNameJsonRegex = RegExp(
+    r'"operationName"\s*:\s*"([^"]+)"',
+  );
+  static final RegExp _gqlOpRegex = RegExp(
+    r'"query"\s*:\s*"\s*(query|mutation|subscription)\s+([A-Za-z0-9_]+)',
+  );
+
+  static IOClient? _sharedHttpClient;
+
+  static IOClient _getSharedHttpClient() {
+    return _sharedHttpClient ??= IOClient(
+      CryptoBridgeUtils.createBridgeHttpClient(),
+    );
+  }
+
+  static void closeSharedHttpClient() {
+    _sharedHttpClient?.close();
+    _sharedHttpClient = null;
+  }
 
   static void resolveJsCallback(
     JavascriptRuntime runtime,
@@ -31,10 +90,11 @@ class JsProviderBridge {
     Map<String, dynamic> data,
   ) {
     try {
-      final jsonStr = jsonEncode(data);
-      final jsonLiteral = jsonEncode(jsonStr);
+      final safeJsonLiteral = jsonEncode(data)
+          .replaceAll('\u2028', r'\u2028')
+          .replaceAll('\u2029', r'\u2029');
       final res = runtime.evaluate(
-        'globalThis.__wisp_resolve_callback($cbId, $jsonLiteral); undefined;',
+        'globalThis.__wisp_resolve_callback($cbId, $safeJsonLiteral); undefined;',
       );
       JSRef.freeRecursive(res.rawResult);
       runtime.executePendingJob();
@@ -138,32 +198,26 @@ class JsProviderBridge {
           }
 
           String? operationName;
-          if (body != null && body.isNotEmpty) {
-            try {
-              final trimmed = body.trimLeft();
-              if (trimmed.startsWith('{')) {
-                final decoded = jsonDecode(body);
-                if (decoded is Map) {
-                  if (decoded['operationName'] != null) {
-                    operationName = decoded['operationName'].toString();
-                  } else if (decoded['query'] is String) {
-                    final q = (decoded['query'] as String).trim();
-                    final match = RegExp(
-                      r'^(query|mutation|subscription)\s+([A-Za-z0-9_]+)',
-                    ).firstMatch(q);
-                    if (match != null) {
-                      operationName = '${match.group(1)} ${match.group(2)}';
-                    }
-                  }
+          if (kDebugMode) {
+            if (body != null && body.isNotEmpty) {
+              final scanSlice =
+                  body.length > 512 ? body.substring(0, 512) : body;
+              final opMatch = _opNameJsonRegex.firstMatch(scanSlice);
+              if (opMatch != null) {
+                operationName = opMatch.group(1);
+              } else {
+                final gqlMatch = _gqlOpRegex.firstMatch(scanSlice);
+                if (gqlMatch != null) {
+                  operationName = '${gqlMatch.group(1)} ${gqlMatch.group(2)}';
                 }
               }
-            } catch (_) {}
-          }
-          if (operationName == null) {
-            final uri = Uri.tryParse(url);
-            final opParam = uri?.queryParameters['operationName'];
-            if (opParam != null && opParam.isNotEmpty) {
-              operationName = opParam;
+            }
+            if (operationName == null) {
+              final uri = Uri.tryParse(url);
+              final opParam = uri?.queryParameters['operationName'];
+              if (opParam != null && opParam.isNotEmpty) {
+                operationName = opParam;
+              }
             }
           }
 
@@ -178,24 +232,19 @@ class JsProviderBridge {
 
           logger.d('[JS/$pName HTTP] -> $method $url$descriptor');
           final uri = Uri.parse(url);
-          final client = IOClient(CryptoBridgeUtils.createBridgeHttpClient() as dynamic);
-          http.Response response;
-          try {
-            final request = http.Request(method, uri);
-            request.headers.addAll(headers);
-            if (bodyBase64 != null && bodyBase64.isNotEmpty) {
-              request.bodyBytes = base64Decode(bodyBase64);
-            } else if (body != null) {
-              request.body = body;
-            }
-            final streamedResponse = await client.send(request);
-            response = await http.Response.fromStream(streamedResponse);
-            logger.d(
-              '[JS/$pName HTTP] <- $method $url$descriptor: status=${response.statusCode}',
-            );
-          } finally {
-            client.close();
+          final client = _getSharedHttpClient();
+          final request = http.Request(method, uri);
+          request.headers.addAll(headers);
+          if (bodyBase64 != null && bodyBase64.isNotEmpty) {
+            request.bodyBytes = base64Decode(bodyBase64);
+          } else if (body != null) {
+            request.body = body;
           }
+          final streamedResponse = await client.send(request);
+          final response = await http.Response.fromStream(streamedResponse);
+          logger.d(
+            '[JS/$pName HTTP] <- $method $url$descriptor: status=${response.statusCode}',
+          );
 
           final includeBase64 = _shouldIncludeBase64(
             responseType: responseType,
@@ -464,73 +513,55 @@ class JsProviderBridge {
     });
 
     runtime.onMessage('wisp_crypto_generate_p256_keypair', (dynamic args) {
-      int? cbId;
-      try {
-        final map = args is String
-            ? jsonDecode(args) as Map<String, dynamic>
-            : (args as Map).cast<String, dynamic>();
-        cbId = map['cbId'] as int?;
-        final res = JumoCryptoUtils.generateP256KeyPair();
-        if (cbId != null) {
-          resolveJsCallback(runtime, cbId, res);
+      unawaited(() async {
+        int? cbId;
+        try {
+          final map = args is String
+              ? jsonDecode(args) as Map<String, dynamic>
+              : (args as Map).cast<String, dynamic>();
+          cbId = map['cbId'] as int?;
+          final res = await Isolate.run(JumoCryptoUtils.generateP256KeyPair);
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, res);
+          }
+        } catch (e) {
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {'error': e.toString()});
+          }
         }
-      } catch (e) {
-        if (cbId != null) {
-          resolveJsCallback(runtime, cbId, {'error': e.toString()});
-        }
-      }
+      }());
       return '';
     });
 
     runtime.onMessage('wisp_crypto_decrypt_jumo', (dynamic args) {
-      int? cbId;
-      try {
-        final map = args is String
-            ? jsonDecode(args) as Map<String, dynamic>
-            : (args as Map).cast<String, dynamic>();
-        cbId = map['cbId'] as int?;
-        final clientPrivHex = map['clientPrivHex'] as String;
-        final serverPubKey = map['serverPubKey'] as String;
-        final bodyB64 = map['bodyB64'] as String;
-        final url = map['url'] as String;
-        final nonce = map['nonce'] as String;
+      unawaited(() async {
+        int? cbId;
+        try {
+          final map = args is String
+              ? jsonDecode(args) as Map<String, dynamic>
+              : (args as Map).cast<String, dynamic>();
+          cbId = map['cbId'] as int?;
+          final params = <String, String>{
+            'clientPrivHex': map['clientPrivHex'] as String,
+            'serverPubKey': map['serverPubKey'] as String,
+            'bodyB64': map['bodyB64'] as String,
+            'url': map['url'] as String,
+            'nonce': map['nonce'] as String,
+          };
 
-        // 1. Derive shared secret X
-        final sharedX = JumoCryptoUtils.deriveSharedSecretX(clientPrivHex, serverPubKey);
-        // 2. Derive AES key
-        final aesKey = JumoCryptoUtils.deriveAesGcmKey(sharedX);
-        // 3. Decode payload body bytes
-        var cleanB64 = bodyB64.replaceAll('-', '+').replaceAll('_', '/');
-        while (cleanB64.length % 4 != 0) {
-          cleanB64 += '=';
-        }
-        final bodyBytes = base64Decode(cleanB64);
-        final iv = bodyBytes.sublist(0, 12);
-        final ciphertext = bodyBytes.sublist(12);
-        final aad = Uint8List.fromList(utf8.encode('$url\n$nonce'));
+          final jsonResult = await Isolate.run(
+            () => _decryptJumoPayloadWorker(params),
+          );
 
-        // 4. Decrypt
-        final decrypted = JumoCryptoUtils.decryptAesGcm(
-          key: aesKey,
-          iv: iv,
-          ciphertextWithTag: ciphertext,
-          aad: aad,
-        );
-        Uint8List finalBytes = decrypted;
-        if (finalBytes.length >= 2 && finalBytes[0] == 0x1f && finalBytes[1] == 0x8b) {
-          finalBytes = Uint8List.fromList(gzip.decode(finalBytes));
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {'result': jsonResult});
+          }
+        } catch (e) {
+          if (cbId != null) {
+            resolveJsCallback(runtime, cbId, {'error': e.toString()});
+          }
         }
-        final decryptedText = utf8.decode(finalBytes);
-        final jsonResult = jsonDecode(decryptedText);
-
-        if (cbId != null) {
-          resolveJsCallback(runtime, cbId, {'result': jsonResult});
-        }
-      } catch (e) {
-        if (cbId != null) {
-          resolveJsCallback(runtime, cbId, {'error': e.toString()});
-        }
-      }
+      }());
       return '';
     });
 

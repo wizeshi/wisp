@@ -2,6 +2,7 @@
 
 library;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/cache/audio/audio_mapping_store.dart';
 import 'package:wisp/data/models/metadata_models.dart';
@@ -30,10 +31,31 @@ class AudioResolvedStream {
 /// Central coordinator for cascading audio track search, resolution, and caching.
 class AudioResolver {
   static final AudioResolver instance = AudioResolver._();
-  AudioResolver._();
+  AudioResolver._({
+    AudioMappingStore? mappingStore,
+    List<AudioSource> Function(PreferencesProvider?)? orderedSourcesResolver,
+    Future<String?> Function(String trackId)? isrcLookup,
+  })  : _mappingStore = mappingStore ?? AudioMappingStore.instance,
+        _orderedSourcesResolver = orderedSourcesResolver ??
+            AudioSourceManager.instance.getOrderedSources,
+        _isrcLookup = isrcLookup;
 
-  final AudioSourceManager _sourceManager = AudioSourceManager.instance;
-  final AudioMappingStore _mappingStore = AudioMappingStore.instance;
+  @visibleForTesting
+  factory AudioResolver.forTesting({
+    AudioMappingStore? mappingStore,
+    List<AudioSource> Function(PreferencesProvider?)? orderedSourcesResolver,
+    Future<String?> Function(String trackId)? isrcLookup,
+  }) {
+    return AudioResolver._(
+      mappingStore: mappingStore,
+      orderedSourcesResolver: orderedSourcesResolver,
+      isrcLookup: isrcLookup,
+    );
+  }
+
+  final AudioMappingStore _mappingStore;
+  final List<AudioSource> Function(PreferencesProvider?) _orderedSourcesResolver;
+  final Future<String?> Function(String trackId)? _isrcLookup;
 
   /// Resolves an audio stream for [track] across registered audio providers.
   ///
@@ -55,7 +77,7 @@ class AudioResolver {
     final effectiveQuality =
         preferredQuality ?? preferences?.preferredAudioQuality ?? AudioQuality.auto;
 
-    final orderedSources = _sourceManager.getOrderedSources(preferences);
+    final orderedSources = _orderedSourcesResolver(preferences);
     if (orderedSources.isEmpty) {
       logger.w('[AudioResolver] No audio providers currently enabled');
       return null;
@@ -93,33 +115,35 @@ class AudioResolver {
       }
     }
 
-    // Attempt on-demand ISRC retrieval if source has ISRC capability (e.g. Spotify)
+    // Resolve ISRC lazily only if an enabled ISRC-capable source misses its cache
     String? trackIsrc;
-    if (track.source.toLowerCase() == 'spotify' && track.id.isNotEmpty) {
+    var isrcLookupAttempted = false;
+    Future<String?> resolveIsrcIfNeeded() async {
+      if (isrcLookupAttempted) return trackIsrc;
+      isrcLookupAttempted = true;
+      if (track.source.toLowerCase() != 'spotify' || track.id.isEmpty) {
+        return null;
+      }
       try {
-        final metaSource = MetadataSourceManager.instance.sources['spotify'];
-        if (metaSource != null) {
-          trackIsrc = await metaSource.getTrackIsrc(track.id);
-          if (trackIsrc != null && trackIsrc.isNotEmpty) {
-            logger.d('[AudioResolver] Resolved ISRC on-demand for "${track.title}": $trackIsrc');
+        final overrideLookup = _isrcLookup;
+        if (overrideLookup != null) {
+          trackIsrc = await overrideLookup(track.id);
+        } else {
+          final metaSource = MetadataSourceManager.instance.sources['spotify'];
+          if (metaSource != null) {
+            trackIsrc = await metaSource.getTrackIsrc(track.id);
           }
+        }
+        if (trackIsrc != null && trackIsrc!.isNotEmpty) {
+          logger.d('[AudioResolver] Resolved ISRC on-demand for "${track.title}": $trackIsrc');
         }
       } catch (e) {
         logger.d('[AudioResolver] On-demand ISRC lookup skipped: $e');
       }
+      return trackIsrc;
     }
 
     // 2. Cascade through providers according to priority order
-    final query = AudioSearchQuery(
-      title: track.title,
-      artists: artistNames,
-      album: track.album?.title,
-      durationSecs: track.durationSecs,
-      isrc: trackIsrc,
-      trackId: track.id,
-      metadataSource: track.source,
-    );
-
     for (final source in orderedSources) {
       // Check if we already have a cached mapping for this provider
       final existingMapping = mappings
@@ -161,6 +185,17 @@ class AudioResolver {
 
       // Query the provider catalog
       try {
+        final resolvedIsrc =
+            source.supportsIsrcSearch ? await resolveIsrcIfNeeded() : null;
+        final query = AudioSearchQuery(
+          title: track.title,
+          artists: artistNames,
+          album: track.album?.title,
+          durationSecs: track.durationSecs,
+          isrc: resolvedIsrc,
+          trackId: track.id,
+          metadataSource: track.source,
+        );
         logger.d('[AudioResolver] Searching ${source.id} for "${track.title}"');
         final candidates = await source.searchAudio(query);
         if (candidates.isEmpty) continue;

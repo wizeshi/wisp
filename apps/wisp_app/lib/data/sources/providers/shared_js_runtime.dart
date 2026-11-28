@@ -514,6 +514,7 @@ class SharedJsRuntime {
       }
     }
     _pendingRequests.clear();
+    JsProviderBridge.closeSharedHttpClient();
     try {
       _runtime?.dispose();
     } catch (_) {}

@@ -5,14 +5,19 @@ library;
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kReleaseMode, visibleForTesting;
 import 'package:logger/logger.dart' as l;
 import 'package:path_provider/path_provider.dart';
 
 class Logger {
   static final Logger _instance = Logger._internal();
 
+  static const int _maxLogFiles = 15;
+  static const Duration _maxLogAge = Duration(days: 7);
+
   File? logFile;
   IOSink? _sink;
+  bool _initFailed = false;
 
   late final Future<void> _initFuture;
 
@@ -24,6 +29,46 @@ class Logger {
 
   Logger._internal() {
     _initFuture = _init();
+  }
+
+  /// Removes log files older than [maxAge] and keeps at most `maxFiles - 1`
+  /// most recent files so a new session log stays within [maxFiles].
+  @visibleForTesting
+  static Future<void> pruneOldLogFiles(
+    Directory logDir, {
+    int maxFiles = _maxLogFiles,
+    Duration maxAge = _maxLogAge,
+    DateTime? now,
+  }) async {
+    if (!await logDir.exists()) return;
+    final cutoff = (now ?? DateTime.now()).subtract(maxAge);
+    final files = <({File file, DateTime modified})>[];
+
+    await for (final entity in logDir.list()) {
+      if (entity is! File) continue;
+      final name = entity.uri.pathSegments.isNotEmpty
+          ? entity.uri.pathSegments.last
+          : '';
+      if (!name.startsWith('log_') || !name.endsWith('.txt')) continue;
+      try {
+        final modified = await entity.lastModified();
+        if (modified.isBefore(cutoff)) {
+          await entity.delete();
+        } else {
+          files.add((file: entity, modified: modified));
+        }
+      } catch (_) {}
+    }
+
+    final keepLimit = maxFiles > 1 ? maxFiles - 1 : 0;
+    if (files.length > keepLimit) {
+      files.sort((a, b) => b.modified.compareTo(a.modified));
+      for (var i = keepLimit; i < files.length; i++) {
+        try {
+          await files[i].file.delete();
+        } catch (_) {}
+      }
+    }
   }
 
   Future<void> _init() async {
@@ -41,6 +86,8 @@ class Logger {
         await logDir.create(recursive: true);
       }
 
+      await pruneOldLogFiles(logDir, now: startTime);
+
       final List<FileSystemEntity> existingLogs = await logDir
           .list()
           .where((file) => file is File && file.path.contains('log_$startDate'))
@@ -56,12 +103,13 @@ class Logger {
       }
 
       _sink = logFile!.openWrite(mode: FileMode.append);
-    } catch (err) {
-      print("Failed to initialize log file: $err");
+    } catch (_) {
+      _initFailed = true;
     }
   }
 
   final _logger = l.Logger(
+    level: kReleaseMode ? l.Level.info : l.Level.debug,
     printer: l.PrettyPrinter(
       methodCount: 0,
       errorMethodCount: 5,
@@ -91,6 +139,7 @@ class Logger {
     Object? error,
     StackTrace? stackTrace,
   }) {
+    if (kReleaseMode) return;
     _logger.d(message, error: error, stackTrace: stackTrace, time: time);
     _writeToLogFile(
       "[${time ?? getCurrentTime()}] [DEBUG]: $message\n${error != null ? " Error: $error\n" : ""}${stackTrace != null ? "StackTrace: $stackTrace\n" : ""}",
@@ -132,19 +181,18 @@ class Logger {
   /// made before initialization finishes are simply queued behind it
   /// rather than dropped.
   Future<void> _writeToLogFile(String data) {
+    if (_initFailed) return _writeQueue;
     _writeQueue = _writeQueue
         .then((_) async {
           await _initFuture;
 
-          if (_sink == null) {
-            throw Exception("Log file is not initialized");
+          if (_initFailed || _sink == null) {
+            return;
           }
 
           _sink!.write(data);
         })
-        .catchError((err) {
-          print("Failed to write to log file: $err");
-        });
+        .catchError((_) {});
 
     return _writeQueue;
   }

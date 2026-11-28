@@ -145,32 +145,49 @@ class LibraryFolderState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _savePrefs() async {
+  Future<void> _savePrefs({Set<String>? keys}) async {
     if (!_initialized) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _prefsFolders,
-      json.encode(_folders.map((f) => f.toJson()).toList()),
-    );
-    await prefs.setString(_prefsAssignments, json.encode(_playlistFolderIds));
-    await prefs.setString(
-      _prefsPlaylistOrder,
-      json.encode(_customPlaylistOrder),
-    );
-    await prefs.setString(_prefsFolderOrder, json.encode(_customFolderOrder));
-    await prefs.setString(
-      _prefsLastPlayed,
-      json.encode(
-        _playlistLastPlayed.map(
-          (key, value) => MapEntry(key, value.toIso8601String()),
+    final dirty = keys;
+    bool shouldWrite(String key) => dirty == null || dirty.contains(key);
+
+    if (shouldWrite(_prefsFolders)) {
+      await prefs.setString(
+        _prefsFolders,
+        json.encode(_folders.map((f) => f.toJson()).toList()),
+      );
+    }
+    if (shouldWrite(_prefsAssignments)) {
+      await prefs.setString(_prefsAssignments, json.encode(_playlistFolderIds));
+    }
+    if (shouldWrite(_prefsPlaylistOrder)) {
+      await prefs.setString(
+        _prefsPlaylistOrder,
+        json.encode(_customPlaylistOrder),
+      );
+    }
+    if (shouldWrite(_prefsFolderOrder)) {
+      await prefs.setString(_prefsFolderOrder, json.encode(_customFolderOrder));
+    }
+    if (shouldWrite(_prefsLastPlayed)) {
+      await prefs.setString(
+        _prefsLastPlayed,
+        json.encode(
+          _playlistLastPlayed.map(
+            (key, value) => MapEntry(key, value.toIso8601String()),
+          ),
         ),
-      ),
-    );
-    await prefs.setString(
-      _prefsCollapsedFolders,
-      json.encode(_collapsedFolderIds.toList()),
-    );
-    await prefs.setString(_prefsSortMode, _sortMode.name);
+      );
+    }
+    if (shouldWrite(_prefsCollapsedFolders)) {
+      await prefs.setString(
+        _prefsCollapsedFolders,
+        json.encode(_collapsedFolderIds.toList()),
+      );
+    }
+    if (shouldWrite(_prefsSortMode)) {
+      await prefs.setString(_prefsSortMode, _sortMode.name);
+    }
   }
 
   void syncPlaylists(List<GenericPlaylist> playlists) {
@@ -196,7 +213,9 @@ class LibraryFolderState extends ChangeNotifier {
     _playlistLastPlayed.removeWhere((key, value) => !playlistIds.contains(key));
 
     notifyListeners();
-    _savePrefs();
+    _savePrefs(
+      keys: const {_prefsPlaylistOrder, _prefsAssignments, _prefsLastPlayed},
+    );
   }
 
   PlaylistFolder? getFolderById(String folderId) {
@@ -245,7 +264,7 @@ class LibraryFolderState extends ChangeNotifier {
     }
 
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsFolders, _prefsFolderOrder});
     return folder;
   }
 
@@ -254,7 +273,7 @@ class LibraryFolderState extends ChangeNotifier {
     if (index < 0) return;
     _folders[index] = _folders[index].copyWith(title: title.trim());
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsFolders});
   }
 
   Future<void> deleteFolder(String folderId) async {
@@ -272,7 +291,14 @@ class LibraryFolderState extends ChangeNotifier {
 
     await FolderThumbnailStore.instance.deleteThumbnail(folder.thumbnailPath);
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(
+      keys: const {
+        _prefsFolders,
+        _prefsFolderOrder,
+        _prefsCollapsedFolders,
+        _prefsAssignments,
+      },
+    );
   }
 
   Future<void> changeFolderThumbnail(String folderId, File file) async {
@@ -286,7 +312,7 @@ class LibraryFolderState extends ChangeNotifier {
     await FolderThumbnailStore.instance.deleteThumbnail(old.thumbnailPath);
     _folders[index] = old.copyWith(thumbnailPath: newPath);
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsFolders});
   }
 
   Future<void> clearFolderThumbnail(String folderId) async {
@@ -296,7 +322,7 @@ class LibraryFolderState extends ChangeNotifier {
     await FolderThumbnailStore.instance.deleteThumbnail(old.thumbnailPath);
     _folders[index] = old.copyWith(thumbnailPath: null);
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsFolders});
   }
 
   Future<void> assignPlaylistToFolder(
@@ -306,7 +332,7 @@ class LibraryFolderState extends ChangeNotifier {
     if (isLikedSongsPlaylistId(playlistId)) return;
     _playlistFolderIds[playlistId] = folderId;
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsAssignments});
   }
 
   Future<void> batchAssignPlaylistsToFolders(
@@ -322,7 +348,7 @@ class LibraryFolderState extends ChangeNotifier {
     }
     if (changed) {
       notifyListeners();
-      await _savePrefs();
+      await _savePrefs(keys: const {_prefsAssignments});
     }
   }
 
@@ -341,7 +367,7 @@ class LibraryFolderState extends ChangeNotifier {
     }
     if (changed) {
       notifyListeners();
-      await _savePrefs();
+      await _savePrefs(keys: const {_prefsAssignments});
     }
   }
 
@@ -350,7 +376,7 @@ class LibraryFolderState extends ChangeNotifier {
   Future<void> markItemPlayed(String id) async {
     _playlistLastPlayed[id] = DateTime.now();
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsLastPlayed});
   }
 
   Future<void> markPlaylistPlayed(String playlistId) =>
@@ -360,7 +386,7 @@ class LibraryFolderState extends ChangeNotifier {
     if (_sortMode == mode) return;
     _sortMode = mode;
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsSortMode});
   }
 
   Future<void> movePlaylistBefore(String draggedId, String targetId) async {
@@ -376,7 +402,7 @@ class LibraryFolderState extends ChangeNotifier {
       _customPlaylistOrder.add(draggedId);
     }
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsPlaylistOrder});
   }
 
   Future<void> moveFolderBefore(String draggedId, String targetId) async {
@@ -403,7 +429,7 @@ class LibraryFolderState extends ChangeNotifier {
       _customPlaylistOrder.insertAll(insertIndex, draggedPlaylists);
     }
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsFolderOrder, _prefsPlaylistOrder});
   }
 
   Future<void> moveFolderBeforePlaylist(
@@ -425,7 +451,7 @@ class LibraryFolderState extends ChangeNotifier {
         : _customPlaylistOrder.length;
     _customPlaylistOrder.insertAll(insertIndex, folderPlaylists);
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsPlaylistOrder});
   }
 
   /// Import remote folders (e.g. from Spotify). Adds any folders that don't
@@ -458,7 +484,7 @@ class LibraryFolderState extends ChangeNotifier {
     }
     if (changed) {
       notifyListeners();
-      await _savePrefs();
+      await _savePrefs(keys: const {_prefsFolders, _prefsFolderOrder});
     }
   }
 
@@ -478,7 +504,7 @@ class LibraryFolderState extends ChangeNotifier {
 
     _folders[index] = original.copyWith(isPinned: targetPinned);
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsFolders});
 
     if (metadataManager != null && metadataManager.isAuthenticated) {
       try {
@@ -493,7 +519,7 @@ class LibraryFolderState extends ChangeNotifier {
         if (revertIndex >= 0) {
           _folders[revertIndex] = original;
           notifyListeners();
-          await _savePrefs();
+          await _savePrefs(keys: const {_prefsFolders});
         }
         return false;
       }
@@ -509,7 +535,7 @@ class LibraryFolderState extends ChangeNotifier {
     _playlistFolderIds[playlistId] = folderId;
     _movePlaylistToGroupEnd(playlistId, folderId);
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsAssignments, _prefsPlaylistOrder});
   }
 
   Future<void> toggleFolderCollapsed(String folderId) async {
@@ -519,7 +545,7 @@ class LibraryFolderState extends ChangeNotifier {
       _collapsedFolderIds.add(folderId);
     }
     notifyListeners();
-    await _savePrefs();
+    await _savePrefs(keys: const {_prefsCollapsedFolders});
   }
 
   LibraryPlaylistGroups buildPlaylistGroups(List<GenericPlaylist> playlists) {

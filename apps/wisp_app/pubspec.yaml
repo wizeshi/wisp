@@ -23,7 +23,6 @@ dependencies:
   material_symbols_icons: ^4.2960.0
   material_ui: ^1.11.1
   material_3_expressive: ^1.2.3
-  simple_icons: ^16.23.0
 
   # Media Playback
   video_player: ^2.13.0
@@ -41,7 +40,6 @@ dependencies:
   cached_network_image: ^3.4.1
   flutter_svg: 2.3.0
   flutter_cache_manager: ^3.4.1
-  palette_generator: ^0.3.3
 
   # Networking
   http: ^1.2.0
@@ -95,7 +93,6 @@ dependencies:
   xml: ^6.0.0
 
   # Other local packages
-  wisp_shared: any
   wisp_assets: any
 dev_dependencies:
   flutter_test:

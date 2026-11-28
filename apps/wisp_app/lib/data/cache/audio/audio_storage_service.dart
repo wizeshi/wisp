@@ -7,6 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wisp/core/utils/json.dart';
 import 'package:wisp/core/utils/logger.dart';
 import 'package:wisp/data/cache/models/audio_cache_entry.dart';
 import 'package:wisp/data/sources/audio/models/audio_quality_info.dart';
@@ -34,6 +35,8 @@ class AudioStorageService extends ChangeNotifier {
     _saveDebounceTimer?.cancel();
     _saveDebounceTimer = null;
     _cacheEntries.clear();
+    _normalizedTrackIdToKey.clear();
+    _videoIdToKey.clear();
     _cacheDirectory = null;
     _indexFile = null;
     _backupIndexFile = null;
@@ -48,6 +51,8 @@ class AudioStorageService extends ChangeNotifier {
   static const int _defaultMaxCacheSize = 750 * 1024 * 1024; // 750MB
 
   final Map<String, AudioCacheEntry> _cacheEntries = {};
+  final Map<String, String> _normalizedTrackIdToKey = {};
+  final Map<String, String> _videoIdToKey = {};
   Directory? _cacheDirectory;
   File? _indexFile;
   File? _backupIndexFile;
@@ -165,16 +170,49 @@ class AudioStorageService extends ChangeNotifier {
     }
   }
 
+  String _normalizeDiskPath(String path) {
+    final unified = path.replaceAll('\\', '/');
+    return Platform.isWindows ? unified.toLowerCase() : unified;
+  }
+
+  void _indexEntry(String key, AudioCacheEntry entry) {
+    final normTrack = normalizeTrackId(entry.trackId);
+    if (normTrack.isNotEmpty) {
+      _normalizedTrackIdToKey[normTrack] = key;
+    }
+    final normVideo = normalizeTrackId(entry.videoId);
+    if (normVideo.isNotEmpty) {
+      _videoIdToKey[normVideo] = key;
+    }
+  }
+
+  void _unindexEntry(String key, AudioCacheEntry? entry) {
+    if (entry == null) return;
+    final normTrack = normalizeTrackId(entry.trackId);
+    if (_normalizedTrackIdToKey[normTrack] == key) {
+      _normalizedTrackIdToKey.remove(normTrack);
+    }
+    final normVideo = normalizeTrackId(entry.videoId);
+    if (_videoIdToKey[normVideo] == key) {
+      _videoIdToKey.remove(normVideo);
+    }
+  }
+
   AudioCacheEntry? _findEntry(String trackId) {
     final key = normalizeTrackId(trackId);
     final direct = _cacheEntries[key];
     if (direct != null) return direct;
 
-    for (final entry in _cacheEntries.values) {
-      if (normalizeTrackId(entry.videoId) == key ||
-          normalizeTrackId(entry.trackId) == key) {
-        return entry;
-      }
+    final byTrackId = _normalizedTrackIdToKey[key];
+    if (byTrackId != null) {
+      final entry = _cacheEntries[byTrackId];
+      if (entry != null) return entry;
+    }
+
+    final byVideoId = _videoIdToKey[key];
+    if (byVideoId != null) {
+      final entry = _cacheEntries[byVideoId];
+      if (entry != null) return entry;
     }
     return null;
   }
@@ -192,40 +230,7 @@ class AudioStorageService extends ChangeNotifier {
   }
 
   String? getCachedPath(String trackId) {
-    final entry = _findEntry(trackId);
-    if (entry == null) return null;
-
-    final file = File(entry.filePath);
-    if (!file.existsSync()) {
-      logger.w('[AudioStorageService] Cached file missing from disk: $trackId');
-      _cacheEntries.remove(entry.trackId);
-      _recalculateSizes();
-      _saveCacheEntries(immediate: true);
-      notifyListeners();
-      return null;
-    }
-
-    // Corrupted file safeguard: if entry points to .m4a but a valid .ogg exists
-    // (e.g. from Spotify AES-CTR decryption), prefer the .ogg file and clean up the corrupted .m4a.
-    if (entry.filePath.endsWith('.m4a')) {
-      final oggPath = entry.filePath.replaceAll(RegExp(r'\.m4a$'), '.ogg');
-      final oggFile = File(oggPath);
-      if (oggFile.existsSync()) {
-        logger.i('[AudioStorageService] Found valid .ogg file replacing corrupted .m4a: $oggPath');
-        try {
-          file.deleteSync();
-        } catch (_) {}
-        final updatedEntry = entry.copyWith(
-          filePath: oggPath,
-          fileSize: oggFile.lengthSync(),
-        );
-        _cacheEntries[entry.trackId] = updatedEntry;
-        _saveCacheEntries(immediate: true);
-        return oggPath;
-      }
-    }
-
-    return entry.filePath;
+    return _findEntry(trackId)?.filePath;
   }
 
   Future<void> updateLastPlayed(String trackId) async {
@@ -285,7 +290,7 @@ class AudioStorageService extends ChangeNotifier {
         '[AudioStorageService] Evicting oldest auto-cached entry: ${candidate.trackTitle ?? candidate.trackId}',
       );
       await _deleteEntryFile(candidate);
-      _cacheEntries.remove(candidate.trackId);
+      _unindexEntry(candidate.trackId, _cacheEntries.remove(candidate.trackId));
       _recalculateSizes();
     }
 
@@ -353,6 +358,7 @@ class AudioStorageService extends ChangeNotifier {
     );
 
     _cacheEntries[key] = entry;
+    _indexEntry(key, entry);
     _recalculateSizes();
     await _saveCacheEntries(immediate: true);
     notifyListeners();
@@ -372,7 +378,18 @@ class AudioStorageService extends ChangeNotifier {
 
     logger.i('[AudioStorageService] Removing track: ${entry.trackId}');
     await _deleteEntryFile(entry);
-    _cacheEntries.remove(entry.trackId);
+    final removed = _cacheEntries.remove(entry.trackId);
+    _unindexEntry(entry.trackId, removed);
+    if (removed == null) {
+      // Handle entries keyed by non-trackId key in legacy indexes
+      final matchingKeys = _cacheEntries.entries
+          .where((e) => identical(e.value, entry))
+          .map((e) => e.key)
+          .toList();
+      for (final k in matchingKeys) {
+        _unindexEntry(k, _cacheEntries.remove(k));
+      }
+    }
     _recalculateSizes();
     await _saveCacheEntries(immediate: true);
     notifyListeners();
@@ -380,10 +397,11 @@ class AudioStorageService extends ChangeNotifier {
 
   /// Clears only auto-cached files, leaving user-downloaded songs untouched.
   Future<void> clearAutoCache() async {
-    final autoCached = _cacheEntries.values.where((e) => !e.isUserDownload).toList();
-    for (final entry in autoCached) {
-      await _deleteEntryFile(entry);
-      _cacheEntries.remove(entry.trackId);
+    final autoCached =
+        _cacheEntries.entries.where((e) => !e.value.isUserDownload).toList();
+    for (final mapEntry in autoCached) {
+      await _deleteEntryFile(mapEntry.value);
+      _unindexEntry(mapEntry.key, _cacheEntries.remove(mapEntry.key));
     }
     _recalculateSizes();
     await _saveCacheEntries(immediate: true);
@@ -393,10 +411,11 @@ class AudioStorageService extends ChangeNotifier {
 
   /// Clears all user downloads, leaving auto-cache untouched.
   Future<void> clearUserDownloads() async {
-    final userList = _cacheEntries.values.where((e) => e.isUserDownload).toList();
-    for (final entry in userList) {
-      await _deleteEntryFile(entry);
-      _cacheEntries.remove(entry.trackId);
+    final userList =
+        _cacheEntries.entries.where((e) => e.value.isUserDownload).toList();
+    for (final mapEntry in userList) {
+      await _deleteEntryFile(mapEntry.value);
+      _unindexEntry(mapEntry.key, _cacheEntries.remove(mapEntry.key));
     }
     _recalculateSizes();
     await _saveCacheEntries(immediate: true);
@@ -410,6 +429,8 @@ class AudioStorageService extends ChangeNotifier {
       await _deleteEntryFile(entry);
     }
     _cacheEntries.clear();
+    _normalizedTrackIdToKey.clear();
+    _videoIdToKey.clear();
     _recalculateSizes();
     await _saveCacheEntries(immediate: true);
     notifyListeners();
@@ -452,61 +473,73 @@ class AudioStorageService extends ChangeNotifier {
     }
   }
 
+  static final RegExp _m4aSuffixRegex = RegExp(r'\.m4a$');
+
   Future<void> _reconcileDiskAndOrphans() async {
     final dir = _cacheDirectory;
     if (dir == null || !await dir.exists()) return;
 
     try {
-      final entities = dir.listSync();
+      final diskFiles = <String, File>{};
+      final m4aFiles = <File>[];
 
-      // Clean up temporary/incomplete download files (.part / .tmp)
-      for (final entity in entities) {
-        if (entity is File) {
-          final path = entity.path;
-          if (path.endsWith('.part') || path.endsWith('.tmp')) {
-            try {
-              entity.deleteSync();
-              logger.d('[AudioStorageService] Cleaned up temporary file: $path');
-            } catch (_) {}
-          }
+      await for (final entity in dir.list()) {
+        if (entity is! File) continue;
+        final path = entity.path;
+        if (path.endsWith('.part') || path.endsWith('.tmp')) {
+          try {
+            await entity.delete();
+            logger.d('[AudioStorageService] Cleaned up temporary file: $path');
+          } catch (_) {}
+          continue;
+        }
+        diskFiles[_normalizeDiskPath(path)] = entity;
+        if (path.endsWith('.m4a')) {
+          m4aFiles.add(entity);
         }
       }
 
       // SAFEGUARD: Cleanup duplicate corrupted .m4a files where a corresponding .ogg exists.
-      for (final entity in entities) {
-        if (entity is File && entity.path.endsWith('.m4a')) {
-          final oggPath = entity.path.replaceAll(RegExp(r'\.m4a$'), '.ogg');
-          if (File(oggPath).existsSync()) {
-            logger.i('[AudioStorageService] Removing duplicate corrupted .m4a file: ${entity.path}');
-            try {
-              entity.deleteSync();
-            } catch (_) {}
-          }
+      for (final m4aFile in m4aFiles) {
+        final oggPath = m4aFile.path.replaceAll(_m4aSuffixRegex, '.ogg');
+        if (diskFiles.containsKey(_normalizeDiskPath(oggPath))) {
+          logger.i('[AudioStorageService] Removing duplicate corrupted .m4a file: ${m4aFile.path}');
+          try {
+            await m4aFile.delete();
+            diskFiles.remove(_normalizeDiskPath(m4aFile.path));
+          } catch (_) {}
         }
       }
 
-      // If an existing entry was pointing to .m4a but .ogg exists, migrate it
+      // If an existing entry was pointing to .m4a but .ogg exists, migrate it.
+      var migratedEntries = false;
       for (final MapEntry(:key, :value) in _cacheEntries.entries.toList()) {
         if (value.filePath.endsWith('.m4a')) {
-          final oggPath = value.filePath.replaceAll(RegExp(r'\.m4a$'), '.ogg');
-          final oggFile = File(oggPath);
-          if (oggFile.existsSync()) {
-            _cacheEntries[key] = value.copyWith(
+          final oggPath = value.filePath.replaceAll(_m4aSuffixRegex, '.ogg');
+          final oggFile = diskFiles[_normalizeDiskPath(oggPath)];
+          if (oggFile != null) {
+            final updated = value.copyWith(
               filePath: oggPath,
-              fileSize: oggFile.lengthSync(),
+              fileSize: await oggFile.length(),
             );
+            _cacheEntries[key] = updated;
+            _indexEntry(key, updated);
+            migratedEntries = true;
           }
         }
       }
 
       // SAFEGUARD: Never delete valid audio files on startup!
-      // If the index failed to load or experienced a timing glitch, deleting audio files
-      // would wipe the user's entire offline music library.
-      // Instead, we verify that registered entries still exist on disk and prune
-      // any dead index keys.
+      // Verify registered entries exist in the single directory snapshot (or asynchronously if outside dir.path).
+      final normalizedDirPrefix = '${_normalizeDiskPath(dir.path)}/';
       final missingKeys = <String>[];
       for (final entry in _cacheEntries.entries) {
-        if (!File(entry.value.filePath).existsSync()) {
+        final normPath = _normalizeDiskPath(entry.value.filePath);
+        if (normPath.startsWith(normalizedDirPrefix)) {
+          if (!diskFiles.containsKey(normPath)) {
+            missingKeys.add(entry.key);
+          }
+        } else if (!await File(entry.value.filePath).exists()) {
           missingKeys.add(entry.key);
         }
       }
@@ -515,8 +548,10 @@ class AudioStorageService extends ChangeNotifier {
           '[AudioStorageService] Pruned ${missingKeys.length} registered entries whose files no longer exist on disk',
         );
         for (final k in missingKeys) {
-          _cacheEntries.remove(k);
+          _unindexEntry(k, _cacheEntries.remove(k));
         }
+      }
+      if (missingKeys.isNotEmpty || migratedEntries) {
         await _saveCacheEntries(immediate: true);
       }
     } catch (e) {
@@ -602,9 +637,8 @@ class AudioStorageService extends ChangeNotifier {
           final cacheEntry = AudioCacheEntry.fromJson(
             entry.value as Map<String, dynamic>,
           );
-          if (File(cacheEntry.filePath).existsSync()) {
-            _cacheEntries[entry.key] = cacheEntry;
-          }
+          _cacheEntries[entry.key] = cacheEntry;
+          _indexEntry(entry.key, cacheEntry);
         } catch (e) {
           logger.w(
             '[AudioStorageService] Error parsing cache entry ${entry.key}',
@@ -632,8 +666,9 @@ class AudioStorageService extends ChangeNotifier {
               final cacheEntry = AudioCacheEntry.fromJson(
                 entry.value as Map<String, dynamic>,
               );
-              if (File(cacheEntry.filePath).existsSync()) {
+              if (await File(cacheEntry.filePath).exists()) {
                 _cacheEntries[entry.key] = cacheEntry;
+                _indexEntry(entry.key, cacheEntry);
                 migrated++;
               }
             } catch (_) {}
@@ -677,7 +712,10 @@ class AudioStorageService extends ChangeNotifier {
       for (final entry in _cacheEntries.entries) {
         entriesMap[entry.key] = entry.value.toJson();
       }
-      final jsonString = json.encode(entriesMap);
+      final jsonString = await JsonUtils.encode(
+        entriesMap,
+        itemCountHint: entriesMap.length,
+      );
 
       // 1. If primary index exists and has content, back it up
       if (await _indexFile!.exists()) {

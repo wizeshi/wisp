@@ -103,7 +103,13 @@ class NativeAndroidNewPipeDelegate implements NewPipeAndroidDelegate {
 
 class YouTubeProvider {
   final YoutubeExplode _youtube = YoutubeExplode();
+  HttpClient? _validationClient;
   static const _platform = MethodChannel('dev.wizeshi.wisp/youtube');
+
+  HttpClient get _httpValidationClient => _validationClient ??= HttpClient()
+    ..connectionTimeout = const Duration(seconds: 5)
+    ..idleTimeout = const Duration(seconds: 15)
+    ..maxConnectionsPerHost = 4;
 
   List<YouTubeEngine> preferredEngineOrder = [
     YouTubeEngine.YouTubeKit,
@@ -364,15 +370,26 @@ class YouTubeProvider {
     String url, {
     Map<String, String>? headers,
   }) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+    final client = _httpValidationClient;
     try {
-      final effectiveHeaders =
-          headers ?? {'User-Agent': userAgentForPlatform()};
+      final effectiveHeaders = <String, String>{
+        ...?headers,
+        if (headers == null || !headers.containsKey('User-Agent'))
+          'User-Agent': userAgentForPlatform(),
+      };
+      if (!effectiveHeaders.keys.any((k) => k.toLowerCase() == 'range')) {
+        effectiveHeaders['Range'] = 'bytes=0-0';
+      }
       final req = await client
           .getUrl(Uri.parse(url))
           .timeout(const Duration(seconds: 5));
       effectiveHeaders.forEach((key, value) => req.headers.set(key, value));
       final response = await req.close().timeout(const Duration(seconds: 5));
+      if (response.contentLength >= 0 && response.contentLength <= 1024) {
+        await response.drain<void>().catchError((_) {});
+      } else {
+        await response.listen(null, onError: (_) {}, cancelOnError: true).cancel();
+      }
       if (response.statusCode == 200 || response.statusCode == 206) {
         return true;
       } else if (response.statusCode == 403 ||
@@ -393,8 +410,6 @@ class YouTubeProvider {
     } catch (e) {
       logger.w('[YouTube] Inconclusive error checking stream URL validity', error: e);
       return true;
-    } finally {
-      client.close(force: true);
     }
   }
 
@@ -425,6 +440,7 @@ class YouTubeProvider {
     for (YouTubeEngine engine in preferredEngineOrder) {
       String streamURL = '';
       YouTubeStreamResult? streamResult;
+      bool alreadyValidated = false;
 
       switch (engine) {
         case YouTubeEngine.YouTubeKit:
@@ -463,6 +479,7 @@ class YouTubeProvider {
             try {
               streamURL = await _getStreamUrlUsingNewPipeDesktop(videoId);
               streamResult = YouTubeStreamResult(url: streamURL, format: 'm4a', bitrate: 160);
+              alreadyValidated = true;
             } catch (e) {
               logger.w(
                 "[YouTube/NewPipe] NewPipeExtractor (desktop) failed, falling back",
@@ -473,6 +490,7 @@ class YouTubeProvider {
             try {
               streamURL = await _getStreamUrlUsingNewPipeAndroid(videoId);
               streamResult = YouTubeStreamResult(url: streamURL, format: 'm4a', bitrate: 160);
+              alreadyValidated = true;
             } catch (e) {
               logger.w(
                 "[YouTube/NewPipe] NewPipeExtractor failed, falling back to YT-DLP",
@@ -550,6 +568,7 @@ class YouTubeProvider {
             final result = await _getStreamUsingYoutubeExplode(videoId);
             streamURL = result.url;
             streamResult = result;
+            alreadyValidated = true;
           } catch (e) {
             logger.w('[YouTube/Explode] Fallback failed', error: e);
           }
@@ -558,7 +577,7 @@ class YouTubeProvider {
       }
 
       if (streamURL.isNotEmpty) {
-        if (!await isStreamUrlValid(streamURL)) {
+        if (!alreadyValidated && !await isStreamUrlValid(streamURL)) {
           logger.w(
             "[YouTube] Stream URL from $engine is invalid (403/404), trying next engine...",
           );
@@ -884,6 +903,8 @@ class YouTubeProvider {
   /// Dispose resources
   void dispose() {
     _youtube.close();
+    _validationClient?.close(force: true);
+    _validationClient = null;
     unawaited(NewPipeManager.instance.dispose());
     unawaited(InnerTubeXBackend.instance.shutdown());
     unawaited(WispYtdlpManager.instance.dispose());

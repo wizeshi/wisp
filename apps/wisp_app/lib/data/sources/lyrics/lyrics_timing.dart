@@ -11,6 +11,12 @@ const int kLyricsInitialWaitingGapThresholdMs =
     kLyricsWaitingGapThresholdMs ~/ 2;
 const int kLyricsFadeOutWindowMs = 140;
 
+final RegExp _outerNonWordRegex = RegExp(r'^[^\w]+|[^\w]+$');
+final RegExp _wordCharRegex = RegExp(r'[\w]');
+final RegExp _whitespaceRegex = RegExp(r'\s+');
+final RegExp _musicNotesOnlyRegex = RegExp(r'^[♪]+$');
+final RegExp _punctuationRegex = RegExp(r'[\.,;:!?]');
+
 class LyricsTimingState {
   final int activeIndex;
   final Set<int> activeIndices;
@@ -212,7 +218,7 @@ List<TextSelection> resolveWordRanges(
 
     // If not found, try stripped punctuation match (e.g. word is "happen" but line is "happen,")
     if (idx < 0) {
-      final stripped = rawWord.replaceAll(RegExp(r'^[^\w]+|[^\w]+$'), '');
+      final stripped = rawWord.replaceAll(_outerNonWordRegex, '');
       if (stripped.isNotEmpty) {
         idx = lineContent.indexOf(stripped, pos);
       }
@@ -230,7 +236,7 @@ List<TextSelection> resolveWordRanges(
     } else {
       while (end < lineContent.length &&
           lineContent[end] != ' ' &&
-          !RegExp(r'[\w]').hasMatch(lineContent[end])) {
+          !_wordCharRegex.hasMatch(lineContent[end])) {
         end++;
       }
     }
@@ -657,9 +663,9 @@ bool _shouldKeepLyricsLine(LyricsLine line) {
   final trimmed = line.content.trim();
   if (trimmed.isEmpty) return false;
 
-  final normalized = trimmed.replaceAll(RegExp(r'\s+'), '');
+  final normalized = trimmed.replaceAll(_whitespaceRegex, '');
   if (normalized.isEmpty) return false;
-  if (RegExp(r'^[♪]+$').hasMatch(normalized)) return false;
+  if (_musicNotesOnlyRegex.hasMatch(normalized)) return false;
 
   return true;
 }
@@ -801,10 +807,10 @@ int _estimateLineActiveMs(String content, int availableSpanMs) {
 
   final charCount = trimmed.length;
   final wordCount = trimmed
-      .split(RegExp(r'\s+'))
+      .split(_whitespaceRegex)
       .where((w) => w.isNotEmpty)
       .length;
-  final punctuationCount = RegExp(r'[\.,;:!?]').allMatches(trimmed).length;
+  final punctuationCount = _punctuationRegex.allMatches(trimmed).length;
 
   final estimatedMs =
       520 + (charCount * 36) + (wordCount * 70) + (punctuationCount * 110);

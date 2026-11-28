@@ -191,6 +191,9 @@ abstract class AudioSource {
   /// Default priority weight (higher number = tried first in cascade).
   int get priority => 0;
 
+  /// Whether this audio source uses ISRC metadata during search.
+  bool get supportsIsrcSearch => false;
+
   /// Audio qualities delivered by this provider.
   Set<AudioQuality> get supportedQualities => {
         AudioQuality.standard,

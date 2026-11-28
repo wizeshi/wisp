@@ -3,12 +3,15 @@
 /// Local/mixed playlist store
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:wisp/core/utils/json.dart';
 import 'package:wisp/data/models/local_playlist.dart';
 import 'package:wisp/data/models/metadata_models.dart';
 import 'package:wisp/data/cache/folder_thumbnail_store.dart';
@@ -18,13 +21,22 @@ class LocalPlaylistState extends ChangeNotifier {
   static const String _prefsTrashKey = 'local_playlists_trash';
   static const String _prefsHiddenKey = 'local_hidden_provider_playlists';
 
+  final Directory? _testingStorageDir;
   final List<LocalPlaylist> _playlists = [];
   final List<LocalPlaylist> _trashed = [];
   final Set<String> _hiddenProviderPlaylistIds = {};
   LocalPlaylist? _lastDeleted;
   bool _initialized = false;
+  File? _playlistsFile;
+  File? _trashFile;
+  bool _usePrefsFallback = false;
+  Future<void>? _activeSave;
+  bool _pendingSavePlaylists = false;
+  bool _pendingSaveTrash = false;
+  bool _pendingSaveHidden = false;
 
-  LocalPlaylistState() {
+  LocalPlaylistState({Directory? storageDirectory})
+      : _testingStorageDir = storageDirectory {
     _loadPrefs();
   }
 
@@ -51,26 +63,83 @@ class LocalPlaylistState extends ChangeNotifier {
     return _toGenericPlaylist(playlist);
   }
 
+  Future<Directory?> _resolveStorageDirectory() async {
+    if (_testingStorageDir != null) return _testingStorageDir;
+    try {
+      return await getApplicationSupportDirectory();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_prefsKey);
-    if (raw != null) {
-      final list = json.decode(raw) as List;
-      _playlists
-        ..clear()
-        ..addAll(
-          list.map((e) => LocalPlaylist.fromJson(e as Map<String, dynamic>)),
-        );
+    final dir = await _resolveStorageDirectory();
+    if (dir != null) {
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      _playlistsFile = File('${dir.path}/local_playlists.json');
+      _trashFile = File('${dir.path}/local_playlists_trash.json');
+    } else {
+      _usePrefsFallback = true;
     }
-    final trashRaw = prefs.getString(_prefsTrashKey);
-    if (trashRaw != null) {
-      final list = json.decode(trashRaw) as List;
-      _trashed
-        ..clear()
-        ..addAll(
-          list.map((e) => LocalPlaylist.fromJson(e as Map<String, dynamic>)),
-        );
+
+    var migratedPlaylists = false;
+    var migratedTrash = false;
+
+    if (!_usePrefsFallback && _playlistsFile != null && await _playlistsFile!.exists()) {
+      final raw = await _playlistsFile!.readAsString();
+      if (raw.trim().isNotEmpty) {
+        final list = await JsonUtils.decode(raw) as List;
+        _playlists
+          ..clear()
+          ..addAll(
+            list.map((e) => LocalPlaylist.fromJson(e as Map<String, dynamic>)),
+          );
+      }
+    } else {
+      final raw = prefs.getString(_prefsKey);
+      if (raw != null) {
+        final list = await JsonUtils.decode(raw) as List;
+        _playlists
+          ..clear()
+          ..addAll(
+            list.map((e) => LocalPlaylist.fromJson(e as Map<String, dynamic>)),
+          );
+        if (!_usePrefsFallback) {
+          migratedPlaylists = true;
+          await prefs.remove(_prefsKey);
+        }
+      }
     }
+
+    if (!_usePrefsFallback && _trashFile != null && await _trashFile!.exists()) {
+      final trashRaw = await _trashFile!.readAsString();
+      if (trashRaw.trim().isNotEmpty) {
+        final list = await JsonUtils.decode(trashRaw) as List;
+        _trashed
+          ..clear()
+          ..addAll(
+            list.map((e) => LocalPlaylist.fromJson(e as Map<String, dynamic>)),
+          );
+      }
+    } else {
+      final trashRaw = prefs.getString(_prefsTrashKey);
+      if (trashRaw != null) {
+        final list = await JsonUtils.decode(trashRaw) as List;
+        _trashed
+          ..clear()
+          ..addAll(
+            list.map((e) => LocalPlaylist.fromJson(e as Map<String, dynamic>)),
+          );
+        if (!_usePrefsFallback) {
+          migratedTrash = true;
+          await prefs.remove(_prefsTrashKey);
+        }
+      }
+    }
+
     final hiddenRaw = prefs.getString(_prefsHiddenKey);
     if (hiddenRaw != null) {
       final list = json.decode(hiddenRaw) as List;
@@ -79,24 +148,85 @@ class LocalPlaylistState extends ChangeNotifier {
         ..addAll(list.map((e) => e.toString()));
     }
     _initialized = true;
+    if (migratedPlaylists || migratedTrash) {
+      await _savePrefs(
+        savePlaylists: migratedPlaylists,
+        saveTrash: migratedTrash,
+        saveHidden: false,
+      );
+    }
     notifyListeners();
   }
 
-  Future<void> _savePrefs() async {
+  Future<void> _savePrefs({
+    bool savePlaylists = true,
+    bool saveTrash = true,
+    bool saveHidden = true,
+  }) async {
     if (!_initialized) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _prefsKey,
-      json.encode(_playlists.map((p) => p.toJson()).toList()),
-    );
-    await prefs.setString(
-      _prefsTrashKey,
-      json.encode(_trashed.map((p) => p.toJson()).toList()),
-    );
-    await prefs.setString(
-      _prefsHiddenKey,
-      json.encode(_hiddenProviderPlaylistIds.toList()),
-    );
+    _pendingSavePlaylists = _pendingSavePlaylists || savePlaylists;
+    _pendingSaveTrash = _pendingSaveTrash || saveTrash;
+    _pendingSaveHidden = _pendingSaveHidden || saveHidden;
+
+    if (_activeSave != null) {
+      await _activeSave;
+      return;
+    }
+
+    Future<void> runSaves() async {
+      final prefs = await SharedPreferences.getInstance();
+      while (_pendingSavePlaylists || _pendingSaveTrash || _pendingSaveHidden) {
+        final doPlaylists = _pendingSavePlaylists;
+        final doTrash = _pendingSaveTrash;
+        final doHidden = _pendingSaveHidden;
+        _pendingSavePlaylists = false;
+        _pendingSaveTrash = false;
+        _pendingSaveHidden = false;
+
+        if (doPlaylists) {
+          final snapshot =
+              _playlists.map((p) => p.toJson()).toList(growable: false);
+          final encoded = await JsonUtils.encode(
+            snapshot,
+            itemCountHint: snapshot.length,
+          );
+          if (!_usePrefsFallback && _playlistsFile != null) {
+            await _playlistsFile!.writeAsString(encoded, flush: true);
+          } else {
+            await prefs.setString(_prefsKey, encoded);
+          }
+        }
+        if (doTrash) {
+          final snapshot =
+              _trashed.map((p) => p.toJson()).toList(growable: false);
+          final encoded = await JsonUtils.encode(
+            snapshot,
+            itemCountHint: snapshot.length,
+          );
+          if (!_usePrefsFallback && _trashFile != null) {
+            await _trashFile!.writeAsString(encoded, flush: true);
+          } else {
+            await prefs.setString(_prefsTrashKey, encoded);
+          }
+        }
+        if (doHidden) {
+          await prefs.setString(
+            _prefsHiddenKey,
+            json.encode(_hiddenProviderPlaylistIds.toList()),
+          );
+        }
+      }
+    }
+
+    final future = runSaves();
+    _activeSave = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_activeSave, future)) {
+        _activeSave = null;
+      }
+    }
   }
 
   GenericPlaylist _toGenericPlaylist(LocalPlaylist playlist) {
@@ -148,7 +278,7 @@ class LocalPlaylistState extends ChangeNotifier {
       thumbnailPath: thumbnailPath,
     );
     _playlists.add(playlist);
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: false, saveHidden: false);
     notifyListeners();
     return playlist;
   }
@@ -161,7 +291,7 @@ class LocalPlaylistState extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     _playlists[index] = updated;
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: false, saveHidden: false);
     notifyListeners();
   }
 
@@ -169,14 +299,19 @@ class LocalPlaylistState extends ChangeNotifier {
     final index = _playlists.indexWhere((p) => p.id == id);
     if (index < 0) return;
     final playlist = _playlists[index];
-    if (playlist.linkedId != null && playlist.linkedId!.isNotEmpty) {
-      _hiddenProviderPlaylistIds.add(playlist.linkedId!);
-    }
+    final hidProvider =
+        playlist.linkedId != null &&
+        playlist.linkedId!.isNotEmpty &&
+        _hiddenProviderPlaylistIds.add(playlist.linkedId!);
     // Soft-delete: move to trash so it can be restored.
     _lastDeleted = playlist;
     _trashed.add(playlist);
     _playlists.removeAt(index);
-    await _savePrefs();
+    await _savePrefs(
+      savePlaylists: true,
+      saveTrash: true,
+      saveHidden: hidProvider,
+    );
     notifyListeners();
   }
 
@@ -187,7 +322,7 @@ class LocalPlaylistState extends ChangeNotifier {
     final playlist = _trashed[index];
     await FolderThumbnailStore.instance.deleteThumbnail(playlist.thumbnailPath);
     _trashed.removeAt(index);
-    await _savePrefs();
+    await _savePrefs(savePlaylists: false, saveTrash: true, saveHidden: false);
     notifyListeners();
   }
 
@@ -197,13 +332,14 @@ class LocalPlaylistState extends ChangeNotifier {
     if (index < 0) return;
     final playlist = _trashed.removeAt(index);
     // If it was linked to a provider, make sure it's not hidden anymore.
+    var unhid = false;
     if (playlist.linkedId != null && playlist.linkedId!.isNotEmpty) {
-      _hiddenProviderPlaylistIds.remove(playlist.linkedId!);
+      unhid = _hiddenProviderPlaylistIds.remove(playlist.linkedId!);
     }
     _playlists.add(playlist);
     // If the restored playlist was the last deleted, clear the marker.
     if (_lastDeleted?.id == id) _lastDeleted = null;
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: true, saveHidden: unhid);
     notifyListeners();
   }
 
@@ -217,12 +353,13 @@ class LocalPlaylistState extends ChangeNotifier {
       return;
     }
     _trashed.removeAt(index);
+    var unhid = false;
     if (playlist.linkedId != null && playlist.linkedId!.isNotEmpty) {
-      _hiddenProviderPlaylistIds.remove(playlist.linkedId!);
+      unhid = _hiddenProviderPlaylistIds.remove(playlist.linkedId!);
     }
     _playlists.add(playlist);
     _lastDeleted = null;
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: true, saveHidden: unhid);
     notifyListeners();
   }
 
@@ -232,7 +369,7 @@ class LocalPlaylistState extends ChangeNotifier {
     if (providerId.isEmpty) return;
     final removed = _hiddenProviderPlaylistIds.remove(providerId);
     if (!removed) return;
-    await _savePrefs();
+    await _savePrefs(savePlaylists: false, saveTrash: false, saveHidden: true);
     notifyListeners();
   }
 
@@ -243,7 +380,7 @@ class LocalPlaylistState extends ChangeNotifier {
   ) async {
     final existing = getById(playlist.id);
     if (existing != null) return existing;
-    _hiddenProviderPlaylistIds.remove(playlist.id);
+    final unhid = _hiddenProviderPlaylistIds.remove(playlist.id);
     final now = DateTime.now();
     final local = LocalPlaylist(
       id: playlist.id,
@@ -256,7 +393,7 @@ class LocalPlaylistState extends ChangeNotifier {
       linkedSource: playlist.source,
     );
     _playlists.add(local);
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: false, saveHidden: unhid);
     notifyListeners();
     return local;
   }
@@ -273,7 +410,7 @@ class LocalPlaylistState extends ChangeNotifier {
       linkedSource: provider,
       updatedAt: DateTime.now(),
     );
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: false, saveHidden: false);
     notifyListeners();
   }
 
@@ -285,7 +422,7 @@ class LocalPlaylistState extends ChangeNotifier {
       linkedSource: null,
       updatedAt: DateTime.now(),
     );
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: false, saveHidden: false);
     notifyListeners();
   }
 
@@ -307,7 +444,7 @@ class LocalPlaylistState extends ChangeNotifier {
       thumbnailPath: savedPath,
       updatedAt: DateTime.now(),
     );
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: false, saveHidden: false);
     notifyListeners();
   }
 
@@ -344,7 +481,7 @@ class LocalPlaylistState extends ChangeNotifier {
       tracks: updatedTracks,
       updatedAt: now,
     );
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: false, saveHidden: false);
     notifyListeners();
   }
 
@@ -361,7 +498,7 @@ class LocalPlaylistState extends ChangeNotifier {
       tracks: updatedTracks,
       updatedAt: DateTime.now(),
     );
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: false, saveHidden: false);
     notifyListeners();
   }
 
@@ -388,7 +525,7 @@ class LocalPlaylistState extends ChangeNotifier {
       tracks: updatedTracks,
       updatedAt: DateTime.now(),
     );
-    await _savePrefs();
+    await _savePrefs(savePlaylists: true, saveTrash: false, saveHidden: false);
     notifyListeners();
   }
 }
